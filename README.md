@@ -48,7 +48,7 @@ brew install --cask wispagents/tap/wisp         # Homebrew: the desktop app (mac
 wisp "fix the flaky auth test"
 ```
 
-The Homebrew formula (`wisp-agents`) and cask (`wisp`, the app) live in [WispAgents/homebrew-tap](https://github.com/WispAgents/homebrew-tap) (the release workflow bumps it from [`packaging/homebrew`](packaging/homebrew/wisp-agents.rb)). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.57.0 bash`).
+The Homebrew formula (`wisp-agents`) and cask (`wisp`, the app) live in [WispAgents/homebrew-tap](https://github.com/WispAgents/homebrew-tap) (the release workflow bumps it from [`packaging/homebrew`](packaging/homebrew/wisp-agents.rb)). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.58.0 bash`).
 
 **Or download the desktop app** (no Node needed, it updates itself; macOS 13.3 or later). The builds aren't signed yet, so on a Mac the one-liner is the easy way: curl doesn't quarantine what it downloads, so macOS opens it without asking.
 
@@ -67,7 +67,7 @@ Every build is on the [latest release](https://github.com/WispAgents/wisp/releas
 | Channel | What it is | npm | Desktop app |
 |---|---|---|---|
 | **Stable** | Releases | `npm install -g wisp-agents` | [latest release](https://github.com/WispAgents/wisp/releases/latest) |
-| **Beta** | Previews of the next release (`0.57.0-beta.1`) | `npm install -g wisp-agents@next` | its [prerelease](https://github.com/WispAgents/wisp/releases) |
+| **Beta** | Previews of the next release (`0.58.0-beta.1`) | `npm install -g wisp-agents@next` | its [prerelease](https://github.com/WispAgents/wisp/releases) |
 | **Nightly** | `main`, built every night its full test suite passes (`0.44.3-nightly.20261028.317`) | `npm install -g wisp-agents@nightly` | [nightly release](https://github.com/WispAgents/wisp/releases/tag/nightly) (`releases/download/nightly/<name>`) |
 
 Set **Settings → General → Updates** to the one you want, and *Update to …* follows it. Beta and nightly also take a stable release once it's newer, so they never leave you behind; switching back to stable waits for the next release rather than going back a version. `WISP_VERSION=next` or `WISP_VERSION=nightly` picks one in `install.sh` (`--app` too, for nightly). Homebrew only has stable releases.
@@ -143,7 +143,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **Hand-offs keep your rules** | When a task goes to another harness (after a refusal, at a usage limit, or when you pick another one for a follow-up), the new agent's first turn opens with *What still holds*: the lines from your messages that rule something out or narrow it (*don't touch the migrations*, *only change server/auth*, *no new dependencies*) and the task's *Done when*. The thinking level carries over in the new harness's terms (Claude Code *max* becomes Codex *xhigh*). |
 | **Agent board** | One live board of every task, across every harness, account, machine and crew member: Working, Needs you, Review and Done, with Done and Follow up on each card. **Allowance board** keeps each account's usage windows on screen and shows what each period cost. Both are panes: apps pinned on home or beside your tasks, and you can have an agent make your own. See [Agent board and panes](#agent-board-and-panes). |
 | **Spells** | Change wisp itself while it runs: ask for a floating button that opens your PRs, a panel with your tool stats, a block agents can use in their reports, a different prompt box, quick replies, buttons on cards, a new look. An agent writes it as a *spell*; you try it in the window and keep it. Share one as a file, and turn any of them off to put wisp back as it was. See [Spells](#spells). |
-| **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.57.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
+| **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.58.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | **Usage** | Every finished turn carries a receipt (*38k tokens · 71% cache · 3% of weekly*), says *Past your plan* when it was billed beyond the plan, and names the subagents that ran and which model wrote the output. Settings → Usage adds spend, success rate and questions per project and per harness · model, how much of each Claude Code and Codex plan window is left, and which subagents used it. See [Usage](#usage). |
 | **wisp Cloud** | Your own wisp on a server, at [grid.trywisp.dev](https://grid.trywisp.dev): sign in with GitHub or Google and your agents keep working after you close the laptop. Use it from the browser, from wisp on your computer (Machines), from the Android app or as an app on your iPhone's Home Screen, and add your own computers to it so the phone and your other computers reach them with no SSH. Or run your own grid with `npx wisp-agents grid init`. See [wisp Cloud](#wisp-cloud). |
 | **Sign in from wisp** | Settings → Agents signs Claude Code, Codex and GitHub in for you: a link and a code, no terminal. For opencode Zen and Go, paste your API key there. The model picker only offers the agents you're signed in to. |
@@ -178,7 +178,7 @@ wisp btw <id> "did you do X?"     # ask on the side without interrupting the run
 wisp stop <id>
 wisp ship <id> [--draft]          # commit, push and open a PR for a worktree task
 wisp merge <id>                   # squash-merge its PR, fast-forward your local main
-wisp run release 0.57.0            # run a recipe; values fill its {params} (or version=0.57.0)
+wisp run release 0.58.0            # run a recipe; values fill its {params} (or version=0.58.0)
 wisp recipes                      # list recipes
 wisp usage [--days 7]             # spend and outcomes
 wisp computer on [--grid HOST]    # add this computer to your wisp Grid (signs in with a code first); off, or no word for its status
@@ -552,7 +552,7 @@ Before each turn, wisp snapshots the git working tree (pinned at `refs/wisp/chec
 Prepare release {version}: update CHANGELOG, README and docs/, bump package.json, tag v{version}.
 ```
 
-Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe may pin a project, harness, model and mode. Run it from ⌘K (*Run: Release*), from the Recipes view, or from a terminal: `wisp run release 0.57.0` fills the fields in order, `wisp run release version=0.57.0` by name.
+Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe may pin a project, harness, model and mode. Run it from ⌘K (*Run: Release*), from the Recipes view, or from a terminal: `wisp run release 0.58.0` fills the fields in order, `wisp run release version=0.58.0` by name.
 
 **Triggers** launch sessions on their own while wisp is open (⌘K → *Triggers*):
 

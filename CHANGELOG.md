@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-11-11
+
 ### Added
 
 - **The task list tints to the crew member you pick.** With the crew rail, picking someone tints the task panel a very light wash of their colour, so the list beside the rail says whose jobs it holds. Each member’s editor now has **Task panel**: their glow (the default), none, or any of the eight crew colours. Settings → Appearance → **Crew tint** turns it off for the whole page, and spells can set `crewTint`.
