@@ -2,14 +2,14 @@
 // servers every task's agent gets. Servers found in the harnesses' own configs are offered once (Review, or
 // Not now); each connector is a row with its check (tools, or why it failed), its switch and its menu (Check
 // again, Edit, Sign in or out, Remove); an empty list offers starting points. Every write shows at once.
-import { createMemo, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
+import { createMemo, createSignal, For, onCleanup, Show, untrack, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
 import { Button, Inline, Menu, Pill, SettingsGroup, SettingsRow, Switch, Text, useSignal } from '@wisp/ui';
 import { addConnector, importFound, removeConnector, signIn, signOut, testConnector, updateConnector } from '../commands.ts';
 import { homeRow, homeRows } from '../data.ts';
 import { t } from '../i18n.ts';
-import { bodyOf, commandLine, draftOf, emptyDraft, EXAMPLES, harnessName, hostOf, listOf, sourcesOf, statusOf, stillSigning, type Draft } from '../lib.ts';
+import { bodyOf, commandLine, draftOf, emptyDraft, EXAMPLES, exampleFor, isFor, harnessName, hostOf, listOf, sourcesOf, statusOf, stillSigning, type Draft } from '../lib.ts';
 import { KIND, REACH_ID, TOPIC, type ConnectorView, type FoundServer, type Reach } from '../types.ts';
 import { Confirm } from './Confirm.tsx';
 import { Editor } from './Editor.tsx';
@@ -57,6 +57,18 @@ export default function Connectors(props: { readonly client: PluginClient }): JS
   const [reviewing, setReviewing] = createSignal(false);
   const [removing, setRemoving] = createSignal<ConnectorView | undefined>();
   const [signing, setSigning] = createSignal<Record<string, number>>({});
+  // opened for an issue source (the issue picker's Connect Linear… / Jira…: Settings' params `connector`): yours
+  // to sign in again, or a new one filled in (v1 openConnectorFor)
+  untrack(() => {
+    const asked = (shell.nav().overlays.at(-1)?.params as { connector?: unknown } | undefined)?.connector;
+    if (typeof asked !== 'string') return;
+    const have = (list() as ConnectorView[]).find((x) => isFor(asked, x));
+    if (have) setEditing({ draft: draftOf(have), id: have.id });
+    else {
+      const ex = exampleFor(asked);
+      if (ex) setEditing({ draft: ex.draft });
+    }
+  });
   const rows = createMemo(() => [...(list() as ConnectorView[])].sort((a, b) => a.name.localeCompare(b.name)));
   const names = (): ReadonlyMap<string, string> => new Map();
   const isSigning = (x: ConnectorView): boolean => {

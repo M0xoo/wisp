@@ -121,6 +121,8 @@ export interface Example {
   readonly draft: Draft;
 }
 export const EXAMPLES: readonly Example[] = [
+  { label: 'Linear', draft: { ...emptyDraft(), name: 'linear', transport: 'remote', url: 'https://mcp.linear.app/mcp' } },
+  { label: 'Jira', draft: { ...emptyDraft(), name: 'atlassian', transport: 'remote', url: 'https://mcp.atlassian.com/v1/mcp' } },
   { label: 'PostHog', draft: { ...emptyDraft(), name: 'posthog', transport: 'remote', url: 'https://mcp.posthog.com/mcp' } },
   { label: 'GitHub', draft: { ...emptyDraft(), name: 'github', transport: 'remote', url: 'https://api.githubcopilot.com/mcp/', headers: [{ key: 'Authorization', value: '', set: false, placeholder: 'Bearer ghp_…' }] } },
   { label: 'Filesystem', draft: { ...emptyDraft(), name: 'filesystem', command: 'npx -y @modelcontextprotocol/server-filesystem ~/Documents' } },
@@ -158,3 +160,9 @@ export const sourcesOf = (found: readonly FoundServer[]): string[] => [...new Se
 
 /** The one line the import review shows under a found server's name. */
 export const foundLine = (f: FoundServer): string => (f.transport === 'local' ? commandLine(f) : (f.url ?? ''));
+
+/** An issue source's starting point ('linear', 'jira'; the issue picker's Connect Linear… / Jira…), or undefined. */
+export const exampleFor = (source: string): Example | undefined => EXAMPLES.find((x) => x.label.toLowerCase() === source);
+
+/** Whether a connector is for that issue source: its name, URL or command says so, as wisp.issues reads it. */
+export const isFor = (source: string, c: Pick<ConnectorView, 'name' | 'url' | 'command' | 'args'>): boolean => (source === 'jira' ? /jira|atlassian/i : /linear/i).test([c.name, c.url, c.command, ...c.args].join(' '));

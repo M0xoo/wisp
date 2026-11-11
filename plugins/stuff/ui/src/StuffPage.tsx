@@ -8,14 +8,18 @@ import { entityKey, ownerOf, type EntityKey, type PluginClient, type SessionId }
 import { useShell } from '@wisp/shell';
 import { Button, Card, EmptyState, Icon, Inline, Input, Menu, Stack, Text, Wrap } from '@wisp/ui';
 import { itemActions, type ActionId } from './actions.ts';
-import { launchApp, removeItem, revealItem, stopApp, updateItem } from './commands.ts';
+import { launchApp, publishApp, publishTargets, removeItem, revealItem, stopApp, unpublishApp, updateItem } from './commands.ts';
+import { stuffState } from './state.ts';
 import { useEntries, type Entry } from './items.ts';
 import { kindOf } from './kinds.ts';
 import { cardMeta, groupItems, kindChips, shownItems, when, type KindFilter } from './model.ts';
 import { TOPIC } from './types.ts';
 
-/** The actions this page carries out; the rest (pins, publish, edit) live where they're done. */
-const HERE: ReadonlySet<ActionId> = new Set(['open', 'stop', 'copy', 'download', 'star', 'task', 'folder', 'remove']);
+/** The actions this page carries out; the rest (pins, edit) live where they're done. */
+const HERE: ReadonlySet<ActionId> = new Set(['open', 'stop', 'publish', 'pubcopy', 'pubopen', 'update', 'unpublish', 'copy', 'download', 'star', 'task', 'folder', 'remove']);
+
+/** a link without its scheme, as v1 shows it */
+const bare = (url: string): string => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
 const fileUrl = (e: Entry): string => `/api/stuff/${encodeURIComponent(e.it.id)}/file`;
 
@@ -27,6 +31,12 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
   onCleanup(() => scope.dispose());
   c.watch(c.home, TOPIC, scope);
   const entries = useEntries(c);
+  // where an app can be published: the grids this computer is on (none: no Publish)
+  const st = stuffState(c);
+  c.run(publishTargets, { peer: c.home }).then(
+    (ts) => st.setPublishTo(ts.map((x) => x.host).filter(Boolean)),
+    () => {},
+  );
   const [q, setQ] = createSignal('');
   const [kind, setKind] = createSignal<KindFilter>('all');
   const byKey = createMemo(() => new Map(entries().map((e) => [e.it.id, e])));
@@ -56,6 +66,36 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
         return;
       case 'stop':
         return quiet(c.run(stopApp, args));
+      // Publish (again): a link anyone can open on your grid; its row says publishing until the grid answers
+      case 'publish':
+      case 'update': {
+        const again = !!e.it.published;
+        c.run(publishApp, args).then(
+          (next) => {
+            const url = next.published?.url;
+            if (!url) return;
+            void shell.platform.copy(url).then((copied) =>
+              shell.toast.success(t(again ? 'stuff.page.updated' : 'stuff.page.published', { at: bare(url) }), { ...(copied && { description: t('stuff.page.linkCopied') }), action: { label: t('stuff.page.openLink'), onClick: () => window.open(url, '_blank', 'noopener') } }),
+            );
+          },
+          () => {},
+        );
+        return;
+      }
+      case 'unpublish': {
+        const was = e.it.published?.url ?? '';
+        c.run(unpublishApp, args).then(
+          () => shell.toast.show(t('stuff.page.unpublished', { at: bare(was) })),
+          () => {},
+        );
+        return;
+      }
+      case 'pubopen':
+        if (e.it.published?.url) window.open(e.it.published.url, '_blank', 'noopener');
+        return;
+      case 'pubcopy':
+        void shell.platform.copy(e.it.published?.url ?? '').then((ok) => shell.toast.show(t(ok ? 'stuff.page.copied' : 'stuff.page.copyFailed')));
+        return;
       case 'copy':
         void navigator.clipboard.writeText(e.it.kind === 'link' ? (e.it.url ?? '') : (e.it.excerpt ?? '')).catch(() => {});
         return;
@@ -91,7 +131,7 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
 
   const card = (e: Entry): JSX.Element => {
     const k = kindOf(e.it.kind);
-    const actions = () => itemActions(e.it, { pinnedTask: false, pinnedHome: false, task: !!e.it.from?.session, mobile: false }).filter((a) => HERE.has(a.id));
+    const actions = () => itemActions(e.it, { ...(st.publishTo()[0] && { publishTo: st.publishTo()[0] }), pinnedTask: false, pinnedHome: false, task: !!e.it.from?.session, mobile: false }).filter((a) => HERE.has(a.id));
     return (
       <Card part="stuff.card" as="li" interactive onClick={() => run(e, 'open')}>
         <Stack gap="2">
