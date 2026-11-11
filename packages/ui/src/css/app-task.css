@@ -105,6 +105,16 @@
   [data-kit='turn-acts'] > li { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
   [data-kit='turn-acts'] > li > [data-kit='icon'] { width: 13px; height: 13px; flex: none; color: var(--faint); }
   [data-kit='turn-acts'] > li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='turn-acts'] > li { flex-wrap: wrap; }
+  [data-kit='turn-acts'] > li[data-bad] { color: var(--bad); }
+  [data-kit='turn-act-fold'] { all: unset; display: flex; align-items: center; gap: var(--space-4); min-width: 0; flex: 1; cursor: pointer; }
+  [data-kit='turn-act-fold'] > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='turn-act-fold'] > [data-kit='icon'] { width: 13px; height: 13px; flex: none; color: var(--faint); }
+  [data-kit='turn-act-fold'] > [data-kit='icon']:last-child { margin-left: auto; transition: transform 120ms; }
+  [data-kit='turn-act-fold'][aria-expanded='true'] > [data-kit='icon']:last-child { transform: rotate(90deg); }
+  [data-kit='turn-act-fold']:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+  [data-kit='turn-act-detail'] { font-family: var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='turn-act-out'] { flex-basis: 100%; margin: var(--space-2) 0 var(--space-2) calc(13px + var(--space-4)); padding: var(--space-4); max-height: 320px; overflow: auto; font: var(--fs-xs) / 1.5 var(--mono); color: var(--ink); background: var(--bg-2); border-radius: var(--radius-md); white-space: pre-wrap; }
   [data-kit='tb-btn'][data-on] { opacity: 1; background: var(--bg-2); }
   [data-kit='l-goal'][data-in='reply'] { margin: 0 0 var(--space-2); }
   [data-kit='trail-bar'] { display: flex; align-items: center; gap: var(--space-2) 14px; padding: var(--space-4) var(--space-1); border-top: 1px solid var(--line); font-size: var(--fs-sm); color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }

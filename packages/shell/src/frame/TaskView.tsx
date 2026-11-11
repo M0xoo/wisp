@@ -7,13 +7,13 @@
 
 import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
-import { Answer, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
+import { Answer, Button, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
-import { longTime, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
-import { archive, followUp, fork, remove, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
+import { changeFigures, duration, folded, longTime, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
+import { archive, followUp, fork, remove, rename, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
 import { harnessOf } from './harness.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
 
@@ -37,7 +37,7 @@ interface EventRow {
   readonly seq: number;
   readonly turn_id: string;
   readonly kind?: string;
-  readonly body?: { readonly kind?: string; readonly tool?: string; readonly label?: string; readonly text?: string };
+  readonly body?: { readonly kind?: string; readonly tool?: string; readonly label?: string; readonly text?: string; readonly detail?: string; readonly output?: string; readonly callId?: string; readonly name?: string };
 }
 
 interface TurnRow {
@@ -82,6 +82,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const [notesOpen, setNotesOpen] = createSignal(false);
   const [restoring, setRestoring] = createSignal(false);
   const [picking, setPicking] = createSignal(false);
+  // older turns fold away (v1 transcript.js): Show earlier opens them for this view
+  const [unfolded, setUnfolded] = createSignal(false);
+  const fold = createMemo(() => folded(turns(), unfolded()));
   const [files, setFiles] = createSignal<readonly File[]>([]);
   const [team, setTeam] = createSignal<ReadonlySet<string>>(new Set());
   const [goal, setGoalText] = createSignal<string | undefined>(undefined);
@@ -180,23 +183,38 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                 <>
                 {/* the band over the turns (wisp.goal's): `shell.task:band`, the task's row as its session */}
                 <Slot input="shell.task:band" layout="stack" id={key} session={() => s() as never} />
-                <For each={turns()}>
+                <Show when={fold().hidden > 0}>
+                  <Button size="sm" variant="ghost" icon="chevron" part="turn.fold" onClick={() => setUnfolded(true)}>
+                    {t('shell.task.earlier', { n: fold().hidden })}
+                  </Button>
+                </Show>
+                <For each={fold().shown}>
                   {(turn) => {
                     const b = turn.body;
                     const hero = b.presentation?.blocks?.find((x) => x.type === 'hero');
                     // the steps come as the turn's events (the task's topic); a turn row that carries its own still reads
-                    const steps = createMemo(() => {
-                      const ev = stepsOf(turn.id).filter((e) => (e.kind ?? e.body?.kind) === 'tool');
-                      return ev.length ? ev.map((e) => ({ kind: e.body?.tool ?? 'tool', label: e.body?.label })) : (b.activity ?? []);
+                    const steps = createMemo((): { kind: string; label?: string; detail?: string; out?: string; bad?: boolean }[] => {
+                      const all = stepsOf(turn.id);
+                      const kindOf = (e: EventRow): string => e.kind ?? e.body?.kind ?? '';
+                      // a tool's output: on the step itself, or the tool_output that names its call
+                      const outputs = new Map(all.filter((e) => kindOf(e) === 'tool_output' && e.body?.callId).map((e) => [e.body?.callId ?? '', e.body?.text ?? '']));
+                      const ev = all.filter((e) => kindOf(e) === 'tool' || kindOf(e) === 'tool_error');
+                      if (!ev.length) return [...(b.activity ?? [])];
+                      return ev.map((e) =>
+                        kindOf(e) === 'tool_error'
+                          ? { kind: 'error', label: e.body?.text ?? e.body?.name ?? '', bad: true }
+                          : { kind: e.body?.tool ?? 'tool', label: e.body?.label ?? '', ...(e.body?.detail && { detail: e.body.detail }), ...((e.body?.output ?? outputs.get(e.body?.callId ?? '')) && { out: e.body?.output ?? outputs.get(e.body?.callId ?? '') ?? '' }) },
+                      );
                     });
                     const cwd = String((s() as { body?: { cwd?: string } }).body?.cwd ?? s().summary['cwd'] ?? '');
                     const here = (text: string): string => (cwd ? text.replace(new RegExp(`(/private)?${cwd.replace(/^\/private/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?`, 'g'), '') : text);
                     const count = (k: string): number => steps().filter((a) => a.kind === k).length;
                     const blocks = b.presentation?.blocks ?? [];
                     const changes = b.ext?.['wisp.runtime']?.changes ?? b.changes ?? [];
-                    const edits = changes.reduce((n, c) => n + (c.edits?.length ?? 0), 0);
+                    const figures = changeFigures(changes);
                     const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
                     return (
+                      <>
                       <TurnView
                         prompt={turn.prompt}
                         harness={h().name}
@@ -213,10 +231,10 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                           { icon: 'pen', text: String(count('edit')), title: t('shell.task.edited', { n: count('edit') }) },
                           { icon: 'terminal', text: String(count('run')), title: t('shell.task.ran', { n: count('run') }) },
                         ]}
-                        stats={[{ text: `${Math.max(0, (b.endedAt ?? turn.started_at) - turn.started_at)}ms` }, { text: `$${(b.stats?.costUsd ?? 0).toFixed(2)}` }]}
+                        stats={[{ text: duration((b.endedAt ?? (turn.status === 'running' ? Date.now() : turn.started_at)) - turn.started_at) }, ...(b.stats?.costUsd !== undefined ? [{ text: `$${b.stats.costUsd.toFixed(2)}` }] : [])]}
                         receipt={{ text: t('shell.task.tokens', { n: tokens }), title: t('shell.task.tokensTitle', { n: tokens }) }}
-                        {...(changes.length > 0 && { files: { label: t('shell.task.files', { n: changes.length }), plus: `+${edits ? 1 : 0}`, minus: `−${edits ? 1 : 0}`, act: { onClick: () => side('changes') } } })}
-                        activity={{ open: stepsOpen(), onToggle: () => setStepsOpen(!stepsOpen()), items: steps().map((a) => ({ icon: ACT_ICON[a.kind] ?? 'tool', text: here(a.label ?? a.kind) })) }}
+                        {...(changes.length > 0 && { files: { label: t('shell.task.files', { n: figures.files }), plus: `+${figures.plus}`, minus: `−${figures.minus}`, act: { onClick: () => side('changes') } } })}
+                        activity={{ open: stepsOpen(), onToggle: () => setStepsOpen(!stepsOpen()), items: steps().map((a) => ({ icon: ACT_ICON[a.kind] ?? 'tool', text: here(a.label ?? a.kind), ...(a.detail && { detail: here(a.detail) }), ...(a.out && { out: here(a.out) }), ...(a.bad && { bad: true }) })) }}
                         {...(notesOpen() && { notes: String((b as { presentation?: { notes?: string } }).presentation?.notes ?? t('shell.task.noNotes')) })}
                         tools={[
                           { id: 'notes', icon: 'text', label: t('shell.task.notes'), on: notesOpen(), act: { onClick: () => setNotesOpen(!notesOpen()) } },
@@ -235,6 +253,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                           { id: 'fork', icon: 'fork', label: t('shell.task.fork'), part: 'turn.fork', act: { onClick: () => copy(fork) } },
                         ]}
                       />
+                      {/* under each turn, what plugins say of it (shell-task's cards: why it stopped, held, what changed, the receipt): `shell.turn:foot`, the turn's key as its id */}
+                      <Slot input="shell.turn:foot" layout="stack" id={entityKey(peer, turn.id)} session={() => s() as never} />
+                      </>
                     );
                   }}
                 </For>
@@ -294,6 +315,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
               closeLabel={t('shell.task.close')}
               {...(props.onBack && { onBack: props.onBack, backLabel: t('shell.home.back') })}
               onClose={() => shell.navigate({ t: 'home' })}
+              onRename={(title) => void run(rename, { id: key, title }).catch(() => undefined)}
               onPanel={() => side('changes')}
               panelOn={nav().side.kind !== 'none'}
             />

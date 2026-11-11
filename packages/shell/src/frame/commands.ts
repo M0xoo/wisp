@@ -75,6 +75,8 @@ export const followUp = defineCommand<{ id: string; text: string; turnId: string
 export const markRead = defineCommand<{ id: string; unread: boolean }>({ id: 'runtime.markRead', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/unread', a.unread) });
 
 /** Mark done: the row moves to Done at once. */
+/** Rename in place (the head's title): the title changes everywhere at once. */
+export const rename = defineCommand<{ id: string; title: string }>({ id: 'runtime.rename', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id), title: a.title }), optimistic: (_b, a) => patch(a.id, '/title', a.title) });
 export const setState = defineCommand<{ id: string; state: 'running' | 'review' | 'done' | 'error' }>({ id: 'runtime.setState', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/state', a.state) });
 
 /** Save for later: the bookmark fills at once. */

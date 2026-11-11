@@ -42,6 +42,8 @@ export const INPUTS = {
   'shell.task:band': 'goal.band',
   // added 2026-11-10 (additive): over the reply box, what waits on you (the agent's question, the queued follow-ups)
   'shell.task:foot': 'task.foot',
+  // added 2026-11-10 (additive): under each turn (its key as the id), what plugins say of it (why it stopped, held, the receipt)
+  'shell.turn:foot': 'turn.foot',
   'shell.side:head': 'panel.head',
   'shell.term:head': 'term.head',
   // composer and new task

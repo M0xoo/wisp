@@ -22,10 +22,13 @@ export interface TaskHeadProps {
   readonly panelOn?: boolean;
   /** what plugins put in the head (v1 SLOTS split.head), before its own buttons */
   readonly actions?: JSX.Element;
+  /** rename in place (v1 split.js): a click on the title edits it; Enter keeps, Escape or an empty title cancels */
+  readonly onRename?: (title: string) => void;
 }
 
 /** v1 #splitHead: the dot, the title, the side panel and close buttons (back on a phone). */
 export function TaskHead(props: TaskHeadProps): JSX.Element {
+  const [editing, setEditing] = createSignal(false);
   return (
     <header data-kit="split-head" data-part="split.head" data-color={props.color} data-drag="">
       <div data-kit="sh-row">
@@ -34,7 +37,47 @@ export function TaskHead(props: TaskHeadProps): JSX.Element {
             <Icon name="back" />
           </button>
         </Show>
-        <h2 data-kit="sh-title" data-part="split.title" title={props.renameLabel} data-no-drag="">{props.title}</h2>
+        <h2
+          data-kit="sh-title"
+          data-part="split.title"
+          title={props.renameLabel}
+          data-no-drag=""
+          contentEditable={editing() ? 'plaintext-only' : undefined}
+          aria-label={editing() ? props.renameLabel : undefined}
+          onClick={(e) => {
+            if (!props.onRename || editing()) return;
+            setEditing(true);
+            const el = e.currentTarget;
+            queueMicrotask(() => {
+              el.focus();
+              const r = document.createRange();
+              r.selectNodeContents(el);
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(r);
+            });
+          }}
+          onKeyDown={(e) => {
+            if (!editing()) return;
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            } else if (e.key === 'Escape') {
+              e.currentTarget.textContent = props.title;
+              setEditing(false);
+              e.currentTarget.blur();
+            }
+          }}
+          onBlur={(e) => {
+            if (!editing()) return;
+            setEditing(false);
+            const next = (e.currentTarget.textContent ?? '').replace(/\s+/g, ' ').trim();
+            if (next && next !== props.title) props.onRename?.(next);
+            else e.currentTarget.textContent = props.title;
+          }}
+        >
+          {props.title}
+        </h2>
         <span data-kit="sh-acts">
           {props.actions}
           <Show when={!props.onBack}>
@@ -150,7 +193,8 @@ export interface TurnViewProps {
   readonly files?: { readonly label: string; readonly plus: string; readonly minus: string; readonly act?: Act };
   readonly tools: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly part?: string; readonly act?: Act; readonly on?: boolean }[];
   /** the steps it took, shown under the brief (the trail's counts open them) */
-  readonly activity?: { readonly items: readonly { readonly icon: IconName; readonly text: string }[]; readonly open: boolean; readonly onToggle: () => void };
+  /** the turn's steps; a step with `out` (its output, an error's text) folds open to it (v1 transcript.js) */
+  readonly activity?: { readonly items: readonly { readonly icon: IconName; readonly text: string; readonly detail?: string; readonly out?: string; readonly bad?: boolean }[]; readonly open: boolean; readonly onToggle: () => void };
   /** the agent's notes, shown under the brief */
   readonly notes?: string;
   /** still running: what it's doing, in place of the trail */
@@ -198,12 +242,33 @@ export function TurnView(props: TurnViewProps): JSX.Element {
         {(a) => (
           <ul data-kit="turn-acts">
             <For each={a().items}>
-              {(it) => (
-                <li>
-                  <Icon name={it.icon} />
-                  <span>{it.text}</span>
-                </li>
-              )}
+              {(it) => {
+                const [open, setOpen] = createSignal(false);
+                return (
+                  <li data-bad={flag(it.bad)}>
+                    <Show
+                      when={it.out}
+                      fallback={
+                        <>
+                          <Icon name={it.icon} />
+                          <span>{it.text}</span>
+                          <Show when={it.detail}>{(d) => <code data-kit="turn-act-detail">{d()}</code>}</Show>
+                        </>
+                      }
+                    >
+                      <button type="button" data-kit="turn-act-fold" aria-expanded={open()} onClick={() => setOpen(!open())}>
+                        <Icon name={it.icon} />
+                        <span>{it.text}</span>
+                        <Show when={it.detail}>{(d) => <code data-kit="turn-act-detail">{d()}</code>}</Show>
+                        <Icon name="chevron" />
+                      </button>
+                      <Show when={open()}>
+                        <pre data-kit="turn-act-out">{it.out}</pre>
+                      </Show>
+                    </Show>
+                  </li>
+                );
+              }}
             </For>
           </ul>
         )}

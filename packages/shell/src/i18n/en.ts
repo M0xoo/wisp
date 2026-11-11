@@ -188,6 +188,7 @@ export const SHELL_STRINGS = {
   'shell.task.tokens': '{n} tokens',
   'shell.task.tokensTitle': '{n} tokens read and written',
   'shell.task.files': '{n} file',
+  'shell.task.earlier': 'Show {n} earlier turns',
   'shell.task.notes': 'Agent notes',
   'shell.task.rollback': 'Restore to before this turn',
   'shell.task.fork': 'Fork from this turn',

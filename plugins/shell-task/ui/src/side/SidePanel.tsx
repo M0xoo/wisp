@@ -1,13 +1,16 @@
 // The side panel beside the open task (v1 features/panel.js): its head (Changes · PR · Shell, then close) and
 // the pane. Changes: every file the work changed since it left its base, committed or not, from git
-// (`git.changes`, the worktree's base, else HEAD); a folder that isn't a repo shows the turns' own edits.
-import { Show, createMemo, createResource, type JSX } from 'solid-js';
+// (`git.changes`, the worktree's base, else HEAD); a folder that isn't a repo shows the turns' own edits. PR
+// (PrPane.tsx, `ship.details`) and Shell (ShellPane.tsx, wisp.terminal).
+import { Match, Show, Switch, createMemo, createResource, type JSX } from 'solid-js';
 import { defineCommand, type EntityKey } from '@wisp/client';
 import { Box, Diff, EmptyState, IconButton, Inline, Stack, Tabs, Text, useSignal } from '@wisp/ui';
 import type { SidePane } from '../open-task.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
 import { filesOf, gitFiles, type ChangeTurn, type GitChanges } from './changes.ts';
+import { PrPane } from './PrPane.tsx';
+import { ShellPane } from './ShellPane.tsx';
 
 /** wisp-git's read: the work's diff since `base` (its peer is the task's). */
 const gitChanges = defineCommand<{ key: EntityKey; path: string; base: string }, GitChanges>({ id: 'git.changes', owner: (a) => a.key, optimistic: 'none', pending: 'the Changes pane' });
@@ -65,9 +68,17 @@ export function SidePanel(props: { readonly pane: SidePane }): JSX.Element {
         <Box grow />
         <IconButton icon="x" size="sm" label={t('shell-task.side.close')} onClick={() => shell.navigate({ t: 'closeSide' })} />
       </Inline>
-      <Show when={props.pane === 'changes'} fallback={<EmptyState icon="panel" title={t('shell-task.side.later')} compact />}>
-        <Changes />
-      </Show>
+      <Switch>
+        <Match when={props.pane === 'changes'}>
+          <Changes />
+        </Match>
+        <Match when={props.pane === 'pr'}>
+          <PrPane />
+        </Match>
+        <Match when={props.pane === 'shell'}>
+          <ShellPane />
+        </Match>
+      </Switch>
     </Stack>
   );
 }

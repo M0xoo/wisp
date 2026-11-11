@@ -83,3 +83,35 @@ export function overlapOf(s: SessionRow, titleOf: (id: string) => string, t: She
   if (!all.length) return undefined;
   return { n: all.length, title: all.map((o) => `“${titleOf(o.id)}”: ${overlapLine(o, t)}`).join('\n') };
 }
+
+/** A turn's time as v1 shows it: `369ms`, `12s`, `3m 4s`, `1h 2m`. */
+export function duration(ms: number): string {
+  const n = Math.max(0, Math.round(ms));
+  if (n < 1000) return `${n}ms`;
+  const s = Math.round(n / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+/** A turn's files and lines: each edit counts its new text's lines added and its old text's lines removed. */
+export function changeFigures(changes: readonly { readonly file: string; readonly edits?: readonly unknown[] }[]): { files: number; plus: number; minus: number } {
+  const lines = (s: unknown): number => (typeof s === 'string' && s !== '' ? s.replace(/\n$/, '').split('\n').length : 0);
+  let plus = 0;
+  let minus = 0;
+  for (const c of changes) {
+    for (const e of c.edits ?? []) {
+      const x = e as { before?: unknown; after?: unknown };
+      plus += lines(x.after);
+      minus += lines(x.before);
+    }
+  }
+  return { files: new Set(changes.map((c) => c.file)).size, plus, minus };
+}
+
+/** Older turns fold away behind one line once a task has more than `keep` (v1 transcript.js): the newest stay. */
+export function folded<T>(turns: readonly T[], open: boolean, keep = 3): { hidden: number; shown: readonly T[] } {
+  if (open || turns.length <= keep + 1) return { hidden: 0, shown: turns };
+  return { hidden: turns.length - keep, shown: turns.slice(-keep) };
+}

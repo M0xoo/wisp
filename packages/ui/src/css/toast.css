@@ -3,7 +3,10 @@
    peek out behind it until pointed at. The shell sets --toast-bottom to clear a pinned reply box. */
 @layer kit {
   [data-kit='toasts'] {
-    z-index: var(--z-toast); left: 50%; translate: -50% 0; width: min(var(--size-toast), calc(100vw - var(--space-8)));
+    z-index: var(--z-toast); translate: -50% 0; width: min(var(--size-toast), calc(100vw - var(--space-8)));
+    /* !important: Zag sets inset-inline-start/-end inline (1rem from each edge), which put the centred stack half
+       off the left edge; bottom centre is v1's place. */
+    left: 50% !important; right: auto !important;
     /* !important: Zag sets bottom inline from its offsets; the kit owns the clearance instead. */
     bottom: calc(var(--toast-bottom, var(--space-8)) + env(safe-area-inset-bottom, 0px)) !important;
   }

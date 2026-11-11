@@ -1,8 +1,14 @@
-// A turn's receipt: time, cost, tokens, files (v1 receipt.js, compare-metrics.js).
-// Stub until it is built: renders nothing.
+// A turn's usage receipt (v1 receipt.js, turns.js receiptHtml): after the turn's token count, quiet, the share of
+// what it read that came from the cache, its share of the plan's longest window, and Past your plan; every window
+// and the whole count in the title.
 import type { JSX } from 'solid-js';
-import type { TurnRow } from '../types.ts';
+import { Text } from '@wisp/ui';
+import type { ReceiptLine } from './model.ts';
 
-export function Receipt(_props: { readonly turn: TurnRow }): JSX.Element {
-  return null;
+export function Receipt(props: { readonly line: ReceiptLine }): JSX.Element {
+  return (
+    <Text size="sm" tone="muted" part="turn.receipt" title={props.line.tip} truncate>
+      {props.line.parts.join(' · ')}
+    </Text>
+  );
 }

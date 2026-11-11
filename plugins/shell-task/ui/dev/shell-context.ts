@@ -15,7 +15,12 @@ export function devShell(client: Client, toaster: Toaster = createToaster()): Sh
     client,
     nav: () => client.nav.nav(),
     navigate: (intent) => client.nav.navigate(intent),
-    t: (key, vars) => fill((CATALOGUE as Record<string, string>)[key] ?? key, vars),
+    t: (key, vars) => {
+      const c = CATALOGUE as Record<string, string>;
+      // plurals as the shell picks them: `<key>.one` / `<key>.other` by `count`
+      const plural = typeof vars?.['count'] === 'number' ? c[`${key}.${vars['count'] === 1 ? 'one' : 'other'}`] : undefined;
+      return fill(c[key] ?? plural ?? key, vars);
+    },
     toast: toaster,
     platform: nullPlatform(),
     theme: { pref: () => 'system', resolved: () => 'light', set: async () => {} },
