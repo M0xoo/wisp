@@ -6,4 +6,12 @@ import type { TurnStatus } from "./TurnStatus";
 /**
  * Every end, quiet ones too (telemetry, budget).
  */
-export type TurnEnded = { sessionId: SessionId, turnId: TurnId, status: TurnStatus, interrupted: boolean, errorText?: string, costUsd?: number, changedFiles?: number, agent: string, model: string, };
+export type TurnEnded = { sessionId: SessionId, turnId: TurnId, status: TurnStatus, interrupted: boolean, errorText?: string, costUsd?: number, changedFiles?: number, agent: string, model: string, 
+/**
+ * the account the run used (Drain watch counts per account). Additive (2026-11-11).
+ */
+account?: string, 
+/**
+ * the turn's input and output tokens (cache reads and writes aside), for whoever counts work by tokens. Additive (2026-11-11).
+ */
+tokens?: bigint, };

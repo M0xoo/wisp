@@ -101,6 +101,11 @@ pub trait Harness: Send + Sync + 'static {
     fn program(&self) -> Option<String> {
         None
     }
+    /// Whose model it runs when given none (`anthropic`, `openai`); None when it runs anything (the refusal card
+    /// only offers another vendor's model). Additive (2026-11-11).
+    fn vendor(&self) -> Option<&str> {
+        None
+    }
     /// The files in a project from which the CLI runs commands of its own (hooks, plugins, MCP servers), so a
     /// repo's must be trusted before a run there (wisp.worktrees' project trust). None: it reads none. Additive
     /// (2026-11-10).

@@ -255,8 +255,15 @@ impl Runtime {
             .map(|p| p.part(s))
             .filter(|p| !p.is_empty())
             .collect();
+        // v1 runner.js:1379: the app block and wisp_watch unless switched off; a plain markdown answer when wisp
+        // blocks are off, never for a crew job or a subagent (their reader reads the blocks)
+        let (apps, watch) = (self.on_unless_off("runtime.apps"), self.on_unless_off("runtime.watch"));
+        let plain = !self.on_unless_off("runtime.blocks") && s.parent_id.is_none() && !s.ext.contains_key("wisp.crew");
         let mut system = system_prompt(&SystemOpts {
             ask_tool: info.ask_tool.clone(),
+            apps,
+            watch,
+            blocks: !plain,
             ..SystemOpts::default()
         });
         for p in &parts {
@@ -271,6 +278,9 @@ impl Runtime {
         let mut env = BTreeMap::from([("WISP_TASK".to_owned(), s.id.0.clone())]);
         for part in self.host.run_parts() {
             env.extend(part.env(s));
+        }
+        if watch {
+            env.insert("WISP_WATCH".into(), "1".into());
         }
         // wisp's own MCP server (ask_user, delegate, wisp_save…), with a token for this task only
         let mut mcp_servers = BTreeMap::new();
@@ -314,6 +324,10 @@ impl Runtime {
             // the program `harnesses:` points at (`from: path`)
             bin: s.ext.get("wisp.runtime").and_then(|o| o.pointer("/brief/bin")).and_then(serde_json::Value::as_str).map(str::to_owned),
             probe: true,
+            // v1 leanTask: lean when the task asked, or Settings says every run
+            quiet: self.lean_task(s),
+            // v1 defaults.subagentModel: the model Claude Code's subagents run on ('' is the task's own)
+            subagent_model: Some(self.text_setting("runtime.subagentModel")).filter(|m| m == "haiku" || m == "sonnet").unwrap_or_default(),
             ..HarnessRun::default()
         }
     }

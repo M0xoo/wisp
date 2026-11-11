@@ -4,7 +4,11 @@ import type { Mode } from "./Mode";
 import type { QueueItem } from "./QueueItem";
 import type { SessionState } from "./SessionState";
 
-export type Session = { id: SessionId, title: string, agent: string, model: string, effort: string, account?: string, mode: Mode, cwd: string, 
+export type Session = { id: SessionId, title: string, agent: string, model: string, effort: string, account?: string, 
+/**
+ * this task's own lean runs choice, 'on' | 'off' (v1 `lean`); none follows `runtime.leanRuns`. Additive (2026-11-11).
+ */
+lean?: string, mode: Mode, cwd: string, 
 /**
  * extra folders the task may touch
  */

@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use serde_json::json;
 use wisp_runtime_api::events::{TurnEnded, TurnFinished};
+use wisp_runtime_api::harness::Harness;
 use wisp_runtime_api::model::{Session, Turn, TurnStatus};
 use wisp_runtime_core::activity::{Effect, Head};
 use wisp_runtime_core::land::{self, Ending, Facts};
@@ -49,6 +50,7 @@ impl Runtime {
             stopped,
             stats,
             auth_failed,
+            stop_reason,
         } = e
         else {
             return Ok(());
@@ -64,10 +66,8 @@ impl Runtime {
             .map_or((false, false), |l| {
                 (l.stopping || l.interrupting, l.interrupting)
             });
-        let harness = self
-            .harness(&turn.agent)
-            .map(|h| h.info().name.clone())
-            .unwrap_or_default();
+        let h = self.harness(&turn.agent).ok();
+        let harness = h.as_ref().map(|h| h.info().name.clone()).unwrap_or_default();
         let ending = Ending {
             stopped: stopped || stopping,
             interrupted,
@@ -81,6 +81,10 @@ impl Runtime {
         let (status, presentation) = land::end_presentation(&ending, |t| {
             wisp_runtime_core::blocks::presentation(t, &blocks)
         });
+        let mut presentation = presentation;
+        if s.parent_id.is_none() && !(stopped || stopping) {
+            refuse(&mut turn, &mut presentation, &text, &stop_reason, is_error, head.changes.len(), &harness, h.as_deref());
+        }
         turn.status = status;
         turn.ended_at = Some(self.now());
         turn.stats = stats.as_ref().map(land::turn_stats);
@@ -184,6 +188,13 @@ impl Runtime {
             changed_files: turn.changed_files,
             agent: turn.agent.clone(),
             model: turn.model.clone(),
+            account: turn.account.clone().or_else(|| s.account.clone()),
+            tokens: turn.stats.as_ref().and_then(|x| {
+                // cache reads and writes aside: harnesses count them differently, and Drain watch only compares a
+                // harness's runs with its own
+                let t = x.input_tokens.unwrap_or(0) + x.output_tokens.unwrap_or(0);
+                (t > 0).then_some(t)
+            }),
         }));
         match turn.status {
             TurnStatus::Done => self.host.emit(Emitted::Task("task.finished", crate::host::fact(s, Some(&turn.id), "done", text, cost))),
@@ -214,6 +225,7 @@ impl Runtime {
             stopped: false,
             stats: None,
             auth_failed: false,
+            stop_reason: String::new(),
         };
         self.end_turn(sid, tid, &Head::default(), e, 0).await
     }
@@ -292,4 +304,15 @@ fn title_auto(s: &Session) -> bool {
         .and_then(|v| v.get("titleAuto"))
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false)
+}
+
+/// v1 runner.js `#refused`: a turn the model turned down says so, and the card offers another vendor's harness;
+/// never for a subagent's run (its lead reads the answer as it is), nor a stopped one.
+#[allow(clippy::too_many_arguments, reason = "the turn's end, as the refusal check reads it")]
+fn refuse(turn: &mut Turn, p: &mut wisp_runtime_api::model::Presentation, text: &str, stop_reason: &str, is_error: bool, changes: usize, name: &str, h: Option<&dyn Harness>) {
+    let ended = wisp_runtime_core::refused::Ended { text, stop_reason, is_error, changes, agent: &turn.agent, model: &turn.model, name, home: h.and_then(Harness::vendor) };
+    if let Some((r, blocks)) = wisp_runtime_core::refused::refused(&ended, &p.blocks) {
+        turn.refusal = Some(r);
+        p.blocks = blocks;
+    }
 }

@@ -91,6 +91,22 @@ impl Harness for Fake {
         if let Some(r) = &run.resume_id {
             args.push(format!("--resume={r}"));
         }
+        if run.quiet {
+            args.push("--quiet".into());
+        }
+        // what the run was told, as flags a test can read
+        if run.system_prompt.contains("\"type\":\"app\"") {
+            args.push("--app".into());
+        }
+        if run.system_prompt.contains("no `wisp` block") {
+            args.push("--plain".into());
+        }
+        if run.env.contains_key("WISP_WATCH") {
+            args.push("--watch".into());
+        }
+        if !run.subagent_model.is_empty() {
+            args.push(format!("--sub={}", run.subagent_model));
+        }
         Ok(Launch {
             program: "fake".into(),
             args,
@@ -102,7 +118,8 @@ impl Harness for Fake {
     }
 }
 
-/// The answer a turn prints, by its prompt: `slow…` waits to be killed, `fail…` errors, else a hero.
+/// The answer a turn prints, by its prompt: `slow…` waits to be killed, `fail…` errors, `refuse…` turns it down,
+/// else a hero.
 pub fn script(prompt: &str) -> Vec<Value> {
     let hero = format!(
         "```wisp\n{{\"blocks\":[{{\"type\":\"hero\",\"title\":\"Did it\",\"topic\":\"Topic of {prompt}\",\"summary\":\"done: {prompt}\",\"status\":\"done\"}}]}}\n```"
@@ -111,6 +128,12 @@ pub fn script(prompt: &str) -> Vec<Value> {
         return vec![
             json!({"type":"session","id":"conv-1"}),
             json!({"type":"result","text":"Error: boom\nmore","isError":true}),
+        ];
+    }
+    if prompt.starts_with("refuse") {
+        return vec![
+            json!({"type":"session","id":"conv-1"}),
+            json!({"type":"result","text":"I can't help with that.","isError":false,"stopReason":"refusal"}),
         ];
     }
     let cli = prompt.strip_prefix("cli ").map(|v| json!({"type":"cli","version":v}));

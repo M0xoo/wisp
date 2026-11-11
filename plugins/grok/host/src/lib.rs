@@ -102,6 +102,9 @@ impl Harness for GrokHarness {
     fn info(&self) -> &HarnessInfo {
         &self.info
     }
+    fn vendor(&self) -> Option<&str> {
+        Some("xai")
+    }
 
     fn detect<'a>(&'a self, sys: &'a dyn HarnessSys) -> BoxFuture<'a, HarnessFound> {
         Box::pin(async move {

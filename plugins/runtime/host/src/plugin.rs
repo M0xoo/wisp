@@ -34,6 +34,9 @@ struct CtxHost {
 }
 
 impl Host for CtxHost {
+    fn setting(&self, key: &str) -> Option<serde_json::Value> {
+        self.ctx.setting(key)
+    }
     fn net(&self) -> Option<wisp_kernel::services::NetService> {
         wisp_kernel::services::net(&self.ctx).ok()
     }
@@ -439,6 +442,7 @@ fn edits(s: &mut Setup, slot: &Slot) {
         .await
         .map(|()| c::Ack {}));
     cmd!(s, slot, c::SetMode, |r, call, a| r.set_mode(a.id.as_str(), a.mode).await.map(|()| c::Ack {}));
+    cmd!(s, slot, c::SetLean, |r, call, a| r.set_lean(a.id.as_str(), a.lean).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::SetAgent, |r, call, a| r.set_agent(a.id.as_str(), &a.agent).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::ForLater, |r, call, a| r.for_later(a.id.as_str(), a.for_later, a.at).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::QueueOrder, |r, call, a| r.queue_order(a.id.as_str(), &a.order).await.map(|()| c::Ack {}));

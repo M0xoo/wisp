@@ -114,6 +114,8 @@ pub enum Effect {
         stopped: bool,
         stats: Option<HarnessStats>,
         auth_failed: bool,
+        /// the API's own word for how it ended (`refusal`); empty when it said none
+        stop_reason: String,
     },
     /// a result with background tasks still up: the turn stays open (the live line says so)
     Waiting(Activity),
@@ -269,6 +271,7 @@ pub fn apply(
             stats,
             auth_failed,
             background,
+            stop_reason,
             ..
         } => {
             // It ended its turn in plain text with background tasks still running ("I'll report once it's
@@ -285,6 +288,7 @@ pub fn apply(
                 stopped: *stopped,
                 stats: stats.clone(),
                 auth_failed: *auth_failed,
+                stop_reason: stop_reason.clone().unwrap_or_default(),
             };
         }
     }
@@ -300,6 +304,7 @@ pub fn exit_without_result(head: &mut Head) -> Effect {
             stopped: false,
             stats,
             auth_failed: false,
+            stop_reason: String::new(),
         },
         None => Effect::Finish {
             text: "The agent exited without a result.".into(),
@@ -307,6 +312,7 @@ pub fn exit_without_result(head: &mut Head) -> Effect {
             stopped: false,
             stats: None,
             auth_failed: false,
+            stop_reason: String::new(),
         },
     }
 }

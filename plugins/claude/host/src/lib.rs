@@ -104,6 +104,9 @@ impl Harness for ClaudeHarness {
     fn info(&self) -> &HarnessInfo {
         &self.info
     }
+    fn vendor(&self) -> Option<&str> {
+        Some("anthropic")
+    }
     /// Claude Code runs a project's hooks and plugins from its settings files, and its MCP servers from `.mcp.json`.
     fn project_hooks(&self) -> Option<wisp_runtime_api::harness::ProjectHooks> {
         Some(wisp_runtime_api::harness::ProjectHooks { settings: vec![".claude/settings.json".into(), ".claude/settings.local.json".into()], mcp: Some(".mcp.json".into()) })

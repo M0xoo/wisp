@@ -22,6 +22,17 @@ pub struct SetModeArgs {
     pub mode: Mode,
 }
 
+/// `runtime.setLean`: this task's runs lean or not ('on' | 'off'), or none to follow `runtime.leanRuns` (v1 PATCH
+/// /sessions/:id `lean`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct SetLeanArgs {
+    pub id: SessionId,
+    #[serde(default)]
+    #[ts(optional)]
+    pub lean: Option<String>,
+}
+
 /// `runtime.setAgent`: the harness the task's next turns run on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]

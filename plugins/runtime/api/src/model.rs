@@ -288,6 +288,26 @@ pub struct Held {
     pub data: Value,
 }
 
+/// The harness turned the task down (v1 `turn.refusal`): the card offers the same prompt, with what the task has
+/// seen, to a harness running another vendor's model. Never by itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct TurnRefusal {
+    pub agent: String,
+    pub model: String,
+    /// whose model it was (`anthropic`, `openai`…); absent when it can't be told
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub vendor: Option<String>,
+    /// `policy` (the API or the CLI said so) or `declined` (a short answer that opens by declining)
+    pub kind: String,
+    /// the line the card quotes
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub line: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, Default)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "runtime/")]
@@ -332,6 +352,10 @@ pub struct Turn {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub changed_files: Option<u32>,
+    /// the harness turned the task down (additive, 2026-11-11)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub refusal: Option<TurnRefusal>,
     /// how many activity events the turn has (the event log's length for this turn)
     #[serde(default)]
     pub n_events: u32,
@@ -384,6 +408,10 @@ pub struct Session {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub account: Option<String>,
+    /// this task's own lean runs choice, 'on' | 'off' (v1 `lean`); none follows `runtime.leanRuns`. Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub lean: Option<String>,
     pub mode: Mode,
     pub cwd: String,
     /// extra folders the task may touch

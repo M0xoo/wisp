@@ -129,6 +129,10 @@ pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
         env.insert("CLAUDE_CODE_SUBAGENT_MODEL".to_owned(), run.subagent_model.clone());
         env.insert("CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL".to_owned(), run.subagent_model.clone());
     }
+    // without the CLI's nonessential traffic (v1 lean.js: a lean side run, or a task Settings or the task made lean)
+    if run.quiet {
+        env.insert("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC".to_owned(), "1".to_owned());
+    }
     let prompt = format!("{}{}", run.prompt, attachment_note(&run.attachments));
     Launch {
         program: bin.to_owned(),
@@ -193,5 +197,13 @@ mod tests {
         let a = launch(&l, "claude").args;
         assert_eq!(a[3], "--system-prompt");
         assert!(a.iter().any(|x| x == "--strict-mcp-config"));
+    }
+
+    /// v1 lean.js `LEAN_ENV`: a quiet run goes without Claude Code's nonessential traffic.
+    #[test]
+    fn a_quiet_run_turns_the_nonessential_traffic_off() {
+        assert!(!launch(&run(), "claude").env.contains_key("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"));
+        let q = HarnessRun { quiet: true, ..run() };
+        assert_eq!(launch(&q, "claude").env.get("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC").map(String::as_str), Some("1"));
     }
 }

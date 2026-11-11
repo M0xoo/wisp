@@ -183,6 +183,7 @@ impl Runtime {
                     stopped: false,
                     stats: None,
                     auth_failed: false,
+                    stop_reason: String::new(),
                 }
             };
             self.finish(&mut d, effect).await;

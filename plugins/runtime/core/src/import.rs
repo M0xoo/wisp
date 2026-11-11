@@ -251,6 +251,7 @@ fn turn(sid: &SessionId, idx: u32, o: &Map<String, Value>) -> ImportedTurn {
         text: opt(o, "raw"),
         is_error: st == TurnStatus::Error,
         changed_files: u32::try_from(changes.len()).ok().filter(|n| *n > 0),
+        refusal: None,
         n_events: u32::try_from(steps.len()).unwrap_or(u32::MAX),
         ext: ext.into_iter().collect(),
     };
@@ -318,6 +319,7 @@ pub fn from_v1(v: &Value) -> Result<Imported, String> {
         model: s(o, "model"),
         effort: s(o, "effort"),
         account: opt(o, "account"),
+        lean: opt(o, "lean").filter(|l| l == "on" || l == "off"),
         mode: mode(o),
         cwd: s(o, "cwd"),
         dirs,

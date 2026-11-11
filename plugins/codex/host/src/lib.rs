@@ -167,6 +167,9 @@ impl Harness for CodexHarness {
     fn info(&self) -> &HarnessInfo {
         &self.info
     }
+    fn vendor(&self) -> Option<&str> {
+        Some("openai")
+    }
 
     fn detect<'a>(&'a self, sys: &'a dyn HarnessSys) -> BoxFuture<'a, HarnessFound> {
         Box::pin(async move {

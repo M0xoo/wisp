@@ -85,6 +85,7 @@ command!(QueueText = "runtime.queue.text": QueueTextArgs => Ack);
 command!(Release = "runtime.release": ReleaseArgs => Ack);
 command!(Held = "runtime.held": HeldArgs => Ack);
 command!(SetMode = "runtime.setMode": SetModeArgs => Ack);
+command!(SetLean = "runtime.setLean": SetLeanArgs => Ack);
 command!(SetAgent = "runtime.setAgent": SetAgentArgs => Ack);
 command!(ForLater = "runtime.forLater": ForLaterArgs => Ack);
 command!(QueueOrder = "runtime.queue.order": QueueOrderArgs => Ack);

@@ -53,6 +53,10 @@ pub trait Host: Send + Sync + 'static {
     /// `before:run`'s interceptors, in order. Err: vetoed (the message reaches the user on the turn).
     fn before_run(&self, c: BeforeRunCtx) -> BoxFuture<'static, Result<BeforeRunCtx, WireError>>;
     fn harnesses(&self) -> Vec<Arc<dyn Harness>>;
+    /// A setting's value (the kernel's settings store), if set or declared.
+    fn setting(&self, _key: &str) -> Option<serde_json::Value> {
+        None
+    }
     /// How a task's agent reaches wisp, if the install provides it.
     fn agent_access(&self) -> Option<Arc<dyn wisp_runtime_api::points::AgentAccess>> {
         None
@@ -106,6 +110,8 @@ pub struct Recorder {
     pub parts: Vec<Arc<dyn RunPart>>,
     /// a stand-in for `router.service@1` (Auto)
     pub router: Option<Arc<dyn wisp_router_api::service::RouterApi>>,
+    /// the settings it answers
+    pub settings: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 impl std::fmt::Debug for Recorder {
@@ -131,6 +137,9 @@ impl Recorder {
 }
 
 impl Host for Recorder {
+    fn setting(&self, key: &str) -> Option<serde_json::Value> {
+        self.settings.get(key).cloned()
+    }
     fn run_parts(&self) -> Vec<Arc<dyn RunPart>> {
         self.parts.clone()
     }

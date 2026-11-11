@@ -103,6 +103,78 @@ async fn a_failed_run_shows_the_harness_error() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_turn_the_model_turned_down_records_who_refused_for_the_hand_off_card() {
+    let r = rig().await;
+    let id = r.rt.create(start("refuse this")).await.unwrap().id.0;
+    until("the turn to end", || async {
+        last_status(&r, &id).await.is_some_and(|s| s != TurnStatus::Running)
+    })
+    .await;
+    let t = r.rt.turns(&id, None, None).await.unwrap().pop().unwrap();
+    let refusal = t.refusal.expect("the refusal is on the turn");
+    assert_eq!((refusal.agent.as_str(), refusal.kind.as_str()), ("fake", "policy"));
+    let blocks = t.presentation.unwrap().blocks;
+    assert_eq!(blocks[0]["title"], "Fake CLI turned this task down");
+    assert_eq!(blocks[0]["status"], "blocked");
+    assert_eq!(blocks[1]["text"], "I can't help with that.");
+    // a turn that did its work has none
+    let ok = r.rt.create(start("fix it")).await.unwrap().id.0;
+    until("the other turn to end", || async {
+        last_status(&r, &ok).await == Some(TurnStatus::Done)
+    })
+    .await;
+    assert!(r.rt.turns(&ok, None, None).await.unwrap().pop().unwrap().refusal.is_none());
+}
+
+/// v1 runner.js:1379 and launch.js:359: Settings decide what a run is offered (the app block, `wisp_watch`, wisp
+/// blocks at all), its subagents' model, and whether a follow-up sent without saying queues.
+#[tokio::test(flavor = "multi_thread")]
+async fn settings_decide_what_a_run_is_offered_and_whether_a_follow_up_queues() {
+    let has = |r: &common::Rig, i: usize, f: &str| r.sim.spawned()[i].args.iter().any(|a| a == f);
+    let r = rig().await;
+    let id = r.rt.create(start("fix it")).await.unwrap().id;
+    until("the run", || async { r.sim.spawned().len() == 1 }).await;
+    assert!(has(&r, 0, "--app") && has(&r, 0, "--watch") && !has(&r, 0, "--plain"), "on unless switched off: {:?}", r.sim.spawned()[0].args);
+    assert!(!r.sim.spawned()[0].args.iter().any(|a| a.starts_with("--sub=")));
+    until("it ends", || async { last_status(&r, &id.0).await == Some(TurnStatus::Done) }).await;
+    let set = |k: &str, v: serde_json::Value| (k.to_owned(), v);
+    let off = rig_with(Recorder { settings: [set("runtime.apps", false.into()), set("runtime.watch", false.into()), set("runtime.blocks", false.into()), set("runtime.subagentModel", "haiku".into()), set("runtime.followUp", "queue".into())].into(), ..Default::default() }).await;
+    let o = off.rt.create(start("slow work")).await.unwrap().id;
+    until("the run", || async { off.sim.spawned().len() == 1 }).await;
+    assert!(!has(&off, 0, "--app") && !has(&off, 0, "--watch") && has(&off, 0, "--plain") && has(&off, 0, "--sub=haiku"), "{:?}", off.sim.spawned()[0].args);
+    // a follow-up sent without saying, while it works: queued after it
+    let mut f = follow(&o, "then this", false);
+    f.queue = None;
+    off.rt.follow_up(f).await.unwrap();
+    let s = off.rt.get(&o.0).await.unwrap();
+    assert!(s.queue.iter().any(|q| q.text == "then this"), "queued: {:?}", s.queue);
+}
+
+/// v1 lean.js: a task's run is lean when Settings says every run ('all') or the task asked; the task's own choice wins.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tasks_run_is_lean_when_settings_say_all_or_the_task_asks_and_the_task_wins() {
+    let quiet = |r: &common::Rig, i: usize| r.sim.spawned()[i].args.iter().any(|a| a == "--quiet");
+    let r = rig().await;
+    let id = r.rt.create(start("fix it")).await.unwrap().id;
+    until("the run", || async { last_status(&r, &id.0).await == Some(TurnStatus::Done) }).await;
+    assert!(!quiet(&r, 0), "default 'on': only wisp's own side runs are lean");
+    r.rt.set_lean(&id.0, Some("on".into())).await.unwrap();
+    r.rt.follow_up(follow(&id, "again", false)).await.unwrap();
+    until("the second run", || async { r.sim.spawned().len() == 2 }).await;
+    assert!(quiet(&r, 1), "the task asked");
+    assert!(r.rt.set_lean(&id.0, Some("sometimes".into())).await.is_err());
+    let all = rig_with(Recorder { settings: [("runtime.leanRuns".to_owned(), serde_json::json!("all"))].into(), ..Default::default() }).await;
+    let a = all.rt.create(start("fix it")).await.unwrap().id;
+    until("the run", || async { all.sim.spawned().len() == 1 }).await;
+    assert!(quiet(&all, 0), "Settings: every run");
+    until("it ends", || async { last_status(&all, &a.0).await == Some(TurnStatus::Done) }).await;
+    all.rt.set_lean(&a.0, Some("off".into())).await.unwrap();
+    all.rt.follow_up(follow(&a, "again", false)).await.unwrap();
+    until("the second run", || async { all.sim.spawned().len() == 2 }).await;
+    assert!(!quiet(&all, 1), "the task's own 'off' wins");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_follow_up_while_running_interrupts_and_runs_next_without_a_notification() {
     let r = rig().await;
     let id = r.rt.create(start("slow work")).await.unwrap().id;

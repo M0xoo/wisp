@@ -73,6 +73,19 @@ impl Runtime {
         .map(drop)
     }
 
+    /// This task's runs lean ('on'), never ('off'), or as `runtime.leanRuns` says (None).
+    pub async fn set_lean(self: &Arc<Self>, id: &str, lean: Option<String>) -> Result<()> {
+        if lean.as_deref().is_some_and(|l| l != "on" && l != "off") {
+            return Err(RuntimeError::Invalid("lean is on, off, or none to follow Settings".into()));
+        }
+        self.edit(id, |s| {
+            s.lean = lean;
+            Ok(())
+        })
+        .await
+        .map(drop)
+    }
+
     /// The harness the task's next turns run on (the turn running finishes where it is).
     pub async fn set_agent(self: &Arc<Self>, id: &str, agent: &str) -> Result<()> {
         if agent.trim().is_empty() {

@@ -153,6 +153,31 @@ impl Runtime {
             .ok_or_else(|| RuntimeError::NoHarness(id.to_owned()))
     }
 
+    /// A switch in Settings (on unless switched off), v1's `defaults.<x> !== 'off'`.
+    pub(crate) fn on_unless_off(&self, key: &str) -> bool {
+        self.host.setting(key).and_then(|v| v.as_bool()).unwrap_or(true)
+    }
+
+    /// A setting's text value ('' when unset).
+    pub(crate) fn text_setting(&self, key: &str) -> String {
+        self.host.setting(key).and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()
+    }
+
+    /// `runtime.leanRuns` (v1 defaults.leanRuns).
+    fn lean_setting(&self) -> Option<String> {
+        self.host.setting("runtime.leanRuns").and_then(|v| v.as_str().map(str::to_owned))
+    }
+
+    /// A task's run is lean (v1 `leanTask`): the task's own choice, else Settings' 'all'.
+    pub(crate) fn lean_task(&self, s: &Session) -> bool {
+        wisp_runtime_core::prompt::lean::lean_task(s.lean.as_deref(), self.lean_setting().as_deref())
+    }
+
+    /// A side run wisp makes for itself is lean unless Settings says off (v1 `leanOn`).
+    pub(crate) fn lean_side(&self) -> bool {
+        wisp_runtime_core::prompt::lean::lean_on(self.lean_setting().as_deref())
+    }
+
     /// What the task's run is doing, for the queue decider.
     pub(crate) fn run_state(&self, id: &str) -> Run {
         lock(&self.live).get(id).map_or(Run::Idle, Live::state)
@@ -434,7 +459,8 @@ impl Runtime {
             last_held,
             Incoming {
                 item,
-                queue: a.queue.unwrap_or(false),
+                // v1 launch.js: a follow-up sent without saying queues when Settings → follow-ups say queue
+                queue: a.queue.unwrap_or_else(|| self.text_setting("runtime.followUp") == "queue"),
                 has_extras,
                 hold: false,
             },

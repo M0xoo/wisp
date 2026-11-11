@@ -117,6 +117,7 @@
       },
       { "id": "runtime.held", "title": "Start or skip a task's held turn" },
       { "id": "runtime.setMode", "title": "Set the mode a task's next turns run in" },
+      { "id": "runtime.setLean", "title": "Run a task's turns lean (on, off, or none to follow Settings)" },
       { "id": "runtime.setAgent", "title": "Set the harness a task's next turns run on" },
       { "id": "runtime.forLater", "title": "Save a task for later, or take it out" },
       { "id": "runtime.queue.order", "title": "Reorder a task's queued follow-ups" },
@@ -326,7 +327,19 @@
         "default": 0,
         "min": 0,
         "title": "Days a finished task stays in the list before it's archived (0: always)"
-      }
+      },
+      {
+        "key": "runtime.leanRuns",
+        "type": "enum",
+        "values": ["off", "on", "all"],
+        "default": "on",
+        "title": "Lean Claude Code runs (no telemetry or update checks, and no claude.ai connectors): on, only wisp's own side runs; all, every run; off, none"
+      },
+      { "key": "runtime.apps", "type": "bool", "default": true, "title": "Interactive answers: agents may answer with a small app" },
+      { "key": "runtime.watch", "type": "bool", "default": true, "title": "Watch agents work: agents may open what they built in wisp's browser to check it" },
+      { "key": "runtime.blocks", "type": "bool", "default": true, "title": "wisp blocks: answers come as cards (off: plain markdown)" },
+      { "key": "runtime.subagentModel", "type": "enum", "values": ["", "haiku", "sonnet"], "default": "", "title": "The model Claude Code's subagents run on ('': the task's own)" },
+      { "key": "runtime.followUp", "type": "enum", "values": ["interrupt", "queue"], "default": "interrupt", "title": "A follow-up while a task works: interrupt it, or queue after it" }
     ]
   }
 }

@@ -378,6 +378,7 @@ impl Runtime {
             model: s.model.clone(),
             effort: s.effort.clone(),
             gate: h.info().side_gate,
+            quiet: self.lean_task(&s), // a /btw is yours: lean as the task is (v1 runner.js:889)
             ..HarnessRun::default()
         };
         let (rt, mut e) = (self.clone(), entry.clone());
@@ -707,7 +708,7 @@ impl Runtime {
             None => self.host.harnesses().into_iter().next().ok_or_else(|| RuntimeError::NoHarness("any".into()))?,
         };
         let model = pick.model.clone().unwrap_or_default();
-        let run = HarnessRun { prompt: a.prompt, cwd: a.cwd, mode: Mode::Plan, model: model.clone(), effort: pick.effort.unwrap_or_default(), lean: true, quiet: true, ..HarnessRun::default() };
+        let run = HarnessRun { prompt: a.prompt, cwd: a.cwd, mode: Mode::Plan, model: model.clone(), effort: pick.effort.unwrap_or_default(), lean: true, quiet: self.lean_side(), ..HarnessRun::default() };
         let o = self.side_run(h.as_ref(), &run, Duration::from_millis(a.timeout_ms.unwrap_or(QUICK_TIMEOUT_MS))).await?;
         if o.is_error {
             return Err(RuntimeError::Conflict(o.text));

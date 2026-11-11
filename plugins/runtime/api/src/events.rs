@@ -94,6 +94,14 @@ pub struct TurnEnded {
     pub changed_files: Option<u32>,
     pub agent: String,
     pub model: String,
+    /// the account the run used (Drain watch counts per account). Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub account: Option<String>,
+    /// the turn's input and output tokens (cache reads and writes aside), for whoever counts work by tokens. Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tokens: Option<u64>,
 }
 durable!(TurnEnded = "turn.ended", |e| subject: e.session_id.0.clone(), key: e.turn_id.0.clone());
 
