@@ -3,6 +3,9 @@
 //! and the retro: a task quiet for `IDLE_MS` (90 s) after a turn that ended done or stopped is read by a lean
 //! `runtime.quick` run on its own harness, one retro at a time; a new turn meanwhile cancels the wait.
 //! The rules are `wisp_learn_core`'s.
+//!
+//! resources: data-only (its tables hold what retros learned and you edited, and the retros' log: data, not
+//! setup; switching it on or off is the `learn.enabled` setting, which the setting kind carries).
 
 mod retro;
 mod store;

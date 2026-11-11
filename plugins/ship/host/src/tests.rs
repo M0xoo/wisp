@@ -200,3 +200,11 @@ fn the_manifest_is_valid_and_names_every_command() {
         assert!(m.permissions.iter().any(|x| x == p), "{p}");
     }
 }
+
+#[test]
+fn fix_conflicts_is_off_unless_switched_on() {
+    assert!(!crate::fix_conflicts(None));
+    assert!(!crate::fix_conflicts(Some(&serde_json::json!(false))));
+    assert!(crate::fix_conflicts(Some(&serde_json::json!(true))));
+    assert!(crate::fix_conflicts(Some(&serde_json::json!("on"))), "v1's value");
+}

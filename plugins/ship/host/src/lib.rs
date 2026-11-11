@@ -175,6 +175,14 @@ impl Plugin for ShipPlugin {
     }
 }
 
+/// Fix a task's PR conflicts without asking (v1 `defaults.fixConflicts: 'on'`); off unless on.
+pub const FIX_CONFLICTS: &str = "ship.fixConflicts";
+
+/// The setting as stored: `true`, or v1's `"on"`.
+pub fn fix_conflicts(v: Option<&serde_json::Value>) -> bool {
+    matches!(v, Some(serde_json::Value::Bool(true))) || v.and_then(serde_json::Value::as_str) == Some("on")
+}
+
 /// The boot recheck once the page has loaded, and the 5 s PR tick. Both die with the plugin's scope.
 fn start_timers(ctx: &Ctx, ship: &Arc<Ship>) -> Result<()> {
     let clock = ctx.clock()?;
@@ -186,10 +194,12 @@ fn start_timers(ctx: &Ctx, ship: &Arc<Ship>) -> Result<()> {
         boot.boot(&call, Arc::new(move |ms| sleeper.sleep(ms)))
             .await;
     });
-    let (poller, call) = (ship.clone(), ctx.root_call());
+    let (poller, call, cx) = (ship.clone(), ctx.root_call(), ctx.clone());
     ctx.spawn(async move {
         loop {
             clock.sleep(PR_TICK_MS).await;
+            // v1 `defaults.fixConflicts`: read each tick, so switching it in Settings counts at the next look
+            poller.set_auto_fix(fix_conflicts(cx.setting(FIX_CONFLICTS).as_ref()));
             poller.poll(&call).await;
         }
     });

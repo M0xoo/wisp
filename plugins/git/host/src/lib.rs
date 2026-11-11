@@ -51,6 +51,14 @@ fn system_now() -> Now {
     })
 }
 
+/// `.env` files show masked in Changes (v1 `defaults.maskEnvFiles`): on unless off.
+pub const MASK_ENV: &str = "git.maskEnvFiles";
+
+/// The setting as stored: off only when `false` (or v1's `"off"`).
+pub fn mask_env(v: Option<&serde_json::Value>) -> bool {
+    !(matches!(v, Some(serde_json::Value::Bool(false))) || v.and_then(serde_json::Value::as_str) == Some("off"))
+}
+
 impl Plugin for GitPlugin {
     fn manifest(&self) -> Manifest {
         Manifest::embedded(include_str!("../wisp-plugin.json"))
@@ -76,8 +84,10 @@ impl Plugin for GitPlugin {
             }
         });
         let sv = svc.clone();
-        s.command::<GetChanges, _, _>(move |_ctx, _call, a| {
+        s.command::<GetChanges, _, _>(move |ctx, _call, mut a| {
             let sv = sv.clone();
+            // v1 `defaults.maskEnvFiles`: on unless switched off, whatever the caller asked
+            a.mask = a.mask && mask_env(ctx.setting(MASK_ENV).as_ref());
             async move { commands::changes(&sv, a).await.map_err(w) }
         });
         let sv = svc.clone();
@@ -117,5 +127,13 @@ mod tests {
         let m = wisp_kernel::Plugin::manifest(&super::GitPlugin::default());
         assert_eq!(m.id, "wisp.git", "{:?}", m.description);
         assert!(m.provides.contains_key("git.service"));
+    }
+
+    #[test]
+    fn env_files_are_masked_unless_switched_off() {
+        assert!(super::mask_env(None));
+        assert!(super::mask_env(Some(&serde_json::json!(true))));
+        assert!(!super::mask_env(Some(&serde_json::json!(false))));
+        assert!(!super::mask_env(Some(&serde_json::json!("off"))), "v1's value");
     }
 }

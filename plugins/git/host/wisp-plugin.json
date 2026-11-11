@@ -14,6 +14,7 @@
     }
   },
   "permissions": [
+    "settings:read",
     "proc:exec{bin:git}",
     "proc:exec{bin:gh}",
     "runtime:get",
@@ -28,6 +29,9 @@
     "onStartup"
   ],
   "contributes": {
+    "settings": [
+      { "key": "git.maskEnvFiles", "type": "bool", "default": true, "title": "Mask .env files in Changes: their values show as dots until you reveal one" }
+    ],
     "commands": [
       {
         "id": "git.status",

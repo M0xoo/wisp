@@ -3,6 +3,9 @@
 //! Done's folder dialog, and project trust (a `before:run` guard that holds a turn until the repo's own
 //! programs are trusted). Git is `git.service@1` (every call carries the caller's `Call`, so git checks
 //! its permissions); processes (cp, du, df, setup steps) go through the proc service. Nothing blocks.
+//!
+//! resources: data-only (its tables are Settings → Worktrees' rows: checkouts, leftovers, offers, the last
+//! look; what a user sets up is its settings, `worktrees.*`, and a project's `worktree:` policy).
 
 pub mod cleanup;
 pub mod done;

@@ -14,6 +14,7 @@
   },
   "provides": {},
   "permissions": [
+    "settings:read",
     "telemetry:track",
     "git:repo",
     "git:status",
@@ -31,6 +32,9 @@
     "onStartup"
   ],
   "contributes": {
+    "settings": [
+      { "key": "ship.fixConflicts", "type": "bool", "default": false, "title": "Fix merge conflicts by itself: when a task's PR has conflicts, its agent is asked to fix them without waiting for you" }
+    ],
     "events": [
       "pr.changed",
       {
