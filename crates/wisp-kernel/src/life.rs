@@ -74,7 +74,7 @@ fn builtin(m: &Manifest) -> bool {
 pub(crate) async fn start(app: App) -> Result<Kernel> {
     let k = app.state;
     let backend = k.service::<Arc<dyn SettingsBackend>>();
-    k.settings.load(backend.as_deref().map(|b| &**b));
+    k.settings.load(backend.as_deref().cloned());
     {
         let mut ps = k.lock_plugins()?;
         for p in app.group.plugins {

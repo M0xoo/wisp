@@ -82,13 +82,17 @@ pub const KERNEL_MIGRATIONS: &[Migration] = &[Migration::sql(
     ",
 ),
 // the durable event log (ADR-0044)
-Migration::sql(2, crate::events::SQL)];
+Migration::sql(2, crate::events::SQL),
+// a setting's own value under another plugin's lock (`value` is what's in force, what clients read)
+Migration::sql(3, "ALTER TABLE setting ADD COLUMN saved TEXT;")];
 
 fn config_topic(_: &Row) -> Vec<String> {
     vec!["config".to_owned()]
 }
 
-/// `setting(key, value JSON, locked_by)`: `locked_by` is the plugin whose `setSettings` pins the value.
+/// `setting(key, value JSON, locked_by, saved JSON)`: one row per server setting that isn't at its default.
+/// `value` is what's in force (what clients read), `locked_by` the plugin whose `setSettings` pins it, `saved`
+/// the user's own value (kept under a lock, read back at start).
 pub const SETTING: EntityDef = EntityDef {
     kind: "setting",
     table: "setting",
@@ -97,8 +101,9 @@ pub const SETTING: EntityDef = EntityDef {
         ("key", Col::Text),
         ("value", Col::Text),
         ("locked_by", Col::Text),
+        ("saved", Col::Text),
     ],
-    json_columns: &["value"],
+    json_columns: &["value", "saved"],
     parent: None,
     seq: None,
     topics: config_topic,

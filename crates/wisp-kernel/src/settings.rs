@@ -19,6 +19,12 @@ pub trait SettingsBackend: Send + Sync + 'static {
     fn load(&self) -> Vec<(String, Value)>;
     /// `None` resets the key to its default. Must not block: queue the write.
     fn save(&self, key: &str, value: Option<&Value>, device: bool);
+    /// Another plugin pinned a server setting (`Some((by, value))`) or let it go (`None`): what clients read
+    /// shows the pinned value and who holds it, the user's own value kept underneath. Must not block.
+    /// Additive (2026-11-11): a backend that publishes nothing ignores it.
+    fn lock(&self, key: &str, lock: Option<(&str, &Value)>) {
+        let _ = (key, lock);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,6 +50,8 @@ struct Inner {
     watchers: HashMap<String, Vec<(String, u64, Watcher)>>,
     next: u64,
     loaded: bool,
+    /// where values are saved and locks published (set by `load`)
+    backend: Option<Arc<dyn SettingsBackend>>,
 }
 
 impl Inner {
@@ -83,14 +91,26 @@ impl Settings {
             .map_err(|_| WireError::internal("settings lock poisoned"))
     }
 
-    pub(crate) fn load(&self, backend: Option<&dyn SettingsBackend>) {
+    pub(crate) fn load(&self, backend: Option<Arc<dyn SettingsBackend>>) {
         let Ok(mut i) = self.lock() else { return };
         if i.loaded {
             return;
         }
         i.loaded = true;
-        if let Some(b) = backend {
+        if let Some(b) = &backend {
             i.values.extend(b.load());
+        }
+        i.backend = backend;
+    }
+
+    /// Tells the backend a server setting's lock changed (device settings stay on the client).
+    fn publish_lock(&self, key: &str, lock: Option<(&str, &Value)>) {
+        let (backend, device) = match self.lock() {
+            Ok(i) => (i.backend.clone(), i.decls.get(key).is_some_and(|(_, d)| d.device())),
+            Err(_) => return,
+        };
+        if let Some(b) = backend.filter(|_| !device) {
+            b.lock(key, lock);
         }
     }
 
@@ -143,13 +163,19 @@ impl Settings {
                 }
             }
             let before = i.get(key);
+            let shown = value.clone();
             i.locks.insert(key.to_owned(), (by.to_owned(), value));
-            if before == i.get(key) {
-                Vec::new()
-            } else {
-                i.fire(key)
-            }
+            (
+                if before == i.get(key) {
+                    Vec::new()
+                } else {
+                    i.fire(key)
+                },
+                shown,
+            )
         };
+        let (fired, shown) = fired;
+        self.publish_lock(key, Some((by, &shown)));
         call_all(fired);
         Ok(())
     }
@@ -169,15 +195,19 @@ impl Settings {
                 .map(|(k, _)| k.clone())
                 .collect();
             let mut fired = Vec::new();
-            for k in keys {
-                let before = i.get(&k);
-                i.locks.remove(&k);
-                if before != i.get(&k) {
-                    fired.extend(i.fire(&k));
+            for k in &keys {
+                let before = i.get(k);
+                i.locks.remove(k);
+                if before != i.get(k) {
+                    fired.extend(i.fire(k));
                 }
             }
-            fired
+            (fired, keys)
         };
+        let (fired, released) = fired;
+        for k in &released {
+            self.publish_lock(k, None);
+        }
         call_all(fired);
     }
 
