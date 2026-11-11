@@ -47,3 +47,16 @@ test('describeCommand falls back to the raw command when it has nothing better',
 test('describeCommand keeps chains short', () => {
   assert.equal(describeCommand('npm install && npm run lint && npm test && npm run build', '/repo'), 'Installing dependencies, then linting (+2 more)');
 });
+
+test('runLabel keeps the whole title when the label had to be cut', async () => {
+  const { runLabel } = await import('../server/adapters/commands.js');
+  const cmd = "python3 - <<'EOF'\nprint(1)\nEOF\ngrep -rn 'impl Default for ClaudeHarness|derive.*Default' plugins/claude/host/src/very/deep/folder/lib.rs";
+  const r = runLabel(cmd, '/repo');
+  assert.ok(r.label.endsWith('…'), r.label);
+  assert.equal(r.title, 'Running a Python script, then searching for “impl Default for ClaudeHarness|derive.*Default” in plugins/claude/host/src/very/deep/folder/lib.rs');
+  assert.deepEqual(runLabel('ls', '/repo'), { label: runLabel('ls', '/repo').label }); // short: no title
+  const d = 'x'.repeat(100);
+  assert.equal(runLabel('ls', '/repo', d).title, d);
+  // The short label is unchanged by building the whole one.
+  assert.ok(runLabel(cmd, '/repo').label.length <= 90);
+});

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, quietOutput, rel, spawnJsonl } from './common.js';
-import { describeCommand } from './commands.js';
+import { runLabel } from './commands.js';
 import { signedOutBy } from '../agent-login.js';
 import { claudeLimits } from '../budget.js';
 import { COSTLY_ENV, PARENT_SESSION_ENV } from '../pty.js';
@@ -676,7 +676,7 @@ function describeTool(name, input, cwd) {
     case 'NotebookEdit':
       return { kind: 'edit', label: `Editing notebook ${f}`, file: f };
     case 'Bash':
-      return { kind: 'run', label: input.description ? clip(input.description) : describeCommand(input.command, cwd), detail: input.command };
+      return { kind: 'run', ...runLabel(input.command, cwd, input.description), detail: input.command };
     case 'Grep':
       return { kind: 'search', label: `Searching for “${clip(input.pattern, 40)}”` };
     case 'Glob':

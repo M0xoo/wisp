@@ -3,7 +3,24 @@
 // know falls back to "Running <command>", and the raw command stays in the activity detail.
 
 import path from 'node:path';
-import { clip, rel } from './common.js';
+import { clip as clipText, rel } from './common.js';
+
+// While set, nothing is clipped: describeCommand builds the step's whole title (what an opened
+// step shows), not the short label the row and the ticker use.
+let whole = false;
+const clip = (s, n) => (whole ? String(s ?? '').replace(/\s+/g, ' ').trim() : clipText(s, n));
+
+// A run step's label, and its whole title when the label had to be cut ({ label, title? }).
+export function runLabel(command, cwd, description) {
+  const label = description ? clipText(description) : describeCommand(command, cwd);
+  let title;
+  if (description) title = String(description).replace(/\s+/g, ' ').trim();
+  else {
+    whole = true;
+    try { title = describeCommand(command, cwd); } finally { whole = false; }
+  }
+  return title && title !== label ? { label, title } : { label };
+}
 
 export function describeCommand(command, cwd) {
   const raw = String(command ?? '').trim();
@@ -801,7 +818,7 @@ function short(p, cwd) {
   if (!p) return '';
   let s = cwd ? rel(p, cwd) : p;
   if (!p.includes('\\')) s = s.replace(/\\/g, '/'); // path.relative on Windows turns server/a.js into server\a.js
-  if (s.length > 48) {
+  if (s.length > 48 && !whole) {
     const parts = s.split(/[\\/]/).filter(Boolean);
     s = parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : clip(s, 48);
   }

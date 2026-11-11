@@ -124,7 +124,7 @@ function stepHtml(a, k, t, live) {
   return `<li class="tx-step k-${esc(a.kind)}${a.by === 'wisp' ? ' by-wisp' : ''}" data-k="${k}">
     <div class="tx-row" ${more ? 'role="button" tabindex="0" aria-expanded="false"' : ''}>
       <span class="tx-ic">${icon(a.kind === 'account' ? 'clock' : a.by === 'wisp' ? 'spark' : KIND_ICON[a.kind] || 'tool')}</span>
-      <span class="tx-label">${esc(a.label || '')}</span>
+      ${a.title ? `<span class="tx-label tx-cut">${esc(a.label || '')}</span><span class="tx-label tx-whole">${esc(a.title)}</span>` : `<span class="tx-label">${esc(a.label || '')}</span>`}
       ${cmd ? `<code class="tx-cmd">${esc(cmd)}</code>` : ''}
       ${n ? `<span class="nums"><span class="plus">+${n.add}</span><span class="minus">−${n.del}</span></span>` : ''}
       ${since(a, t)}
