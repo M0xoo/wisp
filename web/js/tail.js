@@ -63,3 +63,21 @@ export function turnChange({ turns, known, last, flagged = false }) {
   }
   return { newTurn: true, adopted: null, own: !!id && latest.by !== 'compact' && (pending(id) || flagged) };
 }
+
+// A picture or video in a task took its real size: it loads lazily and nothing holds its box
+// before that, so it grows from nothing to its height. `grew` is each one's top now and its height
+// before and after. At the tail the view goes back to the end ('end'). Elsewhere what's being read
+// holds: browsers with scroll anchoring (Chrome) already did that (`anchors`); without it (WebKit:
+// Safari, the Mac app) each one that was wholly above the reading line (`inset`) pushed the text
+// down by what it grew, so that much is the shift to undo.
+export function mediaShift({ tail, anchors, inset, grew }) {
+  if (tail) return 'end';
+  if (anchors) return 0;
+  let above = 0; // what the ones higher up grew: they pushed this one down too
+  let dy = 0;
+  for (const g of [...grew].sort((a, b) => a.top - b.top)) {
+    if (g.top - above + g.from <= inset) dy += g.to - g.from;
+    above += g.to - g.from;
+  }
+  return dy;
+}

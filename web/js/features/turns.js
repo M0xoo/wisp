@@ -27,8 +27,8 @@ import { whatChangedLine } from '../what-changed-line.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
 import { compareTip, offerSubagentModel, SUBAGENT_OFFER, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
-import { atTail, scrollByPx, topInset, topTurn } from './scroll.js';
-import { landing, landStart, noteScroll, ownWaiting, toEnd, turnChange } from '../tail.js';
+import { atTail, barCover, scrollByPx, topInset, topTurn } from './scroll.js';
+import { landing, landStart, mediaShift, noteScroll, ownWaiting, toEnd, turnChange } from '../tail.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
 import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
@@ -147,10 +147,13 @@ export function renderBody(id, { fresh, byHand }) {
       'scroll',
       () => {
         noteScroll(body);
+        n.tail = atTail(body);
         if (n.missed) paintLatest(id);
       },
       { passive: true },
     );
+    n.media?.stop();
+    n.media = holdMedia(n, body);
     $('.latest-pill', body).onclick = () => {
       goLatest(id);
     };
@@ -320,6 +323,51 @@ export function renderBody(id, { fresh, byHand }) {
     landStart(n);
     requestAnimationFrame(() => land(target));
   } else if (follow && live && !flying) toEnd(body); // a re-render can add more than the slack: a panel, a queue row
+  n.media?.watch();
+  n.tail = atTail(body);
+}
+
+// Pictures and videos in the body load lazily with no box kept for them, so each one grows when it
+// arrives. This keeps the view where the reader had it (mediaShift in tail.js): at the end if they
+// were there, else on what they were reading. A ResizeObserver runs after layout and before paint,
+// so the shift is never seen.
+const ANCHORS = typeof CSS !== 'undefined' && CSS.supports?.('overflow-anchor', 'auto');
+function holdMedia(n, body) {
+  // Each one's height last seen, or null while it had no box (a fold kept it hidden): opening that
+  // fold is the reader's own doing, not a picture arriving, so it moves nothing.
+  const sizes = new WeakMap();
+  const size = (m) => (m.getClientRects().length ? m.offsetHeight : null);
+  const ro = new ResizeObserver((entries) => {
+    const grew = [];
+    for (const { target: m } of entries) {
+      if (!m.isConnected) {
+        ro.unobserve(m);
+        continue;
+      }
+      const from = sizes.get(m);
+      const to = size(m);
+      sizes.set(m, to);
+      if (from != null && to != null && Math.abs(to - from) >= 1) grew.push({ top: m.getBoundingClientRect().top, from, to });
+    }
+    if (!grew.length || !body.isConnected || !body.clientHeight || landing(n, body)) return;
+    const inset = body.getBoundingClientRect().top + barCover(body);
+    // A task that fit on screen is at its end and its start at once: a picture there pulls nothing.
+    const dy = mediaShift({ tail: n.tail && body.scrollTop > 0, anchors: ANCHORS, inset, grew });
+    if (dy === 'end') toEnd(body);
+    else if (Math.abs(dy) >= 1) body.scrollTop += dy;
+    n.tail = atTail(body);
+  });
+  return {
+    // The media a render just added: their size now is the one to compare with.
+    watch() {
+      for (const m of $$('.turns img, .turns video', body)) {
+        if (sizes.has(m)) continue;
+        sizes.set(m, size(m));
+        ro.observe(m);
+      }
+    },
+    stop: () => ro.disconnect(),
+  };
 }
 
 const land = (node) => node.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
