@@ -1165,6 +1165,7 @@ export function openapi({ version, port }) {
             role: { type: 'string' },
             avatar: { type: 'string', description: 'An emoji; empty shows the initial' },
             color: { enum: ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'] },
+            bg: { enum: ['', 'none', 'violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'], description: 'The task panel’s tint while they’re picked on the rail: their glow (empty), none, or a colour' },
             brief: { type: 'string', description: 'Their standing job, in every job’s prompt' },
             cwd: { type: 'string', description: 'The folder their jobs run in (on their machine, if they have one); empty = no project' },
             machine: { type: 'string', description: 'A machine id: their jobs run there as its tasks; their memory, schedule and queue stay here. Empty = this computer' },

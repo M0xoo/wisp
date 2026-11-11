@@ -352,6 +352,10 @@ body.side-right .cl-card::before { right: auto; left: 100%; }
 .cm-opt:hover { background: var(--bg-2); }
 .cm-opt.on { border-color: var(--accent); background: var(--accent-soft); }
 .cm-sw { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--pc) 42%, var(--spirit-shine)), var(--pc)); }
+/* The editor's task panel tint: their glow, none, or one of the crew colours. */
+.ce-tints { display: flex; flex-wrap: wrap; gap: 4px; }
+.ce-bg.ce-none { color: var(--faint); }
+.ce-bg.ce-none svg { width: 16px; height: 16px; }
 .cm-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
 .cm-emoji { width: 150px; }
 .cm-emoji > span { font-size: 12.5px; color: var(--faint); white-space: nowrap; }
