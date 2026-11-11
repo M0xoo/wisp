@@ -14,6 +14,17 @@ open. `terminal.apps` is listed (ui-only) but no server handles it at runtime. S
 installed on this computer). The ui-commands rule should have caught this, so check why it didn't (does a ui-only listing
 skip the host check?), and make the rule catch it.
 
+**Sandboxed execution, the gaps (owner asked, 2026-11-11):**
+- **/sandbox in the GUI:** the composer's `/sandbox` entry runs the task in a fresh gVisor cloud box
+  (`grid-client.sandbox`). Show the sandbox's state on the task, and Remove (`sandboxRemove`). This turns
+  v1-features F-page-36 and F-mach-17 into built.
+- **The untrusted plugin tier (plan §6.0.2):**
+  - a user plugin's UI runs in a sandboxed iframe or worker with no DOM, sending kit component descriptors that the
+    host renders (the Figma split, remote UI), over the same plugin API by RPC;
+  - its server code stays a JSON-RPC subprocess;
+  - then the WASM component host (wasmtime, WASI 0.3, behind the `wasm` feature) as the sandboxed third-party tier.
+  - ADR first: it extends ADR-0046, and the default for anything downloaded is the untrusted tier.
+
 **One coder from here (2026-11-11). backend-coder's leftovers join the queue, after the UI items:**
 - From backend round 7:
   - the plugins install path (an ADR first: a plugin source at runtime, through the kernel's exec host, per
