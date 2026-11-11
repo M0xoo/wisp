@@ -290,6 +290,42 @@ pub struct Held {
 
 /// The harness turned the task down (v1 `turn.refusal`): the card offers the same prompt, with what the task has
 /// seen, to a harness running another vendor's model. Never by itself.
+/// A run at its account's usage limit (v1 `turn.limit`): the card offers Wait until `until`, another of your
+/// accounts (`others`, ready ones only: wisp never switches by itself), another harness, or the provider's extra
+/// usage. `waiting`: it carries on by itself after the reset (Settings → Wait for the reset).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct TurnLimit {
+    /// '' : the harness's own login
+    #[serde(default)]
+    pub account: String,
+    #[ts(type = "number")]
+    pub until: i64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<LimitAccount>>", optional)]
+    pub others: Vec<LimitAccount>,
+    /// personal | work
+    #[serde(default)]
+    pub kind: String,
+    /// where the provider sells extra usage ('' : none)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(as = "Option<String>", optional)]
+    pub extra: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub waiting: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct LimitAccount {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "runtime/")]
@@ -356,6 +392,10 @@ pub struct Turn {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub refusal: Option<TurnRefusal>,
+    /// the run hit its account's usage limit: the card under the hero (additive, 2026-11-11)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub limit: Option<TurnLimit>,
     /// how many activity events the turn has (the event log's length for this turn)
     #[serde(default)]
     pub n_events: u32,

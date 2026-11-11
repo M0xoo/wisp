@@ -82,7 +82,10 @@ impl Runtime {
             wisp_runtime_core::blocks::presentation(t, &blocks)
         });
         let mut presentation = presentation;
-        if s.parent_id.is_none() && !(stopped || stopping) {
+        // a usage limit first (v1 `#atLimit`), then a refusal (v1 `#refused`, never at a limit)
+        let ours = s.parent_id.is_none() && !(stopped || stopping);
+        let limited = ours && is_error && self.at_limit(&s, &mut turn, &text, &mut presentation).await;
+        if ours && !limited {
             refuse(&mut turn, &mut presentation, &text, &stop_reason, is_error, head.changes.len(), &harness, h.as_deref());
         }
         turn.status = status;
@@ -113,7 +116,8 @@ impl Runtime {
         }
         // v1 runner.js:1812: a question the turn left open goes with it (no stale ask in review)
         self.cancel_asks(&mut s);
-        let landing = self.landing(&s, &turn, stopped || stopping, interrupted);
+        let mut landing = self.landing(&s, &turn, stopped || stopping, interrupted);
+        let waits = self.waits_reset(&s, &mut turn, &mut landing);
         s.state = landing.state;
         s.unread = landing.unread;
         if landing.archive {
@@ -122,6 +126,10 @@ impl Runtime {
         s.updated_at = self.now();
         let summary = self.persist(&mut s, vec![turn.clone()]).await?;
         self.emit_end(&s, &turn, interrupted, &landing, &summary, &text);
+        if let (true, Some(l)) = (waits, turn.limit.as_ref()) {
+            let (rt, sid, agent, until) = (self.clone(), s.id.0.clone(), turn.agent.clone(), l.until);
+            tokio::spawn(async move { rt.schedule_reset(&sid, &agent, until).await });
+        }
         if let Some(id) = landing.run_after
             && let Some(step) = self.host.after_steps().into_iter().find(|a| a.id() == id)
         {
@@ -195,6 +203,8 @@ impl Runtime {
                 let t = x.input_tokens.unwrap_or(0) + x.output_tokens.unwrap_or(0);
                 (t > 0).then_some(t)
             }),
+            first: turn.idx == 0,
+            inner: s.parent_id.is_some() || matches!(turn.by.as_deref(), Some("wisp" | "compact")),
         }));
         match turn.status {
             TurnStatus::Done => self.host.emit(Emitted::Task("task.finished", crate::host::fact(s, Some(&turn.id), "done", text, cost))),

@@ -112,6 +112,10 @@ pub struct Recorder {
     pub router: Option<Arc<dyn wisp_router_api::service::RouterApi>>,
     /// the settings it answers
     pub settings: std::collections::BTreeMap<String, serde_json::Value>,
+    /// what other plugins' commands answer (`budget.resetAt`, `later.waitAtLimit`…); one not here is unavailable
+    pub answers: std::collections::BTreeMap<String, serde_json::Value>,
+    /// the commands it was asked, in order
+    pub asked: Mutex<Vec<(String, serde_json::Value)>>,
 }
 
 impl std::fmt::Debug for Recorder {
@@ -137,6 +141,11 @@ impl Recorder {
 }
 
 impl Host for Recorder {
+    fn command(&self, cmd: &str, args: serde_json::Value) -> BoxFuture<'static, Result<serde_json::Value, WireError>> {
+        self.asked.lock().unwrap_or_else(PoisonError::into_inner).push((cmd.to_owned(), args));
+        let out = self.answers.get(cmd).cloned().ok_or_else(|| WireError::unavailable(format!("{cmd}: no kernel here")));
+        Box::pin(async move { out })
+    }
     fn setting(&self, key: &str) -> Option<serde_json::Value> {
         self.settings.get(key).cloned()
     }

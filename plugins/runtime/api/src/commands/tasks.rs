@@ -138,6 +138,10 @@ pub struct StartArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub by: Option<String>,
+    /// you said yes to going past Ask near the limit's line (v1 `confirmLimit`; the CLI's --yes). Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub confirm_limit: bool,
     /// start it held in the queue rather than running it now (a scheduled task)
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
@@ -233,6 +237,10 @@ pub struct FollowUpArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub by: Option<String>,
+    /// you said yes to going past Ask near the limit's line (v1 `confirmLimit`; the CLI's --yes). Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub confirm_limit: bool,
 }
 
 /// Where a follow-up went: a new turn, or a place in the queue.

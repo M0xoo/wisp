@@ -145,6 +145,7 @@ impl Runtime {
                 RunKind::FollowUp
             },
             parent_id: s.parent_id.clone(),
+            confirm_limit: item.opts.as_ref().and_then(|o| o.get("confirmLimit")).and_then(serde_json::Value::as_bool).unwrap_or(false),
         };
         let mut ctx = match self.host.before_run(ctx).await {
             Ok(c) => c,
@@ -326,7 +327,7 @@ impl Runtime {
             probe: true,
             // v1 leanTask: lean when the task asked, or Settings says every run
             quiet: self.lean_task(s),
-            // v1 defaults.subagentModel: the model Claude Code's subagents run on ('' is the task's own)
+            // v1 defaults.subagentModel: the model Claude Code's subagents run on ('task' is the task's own)
             subagent_model: Some(self.text_setting("runtime.subagentModel")).filter(|m| m == "haiku" || m == "sonnet").unwrap_or_default(),
             ..HarnessRun::default()
         }

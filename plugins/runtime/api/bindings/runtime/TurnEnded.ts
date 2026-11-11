@@ -14,4 +14,12 @@ account?: string,
 /**
  * the turn's input and output tokens (cache reads and writes aside), for whoever counts work by tokens. Additive (2026-11-11).
  */
-tokens?: bigint, };
+tokens?: bigint, 
+/**
+ * a task's first turn (else a follow-up): Ask near the limit learns each apart. Additive (2026-11-11).
+ */
+first?: boolean, 
+/**
+ * a run inside a task you already said yes to (a subagent's, wisp's own round, a compaction)
+ */
+inner?: boolean, };

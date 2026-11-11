@@ -9,4 +9,8 @@ export type FollowUpArgs = { id: SessionId, text: string, attachments?: Array<At
  * true: wait in the queue if a turn is running; false (the default, v1 `reply`): interrupt the
  * running turn once its harness session is known, and send now
  */
-queue?: boolean, mode?: Mode, run?: RunPick, by?: string, };
+queue?: boolean, mode?: Mode, run?: RunPick, by?: string, 
+/**
+ * you said yes to going past Ask near the limit's line (v1 `confirmLimit`; the CLI's --yes). Additive (2026-11-11).
+ */
+confirm_limit?: boolean, };

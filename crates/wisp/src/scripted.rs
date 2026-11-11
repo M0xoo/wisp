@@ -45,6 +45,10 @@ pub fn launch_args(f: &Flags, prompt: &str, cwd: &str) -> Value {
     if let Some(w) = f.worktree {
         a["worktree"] = json!(w);
     }
+    // --yes: go past Ask near the limit's line (the user agreed)
+    if f.yes {
+        a["confirmLimit"] = json!(true);
+    }
     a
 }
 
@@ -125,6 +129,9 @@ pub async fn reply(c: &Client, f: &Flags, args: &[String]) -> Result<()> {
     let text = args[1..].join(" ");
     let text = need(Some(&text), "text")?;
     let mut a = json!({ "id": id, "text": text });
+    if f.yes {
+        a["confirmLimit"] = json!(true);
+    }
     if let Some(q) = f.queue {
         a["queue"] = json!(q);
     }

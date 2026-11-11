@@ -252,6 +252,7 @@ fn turn(sid: &SessionId, idx: u32, o: &Map<String, Value>) -> ImportedTurn {
         is_error: st == TurnStatus::Error,
         changed_files: u32::try_from(changes.len()).ok().filter(|n| *n > 0),
         refusal: None,
+        limit: None,
         n_events: u32::try_from(steps.len()).unwrap_or(u32::MAX),
         ext: ext.into_iter().collect(),
     };

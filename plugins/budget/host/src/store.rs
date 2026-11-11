@@ -46,8 +46,15 @@ pub fn put_settings(w: &mut Writer<'_>, v: &Value) -> wisp_store::Result<()> {
     w.upsert(META.kind, row("settings", v)?).map(|_| ())
 }
 
-/// (agent, account, readings) per account, and the settings.
-pub async fn load(store: &Store) -> wisp_store::Result<(Vec<(String, String, Acc)>, Value)> {
+/// Ask near the limit's runs, per harness.
+pub fn put_runs(w: &mut Writer<'_>, runs: &crate::ask::Runs) -> wisp_store::Result<()> {
+    w.upsert(META.kind, row("runs", runs)?).map(|_| ())
+}
+
+type Loaded = (Vec<(String, String, Acc)>, Value, crate::ask::Runs);
+
+/// (agent, account, readings) per account, the settings, and the runs Ask near the limit learned from.
+pub async fn load(store: &Store) -> wisp_store::Result<Loaded> {
     store
         .read_async(|r| {
             let mut accs = Vec::new();
@@ -57,13 +64,15 @@ pub async fn load(store: &Store) -> wisp_store::Result<(Vec<(String, String, Acc
                     accs.push((agent.to_owned(), account.to_owned(), acc));
                 }
             }
-            let mut settings = json!({});
+            let (mut settings, mut runs) = (json!({}), crate::ask::Runs::new());
             for row in r.query(META.kind, &Query::new())? {
-                if row.get("id").and_then(Value::as_str) == Some("settings") {
-                    settings = row.get("body").cloned().unwrap_or_else(|| json!({}));
+                match row.get("id").and_then(Value::as_str) {
+                    Some("settings") => settings = row.get("body").cloned().unwrap_or_else(|| json!({})),
+                    Some("runs") => runs = row.get("body").cloned().and_then(|b| serde_json::from_value(b).ok()).unwrap_or_default(),
+                    _ => {}
                 }
             }
-            Ok((accs, settings))
+            Ok((accs, settings, runs))
         })
         .await
 }

@@ -3,8 +3,10 @@
 //! on an account past its stop line is held, and starts once the account is free again (its windows
 //! reset, or a reading says they reset early). The user's own runs are never held.
 
+mod ask;
 mod drain;
 mod kinds;
+mod live;
 mod store;
 
 use std::collections::BTreeMap;
@@ -39,6 +41,12 @@ struct State {
     held: Mutex<HeldTurns>,
     /// Drain watch's notes sent, per window
     notes: Mutex<wisp_budget_core::drain::DrainNotes>,
+    /// Ask near the limit: the runs it learns from, per harness
+    runs: Mutex<ask::Runs>,
+    /// runs going now: turn → (agent, account, their likely units)
+    running: Mutex<BTreeMap<String, (String, String, f64)>>,
+    /// automations Ask near the limit holds: (task, turn, until)
+    asked: Mutex<Vec<(String, String, i64)>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -97,7 +105,9 @@ impl State {
         let due: Vec<(String, String)> = {
             let mut held = lock(&self.held);
             let keys: Vec<(String, String)> = held.keys().filter(|(g, a)| self.free(g, a, at)).cloned().collect();
-            keys.iter().filter_map(|k| held.remove(k)).flatten().collect()
+            let mut due: Vec<(String, String)> = keys.iter().filter_map(|k| held.remove(k)).flatten().collect();
+            due.extend(self.ask_due(at));
+            due
         };
         for (id, turn) in due {
             let _ = ctx.run_json(&ctx.root_call(), "runtime.release", json!({ "id": id, "turnId": turn, "action": "start" })).await;
@@ -116,7 +126,7 @@ impl State {
 fn guard(ctx: &Ctx, st: &State, mut c: BeforeRunCtx) -> Verdict<BeforeRunCtx> {
     let subject = wisp_budget_core::subject_of(&c.agent, c.account.as_deref(), c.by.as_deref());
     let at = now(ctx);
-    let Some(h) = wisp_budget_core::decide(&subject, |g, a| st.hold(g, a, at)) else { return Verdict::Continue };
+    let Some(h) = wisp_budget_core::decide(&subject, |g, a| st.hold(g, a, at)) else { return st.ask(ctx, c).unwrap_or(Verdict::Continue) };
     let why = format!("{} is past {:.0}% of its {} window: unattended work waits for it to reset.", c.agent, h.stop * 100.0, h.label);
     lock(&st.held).entry((h.agent.clone(), h.account.clone())).or_default().push((c.session_id.0.clone(), c.turn_id.0.clone()));
     c.hold = Some(Held { by: PLUGIN_ID.into(), kind: HOLD_KIND.into(), until: Some(h.until), data: json!({ "hold": h, "why": why }) });
@@ -157,6 +167,8 @@ impl Plugin for BudgetPlugin {
             Ok(v)
         });
         on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));
+        // when the account can run again after a limit (v1 budget.resetAt): the runtime's limit card
+        on!(s, slot, c::ResetAt, |st, ctx, a| Ok(lock(&st.budget).reset_at(&a.agent, &account_of(&a.account), now(&ctx))));
         on!(s, slot, c::Record, |st, ctx, a| Ok(st.record(&ctx, &a.agent, &a.account, &a.report).await));
         on!(s, slot, c::DismissDrain, |st, ctx, a| {
             let ok = lock(&st.budget).dismiss_drain(&a.agent, &account_of(&a.account), &a.window, now(&ctx));
@@ -210,6 +222,12 @@ impl Plugin for BudgetPlugin {
             async move {
                 if let Ok(st) = state(&slot) {
                     st.ended(&ctx, &e).await;
+                    lock(&st.running).remove(e.turn_id.as_str());
+                    let learned = ask::learn(&mut lock(&st.runs), &e, now(&ctx));
+                    if learned {
+                        let runs = lock(&st.runs).clone();
+                        let _ = st.store.write(move |w| store::put_runs(w, &runs)).await;
+                    }
                 }
             }
         });
@@ -220,17 +238,21 @@ impl Plugin for BudgetPlugin {
             if let Ok(p) = ctx.service::<Paths>() {
                 store::import_v1(&store, p.home()).await.map_err(WireError::from)?;
             }
-            let (accs, settings) = store::load(&store).await.map_err(WireError::from)?;
-            let st = Arc::new(State { store, budget: Mutex::new(Budget::load(accs)), settings: Mutex::new(settings), held: Mutex::new(BTreeMap::new()), notes: Mutex::default() });
+            let (accs, settings, runs) = store::load(&store).await.map_err(WireError::from)?;
+            let st = Arc::new(State { store, budget: Mutex::new(Budget::load(accs)), settings: Mutex::new(settings), held: Mutex::new(BTreeMap::new()), notes: Mutex::default(), runs: Mutex::new(runs), running: Mutex::default(), asked: Mutex::default() });
             let _ = start.set(st.clone());
-            // held work starts when its windows reset on their own
+            // held work starts when its windows reset on their own, or a live read says they reset early
             if let Ok(clock) = ctx.clock() {
                 let (scope, c2) = (ctx.scope().clone(), ctx.clone());
                 ctx.spawn(async move {
+                    let mut due = BTreeMap::new();
                     loop {
                         tokio::select! {
                             () = scope.cancelled() => return,
-                            () = clock.sleep(TICK_MS) => st.release(&c2).await,
+                            () = clock.sleep(TICK_MS) => {
+                                st.live(&c2, &mut due).await;
+                                st.release(&c2).await;
+                            }
                         }
                     }
                 });

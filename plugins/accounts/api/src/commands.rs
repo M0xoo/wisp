@@ -213,6 +213,23 @@ command!(
     /// POST /agents/recheck: every harness detected again.
     Recheck = "accounts.recheck" [PERM_READ] : () => serde_json::Value
 );
+/// `accounts.cool`: a run hit this account's usage limit; hand-started launches skip it until `until` (v1
+/// `accounts.cool`). Only with several accounts: one login has nothing to skip to. Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "accounts/")]
+pub struct CoolArgs {
+    pub agent: String,
+    #[serde(default)]
+    pub account: String,
+    #[ts(type = "number")]
+    pub until: i64,
+    #[serde(default)]
+    pub why: String,
+}
+
+command!(
+    Cool = "accounts.cool" [PERM_WRITE] : CoolArgs => AccountsOut
+);
 command!(
     /// A read of the account's usage windows that spends nothing (Codex's app-server); null: none.
     Limits = "accounts.limits" [PERM_READ] : AccountArgs => serde_json::Value, ro

@@ -130,6 +130,12 @@ pub fn script(prompt: &str) -> Vec<Value> {
             json!({"type":"result","text":"Error: boom\nmore","isError":true}),
         ];
     }
+    if prompt.starts_with("limit") {
+        return vec![
+            json!({"type":"session","id":"conv-1"}),
+            json!({"type":"result","text":"Claude AI usage limit reached|1767225600","isError":true}),
+        ];
+    }
     if prompt.starts_with("refuse") {
         return vec![
             json!({"type":"session","id":"conv-1"}),

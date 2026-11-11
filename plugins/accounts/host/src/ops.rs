@@ -101,6 +101,13 @@ pub(crate) fn register(s: &mut Setup, slot: &Slot) {
         save(&st, &a.agent, next).await?;
         Ok(out(&ctx, &st, &a.agent))
     });
+    on!(s, slot, c::Cool, |st, ctx, a| {
+        let mut list = lock(&st.accounts).get(&a.agent).cloned().unwrap_or_default();
+        if accounts::multi(&list) && accounts::cool(&mut list, &a.account, a.until, &a.why) {
+            save(&st, &a.agent, list).await?;
+        }
+        Ok(out(&ctx, &st, &a.agent))
+    });
     on!(s, slot, c::Remove, |st, ctx, a| {
         let h = many(&ctx, &a.agent)?;
         let list = lock(&st.accounts).get(&a.agent).cloned().unwrap_or_default();

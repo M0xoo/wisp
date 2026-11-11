@@ -554,3 +554,61 @@ async fn a_turn_keeps_what_the_cli_was() {
     let t = &r.rt.turns(id.as_str(), None, None).await.unwrap()[0];
     assert_eq!(t.ext["wisp.runtime"]["cli"]["version"], "2.1.0");
 }
+
+/// A stand-in Auto that reads a usage limit the way wisp.router does (`usage limit` → the harness, an hour).
+struct Limits;
+
+impl wisp_router_api::service::RouterApi for Limits {
+    fn pick(&self, _call: &wisp_kernel::Call, _req: wisp_router_api::service::PickRequest) -> wisp_kernel::Result<Option<wisp_router_api::Pick>> {
+        Ok(None)
+    }
+    fn classify(&self, _call: &wisp_kernel::Call, err: &wisp_router_api::service::RunError) -> wisp_kernel::Result<Option<wisp_router_api::Limit>> {
+        Ok(err.text.contains("usage limit").then_some(wisp_router_api::Limit { scope: wisp_router_api::LimitScope::Agent, ms: 3_600_000, kind: None, blip: None }))
+    }
+    fn report(&self, _call: &wisp_kernel::Call, _o: wisp_router_api::service::Outcome) -> wisp_kernel::Result<()> {
+        Ok(())
+    }
+}
+
+/// v1 runner.js `#atLimit` and `waitAtLimit`: a run at its usage limit says so and gets its card (when it resets,
+/// the other accounts ready), the account is marked until then; with Wait for the reset on, the task lands quietly
+/// and waits under Scheduled, the hero saying it carries on by itself.
+#[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::many_single_char_names)] // r, t, l, s, w, n: one rig each, as the other tests name them
+async fn a_run_at_its_usage_limit_gets_its_card_and_waits_for_the_reset_when_settings_say() {
+    let accounts = serde_json::json!({ "accounts": [{ "id": "default", "label": "Me", "state": "limit", "kind": "personal" }, { "id": "w", "label": "Work", "state": "ready", "kind": "work" }] });
+    let answers = |wait: bool| {
+        let mut a: std::collections::BTreeMap<String, serde_json::Value> = [("budget.resetAt".to_owned(), serde_json::json!(4_102_444_800_000_i64)), ("accounts.cool".to_owned(), accounts.clone())].into();
+        if wait {
+            a.insert("later.waitAtLimit".into(), serde_json::json!({ "id": "l1" }));
+        }
+        a
+    };
+    let r = rig_with(Recorder { router: Some(std::sync::Arc::new(Limits)), answers: answers(false), ..Default::default() }).await;
+    let id = r.rt.create(start("limit hit")).await.unwrap().id.0;
+    until("the turn to fail", || async { last_status(&r, &id).await == Some(TurnStatus::Error) }).await;
+    let t = r.rt.turns(&id, None, None).await.unwrap().pop().unwrap();
+    let l = t.limit.clone().expect("the card");
+    assert_eq!((l.until, l.others.len(), l.others[0].id.as_str(), l.waiting), (4_102_444_800_000, 1, "w", false));
+    let blocks = t.presentation.unwrap().blocks;
+    assert_eq!((blocks[0]["title"].as_str(), blocks[0]["status"].as_str()), (Some("Me is at its usage limit"), Some("blocked")));
+    assert_eq!(blocks[1]["type"], "terminal");
+    assert!(t.refusal.is_none());
+    assert_eq!(r.rt.get(&id).await.unwrap().state, SessionState::Review, "off: it asks you");
+    let asked = r.host.asked.lock().unwrap().clone();
+    assert!(asked.iter().any(|(c, a)| c == "accounts.cool" && a["until"] == 4_102_444_800_000_i64), "{asked:?}");
+    assert!(!asked.iter().any(|(c, _)| c == "later.waitAtLimit"));
+    // Wait for the reset on: quiet, under Scheduled
+    let w = rig_with(Recorder { router: Some(std::sync::Arc::new(Limits)), answers: answers(true), settings: [("runtime.limitWait".to_owned(), serde_json::json!(true))].into(), ..Default::default() }).await;
+    let wid = w.rt.create(start("limit hit")).await.unwrap().id.0;
+    until("it waits", || async { w.host.asked.lock().unwrap().iter().any(|(c, _)| c == "later.waitAtLimit") }).await;
+    let s = w.rt.get(&wid).await.unwrap();
+    assert_eq!((s.state, s.unread), (SessionState::Done, false), "nobody is pinged");
+    let t = w.rt.turns(&wid, None, None).await.unwrap().pop().unwrap();
+    assert!(t.limit.unwrap().waiting);
+    assert_eq!(t.presentation.unwrap().blocks[0]["status"], "partial");
+    // later refuses (five already waiting): it lands in Needs you after all
+    let n = rig_with(Recorder { router: Some(std::sync::Arc::new(Limits)), answers: answers(false), settings: [("runtime.limitWait".to_owned(), serde_json::json!(true))].into(), ..Default::default() }).await;
+    let nid = n.rt.create(start("limit hit")).await.unwrap().id.0;
+    until("back in Needs you", || async { n.rt.get(&nid).await.unwrap().state == SessionState::Review }).await;
+}

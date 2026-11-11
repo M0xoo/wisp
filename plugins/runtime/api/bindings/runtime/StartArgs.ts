@@ -13,6 +13,10 @@ import type { Mode } from "./Mode";
  */
 export type StartArgs = { prompt: string, agent?: string, model?: string, effort?: string, mode?: Mode, cwd?: string, dirs?: Array<string>, title?: string, attachments?: Array<Attachment>, parentId?: SessionId, account?: string, by?: string, 
 /**
+ * you said yes to going past Ask near the limit's line (v1 `confirmLimit`; the CLI's --yes). Additive (2026-11-11).
+ */
+confirmLimit?: boolean, 
+/**
  * start it held in the queue rather than running it now (a scheduled task)
  */
 hold?: boolean, 

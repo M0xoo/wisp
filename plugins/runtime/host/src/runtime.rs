@@ -369,6 +369,7 @@ impl Runtime {
             attachments: a.attachments,
             at: now,
             by: a.by,
+            opts: a.confirm_limit.then(|| serde_json::json!({ "confirmLimit": true })),
             ..QueueItem::default()
         };
         if a.hold {
@@ -424,7 +425,7 @@ impl Runtime {
         if a.text.trim().is_empty() && a.attachments.is_empty() {
             return Err(RuntimeError::Invalid("a follow-up needs text".into()));
         }
-        let opts = serde_json::to_value(serde_json::json!({ "mode": a.mode, "run": a.run }))
+        let opts = serde_json::to_value(serde_json::json!({ "mode": a.mode, "run": a.run, "confirmLimit": a.confirm_limit.then_some(true) }))
             .ok()
             .filter(|v| {
                 v.as_object()

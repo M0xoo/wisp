@@ -3,23 +3,25 @@
 // stops (Automations stop at, and each harness's own line).
 import { createResource, For, onCleanup, Show, type JSX } from 'solid-js';
 import { entityKey, type PluginClient } from '@wisp/client';
-import { ChoiceSetting, Meter, SelectSetting, SettingsGroup, SettingsRow, Stats, useSignal, type SettingSource } from '@wisp/ui';
-import { META, plans, setStop, TOPIC, usage, type AccountPlan } from '../commands.ts';
+import { Callout, ChoiceSetting, IconButton, Inline, Meter, SelectSetting, SettingsGroup, SettingsRow, Stats, SwitchSetting, Text, Button, timeLabel, englishT, useSignal, type SettingSource } from '@wisp/ui';
+import { dismissDrain, dismissNotice, META, plans, setStop, TOPIC, usage, type AccountPlan } from '../commands.ts';
+import { drainLines, drainReport, noticeWords } from '../drain.ts';
 import { t } from '../i18n.ts';
 import { fromRow } from '../source.ts';
 
-/** v1 Subagents run on: the model Claude Code's own subagents use ('' = the task's), read by the runtime as
+/** v1 Subagents run on: the model Claude Code's own subagents use ('task' = the task's), read by the runtime as
  * `runtime.subagentModel` and passed to claude as CLAUDE_CODE_SUBAGENT_MODEL. */
 const SUBAGENT_KEY = 'runtime.subagentModel';
 function subagentSource(c: PluginClient): SettingSource<string> {
-  const s = fromRow(c, SUBAGENT_KEY, '');
+  const s = fromRow(c, SUBAGENT_KEY, 'task');
   return {
     value: () => {
       const v = (s.value as () => unknown)();
       return v === 'haiku' || v === 'sonnet' ? v : 'task';
     },
     ...(s.lockedBy && { lockedBy: s.lockedBy }),
-    set: (v) => s.set(v === 'task' ? '' : v),
+    // an enum value is never '' (the kernel refuses the manifest): 'task' is the task's own model
+    set: (v) => s.set(v),
   };
 }
 
@@ -40,7 +42,7 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
   c.watch(peer, TOPIC, scope);
   const meta = useSignal(c.entities.row<{ body: Record<string, string> }>(META, entityKey(peer, 'settings')));
   const [line] = createResource(() => c.run(usage, { peer }).catch(() => undefined));
-  const [windows] = createResource(async () => {
+  const [windows, { refetch: again }] = createResource(async () => {
     const out: { agent: string; name: string; accounts: AccountPlan[] }[] = [];
     for (const p of PLANNED) out.push({ agent: p.agent, name: p.name, accounts: await c.run(plans, { peer, agent: p.agent }).catch(() => []) });
     return out;
@@ -49,6 +51,15 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
     value: () => meta()?.body?.[key] ?? dflt,
     set: (v: string) => void c.run(setStop, { peer, key, value: v }).catch(() => {}),
   });
+  // Drain watch (`budget.drainWatch`, a bool setting): the switch, and each account's card while it's on
+  const drainSrc = fromRow(c, 'budget.drainWatch', false);
+  const watching = (): boolean => {
+    const v = (drainSrc.value as () => unknown)();
+    return v === true || v === 'on';
+  };
+  const drainWatch: SettingSource<boolean> = { value: watching, ...(drainSrc.lockedBy && { lockedBy: drainSrc.lockedBy }), set: (on) => drainSrc.set(on) };
+  const when = (at: number): string => timeLabel(at, Date.now(), englishT);
+  const hide = (p: Promise<unknown>): void => void p.then(() => void again(), () => {});
   const reported = (): boolean => (windows() ?? []).some((w) => w.accounts.some((a) => a.windows.length > 0));
   const worked = (): string => {
     const w = line()?.worked;
@@ -84,6 +95,42 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
           source={subagentSource(c)}
           items={(['task', 'haiku', 'sonnet'] as const).map((v) => ({ value: v, label: t(`budget.usage.subagents.${v}`) }))}
         />
+        <For each={windows() ?? []}>
+          {(h) => (
+            <For each={h.accounts}>
+              {(a) => (
+                <>
+                  <For each={a.notices ?? []}>
+                    {(n) => (
+                      <SettingsRow
+                        part="budget.usage.notice"
+                        title=""
+                        description={noticeWords(n, label(h.name, a.account, ''), when)}
+                        control={<IconButton icon="x" size="xs" label={t('budget.usage.notice.hide')} onClick={() => hide(c.run(dismissNotice, { peer, agent: h.agent, account: a.account, window: n.window }))} />}
+                      />
+                    )}
+                  </For>
+                  <Show when={watching() && a.drain}>
+                    {(d) => (
+                      <Callout part="budget.usage.drain" tone="warn" icon="warn" title={drainLines(d(), when).title}>
+                        <Text size="sm">{drainLines(d(), when).text}</Text>
+                        <Inline gap="2">
+                          <Button size="sm" variant="ghost" icon="copy" onClick={() => void navigator.clipboard?.writeText(drainReport(h.name, a.account, d(), when)).catch(() => {})}>
+                            {t('budget.usage.drain.copy')}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => hide(c.run(dismissDrain, { peer, agent: h.agent, account: a.account, window: d().id }))}>
+                            {t('budget.usage.drain.dismiss')}
+                          </Button>
+                        </Inline>
+                      </Callout>
+                    )}
+                  </Show>
+                </>
+              )}
+            </For>
+          )}
+        </For>
+        <SwitchSetting part="settings.drainWatch" title={t('budget.usage.drain.title')} description={t('budget.usage.drain.description')} source={drainWatch} />
         <ChoiceSetting part="budget.usage.stop" title={t('budget.usage.stop.title')} description={t('budget.usage.stop.description')} source={stop('autoStop', 'off')} items={STOPS.map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))} />
         <For each={PLANNED}>
           {(p) => <ChoiceSetting part="budget.usage.stop.own" title={p.name} description={t('budget.usage.stop.own')} source={stop(p.key, 'same')} items={(['same', ...STOPS] as Stop[]).map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))} />}

@@ -5,6 +5,7 @@ import type { Attachment } from "./Attachment";
 import type { Held } from "./Held";
 import type { Mode } from "./Mode";
 import type { Presentation } from "./Presentation";
+import type { TurnLimit } from "./TurnLimit";
 import type { TurnRefusal } from "./TurnRefusal";
 import type { TurnStats } from "./TurnStats";
 import type { TurnStatus } from "./TurnStatus";
@@ -30,6 +31,10 @@ changedFiles?: number,
  * the harness turned the task down (additive, 2026-11-11)
  */
 refusal?: TurnRefusal, 
+/**
+ * the run hit its account's usage limit: the card under the hero (additive, 2026-11-11)
+ */
+limit?: TurnLimit, 
 /**
  * how many activity events the turn has (the event log's length for this turn)
  */

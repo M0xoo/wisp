@@ -132,6 +132,7 @@ pub struct TurnPlan {
 
 command!(View = "budget.view", PERM_READ, true, AgentArgs => Vec<AccountView>);
 command!(Hold = "budget.hold", PERM_READ, true, AccountArgs => Option<PlanHold>);
+command!(ResetAt = "budget.resetAt", PERM_READ, true, AccountArgs => Option<i64>);
 command!(Shares = "budget.shares", PERM_READ, true, SessionArgs => Vec<TurnPlan>);
 command!(Record = "budget.record", PERM_WRITE, false, RecordArgs => RecordOut);
 command!(Overage = "budget.overage", PERM_WRITE, false, OverageArgs => Done);

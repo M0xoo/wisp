@@ -25,7 +25,7 @@ use crate::runtime::Runtime;
 
 impl Runtime {
     /// Loads the task under its lock, lets `f` change it, writes it.
-    async fn edit(
+    pub(crate) async fn edit(
         self: &Arc<Self>,
         id: &str,
         f: impl FnOnce(&mut Session) -> Result<()>,

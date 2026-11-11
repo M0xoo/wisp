@@ -48,6 +48,9 @@ pub struct BeforeRunCtx {
     pub kind: RunKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<SessionId>,
+    /// you said yes to going past Ask near the limit's line (the follow-up's `confirmLimit`). Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub confirm_limit: bool,
 }
 
 #[derive(Debug)]

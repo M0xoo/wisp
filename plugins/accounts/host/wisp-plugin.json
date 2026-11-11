@@ -109,6 +109,10 @@
         "title": "Detect every harness again"
       },
       {
+        "id": "accounts.cool",
+        "title": "Mark an account at its usage limit until its reset (launches you start skip it)"
+      },
+      {
         "id": "accounts.limits",
         "title": "Read an account's usage windows",
         "readOnly": true

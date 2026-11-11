@@ -132,7 +132,7 @@ mod tests {
     fn auto_learns_from_a_routed_tasks_turn_end_and_cools_at_a_limit() {
         use wisp_runtime_api::events::TurnEnded;
         use wisp_runtime_api::model::TurnStatus;
-        let e = TurnEnded { session_id: "t1".into(), turn_id: "u1".into(), status: TurnStatus::Done, interrupted: false, error_text: None, cost_usd: Some(0.4), changed_files: None, agent: "claude".into(), model: "opus".into(), account: None, tokens: None };
+        let e = TurnEnded { session_id: "t1".into(), turn_id: "u1".into(), status: TurnStatus::Done, interrupted: false, error_text: None, cost_usd: Some(0.4), changed_files: None, agent: "claude".into(), model: "opus".into(), account: None, tokens: None, first: true, inner: false };
         assert_eq!(turn_outcome(&e, None, 0), None, "a task nobody routed teaches nothing");
         let route = StoredRoute { key: "claude:opus".into(), ..StoredRoute::default() };
         match turn_outcome(&e, Some(&route), 0) {

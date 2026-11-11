@@ -102,6 +102,14 @@ pub struct TurnEnded {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub tokens: Option<u64>,
+    /// a task's first turn (else a follow-up): Ask near the limit learns each apart. Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub first: bool,
+    /// a run inside a task you already said yes to (a subagent's, wisp's own round, a compaction)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub inner: bool,
 }
 durable!(TurnEnded = "turn.ended", |e| subject: e.session_id.0.clone(), key: e.turn_id.0.clone());
 

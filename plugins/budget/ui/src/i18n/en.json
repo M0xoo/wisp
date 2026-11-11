@@ -21,5 +21,10 @@
   "budget.usage.subagents.description": "Claude Code’s own subagents (Explore, Plan, page reads) and workflow agents. They run on the task’s model unless you pick one here; an agent that names its own model keeps it. Where it went shows what they took",
   "budget.usage.subagents.task": "Same as the task",
   "budget.usage.subagents.haiku": "Haiku",
-  "budget.usage.subagents.sonnet": "Sonnet"
+  "budget.usage.subagents.sonnet": "Sonnet",
+  "budget.usage.drain.title": "Drain watch",
+  "budget.usage.drain.description": "Warns here, and on your phone when it’s set up, when an account’s last two hours of runs took twice or more its usual share of a window for the same work. Copy report puts the numbers in words for a support ticket",
+  "budget.usage.drain.copy": "Copy report",
+  "budget.usage.drain.dismiss": "Dismiss",
+  "budget.usage.notice.hide": "Hide until this window changes again"
 }
