@@ -108,6 +108,10 @@ body.wisp-mobile .pal-note button { min-height: 44px; }
 .pm-row .p-run { flex: none; }
 .pm-row .pm-check { flex: none; width: 14px; height: 14px; color: var(--accent); visibility: hidden; }
 .pm-row.on .pm-check { visibility: visible; }
+/* drag a row to reorder (ui/reorder.js): it floats, a line marks where it lands */
+.menu .pm-row.dragged { position: relative; z-index: 1; background: var(--surface); box-shadow: var(--shadow-2); }
+.menu .pm-row.drop-before { box-shadow: 0 -3px 0 -1px var(--accent); }
+.menu .pm-row.drop-after { box-shadow: 0 3px 0 -1px var(--accent); }
 /* the launcher's list: + adds a project to the task, ✓ shows it's in */
 .pm-also { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin: -2px -4px -2px 0; border-radius: 6px; color: var(--faint); }
 .pm-also .i { width: 13px; height: 13px; }

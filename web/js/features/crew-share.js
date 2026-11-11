@@ -16,7 +16,7 @@ import { ask } from '../ui/confirm.js';
 import { toast, toastError } from '../ui/toast.js';
 import { MODES, agentName, harnessLogo, harnessesAt } from './runners.js';
 import { projectList } from './project-list.js';
-import { pathAt } from './places.js';
+import { pathAt, projects } from './places.js';
 import { renderFeed } from './feed.js';
 import { avatarHtml, cadenceLabel, cadenceText, crewList, eventsLabel, memberById, openCrew, paintCrew } from './crew.js';
 
@@ -38,7 +38,7 @@ function download(name, json) {
 // A project picker on a button: the launcher's list, plus No project unless one is required.
 function pickProject(anchor, current, { required = false } = {}, onPick) {
   projectList(anchor, {
-    projects: (S.config.projects || []).filter((p) => pathAt(p, '')),
+    projects: projects().filter((p) => pathAt(p, '')),
     current: S.config.projects?.find((p) => pathAt(p, '') === current)?.id,
     extras: required ? [] : [{ id: '', icon: 'x', label: 'No project' }],
     label: 'Works in',

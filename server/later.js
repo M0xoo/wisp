@@ -81,8 +81,8 @@ export class Later {
   // hold(s): what holds back a follow-up nobody sent by hand (Automations stop at), or null.
   // fresh(s): resolves once its account's reading is fresh enough for hold to go by.
   // goalRound(s, l): a goal's next round that waited for the plan goes now (server/goal.js).
-  constructor({ store, runner, launch, uploads = null, changed = () => {}, configChanged = () => {}, notify = () => {}, hold = () => null, fresh = null, goalRound = null, now = () => Date.now() }) {
-    Object.assign(this, { store, runner, launch, uploads, changed, configChanged, notify, hold, fresh, goalRound, now });
+  constructor({ store, runner, launch, uploads = null, changed = () => {}, configChanged = () => {}, notify = () => {}, hold = () => null, fresh = null, goalRound = null, wakeGone = null, now = () => Date.now() }) {
+    Object.assign(this, { store, runner, launch, uploads, changed, configChanged, notify, hold, fresh, goalRound, wakeGone, now });
     store.config.later ||= [];
   }
 
@@ -134,6 +134,7 @@ export class Later {
     if (i < 0) return false;
     const [l] = s.later.splice(i, 1);
     if (!s.later.length) delete s.later;
+    this.wakeGone?.(s, l, { cancelled: true }); // a goal that waited for this wake-up is checked now
     // A goal round that waited for the plan: the goal waits for you now, out of Scheduled.
     if (l.goal && s.goal?.held) {
       Object.assign(s.goal, { held: undefined, why: 'You cancelled its next round' });
@@ -173,6 +174,7 @@ export class Later {
     if (!s.later?.some((l) => l.by !== 'user')) return;
     // A goal round that waited for the plan goes with them: the goal waits for you now.
     if (s.goal?.held) Object.assign(s.goal, { held: undefined, why: 'You marked the task done' });
+    for (const l of s.later.filter((x) => x.by !== 'user')) this.wakeGone?.(s, l);
     s.later = s.later.filter((l) => l.by === 'user');
     if (!s.later.length) delete s.later;
   }
@@ -409,6 +411,7 @@ export class Later {
       if (!due?.length) continue;
       // Archived: you put it away, so what it had scheduled lapses.
       if (s.archived) {
+        for (const l of due) this.wakeGone?.(s, l);
         s.later = s.later.filter((l) => l.at > now);
         if (!s.later.length) delete s.later;
         this.changed(s);
@@ -426,6 +429,7 @@ export class Later {
         // A day late: the task comes back to Needs you with the follow-up, unsent.
         s.later = s.later.filter((x) => x !== l);
         if (!s.later.length) delete s.later;
+        this.wakeGone?.(s, l);
         s.reminder = { text: `Missed follow-up (due at ${clock(l.at, now)}, wisp was off): ${l.text}`, at: l.at, setAt: l.setAt, by: l.by, was: s.state, missed: true };
         s.state = 'review';
         s.unread = true;

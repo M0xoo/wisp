@@ -1141,7 +1141,10 @@ R.blocked = (b, ctx) => {
   const items = (b.items || []).filter((i) => i && typeof i === 'object');
   const t = ctx.turn || {};
   const scoped = !!t.blocked?.length && t.blocked.every((i) => i.rule !== undefined);
-  const open = ctx.isLatest && !t.approval && !!ctx.approve && ctx.session?.state !== 'running';
+  // Nothing to allow (turn.blocked is the server's list of it): a run in Full auto, where what was
+  // still refused was its harness's own safety check, or a card from before.
+  const open = !!t.blocked?.length && ctx.isLatest && !t.approval && !!ctx.approve && ctx.session?.state !== 'running';
+  const unallowed = !t.blocked?.length && !t.approval && t.mode === 'auto';
   const state = (a) => (a === 'allowed' ? `${icon('check')}Allowed and retried` : a === 'denied' ? `${icon('x')}Denied` : '');
   const node = el(`
     <div class="b-blocked ${open ? '' : 'resolved'}">
@@ -1154,6 +1157,7 @@ R.blocked = (b, ctx) => {
         <button class="ghost sm bl-deny">Deny</button>
         <span class="bl-note">${scoped ? 'Allows exactly these, for the retry only.' : 'This harness can’t allow single actions, so the retry runs in Full auto (that follow-up only).'}</span>
       </div>` : ''}
+      ${unallowed ? `<div class="bl-foot"><span class="bl-note">Refused by the harness’s own safety check, even in Full auto: wisp can’t allow it. Ask for it another way.</span></div>` : ''}
     </div>`);
   if (!open) return node;
   const decide = async (allow) => {

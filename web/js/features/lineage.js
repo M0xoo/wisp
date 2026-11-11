@@ -6,7 +6,7 @@
 import { api } from '../core/api.js';
 import { S } from '../core/state.js';
 import { toast } from '../ui/toast.js';
-import { renderFeed, reveal } from './feed.js';
+import { fetchFull, renderFeed, reveal } from './feed.js';
 
 const FOR_TASK = new Set(['delegated', 'mention', 'event']);
 const subs = new Map(); // subagent id → its lead's id: opened by the user, shown under the lead
@@ -78,7 +78,8 @@ function summaryOf(child, lead) {
   };
 }
 
-// Open a subagent's whole run by itself. child: its full record (the lead's childSessions has it).
+// Open a subagent's whole run by itself. child: its record from the lead's childSessions (whole,
+// or partial on the phone).
 export function openSub(leadId, child) {
   const lead = S.sessions.get(leadId);
   if (!lead || !child) return toast('That run isn’t here anymore.', { tone: 'bad' });
@@ -88,6 +89,16 @@ export function openSub(leadId, child) {
   cameFrom.set(child.id, leadId);
   opening = child.id;
   reveal(child.id);
+  // On the phone the lead brings only the turn each card shows (server/session-view.js): that
+  // turn shows at once, and the whole run follows (fetchFull keeps the phone's window).
+  // Its row was built from that turn too: rebuilt from the whole run unless the server's own
+  // summary came meanwhile (onSubSummary).
+  if (!child.partial || !S.open.has(child.id)) return;
+  const row = S.sessions.get(child.id);
+  fetchFull(child.id).then(() => {
+    const whole = S.full.get(child.id);
+    if (whole && !whole.partial && S.sessions.get(child.id) === row) S.sessions.set(child.id, summaryOf(whole, lead));
+  });
 }
 
 // A task opened from another one's card (a crew member's job): Back returns to that card.

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectFirst, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl, versionIn, withProtocol } from './common.js';
-import { describeCommand } from './commands.js';
+import { runLabel } from './commands.js';
 import { codexLimits, codexRollout } from '../budget.js';
 
 const DEFAULT_BIN = process.env.WISP_CODEX_BIN || 'codex';
@@ -205,7 +205,7 @@ export default {
       const type = item.type || item.item_type;
       if (phase === 'started') {
         if (type === 'command_execution') {
-          onEvent({ type: 'tool', id: item.id, kind: 'run', label: describeCommand(unwrapShell(item.command), cwd), detail: item.command });
+          onEvent({ type: 'tool', id: item.id, kind: 'run', ...runLabel(unwrapShell(item.command), cwd), detail: item.command });
         } else if (type === 'mcp_tool_call') {
           onEvent({ type: 'tool', id: item.id, ...describeMcp(item) });
         } else if (type === 'web_search') {

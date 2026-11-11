@@ -64,6 +64,10 @@
 .p-chip.on { background: var(--surface); border-color: var(--line-2); color: var(--ink); font-weight: 500; }
 .p-chip.add { width: 26px; padding: 0; justify-content: center; } /* its + alone: a circle as tall as the chips */
 .p-chip.add .i { width: 14px; height: 14px; }
+/* drag a chip to reorder (ui/reorder.js): it floats, a line marks where it lands */
+.p-chip.dragged { position: relative; z-index: 1; background: var(--surface); border-color: var(--line-2); box-shadow: var(--shadow-2); }
+.p-chip.drop-before { box-shadow: -4px 0 0 -1px var(--accent); }
+.p-chip.drop-after { box-shadow: 4px 0 0 -1px var(--accent); }
 .p-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pc); display: inline-block; flex: none; }
 .p-run { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
 .p-need { font-size: 11.5px; font-weight: 600; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--ink); color: var(--bg); display: grid; place-items: center; }

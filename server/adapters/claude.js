@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, quietOutput, rel, spawnJsonl } from './common.js';
-import { describeCommand } from './commands.js';
+import { runLabel } from './commands.js';
 import { signedOutBy } from '../agent-login.js';
 import { claudeLimits } from '../budget.js';
 import { COSTLY_ENV, PARENT_SESSION_ENV } from '../pty.js';
@@ -461,7 +461,9 @@ export default {
     // Background tasks (run_in_background shells, background subagents) still running. While any
     // are, the CLI stays up after its result and starts another turn when they finish.
     let background = new Map(); // task_id -> description
+    const agentTasks = new Set(); // the task_ids of those that are subagents (task_type local_agent), not shells
     const setBackground = (next) => {
+      for (const id of agentTasks) if (!next.has(id)) agentTasks.delete(id);
       const was = [...background.keys()].join(' ');
       background = next;
       if ([...next.keys()].join(' ') !== was) onEvent({ type: 'background', tasks: [...next.values()] });
@@ -538,8 +540,10 @@ export default {
         // background_tasks_changed carries the full list; task_started/task_notification are the
         // per-task edges, kept as a fallback in case a CLI version only sends those.
         if (msg.subtype === 'background_tasks_changed' && Array.isArray(msg.tasks)) {
+          for (const t of msg.tasks) if (t.task_type === 'local_agent') agentTasks.add(t.task_id);
           setBackground(new Map(msg.tasks.map((t) => [t.task_id, t.description || 'Background task'])));
         } else if (msg.subtype === 'task_started' && msg.is_backgrounded && msg.task_id) {
+          if (msg.task_type === 'local_agent') agentTasks.add(msg.task_id);
           setBackground(new Map(background).set(msg.task_id, msg.description || 'Background task'));
         } else if (msg.subtype === 'task_notification' && background.has(msg.task_id)) {
           const next = new Map(background);
@@ -592,7 +596,8 @@ export default {
         }
         if (refused && !msg.stop_reason) ev.stopReason = 'refusal'; // the result's own stop_reason, when it has one, says
         refused = false;
-        onEvent({ ...ev, background: background.size }); // > 0: another turn and result follow when they finish
+        // > 0: another turn and result follow when they finish. backgroundAgents: how many are subagents.
+        onEvent({ ...ev, background: background.size, backgroundAgents: agentTasks.size });
       }
     };
 
@@ -671,7 +676,7 @@ function describeTool(name, input, cwd) {
     case 'NotebookEdit':
       return { kind: 'edit', label: `Editing notebook ${f}`, file: f };
     case 'Bash':
-      return { kind: 'run', label: input.description ? clip(input.description) : describeCommand(input.command, cwd), detail: input.command };
+      return { kind: 'run', ...runLabel(input.command, cwd, input.description), detail: input.command };
     case 'Grep':
       return { kind: 'search', label: `Searching for “${clip(input.pattern, 40)}”` };
     case 'Glob':

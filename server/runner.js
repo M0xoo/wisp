@@ -103,6 +103,7 @@ export function stepOf(ev) {
   const item = { t: Date.now(), kind: ev.type === 'tool' ? ev.kind : ev.type === 'text' ? 'text' : 'error' };
   if (ev.type === 'tool') {
     Object.assign(item, { label: ev.label, file: ev.file, detail: ev.detail });
+    if (ev.title) item.title = ev.title; // the whole label, which an opened step shows
     if (ev.id) item.call = String(ev.id); // a tool_output later finds its call by this
     if (ev.output && OUTPUT_KINDS.has(item.kind)) item.output = clipOutput(ev.output);
   } else if (ev.type === 'text') item.label = ev.text.slice(0, MAX_TEXT);
@@ -1764,7 +1765,10 @@ export class Runner extends EventEmitter {
         // It ended its turn in plain text with background tasks still running ("I'll report once
         // it's done"): the CLI wakes it up when they finish and it reports again, so the turn stays
         // open. A full presentation is a finished task that left something up (a dev server).
-        if (ev.background > 0 && !ev.isError && !turn.plain && parsePresentation(ev.text).fallback) {
+        // Toward a goal, a subagent still at work means it isn't done either, whatever it said:
+        // the goal is checked on the report that follows, not on this one.
+        const subagents = ev.backgroundAgents > 0 && session.goal?.status === 'working' && !session.parentId && !session.delegated;
+        if (ev.background > 0 && !ev.isError && (subagents || (!turn.plain && parsePresentation(ev.text).fallback))) {
           turn.interim = { text: ev.text, stats: ev.stats };
           this.#waitItem(session, turn);
           return 'waiting';
@@ -2148,7 +2152,10 @@ function blockedCard(turn) {
   }
   // The agent may name a tool its own way (shell for Bash): the same command still counts.
   const left = items.filter((b) => !(turn.denied || []).some((d) => sameAction(d, b) || (b.detail && d.detail === b.detail))).slice(0, 12);
-  if (left.length) turn.blocked = left;
+  // A run in Full auto was already allowed everything wisp can allow: what its harness still refused
+  // was its own safety check (Claude Code's on a heredoc it can't parse), which no rule lifts. The
+  // card still says what was refused, with nothing to retry.
+  if (left.length && turn.mode !== 'auto') turn.blocked = left;
   else delete turn.blocked;
   if (!turn.presentation) return;
   const rest = blocks.filter((b) => b.type !== 'blocked');

@@ -319,3 +319,8 @@ Never send builds to someone's own phone as part of QA.
 - **Steps:** with a task waiting on a question, open the list; scroll its row off screen and back; tap **Yes** on the row.
 - **Expected:** while the row's choices are on screen, **New task** fades away and can't be tapped or focused; it comes back once they scroll off or the answer goes. A choice that wraps reads from the left, like the open card's answers, never centred.
 
+
+### MOB-35 Back from a subagent's run goes to its lead
+- **Run:** Manual on the Pixel (debug APK), or a phone viewport with `wispMobile` in the user agent (fake agents, a prompt with `ADHOC`).
+- **Steps:** open a task that delegated; tap its delegate's row to open the subagent's run; press the phone's Back; press it again. Repeat with the head's Back button, and with a crew member's job opened from the task it was done for.
+- **Expected:** the first Back opens the lead as a page (its title, its head's Back saying *Back to tasks*), not the list; the second Back goes to the list. The head's Back does the same.

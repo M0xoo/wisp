@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectVersion, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl } from './common.js';
-import { describeCommand } from './commands.js';
+import { runLabel } from './commands.js';
 
 const BIN = process.env.WISP_GROK_BIN || 'grok';
 
@@ -208,7 +208,7 @@ function describeTool(name, input, cwd) {
       return { kind: 'edit', label: `Writing ${f}`, file: f };
     case 'run_terminal_command':
     case 'run_terminal_cmd':
-      return { kind: 'run', label: input.description ? clip(input.description) : describeCommand(input.command, cwd), detail: input.command };
+      return { kind: 'run', ...runLabel(input.command, cwd, input.description), detail: input.command };
     case 'grep':
       return { kind: 'search', label: `Searching for “${clip(input.pattern, 40)}”` };
     case 'list_dir':

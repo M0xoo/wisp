@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectVersion, exitText, fileTracker, helpEfforts, helpText, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
-import { describeCommand } from './commands.js';
+import { runLabel } from './commands.js';
 
 const BIN = process.env.WISP_COPILOT_BIN || 'copilot';
 const IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
@@ -253,7 +253,7 @@ function describeTool(name, a, cwd) {
       return { kind: 'edit', label: `Editing ${f}`, file: f };
     case 'bash':
     case 'powershell': // its shell tool on Windows
-      return { kind: 'run', label: a.description ? clip(a.description) : describeCommand(a.command, cwd), detail: a.command };
+      return { kind: 'run', ...runLabel(a.command, cwd, a.description), detail: a.command };
     case 'read_bash':
     case 'read_powershell':
       return { kind: 'run', label: 'Reading command output' };

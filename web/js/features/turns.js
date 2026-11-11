@@ -10,6 +10,8 @@ import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { actionCount, turnTime } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
+import { ask } from '../ui/confirm.js';
+import { stopQuestion } from '../stop-question.js';
 import { viewImage } from '../ui/viewer.js';
 import { popover } from '../ui/popover.js';
 import { execAction, forkable, forkTask, moreMenu, openInEditor, rerun, revealFile, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
@@ -27,13 +29,13 @@ import { whatChangedLine } from '../what-changed-line.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
 import { compareTip, offerSubagentModel, SUBAGENT_OFFER, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
-import { atTail, scrollByPx, topInset, topTurn } from './scroll.js';
-import { landing, landStart, noteScroll, ownWaiting, toEnd, turnChange } from '../tail.js';
+import { atTail, barCover, scrollByPx, topInset, topTurn } from './scroll.js';
+import { landing, landStart, mediaShift, noteScroll, ownWaiting, toEnd, turnChange } from '../tail.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
 import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
 import { paintSplit } from './split.js';
-import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize, waitingOn } from './team.js';
+import { copiesOf, liveSubs, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize, waitingOn } from './team.js';
 import { noOutputLine, stream } from '../no-output.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 import { paintCard } from './spells.js';
@@ -147,10 +149,13 @@ export function renderBody(id, { fresh, byHand }) {
       'scroll',
       () => {
         noteScroll(body);
+        n.tail = atTail(body);
         if (n.missed) paintLatest(id);
       },
       { passive: true },
     );
+    n.media?.stop();
+    n.media = holdMedia(n, body);
     $('.latest-pill', body).onclick = () => {
       goLatest(id);
     };
@@ -320,6 +325,51 @@ export function renderBody(id, { fresh, byHand }) {
     landStart(n);
     requestAnimationFrame(() => land(target));
   } else if (follow && live && !flying) toEnd(body); // a re-render can add more than the slack: a panel, a queue row
+  n.media?.watch();
+  n.tail = atTail(body);
+}
+
+// Pictures and videos in the body load lazily with no box kept for them, so each one grows when it
+// arrives. This keeps the view where the reader had it (mediaShift in tail.js): at the end if they
+// were there, else on what they were reading. A ResizeObserver runs after layout and before paint,
+// so the shift is never seen.
+const ANCHORS = typeof CSS !== 'undefined' && CSS.supports?.('overflow-anchor', 'auto');
+function holdMedia(n, body) {
+  // Each one's height last seen, or null while it had no box (a fold kept it hidden): opening that
+  // fold is the reader's own doing, not a picture arriving, so it moves nothing.
+  const sizes = new WeakMap();
+  const size = (m) => (m.getClientRects().length ? m.offsetHeight : null);
+  const ro = new ResizeObserver((entries) => {
+    const grew = [];
+    for (const { target: m } of entries) {
+      if (!m.isConnected) {
+        ro.unobserve(m);
+        continue;
+      }
+      const from = sizes.get(m);
+      const to = size(m);
+      sizes.set(m, to);
+      if (from != null && to != null && Math.abs(to - from) >= 1) grew.push({ top: m.getBoundingClientRect().top, from, to });
+    }
+    if (!grew.length || !body.isConnected || !body.clientHeight || landing(n, body)) return;
+    const inset = body.getBoundingClientRect().top + barCover(body);
+    // A task that fit on screen is at its end and its start at once: a picture there pulls nothing.
+    const dy = mediaShift({ tail: n.tail && body.scrollTop > 0, anchors: ANCHORS, inset, grew });
+    if (dy === 'end') toEnd(body);
+    else if (Math.abs(dy) >= 1) body.scrollTop += dy;
+    n.tail = atTail(body);
+  });
+  return {
+    // The media a render just added: their size now is the one to compare with.
+    watch() {
+      for (const m of $$('.turns img, .turns video', body)) {
+        if (sizes.has(m)) continue;
+        sizes.set(m, size(m));
+        ro.observe(m);
+      }
+    },
+    stop: () => ro.disconnect(),
+  };
 }
 
 const land = (node) => node.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -850,6 +900,16 @@ function renderTurn(s, t, isLatest, fold, tx) {
   return node;
 }
 
+// Stop is hard to take back, so it asks first, by the button: a lead and a subagent alike.
+// Checked again after the answer: a run that ended (or a queued follow-up that started) while
+// the question was open isn't stopped by an old Yes.
+const confirmStop = async (s, anchor) => {
+  const q = stopQuestion(s, agentName(s.agent), liveSubs(s));
+  if (!(await ask(q.text, { ok: q.ok, danger: true, anchor }))) return false;
+  const cur = S.sessions.get(s.id) || s;
+  return cur.state === 'running' || cur.state === 'waiting';
+};
+
 // The goal's check after a round (server/goal.js): the task is still in Working, so the latest turn
 // keeps a live panel, with Stop, while wisp reads the changes and runs the tests.
 function renderGoalCheck(s) {
@@ -864,6 +924,7 @@ function renderGoalCheck(s) {
     </div>`);
   $('.stop', node).onclick = async (e) => {
     const btn = e.currentTarget;
+    if (!(await confirmStop(s, btn))) return;
     btn.disabled = true;
     btn.lastChild.textContent = 'Stopping…';
     await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((err) => {
@@ -889,6 +950,7 @@ function renderTeamWait(s, t, team) {
     </div>`);
   $('.stop', node).onclick = async (e) => {
     const btn = e.currentTarget;
+    if (!(await confirmStop(s, btn))) return;
     btn.disabled = true;
     btn.lastChild.textContent = 'Stopping…';
     await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((err) => {
@@ -948,8 +1010,9 @@ function renderWorking(s, t, tx) {
       openPanel(s.id, 'watch');
     };
   $('.stop', node).onclick = async (e) => {
-    // Shows at once; the run winds down and the live update replaces this panel.
+    // Shows at once once you say so; the run winds down and the live update replaces this panel.
     const btn = e.currentTarget;
+    if (!(await confirmStop(s, btn))) return;
     btn.disabled = true;
     btn.lastChild.textContent = 'Stopping…';
     $('.w-status b', node).textContent = `Stopping ${agentName(s.agent)}…`;

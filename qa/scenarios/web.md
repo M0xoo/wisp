@@ -111,8 +111,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Automated**
 
 ### WEB-09 · Stop a running task
-- **Steps:** launch a task that hangs (`FAKE_HANG`-style long run), press Stop.
-- **Expected:** the run stops, the card says it was stopped, no agent process is left.
+- **Steps:** launch a task that hangs (`FAKE_HANG`-style long run), press Stop, then Cancel; press Stop again, then **Stop**. Do the same on a running subagent's run (opened from its lead), and on a row's **Stop** in Activity → Using.
+- **Expected:** Stop first asks by the button (*Stop Claude Code?*, Cancel / **Stop**; a subagent: *Stop this subagent?*, its lead gets no report, **Stop subagent**; a lead with subagents at work says they stop too; queued follow-ups stay held). Cancel leaves it running and Stop enabled. Confirming stops the run, the card says it was stopped, no agent process is left. A run that ended while the question was open isn't stopped again.
 - **Suite** (`test/e2e.test.js`), **Automated** (API stop of a long run)
 
 ### WEB-10 · Mark done, archive, delete
@@ -653,18 +653,18 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** the panel's status row says *No output for 12 min* at its right end (a narrow row gives up the count and the time first), counts up by the minute, and is there at once after a reload. New activity clears it within a second, and so does a question. No line while a delegate works or while the page has lost its stream and hasn't read the task again. Nothing else changes: no card, no toast, Stop as before. Light and dark, split view and 390px.
 
 ### WEB-62 · Try it two ways
-- **Preconditions:** a git project, Claude Code and one other harness. In first-run the button isn't there.
+- **Preconditions:** a git project, Claude Code and one other harness. The prompt box's bar has no *Try it two ways* button: a copy of the lead added with **+** is the way in.
 - **Steps:**
-  1. On Auto, hover and click **Try it two ways**. In Plan, the same. On a phone width, tap it.
-  2. Pick Claude Code, Edits mode. Click **Try it two ways**, then set Subagents to Haiku in *What's different*. Tab and the arrows reach those rows. Click the button again.
+  1. On Auto, click **+** and pick Claude Code in the new run's picker. With Codex leading, the same. In Plan with Claude Code leading, the same.
+  2. Pick Claude Code, Edits mode. Click **+**, pick Claude Code in the new copy's picker, then set Subagents to Haiku in *What's different*. Tab and the arrows reach those rows. Reopen the copy's picker.
   3. In the picker, pick another harness, then Claude Code again.
   4. Set Subagents to Haiku again and send. With *Ask near the limit* close, watch the hold row; refuse the launch once (a team set on the lead).
   5. When both finish, open **Compare**, then **Keep this** on run B. Reload.
   6. **Rerun** run B. Pick another harness, then Claude Code. Set Skills off in a new try, send, reply, and run Compact now (or type `/compact`) on it.
   7. Run `wisp --agent claude --try subagents=haiku "…"`, then without `--agent`.
 - **Expected:**
-  - 1: disabled (dimmed, no hover fill) with a title saying why, and a tap toasts the same words. Nothing is added.
-  - 2: the pill reads the lead vs the copy with *Subagents on Haiku*, on one line at every width: the words end in `…` and the tooltip has the rest; a phone's bar scrolls sideways instead, with Send pinned. The second click opens the same run's picker, no third run.
+  - 1: the picker has no *What's different* group in any of them, and another harness never has one.
+  - 2: the pill reads the lead vs the copy with *Subagents on Haiku*, on one line at every width: the words end in `…` and the tooltip has the rest; a phone's bar scrolls sideways instead, with Send pinned. Reopening shows the variant still picked, no third run.
   - 3: the rows go with Claude Code, and the variant with them.
   - 4: the page's hold row counts both runs on one account, without a round trip. A refused launch brings the runs back in the pill with a red toast.
   - 5: the task's two rows differ on their second line (*Subagents on Haiku · …*). Under the prompt, *Subagents: Opus → Haiku* (*Same setup on both runs* when nothing differs), and each column's small line tells the runs apart. **Keep this** asks *Keep run B?* and toasts *Kept run B.* The kept run's `trial.kept` is set on both.

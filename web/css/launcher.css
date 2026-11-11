@@ -63,6 +63,10 @@ body.wisp-mobile .launcher .lp-chip.add.pick:is(:not(:only-child), :not(:has(> s
 .lp-chip.more:hover, .lp-chip.more.open { color: var(--ink); border-color: var(--line-2); }
 .lp-chip.more .i { width: 12px; height: 12px; }
 .l-projects .lp-chip[hidden] { display: none; }
+/* drag a chip to reorder (ui/reorder.js): it floats, a line marks where it lands */
+.l-projects .lp-chip.dragged { z-index: 2; background: var(--surface); border-color: var(--line-2); box-shadow: var(--shadow-2); }
+.l-projects .lp-chip.drop-before { box-shadow: -4px 0 0 -1px var(--accent); }
+.l-projects .lp-chip.drop-after { box-shadow: 4px 0 0 -1px var(--accent); }
 /* one task, several folders: a small badge on a chip's corner adds it (+) or leaves it out (×) */
 .l-projects .lp-chip { position: relative; }
 .lp-also {
@@ -190,17 +194,14 @@ body:not(.wisp-mobile):has(.launcher.docked:is(:focus-within, :has(.open))) .to-
 .runners .rb-logo { flex: none; }
 .runners .rb-h { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .runners .rb-m { flex: 0 10000 auto; min-width: 0; } /* the model gives way well before the harness name */
-.runners.cmp:not(.trial) .rb-e, .runners.cmp .rb-a, .l-bar.l-cmp #wtBtn span, .l-bar.l-cmp #tryTwoBtn span { display: none; }
+.runners.cmp:not(.trial) .rb-e, .runners.cmp .rb-a, .l-bar.l-cmp #wtBtn span { display: none; }
 /* three or four harnesses: logos only (each button's tooltip names it), the bar's other labels fold too */
 .runners.many .runner-btn { flex: none; padding-inline: 6px; }
 .runners.many .rb-h, .runners.many .rb-m, .runners.many .rb-v { display: none; }
 .runners.many .rb-logo { margin-right: 3px; }
 .runners.many .runner-btn .chev { margin-left: 0; }
 .l-bar.l-many :is(.mode-btn span, .team-btn .tb-label) { display: none; }
-/* Try it two ways is the bar's rarest pick, so it goes to its icon before anything else folds (its
-   tooltip names it): no one who never uses it gives up a label for it */
-@container launcher (max-width: 960px) { .l-bar #tryTwoBtn span { display: none; } }
-/* a narrower bar: the place goes to its icon next, so the harness keeps its name */
+/* a narrower bar: the place goes to its icon first, so the harness keeps its name */
 @container launcher (max-width: 800px) { .l-bar .where-btn span { display: none; } }
 /* …then Worktree to its branch icon (its tooltip names it): a project picked adds it, and side by side
    at 1000px it took the room the harness name needed */
@@ -497,7 +498,7 @@ button.setup-cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis;
 .pk-signin .sx-login-ctl { margin-right: 0; }
 /* The first run (launcher.js firstRun): the prompt, how it runs and Send; the rest behind More options */
 .launcher:not(.first-run) .l-more { display: none; }
-.launcher.first-run #whereBtn, .launcher.first-run #compareBtn, .launcher.first-run #tryTwoBtn, .launcher.first-run #teamBtn, .launcher.first-run .issue-btn, .launcher.first-run #goalBtn, .launcher.first-run #wtBtn, .launcher.first-run #launchLater { display: none; }
+.launcher.first-run #whereBtn, .launcher.first-run #compareBtn, .launcher.first-run #teamBtn, .launcher.first-run .issue-btn, .launcher.first-run #goalBtn, .launcher.first-run #wtBtn, .launcher.first-run #launchLater { display: none; }
 /* First run on a phone the bar has room again: the mode says Full auto beside its icon, so two
    sparkles never stand side by side unnamed */
 @container launcher (max-width: 520px) { .launcher.first-run .l-bar .mode-btn span { display: inline; } }

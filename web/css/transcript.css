@@ -61,6 +61,12 @@
 .tx-step.by-wisp .tx-label { color: var(--muted); }
 /* What you were asked and answered, and plan lines, read in full. */
 .tx-step:is(.k-ask, .k-answer, .k-plan, .k-check, .k-background, .by-wisp) .tx-label { white-space: normal; }
+/* An open step shows its whole title: the line wraps, and a label the server had to cut gives way
+   to the whole one (title). */
+.tx-step.open > .tx-row .tx-label { white-space: normal; overflow-wrap: anywhere; }
+.tx-whole { display: none; }
+.tx-step.open > .tx-row .tx-cut { display: none; }
+.tx-step.open > .tx-row .tx-whole { display: inline; }
 
 .tx-more { margin: 2px 0 8px 8px; animation: rise 0.3s var(--ease); }
 .tx-out {

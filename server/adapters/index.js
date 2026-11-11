@@ -33,7 +33,8 @@
 //
 // onEvent receives normalized events:
 //   { type: 'session', id }                         agent-side session id (used to resume follow-ups)
-//   { type: 'tool', kind, label, file?, detail?, id?, output? }   kind: read|edit|run|search|web|agent|plan|tool
+//   { type: 'tool', kind, label, title?, file?, detail?, id?, output? }   kind: read|edit|run|search|web|agent|plan|tool
+//                                                  title: the whole label, when label had to be cut;
 //                                                  id: the harness's call id, for a later tool_output;
 //                                                  output: what it returned, if it reports calls once run
 //   { type: 'tool_output', id, text }               what a finished call returned (the transcript shows it)

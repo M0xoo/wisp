@@ -22,7 +22,8 @@ import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
 import { MACHINE_STATE, machineById, pathAt, placeName, placeOf, placesOf, projectById, projects, projectTitle, usable } from './places.js';
 import { projectList } from './project-list.js';
-import { openProjects, projectMenu } from './projects.js';
+import { moveProject, openProjects, projectMenu } from './projects.js';
+import { reorderable } from '../ui/reorder.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
 import { accountOf, agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
@@ -200,7 +201,6 @@ export function renderLauncher() {
         <button class="auto-pv" id="autoPv" aria-haspopup="dialog" hidden></button>
         <button class="vs-btn vs-add" id="compareBtn" aria-label="Compare">${icon('plus')}</button>
       </div>
-      <button class="tog-btn" id="tryTwoBtn" aria-haspopup="dialog" aria-label="Try it two ways">${icon('rerun')}<span>Try it two ways</span></button>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       ${MOBILE ? `<button class="tog-btn issue-btn" aria-haspopup="dialog" title="Start from one of the project’s open issues">${icon('issue')}<span>Issue</span></button>` : ''}
       <button class="tog-btn l-more" id="launchMore" title="Run on another computer, compare, delegate, a goal, a worktree, start later, start from an issue">${icon('dots')}<span>More options</span></button>
@@ -404,35 +404,16 @@ export function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { subagents: team, teamPreset } } }).catch(() => {});
     });
 
-  // Try it two ways: a copy of the lead beside it, with one setting changed in its picker. Disabled
-  // says so on click too: a phone has no tooltip.
-  const tryBtn = $('#tryTwoBtn', box);
-  const tryRefused = () => {
-    if (agent?.id === 'auto') return 'Pick a harness first';
-    if (curMode === 'plan') return 'Try it two ways needs edits to compare: switch out of Plan';
-    return compare.length >= MAX_RUNNERS - 1 && !compare.some((c) => c.trial) ? `Up to ${MAX_RUNNERS} runs side by side` : '';
-  };
+  // Try it two ways: with Claude Code leading, a run added with + gets a What's different group in its
+  // picker (on Claude Code), so the same harness runs twice with one setting changed. Not in Plan (no
+  // edits to compare), and one such run at a time.
+  const canTry = (i) => agent?.id === 'claude' && curMode !== 'plan' && !compare.some((c, k) => k !== i && c.trial);
   function paintTry() {
-    const why = tryRefused();
-    tryBtn.setAttribute('aria-disabled', String(!!why));
-    tryBtn.title = why || 'Try it two ways: run this task twice on this harness, changing one setting. Compare says what differed';
     // The pill folds a copy that only differs by its variant down to those words (launcher.css).
     const c = compare[0];
     const copy = $('.runner-btn.cmp-x', runners);
     copy?.classList.toggle('same', !!c?.trial && c.agent === agent?.id && c.model === curModel && c.effort === curEffort && !!$('.rb-v', copy));
   }
-  tryBtn.onclick = () => {
-    const why = tryRefused();
-    if (why) {
-      toast(esc(why), { tone: 'bad' });
-      return;
-    }
-    if (!compare.some((c) => c.trial)) {
-      compare = [...compare, { agent: agent.id, model: curModel, effort: curEffort, account: curAccount || undefined, trial: true }];
-      paintCompare();
-    }
-    $$('.runner-btn.cmp-x', runners)[compare.findIndex((c) => c.trial)]?.click();
-  };
 
   // Compare: more harnesses get the same task (up to MAX_RUNNERS in all); picks here don't touch
   // the launcher defaults. Each extra sits behind a "vs" that removes it; the button at the end
@@ -490,9 +471,9 @@ export function renderLauncher() {
       return;
     }
     const was = compare[i];
-    const variant = was.trial ? { ...(was.subagentModel !== undefined && { subagentModel: was.subagentModel }), ...(was.skills && { skills: was.skills }) } : undefined;
+    const variant = was.trial || canTry(i) ? { ...(was.subagentModel !== undefined && { subagentModel: was.subagentModel }), ...(was.skills && { skills: was.skills }) } : undefined;
     runnerPicker(x, { ...was, variant, savedModel, savedEffort, places: launch.where, back: ta }, (id, model, effort, account, picked) => {
-      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort, account: account || undefined, ...(c.trial && { trial: true, ...picked }) } : c));
+      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort, account: account || undefined, ...((c.trial || (picked && Object.keys(picked).length)) && { trial: true, ...picked }) } : c));
       paintCompare();
     });
   });
@@ -644,7 +625,11 @@ export function renderLauncher() {
     if (over && !(over instanceof Event) && over.text && !ta.value.trim().startsWith(over.text)) ta.value = `${over.text}${ta.value.trim() ? `\n\n${ta.value.trim()}` : ''}`;
     if (over instanceof Event) over = null;
     const prompt = ta.value.trim();
-    if (!prompt) return ta.focus();
+    if (!prompt) {
+      // A goal with nothing to do: say so, or Send looks broken.
+      if (box.goal?.()) toast(`${icon('target')} Say what to do first`);
+      return ta.focus();
+    }
     // /spell <what to change>: cast a spell instead of starting a task.
     const ask = spellAsk(prompt);
     if (ask !== null) {
@@ -703,6 +688,8 @@ export function renderLauncher() {
       return box.goalOpen?.();
     }
     if (typedGoal && isGoalDrop(typedGoal)) return toast('No goal to drop yet: <b>/goal drop</b> works in a task’s reply box.');
+    // Goal on but Done when empty: ask first rather than start it without one.
+    if (!typedGoal && box.goalEmpty?.()) return;
     // /terminal <task>: in the agent's own terminal (the server reads it, launch.js), opened at once.
     if (terminalAsk(prompt) === '') return toast('Say what to do after /terminal, like “/terminal fix the login bug”');
     // /sandbox <task>: a fresh box of its own on your grid, made from here (services/sandbox.js).
@@ -1009,7 +996,8 @@ export function renderLaunchChips() {
   const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('text')}<span>No folder</span></button>`;
   const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
   // Unchanged chips stay as they were folded: fitting measures the row once per chip it folds.
-  if (box.dataset.h !== html) {
+  // Mid-drag the chips stay as they are (a repaint would drop the one held); it ends with one.
+  if (box.dataset.h !== html && !box.classList.contains('reordering')) {
     box.dataset.h = html;
     box.innerHTML = html;
     beforePaint(fitLaunchChips);
@@ -1084,6 +1072,8 @@ export function renderLaunchChips() {
     const conn = e.target.closest('[data-connect]');
     if (conn) connectMachine(conn.dataset.connect);
   };
+  // Drag a chip to put the projects in your order, here and everywhere else they show.
+  reorderable(box, { item: '.lp-chip[data-id]:not(.none):not(.cloning)', ok: () => spellProp('launcher.projects', 'movable') !== false, onEnd: () => renderLaunchChips(), onDrop: (id, to, after) => moveProject(id, to, after) });
   // Right-click a project: Edit project…, Remove project. No folder and a clone aren't one yet.
   box.oncontextmenu = (e) => {
     const chip = e.target.closest('.lp-chip[data-id]');

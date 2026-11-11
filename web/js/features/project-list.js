@@ -10,12 +10,18 @@
 //             it's in) without closing the list; ⌘/Ctrl/Shift+Enter does the same from the keyboard
 //   back      the prompt it's for, where the caret goes once it closes
 //   menu      (id, event, anchor) => …, a right-click on a project's row; the list closes for it
+//
+// With no search typed, drag a row to put the projects in your order (everywhere they show).
 
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
 import { byScore, fuzzy, highlight, recency } from '../fuzzy.js';
 import { popover, refocus } from '../ui/popover.js';
 import { projectTitle } from './places.js';
+import { moveProject } from './projects.js';
+import { byOrder } from '../project-order.js';
+import { reorderable } from '../ui/reorder.js';
+import { spellProp } from './spells.js';
 
 export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, also = null, label = 'Projects', back, menu }) {
   if ($('.menu.pm')) return $('.menu.pm').close(), refocus(back);
@@ -91,6 +97,22 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
     const r = e.target.closest('.pm-row');
     if (r && !r.classList.contains('act')) mark(rows().indexOf(r), false);
   };
+  // The list as given is in the order projects show; a drag changes that order, so it re-sorts.
+  reorderable(list, {
+    item: '.pm-row[data-id]',
+    axis: 'y',
+    ok: () => !input.value.trim() && spellProp('project.list', 'movable') !== false,
+    onDrop: (id, to, after) =>
+      moveProject(id, to, after, {
+        repaint: () => {
+          if (!node.isConnected) return;
+          projects = projects.slice().sort(byOrder);
+          paint();
+          mark(rows().findIndex((r) => r.dataset.id === id), false);
+          input.focus({ preventScroll: true });
+        },
+      }),
+  });
   input.oninput = paint;
   input.onkeydown = (e) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

@@ -222,6 +222,16 @@ export function register(r, app) {
     },
     { doc: false },
   );
+  // The order projects show in, dragged by the user: { ids } in that order. Projects it leaves out
+  // (added since) go first, most recent first; { ids: [] } goes back to most recent first.
+  r.route('PUT', '/projects/order', async (c) => {
+    const { ids } = (await c.body()) || {};
+    if (!Array.isArray(ids)) return c.send(400, { error: 'ids: the project ids, in order' });
+    const at = new Map(ids.map(String).map((id, i) => [id, i]));
+    for (const p of store.config.projects) at.has(p.id) ? (p.order = at.get(p.id)) : delete p.order;
+    app.configChanged();
+    c.send(200, store.config.projects.map((p) => ({ id: p.id, order: p.order ?? null })));
+  });
   const project = (c) => store.config.projects.find((x) => x.id === c.params.id);
   r.route('PATCH', '/projects/:id', async (c) => {
     const p = project(c);
