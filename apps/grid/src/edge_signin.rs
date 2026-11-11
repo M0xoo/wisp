@@ -63,7 +63,7 @@ impl Grid {
         format!("{}/auth/{}/callback", self.cfg.public_url, crate::http::encode_component(id))
     }
 
-    fn page_providers(&self) -> Vec<pages::Provider> {
+    pub(super) fn page_providers(&self) -> Vec<pages::Provider> {
         let mut out: Vec<pages::Provider> = self.signin.providers.iter().map(|p| pages::Provider { id: p.id.clone(), label: p.label.clone() }).collect();
         if self.cfg.auth.dev {
             out.push(pages::Provider { id: "dev".into(), label: "Dev sign-in (by handle)".into() });

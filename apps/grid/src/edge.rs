@@ -57,6 +57,8 @@ mod inbox;
 mod route;
 #[path = "edge_mail.rs"]
 mod mail;
+#[path = "edge_pages.rs"]
+mod pages_route;
 pub use signin::{Reqwest, SignIn};
 
 /// The grid's session cookie.
@@ -288,6 +290,10 @@ impl Grid {
         }
         let (head, body) = req.into_parts();
         let bytes = read_bytes(body, crate::shares::MAX_BYTES * 2).await?;
+        // the signed-in pages and their forms (edge_pages.rs)
+        if let Some(r) = self.pages_route(method.as_str(), parts.as_slice(), q, &head.headers, &bytes, &who).await {
+            return r;
+        }
         match (method.as_str(), parts.as_slice()) {
             ("POST", ["api", "device", "code"]) => {
                 let b = parse_body(&head.headers, &bytes)?;
@@ -334,7 +340,6 @@ impl Grid {
                 let b = parse_body(&head.headers, &bytes)?;
                 self.mail_reply(&Value::Object(b), &who).await
             }
-            ("GET", []) => Ok(html(200, pages::message_page(&self.page, &MessagePage { title: self.cfg.name.clone(), text: "Share and reach your wisps from anywhere.".into(), link: Some(("/gallery".into(), "See what people are building".into())), tone: Tone::Plain }), &[])),
             _ => Ok(json(404, &json!({ "error": "not found" }))),
         }
     }
