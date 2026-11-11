@@ -2151,7 +2151,10 @@ function blockedCard(turn) {
   }
   // The agent may name a tool its own way (shell for Bash): the same command still counts.
   const left = items.filter((b) => !(turn.denied || []).some((d) => sameAction(d, b) || (b.detail && d.detail === b.detail))).slice(0, 12);
-  if (left.length) turn.blocked = left;
+  // A run in Full auto was already allowed everything wisp can allow: what its harness still refused
+  // was its own safety check (Claude Code's on a heredoc it can't parse), which no rule lifts. The
+  // card still says what was refused, with nothing to retry.
+  if (left.length && turn.mode !== 'auto') turn.blocked = left;
   else delete turn.blocked;
   if (!turn.presentation) return;
   const rest = blocks.filter((b) => b.type !== 'blocked');

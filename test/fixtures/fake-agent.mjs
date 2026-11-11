@@ -502,7 +502,8 @@ var runsSoFar = 1 + (resumeId ? Number(process.env.FAKE_RESTORED || 0) : 0);
 const fullAuto = argv.includes('--dangerously-bypass-approvals-and-sandbox') || argv.includes('--auto') || argv.includes('--allow-all') || flag('--permission-mode') === 'bypassPermissions';
 const allowedPublish = fullAuto || argv.slice(argv.indexOf('--allowedTools') + 1).includes('Bash(npm publish)') || argv.includes('--allow-tool=shell(npm publish)') || JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || '{}').permission?.bash?.['npm publish'] === 'allow';
 const publishing = /BLOCKED|blocked by your permissions/.test(stdin); // the task, or wisp's retry of it
-const refused = publishing && !allowedPublish;
+// SAFETY: Claude Code's own check (a heredoc it can't parse) refuses it even in Full auto and with a rule.
+const refused = publishing && (!allowedPublish || /SAFETY/.test(stdin));
 const final = (answer) => {
   // QUICK[…]: a quick answer, plain text then a wisp block with only its topic (no hero). For a crew
   // member, CREWQUICK[…]: plain text then only a crew block that carries the topic.
