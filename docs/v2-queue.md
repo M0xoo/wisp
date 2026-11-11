@@ -15,9 +15,32 @@ installed on this computer). The ui-commands rule should have caught this, so ch
 skip the host check?), and make the rule catch it.
 
 **Sandboxed execution, the gaps (owner asked, 2026-11-11):**
-- **/sandbox in the GUI:** the composer's `/sandbox` entry runs the task in a fresh gVisor cloud box
-  (`grid-client.sandbox`). Show the sandbox's state on the task, and Remove (`sandboxRemove`). This turns
-  v1-features F-page-36 and F-mach-17 into built.
+- **Sandboxes, the whole v1 feature plus judges (owner, 2026-11-11):** v1's design is `design/sandboxes.md` on
+  origin/main; port its rules.
+  - **Subscriptions:** sandboxes run on the user's own subscription. Sign in once for all sandboxes (Settings →
+    Cloud → Sandboxes: `claude setup-token` on a pty, the token sealed on the grid per user, given to every
+    sandbox as `CLAUDE_CODE_OAUTH_TOKEN`, never to the user's own box, never kept on the laptop). Never copy a login
+    file. Codex and the other harnesses: their device login inside the sandbox (v1's open item: do it in v2), and
+    the API keys for opencode and the others.
+  - **Run as:**
+    - **the main prompt:** `/sandbox` in New task, so the project goes along as a git bundle (uncommitted changes
+      included) and `.wisp/sandbox.sh` runs once;
+    - **a delegate:** Sandbox as a delegate's place (`machine: "sandbox"`, the lead's work bundled, deleted with the
+      lead);
+    - **a crew member's jobs:** "Their jobs run on" → a sandbox per job, or one of their own;
+    - **goal judges (new in v2):** a sandboxed task's judges run in its sandbox, and a goal can ask for judges in a
+      sandbox.
+  - **v1's rules:**
+    - a sandbox has one owner (a task, delegate, member or job) and is never a place you pick in Run on or
+      Machines;
+    - it shows in the machine pill's slot as Sandbox;
+    - deleting the owner deletes it;
+    - root inside under gVisor;
+    - the Browser tab drives its real browser;
+    - Env vars on the Sandboxes card;
+    - the grid's per-user cap, and "grid full" fails at once.
+  - Done when v1-features F-page-36 and F-mach-17, plus a new row for judges, are built with named tests and seen in
+    Chrome.
 - **The untrusted plugin tier (plan §6.0.2):**
   - a user plugin's UI runs in a sandboxed iframe or worker with no DOM, sending kit component descriptors that the
     host renders (the Figma split, remote UI), over the same plugin API by RPC;
