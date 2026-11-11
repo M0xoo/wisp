@@ -56,9 +56,7 @@ skip the host check?), and make the rule catch it.
   - then the WASM component host (wasmtime, WASI 0.3, behind the `wasm` feature) as the sandboxed third-party tier.
   - ADR first: it extends ADR-0046, and the default for anything downloaded is the untrusted tier.
 
-**List row parity (owner, 2026-11-12):** the status pills are fixed (v1's bare list pill). Still different: the
-blue unread dot sits beside the pill, while v1 puts it before the title, at the row's start (design/v1-reference/home
-1440: `.it-dot`). Move it, and check with `qa/parity.mjs --views=home` at 390 and 1440.
+**List row parity (owner, 2026-11-12): done** (81f8eb96): v1's row with one dot, logo and name, the pill on the preview line, floating quick actions. Run `qa/parity.mjs --views=home` once the home reference shows rows.
 
 **v1 sync 2026-11-12 (port these first in the next job):**
 - #775: a goal is checked only after its agent is done;
