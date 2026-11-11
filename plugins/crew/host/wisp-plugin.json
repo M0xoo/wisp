@@ -21,6 +21,9 @@
   "requires": {},
   "provides": {},
   "contributes": {
+    "settings": [
+      { "key": "crew.tint", "type": "bool", "default": true, "title": "Crew tint: with the crew rail, the task list takes a very light tint of the colour of the member you pick." }
+    ],
     "events": ["crew.changed", "crew.imported", {"type": "crew.job_filed", "durable": true}, {"type": "crew.reported", "durable": true}, "crew.job_started", "crew.joined", "crew.left", "crew.shared"],
     "commands": [
       {

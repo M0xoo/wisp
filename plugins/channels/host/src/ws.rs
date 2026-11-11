@@ -47,6 +47,8 @@ impl Ws for KWs {
         let wr: Writer = Arc::new(Mutex::new(wr));
         let (tx, rx) = mpsc::channel(64);
         let w2 = wr.clone();
+        let heard = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let seen = heard.clone();
         tokio::spawn(async move {
             let mut d = Decoder::default();
             let mut buf = vec![0u8; 16 * 1024];
@@ -56,6 +58,7 @@ impl Ws for KWs {
                     Ok(n) => n,
                 };
                 let mut end = None;
+                heard.store(true, std::sync::atomic::Ordering::Relaxed);
                 for ev in d.feed(&buf[..n]) {
                     match ev {
                         Event::Text(t) => {
@@ -67,6 +70,7 @@ impl Ws for KWs {
                         Event::Ping(p) => {
                             let _ = write(&w2, Op::Pong, &p).await;
                         }
+                        Event::Pong => {}
                         Event::Close(code, why) => {
                             let _ = write(&w2, Op::Close, &ws::close_payload(code, "")).await;
                             end = Some(WsFrame::Close(code, why));
@@ -83,7 +87,7 @@ impl Ws for KWs {
             };
             let _ = tx.send(close).await;
         });
-        Ok(Box::new(Conn { rx: Mutex::new(rx), wr, done: std::sync::atomic::AtomicBool::new(false) }))
+        Ok(Box::new(Conn { rx: Mutex::new(rx), wr, done: std::sync::atomic::AtomicBool::new(false), heard: seen }))
     }
 }
 
@@ -91,6 +95,8 @@ struct Conn {
     rx: Mutex<mpsc::Receiver<WsFrame>>,
     wr: Writer,
     done: std::sync::atomic::AtomicBool,
+    /// bytes came from the server since the last beat
+    heard: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[async_trait]
@@ -111,6 +117,10 @@ impl WsConn for Conn {
     async fn close(&self, code: u16) {
         let _ = write(&self.wr, Op::Close, &ws::close_payload(code, "")).await;
         let _ = self.wr.lock().await.shutdown().await;
+    }
+    async fn ping(&self) -> bool {
+        let alive = self.heard.swap(false, std::sync::atomic::Ordering::Relaxed);
+        alive && write(&self.wr, Op::Ping, b"wisp").await.is_ok()
     }
 }
 

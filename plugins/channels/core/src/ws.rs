@@ -107,6 +107,8 @@ pub enum Event {
     Binary(Vec<u8>),
     /// answer it with a pong carrying the same bytes
     Ping(Vec<u8>),
+    /// the answer to our ping: the server is still there
+    Pong,
     /// the server closes (code, reason): answer with a close, then the connection ends
     Close(u16, String),
     /// the server broke the protocol (a masked frame, a bad length, bad UTF-8): close with this code
@@ -180,7 +182,7 @@ impl Decoder {
                 Some(Event::Close(code, String::from_utf8_lossy(payload.get(2..).unwrap_or_default()).into_owned()))
             }
             9 => Some(Event::Ping(payload)),
-            10 => self.next(),
+            10 => Some(Event::Pong),
             0 => {
                 let Some((first, mut so_far)) = self.partial.take() else { return Some(Event::Broken(1002, "a continuation with nothing to continue".into())) };
                 so_far.extend_from_slice(&payload);

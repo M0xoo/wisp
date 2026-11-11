@@ -2,7 +2,9 @@
 //! `gh run list` in the trigger's project, through the proc service. A 403 rate limit answers `retry_at` (from
 //! `gh api rate_limit`), which the engine waits for without counting a failure.
 //!
-//! The channels transport (mentions, issue replies) is ported later.
+//! And the channels transport `github` (`comments.rs`): `/wisp …` comments on your repos start or follow up tasks.
+
+pub mod comments;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -77,6 +79,8 @@ impl Plugin for GithubPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let src: Arc<dyn TriggerSource> = Arc::new(Ci(s.ctx()));
         s.contribute(&SOURCE, src);
+        let t: Arc<dyn wisp_channels_api::TransportDef> = Arc::new(comments::Def);
+        s.contribute(&wisp_channels_api::TRANSPORTS, t);
         Ok(())
     }
 }

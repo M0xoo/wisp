@@ -66,32 +66,94 @@ impl Exec for KExec {
     }
 }
 
-/// Not a grid box (the grid client says otherwise once it lands).
-struct NoGrid;
+/// The grid, from a cloud box's side (v1 channels/box.js): which grid (`WISP_GRID_URL`), and the box's own secret
+/// as its credential (`Box <handle> <secret>`): fine for this, since the answers only ever reach this same box. A
+/// sandbox (one task's box) has no channels.
+pub fn box_grid(env: &dyn Fn(&str) -> Option<String>) -> Option<BoxGrid> {
+    let grid = env("WISP_GRID_URL").filter(|g| !g.is_empty())?.trim_end_matches('/').to_owned();
+    let secret = env("WISP_TRUSTED_PROXY_SECRET").filter(|s| !s.is_empty())?;
+    let public = env("WISP_PUBLIC_URL").filter(|s| !s.is_empty())?;
+    if env("WISP_SANDBOX").as_deref() == Some("1") {
+        return None;
+    }
+    let host = public.split("://").nth(1).unwrap_or(&public).split(['/', ':', '.']).next().unwrap_or_default().to_owned();
+    Some(BoxGrid { grid, auth: format!("Box {host} {secret}") })
+}
+
+/// A cloud box's grid, through the kernel's net service.
+struct KBox {
+    ctx: Ctx,
+    grid: Option<BoxGrid>,
+}
+
+impl KBox {
+    async fn call(&self, b: &BoxGrid, method: &str, path: &str, body: Option<serde_json::Value>, timeout_ms: u64) -> Result<(u16, serde_json::Value)> {
+        let net = wisp_kernel::services::net(&self.ctx)?;
+        let mut headers = vec![("authorization".to_owned(), b.auth.clone())];
+        if body.is_some() {
+            headers.push(("content-type".into(), "application/json".into()));
+        }
+        let r = net.fetch(NetRequest { method: method.into(), url: format!("{}{path}", b.grid), headers, body: body.map(|v| v.to_string().into_bytes()).unwrap_or_default(), timeout_ms }).await?;
+        Ok((r.status, serde_json::from_slice(&r.body).unwrap_or_default()))
+    }
+}
+
+fn enc(s: &str) -> String {
+    s.bytes().fold(String::new(), |mut o, b| {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            o.push(char::from(b));
+        } else {
+            use std::fmt::Write as _;
+            let _ = write!(o, "%{b:02X}");
+        }
+        o
+    })
+}
+
 #[async_trait]
-impl BoxApi for NoGrid {
+impl BoxApi for KBox {
     fn grid(&self) -> Option<BoxGrid> {
-        None
+        self.grid.clone()
     }
     fn in_box(&self) -> bool {
-        false
+        self.grid.is_some()
     }
+    /// proof of the token, not the token: a public id would let a box claim a bot it doesn't hold
     fn bot_mark(&self, token: &str) -> String {
-        wisp_channels_core::sign::sha256_hex(token.as_bytes())[..12].to_owned()
+        wisp_channels_core::sign::sha256_hex(format!("wisp bot|{token}").as_bytes())[..32].to_owned()
     }
-    async fn channel_url(&self, _b: &BoxGrid, _c: &str, _bot: Option<&str>, _gone: bool) -> Result<Option<ChannelUrl>> {
-        Ok(None)
+    async fn channel_url(&self, b: &BoxGrid, c: &str, bot: Option<&str>, gone: bool) -> Result<Option<ChannelUrl>> {
+        let path = format!("/api/channels/url?channel={}{}{}", enc(c), bot.map(|m| format!("&bot={}", enc(m))).unwrap_or_default(), if gone { "&gone=1" } else { "" });
+        let (status, v) = self.call(b, "GET", &path, None, 10_000).await?;
+        if status == 404 || status == 401 {
+            return Ok(None);
+        }
+        if status != 200 || (v["url"].is_null() && v["address"].is_null()) {
+            return Err(WireError::unavailable(v["error"].as_str().map_or_else(|| format!("the grid said {status}"), str::to_owned)));
+        }
+        Ok(Some(serde_json::from_value(v).unwrap_or_default()))
     }
-    async fn rotate_url(&self, _b: &BoxGrid, _c: &str) -> Result<ChannelUrl> {
-        Err(WireError::unavailable("not a cloud wisp"))
+    async fn rotate_url(&self, b: &BoxGrid, c: &str) -> Result<ChannelUrl> {
+        let (status, v) = self.call(b, "POST", "/api/channels/rotate", Some(serde_json::json!({ "channel": c })), 10_000).await?;
+        if status != 200 {
+            return Err(WireError::unavailable(format!("The grid didn’t rotate it: {}.", v["error"].as_str().unwrap_or("no answer"))));
+        }
+        Ok(serde_json::from_value(v).unwrap_or_default())
     }
-    async fn mail_reply(&self, _b: &BoxGrid, _to: &str, _s: &str, _t: &str) -> Result<Option<String>> {
-        Ok(None)
+    /// the grid knows who to, and won't be told
+    async fn mail_reply(&self, b: &BoxGrid, to: &str, s: &str, t: &str) -> Result<Option<String>> {
+        let (status, v) = self.call(b, "POST", "/api/channels/mail/reply", Some(serde_json::json!({ "replyTo": to, "subject": s, "text": t })), 20_000).await?;
+        if status != 200 {
+            return Err(WireError::unavailable(v["error"].as_str().map_or_else(|| format!("the grid said {status}"), str::to_owned)));
+        }
+        Ok(v["messageId"].as_str().map(str::to_owned))
     }
+    /// v2's grid checks no channel key at its edge yet (Discord's interactions on a box): nothing to tell it
     async fn set_channel_key(&self, _b: &BoxGrid, _c: &str, _k: &str, _l: &[String]) -> Result<bool> {
         Ok(false)
     }
 }
+
 
 /// A task as a channel sees it, from `runtime.get`.
 pub fn session_view(t: &Value) -> SessionView {
@@ -298,7 +360,7 @@ impl ChannelHub for Hub {
         Arc::new(KExec(self.ctx.clone()))
     }
     fn grid(&self) -> Arc<dyn BoxApi> {
-        Arc::new(NoGrid)
+        Arc::new(KBox { ctx: self.ctx.clone(), grid: box_grid(&|k| std::env::var(k).ok()) })
     }
     fn now_ms(&self) -> i64 {
         self.ctx.clock().map(|c| c.now_ms()).unwrap_or_default()
@@ -394,5 +456,23 @@ impl ChannelHub for Hub {
         }
         out.truncate(bytes * 2);
         out
+    }
+}
+
+#[cfg(test)]
+mod box_tests {
+    use super::*;
+
+    /// v1 channels/box.js `boxGrid`: a cloud box knows its grid and asks it as itself; a computer or a sandbox doesn't.
+    #[test]
+    fn a_cloud_box_asks_its_grid_as_itself_and_a_sandbox_has_no_channels() {
+        static ON_BOX: [(&str, &str); 3] = [("WISP_GRID_URL", "https://grid.trywisp.dev/"), ("WISP_TRUSTED_PROXY_SECRET", "s3"), ("WISP_PUBLIC_URL", "https://pia.grid.trywisp.dev")];
+        static SANDBOX: [(&str, &str); 4] = [("WISP_GRID_URL", "https://g"), ("WISP_TRUSTED_PROXY_SECRET", "s"), ("WISP_PUBLIC_URL", "https://x.g"), ("WISP_SANDBOX", "1")];
+        let env = |pairs: &'static [(&'static str, &'static str)]| move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| (*v).to_owned());
+        let b = box_grid(&env(&ON_BOX)).expect("a box");
+        assert_eq!((b.grid.as_str(), b.auth.as_str()), ("https://grid.trywisp.dev", "Box pia s3"));
+        assert!(box_grid(&env(&[("WISP_GRID_URL", "https://g"), ("WISP_PUBLIC_URL", "https://pia.g")])).is_none(), "no secret: not a box");
+        assert!(box_grid(&env(&SANDBOX)).is_none());
+        assert_eq!(enc("a b&c"), "a%20b%26c");
     }
 }

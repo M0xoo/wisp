@@ -115,6 +115,12 @@ pub trait WsConn: Send + Sync {
     async fn recv(&self) -> Option<WsFrame>;
     async fn send(&self, text: String) -> std::result::Result<(), NetError>;
     async fn close(&self, code: u16);
+    /// The keep-alive beat (v1 slack.js: a laptop that slept leaves a socket that looks open): sends a ping and
+    /// answers whether anything came from the server since the last beat. false: it's gone, close it. Additive
+    /// (2026-11-11); a connection without pings says it's alive.
+    async fn ping(&self) -> bool {
+        true
+    }
 }
 
 #[async_trait]

@@ -6,11 +6,11 @@
 //! silence. A message can't ask for more than Edits. Every envelope is acked the moment it arrives.
 //!
 //! The wire's decisions are `wisp-slack-core`'s; every request goes through the hub's `Net` and its `Ws`.
-//! Not here yet: buttons and their clicks (`interactive`), a cloud box's HTTP events (`inbound`), the keep-alive
-//! ping (the hub's socket has no ping), one turn at a time per thread.
+//! Not here yet: one turn at a time per thread.
 
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
+mod click;
 mod conv;
 
 use async_trait::async_trait;
@@ -19,14 +19,16 @@ use wisp_channels_api::hub::WsFrame;
 use wisp_channels_api::policy::{Gate, GateArgs, RateHit, RateLimit, Seen, gate};
 use wisp_channels_api::scrub::{defuse, scrub_out};
 use wisp_channels_api::views::{Msg, SessionView};
+use wisp_channels_api::transport::{Headers, InboundOpts, InboundResult, header};
 use wisp_channels_api::{ChannelHub, HttpRequest, Status, TRANSPORTS, Transport, TransportDef, TransportKind};
-use wisp_kernel::{CancellationToken, Manifest, Plugin, Result, Setup, WireError};
+use wisp_kernel::{BoxFuture, CancellationToken, Manifest, Plugin, Result, Setup, WireError};
 use wisp_slack_core::socket::{Dial, Listen, Next, Step};
-use wisp_slack_core::{SlackError, event, mrkdwn, post};
+use wisp_slack_core::{SlackError, event, mrkdwn, post, sign};
 
 pub const NAME: &str = "slack";
 /// The first wait after a failed dial (tests turn it down with `slackBackoffMs`).
 const BACKOFF_MS: u64 = 2_000;
+/// Slack's hello comes within two of these (the keep-alive beat, `slackPingMs` in tests).
 const PING_MS: u64 = 30_000;
 pub const STRANGER: &str = "This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Slack, here.";
 pub const LINKED: &str = "✓ Linked to wisp. Say what you’d type in wisp, here or with @wisp in a channel.";
@@ -34,6 +36,11 @@ pub const WRONG_CODE: &str = "That code doesn’t match. Send `link` and the cod
 
 #[derive(Debug, Default)]
 pub struct SlackPlugin;
+
+/// The transport on `hub`, as wisp.channels makes it (tests drive it on the api's test hub).
+pub fn transport(hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
+    Def.create(hub)
+}
 
 struct Def;
 impl TransportDef for Def {
@@ -99,7 +106,7 @@ impl Slack {
     }
 
     /// One Web API call. Tokens go in a header; an error is only ever Slack's own short code.
-    async fn api(&self, method: &str, body: &Value, token: &str) -> std::result::Result<Value, SlackError> {
+    pub(crate) async fn call(&self, method: &str, body: &Value, token: &str) -> std::result::Result<Value, SlackError> {
         let base = std::env::var("WISP_SLACK_API").unwrap_or_else(|_| "https://slack.com/api".into());
         let url = format!("{}/{method}", base.trim_end_matches('/'));
         let req = HttpRequest::post_json(url, body).header("authorization", format!("Bearer {token}")).timeout(15_000);
@@ -118,11 +125,11 @@ impl Slack {
 
     pub(crate) async fn post(&self, chat: &str, ts: &str, text: &str) -> Result<Value> {
         let token = s(&self.cfg(), "botToken").to_owned();
-        self.api("chat.postMessage", &body(chat, ts, &slack_text(text)), &token).await.map_err(WireError::from)
+        self.call("chat.postMessage", &body(chat, ts, &slack_text(text)), &token).await.map_err(WireError::from)
     }
 
     async fn who_am_i(&self, token: &str) -> std::result::Result<(), SlackError> {
-        let me = self.api("auth.test", &json!({}), token).await?;
+        let me = self.call("auth.test", &json!({}), token).await?;
         *lock(&self.me) = Some(Me { user: s(&me, "user_id").to_owned(), name: Some(s(&me, "user")).filter(|n| !n.is_empty()).unwrap_or("wisp").to_owned() });
         Ok(())
     }
@@ -130,22 +137,45 @@ impl Slack {
     /// One connection, until it ends, Slack asks for another, or `stop`.
     async fn listen(self: &Arc<Self>, url: &str, stop: &CancellationToken) -> std::result::Result<wisp_slack_core::socket::End, SlackError> {
         let conn = self.hub.ws().connect(url).await.map_err(|e| SlackError::Net(format!("Slack: {e}")))?;
-        let mut l = Listen::new(self.hub.now_ms(), self.hub.tune("slackPingMs").unwrap_or(PING_MS));
+        let beat = self.hub.tune("slackPingMs").unwrap_or(PING_MS);
+        let mut l = Listen::new(self.hub.now_ms(), beat);
         loop {
-            let wait = l.deadline().map_or(PING_MS, |d| u64::try_from(d - self.hub.now_ms()).unwrap_or(0).max(1));
-            let frame = tokio::select! {
-                () = stop.cancelled() => {
-                    conn.close(1000).await;
-                    return Ok(l.end());
-                }
-                () = self.hub.sleep(wait) => {
-                    if let Some(why) = l.tick(self.hub.now_ms()) {
-                        conn.close(4000).await;
-                        return Err(SlackError::Net(why.to_owned()));
+            // frames first (one that came in is read before any timer); a timer only while waiting for the hello
+            let frame = if let Some(d) = l.deadline() {
+                let wait = u64::try_from(d - self.hub.now_ms()).unwrap_or(0).max(1);
+                tokio::select! {
+                    biased;
+                    () = stop.cancelled() => {
+                        conn.close(1000).await;
+                        return Ok(l.end());
                     }
-                    continue;
+                    f = conn.recv() => f,
+                    () = self.hub.sleep(wait) => {
+                        if let Some(why) = l.tick(self.hub.now_ms()) {
+                            conn.close(4000).await;
+                            return Err(SlackError::Net(why.to_owned()));
+                        }
+                        continue;
+                    }
                 }
-                f = conn.recv() => f,
+            } else {
+                // after the hello, a beat: nothing from Slack since the last one and the socket is gone (a laptop
+                // that slept leaves one that looks open)
+                tokio::select! {
+                    biased;
+                    () = stop.cancelled() => {
+                        conn.close(1000).await;
+                        return Ok(l.end());
+                    }
+                    f = conn.recv() => f,
+                    () = self.hub.sleep(beat) => {
+                        if conn.ping().await {
+                            continue;
+                        }
+                        conn.close(4000).await;
+                        return Err(SlackError::Net("Slack stopped answering.".into()));
+                    }
+                }
             };
             let text = match frame {
                 Some(WsFrame::Text(t)) => t,
@@ -170,8 +200,14 @@ impl Slack {
                             }
                         }));
                     }
-                    // buttons aren't offered yet (see the module's note): a click has nothing to answer
-                    Step::Click(_) => {}
+                    Step::Click(payload) => {
+                        let me = self.clone();
+                        self.hub.spawn(Box::pin(async move {
+                            if let Err(e) = me.click(&payload).await {
+                                me.hub.warn(&format!("slack: {}", e.message));
+                            }
+                        }));
+                    }
                 }
             }
         }
@@ -233,6 +269,11 @@ impl Slack {
         self.hub.converse(&c, &typed, session.as_deref(), None).await.map(|_| ())
     }
 
+    /// Who this bot is isn't known yet (a box that just woke).
+    fn lock_me_unknown(&self) -> bool {
+        lock(&self.me).is_none()
+    }
+
     /// The task this thread belongs to (the newest that started here).
     pub(crate) fn thread_of(&self, chat: &str, ts: &str) -> Option<String> {
         self.hub.find_remote(&|r, _| r.get(NAME).is_some_and(|t| s(t, "channel") == chat && s(t, "ts") == ts)).into_iter().next()
@@ -244,9 +285,12 @@ impl Transport for Slack {
     fn name(&self) -> &str {
         NAME
     }
+    /// On a computer: the bot and app tokens (Socket Mode). On a cloud box: the bot token and the signing secret
+    /// (Slack posts its events to the box's URL on the grid).
     fn ready(&self) -> bool {
         let c = self.cfg();
-        c["enabled"] == true && !s(&c, "botToken").is_empty() && !s(&c, "appToken").is_empty()
+        let other = if self.hub.grid().in_box() { "signingSecret" } else { "appToken" };
+        c["enabled"] == true && !s(&c, "botToken").is_empty() && !s(&c, other).is_empty()
     }
     fn kind(&self) -> TransportKind {
         TransportKind::Thread
@@ -257,6 +301,15 @@ impl Transport for Slack {
             return;
         }
         let Some(me) = self.this.upgrade() else { return };
+        // a box sleeps, and a socket would go with it: Slack calls the box's URL instead (`inbound`)
+        if self.hub.grid().in_box() {
+            let bot = s(&self.cfg(), "botToken").to_owned();
+            match me.who_am_i(&bot).await {
+                Ok(()) => self.mark(None),
+                Err(e) => self.mark(Some(e.line())),
+            }
+            return;
+        }
         let base = self.hub.tune("slackBackoffMs").unwrap_or(BACKOFF_MS);
         let mut dial = Dial::default();
         while !stop.is_cancelled() {
@@ -264,7 +317,7 @@ impl Transport for Slack {
             let (bot, app) = (s(&cfg, "botToken").to_owned(), s(&cfg, "appToken").to_owned());
             let tried = async {
                 me.who_am_i(&bot).await?;
-                let open = me.api("apps.connections.open", &json!({}), &app).await?;
+                let open = me.call("apps.connections.open", &json!({}), &app).await?;
                 me.listen(s(&open, "url"), &stop).await
             }
             .await;
@@ -310,9 +363,67 @@ impl Transport for Slack {
         let choices: Vec<String> = msg.actions.iter().filter(|a| !matches!(a.kind, wisp_channels_api::views::ActionKind::Done)).map(|a| a.label.clone()).collect();
         let me = lock(&self.me).as_ref().map(|m| m.name.clone());
         let text = post::report(&msg.title, &msg.text, &choices, by.as_deref(), chat.starts_with('D'), me.as_deref());
-        self.post(&chat, &ts, &text).await?;
+        let hub = self.hub.clone();
+        let buttons = post::buttons(&click::choices(msg, sv, &|k, r, i| hub.sign(&sv.id, k, r, i)));
+        let token = s(&self.cfg(), "botToken").to_owned();
+        let plain = body(&chat, &ts, &slack_text(&text));
+        if buttons.is_empty() {
+            self.call("chat.postMessage", &plain, &token).await?;
+        } else if let Err(e) = self.call("chat.postMessage", &post::with_buttons(plain.clone(), buttons), &token).await {
+            if !e.code().is_some_and(click::no_blocks) {
+                return Err(e.into());
+            }
+            self.call("chat.postMessage", &plain, &token).await?;
+        }
         self.hub.phone().count("report", Some("full"));
         Ok(())
+    }
+
+    /// An event Slack posted to this cloud box's URL, held by the grid (v1 slack.js `inbound`): its signature
+    /// checked with the signing secret against when the grid took it (a body sent again later is old), a repeat
+    /// dropped by its event id, then the same path as a socket's event, after the answer went.
+    async fn inbound(&self, raw: &[u8], headers: &Headers, opts: InboundOpts) -> InboundResult {
+        let answer = |status: u16, body: Value| InboundResult { status, body, after: None };
+        let c = self.cfg();
+        if c["enabled"] != true || self.hub.grid().grid().is_none() {
+            return answer(409, json!({ "error": "Slack isn’t on here." }));
+        }
+        let j: Value = serde_json::from_slice(raw).unwrap_or(Value::Null);
+        let checking = j["type"] == "url_verification";
+        let now = self.hub.now_ms();
+        let taken = if opts.at_ms > 0 { opts.at_ms.min(now) } else { now };
+        if !opts.verified {
+            let secret = s(&c, "signingSecret");
+            let checked = if secret.is_empty() { Err(SlackError::Signature(sign::MISSING)) } else { sign::verify(secret, raw, header(headers, "x-slack-request-timestamp"), header(headers, "x-slack-signature"), taken) };
+            if let Err(e) = checked {
+                // wisp is open: a wrong secret is the likeliest slip in setup
+                if checking {
+                    self.mark(Some(sign::WRONG.into()));
+                }
+                return answer(403, json!({ "error": e.line() }));
+            }
+        }
+        if checking {
+            self.mark(None);
+            return answer(200, json!({ "challenge": s(&j, "challenge").chars().take(512).collect::<String>() }));
+        }
+        if j["type"] != "event_callback" {
+            return answer(200, json!({ "ok": true }));
+        }
+        if !lock(&self.seen).first(&format!("inbound:{}", s(&j, "event_id"))) {
+            return answer(200, json!({ "ok": true, "seen": true }));
+        }
+        let Some(me) = self.this.upgrade() else { return answer(503, json!({ "error": "Slack is stopping." })) };
+        let after: BoxFuture<'static, ()> = Box::pin(async move {
+            if me.lock_me_unknown() {
+                let bot = s(&me.cfg(), "botToken").to_owned();
+                let _ = me.who_am_i(&bot).await;
+            }
+            if let Err(e) = me.event(&j).await {
+                me.hub.warn(&format!("slack: {}", e.message));
+            }
+        });
+        InboundResult { status: 200, body: json!({ "ok": true }), after: Some(after) }
     }
 
     /// `GET /api/remote/slack/manifest`: the app to create at api.slack.com/apps → From a manifest.

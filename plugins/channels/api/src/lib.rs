@@ -12,6 +12,7 @@ pub mod policy;
 pub mod scrub;
 pub mod secrets;
 pub mod hub;
+pub mod testing;
 pub mod transport;
 pub mod views;
 
