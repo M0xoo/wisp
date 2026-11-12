@@ -1,6 +1,6 @@
 # v2 build queue (code first, verify later)
 
-**Fix first: #756 CI red on f45efe67 (2026-11-12).**
+**Done in round 29: #756 CI red on f45efe67 (2026-11-12)** (see docs/v2-round-7.md Round 29).
 1. `crates/wisp/tests/serve_budget.rs:34` `unattended_work_past_the_stop_line_is_held_until_the_window_resets`: the
    user's own codex run at 90 % now comes back `error` with "past your 90% line … confirmLimit" (the usage-limit flow,
    Settings → Usage → Ask near the limit). Decide by v1: if v1 asks before the user's own run past the ask line, the
@@ -9,6 +9,11 @@
 2. `tauri windows` build: `desktop/scripts/package.mjs:42` reads `pkg.files`, which v2's root package.json dropped
    (TypeError reading 'map'). macOS `tauri` passes. Make the Windows desktop build package the v2 binary the way the
    macOS one does (no `files` dependency), so both use one v2 path.
+
+**Round 29 (done):** #756 (serve_budget by v1's numbers; the desktop app runs the v2 binary on every OS); Auto's
+popover; the issue picker as v1's palette; right-click selects its row; one pane frame per app across tasks. Next:
+the row menu's v1 entries (Rerun, Fork, … through the contract), a kit ProjectsSheet (v1's Projects layout and phone
+modal), the Windows desktop QA scripts on v2, then v1-features partial and missing rows, most-used first.
 
 **Round 28 (done):** the pane correction (saved defaults, v1's card exactly); the launcher focus border; Preview's
 element picker (ADR-0049, the run proxy); the crew rail's hover card; panes beside tasks (`SideTabDef`); v1-features

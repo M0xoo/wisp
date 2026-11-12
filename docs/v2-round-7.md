@@ -1209,3 +1209,56 @@ pane-card, path-field, org; stuff pane-host, pins; shell-task pick, term; shell-
 above, clippy -D warnings on wisp-terminal, -core, -api. Parity: task.changes 0/174 parts off at 1440 light,
 task.changes-diff 1/174 (card.title weight, known). Seen in playwright: the side tab 1440 light/dark and 390, the rail
 card light/dark, Pick live.
+
+## Round 29 (2026-11-12)
+
+**#756 CI, fix first.** (1) `serve_budget.rs` `unattended_work_past_the_stop_line_is_held_until_the_window_resets`:
+v1 asks before your own run once a window is at your Ask near the limit line (`web/js/limit-hold.js` holdFor:
+`used + estimate >= line`, default line 90%), so v2's refusal at 90% is v1's behaviour, not a bug. The test fed one
+window that crossed both lines; it now uses v1's own numbers (`test/budget.test.js` "Automations stop at": 80%, stop
+line 75%): past the stop line, under the ask line. Ask near the limit keeps its own test beside it.
+`cargo test -p wisp --test serve_budget`: 2 passed. (2) `tauri windows`: the root cause was that the desktop app was
+still v1's: `package.mjs` staged v1's Node app (`pkg.files`) and a bundled Node, and the shell ran `node
+desktop/entry.mjs`. Now (ADR-0013: the desktop app ships the same binary as Homebrew) `package.mjs` builds and stages
+`wisp(.exe)` with `web/` beside it on every OS (or takes WISP_BIN / WISP_WEB_DIR), no Node; `src-tauri` runs `wisp
+serve` (`server.rs`, `main.rs` `wisp()`), and `wisp serve` stops when its stdin closes under `WISP_EXIT_WITH_STDIN`
+(the app's pipe, as v1's entry.mjs did). The tauri workflows run `npm ci` first (the web build). `cargo check` of
+desktop/src-tauri on macOS: clean. Windows is checked by CI only. Left: `qa/desktop-tauri-win.mjs` and
+`qa/install.mjs --only migrate` still drive v1 (a fake `desktop/entry.mjs`, v0.57 Electron), so those jobs need a port.
+
+**Auto's popover (home.auto-preview).** Kit `AutoPop` (v1 auto-preview.js openPop, auto.css .auto-pop): the pick,
+why (without "High thinking for Balanced"), the odds once, cost and time, Worth a try, up to four others, Never pick
+<model> for <kind> tasks (`router.view` then `router.set { blocked }`, a toast with Undo), How Auto picks (Settings →
+Auto). Opened from the Auto pick while Auto picks, also before Auto answered ("Auto is still looking", then it fills
+in); Home asks Auto at once, empty box included, as v1. The launcher stays lit while it's open (`aria-expanded`). At
+≤640px the pick keeps its 28px and at ≤520px nothing on the bar gives way (it scrolls, Send pinned), as v1. Parity:
+1440/900 0 parts off (0.3% px), 390 0 launcher parts off. parity.mjs: `#autoPv` maps to the pick, `x.menu` /
+`x.menuItem` to the kit's `data-kit="menu"` (v1's `.menu` class never matched in v2), and router.preview/view,
+issues.list, runtime.discover go through as reads. Tests: kit `auto-pop.test.tsx` (2), shell `auto.test.ts` (popOf).
+
+**The issue picker as v1's palette.** A bare top overlay in ⌘K's sheet (640 wide): kit `PaletteSheet` gains
+`variant: 'issues'` (two-line rows, the list 440 tall), `note` (v1 .pal-note, between the input and the list, with its
+fix) and `loading` (v1's placeholder rows). Parity home.issues: 0.0–0.2% px at 1440/900/390, 1 part off: the sheet's
+1px inset (v2 names the sheet inside the dialog's border, v1 names the bordered box). At 900 tall v1's note pushes
+its keys row past the 560 cap and clips it; v2 does the same, since it's v1's layout. Test: kit `palette.test.tsx`.
+
+**Right-click.** A row's menu also makes it the keyboard's row (v1 feed.js setFocus), so it shows picked with room
+for its actions: task.right-click `card#2` matches. Left: v1's row menu has Rerun, Fork, Side discussion, Share, Ship
+it, Changes, Shell, Run app, Save as recipe, Add to crew, Set goal, Keep worktree; v2's list menu has none of them (they
+live in the shell's task More menu, which the list plugin can't reach). That needs those actions shared through the
+contract (the `shell.row:menu` input exists; nothing attaches to it yet).
+
+**Projects.** The mock lists v1's found repos (`runtime.discover`). Left, for a kit `ProjectsSheet` like other screens
+got: v1's This computer / + Machine strip, the full-width field with a dark Add, v1's hint (`wisp add` as code, no drag
+sentence), the row's trash only, the compact found cards; on a phone v1 shows a centred modal, v2 a bottom sheet.
+
+**One pane frame per app across tasks.** `TaskSide` keeps a plugin tab's panel mounted from task to task, its task
+context read through to the open task, so the app's frame is made once and hears the task (`wisp.context`). Seen in
+playwright: the same iframe after switching task, the tab still picked, Changes after it.
+
+**v1-features.** F-comp-6 adds the popover; F-desk-1 missing → partial. Partial 141, missing 25.
+
+Checks: typecheck, `npm run check` (0 errors), css-rules 12/12; each touched test file alone (kit auto-pop, palette;
+shell auto, palette; stuff pins; shell-task term; shell-list crew; issues model); `cargo test -p wisp --test
+serve_budget`; `cargo check` desktop/src-tauri; clippy -D warnings -p wisp; parity home.auto-preview, home.issues,
+task.right-click, projects, and home/palette/task at 1440+390 light (home and task unchanged at 0 parts off).

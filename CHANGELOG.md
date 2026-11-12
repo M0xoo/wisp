@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **See why Auto picked what it did.** Click Auto's pick in New task: its reasons, odds, cost and time, a model worth a try and others to run instead, *Never pick this model for this kind of task* (with Undo) and How Auto picks. It shows before you type, too.
+- **The desktop app runs wisp's own server.** The app starts the same `wisp` binary Homebrew and npm ship, no bundled Node, and stops it when you quit, however the app goes.
 - **Panes beside tasks.** In My Stuff, an app's ⋯ → Pin beside tasks puts it in a tab of the panel beside every task, after Changes, PR, Shell and Preview; the app is told which task is open. Unpin from the tab's bar or My Stuff.
 - **A crew member's card beside the rail.** Hover a face (or focus it and press →) to see who it is, what it's up to and the jobs it's on, each one click away; its delegated jobs no longer repeat in the desktop list.
 - **Pick an element in Preview.** The run's page now goes through a small local proxy so wisp can add its picker; click Pick, then an element, and its selector, HTML and styles go in the reply box.
@@ -108,6 +110,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Start from an issue opens like ⌘K**, near the top and 640 wide, with each issue on two lines and why there's nothing to list above it.
+- **Right-clicking a task in the list picks it**, so it shows which task the menu is for.
+- **An app pinned beside tasks keeps running when you switch task**: it's told which task is open instead of reloading.
 - **Settings look like v1's again.** Agents lists each harness's accounts in a box under it, with GitHub and "Installed something new?" at the end; Machines opens on one row with Manage, then Reach this computer from anywhere and what SSH needs (commands copy with a click); Cloud and Connectors put their sign-in and Found rows in v1's boxes; Worktrees keeps its columns and v1's filter; Updates is at the end of General again.
 
 - **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.
