@@ -154,6 +154,30 @@ A task's actions are offered in several places: the right-click menu, the open t
   with `keyHint()`, and listed in the shortcuts sheet (`shortcuts()` in `web/js/ui/kbd.js`). Use
   `modKey()` / `combo()` for ⌘/Ctrl.
 
+## Task menus
+
+The open task's **More** and a row's right-click menu are one list (`taskMenuHtml` in
+`web/js/features/actions.js`), in sections from the task itself to Delete:
+
+1. What the bar does: *Open* / *Rerun…* on a row; on a narrow bar, the buttons it folded away.
+2. The task itself: Rename, Fork…, Side discussion…, Share…, Compact now.
+3. What's waiting on it: a held run, a follow-up or reminder, Ship it, Merge PR.
+4. Where to look: **View ▸** (Changes, Shell, Review PR, Run app, Watch, Compare runs),
+   **Goal ▸**, the crew.
+5. Keep and reuse: **Copy ▸** (task ID, resume command), Save as recipe…, **Files ▸** (Open
+   project in editor, Keep worktree, Restore to before latest turn).
+6. Where it sits: Mark done, Save for later, Archive, then spells' `card.menu` items.
+7. Delete task, alone.
+
+- Like Linear's and macOS's menus: a line between groups, the most used first, destructive last,
+  one level of submenus at most, and ⌘K holds everything for typing.
+- A submenu (`web/js/ui/submenu.js`) drills in, like iOS: its items take the menu's place under a
+  Back row, at the same spot and width. Escape or ← steps back, → opens one. A group of one item
+  stays inline: no submenu with one row in it.
+- More doesn't repeat what the open task already shows (Changes on a narrow bar, the Shell card).
+- A new task action goes in the section where it belongs, not at the end. If it's rare, put it in a
+  submenu. Keep the menu at about a dozen rows at most.
+
 ## Keyboard and accessibility
 
 - Everything that can be clicked can be reached with Tab and shows a focus ring.
