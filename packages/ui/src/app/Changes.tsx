@@ -82,6 +82,16 @@ export interface ChangesListProps {
   readonly commit?: { readonly count: string; readonly countTitle: string; readonly placeholder: string; readonly onCommit: (message: string) => void };
   /** hunks being reverted: `path#hunk`, hidden until the diff comes back */
   readonly going?: ReadonlySet<string>;
+  /** comments on lines, like a review (v1 comments.js): a + over the sign of the line under the pointer, each
+   * commented line's number marked, and the card under the line it's being written on */
+  readonly comment?: {
+    readonly label: (row: ChangeRow) => string;
+    readonly onAdd: (path: string, row: ChangeRow) => void;
+    /** `n12` / `o12` → its number in the tray */
+    readonly marks: (path: string) => ReadonlyMap<string, number>;
+    /** the line a card is open on, and the card */
+    readonly open?: { readonly path: string; readonly key: string; readonly card: JSX.Element } | undefined;
+  };
   readonly part?: PartName;
 }
 
@@ -136,19 +146,75 @@ function Path(props: { readonly path: string }): JSX.Element {
   );
 }
 
-function Line(props: { readonly o: ChangeRow }): JSX.Element {
+/** `n12` / `o12`: a row's place in its file, as comments key it */
+export const rowKey = (o: ChangeRow): string | undefined => {
+  const n = o.op === '-' ? o.a : o.b;
+  return n === undefined || o.op === '…' ? undefined : `${o.op === '-' ? 'o' : 'n'}${n}`;
+};
+
+interface LineCtx {
+  readonly path: string;
+  readonly p: ChangesListProps;
+  /** the row the + sits on (the pointer's, else the diff's last) */
+  readonly at: () => ChangeRow | undefined;
+  readonly hover: (o: ChangeRow) => void;
+}
+
+function Line(props: { readonly o: ChangeRow; readonly c?: LineCtx | undefined }): JSX.Element {
   const kind = (): string => (props.o.op === '+' ? 'add' : props.o.op === '-' ? 'del' : 'ctx');
+  const cm = (): ChangesListProps['comment'] => props.c?.p.comment;
+  const key = (): string | undefined => rowKey(props.o);
+  const mark = (): number | undefined =>
+    key()
+      ? cm()
+          ?.marks(props.c?.path ?? '')
+          .get(key() as string)
+      : undefined;
+  const open = (): JSX.Element | undefined => {
+    const o = cm()?.open;
+    return o && o.path === props.c?.path && o.key === key() ? o.card : undefined;
+  };
   return (
-    <tr data-kit="cx-line" data-op={kind()}>
-      <td data-kit="cx-no">{(props.o.op === '-' ? props.o.a : props.o.b) ?? ''}</td>
-      <td data-kit="cx-sign">{props.o.op === ' ' ? '' : props.o.op === '-' ? '−' : '+'}</td>
-      <td data-kit="cx-src">{props.o.text || ' '}</td>
-    </tr>
+    <>
+      <tr data-kit="cx-line" data-op={kind()} data-lit={flag(mark() !== undefined || open() !== undefined)} onPointerEnter={() => props.c?.hover(props.o)}>
+        <td data-kit="cx-no">
+          <Show when={mark()}>{(n) => <span data-kit="cx-mark">{n()}</span>}</Show>
+          {(props.o.op === '-' ? props.o.a : props.o.b) ?? ''}
+        </td>
+        <td data-kit="cx-sign">
+          {props.o.op === ' ' ? '' : props.o.op === '-' ? '−' : '+'}
+          <Show when={cm() && key() && props.c?.at() === props.o}>
+            <button
+              type="button"
+              data-kit="cx-cmt"
+              data-part="panel.changes.comment"
+              aria-label={cm()?.label(props.o)}
+              title={cm()?.label(props.o)}
+              onClick={() => cm()?.onAdd(props.c?.path ?? '', props.o)}
+            >
+              <Icon name="plus" size="sm" />
+            </button>
+          </Show>
+        </td>
+        <td data-kit="cx-src">{props.o.text || ' '}</td>
+      </tr>
+      <Show when={open()}>
+        {(card) => (
+          <tr data-kit="cx-cmt-row">
+            <td colSpan={3}>{card()}</td>
+          </tr>
+        )}
+      </Show>
+    </>
   );
 }
 
 function FileDiff(props: { readonly f: ChangeFile; readonly p: ChangesListProps }): JSX.Element {
   const L = props.p.labels;
+  // one + per diff, on the line under the pointer; before any, on the last numbered line (as v1's sat where it was left)
+  const [hovered, setHovered] = createSignal<ChangeRow | undefined>();
+  const last = (): ChangeRow | undefined => [...props.f.rows].reverse().find((o) => rowKey(o) !== undefined);
+  const ctx: LineCtx = { path: props.f.path, p: props.p, at: () => hovered() ?? last(), hover: (o) => rowKey(o) && setHovered(o) };
   const gap = (o: ChangeRow): JSX.Element => (
     <tr data-kit="cx-gap">
       <td colSpan={3}>
@@ -172,7 +238,7 @@ function FileDiff(props: { readonly f: ChangeFile; readonly p: ChangesListProps 
             when={props.f.revertable}
             fallback={
               <tbody>
-                <For each={props.f.rows}>{(o) => (o.op === '…' ? gap(o) : <Line o={o} />)}</For>
+                <For each={props.f.rows}>{(o) => (o.op === '…' ? gap(o) : <Line o={o} c={ctx} />)}</For>
               </tbody>
             }
           >
@@ -207,7 +273,7 @@ function FileDiff(props: { readonly f: ChangeFile; readonly p: ChangesListProps 
                           </div>
                         </td>
                       </tr>
-                      <For each={h.rows}>{(o) => <Line o={o} />}</For>
+                      <For each={h.rows}>{(o) => <Line o={o} c={ctx} />}</For>
                     </tbody>
                   </>
                 );

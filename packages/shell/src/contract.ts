@@ -30,6 +30,13 @@ export const INPUTS = {
   // added 2026-11-12 (additive): what other plugins put in Settings → Machines under its first group (wisp.grid-client's
   // Reach this computer from anywhere, v1 .mc-grid)
   'shell.settings:machines': 'machines.reach',
+  // added 2026-11-12 (additive): rows other plugins add to Settings → Usage's first group (wisp.crew's Crew track
+  // record), and groups at its end (wisp.machine's Machine load), where v1 had them
+  'shell.settings:usage': 'usage.links',
+  'shell.settings:usageEnd': 'usage.end',
+  // added 2026-11-12 (additive): notes on Home under what needs you (wisp.budget's Spare allowance and window
+  // changes, v1 .sh-spare); its extensions get `pickAgent`
+  'shell.home:cards': 'home.cards',
   // added 2026-11-12 (additive): what goes between Needs you and Working (the crew's section on the phone, v1 #secCrew)
   'shell.list:crew': 'section.crew',
   'shell.list:working': 'section.working',
@@ -87,6 +94,8 @@ export const INPUTS = {
   'shell.side:changes': null,
   'shell.side:shell': null,
   'shell.side:pr': null,
+  // added 2026-11-12 (additive): the side panel's Preview (v1 run.js), the task's app run from its folder
+  'shell.side:preview': null,
 } as const satisfies Record<string, string | null>;
 
 export type InputId = keyof typeof INPUTS;
@@ -100,6 +109,8 @@ export interface ExtensionProps<C = Record<string, unknown>> {
   form?: 'full' | 'icon';
   /** added: on a screen or side input, the entity it shows (a task's key, a crew member's id) */
   id?: string;
+  /** added 2026-11-12: on Home's inputs, puts a harness in Home's prompt box (Spare allowance's Use) */
+  pickAgent?: (agent: string) => void;
 }
 
 export interface ExtensionDef<C = Record<string, unknown>> {
@@ -315,6 +326,12 @@ export interface PromptSourceDef {
    * Additive (2026-11-11).
    */
   send?(text: string, ctx: { client: PluginClient; task: string; launch?: LaunchPick }): boolean;
+  /**
+   * What goes with the task's next follow-up, at its top (comments on lines of its Changes, v1 comments.js): the
+   * follow-up as it will be sent, and `taken()` once it went (the tray empties), `back()` if it was refused.
+   * A reply with nothing typed still goes when something waits. Additive (2026-11-12).
+   */
+  pending?(text: string, ctx: { client: PluginClient; task: string }): { readonly text: string; taken(): void; back(): void } | undefined;
 }
 
 /** 'e', 'shift+r', 'mod+k' (⌘ on a Mac, Ctrl elsewhere), 'ctrl+`', 'escape', '?' */

@@ -25,6 +25,8 @@ interface BoundRowProps<V> extends KitProps {
   /** The note under a locked setting: "Set by the plugin Focus · Plugins". */
   readonly locked?: (by: string) => JSX.Element;
   readonly disabled?: boolean;
+  /** a mark before the title (a harness's logo: Usage's per-harness stop lines) */
+  readonly logo?: string | undefined;
 }
 
 const none: Readable<undefined> = () => undefined;
@@ -108,11 +110,12 @@ export function ChoiceSetting(props: ChoiceSettingProps): JSX.Element {
     <SettingsRow
       part={props.part ?? 'settings.row'}
       title={props.title}
+      {...(props.logo && { logo: props.logo })}
       wideControl
       description={<Description row={props} by={by()} />}
       control={
         <Tabs
-          variant="pill"
+          variant="seg"
           aria-label={props.title}
           value={value()}
           onChange={(v) => {

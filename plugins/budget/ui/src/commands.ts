@@ -11,14 +11,36 @@ export interface Usage {
   readonly turns: number;
   readonly worked: number | null;
   readonly questions: number;
+  /** v1's Charts and breakdowns (runtime-api UsageSummary, additive 2026-11-12) */
+  readonly priced?: number;
+  readonly sessions?: number;
+  readonly daily?: readonly { readonly date: string; readonly cost: number; readonly turns: number }[];
+  readonly projects?: readonly UsageRow[];
+  readonly runners?: readonly UsageRow[];
+}
+
+export interface UsageRow {
+  readonly key: string;
+  readonly name: string;
+  readonly agent?: string;
+  readonly cost: number;
+  readonly priced: number;
+  readonly turns: number;
+  readonly worked: number | null;
+  readonly questions: number;
+  readonly avgMs: number | null;
 }
 
 export interface Window {
   readonly id: string;
   readonly label: string;
-  /** 0–100 */
+  /** 0–1 (budget-api WindowView.used) */
   readonly used: number;
   readonly resetsAt?: number | null;
+  /** when it runs out at this pace, if before the reset */
+  readonly hitAt?: number | null;
+  /** the window's length */
+  readonly ms?: number | null;
 }
 
 import type { Drain, Notice } from './drain.ts';
@@ -33,9 +55,21 @@ export interface AccountPlan {
   readonly notices?: readonly Notice[];
 }
 
-export const usage = defineCommand<{ peer: PeerId; days?: number }, Usage>({ id: 'runtime.usage', owner: (a) => a.peer, wire: (a) => (a.days ? { days: a.days } : {}), optimistic: 'none', pending: 'the usage line' });
+export const usage = defineCommand<{ peer: PeerId; days?: number }, Usage>({
+  id: 'runtime.usage',
+  owner: (a) => a.peer,
+  wire: (a) => (a.days ? { days: a.days } : {}),
+  optimistic: 'none',
+  pending: 'the usage line',
+});
 
-export const plans = defineCommand<{ peer: PeerId; agent: string }, AccountPlan[]>({ id: 'budget.view', owner: (a) => a.peer, wire: (a) => ({ agent: a.agent }), optimistic: 'none', pending: 'the plan windows' });
+export const plans = defineCommand<{ peer: PeerId; agent: string }, AccountPlan[]>({
+  id: 'budget.view',
+  owner: (a) => a.peer,
+  wire: (a) => ({ agent: a.agent }),
+  optimistic: 'none',
+  pending: 'the plan windows',
+});
 
 /** `autoStop`, `autoStopClaude`, `autoStopCodex`: 'off' | '50' | '75' | '90', 'same' for a harness's own. */
 export const setStop = defineCommand<{ peer: PeerId; key: string; value: string }>({
@@ -50,5 +84,17 @@ export const setStop = defineCommand<{ peer: PeerId; key: string; value: string 
 });
 
 /** The drain card's Dismiss and a window change's ×: hidden until it happens again. */
-export const dismissDrain = defineCommand<{ peer: PeerId; agent: string; account: string; window: string }>({ id: 'budget.dismissDrain', owner: (a) => a.peer, wire: (a) => ({ agent: a.agent, account: a.account, window: a.window }), optimistic: 'none', pending: 'Dismiss' });
-export const dismissNotice = defineCommand<{ peer: PeerId; agent: string; account: string; window: string }>({ id: 'budget.dismissNotice', owner: (a) => a.peer, wire: (a) => ({ agent: a.agent, account: a.account, window: a.window }), optimistic: 'none', pending: 'the ×' });
+export const dismissDrain = defineCommand<{ peer: PeerId; agent: string; account: string; window: string }>({
+  id: 'budget.dismissDrain',
+  owner: (a) => a.peer,
+  wire: (a) => ({ agent: a.agent, account: a.account, window: a.window }),
+  optimistic: 'none',
+  pending: 'Dismiss',
+});
+export const dismissNotice = defineCommand<{ peer: PeerId; agent: string; account: string; window: string }>({
+  id: 'budget.dismissNotice',
+  owner: (a) => a.peer,
+  wire: (a) => ({ agent: a.agent, account: a.account, window: a.window }),
+  optimistic: 'none',
+  pending: 'the ×',
+});

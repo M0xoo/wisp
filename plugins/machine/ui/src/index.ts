@@ -11,6 +11,7 @@ const Pane = lazy(() => import('./MachinePane.tsx'));
 const Chip = lazy(() => import('./Chip.tsx'));
 const Ram = lazy(() => import('./RamCell.tsx'));
 const Page = lazy(() => import('./MachinePage.tsx'));
+const Load = lazy(() => import('./LoadGroup.tsx'));
 
 export default definePluginUi({
   id: 'wisp.machine',
@@ -26,13 +27,24 @@ export default definePluginUi({
   ],
   extensions: [
     defineExtension({ id: 'machine.chip', attachTo: { id: 'shell.topbar:machines' }, component: Chip, bar: { icon: 'laptop', label: 'machine.name.mac', priority: 40 }, order: -1 }),
+    // Settings → Usage → Machine load (v1 .sx-load)
+    defineExtension({ id: 'machine.load', attachTo: { id: 'shell.settings:usageEnd' }, component: Load }),
     defineExtension({ id: 'machine.ram', attachTo: { id: 'shell.row:head' }, component: Ram, if: (p) => (p.session?.() as { res?: unknown } | undefined)?.res !== undefined }),
   ],
   palette: [
     definePalette({
       id: 'machine.palette',
       order: 60,
-      items: (ctx) => [{ id: 'machine.open', group: 'shell.palette.group.actions', label: ctx.client.t('machine.palette'), icon: 'laptop', keywords: 'memory ram cpu disk this mac pc computer', run: () => openSettings((i) => ctx.client.navigate(i), 'machine') }],
+      items: (ctx) => [
+        {
+          id: 'machine.open',
+          group: 'shell.palette.group.actions',
+          label: ctx.client.t('machine.palette'),
+          icon: 'laptop',
+          keywords: 'memory ram cpu disk this mac pc computer',
+          run: () => openSettings((i) => ctx.client.navigate(i), 'machine'),
+        },
+      ],
     }),
   ],
 });

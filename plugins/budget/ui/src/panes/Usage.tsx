@@ -3,9 +3,30 @@
 // stops (Automations stop at, and each harness's own line).
 import { createResource, For, onCleanup, Show, type JSX } from 'solid-js';
 import { entityKey, type PluginClient } from '@wisp/client';
-import { Callout, ChoiceSetting, IconButton, Inline, Meter, SelectSetting, SettingsGroup, SettingsRow, Stats, SwitchSetting, Text, Button, timeLabel, englishT, useSignal, type SettingSource } from '@wisp/ui';
+import { Slot, useShell } from '@wisp/shell';
+import {
+  Callout,
+  ChoiceSetting,
+  IconButton,
+  Inline,
+  Meter,
+  SelectSetting,
+  SettingsGroup,
+  SettingsNote,
+  SettingsRow,
+  Stack,
+  Stats,
+  SwitchSetting,
+  Text,
+  Button,
+  timeLabel,
+  englishT,
+  useSignal,
+  type SettingSource,
+} from '@wisp/ui';
 import { dismissDrain, dismissNotice, META, plans, setStop, TOPIC, usage, type AccountPlan } from '../commands.ts';
-import { drainLines, drainReport, noticeWords } from '../drain.ts';
+import { drainLines, drainReport, noticeWords, pct } from '../drain.ts';
+import { VIEW_USAGE } from '../views.ts';
 import { t } from '../i18n.ts';
 import { fromRow } from '../source.ts';
 
@@ -71,13 +92,27 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
   const holdSrc = fromRow(c, 'budget.limitHold', '90');
   const hold: SettingSource<string> = { value: () => String((holdSrc.value as () => unknown)() ?? '90'), ...(holdSrc.lockedBy && { lockedBy: holdSrc.lockedBy }), set: (v) => holdSrc.set(v) };
   const when = (at: number): string => timeLabel(at, Date.now(), englishT);
-  const hide = (p: Promise<unknown>): void => void p.then(() => void again(), () => {});
+  const hide = (p: Promise<unknown>): void =>
+    void p.then(
+      () => void again(),
+      () => {},
+    );
   const reported = (): boolean => (windows() ?? []).some((w) => w.accounts.some((a) => a.windows.length > 0));
   const worked = (): string => {
     const w = line()?.worked;
     return w === null || w === undefined ? '—' : `${w}%`;
   };
   const label = (name: string, account: string, window: string): string => [name, account && account !== 'default' ? account : '', window].filter(Boolean).join(' · ');
+  const marks = useSignal(useShell().harnesses());
+  const logoOf = (id: string): string | undefined => marks().find((m) => m.id === id)?.logo;
+  const meters = (): JSX.Element[] =>
+    (windows() ?? []).flatMap((h) =>
+      h.accounts.flatMap((a) =>
+        a.windows.map((w) => (
+          <Meter part="budget.usage.window" label={label(h.name, a.account, w.label)} value={w.used} valueText={pct(w.used)} tone={w.used >= 0.9 ? 'bad' : w.used >= 0.75 ? 'warn' : 'neutral'} />
+        )),
+      ),
+    );
   return (
     <>
       <Stats
@@ -90,23 +125,33 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
           { label: t('budget.usage.questions'), value: line()?.questions ?? '—' },
         ]}
       />
-      <SettingsGroup part="budget.usage.plan" title={t('budget.usage.plan.title')} description={t('budget.usage.plan.description')}>
-        <Show when={reported()} fallback={<SettingsRow part="budget.usage.plan.none" title="" description={t('budget.usage.plan.none')} control={<span />} />}>
-          <For each={windows() ?? []}>
-            {(h) => (
-              <For each={h.accounts}>
-                {(a) => <For each={a.windows}>{(w) => <Meter part="budget.usage.window" label={label(h.name, a.account, w.label)} value={w.used} valueText={`${Math.round(w.used)}%`} tone={w.used >= 90 ? 'bad' : w.used >= 75 ? 'warn' : 'neutral'} />}</For>}
-              </For>
-            )}
-          </For>
-        </Show>
-        <SelectSetting
-          part="settings.subagentModel"
-          title={t('budget.usage.subagents.title')}
-          description={t('budget.usage.subagents.description')}
-          source={subagentSource(c)}
-          items={(['task', 'haiku', 'sonnet'] as const).map((v) => ({ value: v, label: t(`budget.usage.subagents.${v}`) }))}
+      {/* v1: Charts and breakdowns, then what other plugins add (wisp.crew's Crew track record) */}
+      <SettingsGroup part="budget.usage.links">
+        <SettingsRow
+          part="budget.usage.charts"
+          title={t('budget.usage.charts.title')}
+          description={t('budget.usage.charts.description')}
+          control={
+            <Button size="sm" variant="ghost" part="budget.usage.open" onClick={() => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW_USAGE as never, params: null } })}>
+              {t('budget.usage.open')}
+            </Button>
+          }
         />
+        <Slot input="shell.settings:usage" layout="contents" />
+      </SettingsGroup>
+      <SettingsGroup part="budget.usage.plan" bodyPart="settings.budget" title={t('budget.usage.plan.title')} description={t('budget.usage.plan.description')}>
+        <Show
+          when={reported()}
+          fallback={
+            <SettingsNote boxed part="budget.usage.plan.none">
+              {t('budget.usage.plan.none')}
+            </SettingsNote>
+          }
+        >
+          <Stack gap="4" part="budget.usage.windows">
+            {meters()}
+          </Stack>
+        </Show>
         <For each={windows() ?? []}>
           {(h) => (
             <For each={h.accounts}>
@@ -118,7 +163,14 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
                         part="budget.usage.notice"
                         title=""
                         description={noticeWords(n, label(h.name, a.account, ''), when)}
-                        control={<IconButton icon="x" size="xs" label={t('budget.usage.notice.hide')} onClick={() => hide(c.run(dismissNotice, { peer, agent: h.agent, account: a.account, window: n.window }))} />}
+                        control={
+                          <IconButton
+                            icon="x"
+                            size="xs"
+                            label={t('budget.usage.notice.hide')}
+                            onClick={() => hide(c.run(dismissNotice, { peer, agent: h.agent, account: a.account, window: n.window }))}
+                          />
+                        }
                       />
                     )}
                   </For>
@@ -142,15 +194,47 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
             </For>
           )}
         </For>
-        <SwitchSetting part="settings.drainWatch" title={t('budget.usage.drain.title')} description={t('budget.usage.drain.description')} source={drainWatch} />
-        <ChoiceSetting part="budget.usage.stop" title={t('budget.usage.stop.title')} description={t('budget.usage.stop.description')} source={stop('autoStop', 'off')} items={STOPS.map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))} />
+        <SelectSetting
+          part="settings.subagentModel"
+          title={t('budget.usage.subagents.title')}
+          description={t('budget.usage.subagents.description')}
+          source={subagentSource(c)}
+          items={(['task', 'haiku', 'sonnet'] as const).map((v) => ({ value: v, label: t(`budget.usage.subagents.${v}`) }))}
+        />
+        <ChoiceSetting
+          part="settings.autoStop"
+          title={t('budget.usage.stop.title')}
+          description={t('budget.usage.stop.description')}
+          source={stop('autoStop', 'off')}
+          items={STOPS.map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))}
+        />
         <For each={PLANNED}>
-          {(p) => <ChoiceSetting part="budget.usage.stop.own" title={p.name} description={t('budget.usage.stop.own')} source={stop(p.key, 'same')} items={(['same', ...STOPS] as Stop[]).map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))} />}
+          {(p) => (
+            <ChoiceSetting
+              part="settings.autoStopBy"
+              title={p.name}
+              logo={logoOf(p.agent)}
+              description={p.agent === 'codex' ? t('budget.usage.stop.codex') : t('budget.usage.stop.own')}
+              source={stop(p.key, 'same')}
+              items={(['same', ...STOPS] as Stop[]).map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))}
+            />
+          )}
         </For>
         <SwitchSetting part="settings.liveLimits" title={t('budget.usage.live.title')} description={t('budget.usage.live.description')} source={onOff('budget.liveLimits', false)} />
-        <ChoiceSetting part="settings.limitHold" title={t('budget.usage.hold.title')} description={t('budget.usage.hold.description')} source={hold} items={(['off', '80', '90', '95'] as const).map((v) => ({ value: v, label: v === 'off' ? t('budget.usage.stop.off') : `${v}%` }))} />
+        <SwitchSetting part="settings.spareCard" title={t('budget.usage.spare.title')} description={t('budget.usage.spare.description')} source={onOff('budget.spareCard', true)} />
+        <SwitchSetting part="settings.windowNotice" title={t('budget.usage.notices.title')} description={t('budget.usage.notices.description')} source={onOff('budget.windowNotice', true)} />
+        <SwitchSetting part="settings.drainWatch" title={t('budget.usage.drain.title')} description={t('budget.usage.drain.description')} source={drainWatch} />
+        <ChoiceSetting
+          part="settings.limitHold"
+          title={t('budget.usage.hold.title')}
+          description={t('budget.usage.hold.description')}
+          source={hold}
+          items={(['off', '80', '90', '95'] as const).map((v) => ({ value: v, label: v === 'off' ? t('budget.usage.stop.off') : `${v}%` }))}
+        />
         <SwitchSetting part="settings.limitWait" title={t('budget.usage.wait.title')} description={t('budget.usage.wait.description')} source={onOff('runtime.limitWait', false)} />
       </SettingsGroup>
+      {/* v1 Machine load (wisp.machine), and anything else other plugins put at the end */}
+      <Slot input="shell.settings:usageEnd" layout="contents" />
     </>
   );
 }

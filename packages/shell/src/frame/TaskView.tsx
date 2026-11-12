@@ -10,7 +10,7 @@ import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
 import { Answer, Button, Dialog, Inline, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, WorkingPanel, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
-import { Slot } from '../slot.tsx';
+import { Slot, useClients } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
 import { changeFigures, duration, folded, longTime, nextNeedsYou, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { coldHint, compactItem } from './cold.ts';
@@ -163,6 +163,15 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const [runnerOpen, setPickingRunner] = createSignal(false);
   const runOf = (): ReturnType<typeof runPick> => runPick(replyRun());
   let goalInput: HTMLInputElement | undefined;
+  // each prompt source with its own plugin's client, the one its extensions get
+  // (a page without the shell's clients, a test's, uses the shell's own)
+  const clients = ((): { client(plugin: string): ReturnType<typeof shell.client.plugin> } => {
+    try {
+      return useClients();
+    } catch {
+      return { client: (pl) => shell.client.plugin(pl) };
+    }
+  })();
   const send = (): void => {
     const v = menu.encode(text().trim());
     // the Done when line open and empty: nothing goes, the line takes the focus (v1 #769 replyGoalEmpty)
@@ -173,10 +182,17 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       return;
     }
     menu.reset();
-    if (!v) return;
+    // what plugins send with it, at its top (comments on lines): the reply goes even with nothing typed
+    const extra = shell
+      .promptSources()()
+      .filter((p) => (p.where ?? ['reply']).includes('reply') && p.pending)
+      .map((p) => p.pending?.(v, { client: clients.client((p as { plugin?: string }).plugin ?? 'shell'), task: key }))
+      .find((x) => x !== undefined);
+    if (!v && !extra) return;
     // a plugin's prompt source may take it (@a crew member: their job, their answer under this turn)
     const pc = shell.client.plugin('shell');
     if (
+      !extra &&
       files().length === 0 &&
       shell
         .promptSources()()
@@ -193,10 +209,20 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     const at = Date.now();
     const idx = turns().length;
     // the box clears at once; with files, the turn starts once they're up (usually already)
+    extra?.taken();
     const go = (attachments: readonly Attachment[]): void => {
-      run(followUp, { id: key, text: v, turnId, idx, at, ...(attachments.length > 0 && { attachments }), ...(runOf() ? { run: runOf() as NonNullable<ReturnType<typeof runOf>> } : {}) }).catch(() =>
-        setText(v),
-      );
+      run(followUp, {
+        id: key,
+        text: extra ? extra.text : v,
+        turnId,
+        idx,
+        at,
+        ...(attachments.length > 0 && { attachments }),
+        ...(runOf() ? { run: runOf() as NonNullable<ReturnType<typeof runOf>> } : {}),
+      }).catch(() => {
+        extra?.back();
+        setText(v);
+      });
     };
     if (files().length === 0) go([]);
     else void att.take().then(go);
@@ -281,7 +307,16 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     }
   };
   const actions = (s: SessionRow): TaskAction[] => [
-    { id: 'transcript', deskOnly: true, key: 'V', icon: 'transcript', label: t('shell.task.transcript'), title: t('shell.task.transcriptTitle'), on: stepsOpen(), act: { onClick: () => setStepsOpen(!stepsOpen()) } },
+    {
+      id: 'transcript',
+      deskOnly: true,
+      key: 'V',
+      icon: 'transcript',
+      label: t('shell.task.transcript'),
+      title: t('shell.task.transcriptTitle'),
+      on: stepsOpen(),
+      act: { onClick: () => setStepsOpen(!stepsOpen()) },
+    },
     {
       id: 'rerun',
       deskOnly: true,
@@ -300,8 +335,26 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       title: t('shell.task.openInTitle', { harness: harnessOf(harnesses(), s.agent).name }),
       act: { onClick: () => side('shell') },
     },
-    { id: 'changes', key: 'D', icon: 'file', label: t('shell.task.changes'), title: t('shell.task.changesTitle'), part: 'split.changes', on: nav().side.kind === 'changes', act: { onClick: () => side('changes') } },
-    { id: 'shell', key: '⌃`', icon: 'shell', label: t('shell.task.shell'), title: t('shell.task.shellTitle'), part: 'split.shell', on: nav().side.kind === 'shell', act: { onClick: () => side('shell') } },
+    {
+      id: 'changes',
+      key: 'D',
+      icon: 'file',
+      label: t('shell.task.changes'),
+      title: t('shell.task.changesTitle'),
+      part: 'split.changes',
+      on: nav().side.kind === 'changes',
+      act: { onClick: () => side('changes') },
+    },
+    {
+      id: 'shell',
+      key: '⌃`',
+      icon: 'shell',
+      label: t('shell.task.shell'),
+      title: t('shell.task.shellTitle'),
+      part: 'split.shell',
+      on: nav().side.kind === 'shell',
+      act: { onClick: () => side('shell') },
+    },
     { id: 'ship', key: 'S', icon: 'send', label: t('shell.task.ship'), title: t('shell.task.shipTitle'), act: { onClick: ship } },
     { id: 'done', key: 'E', icon: 'done', label: t('shell.task.done'), title: t('shell.card.done'), tone: 'good', act: { onClick: markDone } },
     { id: 'more', icon: 'dots', label: t('shell.task.more'), title: t('shell.task.more'), act: { menu: { items: more(), onSelect: onMore } } },
@@ -427,29 +480,40 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                 <>
                                   {/* v1 transcript.js renderTranscript: with Transcript on, the turn's timeline comes before its answer */}
                                   <Show when={stepsOpen()}>
-                                    <TurnTranscript steps={[...steps(), ...((b as { presentation?: { notes?: string } }).presentation?.notes ? [{ kind: 'text', label: String((b as { presentation?: { notes?: string } }).presentation?.notes) }] : [])]} changes={changes} here={here} status={turn.status ?? ''} t={t} />
+                                    <TurnTranscript
+                                      steps={[
+                                        ...steps(),
+                                        ...((b as { presentation?: { notes?: string } }).presentation?.notes
+                                          ? [{ kind: 'text', label: String((b as { presentation?: { notes?: string } }).presentation?.notes) }]
+                                          : []),
+                                      ]}
+                                      changes={changes}
+                                      here={here}
+                                      status={turn.status ?? ''}
+                                      t={t}
+                                    />
                                   </Show>
-                                <Answer
-                                  blocks={blocks}
-                                  ctx={answerContext({
-                                    shell,
-                                    key,
-                                    turnId: turn.id,
-                                    blocked: () => blockedOf(b),
-                                    latest: () => turn.id === turns().at(-1)?.id,
-                                    title: () => s().title,
-                                    transcript: stepsOpen,
-                                    meta: () => [
-                                      ...(b.endedAt && b.endedAt > turn.started_at ? [duration(b.endedAt - turn.started_at)] : []),
-                                      ...(b.stats?.costUsd ? [`$${b.stats.costUsd.toFixed(2)}`] : []),
-                                      ...(changes.length ? [t(changes.length === 1 ? 'shell.task.touched.one' : 'shell.task.touched.other', { n: changes.length })] : []),
-                                    ],
-                                    reply,
-                                    draft,
-                                    openChanges: () => side('changes'),
-                                    apps: () => ((b as { ext?: Record<string, unknown> }).ext?.['wisp.apps'] ?? {}) as Record<string, unknown>,
-                                  })}
-                                />
+                                  <Answer
+                                    blocks={blocks}
+                                    ctx={answerContext({
+                                      shell,
+                                      key,
+                                      turnId: turn.id,
+                                      blocked: () => blockedOf(b),
+                                      latest: () => turn.id === turns().at(-1)?.id,
+                                      title: () => s().title,
+                                      transcript: stepsOpen,
+                                      meta: () => [
+                                        ...(b.endedAt && b.endedAt > turn.started_at ? [duration(b.endedAt - turn.started_at)] : []),
+                                        ...(b.stats?.costUsd ? [`$${b.stats.costUsd.toFixed(2)}`] : []),
+                                        ...(changes.length ? [t(changes.length === 1 ? 'shell.task.touched.one' : 'shell.task.touched.other', { n: changes.length })] : []),
+                                      ],
+                                      reply,
+                                      draft,
+                                      openChanges: () => side('changes'),
+                                      apps: () => ((b as { ext?: Record<string, unknown> }).ext?.['wisp.apps'] ?? {}) as Record<string, unknown>,
+                                    })}
+                                  />
                                 </>
                               ),
                             })}
@@ -488,11 +552,15 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                 ),
                               })}
                             actsTitle={t('shell.task.activity')}
-                            acts={stepsOpen() ? [] : [
-                              { icon: 'read', text: String(count('read')), title: t('shell.task.read', { n: count('read') }) },
-                              { icon: 'pen', text: String(count('edit')), title: t('shell.task.edited', { n: count('edit') }) },
-                              { icon: 'terminal', text: String(count('run')), title: t('shell.task.ran', { n: count('run') }) },
-                            ]}
+                            acts={
+                              stepsOpen()
+                                ? []
+                                : [
+                                    { icon: 'read', text: String(count('read')), title: t('shell.task.read', { n: count('read') }) },
+                                    { icon: 'pen', text: String(count('edit')), title: t('shell.task.edited', { n: count('edit') }) },
+                                    { icon: 'terminal', text: String(count('run')), title: t('shell.task.ran', { n: count('run') }) },
+                                  ]
+                            }
                             stats={[
                               { text: duration((b.endedAt ?? (turn.status === 'running' ? Date.now() : turn.started_at)) - turn.started_at) },
                               ...(b.stats?.costUsd !== undefined ? [{ text: `$${b.stats.costUsd.toFixed(2)}` }] : []),

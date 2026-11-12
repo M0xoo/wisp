@@ -196,4 +196,26 @@
   [data-kit='sh-keys'] { margin: 18px 0 0; padding: 0 var(--space-4) 0 13px; font-size: var(--fs-sm); color: var(--faint); line-height: 2; }
   [data-kit='sh-keys'] > kbd { margin-right: var(--space-1); }
   [data-kit='stage'][data-layout='stack'] [data-kit='sh-keys'] { display: none; }
+
+  /* v1 .sh-spare / .spr-card: notes on plans under what needs you */
+  [data-kit='sh-spare'] { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
+  [data-kit='sh-next'] + [data-kit='slot'] [data-kit='sh-spare'] { margin-top: 14px; }
+  [data-kit='spr-card'] { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 2.625rem; padding: 5px 6px 5px 12px; border-radius: 9px; border: var(--size-hairline) solid transparent; transition: background 0.15s, border-color 0.15s; }
+  [data-kit='spr-card']:hover { background: var(--surface); border-color: var(--line); }
+  [data-kit='spr-logo'] { display: inline-flex; width: 13px; height: 13px; color: var(--ink-2); }
+  [data-kit='spr-logo'] > img, [data-kit='spr-logo'] > [data-kit='icon'] { width: 100%; height: 100%; }
+  [data-kit='spr-text'] { min-width: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='spr-text'] > b { margin-right: 0.28em; font-weight: var(--fw-semibold); color: var(--ink); font-variant-numeric: tabular-nums; }
+  [data-kit='spr-use'] { display: inline-flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 9px; font-size: 13px; color: var(--ink-2); white-space: nowrap; transition: background 0.15s, color 0.15s; }
+  [data-kit='spr-use']:hover { background: var(--bg-2); color: var(--ink); }
+  @media (hover: none) { [data-kit='spr-use'] { border: var(--size-hairline) solid var(--line); } }
+  [data-kit='spr-card'] > [data-kit='icon-button'] { width: 30px; height: 30px; color: var(--faint); }
+  /* a phone: the line over the whole row, Use under it */
+  @media (max-width: 520px) {
+    [data-kit='spr-card'] { grid-template-columns: 13px minmax(0, 1fr) auto; grid-template-areas: 'l t x' '. s .'; row-gap: 2px; align-items: start; }
+    [data-kit='spr-logo'] { grid-area: l; margin-top: 3px; }
+    [data-kit='spr-text'] { grid-area: t; }
+    [data-kit='spr-use'] { grid-area: s; justify-self: start; margin-left: -10px; }
+    [data-kit='spr-card'] > [data-kit='icon-button'] { grid-area: x; }
+  }
 }

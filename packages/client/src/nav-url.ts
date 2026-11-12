@@ -71,7 +71,7 @@ function decodeSide(raw: string | null): Side {
   const id = raw.slice(i + 1);
   if (i < 0 || !ID.test(id)) return { kind: 'none' };
   if (kind === 'view') return EXT.test(id) ? { kind: 'view', id: id as ExtensionId } : { kind: 'none' };
-  if (kind === 'changes' || kind === 'shell' || kind === 'pr') return { kind, id: id as SessionId };
+  if (kind === 'changes' || kind === 'shell' || kind === 'pr' || kind === 'preview') return { kind, id: id as SessionId };
   return { kind: 'none' };
 }
 
@@ -188,7 +188,7 @@ export function homed(nav: Omit<Nav, 'layout'>, home: string | undefined): Omit<
   if (!home) return nav;
   const key = (id: string): SessionId => (id.includes(':') ? id : `${home}:${id}`) as SessionId;
   const main = nav.main.kind === 'task' ? { kind: 'task' as const, id: key(nav.main.id) } : nav.main;
-  const side = nav.side.kind === 'changes' || nav.side.kind === 'shell' || nav.side.kind === 'pr' ? { ...nav.side, id: key(nav.side.id) } : nav.side;
+  const side = nav.side.kind === 'changes' || nav.side.kind === 'shell' || nav.side.kind === 'pr' || nav.side.kind === 'preview' ? { ...nav.side, id: key(nav.side.id) } : nav.side;
   return main === nav.main && side === nav.side ? nav : { ...nav, main, side };
 }
 

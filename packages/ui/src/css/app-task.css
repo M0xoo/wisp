@@ -12,7 +12,7 @@
   [data-kit='sh-title'] { flex: 1; min-width: 0; font: 600 var(--fs-lg) / 1.3 var(--display); letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 5px; }
   [data-kit='sh-acts'] { display: flex; align-items: center; gap: var(--space-2); }
   [data-kit='head-btn'] { display: inline-grid; place-items: center; width: var(--size-control-md); height: var(--size-control-md); border-radius: var(--radius-control); color: var(--muted); transition: background 0.15s, color 0.15s; }
-  [data-kit='head-btn']:hover { background: var(--bg-2); color: var(--ink); }
+  [data-kit='head-btn']:hover, [data-kit='head-btn'][aria-pressed='true'] { background: var(--bg-2); color: var(--ink); } /* v1 .icon-btn.open: the panel it opens is open */
 
   /* panel.css .it-body; the narrow pane (split.css body.split:not(.pane-wide)): the details as a row
      over the turns, the actions in a row under them. A grid, not a wrapping row (design/layout.md). */
@@ -168,10 +168,11 @@
 
   /* the state shows in the details only on a phone (the list says it beside the task on a desktop) */
   [data-kit='it-state'] { display: none; }
-  /* composer.css .composer: at rest one line on a quiet fill; the toolbar wakes with the caret */
+  /* v1 split.css: at rest the reply box sits on a quiet fill; on a phone (stacked) it's one line and its toolbar
+     wakes with the caret, on a desktop the toolbar stays */
   [data-kit='reply-box']:not(:focus-within) { background: var(--surface-2); border-color: var(--line); box-shadow: none; }
   [data-kit='reply-box']:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); }
-  [data-kit='reply-box']:not([data-awake]) > [data-kit='c-bar'] { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='reply-box']:not([data-awake]) > [data-kit='c-bar'] { display: none; }
   /* a plan's when, first in its details (v1 .pill.later-pill.pv-when) */
   [data-kit='it-when'] {
     display: inline-flex; align-self: flex-start; align-items: center; gap: var(--space-2); height: var(--size-pill); padding: 0 var(--space-4); border-radius: var(--radius-pill);

@@ -20,6 +20,8 @@ export default definePluginUi({
     defineExtension({ id: 'wisp.crew.page', attachTo: { id: 'shell.screen:crew' }, component: lazy(() => import('./CrewPage.tsx')) }),
     // under a turn: the members asked on it and their answers, with Reply (v1 btw.js crew entries)
     defineExtension({ id: 'wisp.crew.answers', attachTo: { id: 'shell.turn:foot' }, component: lazy(() => import('./Answers.tsx')) }),
+    // Settings → Usage: Crew track record (v1 #openRecord)
+    defineExtension({ id: 'wisp.crew.usage', attachTo: { id: 'shell.settings:usage' }, component: lazy(() => import('./UsageRow.tsx')) }),
   ],
   // a reply that starts with @a member is for them: their job, their answer under the turn (v1 crew.js replyIn)
   prompt: [
@@ -41,6 +43,8 @@ export default definePluginUi({
   views: [
     // Import crew members: a shared .crew.json, its JSON or a link (v1 crew-share.js importCrew)
     defineView({ kind: VIEW.import, slot: 'overlay', overlay: 'dialog', parse: (p) => p, title: () => t('wisp.crew.import.title'), component: lazy(() => import('./ImportCrew.tsx')) }),
+    // the crew's track record (v1 crew-record.js): Settings → Usage's Crew track record
+    defineView({ kind: VIEW.record, slot: 'overlay', overlay: 'dialog', parse: () => null, title: () => t('wisp.crew.record.title'), component: lazy(() => import('./Record.tsx')) }),
     // Org: who hands work to whom (v1 org.js, F-crew-14), in the main pane
     defineView({ kind: VIEW.org, slot: 'main', parse: () => null, title: () => t('wisp.crew.org.title'), component: lazy(() => import('./OrgPage.tsx')) }),
     defineView({

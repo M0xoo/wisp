@@ -37,6 +37,7 @@ export interface Scoped {
   readonly session?: ExtensionProps['session'];
   readonly id?: string;
   readonly form?: 'full' | 'icon';
+  readonly pickAgent?: (agent: string) => void;
 }
 
 export function extensionProps(ext: ResolvedExtension, client: PluginClient, s: Scoped): ExtensionProps {
@@ -46,6 +47,7 @@ export function extensionProps(ext: ResolvedExtension, client: PluginClient, s: 
     ...(s.session && { session: s.session }),
     ...(s.id !== undefined && { id: s.id }),
     ...(s.form && { form: s.form }),
+    ...(s.pickAgent && { pickAgent: s.pickAgent }),
   };
 }
 

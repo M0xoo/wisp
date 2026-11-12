@@ -129,5 +129,21 @@
   "machine.stop.nowTitle": "Stop {what} now?",
   "machine.stop.nowBody": "The run ends where it is and carries on {at}.",
   "machine.stop.jobs.one": "{name}’s job",
-  "machine.stop.jobs.other": "{name}’s {count} jobs"
+  "machine.stop.jobs.other": "{name}’s {count} jobs",
+  "machine.load.title": "Machine load",
+  "machine.load.description": "Check-ins, triggers, goal rounds and agents’ own follow-ups also wait while this computer is short. What you start always runs",
+  "machine.load.now": "Now",
+  "machine.load.reading": "Reading…",
+  "machine.load.free": "{n}% memory free",
+  "machine.load.runs.one": "{count} run going",
+  "machine.load.runs.other": "{count} runs going",
+  "machine.load.memory": "Memory floor",
+  "machine.load.memoryHint": "They wait while free memory is under this, and go on once it’s 5 points above",
+  "machine.load.memFree": "{n}% free",
+  "machine.load.cpu": "CPU ceiling",
+  "machine.load.cpuHint": "They wait once the load stays over this share of the cores for a minute. On a Mac the load also counts work waiting on the disk, so a test run can read well over 100%",
+  "machine.load.runsTitle": "Runs at once",
+  "machine.load.runsHint": "They wait while this many of wisp’s runs are going. Subagents count, but never wait. Auto: one per 3 GB of memory, at least 2",
+  "machine.load.off": "Off",
+  "machine.load.auto": "Auto"
 }

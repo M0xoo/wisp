@@ -12,7 +12,7 @@ import { assertNever, type CrewId, type ExtensionId, type Json, type SessionId }
 export type Layout = 'split' | 'stack';
 export type Main = { kind: 'home' } | { kind: 'task'; id: SessionId } | { kind: 'crew'; id: CrewId } | { kind: 'view'; id: ExtensionId; params: Json };
 /** `changes` with `file`: that file of the task's folder in the file view (Back goes to Changes). Additive (2026-11-11). */
-export type Side = { kind: 'none' } | { kind: 'changes'; id: SessionId; file?: string } | { kind: 'shell' | 'pr'; id: SessionId } | { kind: 'view'; id: ExtensionId };
+export type Side = { kind: 'none' } | { kind: 'changes'; id: SessionId; file?: string } | { kind: 'shell' | 'pr' | 'preview'; id: SessionId } | { kind: 'view'; id: ExtensionId };
 export type Overlay = { kind: 'viewer' | 'dialog' | 'sheet'; id: ExtensionId; params: Json };
 
 export type Nav = {
@@ -60,7 +60,7 @@ export function initialNav(width: number): Nav {
   return { layout: layoutFor(width), main: HOME, side: NO_SIDE, overlays: [] };
 }
 
-const sideTask = (s: Side): SessionId | undefined => (s.kind === 'changes' || s.kind === 'shell' || s.kind === 'pr' ? s.id : undefined);
+const sideTask = (s: Side): SessionId | undefined => (s.kind === 'changes' || s.kind === 'shell' || s.kind === 'pr' || s.kind === 'preview' ? s.id : undefined);
 const mainTask = (m: Main): SessionId | undefined => (m.kind === 'task' ? m.id : undefined);
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 

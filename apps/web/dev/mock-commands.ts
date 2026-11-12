@@ -188,6 +188,34 @@ export const COMMANDS: Record<string, CommandFn> = {
   'git.commit': (a) => ({ ops: [], result: gitCommit(obj(a)) }),
   // read-only answers the app asks for at start and on a task page: nothing to show in the mock
   'runtime.agents': () => ({ ops: [], result: [] }),
+  // Settings → Usage as v1's reference had it: $0.09 over 9 turns, all worked, no questions; a week of days
+  'runtime.usage': (a) => {
+    const days = Number((obj(a) as { days?: number }).days ?? 7);
+    const today = Date.UTC(2026, 10, 12);
+    const daily = Array.from({ length: days + 1 }, (_, i) => ({ date: new Date(today - (days - i) * 86_400_000).toISOString().slice(0, 10), cost: i === days ? 0.09 : 0, turns: i === days ? 9 : 0 }));
+    const row = { cost: 0.09, priced: 9, turns: 9, worked: 100, questions: 0, avgMs: 41_000 };
+    return {
+      ops: [],
+      result: {
+        from: today - days * 86_400_000,
+        spend: 0.09,
+        turns: 9,
+        worked: 100,
+        questions: 0,
+        priced: 9,
+        sessions: 5,
+        daily,
+        projects: [{ key: '~/code/wisp', name: 'wisp', ...row }],
+        runners: [{ key: 'claude claude-opus-4', name: 'claude-opus-4', agent: 'claude', ...row }],
+      },
+    };
+  },
+  'budget.view': () => ({ ops: [], result: [] }), // no plan windows reported yet
+  // the side panel's Preview: nothing runs yet, package.json's dev script to start from
+  'terminal.run.info': () => ({ ops: [], result: { open: false, port: 41234, dir: '~/code/wisp-repo', guess: 'npm run dev' } }),
+  'terminal.run.start': () => ({ ops: [], result: { ok: true, started: true, port: 41234, dir: '~/code/wisp-repo' } }),
+  'terminal.close': () => ({ ops: [], result: { ok: true } }),
+  'crew.stats': () => ({ ops: [], result: [] }),
   // Settings → Machines → This computer over SSH, as v1's reference showed it (names the same length, not the same)
   'machines.reachable': () => ({
     ops: [],

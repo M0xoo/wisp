@@ -48,6 +48,19 @@ async function post(peer: MockPeer, req: IncomingMessage, res: ServerResponse): 
   }
 }
 
+const MOCK_APP = `<!doctype html><meta charset="utf-8"><title>Login</title><body style="font:15px system-ui;margin:0;display:grid;place-items:center;height:100vh;background:#fafaf9"><form style="display:grid;gap:10px;width:260px"><h2 style="margin:0 0 6px">Sign in</h2><input placeholder="Email" style="padding:9px;border:1px solid #ddd;border-radius:8px"><input type="password" placeholder="Password" style="padding:9px;border:1px solid #ddd;border-radius:8px"><button style="padding:9px;border:0;border-radius:8px;background:#171717;color:#fff">Sign in</button></form></body>`;
+
+/** A dev server's first lines (vite's), then quiet: what Preview reads the address from. */
+function runStream(req: IncomingMessage, res: ServerResponse): void {
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+  const host = String(req.headers.host ?? 'localhost:5173').replace(/^[^:]+/, 'localhost');
+  const send = (event: string, data: unknown): boolean => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  send('hello', { cols: 100, rows: 24 });
+  const lines = ['\r\n> app@0.1.0 dev\r\n> vite\r\n\r\n', `  VITE v7.3.7  ready in 312 ms\r\n\r\n  ➜  Local:   http://${host}/__mock/app\r\n`];
+  const timers = lines.map((l, i) => setTimeout(() => send('data', l), 150 * (i + 1)));
+  req.on('close', () => timers.forEach(clearTimeout));
+}
+
 function middleware(box: { peer: MockPeer; fresh: () => MockPeer }) {
   return (req: IncomingMessage, res: ServerResponse, next: () => void): void => {
     const url = new URL(req.url ?? '/', 'http://mock');
@@ -59,6 +72,10 @@ function middleware(box: { peer: MockPeer; fresh: () => MockPeer }) {
     }
     if (url.pathname === '/api/events' && req.method === 'GET') return events(peer, req, res, url);
     if (url.pathname === '/api/events' && req.method === 'POST') return void post(peer, req, res);
+    // the side panel's Preview: the app's output (a dev server saying where it listens), then the app itself
+    const run = url.pathname.match(/^\/api\/sessions\/[^/]+\/run$/);
+    if (run && req.method === 'GET') return runStream(req, res);
+    if (url.pathname === '/__mock/app') return void res.writeHead(200, { 'content-type': 'text/html' }).end(MOCK_APP);
     if (url.pathname === '/__mock/stream') {
       const id = peer.stream(url.searchParams.get('id') ?? undefined, { tokens: Number(url.searchParams.get('tokens') ?? 160), everyMs: Number(url.searchParams.get('every') ?? 16) });
       return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id }));

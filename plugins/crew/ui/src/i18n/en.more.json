@@ -21,5 +21,20 @@
   "wisp.crew.more.kit.skillPlaceholder": "1. Read the commits since the last tag…",
   "wisp.crew.more.kit.rulesPlaceholder": "- Run the tests before you report.\n- Never push to main.",
   "wisp.crew.more.kit.chars": "{n}",
-  "wisp.crew.more.kit.remove": "Remove"
+  "wisp.crew.more.kit.remove": "Remove",
+  "wisp.crew.record.title": "Crew track record",
+  "wisp.crew.record.line": "How each member did: jobs, finished, check-ins, spend",
+  "wisp.crew.record.open": "Open",
+  "wisp.crew.record.range": "Range",
+  "wisp.crew.record.days": "{n} days",
+  "wisp.crew.record.adding": "Adding it up…",
+  "wisp.crew.record.member": "Member",
+  "wisp.crew.record.jobs": "Jobs",
+  "wisp.crew.record.finished": "Finished",
+  "wisp.crew.record.failed": "Failed",
+  "wisp.crew.record.quiet": "Nothing to do",
+  "wisp.crew.record.spend": "Spend",
+  "wisp.crew.record.before": "Jobs before",
+  "wisp.crew.record.of": "{n} of {of}",
+  "wisp.crew.record.none": "No crew jobs in this range."
 }

@@ -12,7 +12,7 @@ import { createEffect, createMemo, createSignal, onCleanup, type JSX } from 'sol
 import { entityKey, uuidv7, type EntityKey, type Json } from '@wisp/client';
 import { KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
 import { useShell } from '../context.tsx';
-import { usePluginClient } from '../slot.tsx';
+import { Slot, usePluginClient } from '../slot.tsx';
 import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { longTime, sectionOf, shortAgo, statusOf } from './rows-view.ts';
@@ -340,6 +340,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           }))}
         onOpen={(id) => shell.navigate({ t: 'openTask', id: id as EntityKey as never })}
       />
+      {/* notes on plans other plugins add (wisp.budget's Spare allowance), v1 .sh-spare */}
+      <Slot input="shell.home:cards" layout="contents" pickAgent={(a) => setAgent(a)} />
       <Tips
         heading={t('shell.tips.heading')}
         more={t('shell.tips.more')}

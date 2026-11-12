@@ -10,6 +10,8 @@ export interface Stat {
   /** The change, already worded: "+6", "−12%". */
   readonly delta?: string;
   readonly tone?: 'good' | 'bad' | 'neutral';
+  /** a small line under the value (v1 .us-tiles small: "in 4 sessions") */
+  readonly note?: string;
 }
 
 export interface StatsProps extends KitProps {
@@ -28,12 +30,15 @@ export function Stats(props: StatsProps): JSX.Element {
       <For each={props.items}>
         {(s) => (
           <div data-kit="stat" data-part={sub(part(), 'item')} data-tone={s.tone}>
-            <dt data-kit="stat-label" data-text="control">{s.label}</dt>
+            <dt data-kit="stat-label" data-text="control">
+              {s.label}
+            </dt>
             <dd data-kit="stat-value">
               {shown(s.value)}
               <Show when={s.unit}>{(u) => <span data-kit="stat-unit">{u()}</span>}</Show>
             </dd>
             <Show when={s.delta}>{(d) => <dd data-kit="stat-delta">{d()}</dd>}</Show>
+            <Show when={s.note}>{(n) => <dd data-kit="stat-note">{n()}</dd>}</Show>
           </div>
         )}
       </For>

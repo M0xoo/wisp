@@ -63,3 +63,20 @@ export function permissionWords(p: string, say: (k: string, v?: Readonly<Record<
   if (verb === 'read' || verb === 'list' || verb === 'get') return say('plugins.perm.read', { what: ns });
   return say('plugins.perm.do', { what: `${ns} ${verb}` });
 }
+
+/** Cast (v1 spell-ui.js cast): a task whose agent writes the plugin you described, as a user plugin, and installs it off. */
+export const cast = defineCommand<{ peer: PeerId; prompt: string; title: string; ext: { 'wisp.plugins': { kind: 'cast' } } }, { id: string }>({
+  id: 'runtime.create',
+  owner: (a) => a.peer,
+  optimistic: 'none',
+  pending: 'the cast box',
+});
+
+/** What the agent is asked: the change in your words, and how a wisp plugin is made and installed (ADR-0046). */
+export const castPrompt = (ask: string): string =>
+  [
+    `Make a wisp plugin that does this: ${ask.trim()}`,
+    '',
+    'Write it as a user plugin, not a change to wisp or to this repo: run `wisp plugin new <short-name>` (it makes ~/.wisp/plugins/<short-name>/wisp-plugin.json), build what is asked there, then `wisp plugin install ~/.wisp/plugins/<short-name>`.',
+    'It installs off. End by saying what it asks for, and that it is switched on in Settings → Plugins.',
+  ].join('\n');

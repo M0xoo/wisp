@@ -3,8 +3,8 @@
 // the list is read again after it; switching off frees everything the plugin made (its scope).
 import { createResource, createSignal, For, Show, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Button, Callout, IconButton, Inline, Input, Pill, SettingsGroup, SettingsRow, Stack, Switch, Text } from '@wisp/ui';
-import { install, list, permissionWords, setEnabled, uninstall, type Installed, type PluginRow } from '../commands.ts';
+import { Button, Callout, IconButton, Inline, Input, Pill, SettingsCast, SettingsEmpty, SettingsFieldRow, SettingsGroup, SettingsNote, SettingsRow, Stack, Switch, Text } from '@wisp/ui';
+import { cast, castPrompt, install, list, permissionWords, setEnabled, uninstall, type Installed, type PluginRow } from '../commands.ts';
 import { t } from '../i18n.ts';
 
 const TONE: Record<string, 'good' | 'neutral' | 'bad'> = { active: 'good', resolved: 'good', off: 'neutral', refused: 'bad' };
@@ -77,57 +77,86 @@ export default function Plugins(props: { readonly client: PluginClient }): JSX.E
       }
     />
   );
+  // Cast (v1 Settings → Spells' box): describe the change, an agent makes it as a plugin and installs it off
+  const [ask, setAsk] = createSignal('');
+  const [casting, setCasting] = createSignal(false);
+  const castIt = (): void => {
+    const v = ask().trim();
+    if (!v || casting()) return;
+    setCasting(true);
+    c.run(cast, { peer, prompt: castPrompt(v), title: v, ext: { 'wisp.plugins': { kind: 'cast' } } })
+      .then(
+        (r) => {
+          setAsk('');
+          c.navigate({ t: 'openTask', id: r.id as never });
+        },
+        () => undefined,
+      )
+      .finally(() => setCasting(false));
+  };
+  const EXAMPLES = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => t(`plugins.example.${n}` as 'plugins.example.1'));
   return (
     <>
-      <Text as="p" tone="muted" part="plugins.lede">
-        {t('plugins.lede')}
-      </Text>
-      <SettingsGroup part="plugins.install" title={t('plugins.install')} description={t('plugins.install.hint')}>
-        <Stack gap="3">
-          <Inline gap="2" part="plugins.install.box">
-            <Input
-              icon="plug"
-              value={source()}
-              onInput={setSource}
-              onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && (e.preventDefault(), go())}
-              placeholder={t('plugins.install.placeholder')}
-              aria-label={t('plugins.install')}
-            />
-            <Button variant="secondary" loading={installing()} disabled={!source().trim()} onClick={go}>
-              {t('plugins.install.go')}
-            </Button>
-          </Inline>
-          <Show when={got()}>
-            {(r) => (
-              <Callout tone="warn" title={say('plugins.installed', { name: r().name, version: r().version })} part="plugins.installed">
-                <Stack gap="2">
-                  <Text size="sm">{r().permissions.length > 0 ? t('plugins.asks') : t('plugins.asksNothing')}</Text>
-                  <For each={r().permissions}>
-                    {(p) => (
-                      <Text size="sm" part="plugins.installed.permission">
-                        {`• ${permissionWords(p, say)}`}
-                      </Text>
-                    )}
-                  </For>
-                  <Inline gap="2">
-                    <Button size="sm" variant="primary" onClick={() => switchOn(r())}>
-                      {t('plugins.switchOn')}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setGot(undefined)}>
-                      {t('plugins.notNow')}
-                    </Button>
-                  </Inline>
-                </Stack>
-              </Callout>
-            )}
-          </Show>
-        </Stack>
+      <SettingsGroup part="plugins.cast">
+        <SettingsRow part="plugins.cast.row" title={t('plugins.cast')} description={t('plugins.cast.hint')} />
+        <SettingsCast
+          part="plugins.cast.box"
+          value={ask()}
+          placeholder={t('plugins.cast.placeholder')}
+          label={t('plugins.cast')}
+          pin={t('plugins.cast.pin')}
+          send={{ label: t('plugins.cast.send'), busy: casting() }}
+          onInput={setAsk}
+          onSend={castIt}
+          examples={EXAMPLES}
+          onExample={setAsk}
+        />
       </SettingsGroup>
-      <SettingsGroup part="plugins.yours" title={t('plugins.yours')}>
-        <Show when={yours().length > 0} fallback={<SettingsRow part="plugins.none" title={t('plugins.none')} description={t('plugins.none.description')} control={<span />} />}>
+      <SettingsGroup part="plugins.yours">
+        <Show when={yours().length > 0} fallback={<SettingsEmpty part="plugins.none" icon="wizard" title={t('plugins.none')} description={t('plugins.none.description')} />}>
           <For each={yours()}>{row}</For>
         </Show>
       </SettingsGroup>
+      <SettingsGroup part="plugins.install">
+        <SettingsRow part="plugins.install.row" title={t('plugins.install')} description={t('plugins.install.hint')} />
+        <SettingsFieldRow part="plugins.install.box">
+          <Input
+            value={source()}
+            onInput={setSource}
+            onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && (e.preventDefault(), go())}
+            placeholder={t('plugins.install.placeholder')}
+            aria-label={t('plugins.install')}
+          />
+          <Button size="sm" variant="ghost" loading={installing()} disabled={!source().trim()} onClick={go}>
+            {t('plugins.install.go')}
+          </Button>
+        </SettingsFieldRow>
+        <Show when={got()}>
+          {(r) => (
+            <Callout tone="warn" title={say('plugins.installed', { name: r().name, version: r().version })} part="plugins.installed">
+              <Stack gap="2">
+                <Text size="sm">{r().permissions.length > 0 ? t('plugins.asks') : t('plugins.asksNothing')}</Text>
+                <For each={r().permissions}>
+                  {(p) => (
+                    <Text size="sm" part="plugins.installed.permission">
+                      {`• ${permissionWords(p, say)}`}
+                    </Text>
+                  )}
+                </For>
+                <Inline gap="2">
+                  <Button size="sm" variant="primary" onClick={() => switchOn(r())}>
+                    {t('plugins.switchOn')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setGot(undefined)}>
+                    {t('plugins.notNow')}
+                  </Button>
+                </Inline>
+              </Stack>
+            </Callout>
+          )}
+        </Show>
+      </SettingsGroup>
+      <SettingsNote part="plugins.foot">{t('plugins.foot')}</SettingsNote>
       <SettingsGroup part="plugins.builtin" title={t('plugins.builtin')} description={t('plugins.builtin.description')}>
         <For each={builtins()}>{row}</For>
       </SettingsGroup>
