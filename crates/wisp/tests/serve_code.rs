@@ -297,7 +297,7 @@ notifications:
     to: telegram
 triggers:
   - name: ci
-    on: ci
+    on: ci.failed
     task: nightly-deps
     branch: main
 recipes:

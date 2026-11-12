@@ -5,7 +5,7 @@
 //!   `FAKE_RECORD`      directory; each run appends {argv, stdin, cwd, pid} to `<name>.jsonl`
 //!   `FAKE_HANG=1`      stop after the first events and wait to be killed
 //!   `FAKE_FAIL=1`      exit 1 with an error on stderr, no result
-//!   `FAKE_LIMIT_ONCE`  a file: the first run hits a usage limit (stderr, exit 1); later runs work
+//!   `FAKE_LIMIT_ONCE`  a file: the first run with a prompt hits a usage limit (stderr, exit 1); later runs work
 //!   `FAKE_DELAY` / `FAKE_LINGER`  ms to wait before answering / after the result
 //!   `FAKE_REPLAY`      claude: print this .jsonl as its stream and exit (a recorded run)
 //!   `FAKE_CLI_VERSION` what --version says (9.9.9); `FAKE_AUTH_PROFILE`, `FAKE_AUTH_FAIL` for `auth status --text`
@@ -251,7 +251,10 @@ fn main() {
         prompt = std::fs::read_to_string(argv.get(i + 1).map_or("", String::as_str)).unwrap_or_default();
     }
     record(&name, &argv, &prompt);
+    // only a run (it has a prompt) hits it: a harness's detect probe (`opencode models`, `auth list`) that
+    // lands late must not use the limit up (serve_kinds' best-of-n flaked on that under CI load)
     if let Some(f) = env("FAKE_LIMIT_ONCE")
+        && !prompt.trim().is_empty()
         && !Path::new(&f).exists()
     {
         let _ = std::fs::write(&f, "1");

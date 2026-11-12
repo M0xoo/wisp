@@ -157,7 +157,7 @@ async fn a_trigger_and_a_pipeline_start_tasks_and_an_app_lands_on_the_shelf() {
     apply(
         &api,
         json!([
-            { "kind": "trigger", "name": "after", "spec": { "on": "finished", "project": proj, "prompt": "Write the changelog TOPIC[Changelog]" } },
+            { "kind": "trigger", "name": "after", "spec": { "on": "task.finished", "project": proj, "prompt": "Write the changelog TOPIC[Changelog]" } },
             { "kind": "pipeline", "name": "default", "spec": { "review": "claude" } },
             { "kind": "app", "name": "notes", "spec": { "inline": "<!doctype html><title>notes</title><p>hi</p>" } }
         ]),
@@ -294,7 +294,7 @@ async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
     let proj = dir.join("proj");
     let (serve, port) = start_with(&dir, &[]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
-    apply(&api, json!([{ "kind": "trigger", "name": "deploy", "spec": { "on": "webhook", "secret": "s3cret-hook-value", "prompt": "Deploy what was pushed", "project": proj } }])).await;
+    apply(&api, json!([{ "kind": "trigger", "name": "deploy", "spec": { "on": "webhook", "secret": "s3cret-hook-value", "prompt": "Deploy what was pushed to {event.payload.ref}", "project": proj } }])).await;
     let url = format!("http://127.0.0.1:{port}/api/triggers/deploy");
     let post = |secret: Option<&str>| {
         let mut r = api.http.post(&url).header("content-type", "application/json").body(r#"{"ref":"refs/heads/main"}"#);
@@ -312,10 +312,10 @@ async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
     let status = r.status().as_u16();
     let body: Value = serde_json::from_str(&r.text().await.unwrap()).unwrap_or_default();
     assert_eq!(status, 202, "{body}");
-    let id = body["id"].as_str().unwrap().to_owned();
+    let id = body["id"].as_str().unwrap_or_else(|| panic!("started no task: {body}")).to_owned();
     let spec = api.cmd("runtime.spec", json!({ "id": id })).await;
     assert_eq!(spec["lineage"]["triggeredBy"], "trigger:deploy");
-    assert!(spec["prompt"].as_str().unwrap().contains("refs/heads/main"), "the body is handed over: {spec}");
+    assert!(spec["prompt"].as_str().unwrap().contains("refs/heads/main"), "the body fills the prompt (v1: {{body.ref}}): {spec}");
     drop(serve);
 }
 
@@ -347,6 +347,8 @@ async fn a_pipeline_moves_on_at_a_limit_and_picks_the_best_of_n() {
     // the harnesses' own detect calls go through the fake too: let them run, then arm the limit
     api.cmd("runtime.agents", json!({})).await;
     let _ = std::fs::remove_file(dir.join("limit-hit"));
+    // a detect probe that lands after the limit is armed (CI under load) doesn't use it up: only a run does
+    api.cmd("runtime.agents", json!({ "fresh": "opencode" })).await;
     // the first run hits its usage limit: it carries on on another harness
     let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug", "title": "Fix add", "cwd": proj, "agent": "claude" })).await;
     let id = made["id"].as_str().unwrap().to_owned();

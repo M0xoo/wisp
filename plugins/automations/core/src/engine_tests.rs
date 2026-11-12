@@ -220,6 +220,19 @@ fn filters_if_and_windows() {
 }
 
 #[test]
+fn a_project_on_a_webhook_or_schedule_trigger_is_where_it_runs_not_a_filter() {
+    for on in ["webhook", "schedule", "once", "manual"] {
+        let s = TriggerSpec { on: on.into(), project: "/w/api".into(), ..spec() };
+        let e = TriggerEvent { on: on.into(), key: format!("{on}:1"), payload: json!({ "ref": "refs/heads/main" }), ..TriggerEvent::default() };
+        assert!(matches!(admit("t", &s, &mut State::default(), e, &w(0)), Decision::Start(_)), "{on}");
+    }
+    // an explicit match on project still filters, and an event source's flat project too
+    let s = TriggerSpec { on: "webhook".into(), filters: [("project".to_owned(), json!("/w/api"))].into_iter().collect(), ..spec() };
+    let e = TriggerEvent { on: "webhook".into(), key: "w:2".into(), payload: json!({}), ..TriggerEvent::default() };
+    assert_eq!(admit("t", &s, &mut State::default(), e, &w(0)), Decision::Nothing);
+}
+
+#[test]
 fn crew_wake_cycles_are_found() {
     let reported = |member: &str| TriggerSpec { on: "crew.reported".into(), filters: [("member".to_owned(), json!(member))].into_iter().collect(), ..TriggerSpec::default() };
     let wakes = vec![("bo".to_owned(), reported("ada")), ("cy".to_owned(), reported("bo"))];

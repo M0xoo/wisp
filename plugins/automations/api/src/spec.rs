@@ -134,8 +134,11 @@ impl TriggerSpec {
     /// The filters, the flat ones included.
     pub fn all_filters(&self) -> BTreeMap<String, Value> {
         let mut f = self.filters.clone();
+        // a schedule, a one-off, a webhook or a manual fire names no project: its `project` is only where the
+        // task runs (as a filter it refused every event they send)
+        let own = matches!(self.on.as_str(), "schedule" | "once" | "webhook" | "manual");
         for (k, v) in [("project", &self.project), ("branch", &self.branch), ("label", &self.label)] {
-            if !v.is_empty() && !f.contains_key(k) {
+            if !v.is_empty() && !f.contains_key(k) && (!own || k != "project") {
                 f.insert(k.to_owned(), Value::String(v.clone()));
             }
         }
@@ -198,6 +201,10 @@ pub fn check(s: &TriggerSpec) -> Vec<String> {
     let mut out = Vec::new();
     if s.on.trim().is_empty() {
         out.push("on: which source starts it".into());
+    }
+    // v1's kind names (`finished`, `ci`, …) are no source here: such a trigger would apply and never fire
+    if let Some(v2) = crate::v1::on_of(&s.on).filter(|v2| *v2 != s.on) {
+        out.push(format!("on: {} is v1's name; write {v2}", s.on));
     }
     if s.on == "schedule" && s.cron.trim().is_empty() {
         out.push("a schedule needs cron (\"every weekday at 9\" or 5 fields)".into());
@@ -297,6 +304,16 @@ pub fn wake_cycle(edges: &[(String, String)]) -> Option<Vec<String>> {
 #[allow(clippy::assert_is_empty, clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_v1_kind_name_as_on_is_refused_with_its_v2_source() {
+        let s = TriggerSpec { on: "finished".into(), ..TriggerSpec::default() };
+        assert!(check(&s).iter().any(|e| e.contains("write task.finished")), "{:?}", check(&s));
+        let ok = TriggerSpec { on: "task.finished".into(), ..TriggerSpec::default() };
+        assert!(!check(&ok).iter().any(|e| e.contains("v1's name")));
+        let hook = TriggerSpec { on: "webhook".into(), secret: "x".into(), ..TriggerSpec::default() };
+        assert!(!check(&hook).iter().any(|e| e.contains("v1's name")), "webhook is the same name in both");
+    }
 
     #[test]
     fn durations_rates_and_checks() {
