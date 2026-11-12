@@ -499,7 +499,29 @@ function withEnv(topics: Map<Topic, Row[]>): void {
   }
 }
 
-export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean; computers?: boolean; media?: boolean; env?: boolean }): Seeded {
+/** A lead's usage (v1 #785): its own numbers, two subagents (one on Codex: another plan), the server's sum and how
+ * full its context is, as wisp.runtime puts them on the row (usage_row.rs). */
+function withUsage(list: Row[]): void {
+  const done = list.filter((r) => (r.v as { summary: { status: string } }).summary.status === 'done');
+  const [lead, sub] = done;
+  if (!lead || !sub) return;
+  const v = lead.v as { summary: Record<string, unknown> };
+  const bare = (id: string): string => id.slice(id.indexOf(':') + 1);
+  v.summary = {
+    ...v.summary,
+    tokens: 912_000,
+    plan: { seven_day: 0.04, five_hour: 0.18 },
+    planOn: ['claude default'],
+    context: { tokens: 170_000, window: 200_000 },
+    subUsage: [
+      { id: bare(sub.id), name: 'tester', title: String((sub.v as { title: string }).title), agent: 'claude', tokens: 288_000, plan: { seven_day: 0.02, five_hour: 0.03 } },
+      { id: 'gone', name: 'reviewer', title: 'Review the diff', agent: 'codex', tokens: 41_000, plan: { seven_day: 0.1 }, samePlan: false },
+    ],
+    usage: { tokens: 1_241_000, plan: { seven_day: 0.06, five_hour: 0.21 } },
+  };
+}
+
+export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean; computers?: boolean; media?: boolean; env?: boolean; usage?: boolean }): Seeded {
   const topics = new Map<Topic, Row[]>();
   const list: Row[] = [];
   (o.firstRun ? [] : TASKS).forEach((t, i) => {
@@ -523,6 +545,7 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
   }
   if (o.media) withMedia(topics);
   if (o.env) withEnv(topics);
+  if (o.usage) withUsage(list);
   topics.set('list', list);
   topics.set('config', [
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },

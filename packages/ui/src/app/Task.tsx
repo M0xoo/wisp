@@ -8,6 +8,7 @@ import { atTail, mediaShift, type Grew } from './media-shift.ts';
 import { Icon } from '../content/Icon.tsx';
 import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
 import type { IconName } from '../content/icons.ts';
+import { TaskUsage, type TaskUsageProps } from './TaskUsage.tsx';
 
 export interface TaskHeadProps {
   readonly title: string;
@@ -122,6 +123,8 @@ export interface TaskDetailsProps {
   /** a plan's when (v1 plan-view .pv-when): Starts in 2h, At 3pm, Draft, After “x”; first in the column */
   readonly when?: { readonly icon: IconName; readonly label: string; readonly title?: string };
   readonly branch?: { readonly head: string; readonly tail: string; readonly title: string };
+  /** its usage, its subagents' in, and how full its context is (v1 #785): the wide pane's lines. Additive. */
+  readonly usage?: TaskUsageProps;
   readonly actions: readonly TaskAction[];
 }
 
@@ -146,6 +149,7 @@ export function TaskDetails(props: TaskDetailsProps): JSX.Element {
             </span>
           )}
         </Show>
+        <Show when={props.usage}>{(u) => <TaskUsage {...u()} />}</Show>
         <span data-kit="model-logo" role="img" aria-label={props.harness}>
           <Show when={props.logo}>{(src) => <img src={src()} alt="" />}</Show>
           <span data-kit="ml-name">{props.harness}</span>

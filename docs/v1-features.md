@@ -93,6 +93,7 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 | F-task-47 | 0.3.0 | Given menus, when I read them, then they show key hints (⌘L on Mac, Ctrl+L elsewhere) | built | `displayCombo` in `packages/shell/src/keys.ts` |
 | F-task-48 | 0.28.0 | Given a finished answer, when I open it again, then its entry animation doesn't replay | built | kit rule: entry animations once per mount (AGENTS.md); `Answer` kit |
 | F-task-49 | 0.42.0 | Given a reply box open, when I click a suggestion or a button above it, then one click works | partial | needs the task page at parity |
+| F-task-50 | Unrel. | Given a task with wisp subagents, when I open it on a desktop, then its details show its plan share with theirs added and how full its context is, and a click shows all of it | built | v1 #785: the runtime sums the row (`usage_row.rs`: `tokens`, `context`, `plan`, `subUsage`, `usage`; runtime-core `task_usage.rs`), the claude parser reports the context window; kit `TaskUsage` in `TaskDetails` (wide pane only, as v1); tests `…_v1_785` in claude `context_window.rs`, runtime-core `task_usage.rs`, runtime host `usage_row.rs`, shell `task-usage.test.ts`, kit `task-usage.test.tsx`; mock `?seed=usage` |
 
 ## 2. Composer: New task and the reply box (`COMP`)
 

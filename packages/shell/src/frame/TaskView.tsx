@@ -77,6 +77,7 @@ import { harnessOf } from './harness.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { TurnTranscript } from './TurnTranscript.tsx';
 import { runPick, type Runner } from './runner.ts';
+import { rowUsage, taskUsage, type TurnStatsLike } from './task-usage.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
 
 interface TurnBody {
@@ -630,6 +631,16 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
         const color = (): string => String(s().summary['color'] ?? 'slate');
         const ov = createMemo(() => (!closedReady() ? [] : shownOverlaps(overlapsOf(s()), closed() as unknown as Dismissed | undefined, s().id)));
         const mode = (): Mode => (['plan', 'edits', 'auto'].includes(String(s().summary['mode'])) ? (s().summary['mode'] as Mode) : 'auto');
+        // its usage, its subagents' in, and how full its context is (v1 #785): the server sums them on the row
+        const usage = createMemo(() =>
+          taskUsage(
+            rowUsage(s().summary as unknown as Readonly<Record<string, unknown>>),
+            () => turns().map((x) => x.body.stats as TurnStatsLike | undefined),
+            t,
+            (id) => shell.navigate({ t: 'openTask', id: id as never }),
+            () => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane: 'usage' } } }),
+          ),
+        );
         return (
           <>
             <TaskBody
@@ -642,6 +653,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                   color={color()}
                   status={statusOf(s(), t)}
                   {...(branch() && { branch: { head: branch().replace(/-[0-9a-f]{6}$/, ''), tail: branch().match(/-[0-9a-f]{6}$/)?.[0] ?? '', title: branch() } })}
+                  {...((u) => (u ? { usage: u } : {}))(usage())}
                   actions={actions(s())}
                 />
               }

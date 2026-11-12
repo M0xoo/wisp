@@ -46,6 +46,8 @@ export interface MockPeerOptions {
   media?: boolean;
   /** a task whose work changed a `.env.local`: Changes masks its values until Reveal (POST /__mock/reset?seed=env) */
   env?: boolean;
+  /** a lead with its usage, subagents' in, and its context fill (POST /__mock/reset?seed=usage, v1 #785) */
+  usage?: boolean;
   /** v1's reference data (design/v1-reference/seed.json): replayed instead of the hand-written seed */
   v1?: V1Seed;
 }
@@ -87,7 +89,7 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
   const epoch = o.epoch ?? `mock-${timers.now().toString(36)}`;
   const data: Seeded = o.v1
     ? fromV1(o.v1, peer)
-    : seed({ peer, now: timers.now(), extra: o.sessions ?? 0, ...(o.firstRun && { firstRun: true }), ...(o.computers && { computers: true }), ...(o.media && { media: true }), ...(o.env && { env: true }) });
+    : seed({ peer, now: timers.now(), extra: o.sessions ?? 0, ...(o.firstRun && { firstRun: true }), ...(o.computers && { computers: true }), ...(o.media && { media: true }), ...(o.env && { env: true }), ...(o.usage && { usage: true }) });
   const store = new Map<Topic, Map<string, Row>>();
   const conns = new Map<string, Conn>();
   const handlers = new Map<string, CommandFn>(Object.entries(COMMANDS));
