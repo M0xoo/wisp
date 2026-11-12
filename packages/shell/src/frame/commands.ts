@@ -16,7 +16,7 @@ type Ops = ReturnType<Exclude<Parameters<typeof defineCommand>[0]['optimistic'],
 const patch = (id: string, path: string, value: unknown): Ops => [{ e: SESSION, id: id as EntityKey, op: 'patch', ops: [{ op: 'replace', path, value }] }];
 
 /** A new task's row as the list shows it, before the peer has answered: running, Starting… */
-export function startingRow(o: { id: string; title: string; agent: string; at: number; cwd?: string; projectId?: string; color?: string; mode: string }): SessionRow {
+export function startingRow(o: { id: string; title: string; agent: string; at: number; cwd?: string; projectId?: string; color?: string; mode: string; group?: string }): SessionRow {
   return {
     id: o.id,
     parent_id: null,
@@ -38,6 +38,7 @@ export function startingRow(o: { id: string; title: string; agent: string; at: n
       mode: o.mode,
       ...(o.projectId && { projectId: o.projectId }),
       ...(o.color && { color: o.color }),
+      ...(o.group && { groupId: o.group }),
     },
   };
 }
@@ -63,6 +64,8 @@ export interface CreateArgs {
   readonly autoOverride?: { readonly key: string; readonly type?: string };
   /** the harness the new row shows until the server's arrives (Auto's previewed pick); not sent */
   readonly shows?: string;
+  /** one of several runs of this ask (the launcher's vs): they share it, as `wisp --compare` does (runtime's slot) */
+  readonly group?: string;
 }
 
 /** A file sent with a prompt (runtime's Attachment): what stuff's upload answered. */
@@ -77,7 +80,7 @@ export interface Attachment {
 export const create = defineCommand<CreateArgs, { id: string }>({
   id: 'runtime.create',
   owner: (a) => a.peer,
-  wire: ({ shows: _shows, ...a }) => a,
+  wire: ({ shows: _shows, group, ...a }) => ({ ...a, ...(group && { ext: { 'wisp.runtime': { group } } }) }),
   optimistic: (_base, a) => [
     { e: SESSION, id: a.id as EntityKey, op: 'upsert', v: startingRow({ ...a, agent: a.shows ?? a.agent, title: a.prompt.split('\n')[0]?.slice(0, 80) ?? a.prompt }) as never },
   ],

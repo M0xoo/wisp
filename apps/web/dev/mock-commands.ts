@@ -163,6 +163,11 @@ export const COMMANDS: Record<string, CommandFn> = {
         cwd: typeof x['cwd'] === 'string' ? x['cwd'] : '~/code/wisp',
         model: 'claude-opus-5-5',
         mode: typeof x['mode'] === 'string' ? x['mode'] : 'auto',
+        // runtime's group.rs: the runs of one compare carry their group on the row
+        ...((): Record<string, unknown> => {
+          const g = ((x['ext'] as Record<string, Record<string, unknown>> | undefined)?.['wisp.runtime'] ?? {})['group'];
+          return typeof g === 'string' && g ? { groupId: g } : {};
+        })(),
         ...(typeof x['projectId'] === 'string' && { projectId: x['projectId'] }),
         ...(typeof x['color'] === 'string' && { color: x['color'] }),
         ...(typeof x['goal'] === 'string' && x['goal'] !== '' && { goal: { text: x['goal'], status: 'running', round: 0, checks: [] } }),

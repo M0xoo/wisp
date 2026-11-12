@@ -4,8 +4,8 @@
 // declaration Settings → Automations, the CLI and formulas write.
 import { createEffect, createMemo, createResource, createSignal, Match, onMount, Show, Switch, type JSX } from 'solid-js';
 import { defineCommand, type PeerId, type PluginClient } from '@wisp/client';
-import { cronWords, projectList, useShell } from '@wisp/shell';
-import { AutoFoot, AutoList, AutoNote, AutoPresets, AutoRow, AutomationsBody, Input, Select, TextArea, TriggerKinds, useSignal } from '@wisp/ui';
+import { RunnerPicker, cronWords, projectList, useShell } from '@wisp/shell';
+import { AutoFoot, AutoList, AutoRunner, AutoNote, AutoPresets, AutoRow, AutomationsBody, Input, Select, TextArea, TriggerKinds, useSignal } from '@wisp/ui';
 import { recipes, triggers, type Recipe, type Trigger } from './commands.ts';
 import { t } from './i18n.ts';
 import { EVERY, HOOK_KINDS, KINDS, POLLED, SCHEDULE_PRESETS, TASK_KINDS, emptyForm, kindOf, pick, readBack, specOfForm, warning, type TriggerFormState } from './trigger-form.ts';
@@ -104,6 +104,7 @@ function TriggerForm(props: { readonly client: PluginClient; readonly recipes: r
     const first = projects().find((p) => p.id === props.here)?.path ?? projects()[0]?.path;
     if (!picked && first && !f().project) setF({ ...f(), project: first });
   });
+  const [picking, setPicking] = createSignal(false);
   const kind = (): string => kindOf(f().key).kind;
   const hook = (): boolean => HOOK_KINDS.has(kind());
   const members = (): { id: string; label: string }[] =>
@@ -247,11 +248,22 @@ function TriggerForm(props: { readonly client: PluginClient; readonly recipes: r
           />
         </AutoRow>
         <AutoRow label={say('automations.form.harness')}>
-          <Select
-            aria-label={say('automations.form.harness')}
-            value={f().agent}
-            onChange={(v) => set({ agent: v })}
-            items={[{ value: '', label: say('automations.form.launcherDefault') }, ...harnesses().map((h) => ({ value: h.id, label: h.name }))]}
+          {/* v1 runnerField: the runner button opens the harness · model picker; Use launcher default clears it */}
+          <AutoRunner
+            harness={f().agent ? (harnesses().find((h) => h.id === f().agent)?.name ?? f().agent) : say('automations.form.launcherDefault')}
+            model={f().agent ? f().model || say('automations.form.defaultModel') : undefined}
+            logo={harnesses().find((h) => h.id === f().agent)?.logo}
+            title={say('automations.form.harnessTitle')}
+            onClick={() => setPicking(true)}
+            reset={f().agent ? { label: say('automations.form.useDefault'), onClick: () => set({ agent: '', model: '' }) } : undefined}
+          />
+          <RunnerPicker
+            open={picking()}
+            onOpenChange={setPicking}
+            peer={c.home}
+            efforts={false}
+            value={{ agent: f().agent, model: f().model, effort: '' }}
+            onChange={(r) => set({ agent: r.agent, model: r.model })}
           />
         </AutoRow>
       </Show>

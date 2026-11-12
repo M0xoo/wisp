@@ -65,6 +65,16 @@ export interface LauncherChip {
   readonly act?: Act;
 }
 
+/** One more harness the launch runs on (v1 .vs-del + .runner-btn.cmp-x). */
+export interface LauncherCompare {
+  readonly label: string;
+  readonly logo?: string | undefined;
+  /** "Remove Codex from the comparison" */
+  readonly removeLabel: string;
+  readonly onRemove: () => void;
+  readonly act: Act;
+}
+
 export interface LauncherProps {
   readonly inLabel: string;
   readonly chips: readonly LauncherChip[];
@@ -74,6 +84,8 @@ export interface LauncherProps {
   readonly value: string;
   readonly onInput: (v: string) => void;
   readonly onSend: () => void;
+  /** the box's own keys after its menus (↑ history, Shift+Tab mode): true when taken */
+  readonly onKey?: (e: KeyboardEvent) => boolean;
   /** the @ and / menus (under the box) */
   readonly suggest?: PromptSuggest | undefined;
   /** a paste into the box (files): the host may take it */
@@ -94,6 +106,10 @@ export interface LauncherProps {
     /** what the pick opens is open (the Auto popover): the launcher stays lit while it is */
     readonly pickOpen?: boolean;
     readonly compareAct?: Act;
+    /** the harnesses the same task also runs on (v1 launcher compare): each a "vs" that removes it, then its picker */
+    readonly compares?: readonly LauncherCompare[];
+    /** four runs already: no vs + */
+    readonly compareFull?: boolean;
   };
   /** before the runner: attach, where */
   readonly lead: readonly LauncherTool[];
@@ -181,6 +197,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
   const projectIds = (): string[] => props.chips.filter((c) => c.kind === 'project').map((c) => c.id);
   const key = (e: KeyboardEvent): void => {
     if (suggestKeyDown(props.suggest, e)) return;
+    if (props.onKey?.(e)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       props.onSend();
@@ -265,7 +282,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
               </button>
             )}
           />
-          <div data-kit="runners">
+          <div data-kit="runners" data-cmp={flag((props.runner.compares?.length ?? 0) > 0)} data-many={flag((props.runner.compares?.length ?? 0) > 1)}>
             <WithAct
               act={props.runner.act}
               render={(trigger) => (
@@ -303,10 +320,42 @@ export function Launcher(props: LauncherProps): JSX.Element {
                 </button>
               )}
             />
+            <Index each={props.runner.compares ?? []}>
+              {(c) => (
+                <>
+                  <button type="button" data-kit="vs-btn" data-del="" data-part="launcher.compare.remove" title={c().removeLabel} aria-label={c().removeLabel} onClick={() => c().onRemove()}>
+                    <span>vs</span>
+                    <Icon name="x" />
+                  </button>
+                  <WithAct
+                    act={c().act}
+                    render={(trigger) => (
+                      <button type="button" {...trigger()} data-kit="runner-btn" data-cmp="" data-part="launcher.compare.runner" title={c().label}>
+                        <span data-kit="rb-logo" data-small="">
+                          <Show when={c().logo}>{(src) => <img src={src()} alt="" />}</Show>
+                        </span>
+                        <span data-kit="rb-h" data-text="control">
+                          {c().label}
+                        </span>
+                        <Icon name="chevron" />
+                      </button>
+                    )}
+                  />
+                </>
+              )}
+            </Index>
             <WithAct
               act={props.runner.compareAct}
               render={(trigger) => (
-                <button type="button" {...trigger()} data-kit="vs-btn" data-part="launcher.compare" title={props.runner.compare} aria-label={props.runner.compare}>
+                <button
+                  type="button"
+                  {...trigger()}
+                  data-kit="vs-btn"
+                  data-part="launcher.compare"
+                  hidden={props.runner.compareFull === true}
+                  title={props.runner.compare}
+                  aria-label={props.runner.compare}
+                >
                   <Icon name="plus" />
                 </button>
               )}

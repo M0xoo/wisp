@@ -158,7 +158,9 @@ export function projectList(rows: readonly unknown[], order: unknown): ProjectVi
     const p = flatRow<{ id?: unknown; name?: unknown; path?: unknown; color?: unknown }>(r);
     const id = String(p.id ?? '');
     // a folder as one string: `wisp add .` kept "/repo/." (and a trailing "/"), which then held none of its tasks
-    const path = String(p.path ?? '').replace(/(\/\.)+$/, '').replace(/(.)\/+$/, '$1');
+    const path = String(p.path ?? '')
+      .replace(/(\/\.)+$/, '')
+      .replace(/(.)\/+$/, '$1');
     return { id, name: typeof p.name === 'string' && p.name ? p.name : id, path, color: String(p.color ?? '') };
   });
   const at = (id: string): number => {

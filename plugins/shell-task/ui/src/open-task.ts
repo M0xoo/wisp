@@ -45,3 +45,20 @@ export function sideOf(nav: Nav): { pane: SidePane; id: string; file?: string } 
   if (s.kind === 'view' && s.id === TAB_VIEW && nav.main.kind === 'task') return { pane: 'tab', id: nav.main.id };
   return undefined;
 }
+
+/** The `opened` mark of a task's watch (its row's `watch.opened`: the seq of the agent's last `open`). */
+export function watchOpened(row: unknown): number {
+  const r = row as { watch?: { opened?: number }; summary?: { watch?: { opened?: number } } } | undefined;
+  return Number(r?.watch?.opened ?? r?.summary?.watch?.opened ?? 0);
+}
+
+/**
+ * The Watch tab opens by itself when the agent opens a watch while you look at its task (v1 panel.js bus 'watch'):
+ * only on a new open (not the mark the task already had when it opened, not a state or caption), never on a phone
+ * (the task fills the screen), and never over Changes or Shell you're reading.
+ */
+export function opensWatch(seen: number | undefined, now: number, side: { readonly kind: string; readonly id?: string }, stacked: boolean): boolean {
+  if (seen === undefined || now <= seen || stacked) return false;
+  if (side.kind === 'view' && side.id === WATCH_VIEW) return false;
+  return side.kind !== 'changes' && side.kind !== 'shell';
+}

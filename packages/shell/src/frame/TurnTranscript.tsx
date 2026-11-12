@@ -55,7 +55,10 @@ export function TurnTranscript(props: {
   const msgs = (): number => props.steps.filter((a) => a.kind === 'text').length;
   const steps = (): number => props.steps.length - msgs();
   const count = (): string =>
-    [msgs() ? t(msgs() === 1 ? 'shell.task.messages.one' : 'shell.task.messages.other', { n: msgs() }) : '', steps() ? t(steps() === 1 ? 'shell.task.steps.one' : 'shell.task.steps.other', { n: steps() }) : '']
+    [
+      msgs() ? t(msgs() === 1 ? 'shell.task.messages.one' : 'shell.task.messages.other', { n: msgs() }) : '',
+      steps() ? t(steps() === 1 ? 'shell.task.steps.one' : 'shell.task.steps.other', { n: steps() }) : '',
+    ]
       .filter(Boolean)
       .join(' · ');
   return (
@@ -82,7 +85,11 @@ export function TurnTranscript(props: {
           )
         }
       </For>
-      <TimelineEnd icon={props.status === 'error' ? 'warn' : 'done'} label={t(props.status === 'error' ? 'shell.task.endedError' : 'shell.task.finished')} tone={props.status === 'error' ? 'bad' : 'good'} />
+      <TimelineEnd
+        icon={props.status === 'error' ? 'warn' : 'done'}
+        label={t(props.status === 'error' ? 'shell.task.endedError' : 'shell.task.finished')}
+        tone={props.status === 'error' ? 'bad' : 'good'}
+      />
     </Timeline>
   );
 }

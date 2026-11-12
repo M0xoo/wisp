@@ -21,11 +21,23 @@ export interface CompareTurn {
   readonly changes?: readonly { readonly file: string; readonly edits?: readonly unknown[] }[];
   /** its steps' kinds (the event log): tool calls, reads, edits, asks */
   readonly steps?: readonly string[];
+  readonly agent?: string;
+  readonly account?: string;
+  /** its part of each plan window's move (wisp.budget's `ext["wisp.budget"].plan`, v1 turn.plan) */
+  readonly plan?: readonly PlanShare[];
+}
+
+export interface PlanShare {
+  readonly agent?: string;
+  readonly account?: string;
+  readonly window: string;
+  readonly used: number;
 }
 
 export interface CompareRun {
   readonly id: string;
   readonly agent: string;
+  readonly account?: string;
   readonly createdAt: number;
   readonly state: string;
   readonly turns: readonly CompareTurn[];
@@ -145,7 +157,7 @@ export interface CompareRow {
 }
 
 /** The table: the same rows in the same order whatever the runs hold, a cell per run in createdAt order. */
-export function compareRows(runs: readonly CompareRun[], t: T): CompareRow[] {
+export function compareRows(runs: readonly CompareRun[], t: T, now = 0): CompareRow[] {
   const m = byAge(runs).map(runMetrics);
   const row = (key: string, cell: (x: RunMetrics) => CompareCell | null, tip?: string): CompareRow => ({
     key,
@@ -159,6 +171,7 @@ export function compareRows(runs: readonly CompareRun[], t: T): CompareRow[] {
     row('tokens', (x) => (x.tokens ? { text: tokenWords(x.tokens) } : null)),
     row('cache', (x) => (x.cache !== null ? { text: pct(x.cache) } : null)),
     row('steps', (x) => (x.steps !== null ? { text: String(x.steps) } : null), t('shell.compare.stepsTip')),
+    planRow(runs, t, now),
     row('files', (x) => ({ text: String(x.files), add: x.add, del: x.del })),
     row('tests', (x) => (x.tests ? { text: `${x.tests.passed} ✓${x.tests.failed ? ` ${x.tests.failed} ✗` : ''}`, tone: x.tests.failed ? 'bad' : 'good' } : null)),
     row('asks', (x) => ({ text: String(x.asks) })),
@@ -215,4 +228,149 @@ export function compareSentence(runs: readonly CompareRun[], t: T): string {
   }
   said.delete('');
   return said.size ? [...said, t('shell.compare.noise')].join(' ') : '';
+}
+
+/** v1 runners.js MAX_RUNNERS: the lead and up to three more side by side */
+export const MAX_RUNNERS = 4;
+
+/**
+ * The launcher's vs + (v1 launcher.js vsBtn): the next harness nobody in the pill uses yet, among those that can run
+ * here; once they're all in, another copy of the lead. None past MAX_RUNNERS.
+ */
+export function nextRun(lead: string, runs: readonly string[], available: readonly string[]): string | undefined {
+  if (runs.length >= MAX_RUNNERS - 1) return undefined;
+  const used = new Set([lead, ...runs]);
+  return available.find((a) => a !== 'auto' && !used.has(a)) ?? (lead === 'auto' ? available.find((a) => a !== 'auto') : lead);
+}
+
+/** A group id for the runs of one launch (v1: 6 random bytes in hex). */
+export const newGroup = (bytes: Uint8Array): string => `g-${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+
+// ---- the Plan row (v1 compare-metrics.js planShares) ----
+
+const DAY = 864e5;
+const WINDOW_NAMES: Readonly<Record<string, string>> = { five_hour: '5-hour', seven_day: 'weekly', seven_day_opus: 'weekly Opus', seven_day_sonnet: 'weekly Sonnet' };
+const LENGTH: Readonly<Record<string, number>> = { seven_day: 7 * DAY, seven_day_opus: 7 * DAY - 1, seven_day_sonnet: 7 * DAY - 2, five_hour: 5 * 36e5 };
+const lengthOf = (id: string): number => LENGTH[id] ?? (Number(/^w(\d+)m$/.exec(id)?.[1]) * 60_000 || 0);
+const longestFirst = (a: { readonly window: string }, b: { readonly window: string }): number => lengthOf(b.window) - lengthOf(a.window);
+
+/** "5-hour", "weekly", "3-day" (v1 receipt.js windowName) */
+export function windowName(id: string): string {
+  const named = WINDOW_NAMES[id];
+  if (named) return named;
+  const mins = Number(/^w(\d+)m$/.exec(id)?.[1]) || 0;
+  return !mins ? 'plan' : mins >= 1440 ? `${Math.round(mins / 1440)}-day` : `${Math.round(mins / 60)}-hour`;
+}
+
+/** a share in words: "<1%", "99%" (never a rounded 100% that isn't all of it) */
+const share = (x: number): string => (x > 0 && x < 0.005 ? '<1%' : x < 1 && x > 0.99 ? '99%' : `${Math.round(x * 100)}%`);
+
+interface Slice {
+  readonly key: string;
+  readonly from: number;
+  readonly to: number;
+  readonly cost: number | null;
+  readonly running: boolean;
+  readonly plan: readonly PlanShare[];
+  pooled: boolean;
+}
+
+interface Pool {
+  readonly key: string;
+  readonly window: string;
+  used: number;
+  readonly members: Map<number, Slice[]>;
+  split?: boolean;
+  costs?: number;
+  waiting?: boolean;
+}
+
+/**
+ * Each run's plan cell and the line with what overlapping runs took together. wisp splits a window's move among the
+ * turns running on the account by time, so runs that overlap on one account can't each show a true share: only their
+ * total is known; the cell then splits it by each run's cost, as an estimate (or says nothing when a cost is missing).
+ */
+export function planShares(list: readonly CompareRun[], now: number, t: T): { cells: CompareCell[]; total: string } {
+  const runs = byAge(list).map((r) => ({
+    slices: r.turns
+      .filter((x) => typeof x.startedAt === 'number')
+      .map((x): Slice => ({
+        key: `${x.agent || r.agent}@${x.account || r.account || 'default'}`,
+        from: x.startedAt ?? 0,
+        to: typeof x.endedAt === 'number' ? x.endedAt : now,
+        cost: num(x.stats?.costUsd),
+        running: x.status === 'running',
+        plan: x.plan ?? [],
+        pooled: false,
+      })),
+    solo: {} as Record<string, number>,
+  }));
+  const overlap = (a: Slice, b: Slice): boolean => a.key === b.key && a.from < b.to && b.from < a.to;
+  runs.forEach((r, ri) => {
+    for (const x of r.slices) x.pooled = runs.some((o, oi) => oi !== ri && o.slices.some((y) => overlap(x, y)));
+  });
+  const pools = new Map<string, Pool>();
+  runs.forEach((r) => {
+    for (const x of r.slices) {
+      for (const p of x.plan) {
+        if (!p.window || !(p.used > 0)) continue;
+        if (!x.pooled) {
+          r.solo[p.window] = (r.solo[p.window] ?? 0) + p.used;
+          continue;
+        }
+        const key = `${p.agent ?? ''}@${p.account || 'default'}`;
+        const id = `${key} ${p.window}`;
+        const pool = pools.get(id) ?? { key, window: p.window, used: 0, members: new Map<number, Slice[]>() };
+        pool.used += p.used;
+        pools.set(id, pool);
+      }
+    }
+  });
+  const shared: Pool[] = [];
+  for (const pool of pools.values()) {
+    runs.forEach((r, ri) => {
+      const mine = r.slices.filter((x) => x.pooled && (x.key === pool.key || x.plan.some((p) => p.window === pool.window && `${p.agent ?? ''}@${p.account || 'default'}` === pool.key)));
+      if (mine.length) pool.members.set(ri, mine);
+    });
+    // one turn's entry on an account the others never touched: nothing to split
+    if (pool.members.size < 2) {
+      for (const ri of pool.members.keys()) {
+        const r = runs[ri];
+        if (r) r.solo[pool.window] = (r.solo[pool.window] ?? 0) + pool.used;
+      }
+      continue;
+    }
+    const slices = [...pool.members.values()].flat();
+    const costs = slices.reduce((a, x) => a + (x.cost ?? 0), 0);
+    pool.split = costs > 0 && slices.every((x) => x.cost !== null);
+    pool.costs = costs;
+    pool.waiting = slices.some((x) => x.cost === null && x.running);
+    shared.push(pool);
+  }
+  const cells = runs.map((r, ri): CompareCell => {
+    const mine = shared.filter((p) => p.members.has(ri));
+    const window = [...new Set([...Object.keys(r.solo), ...mine.map((p) => p.window)])].map((w) => ({ window: w })).sort(longestFirst)[0]?.window;
+    if (!window) return { text: DASH };
+    const name = windowName(window);
+    const here = mine.filter((p) => p.window === window);
+    const solo = r.solo[window] ?? 0;
+    if (!here.length) return { text: t('shell.compare.planOf', { share: share(solo), window: name }) };
+    const stuck = here.find((p) => !p.split);
+    if (stuck) return { text: DASH, ...(!stuck.waiting && { tip: t('shell.compare.noCost') }) };
+    const part = here.reduce((a, p) => a + (p.used * (p.members.get(ri) ?? []).reduce((c, x) => c + (x.cost ?? 0), 0)) / (p.costs || 1), 0);
+    return { text: t('shell.compare.planAbout', { share: share(solo + part), window: name }), tip: t('shell.compare.estimate') };
+  });
+  // one line per account, on its longest window
+  const longest = new Map<string, Pool>();
+  for (const p of [...shared].sort(longestFirst)) if (!longest.has(p.key)) longest.set(p.key, p);
+  const who = (p: Pool): string => {
+    const n = p.members.size;
+    if (n < runs.length) return listed([...p.members.keys()].map(letter).sort(), t('shell.compare.and'));
+    return n === 2 ? t('shell.compare.bothRuns') : t('shell.compare.allRuns', { n });
+  };
+  return { cells, total: [...longest.values()].map((p) => t('shell.compare.took', { who: who(p), share: share(p.used), window: windowName(p.window) })).join(' ') };
+}
+
+function planRow(runs: readonly CompareRun[], t: T, now: number): CompareRow {
+  return { key: 'plan', label: t('shell.compare.row.plan'), cells: planShares(runs, now, t).cells };
 }

@@ -20,6 +20,9 @@ import { autoBlocked, autoPreview, autoRules, create, setSetting, type Attachmen
 import { goalGate } from './goal-gate.ts';
 import { autoPick, neverRule, overrideOf, popOf, pct, PREVIEW_DEBOUNCE, shortLabel, usd, type AutoPreview } from './auto.ts';
 import { defaultHarness, harnessOf } from './harness.ts';
+import { MAX_RUNNERS, newGroup, nextRun } from './compare.ts';
+import { firstRunOf, firstRunTools, launcherFull } from './first-run.ts';
+import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
 
 interface SettingRow {
@@ -66,7 +69,23 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     shell.toast.show(t('shell.auto.wont', { model: neverModel(pk), kind: typeWord(type) }), { action: { label: t('shell.auto.undo'), onClick: () => void set(now).catch(() => undefined) } });
     await set([...now, rule]).catch(() => undefined);
   };
-  const [compare, setCompare] = createSignal<string | undefined>(undefined);
+  // Until your first task the box is the prompt, how it runs and Send; the rest waits behind More options (v1
+  // launcher.js firstRun). Once opened, or once there's a task of yours, it stays full (kept in this browser).
+  const fullStore = launcherFull(shell.client);
+  const full = useSignal(fullStore.value);
+  const [ready, setReady] = createSignal(false);
+  void fullStore.ready.then(() => setReady(true));
+  const mine = createMemo(() => sessions().some((x) => x.agent !== 'wisp'));
+  createEffect(() => {
+    if (mine() && full() !== true) fullStore.set(true);
+  });
+  const firstRun = (): boolean => firstRunOf(full() === true, mine(), ready());
+  const openFull = (): void => {
+    fullStore.set(true);
+    input?.focus();
+  };
+  // vs (v1 launcher.js compare): the same task on more harnesses, side by side; picks here don't touch the defaults
+  const [runs, setRuns] = createSignal<readonly string[]>([]);
   const [team, setTeam] = createSignal<ReadonlySet<string>>(new Set());
   // the team new tasks start with (Settings, `runtime.subagents`): pre-filled until you pick your own
   let teamTouched = false;
@@ -137,8 +156,13 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   // the @ and / menus (plugins' prompt sources), New task's own
   const menu = usePromptMenu({ shell, where: 'home', text, setText, input: () => input, id: 'launcher-suggest', project: () => project()?.path });
   let goalInput: HTMLInputElement | undefined;
+  // ↑ brings back what you sent, Shift+Tab cycles the mode (v1 prompt-history.js, F-task-31, F-comp-4)
+  const sent = sentStore(shell.client);
+  const sentList = useSignal(sent.value);
+  const onKey = promptKeys({ sent: () => sentList() as readonly string[], value: text, set: (v) => (setText(v), menu.typed(v)), mode: { get: mode, set: setMode } });
   const send = (): void => {
     const prompt = menu.encode(text().trim());
+    if (prompt) sent.set((cur) => remember(cur as readonly string[], prompt));
     // Goal on and Done when empty: ask first, so a task meant to keep going doesn't start as a one-shot (v1 #769)
     const gate = goalGate(prompt, goal());
     if (gate === 'askGoal') {
@@ -177,6 +201,10 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     const runner = { agent: ap ? 'auto' : agent() === 'auto' ? auto() : agent(), ...(ap && { shows: ap.agent }), ...(ov && { autoOverride: ov }) };
     asked++;
     setPreview(undefined);
+    // several runs: one group, so Compare runs shows them side by side (v1: one shared groupId)
+    const extra = runs();
+    const group = extra.length > 0 ? newGroup(crypto.getRandomValues(new Uint8Array(6))) : undefined;
+    setRuns([]);
     const go = (attachments: readonly Attachment[]): void => {
       shell.client.commands
         .run(create, {
@@ -184,6 +212,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           id,
           prompt,
           ...runner,
+          ...(group && { group }),
           mode: mode(),
           at: Date.now(),
           ...(p && { cwd: p.path, projectId: p.id, color: p.color }),
@@ -194,6 +223,22 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           ...(team().size > 0 && { team: teamRows(team(), subagents(), (a) => agentName(t, harnesses(), a)) }),
         })
         .catch(() => setText(prompt));
+      // the other runs after the lead, so the lead is run A (Compare orders runs by when they started)
+      for (const a of extra) {
+        shell.client.commands
+          .run(create, {
+            peer: home,
+            id: entityKey(home, uuidv7()),
+            prompt,
+            agent: a,
+            mode: mode(),
+            at: Date.now(),
+            group: group ?? '',
+            ...(p && { cwd: p.path, projectId: p.id, color: p.color }),
+            ...(attachments.length > 0 && { attachments }),
+          })
+          .catch(() => undefined);
+      }
       shell.navigate({ t: 'openTask', id: id as EntityKey as never });
     };
     if (files().length === 0) go([]);
@@ -255,6 +300,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           ask(v);
         }}
         onSend={send}
+        onKey={onKey}
         suggest={menu.suggest()}
         onPaste={att.paste}
         onFiles={att.add}
@@ -266,14 +312,34 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           pick: shown()?.label ?? [pick().name, agent() !== 'auto' && model() ? model() : '', agent() !== 'auto' ? effort() : ''].filter(Boolean).join(' · '),
           pickTitle: shown() ? t('shell.home.autoWhy', { label: preview()?.pick?.label ?? '', why: preview()?.why ?? '' }) : t('shell.home.pickTitle', { name: pick().name }),
           ...(pick().logo && { logo: pick().logo }),
-          compare: compare() ? t('shell.home.compareWith', { name: agentName(t, harnesses(), compare() ?? '') }) : t('shell.home.compare'),
+          compare: runs().length > 0 ? t('shell.home.compareMore', { n: MAX_RUNNERS }) : t('shell.home.compare'),
           act: { menu: { items: agentMenu(t, harnesses(), agent()), onSelect: (a) => (setAgent(a), setModel(''), setEffort('')) } },
           // the searchable harness · model picker (v1 runner-picker.js)
           pickAct: { onClick: () => (agent() === 'auto' ? setAutoPop(!autoPop()) : setPicker(true)) },
           ...(agent() === 'auto' && { pickOpen: autoPop() }),
-          compareAct: { menu: { items: agentMenu(t, harnesses(), compare() ?? '', false), onSelect: (v) => setCompare(compare() === v ? undefined : v) } },
+          compareAct: {
+            onClick: () => {
+              const next = nextRun(
+                agent(),
+                runs(),
+                harnesses().map((h) => h.id),
+              );
+              if (next) setRuns([...runs(), next]);
+            },
+          },
+          compareFull: firstRun() || runs().length >= MAX_RUNNERS - 1,
+          compares: runs().map((a, i) => {
+            const h = harnessOf(harnesses(), a);
+            return {
+              label: h.name,
+              logo: h.logo,
+              removeLabel: t('shell.home.compareRemove', { name: h.name }),
+              onRemove: () => setRuns(runs().filter((_, k) => k !== i)),
+              act: { menu: { items: agentMenu(t, harnesses(), a, false), onSelect: (v) => setRuns(runs().map((x, k) => (k === i ? v : x))) } },
+            };
+          }),
         }}
-        lead={[
+        lead={firstRunTools(firstRun(), 'lead', [
           tool('attach', 'launcher.attach', 'clip', t('shell.home.attach'), t('shell.home.attach'), { act: { onClick: attach, pending: picking() } }),
           tool('where', 'launcher.where', 'laptop', t('shell.home.where'), t('shell.home.where'), {
             text: false,
@@ -288,8 +354,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
               },
             },
           }),
-        ]}
-        mid={[
+        ])}
+        mid={firstRunTools(firstRun(), 'mid', [
           // v1 #771: no Try it two ways button; the runner's + adds the second run
           tool('team', 'launcher.team', 'agent', t('shell.home.delegate'), t('shell.home.delegateTitle'), {
             text: true,
@@ -306,23 +372,28 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
               },
             },
           }),
-        ]}
-        tail={[
-          tool('goal', 'launcher.goal', 'target', t('shell.home.goal'), t('shell.home.goalTitle'), {
-            text: true,
-            ...(goal() !== undefined && { on: true }),
-            act: { onClick: () => setGoal(goal() === undefined ? '' : undefined) },
-          }),
-          tool('worktree', 'launcher.worktree', 'branch', worktree() ? t('shell.home.worktree') : t('shell.home.inPlace'), t('shell.home.worktreeTitle'), {
-            text: true,
-            on: worktree(),
-            act: { onClick: () => void shell.client.commands.run(setSetting, { peer: home, key: 'defaults.worktree', value: !worktree() }).catch(() => undefined) },
-          }),
-          tool('later', 'launcher.later', 'clock', t('shell.home.later'), t('shell.home.later'), {
-            ...(when() && { on: true }),
-            act: { menu: { items: whenMenu(t), onSelect: (v) => setWhen(v as When) } },
-          }),
-        ]}
+        ])}
+        tail={firstRunTools(
+          firstRun(),
+          'tail',
+          [
+            tool('goal', 'launcher.goal', 'target', t('shell.home.goal'), t('shell.home.goalTitle'), {
+              text: true,
+              ...(goal() !== undefined && { on: true }),
+              act: { onClick: () => setGoal(goal() === undefined ? '' : undefined) },
+            }),
+            tool('worktree', 'launcher.worktree', 'branch', worktree() ? t('shell.home.worktree') : t('shell.home.inPlace'), t('shell.home.worktreeTitle'), {
+              text: true,
+              on: worktree(),
+              act: { onClick: () => void shell.client.commands.run(setSetting, { peer: home, key: 'defaults.worktree', value: !worktree() }).catch(() => undefined) },
+            }),
+            tool('later', 'launcher.later', 'clock', t('shell.home.later'), t('shell.home.later'), {
+              ...(when() && { on: true }),
+              act: { menu: { items: whenMenu(t), onSelect: (v) => setWhen(v as When) } },
+            }),
+          ],
+          tool('more', 'launcher.more', 'dots', t('shell.home.moreOptions'), t('shell.home.moreOptionsTitle'), { text: true, act: { onClick: openFull } }),
+        )}
         sendLabel={when() ? t('shell.when.send', { at: new Date(whenAt(when() ?? 'hour', now())).toLocaleString() }) : t('shell.home.send')}
         {...(goal() !== undefined && {
           goal: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoal, ref: (el: HTMLInputElement) => (goalInput = el) },

@@ -150,7 +150,9 @@ export function TaskDetails(props: TaskDetailsProps): JSX.Element {
           <Show when={props.logo}>{(src) => <img src={src()} alt="" />}</Show>
           <span data-kit="ml-name">{props.harness}</span>
         </span>
-        <span data-kit="q-proj" data-color={props.color}>{props.project}</span>
+        <span data-kit="q-proj" data-color={props.color}>
+          {props.project}
+        </span>
       </div>
       <Show when={props.branch}>
         {(b) => (
@@ -169,7 +171,19 @@ export function TaskDetails(props: TaskDetailsProps): JSX.Element {
             <WithAct
               act={a.act}
               render={(trigger) => (
-                <button type="button" {...trigger()} data-kit="ghost-xs" data-a={a.id} data-part={a.part} data-tone={a.tone} data-key={a.key} data-desk={flag(a.deskOnly)} data-on={flag(a.on)} aria-pressed={a.on === undefined ? undefined : a.on} title={a.title}>
+                <button
+                  type="button"
+                  {...trigger()}
+                  data-kit="ghost-xs"
+                  data-a={a.id}
+                  data-part={a.part}
+                  data-tone={a.tone}
+                  data-key={a.key}
+                  data-desk={flag(a.deskOnly)}
+                  data-on={flag(a.on)}
+                  aria-pressed={a.on === undefined ? undefined : a.on}
+                  title={a.title}
+                >
                   <ActIcon act={a.act}>
                     <Icon name={a.icon} />
                   </ActIcon>
@@ -210,7 +224,11 @@ export interface TurnViewProps {
   readonly tools: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly part?: string; readonly act?: Act; readonly on?: boolean }[];
   /** the steps it took, shown under the brief (the trail's counts open them) */
   /** the turn's steps; a step with `out` (its output, an error's text) folds open to it (v1 transcript.js) */
-  readonly activity?: { readonly items: readonly { readonly icon: IconName; readonly text: string; readonly detail?: string; readonly out?: string; readonly bad?: boolean }[]; readonly open: boolean; readonly onToggle: () => void };
+  readonly activity?: {
+    readonly items: readonly { readonly icon: IconName; readonly text: string; readonly detail?: string; readonly out?: string; readonly bad?: boolean }[];
+    readonly open: boolean;
+    readonly onToggle: () => void;
+  };
   /** the agent's notes, shown under the brief */
   readonly notes?: string;
   /** still running: what it's doing, in place of the trail */
@@ -278,9 +296,7 @@ export function TurnView(props: TurnViewProps): JSX.Element {
           </div>
         )}
       </Show>
-      <Show when={props.notes}>
-        {(n) => <p data-kit="turn-notes">{n()}</p>}
-      </Show>
+      <Show when={props.notes}>{(n) => <p data-kit="turn-notes">{n()}</p>}</Show>
       <Show when={props.activity?.open && props.activity}>
         {(a) => (
           <ul data-kit="turn-acts">
@@ -395,9 +411,18 @@ export function OverlapNote(props: OverlapNoteProps): JSX.Element {
           <b>{props.head}</b> <span>{props.files}</span>
         </span>
         <Show when={props.more}>
-          <WithAct act={props.moreAct} render={(trigger) => <button type="button" {...trigger()} data-kit="ov-more" title={props.moreTitle}>{props.more}</button>} />
+          <WithAct
+            act={props.moreAct}
+            render={(trigger) => (
+              <button type="button" {...trigger()} data-kit="ov-more" title={props.moreTitle}>
+                {props.more}
+              </button>
+            )}
+          />
         </Show>
-        <button type="button" data-kit="ghost-xs" data-compact="" title={props.openTitle} onClick={() => props.onOpen?.()}>{props.open}</button>
+        <button type="button" data-kit="ghost-xs" data-compact="" title={props.openTitle} onClick={() => props.onOpen?.()}>
+          {props.open}
+        </button>
       </div>
     </div>
   );
@@ -408,6 +433,8 @@ export interface ReplyBoxProps {
   readonly value: string;
   readonly onInput: (v: string) => void;
   readonly onSend: () => void;
+  /** the box's own keys after its menus (↑ history, Shift+Tab mode): true when taken */
+  readonly onKey?: (e: KeyboardEvent) => boolean;
   /** the @ and / menus: what the host offers for what's typed (over the box) */
   readonly suggest?: PromptSuggest | undefined;
   /** a paste into the box (files, a pasted task link): the host may take it */
@@ -448,6 +475,7 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
   onCleanup(() => document.removeEventListener('pointerdown', outside, true));
   const key = (e: KeyboardEvent): void => {
     if (suggestKeyDown(props.suggest, e)) return;
+    if (props.onKey?.(e)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       props.onSend();
@@ -476,7 +504,19 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
     >
       <div data-kit="mn-wrap">
         <PromptSuggestList suggest={props.suggest} place="above" />
-        <textarea data-kit="reply" data-part="composer.input" rows="1" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} onPaste={(e) => props.onPaste?.(e)} aria-activedescendant={props.suggest && props.suggest.items.length > 0 ? `${props.suggest.id}-o${props.suggest.active}` : undefined} />
+        <textarea
+          data-kit="reply"
+          data-part="composer.input"
+          rows="1"
+          placeholder={props.placeholder}
+          value={props.value}
+          ref={(el) => ((input = el), props.inputRef?.(el))}
+          onBlur={() => setNudge(false)}
+          onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))}
+          onKeyDown={key}
+          onPaste={(e) => props.onPaste?.(e)}
+          aria-activedescendant={props.suggest && props.suggest.items.length > 0 ? `${props.suggest.id}-o${props.suggest.active}` : undefined}
+        />
       </div>
       <Show when={props.goalLine}>
         {(g) => (
@@ -542,7 +582,16 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
         <WithAct
           act={props.goalAct}
           render={(trigger) => (
-            <button type="button" {...trigger()} data-kit="icon-btn" data-part="composer.goal" data-on={flag(props.goalOn)} aria-pressed={props.goalOn === true} title={props.goal} aria-label={props.goal}>
+            <button
+              type="button"
+              {...trigger()}
+              data-kit="icon-btn"
+              data-part="composer.goal"
+              data-on={flag(props.goalOn)}
+              aria-pressed={props.goalOn === true}
+              title={props.goal}
+              aria-label={props.goal}
+            >
               <Icon name="target" />
             </button>
           )}

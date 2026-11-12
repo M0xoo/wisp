@@ -18,6 +18,8 @@ import { goalGate } from './goal-gate.ts';
 import { readComments } from './comment-text.ts';
 import { useNow } from '../clock.ts';
 import { stopQuestion, type StopQuestion } from './stop-question.ts';
+import { noOutputLine } from './no-output.ts';
+import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { editorUrl } from '../editor.ts';
 import { resumeCommand } from './commands.ts';
 import { archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
@@ -50,6 +52,8 @@ interface TurnBody {
 interface EventRow {
   readonly seq: number;
   readonly turn_id: string;
+  /** when it happened (ms) */
+  readonly t?: number;
   readonly kind?: string;
   readonly body?: {
     readonly kind?: string;
@@ -61,6 +65,8 @@ interface EventRow {
     readonly detail?: string;
     readonly output?: string;
     readonly callId?: string;
+    /** when a call's result came in */
+    readonly outAt?: number;
     readonly name?: string;
   };
 }
@@ -175,8 +181,19 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       return { client: (pl) => shell.client.plugin(pl) };
     }
   })();
+  const sent = sentStore(shell.client);
+  const sentList = useSignal(sent.value);
+  const replyMode = (): string => String(row()?.summary['mode'] ?? 'auto');
+  // ↑ brings back what you sent, Shift+Tab cycles the task's mode (v1 prompt-history.js, F-task-31, F-comp-4)
+  const replyKeys = promptKeys({
+    sent: () => sentList() as readonly string[],
+    value: text,
+    set: (v) => (setText(v), menu.typed(v)),
+    mode: { get: replyMode, set: (m) => void run(setMode, { id: key, mode: m }).catch(() => undefined) },
+  });
   const send = (): void => {
     const v = menu.encode(text().trim());
+    if (v) sent.set((cur) => remember(cur as readonly string[], v));
     // the Done when line open and empty: nothing goes, the line takes the focus (v1 #769 replyGoalEmpty)
     const gate = goalGate(v, goal());
     if (gate === 'askGoal') {
@@ -633,6 +650,18 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                     }
                                     elapsed={duration(now() - turn.started_at)}
                                     count={t('shell.work.actions', { count: steps().filter((a) => a.kind !== 'text').length })}
+                                    note={noOutputLine(
+                                      {
+                                        running: turn.status === 'running',
+                                        waiting: s().state === 'waiting',
+                                        startedAt: turn.started_at,
+                                        steps: stepsOf(turn.id).map((e) => ({ kind: e.kind ?? e.body?.kind, t: e.t, outAt: e.body?.outAt, call: e.body?.callId, output: e.body?.output })),
+                                        // a delegate of this task still works: its row says so
+                                        delegating: allRows().some((x) => x.parent_id === key && x.state === 'running'),
+                                      },
+                                      now(),
+                                      t,
+                                    )}
                                     ticker={steps()
                                       .filter((a) => a.kind !== 'text')
                                       .slice(-5)
@@ -745,6 +774,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       menu.typed(v);
                     }}
                     onSend={send}
+                    onKey={replyKeys}
                     suggest={menu.suggest()}
                     onPaste={att.paste}
                     onFiles={att.add}

@@ -34,7 +34,13 @@ function PeerNote(props: { readonly peer: PeerId }): JSX.Element {
         <Banner
           tone={n().tone}
           part="shell.peer.banner"
-          action={n().wake ? <Button size="sm" variant="secondary" onClick={() => void shell.client.peers.wake(props.peer)}>{shell.t('shell.peer.wake')}</Button> : undefined}
+          action={
+            n().wake ? (
+              <Button size="sm" variant="secondary" onClick={() => void shell.client.peers.wake(props.peer)}>
+                {shell.t('shell.peer.wake')}
+              </Button>
+            ) : undefined
+          }
         >
           {n().text}
         </Banner>

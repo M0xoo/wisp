@@ -10,7 +10,8 @@ import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { answerContext } from './answer-ctx.ts';
 import { archive, stopRun } from './commands.ts';
-import { compareRows, compareSentence, letter, type CompareRun, type CompareTurn } from './compare.ts';
+import { compareRows, compareSentence, letter, planShares, type CompareRun, type CompareTurn, type PlanShare } from './compare.ts';
+import { useNow } from '../clock.ts';
 import { harnessOf } from './harness.ts';
 import { statusOf } from './rows-view.ts';
 
@@ -21,7 +22,10 @@ interface TurnRow {
   readonly prompt: string;
   readonly started_at: number;
   readonly status?: string;
-  readonly body: CompareTurn & { readonly prompt?: string; readonly ext?: { readonly 'wisp.runtime'?: { readonly changes?: CompareTurn['changes'] }; readonly 'wisp.apps'?: unknown } };
+  readonly body: CompareTurn & {
+    readonly prompt?: string;
+    readonly ext?: { readonly 'wisp.runtime'?: { readonly changes?: CompareTurn['changes'] }; readonly 'wisp.apps'?: unknown; readonly 'wisp.budget'?: { readonly plan?: readonly PlanShare[] } };
+  };
 }
 
 interface EventRow {
@@ -86,6 +90,7 @@ export default function Compare(props: { readonly params: { readonly id: string 
         startedAt: x.body.startedAt ?? x.started_at,
         changes: x.body.ext?.['wisp.runtime']?.changes ?? x.body.changes ?? [],
         steps: stepsOf(x.id),
+        plan: x.body.ext?.['wisp.budget']?.plan ?? [],
       })),
     })),
   );
@@ -161,13 +166,17 @@ export default function Compare(props: { readonly params: { readonly id: string 
       for (const [peer, ids] of byPeer) await shell.client.commands.run(clean, { peer, ids }).catch(() => undefined);
     })();
   };
-  const rows = createMemo(() => compareRows(runs(), t));
+  // the Plan row reads a running turn up to now (v1 planShares)
+  const now = useNow(shell.client);
+  const rows = createMemo(() => compareRows(runs(), t, now()));
+  const total = createMemo(() => planShares(runs(), now(), t).total);
   return (
     <Show when={group().length > 1} fallback={<Text as="p">{t('shell.compare.gone')}</Text>}>
       <CompareRuns
         prompt={prompt()}
         rows={rows()}
         runs={views()}
+        total={total()}
         sentence={compareSentence(runs(), t)}
         labels={{ runs: t('shell.compare.runs'), open: t('shell.compare.open'), keep: t('shell.compare.keep'), stillWorking: t('shell.compare.stillWorking') }}
         onOpen={(id) => {

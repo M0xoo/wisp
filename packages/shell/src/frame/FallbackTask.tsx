@@ -25,10 +25,16 @@ export default function FallbackTask(props: { readonly id: string }): JSX.Elemen
       {(s) => (
         <Stack gap="4" pad="7" grow part="shell.fallback.task">
           <Inline gap="4">
-            <Heading level={2} lines={2}>{s().title}</Heading>
-            <Pill tone={s().state === 'running' ? 'info' : 'neutral'} live={s().state === 'running'} dot>{shell.t(`shell.state.${s().state}`)}</Pill>
+            <Heading level={2} lines={2}>
+              {s().title}
+            </Heading>
+            <Pill tone={s().state === 'running' ? 'info' : 'neutral'} live={s().state === 'running'} dot>
+              {shell.t(`shell.state.${s().state}`)}
+            </Pill>
           </Inline>
-          <Text tone="muted" size="sm">{shell.t('shell.fallback.task.turns', { count: s().summary.turnCount })}</Text>
+          <Text tone="muted" size="sm">
+            {shell.t('shell.fallback.task.turns', { count: s().summary.turnCount })}
+          </Text>
           <VirtualList items={shown()} key={(e) => String(e.seq)} anchor="bottom" estimate={48} grow part="shell.fallback.events" aria-label={s().title}>
             {(e) => (
               <Text as="p" tone={e().kind === 'text' ? 'ink' : 'muted'} size={e().kind === 'text' ? 'md' : 'sm'} mono={e().kind === 'tool'}>

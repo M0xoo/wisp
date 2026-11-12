@@ -17,6 +17,9 @@ test('each kind saves the spec its v2 source reads; a kind v2 has no source for 
   expect('unsupported' in specOfForm({ ...f, key: 'linear' })).toBe(true);
   // a crew member's job: their mode and harness, not the form's
   expect(specOfForm({ ...f, crew: 'm1', agent: 'codex' })).toEqual({ name: 'morning-tidy', spec: { on: 'schedule', prompt: 'Tidy the repo', crew: 'm1', project: '/code/web', cron: '0 9 * * 1-5' } });
+  // the runner picker: a harness and its model (v1 runnerField); a model with no harness is the launcher's default
+  expect(specOfForm({ ...f, agent: 'codex', model: 'gpt-5.5' })).toMatchObject({ spec: { agent: 'codex', model: 'gpt-5.5' } });
+  expect('model' in (specOfForm({ ...f, model: 'gpt-5.5' }) as { spec: object }).spec).toBe(false);
   const slack = pick({ ...f, prompt: '' }, 'slack');
   expect(specOfForm({ ...slack, channel: 'C1', users: 'U1, U2', keyword: 'deploy' })).toEqual({
     name: 'morning-tidy',

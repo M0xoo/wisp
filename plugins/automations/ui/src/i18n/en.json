@@ -111,5 +111,8 @@
   "automations.form.missing.prompt": "Say what it asks, or pick a recipe to run.",
   "automations.form.missing.when": "Say when: “every monday” or “every 2 hours”.",
   "automations.form.missing.label": "Say which label starts it.",
-  "automations.form.missing.channel": "Say which channel (its ID)."
+  "automations.form.missing.channel": "Say which channel (its ID).",
+  "automations.form.defaultModel": "Default",
+  "automations.form.harnessTitle": "Harness and model for this trigger",
+  "automations.form.useDefault": "Use launcher default"
 }

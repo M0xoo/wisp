@@ -77,7 +77,14 @@ export function MainPane(props: { readonly onBack?: () => void }): JSX.Element {
             };
             const id = main.id;
             const session = useSession(() => id);
-            return <Area input="shell.screen:task" id={id} session={session} fallback={<TaskView id={id} {...(now.layout === 'stack' && props.onBack && { onBack: () => goBack(id, session() as { parent_id?: string | null } | undefined) })} />} />;
+            return (
+              <Area
+                input="shell.screen:task"
+                id={id}
+                session={session}
+                fallback={<TaskView id={id} {...(now.layout === 'stack' && props.onBack && { onBack: () => goBack(id, session() as { parent_id?: string | null } | undefined) })} />}
+              />
+            );
           }
           case 'crew':
             return <Area input="shell.screen:crew" id={main.id} fallback={<EmptyState icon="crew" title={shell.t('shell.view.missing')} compact />} />;

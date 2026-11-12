@@ -19,7 +19,9 @@ export const PROJECT_ACTIONS = 'shell.actions';
 /** The projects in your order, from the store as it is now. */
 export function projectsNow(ctx: ShellContext): readonly ProjectView[] {
   const rows = ctx.client.entities.list<unknown>('project')();
-  const order = ctx.client.entities.list<{ key: string; value: unknown }>('setting')().find((s) => s.key === PROJECT_ORDER)?.value;
+  const order = ctx.client.entities
+    .list<{ key: string; value: unknown }>('setting')()
+    .find((s) => s.key === PROJECT_ORDER)?.value;
   return projectList(rows, order);
 }
 
@@ -50,7 +52,11 @@ export function switchTo(ctx: ShellContext, id: string): void {
 export function openSwitcher(ctx: ShellContext): void {
   ctx.navigate({
     t: 'openOverlay',
-    overlay: { kind: 'dialog', id: 'shell.palette' as never, params: { only: [PROJECT_SOURCE, PROJECT_ACTIONS], placeholder: ctx.t('shell.projects.switchPlaceholder'), title: ctx.t('shell.projects.switch') } },
+    overlay: {
+      kind: 'dialog',
+      id: 'shell.palette' as never,
+      params: { only: [PROJECT_SOURCE, PROJECT_ACTIONS], placeholder: ctx.t('shell.projects.switchPlaceholder'), title: ctx.t('shell.projects.switch') },
+    },
   });
 }
 
@@ -109,6 +115,13 @@ export function projectShortcuts(ctx: ShellContext): ShortcutDef[] {
   };
   return [
     { id: 'shell.projects.switch', keys: 'mod+p', label: 'shell.key.projects', group: 'general', when: 'always', run: () => openSwitcher(ctx) },
-    ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n): ShortcutDef => ({ id: `shell.projects.go${n}`, keys: `mod+${n}`, label: n === 0 ? 'shell.key.projectAll' : 'shell.key.projectN', group: 'general', when: 'always', run: () => go(n) })),
+    ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n): ShortcutDef => ({
+      id: `shell.projects.go${n}`,
+      keys: `mod+${n}`,
+      label: n === 0 ? 'shell.key.projectAll' : 'shell.key.projectN',
+      group: 'general',
+      when: 'always',
+      run: () => go(n),
+    })),
   ];
 }

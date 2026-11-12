@@ -34,8 +34,14 @@ export const HOOK_KINDS = new Set(['webhook', 'slack', 'linear']);
 export const POLLED = new Set(['ci', 'issues']);
 
 export const PRESETS: Readonly<Record<string, { readonly header: string; readonly prompt: string }>> = {
-  sentry: { header: 'Sentry-Hook-Signature', prompt: 'Investigate this Sentry issue, and fix it if the cause is in this repo:\n{{body.data.issue.title}} ({{body.data.issue.culprit}})\n{{body.data.issue.web_url}}\n\n{{text}}' },
-  pagerduty: { header: 'X-PagerDuty-Signature', prompt: 'Investigate this PagerDuty incident, and fix it if the cause is in this repo:\n{{body.event.data.title}}\n{{body.event.data.html_url}}\n\n{{text}}' },
+  sentry: {
+    header: 'Sentry-Hook-Signature',
+    prompt: 'Investigate this Sentry issue, and fix it if the cause is in this repo:\n{{body.data.issue.title}} ({{body.data.issue.culprit}})\n{{body.data.issue.web_url}}\n\n{{text}}',
+  },
+  pagerduty: {
+    header: 'X-PagerDuty-Signature',
+    prompt: 'Investigate this PagerDuty incident, and fix it if the cause is in this repo:\n{{body.event.data.title}}\n{{body.event.data.html_url}}\n\n{{text}}',
+  },
 };
 
 export const SCHEDULE_PRESETS = ['every weekday at 9am', 'every hour', 'every day at 6pm', 'every monday at 8am'] as const;
@@ -65,6 +71,8 @@ export interface TriggerFormState {
   readonly prompt: string;
   readonly mode: string;
   readonly agent: string;
+  /** the harness's model ('' : its default; only with a harness picked) */
+  readonly model: string;
 }
 
 export const emptyForm = (project = ''): TriggerFormState => ({
@@ -85,6 +93,7 @@ export const emptyForm = (project = ''): TriggerFormState => ({
   prompt: '',
   mode: 'auto',
   agent: '',
+  model: '',
 });
 
 /** Picking a tile (v1): a GitHub or webhook kind starts in Plan; a preset fills what's still empty. */
@@ -150,6 +159,7 @@ export function specOfForm(f: TriggerFormState): { name: string; spec: Record<st
   if (!f.crew) {
     if (f.mode) spec['mode'] = f.mode;
     if (f.agent) spec['agent'] = f.agent;
+    if (f.agent && f.model) spec['model'] = f.model;
   }
   if (k.kind === 'schedule') {
     const cron = toCron(f.when);

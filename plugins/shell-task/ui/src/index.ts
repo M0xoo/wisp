@@ -82,6 +82,8 @@ export default definePluginUi({
     defineExtension({ id: 'shell-task.foot', attachTo: { id: 'shell.task:foot' }, component: lazy(() => import('./foot/TaskFoot.tsx')) }),
     // over the reply box: the comments on lines waiting for the next follow-up (v1 comments.js tray)
     defineExtension({ id: 'shell-task.comments', attachTo: { id: 'shell.task:foot' }, component: lazy(() => import('./foot/CommentTray.tsx')) }),
+    // the agent opened a watch while you look at its task: the Watch tab opens beside it (v1 panel.js)
+    defineExtension({ id: 'shell-task.watch-open', attachTo: { id: 'shell.task:foot' }, component: lazy(() => import('./foot/WatchOpen.tsx')) }),
     // a terminal task opens on its terminal
     defineExtension({ id: 'shell-task.term-open', attachTo: { id: 'shell.task:foot' }, component: lazy(() => import('./foot/TermOpen.tsx')) }),
   ],

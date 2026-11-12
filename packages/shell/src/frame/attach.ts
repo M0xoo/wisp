@@ -22,14 +22,20 @@ export function filesOf(data: DataTransfer | null | undefined): File[] {
 }
 
 /** A pasted image has no name of its own: it gets v1's. */
-export const named = (f: File, at: number): File => (f.name && f.name !== 'image.png' ? f : new File([f], `pasted-${new Date(at).toISOString().replace(/[:.]/g, '-')}.${(f.type.split('/')[1] ?? 'png').replace('jpeg', 'jpg')}`, { type: f.type }));
+export const named = (f: File, at: number): File =>
+  f.name && f.name !== 'image.png' ? f : new File([f], `pasted-${new Date(at).toISOString().replace(/[:.]/g, '-')}.${(f.type.split('/')[1] ?? 'png').replace('jpeg', 'jpg')}`, { type: f.type });
 
 /** Each file up to the task's computer, in order; what it answered, as the prompt's attachments. */
 export async function upload(shell: ShellContext, peer: PeerId, files: readonly File[]): Promise<Attachment[]> {
   const http = shell.client.plugin('shell').http(peer);
   const out: Attachment[] = [];
   for (const f of files) {
-    const u = (await http.send({ method: 'POST', path: `/uploads?name=${encodeURIComponent(f.name)}&type=${encodeURIComponent(f.type || 'application/octet-stream')}`, body: f, contentType: 'application/octet-stream' })) as Attachment;
+    const u = (await http.send({
+      method: 'POST',
+      path: `/uploads?name=${encodeURIComponent(f.name)}&type=${encodeURIComponent(f.type || 'application/octet-stream')}`,
+      body: f,
+      contentType: 'application/octet-stream',
+    })) as Attachment;
     out.push({ id: u.id, name: u.name, mime: u.mime, size: u.size });
   }
   return out;

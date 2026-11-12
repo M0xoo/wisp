@@ -18,7 +18,21 @@ export {
   type StageProps,
 } from './Stage.tsx';
 export { GoalPill, OverlapPill, RowPill, TaskCard, type CardStatus, type TaskCardProps } from './Card.tsx';
-export { KeysHint, Launcher, NextList, SplitHome, Tips, type LauncherChip, type LauncherProps, type LauncherTool, type NextRow, type PlainTip, type SetupTip, type SplitHomeProps } from './Home.tsx';
+export {
+  KeysHint,
+  Launcher,
+  NextList,
+  SplitHome,
+  Tips,
+  type LauncherChip,
+  type LauncherCompare,
+  type LauncherProps,
+  type LauncherTool,
+  type NextRow,
+  type PlainTip,
+  type SetupTip,
+  type SplitHomeProps,
+} from './Home.tsx';
 export {
   OverlapNote,
   ReplyBox,
@@ -46,4 +60,4 @@ export { RailCardBody, headingForCard, stepRow, type RailCardBodyProps, type Rai
 export { AutoPop, type AutoPopProps, type AutoPopRow } from './AutoPop.tsx';
 export { ProjectsSheet, type ProjectsSheetProps, type ProjectsRow, type ProjectsPlace } from './ProjectsSheet.tsx';
 export { CompareRuns, type CompareRunsProps, type CompareRowView, type CompareRunView, type CompareCellView } from './Compare.tsx';
-export { AutomationsBody, AutoList, TriggerKinds, AutoRow, AutoPresets, AutoNote, AutoFoot, type AutomationsTab, type AutoItem, type TriggerKind, type Rich } from './Automations.tsx';
+export { AutomationsBody, AutoRunner, AutoList, TriggerKinds, AutoRow, AutoPresets, AutoNote, AutoFoot, type AutomationsTab, type AutoItem, type TriggerKind, type Rich } from './Automations.tsx';

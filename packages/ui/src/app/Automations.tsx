@@ -187,3 +187,43 @@ export function AutoFoot(props: { readonly cancel: string; readonly ok: string; 
     </div>
   );
 }
+
+/** v1 .au-runner: the runner button (logo, harness, model, chevron; v1 paintRunnerBtn) and Use launcher default */
+export function AutoRunner(props: {
+  readonly harness: string;
+  readonly model?: string | undefined;
+  readonly logo?: string | undefined;
+  readonly title: string;
+  readonly onClick: () => void;
+  readonly reset?: { readonly label: string; readonly onClick: () => void } | undefined;
+}): JSX.Element {
+  return (
+    <div data-kit="au-runner" data-part="automations.runner">
+      <button type="button" data-kit="au-runner-btn" aria-haspopup="dialog" title={props.title} onClick={() => props.onClick()}>
+        <span data-kit="rb-logo">
+          <Show when={props.logo} fallback={<Icon name="spark" />}>
+            {(src) => <img src={src()} alt="" />}
+          </Show>
+        </span>
+        <span data-kit="rb-h" data-text="control">
+          {props.harness}
+        </span>
+        <Show when={props.model}>
+          {(m) => (
+            <span data-kit="rb-m" data-text="control">
+              {m()}
+            </span>
+          )}
+        </Show>
+        <Icon name="chevron" />
+      </button>
+      <Show when={props.reset}>
+        {(r) => (
+          <button type="button" data-kit="au-link" onClick={() => r().onClick()}>
+            {r().label}
+          </button>
+        )}
+      </Show>
+    </div>
+  );
+}

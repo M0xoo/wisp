@@ -24,7 +24,9 @@ function useItem(ext: ResolvedExtension): ToolbarItem {
   const icon = (bar?.icon ?? 'dots') as IconName;
   const render = (form: 'full' | 'icon'): JSX.Element => <Item ext={ext} form={form} />;
   const select = (): void => bar?.select?.(extensionProps(ext, client, {}));
-  return bar?.priority === 'pin' || bar === undefined ? { id: ext.id, label, icon, priority: 'pin', render, onSelect: select } : { id: ext.id, label, icon, priority: bar.priority, render, onSelect: select };
+  return bar?.priority === 'pin' || bar === undefined
+    ? { id: ext.id, label, icon, priority: 'pin', render, onSelect: select }
+    : { id: ext.id, label, icon, priority: bar.priority, render, onSelect: select };
 }
 
 export function TopBar(): JSX.Element {
