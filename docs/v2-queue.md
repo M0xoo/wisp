@@ -1,5 +1,12 @@
 # v2 build queue (code first, verify later)
 
+**Lead's parity pass after round 23 (2026-11-12, `/tmp/qa-lead/parity`, 1440+390 browser):** the kit-wide CSS
+changes broke no metrics (home, palette, task, task.composer: 0 parts off at 1440). Left: (1) crew and task.transcript
+are not reachable at 390 (the opener's click times out: the phone layout hides what it clicks); (2) pixels fail on
+regions over 8×8 though under 0.5 % (home 19, palette 37, task 17): find what differs (icons, antialiasing, a shade)
+and fix it or record it in allowed.md with the reason; (3) settings.agents at 390: opencode's Add key sits over the
+version line and "2 models" wraps; Antigravity/Grok "Signed in · Sign out" crowds the row (design/layout.md: nothing wraps).
+
 **Left after round 18 (2026-11-11), in this order:** (terminal tasks and Discord's `/wisp`, buttons and grid-held
 interactions: done in round 18) the grid checking Discord's signature itself, so a stranger's `/wisp` wakes no box;
 a terminal task on Codex and the others (only Claude's `resume_command` names a conversation); ADR-0048's
