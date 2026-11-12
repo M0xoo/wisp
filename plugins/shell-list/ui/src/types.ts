@@ -118,6 +118,8 @@ export interface Plan {
   project?: string;
   color?: ColorName;
   every?: string;
+  /** an /after plan: the title of the task it waits for (v1 planSub) */
+  after?: string;
 }
 
 export interface Project {

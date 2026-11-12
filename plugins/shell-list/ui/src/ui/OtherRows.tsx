@@ -91,7 +91,7 @@ export function PlanRow(props: { readonly plan: Row<Plan> }): JSX.Element {
       sub={
         <Stack gap="0">
           <Text size="sm" tone="muted" truncate>
-            {t(`shell-list.plan.${props.plan.kind}`)}
+            {props.plan.after !== undefined ? t('shell-list.plan.after', { title: props.plan.after }) : t(`shell-list.plan.${props.plan.kind}`)}
           </Text>
           <Show when={props.plan.project}>
             {(p) => (

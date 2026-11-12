@@ -110,5 +110,6 @@
   "shell-list.goal.tip": "Done when: {text}\n{why}",
   "shell-list.overlap.tip": "Touches the same files as {n}: {titles}",
   "shell-list.group.compare": "Compare",
-  "shell-list.group.compareTitle": "Side by side: time, cost, changes, tests and each presentation"
+  "shell-list.group.compareTitle": "Side by side: time, cost, changes, tests and each presentation",
+  "shell-list.plan.after": "After “{title}” is done"
 }

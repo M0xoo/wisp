@@ -61,5 +61,14 @@ export function listPlan(row: unknown): Plan | undefined {
   const title = (task ? (p.title ?? (p.body?.prompt ?? '').split('\n')[0]) : p.text) ?? '';
   const cwd = p.body?.cwd ?? '';
   const project = cwd.split('/').filter(Boolean).pop();
-  return { id, kind: p.draft ? 'draft' : task ? 'task' : 'reminder', title, at: p.at ?? p.setAt ?? 0, ...(p.body?.agent && { agent: p.body.agent }), ...(project && { project }) };
+  const after = (p as { after?: { title?: string } }).after;
+  return {
+    id,
+    kind: p.draft ? 'draft' : task ? 'task' : 'reminder',
+    title,
+    at: p.at ?? p.setAt ?? 0,
+    ...(p.body?.agent && { agent: p.body.agent }),
+    ...(project && { project }),
+    ...(after && { after: after.title ?? '' }),
+  };
 }

@@ -5,8 +5,8 @@
 // Mark done, a follow-up, Rerun and Fork show their result before the peer answers; Ship it and a
 // restore show their control working; the panes and menus open in the same frame.
 
-import { For, Show, createMemo, createResource, createSignal, onCleanup, untrack, type JSX } from 'solid-js';
-import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, untrack, type JSX } from 'solid-js';
+import { entityKey, ownerOf, uuidv7, type EntityKey, type Json } from '@wisp/client';
 import { Answer, Button, Dialog, Inline, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, WorkingPanel, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
@@ -21,9 +21,10 @@ import { stopQuestion, type StopQuestion } from './stop-question.ts';
 import { noOutputLine } from './no-output.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { draftValue, replyDraft } from './drafts.ts';
+import { keep, placeOf, placesStore, scrollFor, type Place } from './place.ts';
 import { editorUrl } from '../editor.ts';
 import { resumeCommand } from './commands.ts';
-import { archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
+import { setSetting, archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
 import { answerContext, blockedOf } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
@@ -111,6 +112,44 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       .sort((a, b) => a.idx - b.idx),
   );
   // the reply being written is a draft (kind 5): kept across reloads and updates, per task (v1 F-task-32)
+  // each task keeps its place (v1 split.js keepPlace/backToPlace, F-task-17): written when it closes or the page hides,
+  // read once on opening it, after its turns are there
+  let bodyEl: HTMLElement | undefined;
+  const places = placesStore(shell.client);
+  const turnTops = (el: HTMLElement): { id: string; top: number }[] => {
+    const at = el.getBoundingClientRect().top - el.scrollTop;
+    return [...el.querySelectorAll<HTMLElement>('[data-turn]')].map((t) => ({ id: t.dataset['turn'] ?? '', top: t.getBoundingClientRect().top - at }));
+  };
+  const keepPlace = (): void => {
+    const el = bodyEl;
+    if (!el?.isConnected || !el.querySelector('[data-turn]')) return;
+    const p = placeOf(el, turnTops(el));
+    places.set((cur) => keep(cur as unknown as Record<string, Place>, key, p) as unknown as Json);
+  };
+  onCleanup(keepPlace);
+  const onHide = (): void => {
+    if (document.visibilityState === 'hidden') keepPlace();
+  };
+  addEventListener('pagehide', keepPlace);
+  document.addEventListener('visibilitychange', onHide);
+  onCleanup(() => {
+    removeEventListener('pagehide', keepPlace);
+    document.removeEventListener('visibilitychange', onHide);
+  });
+  let placed = false;
+  createEffect(() => {
+    if (placed || turns().length === 0) return;
+    placed = true;
+    // after a reload the kept places are still loading from disk
+    void places.ready.then(() => {
+      const p = (places.value() as unknown as Readonly<Record<string, Place>> | undefined)?.[key];
+      if (!p) return;
+      requestAnimationFrame(() => {
+        const el = bodyEl;
+        if (el) el.scrollTop = scrollFor(p, el, turnTops(el));
+      });
+    });
+  });
   const [rKey, rField] = replyDraft(key);
   const reply$ = useSignal(shell.client.drafts.get<string>(rKey, rField));
   const text = (): string => reply$() ?? '';
@@ -196,6 +235,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     set: (v) => (setText(v), menu.typed(v)),
     mode: { get: replyMode, set: (m) => void run(setMode, { id: key, mode: m }).catch(() => undefined) },
   });
+  // while it works, a follow-up waits behind the run when Settings → Follow-ups says Queue (v1 queued.js; else it steers)
+  const followSetting = useSignal(shell.client.entities.row<{ value?: unknown }>('setting', entityKey(peer, 'runtime.followUp')));
+  const queueOn = (): boolean => followSetting()?.value === 'queue';
+  const working = (): boolean => row()?.state === 'running' || row()?.state === 'waiting';
+  const queues = (): boolean => working() && queueOn();
   const send = (): void => {
     const v = menu.encode(text().trim());
     if (v) sent.set((cur) => remember(cur as readonly string[], v));
@@ -244,6 +288,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
         at,
         ...(attachments.length > 0 && { attachments }),
         ...(runOf() ? { run: runOf() as NonNullable<ReturnType<typeof runOf>> } : {}),
+        ...(queues() && { queue: true }),
       }).catch(() => {
         extra?.back();
         setText(v);
@@ -265,6 +310,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   // Take over (T, Open in <harness>): the task's conversation in its harness's own CLI, in shell-task's Terminal tab
   const takeOver = (): void => shell.navigate({ t: 'openSide', side: { kind: 'view', id: 'shell-task.term' as never } });
   /** a new task from this one (Rerun, Fork): its row and page show at once */
+  // Rerun… (v1 rerunDialog): the task's prompt, mode, harness and computer, editable, then a new task (F-task-43/44)
+  const openRerun = (agent?: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.rerun' as never, params: { id: key, ...(agent && { agent }) } } });
   const copy = (cmd: typeof rerun, agent?: string): void => {
     const newId = entityKey(peer, uuidv7());
     void run(cmd, { id: key, newId, at: Date.now(), ...(agent && { agent }) }).catch(() => undefined);
@@ -375,7 +422,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   };
   const onMore = (v: string): void => {
     if (v === 'transcript') setStepsOpen(!stepsOpen());
-    else if (v === 'rerun') copy(rerun);
+    else if (v === 'rerun') openRerun();
     else if (v === 'openIn') takeOver();
     else if (v === 'shell') side('shell');
     else if (v === 'fork') copy(fork);
@@ -436,7 +483,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       icon: 'rerun',
       label: t('shell.task.rerun'),
       title: t('shell.task.rerunTitle'),
-      act: { menu: { items: agentMenu(t, harnesses(), s.agent, false), onSelect: (a) => copy(rerun, a) } },
+      act: { menu: { items: agentMenu(t, harnesses(), s.agent, false), onSelect: (a) => openRerun(a) } },
     },
     {
       id: 'openIn',
@@ -526,6 +573,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
         return (
           <>
             <TaskBody
+              bodyRef={(el) => (bodyEl = el)}
               details={
                 <TaskDetails
                   harness={t('shell.task.harness', { name: h().name })}
@@ -582,6 +630,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       return (
                         <>
                           <TurnView
+                            id={turn.id}
                             prompt={sent.rest}
                             askNotes={sent.notes.map((c) => ({
                               n: c.n,
@@ -780,8 +829,16 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     }}
                     onSend={send}
                     onKey={replyKeys}
+                    {...(working() && {
+                      queue: {
+                        label: t('shell.reply.queue'),
+                        title: queueOn() ? t('shell.reply.queueOn', { name: h().name }) : t('shell.reply.queueOff', { name: h().name }),
+                        on: queueOn(),
+                        act: { onClick: () => void run(setSetting, { peer, key: 'runtime.followUp', value: queueOn() ? 'interrupt' : 'queue' }).catch(() => undefined) },
+                      },
+                    })}
                     suggest={menu.suggest()}
-                    onPaste={att.paste}
+                    onPaste={(e) => menu.paste(e) || att.paste(e)}
                     onFiles={att.add}
                     inputRef={(el) => (input = el)}
                     attach={t('shell.home.attach')}

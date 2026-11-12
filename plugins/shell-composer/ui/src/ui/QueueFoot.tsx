@@ -9,6 +9,7 @@ import { queueCancel, queueEdit, queueMerge, queueNow, queueOrder } from '../com
 import { envOf } from '../env.ts';
 import { KIND, type QueueItem, type Row } from '../types.ts';
 import { QueueList } from './QueueList.tsx';
+import { useShell as useShellContext } from '@wisp/shell';
 
 interface TaskBody {
   readonly queue?: readonly Row<QueueItem>[];
@@ -24,13 +25,17 @@ const quiet = (p: Promise<unknown>): void => {
 export default function QueueFoot(props: ExtensionProps): JSX.Element {
   const c = props.client;
   const env = envOf(c);
-  const key = (): EntityKey | undefined => props.id as EntityKey | undefined;
+  // the task the slot is for: its id, or the row it lends (as the other `shell.task:foot` extensions read it)
+  const key = (): EntityKey | undefined => (props.id ?? (props.session?.() as { id?: string } | undefined)?.id) as EntityKey | undefined;
   const row = createMemo(() => {
     const k = key();
     return k ? useSignal(c.entities.row<{ state?: string; agent?: string; body?: TaskBody }>(KIND.session, k)) : () => undefined;
   });
   const body = (): TaskBody => row()()?.body ?? {};
   const queue = (): readonly Row<QueueItem>[] => body().queue ?? [];
+  // the harness as it calls itself (v1: "after Claude Code finishes"), from the harness plugins' registrations
+  const harnesses = useSignal(useShellContext().harnesses());
+  const harnessName = (id: string): string => harnesses().find((h) => h.id === id)?.name ?? id;
   const [asking, setAsking] = createSignal<{ text: string; answer: (yes: boolean) => void } | undefined>();
   const confirm = (text: string): Promise<boolean> =>
     new Promise((resolve) =>
@@ -75,7 +80,7 @@ export default function QueueFoot(props: ExtensionProps): JSX.Element {
         queue={queue()}
         held={body().queueHeld === true}
         running={(row()()?.state ?? body().state) === 'running'}
-        name={row()()?.agent ?? body().agent ?? ''}
+        name={harnessName(row()()?.agent ?? body().agent ?? '')}
         confirm={confirm}
         refocus={() => undefined}
         actions={{

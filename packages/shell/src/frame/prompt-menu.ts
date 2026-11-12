@@ -59,6 +59,24 @@ export function itemsFor(sources: readonly PromptSourceDef[], m: MenuAt, where: 
   return out;
 }
 
+/**
+ * A paste that is only task ids (v1 mention-text.js pastedTasks: Copy task ID, then paste), each a task here: their
+ * mentions, in order, once each; else null and the box takes the text as it is. `title(id)`: the task's title, or
+ * undefined when there's no such task.
+ */
+export function pastedTasks(text: string, title: (id: string) => string | undefined): Mentioned[] | null {
+  const parts = text.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0 || parts.length > 10) return null;
+  const out: Mentioned[] = [];
+  for (const p of parts) {
+    const id = /^(?:wisp:)?([\w:-]{4,80})$/.exec(p)?.[1] ?? /#\/s\/([\w:-]{4,80})\/?$/.exec(p)?.[1];
+    const t = id ? title(id) : undefined;
+    if (!id || t === undefined) return null;
+    if (!out.some((m) => m.id === id)) out.push({ scheme: 'wisp', id, title: t });
+  }
+  return out;
+}
+
 export interface PromptMenu {
   readonly suggest: Accessor<PromptSuggest | undefined>;
   /** call from the box's input: what's typed and where the caret is */
@@ -67,6 +85,8 @@ export interface PromptMenu {
   readonly encode: (text: string) => string;
   /** after a send: the mentions go */
   readonly reset: () => void;
+  /** a paste: task ids become their mentions (true: taken) */
+  readonly paste: (e: ClipboardEvent) => boolean;
 }
 
 export function usePromptMenu(o: {
@@ -138,5 +158,23 @@ export function usePromptMenu(o: {
     },
     encode: (text) => encodeMentions(text, mentions()),
     reset: () => setMentions([]),
+    paste: (e) => {
+      const got = pastedTasks(e.clipboardData?.getData('text/plain') ?? '', (id) => {
+        const peer = (o.shell.client.plugin('shell') as { home: string }).home;
+        const key = id.includes(':') ? id : `${peer}:${id}`;
+        return o.shell.client.entities.peek<{ title?: string }>('session', key as never)?.title;
+      });
+      if (!got) return false;
+      e.preventDefault();
+      const el = o.input();
+      const text = o.text();
+      const from = el?.selectionStart ?? text.length;
+      const to = el?.selectionEnd ?? from;
+      const words = `${got.map((m) => `@${m.title}`).join(' ')} `;
+      setMentions([...mentions().filter((x) => !got.some((g) => g.title === x.title)), ...got]);
+      o.setText(`${text.slice(0, from)}${words}${text.slice(to)}`);
+      queueMicrotask(() => el?.setSelectionRange(from + words.length, from + words.length));
+      return true;
+    },
   };
 }

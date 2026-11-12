@@ -341,6 +341,8 @@ export interface LaunchPick {
   readonly effort?: string;
   readonly mode?: string;
   readonly goal?: unknown;
+  /** a start time picked on New task's clock (ms): a source may schedule instead of starting it. Additive (2026-11-12). */
+  readonly at?: number;
 }
 
 /** What a prompt box's @ or / menu offers, from a plugin (shell-composer: tasks, crew, My Stuff, the commands). */

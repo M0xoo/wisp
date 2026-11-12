@@ -5,7 +5,7 @@
 
 import type { AutoPreview } from './auto.ts';
 import type { ColdOut } from './cold.ts';
-import { defineCommand, entityKey, type EntityKey, type PeerId } from '@wisp/client';
+import { defineCommand, entityKey, type EntityKey, type LocalOp, type PeerId } from '@wisp/client';
 
 /** the bare id the peer knows a task by: nav and rows name it by its entity key (`<peer>:<id>`) */
 const bare = (id: string): string => id.slice(id.indexOf(':') + 1);
@@ -66,6 +66,10 @@ export interface CreateArgs {
   readonly shows?: string;
   /** one of several runs of this ask (the launcher's vs): they share it, as `wisp --compare` does (runtime's slot) */
   readonly group?: string;
+  /** a rerun (ADR-0027 lineage): the task it reran, and that task's extra folders and steps */
+  readonly lineage?: { readonly rerunOf: string };
+  readonly dirs?: readonly string[];
+  readonly steps?: readonly string[];
 }
 
 /** A file sent with a prompt (runtime's Attachment): what stuff's upload answered. */
@@ -133,11 +137,34 @@ export const followUp = defineCommand<{
   at: number;
   attachments?: readonly Attachment[];
   run?: { agent?: string; model?: string; effort?: string };
+  /** while the task works and Settings → Follow-ups says Queue (v1 queued.js): it waits behind the run */
+  queue?: boolean;
 }>({
   id: 'runtime.followUp',
   owner: (a) => a.id,
   wire: (a) => ({ ...a, id: bare(a.id) }),
-  optimistic: (_base, a) => [
+  optimistic: (base, a) => (a.queue ? queuedOps(base.peek<SessionRow>(SESSION, a.id as EntityKey), a) : startedOps(a)),
+});
+
+/** A queued follow-up shows in the queue over the reply box at once, under its turn id (the peer's item id). */
+export function queuedOps(s: SessionRow | undefined, a: { id: string; text: string; turnId: string; at: number; attachments?: readonly Attachment[] }): LocalOp[] {
+  const queue = ((s?.body as { queue?: readonly unknown[] } | undefined)?.queue ?? []) as readonly unknown[];
+  const item = { id: a.turnId, text: a.text, at: a.at, ...(a.attachments?.length && { attachments: a.attachments }) };
+  return [
+    {
+      e: SESSION,
+      id: a.id as EntityKey,
+      op: 'patch',
+      ops: [
+        { op: 'add', path: '/body/queue', value: [...queue, item] },
+        { op: 'replace', path: '/summary/queued', value: queue.length + 1 },
+      ],
+    },
+  ];
+}
+
+function startedOps(a: { id: string; text: string; turnId: string; idx: number; at: number }): LocalOp[] {
+  return [
     {
       e: SESSION,
       id: a.id as EntityKey,
@@ -153,8 +180,8 @@ export const followUp = defineCommand<{
       op: 'upsert',
       v: { id: a.turnId, session_id: a.id, idx: a.idx, status: 'running', started_at: a.at, ended_at: null, prompt: a.text, answer: '', body: { prompt: a.text, status: 'running' } } as never,
     },
-  ],
-});
+  ];
+}
 
 /** Opening a task reads it (v1 feed.js): the row loses its bold at once. */
 export const markRead = defineCommand<{ id: string; unread: boolean }>({
@@ -315,4 +342,13 @@ export const searchTasks = defineCommand<{ peer: string; q: string; limit?: numb
   wire: ({ peer: _peer, ...a }) => a,
   optimistic: 'none',
   pending: 'Search',
+});
+
+/** A task's spec (ADR-0027): what Rerun… starts from. */
+export const specOf = defineCommand<{ id: string }, { prompt: string; steps?: string[]; agent?: string; model?: string; effort?: string; mode?: string; cwd?: string; dirs?: string[] }>({
+  id: 'runtime.spec',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id) }),
+  optimistic: 'none',
+  pending: 'Rerun',
 });

@@ -69,7 +69,7 @@ export function rowMenuItems(ctx: ShellContext): ExtensionDef[] {
       'shell.task.rerun',
       'rerun',
       10,
-      (k) => copy(rerun, k),
+      (k) => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.rerun' as never, params: { id: k } } }),
       (s) => !!s && !s.sideOf && !s.pending,
       '⇧R',
     ),

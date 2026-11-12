@@ -1,0 +1,186 @@
+/* ThinkingSlider (v1 launcher.css .pk-think, .pk-slider, .pk-fill, .pk-mote, .pk-stop, .pk-knob): value for value. */
+@layer kit {
+  [data-kit='think'] {
+    --pad: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  [data-kit='think-head'] {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    padding: 0 2px;
+  }
+  [data-kit='think-title'] {
+    order: -2;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  [data-kit='think-hint'] {
+    order: -1;
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-kit='think-value'] {
+    margin-left: auto;
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--accent-ink);
+    white-space: nowrap;
+  }
+  [data-kit='think'][data-dflt] [data-kit='think-value'] {
+    color: var(--ink-2);
+  }
+  [data-kit='think-track'] {
+    position: relative;
+    display: block;
+    height: 26px;
+    border-radius: 99px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    touch-action: none;
+    container-type: inline-size;
+    transition: border-color 0.12s var(--ease);
+  }
+  [data-kit='think-track']:hover {
+    border-color: var(--line-2);
+  }
+  [data-kit='think-track']:focus-visible {
+    outline: 0;
+  }
+  [data-kit='think-track']:focus-visible > [data-kit='think-knob'] {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  [data-kit='think-fill'] {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 3%, transparent), color-mix(in srgb, var(--accent) 20%, transparent));
+    clip-path: inset(0 calc((100% - var(--pad) * 2) * (1 - var(--f))) 0 0 round 99px);
+    transition:
+      clip-path 0.28s var(--ease),
+      opacity 0.2s var(--ease);
+  }
+  [data-kit='think'][data-dflt] [data-kit='think-fill'] {
+    opacity: 0;
+  }
+  [data-kit='think-mote'] {
+    --mo: calc(0.35 + 0.55 * var(--heat));
+    position: absolute;
+    left: calc(var(--pad) + (100% - var(--pad) * 2) * var(--x));
+    top: calc(30% + var(--y) * 18%);
+    width: 0.15625rem;
+    height: 0.15625rem;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    animation: think-wisp calc(2.6s - 1.5s * var(--heat)) var(--ease) var(--d) infinite;
+  }
+  [data-kit='think-stop'] {
+    position: absolute;
+    top: 50%;
+    left: calc(var(--pad) + (100% - var(--pad) * 2) * var(--at));
+    width: 4px;
+    height: 4px;
+    margin: -2px 0 0 -2px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--ink) 18%, transparent);
+    pointer-events: none;
+    transition: background 0.2s var(--ease);
+  }
+  [data-kit='think-stop'][data-past] {
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  [data-kit='think-knob'] {
+    position: absolute;
+    top: 50%;
+    left: var(--pad);
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+    translate: calc((100cqw - var(--pad) * 2) * var(--f)) 0;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--line-2);
+    box-shadow: var(--shadow-1);
+    pointer-events: none;
+    transition:
+      translate 0.28s var(--ease),
+      scale 0.15s var(--ease);
+  }
+  [data-kit='think-knob']::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    border-radius: 50%;
+    width: calc(6px + 6px * var(--heat));
+    height: calc(6px + 6px * var(--heat));
+    background: var(--accent);
+    transition:
+      width 0.28s var(--ease),
+      height 0.28s var(--ease),
+      background 0.2s var(--ease);
+  }
+  [data-kit='think'][data-dflt] [data-kit='think-knob']::after {
+    width: 5px;
+    height: 5px;
+    background: var(--faint);
+  }
+  [data-kit='think'][data-drag] [data-kit='think-knob'] {
+    scale: 1.1;
+  }
+  [data-kit='think'][data-drag] [data-kit='think-knob'],
+  [data-kit='think'][data-drag] [data-kit='think-fill'] {
+    transition-property: scale, opacity;
+  }
+  @media (pointer: coarse) {
+    [data-kit='think'] {
+      --pad: 17px;
+    }
+    [data-kit='think-track'] {
+      height: 34px;
+    }
+    [data-kit='think-knob'] {
+      width: 28px;
+      height: 28px;
+      margin: -14px 0 0 -14px;
+    }
+    [data-kit='think-knob']::after {
+      width: calc(8px + 6px * var(--heat));
+      height: calc(8px + 6px * var(--heat));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-kit='think-mote'] {
+      animation: none;
+      opacity: var(--mo);
+    }
+  }
+  @keyframes think-wisp {
+    0% {
+      opacity: 0;
+      transform: translate(0, 3px) scale(0.6);
+    }
+    35% {
+      opacity: var(--mo);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(2px, -7px) scale(1);
+    }
+  }
+}

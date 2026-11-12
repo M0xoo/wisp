@@ -94,6 +94,12 @@ function appItems(ctx: ShellContext): PaletteItem[] {
 }
 
 /** Tasks: the title, then project · state · age, led by the project's dot (v1 taskSub), newest first. */
+/** A task's topics (runtime's `tags`, set by wisp_tag), lower case: on the row's body, or the summary. */
+export const tagsOf = (s: SessionRow): string[] => {
+  const raw = (s.body as { tags?: unknown } | undefined)?.tags ?? (s.summary as { tags?: unknown }).tags;
+  return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === 'string' && t !== '').map((t) => t.toLowerCase()) : [];
+};
+
 function taskItems(ctx: ShellContext): PaletteItem[] {
   const g = 'shell.palette.group.tasks';
   const rows = ctx.client.entities.list<SessionRow>(SESSION)();
@@ -113,6 +119,8 @@ function taskItems(ctx: ShellContext): PaletteItem[] {
       sub: [name, statusOf(s, ctx.t).label, shortAgo(s.updated_at, now)].filter(Boolean).join(' · '),
       color: color || 'slate',
       keywords: [sum['preview'], sum['live'], s.agent].filter((x) => typeof x === 'string' && x).join(' '),
+      // what agents tagged it with (wisp_tag): a topic in ⌘K ("#auth", or the word) finds it (v1 F-task-21)
+      ...(tagsOf(s).length > 0 && { tags: tagsOf(s) }),
       // live and waiting work floats up while typing (v1 rank)
       rank: (s.state === 'waiting' ? 3 : 0) + (s.unread ? 2 : 0) + (s.state === 'running' ? 1 : 0),
       at: s.updated_at,
@@ -345,6 +353,16 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
         title: () => ctx.t('shell.projects.title'),
       }),
       // the runs of one ask side by side (v1 compare.js compareView); a task's Compare runs opens it
+      // Rerun… (v1 rerunDialog): the task's spec to edit, then a new task from it
+      defineView({
+        kind: 'shell.rerun',
+        slot: 'overlay',
+        overlay: 'dialog',
+        part: 'rerun.modal',
+        parse: (p) => ({ id: String((p as { id?: unknown } | null)?.id ?? ''), ...(typeof (p as { agent?: unknown } | null)?.agent === 'string' && { agent: (p as { agent: string }).agent }) }),
+        component: lazy(() => import('./frame/Rerun.tsx')),
+        title: () => ctx.t('shell.rerun.title'),
+      }),
       defineView({
         kind: 'shell.compare',
         slot: 'overlay',

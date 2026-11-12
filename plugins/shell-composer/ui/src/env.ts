@@ -67,7 +67,8 @@ const isStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x)
 
 function make(client: PluginClient): Env {
   const settings = client.settings(DECLS);
-  const sent = client.defineStore<string[]>({ id: `${PLUGIN}.sent`, version: 1, defaults: [], check: (v) => (isStrings(v) ? v : undefined), persist: true });
+  // a store id starts with the client's own name (`shell-composer.`), not the plugin id: `wisp.shell-composer.sent` was refused, and the env never built
+  const sent = client.defineStore<string[]>({ id: `${client.id}.sent`, version: 1, defaults: [], check: (v) => (isStrings(v) ? v : undefined), persist: true });
   const d = client.drafts;
   const get = <T extends Json>(entity: string, field: string): Readable<T | undefined> => d.get<T>(entity, field);
   return {

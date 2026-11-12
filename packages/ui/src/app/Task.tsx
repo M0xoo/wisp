@@ -205,6 +205,8 @@ export interface TrailItem {
 }
 
 export interface TurnViewProps {
+  /** the turn's id (`data-turn`): a task's kept place is held by the turn at the top (v1 split.js). Additive (2026-11-12). */
+  readonly id?: string;
   readonly prompt: string;
   /** the comments the prompt went out with, as cards over its words (v1 comments.js sentComments). Additive (2026-11-12). */
   readonly askNotes?: readonly { readonly n: number; readonly on: string; readonly removed?: boolean; readonly removedLabel?: string; readonly say: string }[];
@@ -240,7 +242,7 @@ export interface TurnViewProps {
 /** v1 .turn: the ask, the answer's brief, and the trail under it. */
 export function TurnView(props: TurnViewProps): JSX.Element {
   return (
-    <article data-kit="turn">
+    <article data-kit="turn" data-turn={props.id}>
       <div data-kit="ask">
         <Show when={(props.askNotes ?? []).length > 0}>
           <ol data-kit="ask-notes" data-part="turn.notes">
@@ -455,6 +457,8 @@ export interface ReplyBoxProps {
   readonly goalLine?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void; readonly ref?: (el: HTMLInputElement) => void };
   readonly later: string;
   readonly laterAct?: Act;
+  /** v1 .c-queue: while the task works, follow-ups queue (on) or interrupt it (off); its own switch look */
+  readonly queue?: { readonly label: string; readonly title: string; readonly on: boolean; readonly act: Act } | undefined;
   readonly send: string;
   readonly sendAct?: Act;
   /** what's attached and when it goes: chips over the bar */
@@ -620,6 +624,20 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
             </span>
           )}
         </Show>
+        <Show when={props.queue}>
+          {(q) => (
+            <WithAct
+              act={q().act}
+              render={(trigger) => (
+                <button type="button" {...trigger()} data-kit="c-queue" data-part="composer.queueSwitch" data-on={flag(q().on)} aria-pressed={q().on} title={q().title}>
+                  <Icon name="queue" />
+                  <span data-text="control">{q().label}</span>
+                  <i data-kit="c-switch" />
+                </button>
+              )}
+            />
+          )}
+        </Show>
         <WithAct
           act={props.laterAct}
           render={(trigger) => (
@@ -687,7 +705,13 @@ function holdMedia(body: HTMLElement): () => void {
   };
 }
 
-export function TaskBody(props: { readonly details?: JSX.Element; readonly turns: JSX.Element; readonly dock: JSX.Element; readonly wide?: boolean }): JSX.Element {
+export function TaskBody(props: {
+  readonly details?: JSX.Element;
+  readonly turns: JSX.Element;
+  readonly dock: JSX.Element;
+  readonly wide?: boolean;
+  /** the scroller (a task's kept place) */ readonly bodyRef?: (el: HTMLElement) => void;
+}): JSX.Element {
   let stop: (() => void) | undefined;
   onCleanup(() => stop?.());
   return (
@@ -695,6 +719,7 @@ export function TaskBody(props: { readonly details?: JSX.Element; readonly turns
       ref={(el) => {
         stop?.();
         stop = typeof ResizeObserver === 'undefined' ? undefined : holdMedia(el);
+        props.bodyRef?.(el);
       }}
       data-kit="it-body"
       data-part="split.body card.body"

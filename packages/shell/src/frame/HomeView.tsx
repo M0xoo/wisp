@@ -9,7 +9,7 @@ import { usePromptMenu } from './prompt-menu.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { useAttachments } from './attach.ts';
 import { Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
-import { entityKey, uuidv7, type EntityKey, type Json } from '@wisp/client';
+import { entityKey, uuidv7, type EntityKey, type Json, type PeerId } from '@wisp/client';
 import { AutoPop, KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { Slot, usePluginClient } from '../slot.tsx';
@@ -22,6 +22,7 @@ import { autoPick, neverRule, overrideOf, popOf, pct, PREVIEW_DEBOUNCE, shortLab
 import { defaultHarness, harnessOf } from './harness.ts';
 import { MAX_RUNNERS, newGroup, nextRun } from './compare.ts';
 import { firstRunOf, firstRunTools, launcherFull } from './first-run.ts';
+import { whereItems } from './where.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { draftValue, launcherDraft } from './drafts.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
@@ -38,6 +39,10 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const shell = useShell();
   const t = shell.t;
   const home = usePluginClient('shell').home;
+  // Run on (v1 launch.where): this computer, or another one you added (machines); only one at a time (F-comp-10)
+  const peerIds = useSignal(shell.client.peers.list());
+  const [runOn, setRunOn] = createSignal<string>(home);
+  const target = (): PeerId => (peerIds().includes(runOn() as PeerId) ? runOn() : home) as PeerId;
   const sessions = useSignal(shell.client.entities.list<SessionRow>(SESSION));
   const { list: projects, reorder } = useProjects(shell, usePluginClient('shell').home);
   const settings = useSignal(shell.client.entities.list<SettingRow>('setting'));
@@ -183,10 +188,19 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     }
     menu.reset();
     const p = project();
-    const id = entityKey(home, uuidv7());
+    const id = entityKey(target(), uuidv7());
     const g = goal();
     // a plugin's prompt source may take it (`/sandbox …`: a sandbox of its own), with what New task picked
-    const launch = { ...(p && { cwd: p.path }), agent: agent(), mode: mode(), ...(model() && { model: model() }), ...(effort() && { effort: effort() }), ...(g && { goal: g }) };
+    const w = when();
+    const launch = {
+      ...(p && { cwd: p.path }),
+      agent: agent(),
+      mode: mode(),
+      ...(model() && { model: model() }),
+      ...(effort() && { effort: effort() }),
+      ...(g && { goal: g }),
+      ...(w && { at: whenAt(w, now()) }),
+    };
     const pc = shell.client.plugin('shell');
     if (
       files().length === 0 &&
@@ -196,6 +210,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     ) {
       setText('');
       setGoal(undefined);
+      setWhen(undefined);
       return;
     }
     // the row and the page at once (optimistic), the box cleared; a refusal puts the text back. With files, the
@@ -214,7 +229,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     const go = (attachments: readonly Attachment[]): void => {
       shell.client.commands
         .run(create, {
-          peer: home,
+          peer: target(),
           id,
           prompt,
           ...runner,
@@ -233,8 +248,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
       for (const a of extra) {
         shell.client.commands
           .run(create, {
-            peer: home,
-            id: entityKey(home, uuidv7()),
+            peer: target(),
+            id: entityKey(target(), uuidv7()),
             prompt,
             agent: a,
             mode: mode(),
@@ -309,7 +324,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         onKey={onKey}
         firstRun={firstRun()}
         suggest={menu.suggest()}
-        onPaste={att.paste}
+        onPaste={(e) => menu.paste(e) || att.paste(e)}
         onFiles={att.add}
         inputRef={(el) => (input = el)}
         mode={{ label: t(`shell.mode.${mode()}`), title: t('shell.home.fullAutoTitle'), icon: MODE_ICON[mode()], act: { menu: { items: modeMenu(t, mode()), onSelect: (v) => setMode(v as Mode) } } }}
@@ -348,16 +363,18 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         }}
         lead={firstRunTools(firstRun(), 'lead', [
           tool('attach', 'launcher.attach', 'clip', t('shell.home.attach'), t('shell.home.attach'), { act: { onClick: attach, pending: picking() } }),
-          tool('where', 'launcher.where', 'laptop', t('shell.home.where'), t('shell.home.where'), {
-            text: false,
+          tool('where', 'launcher.where', target() === home ? 'laptop' : 'server', target() === home ? t('shell.home.where') : shell.client.peers.name(target()), t('shell.home.where'), {
+            text: target() !== home,
+            ...(target() !== home && { on: true }),
             act: {
               menu: {
                 items: [
-                  { value: 'here', label: t('shell.card.thisComputer'), icon: 'laptop', checked: true },
+                  ...whereItems(peerIds(), target(), home, (p) => shell.client.peers.name(p as PeerId), t),
                   { kind: 'separator' },
                   { value: 'add', label: t('shell.home.addMachine'), icon: 'plus' },
                 ],
-                onSelect: (v) => v === 'add' && view('machine.this'),
+                // a pick is the one place (the menu closes on it, as every menu does)
+                onSelect: (v) => (v === 'add' ? view('machine.this') : setRunOn(v)),
               },
             },
           }),
@@ -479,7 +496,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
       <RunnerPicker
         open={picker()}
         onOpenChange={setPicker}
-        peer={home}
+        peer={target()}
         value={{ agent: agent() === 'auto' ? auto() : agent(), model: model(), effort: effort() }}
         onChange={(r) => {
           setAgent(r.agent);

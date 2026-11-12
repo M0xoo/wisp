@@ -37,3 +37,13 @@ test('a compare task is one card: its head and a row per run, inside its section
     { part: 'list.compare', from: 2, to: 4 },
   ]);
 });
+
+test('an /after plan says what it waits for, as v1 did_v1_after_row', async () => {
+  const { listPlan } = await import('../src/model/wire.ts');
+  expect(listPlan({ id: 'p:1', body: { id: 'p:1', kind: 'task', setAt: 5, after: { id: 'p:s1', title: 'Fix login' }, body: { prompt: 'write the notes' } } })).toMatchObject({
+    kind: 'task',
+    title: 'write the notes',
+    after: 'Fix login',
+  });
+  expect(listPlan({ id: 'p:2', body: { id: 'p:2', kind: 'task', setAt: 5, draft: true, body: { prompt: 'tidy' } } })).not.toHaveProperty('after');
+});

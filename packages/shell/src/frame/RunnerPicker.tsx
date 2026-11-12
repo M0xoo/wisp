@@ -3,9 +3,12 @@
 // closes it. Runs on what `runtime.agents` says (asked once the box shows).
 import { Show, createMemo, createResource, createSignal, type JSX } from 'solid-js';
 import { defineCommand } from '@wisp/client';
-import { Dialog, Grid, Input, RadioGroup, Select, Stack, Text, useSignal } from '@wisp/ui';
+import { Dialog, Grid, Input, RadioGroup, Stack, Text, ThinkingSlider, useSignal } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { effortsFor, harnessesFor, modelsFor, type AgentOffer, type Runner } from './runner.ts';
+
+/** v1 effortLabel: "X-High", else the level capitalised */
+const levelLabel = (e: string): string => (e === 'xhigh' ? 'X-High' : e.charAt(0).toUpperCase() + e.slice(1));
 
 const agentsOf = defineCommand<{ peer: string }, AgentOffer[]>({ id: 'runtime.agents', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the harness list' });
 
@@ -64,15 +67,15 @@ export function RunnerPicker(props: {
           </Show>
         </Grid>
         <Show when={efforts().length > 0}>
-          <Text size="sm" weight="medium">
-            {t('shell.runner.thinking')}
-          </Text>
-          <Select
-            aria-label={t('shell.runner.thinking')}
-            size="sm"
-            items={[{ value: '', label: t('shell.runner.default') }, ...efforts().map((e) => ({ value: e, label: e }))]}
+          {/* v1 runner-picker.js: Thinking is a slider from Default to the harness's top level */}
+          <ThinkingSlider
+            heading={t('shell.runner.thinking')}
+            stops={['', ...efforts()]}
             value={props.value.effort}
             onChange={(effort) => props.onChange({ ...props.value, effort })}
+            label={(e) => (e ? levelLabel(e) : t('shell.runner.default'))}
+            hint={(e) => t(`shell.runner.hint.${e || 'default'}`)}
+            aria={{ label: t('shell.runner.thinkingLevel'), valueText: (e) => t('shell.runner.thinkingIs', { level: e ? levelLabel(e) : t('shell.runner.default') }) }}
           />
         </Show>
       </Stack>
