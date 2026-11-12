@@ -93,7 +93,8 @@ pub fn terminals_here(l: &Lookups<'_>) -> Vec<TerminalApp> {
 
 pub const CMUX_APP: &str = "/Applications/cmux.app";
 pub const MACOS_WEZTERM: &str = "/Applications/WezTerm.app/Contents/MacOS/wezterm";
-const LINUX_ORDER: &[&str] = &[
+/// Linux terminals in the order auto picks them (each looked up on PATH).
+pub const LINUX_ORDER: &[&str] = &[
     "ghostty",
     "kitty",
     "wezterm",

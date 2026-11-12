@@ -47,6 +47,11 @@
         "readOnly": true
       },
       {
+        "id": "terminal.app.open",
+        "title": "Open a folder (and a command) in the terminal app Settings names",
+        "uiOnly": "the side panel's place menu and Take over in an app; an agent already has a shell"
+      },
+      {
         "id": "terminal.run.start",
         "title": "Run the task's app for its Preview",
         "uiOnly": "the side panel's Preview; an agent runs the app in its own shell"

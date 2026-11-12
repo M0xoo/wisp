@@ -2,8 +2,10 @@
 // the pane. Changes: every file the work changed since it left its base, committed or not, from git
 // (`git.changes`, the worktree's base, else HEAD); a folder that isn't a repo shows the turns' own edits. PR
 // (PrPane.tsx, `ship.details`) and Shell (ShellPane.tsx, wisp.terminal).
-import { Match, Show, Switch, type JSX } from 'solid-js';
-import { Box, IconButton, Icon, Inline, Menu, Stack, Tabs, Text } from '@wisp/ui';
+import { Match, Show, Switch, createResource, type JSX } from 'solid-js';
+import { defineCommand, entityKey, type EntityKey } from '@wisp/client';
+import { Box, IconButton, Icon, Inline, Menu, Stack, Tabs, Text, useSignal } from '@wisp/ui';
+import { editorUrl } from '../editor.ts';
 import { TERM_VIEW, isTui, type SidePane } from '../open-task.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
@@ -12,6 +14,24 @@ import { ShellPane } from './ShellPane.tsx';
 import { ChangesPane } from './ChangesPane.tsx';
 import { FilePane } from './FilePane.tsx';
 import { PreviewPane } from './PreviewPane.tsx';
+
+const bare = (k: string): string => k.slice(k.indexOf(':') + 1);
+/** whether a terminal app can open here for this page (wisp.terminal) */
+const shellInfo = defineCommand<{ key: EntityKey; id: string }, { app: boolean }>({
+  id: 'terminal.shell.info',
+  owner: (a) => a.key,
+  wire: (a) => ({ id: a.id }),
+  optimistic: 'none',
+  pending: 'the place menu',
+});
+/** v1 POST /sessions/:id/open-shell: the folder in the terminal app Settings names */
+const openApp = defineCommand<{ key: EntityKey; cwd: string }, { ok: boolean }>({
+  id: 'terminal.app.open',
+  owner: (a) => a.key,
+  wire: (a) => ({ cwd: a.cwd, argv: [] }),
+  optimistic: 'none',
+  pending: 'Open in terminal app',
+});
 
 const PANES: readonly SidePane[] = ['changes', 'pr', 'shell', 'preview'];
 
@@ -32,15 +52,29 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
     const dir = r?.ext?.['wisp.worktrees']?.path ?? sum.worktree?.path ?? r?.cwd ?? '';
     return { where: sum.machine?.name ?? t('shell-task.side.here'), remote: !!sum.machine, branch: sum.worktree?.branch ?? sum.branch ?? '', dirty: sum.toShip?.dirty ?? 0, dir };
   };
-  // the place row's ⋯ (v1 panel.js placeMenu): copy where the work is (v1's Open in editor / terminal app need a host
-  // command v2 doesn't have yet: terminal.app.open is declared, not served)
-  const placeItems = (pl: { branch: string; dir: string }) => [
+  // the place row's ⋯ (v1 panel.js placeMenu): copy where the work is, open it in the editor Settings names (its URL
+  // scheme), or in the terminal app (wisp.terminal's terminal.app.open; only where one can open: this computer's desktop)
+  const editor = useSignal(task.client.entities.row<{ value?: unknown }>('setting', entityKey(task.client.home, 'settings.editor')));
+  const [app] = createResource(() =>
+    task.client.run(shellInfo, { key: task.key as EntityKey, id: bare(task.key) }).then(
+      (i) => i.app,
+      () => false,
+    ),
+  );
+  const placeItems = (pl: { branch: string; dir: string; remote: boolean }) => [
     ...(pl.dir ? [{ value: 'path', label: t('shell-task.side.copyPath'), icon: 'copy' as const }] : []),
     ...(pl.branch ? [{ value: 'branch', label: t('shell-task.side.copyBranch'), icon: 'branch' as const }] : []),
+    ...(pl.dir && !pl.remote && editorUrl(String(editor()?.value ?? ''), pl.dir) ? [{ value: 'editor', label: t('shell-task.side.openEditor'), icon: 'folder' as const }] : []),
+    ...(pl.dir && !pl.remote && app() ? [{ value: 'app', label: t('shell-task.side.openApp'), icon: 'terminal' as const }] : []),
   ];
   const onPlace = (pl: { branch: string; dir: string }, v: string): void => {
     if (v === 'path') void shell.platform.copy(pl.dir);
     if (v === 'branch') void shell.platform.copy(pl.branch);
+    if (v === 'editor') {
+      const url = editorUrl(String(editor()?.value ?? ''), pl.dir);
+      if (url) shell.platform.openExternal(url);
+    }
+    if (v === 'app') void task.client.run(openApp, { key: task.key as EntityKey, cwd: pl.dir }).catch(() => undefined);
   };
   const open = (pane: string): void => {
     if (pane === 'changes' || pane === 'pr' || pane === 'shell' || pane === 'preview') shell.navigate({ t: 'openSide', side: { kind: pane, id: task.key as never } });

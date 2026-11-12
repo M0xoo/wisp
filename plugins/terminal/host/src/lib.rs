@@ -65,6 +65,52 @@ async fn run_info(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, id: &str) -
     Ok(wisp_terminal_api::RunInfo { open: r.live(TermKind::Run, id), port: wisp_terminal_core::run::port_for(id), dir, guess })
 }
 
+/// Opens `argv` (a login shell when empty) in `cwd` in the terminal app Settings names (v1 POST /sessions/:id/open-shell,
+/// routes/workspace.js openTerminal): the platform's plan from `wisp_terminal_core::plan`, each program started on its
+/// own (never killed with wisp). Refused where no desktop is here: through a proxy, on a wisp Grid box, headless Linux.
+async fn open_app(ctx: &Ctx, a: &c::OpenAppArgs) -> Result<c::Done> {
+    use wisp_terminal_core::apps;
+    let proc = ctx.service::<Proc>()?.as_ref().clone();
+    let platform = apps::platform_name(std::env::consts::OS);
+    let mut found: Vec<String> = Vec::new();
+    for bin in apps::LINUX_ORDER.iter().copied().chain(["wt", "cmux"]) {
+        if proc.which(bin, None).await.is_some() {
+            found.push(bin.to_owned());
+        }
+    }
+    let terminal = apps::chosen_app(ctx.setting("terminal").and_then(|v| v.as_str().map(str::to_owned)).as_deref());
+    let custom = ctx.setting("terminal.command").and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
+    let launches = plan_here(platform, &found, a, &terminal, &custom)?;
+    let mut waited = 0;
+    for x in launches {
+        if x.after_ms > waited {
+            tokio::time::sleep(std::time::Duration::from_millis(x.after_ms - waited)).await;
+            waited = x.after_ms;
+        }
+        let opts = wisp_proc::SpawnOpts { cwd: Some(x.cwd.clone().into()), verbatim: x.verbatim, ..wisp_proc::SpawnOpts::default() };
+        proc.spawn_detached(&x.bin, &x.args, opts).map_err(|e| WireError::invalid(format!("Couldn't open {terminal}: {e}")))?;
+    }
+    Ok(c::Done { ok: true })
+}
+
+/// The programs to start (sync: the lookups are plain closures, not held across an await).
+fn plan_here(platform: &str, found: &[String], a: &c::OpenAppArgs, terminal: &str, custom: &str) -> Result<Vec<wisp_terminal_core::plan::Launch>> {
+    use wisp_terminal_core::apps;
+    let env = |k: &str| std::env::var(k).ok();
+    let has = |b: &str| found.iter().any(|f| f == b);
+    let exists = |p: &str| std::path::Path::new(p).exists();
+    let l = apps::Lookups { platform, env: &env, has: &has, exists: &exists };
+    if a.via_proxy || !apps::app_here(&l, a.via_proxy) {
+        return Err(WireError::conflict("No terminal app on this computer for you here: open the Shell tab instead."));
+    }
+    if a.cwd.is_empty() || !std::path::Path::new(&a.cwd).is_dir() {
+        return Err(WireError::invalid("That folder isn't on this computer."));
+    }
+    let argv = if a.argv.is_empty() { wisp_terminal_core::folder::shell_argv(std::env::var("SHELL").ok().as_deref()) } else { a.argv.clone() };
+    let plan = wisp_terminal_core::plan::terminal_plan(wisp_terminal_core::plan::PlanArgs { cwd: &a.cwd, argv: &argv, terminal, custom }, &l).map_err(|e| WireError::invalid(e.to_string()))?;
+    Ok(wisp_terminal_core::plan::schedule(&plan, &a.cwd))
+}
+
 /// Runs the task's app in its folder on a PTY, `PORT` set (v1 POST /sessions/:id/run).
 async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, a: &c::RunStartArgs) -> Result<wisp_terminal_api::RunStarted> {
     let port = wisp_terminal_core::run::port_for(&a.id);
@@ -234,6 +280,7 @@ impl Plugin for TerminalPlugin {
             let shell = std::env::var("SHELL").ok();
             Ok(ShellInfo { supported: !cfg!(windows), open: r.live(TermKind::Shell, &a.id), app: !a.via_proxy && cfg!(target_os = "macos"), name: wisp_terminal_core::folder::shell_name(shell.as_deref()) })
         });
+        s.command::<c::OpenApp, _, _>(|ctx, _call, a| async move { open_app(&ctx, &a).await });
         on!(s, slot, c::RunStart, |r, ctx, call, a| start_run(&ctx, &call, &r, &a).await);
         on!(s, slot, c::RunInfoOf, |r, ctx, call, a| run_info(&ctx, &call, &r, &a.id).await);
         s.command::<c::Apps, _, _>(|_ctx, _call, _a| async move { Ok(apps_here(std::env::consts::OS, &|k| std::env::var(k).ok())) });
@@ -263,6 +310,21 @@ mod tests {
         assert_eq!(win.default_terminal, "auto");
         let grid = apps_here("linux", &|k| (k == "WISP_GRID_URL").then(|| "https://grid.example".to_owned()));
         assert_eq!(grid.terminals.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["wisp"]);
+    }
+
+    #[test]
+    fn open_in_terminal_app_plans_the_chosen_app_in_the_folder_and_refuses_a_missing_one_or_a_proxy() {
+        let dir = std::env::temp_dir();
+        let cwd = dir.to_string_lossy().into_owned();
+        let a = c::OpenAppArgs { cwd: cwd.clone(), argv: vec!["claude".into(), "--resume".into(), "x1".into()], via_proxy: false };
+        let got = plan_here("darwin", &[], &a, "terminal", "").unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].bin, "osascript");
+        assert!(got[0].args[1].contains("tell application \"Terminal\"") && got[0].args[1].contains("'claude' '--resume' 'x1'"), "{:?}", got[0].args);
+        assert!(plan_here("darwin", &[], &c::OpenAppArgs { via_proxy: true, ..a.clone() }, "terminal", "").is_err(), "through a proxy there's no app for you");
+        assert!(plan_here("darwin", &[], &c::OpenAppArgs { cwd: format!("{cwd}/no-such-folder-wisp"), ..a.clone() }, "terminal", "").is_err());
+        let empty = plan_here("darwin", &[], &c::OpenAppArgs { argv: vec![], ..a }, "terminal", "").unwrap();
+        assert!(empty[0].args[1].contains("'-l'"), "no command: a login shell in the folder");
     }
 
     #[test]
