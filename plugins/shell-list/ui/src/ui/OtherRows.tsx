@@ -2,7 +2,7 @@
 // run under it), a plan that hasn't started (Scheduled), a draft (Drafts), and a section's heading.
 
 import { Show, type JSX } from 'solid-js';
-import { Dot, FoldHead, Gap, Icon, IconButton, ListRow, Stack, Text, Time, futureLabel } from '@wisp/ui';
+import { Button, Dot, FoldHead, Gap, Icon, IconButton, ListRow, Stack, Text, Time, futureLabel } from '@wisp/ui';
 import { computed, type EntityKey, type ExtensionId, type Json } from '@wisp/client';
 import { toggleDone } from '../actions.ts';
 import type { Entry, SectionId } from '../model/sections.ts';
@@ -26,13 +26,22 @@ export function GroupRow(props: { readonly entry: Group }): JSX.Element {
   });
   const first = (): SessionRow | undefined => live()[0];
   const finished = (): number => live().filter((r) => r.state === 'review' || r.state === 'done').length;
-  const state = (): string => (live().some((r) => r.state === 'waiting') ? 'waiting' : live().some((r) => r.state === 'running') ? 'running' : live().every((r) => r.state === 'done') ? 'done' : 'review');
+  const state = (): string =>
+    live().some((r) => r.state === 'waiting') ? 'waiting' : live().some((r) => r.state === 'running') ? 'running' : live().every((r) => r.state === 'done') ? 'done' : 'review';
   const status = (): string =>
-    state() === 'waiting' ? t('shell-list.group.asking')
-    : state() === 'running' ? t('shell-list.group.finished', { n: finished(), of: live().length })
-    : state() === 'done' ? t('shell-list.group.done')
-    : t('shell-list.group.pick');
+    state() === 'waiting'
+      ? t('shell-list.group.asking')
+      : state() === 'running'
+        ? t('shell-list.group.finished', { n: finished(), of: live().length })
+        : state() === 'done'
+          ? t('shell-list.group.done')
+          : t('shell-list.group.pick');
   const review = (): EntityKey[] => props.entry.runs.filter((r) => live().find((x) => x.id === r.s.id)?.state === 'review').map((r) => r.key);
+  const compare = (e: MouseEvent): void => {
+    e.stopPropagation();
+    const k = props.entry.runs[0]?.key;
+    if (k) env.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.compare' as never, params: { id: k } as Json } });
+  };
   const markAll = (): void => {
     for (const k of review()) toggleDone(env.actions, k);
   };
@@ -43,7 +52,17 @@ export function GroupRow(props: { readonly entry: Group }): JSX.Element {
           part="list.group"
           title={s().title}
           lead={<Dot color={colorToken(s().color)} size="md" {...(state() === 'running' ? { live: true } : {})} />}
-          sub={<Text size="sm" tone={state() === 'waiting' ? 'warn' : 'muted'} truncate>{status()}</Text>}
+          sub={
+            <Text size="sm" tone={state() === 'waiting' ? 'warn' : 'muted'} truncate>
+              {status()}
+            </Text>
+          }
+          // v1 task-head .it-side: vs Compare, always there (the shell's Compare runs)
+          pills={
+            <Button variant="ghost" size="xs" mark="vs" title={t('shell-list.group.compareTitle')} part="list.group.compare" onClick={compare}>
+              {t('shell-list.group.compare')}
+            </Button>
+          }
           time={<Time at={Math.max(...live().map((r) => r.updatedAt))} now={env.now()} t={kitT(t)} />}
           actions={
             <Show when={review().length > 0} fallback={<Gap size="sm" />}>
@@ -71,7 +90,9 @@ export function PlanRow(props: { readonly plan: Row<Plan> }): JSX.Element {
       lead={<Icon name={PLAN_ICON[props.plan.kind]} size="md" tone="muted" />}
       sub={
         <Stack gap="0">
-          <Text size="sm" tone="muted" truncate>{t(`shell-list.plan.${props.plan.kind}`)}</Text>
+          <Text size="sm" tone="muted" truncate>
+            {t(`shell-list.plan.${props.plan.kind}`)}
+          </Text>
           <Show when={props.plan.project}>
             {(p) => (
               <Text size="xs" tone="muted" truncate>
@@ -82,7 +103,14 @@ export function PlanRow(props: { readonly plan: Row<Plan> }): JSX.Element {
         </Stack>
       }
       time={
-        <Show when={props.plan.kind === 'draft'} fallback={<Text size="xs" tone="faint" numeric nowrap>{futureLabel(props.plan.at, env.now())}</Text>}>
+        <Show
+          when={props.plan.kind === 'draft'}
+          fallback={
+            <Text size="xs" tone="faint" numeric nowrap>
+              {futureLabel(props.plan.at, env.now())}
+            </Text>
+          }
+        >
           <Time at={props.plan.at} now={env.now()} t={kitT(t)} />
         </Show>
       }

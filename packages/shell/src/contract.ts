@@ -365,6 +365,11 @@ export interface PromptSourceDef {
    * A reply with nothing typed still goes when something waits. Additive (2026-11-12).
    */
   pending?(text: string, ctx: { client: PluginClient; task: string }): { readonly text: string; taken(): void; back(): void } | undefined;
+  /**
+   * How many things wait to go with the task's next follow-up (comments not sent yet): Ship and Merge say so before
+   * they go (v1 #F-page-11). Read when asked, not watched. Additive (2026-11-12).
+   */
+  waiting?(ctx: { client: PluginClient; task: string }): number;
 }
 
 /** 'e', 'shift+r', 'mod+k' (⌘ on a Mac, Ctrl elsewhere), 'ctrl+`', 'escape', '?' */

@@ -34,6 +34,8 @@ export interface ButtonProps extends ButtonBase, WithChildren {
   /** Colours a ghost button's text: green for Mark done, red for a quiet destructive action. */
   readonly tone?: 'good' | 'bad' | undefined;
   readonly icon?: IconName;
+  /** a short mark before the label instead of an icon (v1 .vs-mark: "vs" on Compare). Additive (2026-11-12). */
+  readonly mark?: string;
   readonly iconEnd?: IconName;
   /** A mark before the label from an image URL, where there's no icon: a harness's logo (v1 .chip-tog .model-logo) */
   readonly logo?: string | undefined;
@@ -79,6 +81,7 @@ export function Button(props: ButtonProps): JSX.Element {
       <span data-kit="button-content">
         <Show when={props.icon}>{(name) => <Icon name={name()} size={props.size === 'xs' ? 'sm' : props.variant === 'primary' || props.variant === 'ghost' ? 'base' : 'md'} />}</Show>
         <Show when={!props.icon && props.logo}>{(src) => <img data-kit="button-logo" src={src()} alt="" />}</Show>
+        <Show when={!props.icon && props.mark}>{(m) => <b data-kit="button-mark">{m()}</b>}</Show>
         <Show when={props.children !== undefined}>
           <span data-kit="button-label" data-text="control">
             {props.children}

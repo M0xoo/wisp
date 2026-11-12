@@ -10,7 +10,7 @@ import type { PaletteItem, PluginUiDef, ShellContext, ShortcutDef } from './cont
 import { defineExtension, defineView } from './define.ts';
 import { THEMES } from './theme.ts';
 import { SESSION, type SessionRow } from './rows.ts';
-import { archive, markRead, remove, setState } from './frame/commands.ts';
+import { archive, markRead, remove, searchTasks, setState } from './frame/commands.ts';
 import { TASK_KEY, type TaskKey } from './frame/task-keys.ts';
 import { parseCompare } from './frame/compare.ts';
 import { rowMenuItems } from './frame/row-menu.ts';
@@ -120,6 +120,29 @@ function taskItems(ctx: ShellContext): PaletteItem[] {
     });
   }
   return out.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+}
+
+/**
+ * ⌘K past work (v1 F-task-20): three letters or more find words inside prompts and answers (`runtime.search`), each hit
+ * a task with the words it matched; archived ones too. What the palette already lists by title stays where it is.
+ */
+export async function pastWork(ctx: ShellContext, q: string, signal: AbortSignal): Promise<PaletteItem[]> {
+  const peer = ctx.client.plugin('shell').home;
+  const hits = await ctx.client.commands.run(searchTasks, { peer, q, limit: 20 });
+  if (signal.aborted) return [];
+  const now = ctx.client.scope.timers.now();
+  return hits.map((h) => {
+    const id = h.id.includes(':') ? h.id : `${peer}:${h.id}`;
+    return {
+      id: `task:${id}`,
+      group: 'shell.palette.group.tasks',
+      label: h.title,
+      sub: [h.snippet.replace(/\s+/g, ' ').trim(), shortAgo(h.updatedAt, now)].filter(Boolean).join(' · '),
+      keywords: q,
+      at: h.updatedAt,
+      run: () => ctx.navigate({ t: 'openTask', id: id as never }),
+    };
+  });
 }
 
 interface CrewMember {
@@ -339,7 +362,7 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
     ],
     palette: [
       // v1's order: tasks, crew, Actions (its head, then what plugins add at 60, then its tail), projects last
-      { id: 'shell.tasks', order: 10, items: () => taskItems(ctx) },
+      { id: 'shell.tasks', order: 10, items: () => taskItems(ctx), deep: (q, _c, signal) => pastWork(ctx, q, signal) },
       { id: 'shell.crew', order: 20, items: () => crewItems(ctx) },
       {
         id: 'shell.new',

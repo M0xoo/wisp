@@ -31,11 +31,7 @@ const DEFAULT_SWIPE: SwipeConfig = { left: 'later', right: 'done' };
 export function TaskRow(props: TaskRowProps): JSX.Element {
   const env = useEnv();
   const row = useSignal(env.model.row(props.k));
-  return (
-    <Show when={row()}>
-      {(s) => <Body k={props.k} s={s()} nested={props.nested} swipe={props.swipe ?? DEFAULT_SWIPE} />}
-    </Show>
-  );
+  return <Show when={row()}>{(s) => <Body k={props.k} s={s()} nested={props.nested} swipe={props.swipe ?? DEFAULT_SWIPE} />}</Show>;
 }
 
 /** v1's PARTS for the task row's pieces (web/js/spell-schema.js: card, card.dot, card.title, …). */
@@ -99,11 +95,7 @@ function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly n
         </>
       }
       time={<TimeCell view={view()} />}
-      actions={
-        props.nested === 'sub' ? undefined : (
-          <Actions k={props.k} view={view()} hover={hover() ? <Slot input="shell.row:hover" session={session} layout="contents" /> : undefined} />
-        )
-      }
+      actions={props.nested === 'sub' ? undefined : <Actions k={props.k} view={view()} hover={hover() ? <Slot input="shell.row:hover" session={session} layout="contents" /> : undefined} />}
       quick={props.nested === 'sub' ? 0 : quickCount(view())}
       current={open()}
       selected={env.selected() === props.k && !open()}
@@ -116,9 +108,22 @@ function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly n
     />
   );
   return (
-    <Show when={env.swipes && !props.nested} fallback={props.nested ? list() : <FeedItem part={'card' as `${string}.${string}`} id={props.k} current={open()} selected={env.selected() === props.k && !open()}>{list()}</FeedItem>}>
+    <Show
+      when={env.swipes && !props.nested}
+      fallback={
+        props.nested ? (
+          list()
+        ) : (
+          <FeedItem part={'card' as `${string}.${string}`} id={props.k} current={open()} selected={env.selected() === props.k && !open()}>
+            {list()}
+          </FeedItem>
+        )
+      }
+    >
       <Swipe left={side(props.swipe.left)} right={side(props.swipe.right)} onSwipe={swiped} onArm={(on) => env.shell.platform.haptic(on ? 'select' : 'tap')} part="list.swipe">
-        <FeedItem part={'card' as `${string}.${string}`} id={props.k} current={open()} selected={env.selected() === props.k && !open()}>{list()}</FeedItem>
+        <FeedItem part={'card' as `${string}.${string}`} id={props.k} current={open()} selected={env.selected() === props.k && !open()}>
+          {list()}
+        </FeedItem>
       </Swipe>
     </Show>
   );

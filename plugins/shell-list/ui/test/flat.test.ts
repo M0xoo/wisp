@@ -22,3 +22,18 @@ test('the_crews_section_goes_right_after_needs_you_on_the_phone_and_first_when_n
   // nothing needs you: the crew still comes first, as v1's section does
   expect(keys({ crew: true }, { ...none, working: [task('b')] })).toEqual(['x:shell.list:crew', 'h:working', 'b']);
 });
+
+test('a compare task is one card: its head and a row per run, inside its section_v1_compare_card', async () => {
+  const { flatten } = await import('../src/model/flat.ts');
+  const { sectionGroups } = await import('../src/ui/TaskList.tsx');
+  const task = (k: string) => ({ kind: 'task' as const, key: k as never, s: {} as never });
+  const run = (k: string) => ({ key: k as never, s: {} as never });
+  const group = { kind: 'group' as const, key: 'g:1', runs: [run('r1'), run('r2')], state: 'running' as const, updatedAt: 1 };
+  const none = { needs: [], working: [], scheduled: [], drafts: [], forLater: [], done: [], archived: [] };
+  const items = flatten({ ...none, working: [task('a'), group as never, task('b')] }, { toggled: new Set(), split: false });
+  // h:working, a, g:1, r1, r2, b
+  expect(sectionGroups(items)).toEqual([
+    { part: 'section.working', from: 0, to: 5 },
+    { part: 'list.compare', from: 2, to: 4 },
+  ]);
+});

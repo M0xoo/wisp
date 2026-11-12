@@ -12,6 +12,7 @@ import { t } from './i18n.ts';
 import { unsentLine } from './model/merge.ts';
 import { footLine, goLabel, infoGuess, routeFacts, shipBlock, stepsFor, type ShipGuess } from './model/ship.ts';
 import { useShell } from './shell.ts';
+import { useUnsent, withUnsent } from './unsent.ts';
 import type { ShipInfo, ShipRepo } from './types.ts';
 import { SHIP_VIEW, useSession } from './use.ts';
 
@@ -20,7 +21,8 @@ export interface ShipParams {
   readonly guess: ShipGuess;
 }
 
-const isGuess = (g: unknown): g is ShipGuess => !!g && typeof g === 'object' && typeof (g as ShipGuess).repos === 'number' && typeof (g as ShipGuess).update === 'boolean' && Array.isArray((g as ShipGuess).branches);
+const isGuess = (g: unknown): g is ShipGuess =>
+  !!g && typeof g === 'object' && typeof (g as ShipGuess).repos === 'number' && typeof (g as ShipGuess).update === 'boolean' && Array.isArray((g as ShipGuess).branches);
 
 export function parseShipParams(v: unknown): ShipParams {
   const o = (v ?? {}) as { key?: unknown; guess?: unknown };
@@ -33,15 +35,27 @@ function Route(props: { readonly r?: ShipRepo; readonly branch?: string; readonl
     <Stack gap="1" part="ship.route">
       <Inline gap="3">
         <Icon name="branch" size="sm" tone="muted" />
-        <Show when={props.several && props.r?.repo}>{(repo) => <Text weight="semibold" nowrap>{repo()}</Text>}</Show>
-        <Text mono truncate title={props.r?.branch ?? props.branch ?? ''}>{props.r?.branch ?? props.branch ?? ''}</Text>
+        <Show when={props.several && props.r?.repo}>
+          {(repo) => (
+            <Text weight="semibold" nowrap>
+              {repo()}
+            </Text>
+          )}
+        </Show>
+        <Text mono truncate title={props.r?.branch ?? props.branch ?? ''}>
+          {props.r?.branch ?? props.branch ?? ''}
+        </Text>
         <Icon name="arrow" size="sm" tone="faint" />
         <Show when={props.r} fallback={<Skeleton shape="line" width="1/4" />}>
           {(r) => <Text mono truncate>{`${r().remote || t('wisp.ship.dialog.noRemoteName')}/${r().base}`}</Text>}
         </Show>
       </Inline>
       <Show when={props.r} fallback={<Skeleton shape="line" width="1/2" />}>
-        {(r) => <Text size="sm" tone="muted" truncate>{routeFacts(t, r(), props.several)}</Text>}
+        {(r) => (
+          <Text size="sm" tone="muted" truncate>
+            {routeFacts(t, r(), props.several)}
+          </Text>
+        )}
       </Show>
     </Stack>
   );
@@ -53,6 +67,7 @@ export default function ShipDialog(props: { readonly client: PluginClient; reado
   const key = props.params.key;
   const flows = flowsFor(props.client, () => shell, key);
   const s = useSession(props.client, () => key);
+  const unsent = useUnsent();
   const typed = flows.run()?.error !== undefined ? flows.run()?.values : undefined; // a failed ship's words, back for Retry
   const [info, setInfo] = createSignal<ShipInfo>();
   const [title, setTitle] = createSignal('');
@@ -135,20 +150,40 @@ export default function ShipDialog(props: { readonly client: PluginClient; reado
         </Field>
         <Checkbox checked={draft()} onChange={setDraft} label={t('wisp.ship.dialog.draft')} disabled={!info()} />
       </Show>
-      <Show when={s()?.overlap}>{(o) => <Text as="p" size="sm" tone="warn" breakAnywhere>{o()}</Text>}</Show>
-      <Show when={unsentLine(t, s()?.unsentComments)}>{(line) => <Text as="p" size="sm" tone="warn">{line()}</Text>}</Show>
+      <Show when={s()?.overlap}>
+        {(o) => (
+          <Text as="p" size="sm" tone="warn" breakAnywhere>
+            {o()}
+          </Text>
+        )}
+      </Show>
+      <Show when={unsentLine(t, withUnsent(s(), unsent)?.unsentComments)}>
+        {(line) => (
+          <Text as="p" size="sm" tone="warn">
+            {line()}
+          </Text>
+        )}
+      </Show>
       <Switch>
         <Match when={block() === 'noRemote'}>
-          <Text as="p" size="sm" tone="bad">{several() ? t('wisp.ship.dialog.noRemoteMany') : t('wisp.ship.dialog.noRemote')}</Text>
+          <Text as="p" size="sm" tone="bad">
+            {several() ? t('wisp.ship.dialog.noRemoteMany') : t('wisp.ship.dialog.noRemote')}
+          </Text>
         </Match>
         <Match when={block() === 'nothing'}>
-          <Text as="p" size="sm" tone="muted">{t('wisp.ship.dialog.nothing')}</Text>
+          <Text as="p" size="sm" tone="muted">
+            {t('wisp.ship.dialog.nothing')}
+          </Text>
         </Match>
       </Switch>
       <Stack gap="3">
-        <Text as="p" size="xs" tone="muted">{footLine(t, guess())}</Text>
+        <Text as="p" size="xs" tone="muted">
+          {footLine(t, guess())}
+        </Text>
         <Inline gap="3" justify="end">
-          <Button variant="secondary" size="sm" onClick={close}>{t('wisp.ship.cancel')}</Button>
+          <Button variant="secondary" size="sm" onClick={close}>
+            {t('wisp.ship.cancel')}
+          </Button>
           <Button variant="primary" size="sm" icon="send" disabled={!info() || block() !== undefined} onClick={go} part="ship.go">
             {goLabel(t, guess())}
           </Button>

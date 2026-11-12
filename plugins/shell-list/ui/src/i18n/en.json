@@ -108,5 +108,7 @@
   "shell-list.empty.crew": "No tasks for {name} yet.",
   "shell-list.run.sandbox": "Sandbox",
   "shell-list.goal.tip": "Done when: {text}\n{why}",
-  "shell-list.overlap.tip": "Touches the same files as {n}: {titles}"
+  "shell-list.overlap.tip": "Touches the same files as {n}: {titles}",
+  "shell-list.group.compare": "Compare",
+  "shell-list.group.compareTitle": "Side by side: time, cost, changes, tests and each presentation"
 }

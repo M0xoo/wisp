@@ -21,10 +21,20 @@ export function Mark(props: { readonly s: SessionRow; readonly view: RowView; re
       <Match when={m().kind === 'bell'}>
         <Icon name="bell" size="md" tone="muted" label={env.shell.t('shell-list.mark.reminder')} part="list.row.mark" />
       </Match>
-      <Match when={(() => { const x = m(); return x.kind === 'origin' ? x : undefined; })()}>
+      <Match
+        when={(() => {
+          const x = m();
+          return x.kind === 'origin' ? x : undefined;
+        })()}
+      >
         {(o) => <Icon name={o().icon} size="md" tone="muted" label={say(env.shell.t, o().title, env.now())} part="list.row.mark" />}
       </Match>
-      <Match when={(() => { const x = m(); return x.kind === 'agent' ? x : undefined; })()}>
+      <Match
+        when={(() => {
+          const x = m();
+          return x.kind === 'agent' ? x : undefined;
+        })()}
+      >
         {/* v1 feed.css .q-dot: the task's project colour (slate without a project), warn while it asks you; it pulses
             while the run works or waits. Unread is the title's (600, ink: ListRow strong), never the dot's. */}
         {(a) => (
@@ -76,7 +86,14 @@ export function RunLine(props: { readonly run: RunView; readonly s: SessionRow }
       part="list.row.run card.run"
       // v1 runBadge: the harness's logo (Auto's accent dot on its corner when it picked the run)
       logo={
-        <Show when={harness()?.logo} fallback={<Show when={route()}><Dot tone="accent" /></Show>}>
+        <Show
+          when={harness()?.logo}
+          fallback={
+            <Show when={route()}>
+              <Dot tone="accent" />
+            </Show>
+          }
+        >
           {(src) => <RowLogo src={src()} routed={!!route()} />}
         </Show>
       }
@@ -94,7 +111,14 @@ function OnePill(props: { readonly p: PillView }): JSX.Element {
   const env = useEnv();
   const label = (): string => say(env.shell.t, props.p.label, env.now());
   if (props.p.id === 'status' && !props.p.icon)
-    return <RowPill tone={ROW_TONE[props.p.tone] ?? 'neutral'} label={label()} part={'list.pill.status card.status' as `${string}.${string}`} {...(props.p.title ? { title: say(env.shell.t, props.p.title, env.now()) } : {})} />;
+    return (
+      <RowPill
+        tone={ROW_TONE[props.p.tone] ?? 'neutral'}
+        label={label()}
+        part={'list.pill.status card.status' as `${string}.${string}`}
+        {...(props.p.title ? { title: say(env.shell.t, props.p.title, env.now()) } : {})}
+      />
+    );
   return (
     <Pill
       tone={props.p.tone}
@@ -116,7 +140,9 @@ export function Pills(props: { readonly view: RowView }): JSX.Element {
   return (
     <>
       <For each={props.view.pills.filter((p) => p.id === 'status')}>{(p) => <OnePill p={p} />}</For>
-      <Show when={props.view.goal}>{(g) => <GoalPill n={g().n} progress={g().progress} paused={g().paused} title={say(env.shell.t, g().title, env.now())} part={'list.pill.goal card.goal' as `${string}.${string}`} />}</Show>
+      <Show when={props.view.goal}>
+        {(g) => <GoalPill n={g().n} progress={g().progress} paused={g().paused} title={say(env.shell.t, g().title, env.now())} part={'list.pill.goal card.goal' as `${string}.${string}`} />}
+      </Show>
       <Show when={props.view.overlap}>{(o) => <OverlapPill n={o().n} title={say(env.shell.t, o().title, env.now())} part={'list.pill.overlap card.overlap' as `${string}.${string}`} />}</Show>
       <For each={props.view.pills.filter((p) => p.id !== 'status')}>{(p) => <OnePill p={p} />}</For>
       <Show when={props.view.ram}>
@@ -134,10 +160,7 @@ export function TimeCell(props: { readonly view: RowView }): JSX.Element {
   const env = useEnv();
   const tip = (): string | undefined => (props.view.time.title ? say(env.shell.t, props.view.time.title, env.now()) : undefined);
   return (
-    <Show
-      when={props.view.time.kind === 'ahead'}
-      fallback={<Time at={props.view.time.at} now={env.now()} t={kitT(env.shell.t)} part={'list.row.time card.time' as `${string}.${string}`} />}
-    >
+    <Show when={props.view.time.kind === 'ahead'} fallback={<Time at={props.view.time.at} now={env.now()} t={kitT(env.shell.t)} part={'list.row.time card.time' as `${string}.${string}`} />}>
       <Text size="xs" tone="faint" numeric nowrap title={tip() ?? timeTitle(props.view.time.at, env.now(), kitT(env.shell.t))} part={'list.row.time card.time' as `${string}.${string}`}>
         {futureLabel(props.view.time.at, env.now())}
       </Text>

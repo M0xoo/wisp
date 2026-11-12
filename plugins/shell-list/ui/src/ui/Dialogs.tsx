@@ -38,8 +38,12 @@ export function RenameDialog(): JSX.Element {
         part="list.rename"
         footer={
           <Inline gap="3" justify="end">
-            <Button variant="ghost" onClick={close}>{t('shell-list.dialog.cancel')}</Button>
-            <Button variant="primary" onClick={save} disabled={!text().trim() || text().trim() === title()}>{t('shell-list.rename.save')}</Button>
+            <Button variant="ghost" onClick={close}>
+              {t('shell-list.dialog.cancel')}
+            </Button>
+            <Button variant="primary" onClick={save} disabled={!text().trim() || text().trim() === title()}>
+              {t('shell-list.rename.save')}
+            </Button>
           </Inline>
         }
       >
@@ -82,8 +86,12 @@ export function DeleteDialog(): JSX.Element {
         part="list.delete"
         footer={
           <Inline gap="3" justify="end">
-            <Button variant="ghost" onClick={close}>{t('shell-list.dialog.cancel')}</Button>
-            <Button variant="danger" onClick={confirm}>{t('shell-list.delete.ok')}</Button>
+            <Button variant="ghost" onClick={close}>
+              {t('shell-list.dialog.cancel')}
+            </Button>
+            <Button variant="danger" onClick={confirm}>
+              {t('shell-list.delete.ok')}
+            </Button>
           </Inline>
         }
       />

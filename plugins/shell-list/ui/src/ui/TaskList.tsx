@@ -118,6 +118,13 @@ export function sectionGroups(items: readonly Item[]): { part: string; from: num
     // a slot (the crew) closes the section before it
     if (it.t === 'slot') out.push({ part: '', from: i, to: i - 1 });
   });
+  // a compare task (v1 .task-item): its head and its runs' rows as one card
+  items.forEach((it, i) => {
+    if (it.t !== 'entry' || it.entry.kind !== 'group') return;
+    let to = i;
+    while (items[to + 1]?.t === 'run') to++;
+    out.push({ part: 'list.compare', from: i, to });
+  });
   return out.filter((g) => g.part !== '' && g.to >= g.from);
 }
 

@@ -307,3 +307,12 @@ export const coldOf = defineCommand<{ id: string }, ColdOut>({ id: 'runtime.cold
 
 /** Compact now: the task shrinks to a summary in a turn of its own, working at once. */
 export const compactNow = defineCommand<{ id: string }>({ id: 'runtime.compact', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/state', 'running') });
+
+/** ⌘K's past work (v1 F-task-20): words inside prompts and answers (`runtime.search`, the store's full-text index). */
+export const searchTasks = defineCommand<{ peer: string; q: string; limit?: number }, readonly { id: string; title: string; snippet: string; updatedAt: number }[]>({
+  id: 'runtime.search',
+  owner: (a) => a.peer,
+  wire: ({ peer: _peer, ...a }) => a,
+  optimistic: 'none',
+  pending: 'Search',
+});

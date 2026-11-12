@@ -6,6 +6,7 @@ import { createSignal, For, Show, type Accessor, type JSX } from 'solid-js';
 import { Button, Dialog, Inline, Stack, Text, useSignal } from '@wisp/ui';
 import type { TaskFlows } from './flows.ts';
 import { t } from './i18n.ts';
+import { useUnsent, withUnsent } from './unsent.ts';
 import { mergePlan } from './model/merge.ts';
 import type { ReviewContext } from './model/review.ts';
 import type { ShipShell } from './shell.ts';
@@ -23,7 +24,8 @@ export function useMerge(flows: TaskFlows, s: Accessor<ShipSession | undefined>,
   const state = useSignal(flows.merge.state);
   // Two places can ask (the row and the pane): the confirm opens by the one that did.
   const [asked, setAsked] = createSignal(false);
-  const plan = () => mergePlan(t, s(), ctx());
+  const unsent = useUnsent();
+  const plan = () => mergePlan(t, withUnsent(s(), unsent), ctx());
   const close = (): void => {
     setAsked(false);
     flows.merge.send('cancel');
@@ -47,7 +49,9 @@ export function useMerge(flows: TaskFlows, s: Accessor<ShipSession | undefined>,
           part="ship.merge.confirm"
           footer={
             <Inline gap="3" justify="end">
-              <Button variant="secondary" size="sm" onClick={close}>{t('wisp.ship.cancel')}</Button>
+              <Button variant="secondary" size="sm" onClick={close}>
+                {t('wisp.ship.cancel')}
+              </Button>
               <Button variant={p().danger ? 'danger' : 'primary'} size="sm" icon="check" onClick={go} part="ship.merge.go">
                 {p().danger ? t('wisp.ship.merge.anyway') : p().ok}
               </Button>
@@ -56,7 +60,13 @@ export function useMerge(flows: TaskFlows, s: Accessor<ShipSession | undefined>,
         >
           <Stack gap="3">
             <Text as="p">{p().question}</Text>
-            <For each={p().lines}>{(line) => <Text as="p" size="sm" tone="warn">{line}</Text>}</For>
+            <For each={p().lines}>
+              {(line) => (
+                <Text as="p" size="sm" tone="warn">
+                  {line}
+                </Text>
+              )}
+            </For>
           </Stack>
         </Dialog>
       )}

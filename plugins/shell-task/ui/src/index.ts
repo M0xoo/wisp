@@ -96,6 +96,8 @@ export default definePluginUi({
       where: ['reply'],
       order: 99,
       items: () => [],
+      // what Ship and Merge warn about: comments written in Changes and not sent yet
+      waiting: (ctx) => waiting(commentStore(ctx.client).value(), ctx.task).length,
       pending: (text, ctx) => {
         const store = commentStore(ctx.client);
         const list = waiting(store.value(), ctx.task);
