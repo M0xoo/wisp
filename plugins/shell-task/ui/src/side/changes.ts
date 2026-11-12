@@ -128,3 +128,22 @@ export function gitFiles(c: GitChanges): DiffFile[] | null {
     return { oldPath: status === 'added' ? null : (f.from ?? f.path), newPath: status === 'deleted' ? null : f.path, path: f.path, status, binary: f.binary, additions: f.add, deletions: f.del, hunks };
   });
 }
+
+/** The .env files whose Reveal is on, per task (v1 changes.js `unmaskedPaths`): for this tab's life, so the pane
+ *  opened again or a refresh of the task doesn't hide them again. `git.changes` sends these unmasked. */
+const revealedByTask = new Map<string, ReadonlySet<string>>();
+export const revealedOf = (task: string): ReadonlySet<string> => revealedByTask.get(task) ?? new Set<string>();
+export function setRevealed(task: string, path: string, on: boolean): ReadonlySet<string> {
+  const s = new Set(revealedOf(task));
+  if (on) s.add(path);
+  else s.delete(path);
+  revealedByTask.set(task, s);
+  return s;
+}
+
+/** A file's .env line (v1 env-mask.js maskBar): 'hidden' when git sent it masked, 'shown' once revealed (git then
+ *  sends it as it is, unmarked), none for any other file. */
+export function envState(f: { readonly path: string; readonly masked?: boolean | null }, revealed: ReadonlySet<string>): 'hidden' | 'shown' | undefined {
+  if (revealed.has(f.path)) return 'shown';
+  return f.masked ? 'hidden' : undefined;
+}

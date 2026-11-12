@@ -358,9 +358,10 @@ export interface PromptSourceDef {
   /**
    * A reply this source takes instead of the task's agent (crew: a reply that starts with @a member is for them). Gets
    * the stored text (mentions encoded); true: it was taken (and sent), the box clears and nothing goes to the agent.
-   * Additive (2026-11-11).
+   * Additive (2026-11-11). `restore` (additive, 2026-11-12, reply box): puts the text back in the box when what it
+   * started was refused, unless something new was typed meanwhile.
    */
-  send?(text: string, ctx: { client: PluginClient; task: string; launch?: LaunchPick }): boolean;
+  send?(text: string, ctx: { client: PluginClient; task: string; launch?: LaunchPick; restore?: (text: string) => void }): boolean;
   /**
    * What goes with the task's next follow-up, at its top (comments on lines of its Changes, v1 comments.js): the
    * follow-up as it will be sent, and `taken()` once it went (the tray empties), `back()` if it was refused.

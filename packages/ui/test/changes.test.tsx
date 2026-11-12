@@ -133,3 +133,33 @@ test('a hunk being reverted is hidden at once, and the file without staging has 
   setGoing(new Set(['src/math.js#0']));
   expect(shown()).toBe(1);
 });
+
+test('F-page-41: a .env file has v1 env-mask\'s line over its diff, Reveal ⇄ Hide in place, the button the same size', () => {
+  const calls: string[] = [];
+  const [env, setEnv] = createSignal<'hidden' | 'shown'>('hidden');
+  const host = mount(() => (
+    <ChangesList
+      files={[{ ...FILE, path: 'app/.env.local', env: env() }, { ...FILE, path: 'src/a.ts' }]}
+      labels={{ ...L, envHidden: (n) => `${n}’s values are hidden`, envShown: (n) => `Showing ${n}’s values`, reveal: 'Reveal', hide: 'Hide' }}
+      open={() => true}
+      viewed={() => false}
+      onToggle={() => {}}
+      onViewed={() => {}}
+      allOpen
+      onAll={() => {}}
+      onReveal={(p, on) => calls.push(`${p} ${on}`)}
+    />
+  ));
+  const bars = host.querySelectorAll('[data-part="changes.envMask"]');
+  expect(bars.length).toBe(1); // only the .env file
+  expect(bars[0]?.textContent).toBe('.env.local’s values are hiddenReveal');
+  const btn = (): HTMLButtonElement => host.querySelector('[data-part="changes.envReveal"]') as HTMLButtonElement;
+  expect(btn().getAttribute('aria-pressed')).toBe('false');
+  btn().click();
+  setEnv('shown');
+  expect(btn().textContent).toBe('Hide');
+  expect(btn().getAttribute('aria-pressed')).toBe('true');
+  expect(host.querySelector('[data-kit="cx-env-what"]')?.textContent).toBe('Showing .env.local’s values');
+  btn().click();
+  expect(calls).toEqual(['app/.env.local true', 'app/.env.local false']);
+});

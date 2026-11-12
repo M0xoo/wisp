@@ -1,0 +1,43 @@
+// The reply box's fold (app/Task.tsx ReplyBox, v1 composer.js): a press outside folds it once it's let go.
+import { afterEach, expect, test } from 'vitest';
+import { render } from 'solid-js/web';
+import { ReplyBox } from '../src/app/Task.tsx';
+
+let dispose: (() => void) | undefined;
+afterEach(() => {
+  dispose?.();
+  dispose = undefined;
+  document.body.innerHTML = '';
+});
+
+test('a press outside folds the awake box only once it is let go: what was pressed (a follow-up\'s ×) is still where the press began', () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const over = document.createElement('button');
+  document.body.prepend(over);
+  dispose = render(() => <ReplyBox placeholder="Follow up" value="" onInput={() => {}} onSend={() => {}} attach="Attach" mode={{ label: 'Auto', title: 'Mode' }} runner={{ title: 'Claude Code' }} team="Team" goal="Goal" later="Later" send="Send" />, host);
+  const box = host.querySelector('[data-kit="reply-box"]') as HTMLElement;
+  (host.querySelector('textarea') as HTMLTextAreaElement).focus();
+  expect(box.hasAttribute('data-awake')).toBe(true);
+  over.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+  expect(box.hasAttribute('data-awake')).toBe(true); // still awake under the finger: nothing moves yet
+  over.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  expect(box.hasAttribute('data-awake')).toBe(true);
+  over.click(); // the click the release makes: the pressed control has had it
+  expect(box.hasAttribute('data-awake')).toBe(false);
+  // a right-click outside makes no click: it doesn't arm a fold that a later click inside would set off
+  (host.querySelector('textarea') as HTMLTextAreaElement).blur();
+  (host.querySelector('textarea') as HTMLTextAreaElement).focus();
+  over.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2 }));
+  box.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  box.click();
+  expect(box.hasAttribute('data-awake')).toBe(true);
+  // a press inside keeps it awake
+  (host.querySelector('textarea') as HTMLTextAreaElement).blur();
+  (host.querySelector('textarea') as HTMLTextAreaElement).focus();
+  expect(box.hasAttribute('data-awake')).toBe(true);
+  box.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  box.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  box.click();
+  expect(box.hasAttribute('data-awake')).toBe(true);
+});

@@ -330,7 +330,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       files().length === 0 &&
       shell
         .promptSources()()
-        .some((p) => (p.where ?? ['reply']).includes('reply') && p.send?.(v, { client: pc, task: key }) === true)
+        .some((p) => (p.where ?? ['reply']).includes('reply') && p.send?.(v, { client: pc, task: key, restore: (back) => !text().trim() && setText(back) }) === true)
     ) {
       setText('');
       return;

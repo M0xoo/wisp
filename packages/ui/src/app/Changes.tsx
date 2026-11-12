@@ -34,6 +34,8 @@ export interface ChangeFile {
   readonly hunkStage?: readonly ('stage' | 'unstage' | undefined)[];
   /** git's diff of a file changed in place: each hunk can be put back */
   readonly revertable: boolean;
+  /** a .env file (v1 env-mask.js): its values read KEY=•••• ('hidden') until Reveal shows them ('shown') */
+  readonly env?: 'hidden' | 'shown';
 }
 
 export interface ChangesLabels {
@@ -60,6 +62,11 @@ export interface ChangesLabels {
   readonly unchanged: (n: number) => string;
   readonly commit: string;
   readonly commitPlaceholder: string;
+  /** the line over a .env file's diff: what's hidden or shown, and its button */
+  readonly envHidden?: (name: string) => string;
+  readonly envShown?: (name: string) => string;
+  readonly reveal?: string;
+  readonly hide?: string;
 }
 
 export interface ChangesListProps {
@@ -75,6 +82,8 @@ export interface ChangesListProps {
   readonly onStage?: (path: string, unstage: boolean) => void;
   readonly onHunkStage?: (path: string, hunk: number, key: string, unstage: boolean) => void;
   readonly onRevertHunk?: (path: string, hunk: number, key: string) => void;
+  /** Reveal (true) or Hide (false) a .env file's values */
+  readonly onReveal?: (path: string, on: boolean) => void;
   readonly onEdit?: (path: string) => void;
   /** the file's ⋯ (Revert file…, Copy path, Open in editor) */
   readonly fileMenu?: (path: string) => Act;
@@ -222,8 +231,19 @@ function FileDiff(props: { readonly f: ChangeFile; readonly p: ChangesListProps 
       </td>
     </tr>
   );
+  const name = (): string => props.f.path.split(/[\\/]/).pop() ?? props.f.path;
   return (
     <div data-kit="cx-diff">
+      <Show when={props.f.env}>
+        {(env) => (
+          <div data-kit="cx-env" data-part="changes.envMask">
+            <span data-kit="cx-env-what">{env() === 'shown' ? L.envShown?.(name()) : L.envHidden?.(name())}</span>
+            <button type="button" data-kit="cx-env-btn" data-part="changes.envReveal" aria-pressed={env() === 'shown'} onClick={() => props.p.onReveal?.(props.f.path, env() !== 'shown')}>
+              {env() === 'shown' ? L.hide : L.reveal}
+            </button>
+          </div>
+        )}
+      </Show>
       <Show when={props.f.from}>
         {(from) => (
           <p data-kit="cx-from">

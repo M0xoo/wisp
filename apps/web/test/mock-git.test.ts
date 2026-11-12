@@ -1,6 +1,6 @@
 // The mock's wisp-git (dev/mock-git.ts): what the Changes pane reads under `npm run dev` and qa/parity.mjs.
 import { afterEach, expect, test } from 'vitest';
-import { gitChanges, gitCommit, gitRevert, gitStage, resetGit, rowsOf, type GitCtx } from '../dev/mock-git.ts';
+import { gitChanges, gitCommit, gitRevert, gitStage, isEnvFile, maskLine, resetGit, rowsOf, type GitCtx } from '../dev/mock-git.ts';
 
 afterEach(() => resetGit());
 
@@ -43,4 +43,17 @@ test('stage, revert and commit change what the next git.changes says, and reset 
   expect(read().length).toBe(2);
   gitCommit({ dir: '/w', message: 'All', all: true }); // nothing staged: Commit takes every change
   expect(read()).toEqual([]);
+});
+
+test('F-page-41: the mock masks a .env file as wisp-git does (KEY=••••, comments and empty values kept) until it is revealed', () => {
+  expect(['.env', 'app/.env.local', '.env.production'].every(isEnvFile)).toBe(true);
+  expect(['.env.example', '.env.sample', 'env.ts', '.envrc'].some(isEnvFile)).toBe(false);
+  expect([maskLine('STRIPE_KEY=sk_live_1'), maskLine('export A = b'), maskLine('# a note'), maskLine('EMPTY='), maskLine('  raw')]).toEqual(['STRIPE_KEY=••••', 'export A = ••••', '# a note', 'EMPTY=', '  ••••']);
+  const envCtx: GitCtx = { turnsOf: () => [{ changes: [{ file: '.env.local', beforeFile: 'KEY=old\n', edits: [{ before: 'old', after: 'new' }] }] }], base: () => 'main' };
+  type F = { rows: { text?: string }[]; masked?: boolean };
+  const files = (a: Record<string, unknown>): F[] => (gitChanges({ path: '/w', base: 'main', ...a }, envCtx) as { body: { files: F[] } }).body.files;
+  expect(files({})[0]).toMatchObject({ masked: true, rows: [{ text: 'KEY=••••' }, { text: 'KEY=••••' }] });
+  const shown = files({ reveal: ['.env.local'] })[0];
+  expect(shown?.masked).toBeUndefined();
+  expect(shown?.rows.map((r) => r.text)).toEqual(['KEY=old', 'KEY=new']);
 });

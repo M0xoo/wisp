@@ -19,6 +19,19 @@ interface Change {
 
 const str = (a: Args, k: string): string => (typeof a[k] === 'string' ? (a[k] as string) : '');
 
+/** wisp-git's mask (plugins/git/core/src/mask.rs): `.env`, `.env.*` but not `.example`/`.sample`; KEY=•••• */
+export const isEnvFile = (path: string): boolean => {
+  const base = path.split(/[\\/]/).pop() ?? path;
+  return /^\.env(\.[\w.-]+)?$/.test(base) && !/\.(example|sample)$/i.test(base);
+};
+export const maskLine = (line: string): string => {
+  const t = line.trimStart();
+  if (!t || t.startsWith('#')) return line;
+  const m = /^(\s*(?:export\s+)?[A-Za-z_][\w.-]*\s*[=:]\s*)(.*)$/.exec(line);
+  if (m) return m[2] ? `${m[1]}••••` : line;
+  return `${line.slice(0, line.length - t.length)}••••`;
+};
+
 /** before → after as git's rows: the common start and end as context, the middle removed then added. */
 export function rowsOf(before: string, after: string): Row[] {
   const lines = (t: string): string[] => (t === '' ? [] : t.replace(/\n$/, '').split('\n')); // an empty file has no lines
@@ -66,7 +79,9 @@ export function gitChanges(a: Args, g: GitCtx): unknown {
   const out = [...files]
     .filter(([path]) => !state.get(`${dir}\n${path}`)?.gone)
     .map(([path, f]) => {
-      const rows = rowsOf(f.before, f.after);
+      // git.changes masks a .env file unless the page revealed it (`reveal`), and says so (`masked`)
+      const masked = a['mask'] !== false && isEnvFile(path) && !(Array.isArray(a['reveal']) && (a['reveal'] as unknown[]).includes(path));
+      const rows = rowsOf(f.before, f.after).map((r) => (masked && r.text !== undefined ? { ...r, text: maskLine(r.text) } : r));
       const st = state.get(`${dir}\n${path}`);
       const staged = st?.staged === true;
       return {
@@ -81,6 +96,7 @@ export function gitChanges(a: Args, g: GitCtx): unknown {
         staged,
         unstaged: !staged,
         hunkStage: [{ staged, unstaged: !staged }],
+        ...(masked && { masked: true }),
       };
     });
   return {

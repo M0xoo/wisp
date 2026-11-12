@@ -482,7 +482,24 @@ export const MEDIA_BLOCKS = [
   { type: 'video', path: 'shots/run.mp4', caption: 'The run' },
 ];
 
-export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean; computers?: boolean; media?: boolean }): Seeded {
+/** `env`: the first task's first turn changed `.env.local` and `src/config.ts` (F-page-41: Changes masks the .env). The
+ *  mock's git reads a folder's first task, so every task in ~/code/wisp shows them. */
+export const ENV_CHANGES = [
+  { file: '.env.local', op: 'modify', beforeFile: 'API_URL=https://api.dev.example\nSTRIPE_KEY=sk_test_51Hb0rk\n# local only\nDEBUG=\n', edits: [{ before: 'sk_test_51Hb0rk', after: 'sk_test_77Qx2m' }] },
+  { file: 'src/config.ts', op: 'modify', beforeFile: "export const retries = 2;\nexport const timeout = 5000;\n", edits: [{ before: 'retries = 2', after: 'retries = 3' }] },
+];
+
+function withEnv(topics: Map<Topic, Row[]>): void {
+  for (const rows of topics.values()) {
+    const turn = rows.find((r) => r.e === 'turn');
+    if (!turn) continue;
+    const v = turn.v as { body: Record<string, unknown> };
+    v.body = { ...v.body, changes: ENV_CHANGES };
+    return;
+  }
+}
+
+export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean; computers?: boolean; media?: boolean; env?: boolean }): Seeded {
   const topics = new Map<Topic, Row[]>();
   const list: Row[] = [];
   (o.firstRun ? [] : TASKS).forEach((t, i) => {
@@ -505,6 +522,7 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
     topics.set(`session:${s.list.id.slice(s.list.id.indexOf(':') + 1)}`, s.own); // the bare id, as the client subscribes
   }
   if (o.media) withMedia(topics);
+  if (o.env) withEnv(topics);
   topics.set('list', list);
   topics.set('config', [
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },

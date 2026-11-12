@@ -2,15 +2,17 @@
 // import() on first show, so the plugin costs nothing until it's on screen.
 
 import { lazy } from 'solid-js';
-import { definePluginUi, defineView } from './define.ts';
+import { defineExtension, definePluginUi, defineView } from './define.ts';
 import { uuidv7, type EntityKey } from '@wisp/client';
 import { catalogue } from './i18n.ts';
-import { addPlan } from './commands.ts';
+import { addFollowUp, addPlan } from './commands.ts';
 import { launchPlan } from './launch.ts';
+import { replyPlan, type ReplyTask } from './reply.ts';
 
 export default definePluginUi({
   id: 'wisp.later',
-  extensions: [],
+  // the follow-ups set for later in a task, over its reply box (v1 later.js followUpItems)
+  extensions: [defineExtension({ id: 'wisp.later.foot', attachTo: { id: 'shell.task:foot' }, component: lazy(() => import('./ui/LaterFoot.tsx')) })],
   views: [
     // a scheduled task or reminder, or a /draft, opened from its row (shell-list's Scheduled and Drafts)
     defineView<{ id?: string }>({
@@ -56,6 +58,25 @@ export default definePluginUi({
                 ? { ...base, kind: 'reminder' as const, at: p.at, text: p.rest }
                 : { ...base, kind: 'task' as const, at: p.at, body };
         void ctx.client.run(addPlan, args).catch(() => undefined);
+        return true;
+      },
+    },
+    // a task's reply that starts with a time (v1 readWhen, F-auto-5): the follow-up goes into the same conversation
+    // then; its row shows above the box at once (later.add's optimistic patch), back with a toast if refused
+    {
+      id: 'later.reply',
+      trigger: '/',
+      where: ['reply'],
+      order: 95,
+      items: () => [],
+      send: (text, ctx) => {
+        const home = ctx.client.home;
+        const task = ctx.task as EntityKey;
+        const setting = ctx.client.entities.peek<{ value?: unknown }>('setting', `${home}:shell-composer.readTimes` as EntityKey);
+        const p = replyPlan(text, { now: new Date(), task: ctx.client.entities.peek<ReplyTask>('session', task), readTimes: setting?.value !== false && setting?.value !== 'off' });
+        if (!p) return false;
+        // refused: the row goes (the patch rolls back, with the toast) and what was typed is back in the box
+        void ctx.client.run(addFollowUp, { sessionId: task, at: p.at, text: p.text, tmp: uuidv7(), setAt: Date.now(), ...(p.remind && { remind: true }) }).catch(() => ctx.restore?.(text));
         return true;
       },
     },

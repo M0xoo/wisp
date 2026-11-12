@@ -126,6 +126,17 @@
   [data-kit='cx-hk-rev']:hover, [data-kit='cx-hk-stage']:hover { color: var(--ink); background: var(--bg-2); }
   [data-kit='cx-hk-stage'][data-un] { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 40%, var(--line-2)); }
   @media (hover: none) { [data-kit='cx-hk-rev'], [data-kit='cx-hk-stage'] { opacity: 1; } }
+  /* v1 blocks.css .env-mask: one quiet line over a .env file's diff, Reveal at its end; fixed height, so Reveal ⇄ Hide moves nothing */
+  [data-kit='cx-env'] {
+    display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 4px 8px 4px 14px;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface-2); font: 12.5px var(--sans); color: var(--muted);
+  }
+  [data-kit='cx-env-what'] { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='cx-env-btn'] {
+    flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: var(--size-control-xs); padding: 0 var(--space-4);
+    border-radius: var(--radius-sm); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); white-space: nowrap; transition: background var(--dur-fast), color var(--dur-fast);
+  }
+  [data-kit='cx-env-btn']:hover { background: var(--bg-2); color: var(--ink); }
   [data-kit='cx-from'] { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; color: var(--muted); font-size: 12.5px; background: var(--surface-2); }
   [data-kit='cx-from'] code { font: 11.5px var(--mono); }
   @media (prefers-reduced-motion: reduce) { [data-kit='cx-chev'] > [data-kit='icon'], [data-kit='cx-hk-rev'], [data-kit='cx-hk-stage'] { transition: none; } }

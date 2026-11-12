@@ -20,6 +20,7 @@
   "wisp.later.line.plan": "Waits for your plan: {text}",
   "wisp.later.line.load": "Waits for the computer: {text}",
   "wisp.later.menu.sendNow": "Send now",
+  "wisp.later.foot.label": "Follow-ups set for later",
   "wisp.later.menu.remindNow": "Remind me now",
   "wisp.later.menu.changeTime": "Change time…",
   "wisp.later.menu.cancelFollowUp": "Cancel follow-up",

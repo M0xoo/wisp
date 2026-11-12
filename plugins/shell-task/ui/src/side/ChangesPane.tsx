@@ -3,13 +3,13 @@
 // staged is committed (nothing staged: everything changed), and a hunk or a whole file is reverted. Each answers at
 // once (design/feedback.md): the toggle flips, the reverted hunk goes, the committed files go; then git's own read
 // comes back. A refusal puts it back as it was, with the error. Without git, the edits wisp saw, per file.
-import { Show, createMemo, createResource, createSignal, type JSX } from 'solid-js';
+import { Show, createEffect, createMemo, createResource, createSignal, on, type JSX } from 'solid-js';
 import { defineCommand, type EntityKey } from '@wisp/client';
 import { ChangesList, CommentCard, EmptyState, rowKey, useSignal, type ChangeFile, type ChangeRow, type StageState } from '@wisp/ui';
 import { added, commentStore, lineKey, lineLabel, placeOf, waiting } from '../comments.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
-import { filesOf, type ChangeTurn } from './changes.ts';
+import { envState, filesOf, revealedOf, setRevealed, type ChangeTurn } from './changes.ts';
 
 interface GitFileRow {
   readonly path: string;
@@ -22,16 +22,18 @@ interface GitFileRow {
   readonly staged?: boolean | null;
   readonly unstaged?: boolean | null;
   readonly hunkStage?: readonly { readonly staged: boolean; readonly unstaged: boolean }[] | null;
+  /** a .env file's values sent as KEY=•••• */
+  readonly masked?: boolean | null;
 }
 interface GitRead {
   readonly base: string;
   readonly body: { readonly kind: 'inline'; readonly files: readonly GitFileRow[] } | { readonly kind: 'blob' };
 }
 
-const read = defineCommand<{ key: EntityKey; path: string; base: string }, GitRead | null>({
+const read = defineCommand<{ key: EntityKey; path: string; base: string; reveal: readonly string[] }, GitRead | null>({
   id: 'git.changes',
   owner: (a) => a.key,
-  wire: (a) => ({ path: a.path, base: a.base, stageState: true }),
+  wire: (a) => ({ path: a.path, base: a.base, stageState: true, ...(a.reveal.length ? { reveal: [...a.reveal] } : {}) }),
   optimistic: 'none',
   pending: 'the Changes pane',
 });
@@ -89,8 +91,10 @@ export function ChangesPane(): JSX.Element {
   const wt = (): Wt | undefined => raw()?.body?.ext?.['wisp.worktrees'] ?? raw()?.summary?.worktree ?? undefined;
   const dir = (): string => String(wt()?.path ?? wt()?.cwd ?? raw()?.body?.cwd ?? raw()?.cwd ?? '');
   const base = (): string => wt()?.baseRef || wt()?.base || 'HEAD';
+  // .env files shown as they are (v1 Reveal): the button flips at once, git's unmasked read follows
+  const [revealed, setRevealedHere] = createSignal(revealedOf(task.id));
   const [git, { refetch }] = createResource(
-    () => (dir() ? { path: dir(), base: base() } : undefined),
+    () => (dir() ? { path: dir(), base: base(), reveal: [...revealed()] } : undefined),
     (a) => task.client.run(read, { key: task.key, ...a }).catch(() => null),
   );
   const turns = useSignal(task.client.entities.list<ChangeTurn>('turn'));
@@ -100,6 +104,10 @@ export function ChangesPane(): JSX.Element {
   const [open, setOpen] = createSignal<Set<string> | undefined>(undefined);
   const [viewed, setViewed] = createSignal(new Set<string>());
   const staging = (): boolean => !!wt()?.path || !!wt()?.cwd;
+  // Hide: the line says hidden at once; the file's last read was unmasked (no `masked`) until git's masked one lands
+  const [hiding, setHiding] = createSignal(new Set<string>());
+  createEffect(on(git, () => setHiding(new Set<string>()), { defer: true }));
+  const envOf = (f: GitFileRow): 'hidden' | 'shown' | undefined => envState(f, revealed()) ?? (hiding().has(f.path) ? 'hidden' : undefined);
   const files = createMemo((): ChangeFile[] => {
     const g = git();
     if (!g || g.body.kind !== 'inline') return seenFiles(turns() as readonly ChangeTurn[], task.id, dir());
@@ -114,6 +122,7 @@ export function ChangesPane(): JSX.Element {
         rows: f.rows,
         ...(f.from ? { from: f.from } : {}),
         revertable: (f.status === 'M' || f.status === 'R') && !f.binary && f.rows.length > 0,
+        ...(envOf(f) ? { env: envOf(f) as 'hidden' | 'shown' } : {}),
         ...(staging() ? { stage: flipped().get(f.path) ?? stageOf(f) } : {}),
         ...(staging() && f.hunkStage ? { hunkStage: f.hunkStage.map((h) => (h.unstaged ? ('stage' as const) : h.staged ? ('unstage' as const) : undefined)) } : {}),
       }));
@@ -147,6 +156,10 @@ export function ChangesPane(): JSX.Element {
   const onHunkStage = (path: string, hunk: number, hunkKey: string, unstage: boolean): void => {
     const a = after(() => undefined);
     task.client.run(stage, { key: task.key, dir: dir(), base: base(), path, hunk, hunkKey, unstage }).then(a.ok, a.no);
+  };
+  const onReveal = (path: string, show: boolean): void => {
+    if (!show) setHiding(new Set(hiding()).add(path));
+    setRevealedHere(setRevealed(task.id, path, show));
   };
   const [goingHunks, setGoingHunks] = createSignal(new Set<string>());
   const onRevertHunk = (path: string, hunk: number, hunkKey: string): void => {
@@ -217,6 +230,7 @@ export function ChangesPane(): JSX.Element {
         onStage={onStage}
         onHunkStage={onHunkStage}
         onRevertHunk={onRevertHunk}
+        onReveal={onReveal}
         comment={{
           label: (o) => t(o.op === '-' ? 'shell-task.comment.onRemoved' : 'shell-task.comment.onLine', { n: (o.op === '-' ? o.a : o.b) ?? 0 }),
           onAdd: (path, o) => {
@@ -299,6 +313,10 @@ export function ChangesPane(): JSX.Element {
           unchanged: (n) => t(n === 1 ? 'shell-task.changes.unchangedOne' : 'shell-task.changes.unchanged', { n }),
           commit: t('shell-task.changes.commit'),
           commitPlaceholder: t('shell-task.changes.message'),
+          envHidden: (name) => t('shell-task.changes.envHidden', { name }),
+          envShown: (name) => t('shell-task.changes.envShown', { name }),
+          reveal: t('shell-task.changes.reveal'),
+          hide: t('shell-task.changes.hide'),
         }}
       />
     </Show>

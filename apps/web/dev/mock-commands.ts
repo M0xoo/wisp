@@ -125,6 +125,15 @@ function queueOf(ctx: CommandCtx, id: string): QItem[] {
   return Array.isArray(q) ? (q as QItem[]) : [];
 }
 
+/** wisp.later's commands name the task by its bare id (the server's own): the mock's rows are keyed `<peer>:<id>`. */
+const taskKey = (ctx: CommandCtx, id: string): string => (id.includes(':') ? id : `${ctx.peer}:${id}`);
+
+/** The follow-ups set for later in a task (wisp.later's `later` on the row). */
+function laterOf(ctx: CommandCtx, id: string): { id: string; at: number; text: string }[] {
+  const l = obj(ctx.row('list', 'session', id))['later'];
+  return Array.isArray(l) ? (l as { id: string; at: number; text: string }[]) : [];
+}
+
 /** The task's queue and its count on the row. */
 const setQueue = (ctx: CommandCtx, id: string, q: readonly QItem[]): EntityOp[] =>
   sessionPatch(ctx, id, [{ op: 'add', path: '/body/queue', value: q }, { op: 'replace', path: '/summary/queued', value: q.length }, touch(ctx)]);
@@ -268,6 +277,29 @@ export const COMMANDS: Record<string, CommandFn> = {
         q.filter((i) => !ids.includes(i.id) || i.id === first.id).map((i) => (i.id === first.id ? merged : i)),
       ),
     };
+  },
+  // a follow-up set for later in a task (the reply box's "in 10 min …", F-auto-5): over the box until it goes
+  'later.add': (a, ctx) => {
+    const x = obj(a);
+    const id = taskKey(ctx, str(x, 'sessionId'));
+    const item = { id: `l${ctx.now().toString(36)}`, at: Number(x['at']), text: str(x, 'text'), by: 'user', setAt: ctx.now(), ...(x['remind'] === true && { remind: true }) };
+    const later = [...laterOf(ctx, id), item].sort((p, q) => p.at - q.at);
+    return { ops: sessionPatch(ctx, id, [{ op: 'add', path: '/later', value: later }, touch(ctx)]), result: item };
+  },
+  'later.cancel': (a, ctx) => {
+    const x = obj(a);
+    const id = taskKey(ctx, str(x, 'sessionId'));
+    return { ops: sessionPatch(ctx, id, [{ op: 'add', path: '/later', value: laterOf(ctx, id).filter((l) => l.id !== str(x, 'item')) }, touch(ctx)]) };
+  },
+  'later.edit': (a, ctx) => {
+    const x = obj(a);
+    const id = taskKey(ctx, str(x, 'sessionId'));
+    const it = laterOf(ctx, id).find((l) => l.id === str(x, 'item'));
+    if (x['now'] === true && it) ctx.stream(id, { prompt: it.text });
+    const later = laterOf(ctx, id)
+      .filter((l) => !(x['now'] === true && l.id === it?.id))
+      .map((l) => (l.id === it?.id ? { ...l, ...(typeof x['at'] === 'number' && { at: x['at'] }), ...(typeof x['text'] === 'string' && { text: x['text'] }) } : l));
+    return { ops: sessionPatch(ctx, id, [{ op: 'add', path: '/later', value: later }, touch(ctx)]) };
   },
   // New task, later (wisp.later's plans): a timed task, a reminder, a /draft, an /after <task>; Scheduled or Drafts in the list
   'later.plan': (a, ctx) => {

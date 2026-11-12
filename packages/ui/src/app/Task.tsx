@@ -476,15 +476,34 @@ export interface ReplyBoxProps {
 }
 
 /** v1 .composer: the reply box under a task. It wakes (its toolbar shows) when the caret goes in, and
- * folds back to one line on a press outside it (composer.js), not when the keyboard moves on. */
+ * folds back to one line on a press outside it (composer.js), not when the keyboard moves on. It folds once the
+ * press is let go: folding on the press itself moved what's over the box (a follow-up's ×, Send now) out from under
+ * the finger before its click, so on a phone the first tap after sending did nothing. */
 export function ReplyBox(props: ReplyBoxProps): JSX.Element {
   const [awake, setAwake] = createSignal(false);
   let box: HTMLDivElement | undefined;
+  // on the click the release makes (after the pressed control's own handler: Solid's sit on document first), or
+  // when the press turns into a scroll
+  const fold = (): void => {
+    disarm();
+    setAwake(false);
+  };
+  const disarm = (): void => {
+    document.removeEventListener('click', fold);
+    document.removeEventListener('pointercancel', fold);
+  };
+  // a primary press only (a right-click or a scrollbar makes no click, and the next click inside would fold it)
   const outside = (e: PointerEvent): void => {
-    if (box && !box.contains(e.target as Node)) setAwake(false);
+    disarm();
+    if (!box || box.contains(e.target as Node) || !awake() || e.button !== 0) return;
+    document.addEventListener('click', fold);
+    document.addEventListener('pointercancel', fold);
   };
   onMount(() => document.addEventListener('pointerdown', outside, true));
-  onCleanup(() => document.removeEventListener('pointerdown', outside, true));
+  onCleanup(() => {
+    document.removeEventListener('pointerdown', outside, true);
+    disarm();
+  });
   const key = (e: KeyboardEvent): void => {
     if (suggestKeyDown(props.suggest, e)) return;
     if (props.onKey?.(e)) return;

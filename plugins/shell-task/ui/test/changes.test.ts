@@ -1,6 +1,6 @@
 // The Changes pane's model (side/changes.ts).
 import { expect, test } from 'vitest';
-import { filesOf, gitFiles, hunkOf, type ChangeTurn } from '../src/side/changes.ts';
+import { envState, filesOf, gitFiles, hunkOf, revealedOf, setRevealed, type ChangeTurn } from '../src/side/changes.ts';
 
 test('a task\'s turns become one diff per file, edits in turn order, kept lines as context', () => {
   const h = hunkOf('a\nb\nc\n', 'a\nB\nc\n');
@@ -32,4 +32,18 @@ test('git\'s diff against the base reads as the kit\'s: a hunk per run of rows, 
   expect(files?.[0]?.hunks[0]?.lines.map((l) => `${l.kind}:${l.old ?? '-'}:${l.new ?? '-'}`)).toEqual(['ctx:1:1', 'del:2:-', 'add:-:2']);
   expect(files?.[0]?.hunks[1]?.oldStart).toBe(43);
   expect(gitFiles({ base: 'main', at: 'x', body: { kind: 'blob' } })).toBeNull();
+});
+
+test('F-page-41: a .env file git sent masked reads hidden; once revealed it stays shown for this task until Hide', () => {
+  expect(envState({ path: '.env', masked: true }, new Set())).toBe('hidden');
+  expect(envState({ path: 'src/a.ts' }, new Set())).toBeUndefined();
+  // revealed: git sends it as it is (no `masked`), the line still says it's shown, with Hide
+  const on = setRevealed('t1', '.env', true);
+  expect(envState({ path: '.env' }, on)).toBe('shown');
+  // per task, and kept for the tab's life: the pane opened again finds it
+  expect(revealedOf('t1').has('.env')).toBe(true);
+  expect(revealedOf('t2').size).toBe(0);
+  const off = setRevealed('t1', '.env', false);
+  expect(envState({ path: '.env', masked: true }, off)).toBe('hidden');
+  expect(revealedOf('t1').size).toBe(0);
 });
