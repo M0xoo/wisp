@@ -149,3 +149,31 @@ Kit fixes behind several rows at once: Settings nav rows 1px apart (v1 .sx-nav),
 --surface (v1 --field-bg), the kit Select's trigger answers to `form.select`, a bare dialog is the card itself (its
 edge and corners) and drops its own hidden head, kbd is v1's `1px 5px` / 5px radius, and the crew page's wide
 two-column padding now applies (a container query can't style its own container).
+
+## 2026-11-12 (round 23): Settings panes
+
+1440 light at rest, parts off; before (round 21/22) → after. Light and dark both 0 where checked (agents).
+
+| View | Before | After | What it took |
+|---|---|---|---|
+| home | 1/162 | 0/162 | the launcher's border is `--line` (v1's `.card` wins over `.launcher`); section.needs' box (`VirtualList` groups) |
+| palette | 2/165 | 0/165 | the same two |
+| settings.general | 6/187 | 0/187 | Theme row, the transcript hint's V key, Updates at the end through `shell.settings:general` |
+| settings.notifications | 4/181 | 0/181 | `settings.acceptChannels`, the overlay's `settings` part |
+| settings.agents | 13/185 | 0/185 | rows with lines between, the accounts box (`SettingsInset`), Signed in · Sign out, GitHub row, the Ask switch with the Lean row, "Installed something new?" Re-check; buttons keep `letter-spacing: normal` |
+| settings.auto | not recorded | 0/180 | nothing of its own (the kit fixes above) |
+| settings.automations | 5/181 | 0/181 | `settings.webhookTriggers` |
+| settings.cloud | not recorded (3) | 0/183 | the sign-in's title inside its box (`SettingsBlock`), the note (`SettingsNote`), the lede in the frame, a primary button's icon 8px from its label |
+| settings.connectors | 10/182 | 0/182 | Found in OpenCode and Cursor (seeded) with its download tile, chip examples (`Button variant="chip"`), heads 22px under what's above, 2px in, button at the bottom |
+| settings.machines | not recorded (4) | 0/184 | v1's layout: one row with Manage (the list moved into a dialog), the line, Reach this computer from anywhere (wisp.grid-client through `shell.settings:machines`), SSH rows with commands to copy (`CopyCommand`); the pane is a block so margins meet as in v1 |
+| settings.memory | 4/180 | 0/180 | nothing of its own |
+| settings.privacy | 5/182 | 0/182 | the two rows' part names, the note |
+| settings.worktrees | 10/186 | 0/186 | the total and rules in one box, v1's fixed columns (`SettingsItem`), v1's `.pk-seg` filter (`Tabs variant="seg"`), seeded worktrees |
+| settings.spells | 8/182 | 6/182 | v1's Spells is v2's Plugins (ADR-0031): the opener now lands on Plugins; Cast a spell (an agent writes the change) isn't in Plugins yet |
+| settings.usage | 18/194 | 14/194 | not started: Plan budget, Automations stop at (per harness), Machine load |
+| stuff | 4/118 | 3/118 | card.title weight |
+| crew.org | 5/112 | 4/112 | |
+| task.changes | 20/174 | 19/174 | v1's Preview tab and comments (not started) |
+
+Phone and dark checked by eye at 390 (Agents, Machines dark; Worktrees, Agents, Connectors light) and 1440 dark
+(Machines). Other widths still differ (390: the phone settings list v1 doesn't have; 900: the frame is 8px wider).

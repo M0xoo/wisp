@@ -989,3 +989,21 @@ stop-asks 1; apps/web mock-peer 5, mock-git 2; client transcript 6; Rust: claude
 g6, harness-kit commands (incl. `a_run_steps_whole_title…`), runtime-core turns (2 new), crew-core tint 1. Clippy
 -D warnings on the six parser cores, harness-kit, runtime-core/-api/runtime, crew-api/-core/crew.
 PNGs: /tmp/r22-working-{1440,390}-{light,dark}.png, /tmp/r22-stopask-*, /tmp/r22-org-*, /tmp/r22-crewlist-390-*.
+
+## Round 23 (2026-11-12)
+
+**1. Settings panes to 0 (1440 light).** 11 of 13 are at 0: general, notifications, agents, auto, automations, cloud,
+connectors, machines, memory, privacy, worktrees (before → after in docs/v2-ui-burndown.md). Kit: `SettingsInset`,
+`SettingsBlock`, `SettingsNote`, `SettingsItem`, `CopyCommand`, `Button variant="chip"`, `Tabs variant="seg"`,
+SettingsRow `icon`/`tile`/`big` and an optional control, SettingsGroup `bodyPart`/`spaceAfter`; the pane is a block (v1
+.sx-pane), its lede 16px over what follows, a head 22px under what's above. Two kit-wide fixes from v1: controls keep
+`letter-spacing: normal` (the reset made them inherit the body's -0.003em), a primary button's icon is 8px from its
+label. Contract: `shell.settings:machines` (additive), wisp.grid-client's Reach this computer from anywhere attaches
+there. The mock gained connectors, worktrees, Antigravity/Grok signed in, git/gh, `machines.reachable` and
+`plugins.list`; parity lets `machines.reachable` through and opens Plugins for v1's Spells.
+Left: settings.usage (14: Plan budget, per-harness stop lines, Machine load) and settings.spells (6: Cast a spell in
+Plugins). Items 2–4 of the round (task.changes Preview/comments, stuff, crew.org, Org drag, starters, phone job cards,
+the v1-features sweep) were not started.
+
+Tests: kit settings `v1_settings_pieces_render_their_parts_and_the_flags_their_css_reads` (new), css-rules 12/12.
+typecheck clean; `npm run check` 0 errors.

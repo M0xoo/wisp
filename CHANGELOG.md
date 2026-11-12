@@ -88,6 +88,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Settings look like v1's again.** Agents lists each harness's accounts in a box under it, with GitHub and "Installed something new?" at the end; Machines opens on one row with Manage, then Reach this computer from anywhere and what SSH needs (commands copy with a click); Cloud and Connectors put their sign-in and Found rows in v1's boxes; Worktrees keeps its columns and v1's filter; Updates is at the end of General again.
+
 - **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.
 - **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 

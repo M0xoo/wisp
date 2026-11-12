@@ -34,6 +34,10 @@ Each line: area · what v1 did · what v2 does · the test. Visible changes are 
 | Projects | Found on this machine listed each repo twice on a case-insensitive disk (`~/code` and `~/Code` are one folder; the v1 reference screenshot shows `kilocode ~/code` and `kilocode ~/Code`), and a project reached by the other spelling still showed as found | each repo once, by the folder as the disk names it; a known project is known whichever spelling found it | `found::tests::repos_on_this_computer_that_arent_projects_yet_are_found` |
 | Projects | adding a folder that was already a project made a second one | that folder is already <name>, said, nothing added | seen in Chrome (round 17) |
 
+- **Settings → Worktrees on a phone squeezed each task's name to one letter** (v1 .wtr-row kept four fixed columns at any
+  width). v2's `SettingsItem` puts the name and its line on their own line under 520px, the state, size and buttons under
+  it. Test: kit settings `v1_settings_pieces_render_their_parts_and_the_flags_their_css_reads` (the parts); seen at 390.
+
 ## Decided by the lead (2026-11-08; the owner asked not to be stopped for these)
 
 - **Agents reading other tasks: allowed, read-only.** `wisp_sessions` / `wisp_session` are a v1 feature
