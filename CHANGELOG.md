@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Org.** The crew as a chart of who hands work to whom: select a member and pick their delegates in the chart (+ adds, ✓ takes off); the column beside it lists who they hand work to and get work from.
+- **Import crew members, and Make a pane.** Paste a shared member's .crew.json or a link, review who joins, add them paused; or describe a pane and an agent builds it, or start from one wisp ships.
+- **The working panel is back on a task:** who's working, for how long, the last steps, and Stop, which asks first and says what else stops.
+- **A member's Task panel tint** (their glow, none, or a colour) in the crew editor, and the crew in the phone's list.
 - **Stage, commit and revert from Changes.** The side panel's Changes is v1's again: Stage a file or a hunk, Revert a hunk (it's hidden at once) or a whole file, mark files Viewed, and commit from the panel (Enter; an empty message uses the task's title).
 - **⌘K looks and reads like v1's.** One sheet near the top: your tasks first with their project's dot and "project · state · age", then the crew, then Actions (New task, Start from an issue…, Add project…, Manage projects…), projects last.
 - **Add to your crew, as v1 had it.** Start from a ready-made member (Verifier, CI watcher, PR reviewer…), roll a face, name them and give their job, pick when they check in (or type it in words) and what else wakes them, then where and how they run.
@@ -89,6 +93,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- A goal isn't checked while Claude Code's background subagents are still working: the turn waits for their reports.
+- An opened step shows its whole title, not the label cut for the row, for every harness.
+- A task's transcript loads from the topic the server actually names (`session:<id>`).
 - `wisp add .` stores the project's folder itself ("/repo", not "/repo/."), and a Windows path without its `\\?\` prefix, whoever adds it.
 - A picture or video loading in a task no longer moves the page: at the end you stay at the end, elsewhere what you were reading stays put (the Mac app too).
 - No Allow & retry after a turn that already ran in Full auto: what its harness still refused can't be allowed, and the card says so.

@@ -952,3 +952,40 @@ Checks: clippy -D warnings on wisp-goal, -goal-core, -goal-api, -later, -runtime
 every spec on apply, whoever applies it (`StoredKind::tidied`, an additive hook in resources-api; monoflow: 18 dependents,
 none changed). Tests runtime-api tests/paths.rs (2), runtime `a_project_applied_with_a_trailing_dot_or_verbatim_prefix_is_stored_canonical`.
 Clippy -D warnings: wisp-runtime-api, -resources-api, -runtime, wisp (bins).
+
+## Round 22 (2026-11-12)
+
+**0. The kit's CSS test is strict again.** `no :has() and no :is()` passes (12/12): every `:has()`/`:is()` is gone from
+the kit's sheets. The components say what they hold instead: the hero (`data-top`, `data-titled`), the feed row
+(`data-quick` 1|2 for its quick actions), FeedItem (`data-current`, `data-selected`), VirtualList (`gapBefore` →
+`data-gap`: 2px between two task rows, none after a heading), a `v1` dialog size (the crew editor), the side pane runs
+edge to edge with Changes marking its body `side.flush`; `:is()` lists became selector lists. Home, task and
+task.changes measured the same as before.
+
+**1. v1 sync finished.** #781: the task page has v1's working panel (kit `WorkingPanel`, unused until now) with Stop,
+which asks first (`stopQuestion`) and checks again after the answer. #775: a result while Claude Code's background
+subagents work keeps the turn open (`backgroundAgents` from the claude parser, held in runtime-core). #780: a run step's
+whole title travels with its cut label from all six parsers (`run_label`, `title` on Tool/Activity) and an opened step
+shows it. On the way: the mock refused every per-task command (the client sends bare ids; the mock keys `peer:id`) and
+streamed into the wrong topic; the client's transcript subscribed `session:<peer:id>` where the peer names it
+`session:<id>` (fixed in @wisp/client); the seed named its topics the same wrong way. Rows in docs/v1-sync.md.
+
+**2. Crew.** The Org page (F-crew-14): kit `OrgView` (head, hint, tiers, Not connected, measured arrows, the side column)
+and `plugins/crew/ui/src/OrgPage.tsx`; crew.org 15/112 → 5/112 parts, 7.7 → 1.6 % px; the rail's Org is pressed while
+it's open. Import crew members (`ImportCrew.tsx`, dry run then who joins). Make a pane (`plugins/stuff/ui/src/MakePane.tsx`,
+the starters list). The editor's Task panel tint: `bg` on the member (crew api/core, `bg_of`, bindings regenerated), the
+swatch row, the shell's tint reads it. The phone list's Crew section after Needs you (`shell.list:crew`, additive; kit
+`CrewListSection`); home at 390 back to 14/115 parts.
+Left: Org's drag to place cards (`crew.layout`) and drag-to-link; pinning a starter on Home (v2 has no pin command);
+nested job cards under a member in the phone Crew section.
+
+**3. Parity.** stuff 12 → 4 parts (0.7 → 0.5 % px): the bar is `stuff.filters`, head buttons 32px/400, the link. palette
+stays at 2 (section.needs, structural in every view; the launcher's border behind the overlay). task.changes stays at
+20 (v1's Preview tab and comments are features v2 doesn't have yet). Settings panes not re-run past round 21.
+
+Tests (each run alone): kit css-rules 12, org 2, composites 19, virtual 12, palette 2, blocks-act 3, media-shift 1,
+timeline 1; shell stop-question, blocked-of, turn-transcript; crew ui editor 3, import 1; shell-list flat 2; machine
+stop-asks 1; apps/web mock-peer 5, mock-git 2; client transcript 6; Rust: claude g6 5 + subagents 1, the six parsers'
+g6, harness-kit commands (incl. `a_run_steps_whole_title…`), runtime-core turns (2 new), crew-core tint 1. Clippy
+-D warnings on the six parser cores, harness-kit, runtime-core/-api/runtime, crew-api/-core/crew.
+PNGs: /tmp/r22-working-{1440,390}-{light,dark}.png, /tmp/r22-stopask-*, /tmp/r22-org-*, /tmp/r22-crewlist-390-*.
