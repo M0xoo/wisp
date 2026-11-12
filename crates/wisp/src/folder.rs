@@ -184,7 +184,7 @@ pub fn config(o: &Opts, ks: &[KindInfo], dir: &Path) -> Result<Config> {
 }
 
 fn git(args: &[&str], cwd: &Path) -> Result<String> {
-    let o = std::process::Command::new("git").args(args).current_dir(cwd).output().map_err(|e| CliError::said(format!("git: {e}")))?;
+    let o = std::process::Command::new("git").args(args).current_dir(cwd).env("GIT_OPTIONAL_LOCKS", "0").output().map_err(|e| CliError::said(format!("git: {e}")))?;
     if !o.status.success() {
         return Err(CliError::said(format!("git {}: {}", args.join(" "), String::from_utf8_lossy(&o.stderr).trim())));
     }

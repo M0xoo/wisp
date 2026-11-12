@@ -35,7 +35,7 @@ pub fn wanted(p: &Parsed, prompt: &str) -> bool {
 
 async fn run(argv: &[String], cwd: &str) -> Option<String> {
     let (prog, rest) = argv.split_first()?;
-    let out = tokio::time::timeout(Duration::from_secs(3), tokio::process::Command::new(prog).args(rest).current_dir(cwd).stdin(std::process::Stdio::null()).kill_on_drop(true).output()).await.ok()?.ok()?;
+    let out = tokio::time::timeout(Duration::from_secs(3), tokio::process::Command::new(prog).args(rest).current_dir(cwd).env("GIT_OPTIONAL_LOCKS", "0").stdin(std::process::Stdio::null()).kill_on_drop(true).output()).await.ok()?.ok()?;
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned()).filter(|s| !s.trim().is_empty())
 }
 

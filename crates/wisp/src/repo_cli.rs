@@ -18,7 +18,7 @@ fn s<'a>(v: &'a Value, k: &str) -> &'a str {
 }
 
 fn git(root: &Path, args: &[&str]) -> Option<String> {
-    let o = std::process::Command::new("git").args(args).current_dir(root).output().ok()?;
+    let o = std::process::Command::new("git").args(args).current_dir(root).env("GIT_OPTIONAL_LOCKS", "0").output().ok()?;
     o.status.success().then(|| String::from_utf8_lossy(&o.stdout).into_owned())
 }
 

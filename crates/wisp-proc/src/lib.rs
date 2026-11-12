@@ -84,6 +84,16 @@ impl Env {
         self.remove.push(k.into());
         self
     }
+    /// `GIT_OPTIONAL_LOCKS=0` added when `bin` is git and the caller didn't set it: a read wisp makes
+    /// (status, diff, a watcher's refresh) must never take `index.lock` from the user's own `git commit`.
+    /// Only optional locks go; a write still takes the locks it needs.
+    #[must_use]
+    pub fn for_program(mut self, bin: &str) -> Self {
+        if is_git(bin) && !self.set.iter().any(|(k, _)| k == GIT_OPTIONAL_LOCKS) {
+            self.set.push((GIT_OPTIONAL_LOCKS.to_owned(), "0".to_owned()));
+        }
+        self
+    }
     /// The variables the child sees, given the parent's.
     pub fn resolve(
         &self,
@@ -101,6 +111,14 @@ impl Env {
         }
         out
     }
+}
+
+pub const GIT_OPTIONAL_LOCKS: &str = "GIT_OPTIONAL_LOCKS";
+
+/// Whether a program is git, by its file name (`git`, `/usr/bin/git`, `C:\\…\\git.exe`).
+pub fn is_git(bin: &str) -> bool {
+    let name = bin.rsplit(['/', '\\']).next().unwrap_or(bin);
+    name.eq_ignore_ascii_case("git") || name.eq_ignore_ascii_case("git.exe")
 }
 
 #[derive(Debug, Clone, Default)]

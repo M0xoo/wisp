@@ -162,7 +162,7 @@ pub async fn run(c: &Client, cwd: &str) -> Result<i32> {
                 Effect::Files => {
                     let (dir, tx) = (cwd.to_owned(), done_tx.clone());
                     tokio::spawn(async move {
-                        let out = tokio::process::Command::new("git").args(["ls-files", "--cached", "--others", "--exclude-standard"]).current_dir(dir).output().await;
+                        let out = tokio::process::Command::new("git").args(["ls-files", "--cached", "--others", "--exclude-standard"]).current_dir(dir).env("GIT_OPTIONAL_LOCKS", "0").output().await;
                         let files: Vec<Value> = out.map(|o| String::from_utf8_lossy(&o.stdout).lines().take(20_000).map(|l| Value::String(l.to_owned())).collect()).unwrap_or_default();
                         let _ = tx.send((Then::Mentions("file".into()), Ok(Value::Array(files)))).await;
                     });

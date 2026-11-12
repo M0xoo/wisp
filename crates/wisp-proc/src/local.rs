@@ -104,7 +104,8 @@ impl ProcService for LocalProc {
         })
     }
 
-    fn spawn(&self, bin: &str, args: &[String], opts: SpawnOpts) -> Result<Child> {
+    fn spawn(&self, bin: &str, args: &[String], mut opts: SpawnOpts) -> Result<Child> {
+        opts.env = opts.env.for_program(bin);
         let span = tracing::debug_span!("proc.spawn", bin, pty = opts.pty.is_some());
         let _entered = span.enter();
         check_cwd(opts.cwd.as_deref())?;
@@ -164,7 +165,8 @@ impl ProcService for LocalProc {
         ))
     }
 
-    fn spawn_detached(&self, bin: &str, args: &[String], opts: SpawnOpts) -> Result<u32> {
+    fn spawn_detached(&self, bin: &str, args: &[String], mut opts: SpawnOpts) -> Result<u32> {
+        opts.env = opts.env.for_program(bin);
         check_cwd(opts.cwd.as_deref())?;
         let r = resolve_for(bin, args, &opts);
         let mut cmd = tokio::process::Command::new(&r.command);

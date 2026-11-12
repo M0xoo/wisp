@@ -30,7 +30,7 @@ git interpret-trailers --in-place --if-exists addIfDifferent --trailer "Wisp-Tas
 
 /// The repo's hooks folder (`core.hooksPath` and worktrees respected).
 fn hooks_dir(cwd: &Path) -> Result<PathBuf> {
-    let o = std::process::Command::new("git").args(["rev-parse", "--git-path", "hooks"]).current_dir(cwd).output().map_err(|e| CliError::said(format!("git: {e}")))?;
+    let o = std::process::Command::new("git").args(["rev-parse", "--git-path", "hooks"]).current_dir(cwd).env("GIT_OPTIONAL_LOCKS", "0").output().map_err(|e| CliError::said(format!("git: {e}")))?;
     if !o.status.success() {
         return Err(CliError::said("not in a git repository (wisp hook works in one)"));
     }
