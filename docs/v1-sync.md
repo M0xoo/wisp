@@ -4,7 +4,7 @@ The owner keeps fixing wisp v1 (`origin/main`) while v2 is built. At every coder
 commits since the last sync (`git log <last>..origin/main`), decides for each what v2 needs, and queues it here and in
 `docs/v2-queue.md`. v2 ports the intent (and the test's scenario), not the JS.
 
-Last synced v1 commit: **a5b1c646** (2026-11-12)
+Last synced v1 commit: **30bfb204** (2026-11-12)
 
 | v1 | What it fixed | v2 action |
 |---|---|---|
@@ -28,3 +28,6 @@ Last synced v1 commit: **a5b1c646** (2026-11-12)
 | #779 72ba8003, #780 6dc0cac5 | an opened activity step shows its full title (not the server-cut one) | **done (rounds 21–22):** the kit's `run_label` keeps the whole title when the label had to be cut (v1 runLabel; a thread-local "whole" mode in the describer), `title` on the harness Tool and `Activity::Tool` (additive, bindings regenerated), all six parsers set it, and an opened transcript step shows it; tests `a_run_steps_whole_title_comes_with_its_label…` (kit), `an_opened_step_shows_its_whole_title_not_the_label_cut_for_the_row` (shell) |
 | #781 f3db6466 | Stop asks first, for an agent and a subagent alike | **done (rounds 21–22):** the task page has v1's working panel again (kit `WorkingPanel`: who's working, how long, how many actions, the last five steps, queued follow-ups, Stop), and Stop asks first with what else stops (its running subagents, a subagent's report, the queue); it checks again after the answer. Tests `stop_asks_first_and_says_what_else_stops…` (shell), `stop_asks_first_and_says_what_stops…` (machine) |
 | #782 a5b1c646 | phone: Read all stays put when pressed | **holds (round 21):** no kit button is centred by transform; v1's guard ported: `a_pressed_button_never_jumps_none_is_centred_by_transform_v1_782` |
+| #785 fd4d280a | a task's usage includes its subagents', and how full its context is (TRY-16) | **to port:** usage per task summed over its subagents (runtime + budget), context fill on the task head |
+| #786 1be9c6be | a task's menu is grouped: View, Goal, Copy and Files submenus | **to port:** v2's row menu and the task's More (rounds 30–31) regrouped into v1's submenus; re-capture task.more and task.right-click |
+| #787 30bfb204 | the overlap and clash warning can be dismissed | **to port:** dismiss on the overlap note (kit OverlapNote), kept per task |
