@@ -4,7 +4,8 @@
 
 import { For, onCleanup, type JSX } from 'solid-js';
 import { computed, type PluginClient, type Readable } from '@wisp/client';
-import { Button, Checkbox, ChoiceSetting, SettingsGroup, SettingsRow, SwitchSetting, Text, Wrap, useSignal, type SettingSource } from '@wisp/ui';
+import { useShell, type HarnessUiDef } from '@wisp/shell';
+import { Button, ChoiceSetting, SettingsGroup, SettingsRow, SwitchSetting, Text, Wrap, useSignal, type SettingSource } from '@wisp/ui';
 import { routerSet, viewKey } from './commands.ts';
 import { t } from './i18n.ts';
 import { harnessOf } from './rules.ts';
@@ -25,26 +26,42 @@ function bound<V>(row: Readable<RouterView | undefined>, get: (v: RouterView | u
 }
 
 function Allowed(props: { readonly view: RouterView | undefined; readonly set: (p: RouterPatch) => void }): JSX.Element {
-  const agents = (): { id: string; name: string }[] => {
+  const marks = useSignal(useShell().harnesses());
+  // v1 .ro-allowed: each harness that can run (here or on a machine), and any already on, as a chip with its logo
+  const agents = (): { id: string; name: string; logo: string | undefined }[] => {
     const seen = new Map<string, string>();
     for (const a of props.view?.arms ?? []) if (a.state !== 'gone' && !seen.has(a.agent)) seen.set(a.agent, harnessOf(a.label));
-    return [...seen].map(([id, name]) => ({ id, name }));
+    for (const id of allowed()) if (!seen.has(id)) seen.set(id, id);
+    const mark = (id: string): HarnessUiDef | undefined => marks().find((m) => m.id === id);
+    return [...seen].map(([id, name]) => ({ id, name: mark(id)?.name ?? name, logo: mark(id)?.logo }));
   };
   const allowed = (): readonly string[] => props.view?.settings.allowed ?? [];
-  const flip = (id: string, on: boolean): void => {
+  const flip = (id: string): void => {
+    const on = !allowed().includes(id);
     const next = on ? [...allowed(), id] : allowed().filter((x) => x !== id);
     props.set({ allowed: next.length ? next : null });
   };
   return (
-    <Wrap gap="3">
-      <For each={agents()}>{(a) => <Checkbox label={a.name} checked={allowed().includes(a.id)} onChange={(on) => flip(a.id, on)} />}</For>
+    <Wrap gap="2" part="router.allowed">
+      <For each={agents()}>
+        {(a) => (
+          <Button variant="chip" logo={a.logo} title={a.name} pressed={allowed().includes(a.id)} onClick={() => flip(a.id)}>
+            {a.name}
+          </Button>
+        )}
+      </For>
     </Wrap>
   );
 }
 
+/** v1 .ro-hint: "4 picks of yours · 1 correction · 3 runs learned from", or where it starts when there's none */
 function learnedHint(v: RouterView | undefined): string {
-  const routed = v?.routed ?? 0;
-  return routed || v?.picks ? t('wisp.router.pane.learned-hint', { count: routed, picks: v?.picks ?? 0 }) : t('wisp.router.pane.learned-empty');
+  const bits = [
+    v?.picks ? t('wisp.router.pane.learned-picks', { count: v.picks }) : '',
+    v?.corrections ? t('wisp.router.pane.learned-corrections', { count: v.corrections }) : '',
+    v?.learned ? t('wisp.router.pane.learned-runs', { count: v.learned }) : '',
+  ].filter(Boolean);
+  return bits.length ? bits.join(' · ') : t('wisp.router.pane.learned-empty');
 }
 
 export default function AutoPane(props: { readonly client: PluginClient }): JSX.Element {
@@ -63,7 +80,7 @@ export default function AutoPane(props: { readonly client: PluginClient }): JSX.
         <ChoiceSetting title={t('wisp.router.pane.goal')} description={t('wisp.router.pane.goal-hint')} items={GOALS.map((g) => ({ value: g, label: t(`wisp.router.goal.${g}`) }))} source={goal} />
         <SwitchSetting title={t('wisp.router.pane.habits')} description={t('wisp.router.pane.habits-hint')} source={flag('habits')} />
         <SwitchSetting title={t('wisp.router.pane.explore')} description={t('wisp.router.pane.explore-hint')} source={flag('explore')} />
-        <SettingsRow title={t('wisp.router.pane.allowed')} description={t('wisp.router.pane.allowed-hint')} wideControl control={<Allowed view={view()} set={set} />} />
+        <SettingsRow title={t('wisp.router.pane.allowed')} description={t('wisp.router.pane.allowed-hint')} choices control={<Allowed view={view()} set={set} />} />
       </SettingsGroup>
       <SettingsGroup>
         <SwitchSetting title={t('wisp.router.pane.escalate')} description={t('wisp.router.pane.escalate-hint')} source={flag('escalate')} />

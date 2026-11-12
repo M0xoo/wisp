@@ -203,6 +203,7 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
         />
         <ChoiceSetting
           part="settings.autoStop"
+          fieldset
           title={t('budget.usage.stop.title')}
           description={t('budget.usage.stop.description')}
           source={stop('autoStop', 'off')}
@@ -212,6 +213,7 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
           {(p) => (
             <ChoiceSetting
               part="settings.autoStopBy"
+              fieldset
               title={p.name}
               logo={logoOf(p.agent)}
               description={p.agent === 'codex' ? t('budget.usage.stop.codex') : t('budget.usage.stop.own')}

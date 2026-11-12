@@ -30,6 +30,10 @@ const INPUTS = [
 const settle = async (n = 30): Promise<void> => {
   for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0));
 };
+/** until `ok`: the task screen is a lazy import, so it shows a beat after the navigation (2 s at most) */
+const until = async (ok: () => boolean): Promise<void> => {
+  for (let i = 0; i < 200 && !ok(); i++) await new Promise((r) => setTimeout(r, 10));
+};
 
 function Mark(input: string): () => JSX.Element {
   return () => <span data-test-ext={input}>{input}</span>;
@@ -60,6 +64,7 @@ test('a plugin extension renders in every input of the frame', async () => {
   const first = client.entities.list<{ id: string }>('session')()[0];
   expect(first).toBeDefined();
   client.nav.navigate({ t: 'openTask', id: first?.id as EntityKey as never });
+  await until(() => root.querySelector('[data-part~="split.head"]') !== null);
   await settle();
   for (const input of INPUTS) expect(root.querySelector(`[data-test-ext="${input}"]`), input).not.toBeNull();
   // an area's extension replaces the built-in control it overrides

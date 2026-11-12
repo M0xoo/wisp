@@ -186,7 +186,7 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
           </Button>
         </Match>
         <Match when={ctl() === 'signedIn'}>
-          <Inline gap="2">
+          <Inline gap="3">
             <Pill tone="good" icon="check" variant="plain">
               {t('accounts.login.signedIn')}
             </Pill>

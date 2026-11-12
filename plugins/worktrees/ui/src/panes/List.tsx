@@ -46,7 +46,8 @@ function Row(props: { readonly x: Entry; readonly list: ListProps }): JSX.Elemen
           <Show when={!x().left}>
             <IconButton
               icon="pin"
-              size="sm"
+              size="xs"
+              wide
               part="worktrees.row.keep"
               label={kept() ? t('worktrees.unkeep') : t('worktrees.keep')}
               pressed={kept()}

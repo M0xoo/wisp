@@ -14,13 +14,25 @@
   [data-kit='button-content'] { display: inline-flex; align-items: center; gap: var(--space-3); min-width: 0; }
   /* v1 .primary: its icon 8px from the label (.ghost keeps 6px) */
   [data-kit='button'][data-variant='primary'] > [data-kit='button-content'] { gap: var(--space-4); }
+  /* v1 .primary / .ghost: no edge, the line height around them, the gap on the button itself (8px / 6px) */
+  [data-kit='button'][data-variant='primary'], [data-kit='button'][data-variant='ghost'] { border-width: 0; line-height: inherit; }
+  [data-kit='button'][data-variant='primary'] { gap: var(--space-4); }
+  [data-kit='button'][data-variant='ghost'] { gap: var(--space-3); font-weight: var(--fw-regular); } /* v1 .ghost: the weight around it */
+  /* v1's padding per variant: .primary 0 14px 0 16px (.sm 0 12px), .ghost 0 10px at every size but .xs (0 6px) */
+  [data-kit='button'][data-variant='primary'][data-size='md'] { padding: var(--space-0) 0.875rem var(--space-0) var(--space-7); }
+  [data-kit='button'][data-variant='ghost'][data-size='md'], [data-kit='button'][data-variant='ghost'][data-size='sm'] { padding: var(--space-0) var(--space-5); }
   [data-kit='button-label'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   [data-kit='button'] [data-kit='kbd'] { margin-left: var(--space-2); background: transparent; color: inherit; opacity: 0.7; }
 
   [data-kit='button'][data-size='xs'] { height: var(--size-control-xs); padding: var(--space-0) var(--space-3); border-radius: var(--radius-md); font-size: var(--fs-sm); }
+  [data-kit='button'][data-variant='ghost'][data-size='xs'] { border-radius: 7px; } /* v1 .ghost.xs */
   [data-kit='button'][data-size='sm'] { height: var(--size-control-sm); padding: var(--space-0) var(--space-6); }
   [data-kit='button'][data-size='lg'] { height: var(--size-control-lg); padding: var(--space-0) var(--space-7); font-size: var(--fs-lg); }
   [data-kit='button'][data-fill] { display: flex; width: 100%; }
+  /* v1 button.link: an action in running text, the accent's ink, underlined on hover */
+  [data-kit='button'][data-variant='link'], [data-kit='button'][data-variant='link'][data-size] { display: inline; height: auto; padding: 0; border-width: 0; background: none; color: var(--accent-ink); font-weight: var(--fw-medium); line-height: inherit; vertical-align: baseline; }
+  [data-kit='button'][data-variant='link'] > [data-kit='button-content'] { display: inline; }
+  [data-kit='button'][data-variant='link']:hover { text-decoration: underline; text-underline-offset: 3px; }
 
   :where([data-kit='button'], [data-kit='icon-button'])[data-variant='primary'] { background: var(--ink); color: var(--bg); }
   :where([data-kit='button'], [data-kit='icon-button'])[data-variant='primary']:hover { opacity: 0.86; }
@@ -35,6 +47,7 @@
 
   [data-kit='icon-button'] { width: var(--size-control-md); padding: 0; color: var(--muted); }
   [data-kit='icon-button'][data-size='xs'] { width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-md); }
+  [data-kit='icon-button'][data-size='xs'][data-wide] { width: var(--space-9); gap: var(--space-3); padding: var(--space-0) var(--space-3); border-width: 0; border-radius: 7px; font-size: var(--fs-sm); line-height: var(--lh-base); } /* .icon-btn's 32px, .ghost.xs's 24px and 7px */
   [data-kit='icon-button'][data-size='sm'] { width: var(--size-control-sm); height: var(--size-control-sm); }
   [data-kit='icon-button'][data-size='lg'] { width: var(--size-control-lg); height: var(--size-control-lg); }
   [data-kit='icon-button'][data-variant='primary'] { color: var(--bg); }
@@ -64,5 +77,7 @@
   /* v1 .chip-tog: a small bordered choice, muted until hovered */
   [data-kit='button'][data-variant='chip'] { height: auto; padding: 3px 8px; border-radius: 7px; border-color: var(--line); background: transparent; font-size: 12.5px; font-weight: var(--fw-regular); line-height: var(--lh-base); color: var(--muted); }
   [data-kit='button'][data-variant='chip']:hover { color: var(--ink); }
-  [data-kit='button'][data-variant='chip'] > [data-kit='button-content'] { gap: 5px; }
+  [data-kit='button'][data-variant='chip'], [data-kit='button'][data-variant='chip'] > [data-kit='button-content'] { gap: 5px; } /* .chip-tog's gap is the button's own */
+  [data-kit='button'][data-variant='chip'][aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); } /* .chip-tog.on */
+  [data-kit='button-logo'] { display: block; flex: none; width: 0.8125rem; height: 0.8125rem; } /* v1 .model-logo: 13px */
 }

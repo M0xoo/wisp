@@ -81,7 +81,8 @@
   /* a choice in a settings row (v1 .sx-seg): the picked one in the accent */
   [data-kit='settings-row'] [data-kit='tabs'][data-variant='pill'] [data-kit='tab'][data-selected] { color: var(--accent-ink); }
   /* v1 .theme-seg / .us-stop buttons in a row: the row's line height, an icon 6px from its label */
-  [data-kit='settings-row'] [data-kit='tabs'][data-variant='seg'] [data-kit='tab'] { gap: 6px; line-height: var(--lh-base); }
+  [data-kit='settings-row'] [data-kit='tabs'][data-variant='seg'] [data-kit='tab'] { line-height: var(--lh-base); }
+  [data-kit='settings-row'] [data-kit='tabs'][data-variant='seg'] [data-kit='tab'][data-icon] { gap: 6px; } /* only .theme-seg's (icon) buttons are flex; .pk-seg's are blocks */
   [data-kit='settings-row'] [data-kit='tabs'][data-variant='seg'] [data-kit='tab'] > [data-kit='icon'] { margin-right: 0; }
   [data-kit='setting-locked'] { display: block; margin-top: var(--space-1); color: var(--ink-2); }
 
@@ -150,12 +151,15 @@
   [data-kit='settings-item-size'] { text-align: right; }
   /* narrow (v1 squeezed the name to a letter): the name and its line on their own line, the rest under it */
   @container settings (max-width: 520px) {
-    [data-kit='settings-item'] { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 4px; }
+    [data-kit='settings-item'] { grid-template-columns: minmax(0, 1fr) auto auto; padding: 10px 14px; row-gap: 6px; } /* v1's phone .wtr-row */
     [data-kit='settings-item-who'] { grid-column: 1 / -1; }
   }
   [data-kit='settings-item-acts'] { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
   /* a filter in a group's box, over its items (v1 .wtr-filters) */
   [data-kit='settings-group-body'] > [data-kit='tabs'] { margin: 10px 14px; width: fit-content; max-width: calc(100% - 28px); }
+  /* v1 .wtr-filters: a seg with no edge of its own, its buttons at the pane's line height */
+  [data-kit='settings-group-body'] > [data-kit='tabs'] > [data-kit='tab-list'] { border-width: 0; }
+  [data-kit='settings-group-body'] > [data-kit='tabs'] [data-kit='tab'] { line-height: var(--lh-base); }
   /* a row's title as the box's headline (v1 .wtr-total) */
   [data-kit='settings-row'][data-big] [data-kit='settings-row-title'] { font-size: 15px; font-variant-numeric: tabular-nums; }
   /* v1 .sp-castbox: the row, the prompt, the examples, 10px apart, 14px under the last */
@@ -172,7 +176,7 @@
   [data-kit='cast-send']:disabled { opacity: 0.5; cursor: default; }
   [data-kit='cast-examples'] { --k-gap: 6px; padding: 0 14px; }
   [data-kit='cast-example'] {
-    display: inline-flex; align-items: center; min-height: 26px; max-width: 100%; padding: 3px 10px; border-radius: 13px; font-size: 12.5px; line-height: 1.4; text-align: left;
+    display: inline-flex; align-items: center; gap: 6px; min-height: 26px; max-width: 100%; padding: 3px 10px; border-radius: 13px; font-size: 12.5px; line-height: 1.4; text-align: left;
     color: var(--ink-2); background: var(--surface-2); border: var(--size-hairline) solid var(--line); transition: border-color 0.15s, color 0.15s;
   }
   [data-kit='cast-example']:hover { border-color: var(--line-2); color: var(--ink); }
@@ -183,6 +187,10 @@
   [data-kit='settings-empty'] p { margin: 2px 0 0; font-size: 13px; }
   /* v1 .sp-castrow */
   [data-kit='settings-field-row'] { display: flex; gap: 8px; align-items: center; padding: 0 14px 14px; }
+  /* v1 .cg-row: a field and its button on one line while they fit; the button goes under it when they don't */
+  [data-kit='settings-input-row'] { --k-gap: 8px; }
+  [data-kit='settings-input-row'] > [data-kit='input'], [data-kit='settings-input-row'] > [data-kit='field-box'] { flex: 1; min-width: 12.5rem; }
+  [data-kit='settings-input-row'] > [data-kit='button'] { flex: none; }
   [data-kit='settings-field-row'] > [data-kit='button'] { flex: none; }
   @container settings (max-width: 520px) { [data-kit='settings-field-row'] { flex-direction: column; align-items: stretch; } }
 }

@@ -120,6 +120,7 @@ export default function General(props: { readonly client: PluginClient }): JSX.E
       <SettingsGroup part="settings.general.crew">
         {/* v1 kept Theme here, above Crew tint (Appearance has it too) */}
         <ChoiceSetting
+          fieldset
           title={t('shell-settings.theme')}
           description={t('shell-settings.theme.hint')}
           source={{ value: () => shell.theme.pref(), set: (v: string) => void shell.theme.set(v as never) }}

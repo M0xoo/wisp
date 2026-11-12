@@ -3,7 +3,7 @@
 // where, this computer on the grid (reach it from any browser), and Sign out.
 import { Match, Show, Switch as Pick, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Button, Code, Inline, Input, Link, SettingsBlock, SettingsGroup, SettingsNote, SettingsRow, Stack, Switch, Text } from '@wisp/ui';
+import { Button, Code, Inline, Input, Link, SettingsBlock, SettingsInputRow, SettingsGroup, SettingsNote, SettingsRow, Stack, Switch, Text } from '@wisp/ui';
 import { cancelSignIn, DEFAULT_GRID, setComputer, signOut } from '../commands.ts';
 import { t } from '../i18n.ts';
 import { MyShares } from './MyShares.tsx';
@@ -70,12 +70,12 @@ export default function Cloud(props: { readonly client: PluginClient }): JSX.Ele
                   </>
                 }
               >
-                <Inline gap="4">
+                <SettingsInputRow>
                   <Input mono aria-label={t('grid-client.signin.grid')} value={grid()} onInput={setGrid} placeholder={DEFAULT_GRID} />
                   <Button size="sm" variant="primary" icon="lock" part="grid-client.signin.go" disabled={starting()} onClick={start}>
                     {t('grid-client.signin.go')}
                   </Button>
-                </Inline>
+                </SettingsInputRow>
                 <Show when={failed()}>{(why) => <Text tone="bad">{why()}</Text>}</Show>
               </SettingsBlock>
             </SettingsGroup>

@@ -94,3 +94,15 @@ export function SettingsFieldRow(props: SettingsFieldRowProps): JSX.Element {
     </div>
   );
 }
+
+export type SettingsInputRowProps = KitProps & WithChildren;
+
+/** A field and its button that share a line while they fit (v1 .cg-row: the grid's address and Sign in): the field
+ * grows from 12.5rem; when the two don't fit, the button goes under it and the field takes the line. */
+export function SettingsInputRow(props: SettingsInputRowProps): JSX.Element {
+  return (
+    <div id={props.id} data-kit="settings-input-row" data-layout="wrap" data-part={props.part ?? 'settings.input-row'}>
+      {props.children}
+    </div>
+  );
+}

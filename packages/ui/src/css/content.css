@@ -77,7 +77,12 @@
     font-weight: var(--fw-medium); line-height: var(--lh-tight); white-space: nowrap;
     color: color-mix(in srgb, var(--k-tone) 85%, var(--ink)); background: color-mix(in srgb, var(--k-tone) 9%, transparent);
   }
-  [data-kit='pill'][data-variant='plain'] { padding: 0; background: transparent; border-color: transparent; font-weight: var(--fw-medium); }
+  /* plain: v1's .sx-state (a row's state: the dot in its tone, the words muted, red when bad) and, with an icon,
+     .sx-signed (✓ Signed in: the tone's colour, a 13px icon 4px from the words) */
+  [data-kit='pill'][data-variant='plain'] { padding: 0; background: transparent; border-color: transparent; font-weight: var(--fw-regular); color: var(--muted); }
+  [data-kit='pill'][data-variant='plain'][data-tone='bad'] { color: var(--bad); }
+  [data-kit='pill'][data-variant='plain'][data-icon] { gap: var(--space-2); color: var(--k-tone); }
+  [data-kit='pill'][data-variant='plain'][data-icon] > [data-kit='icon'] { width: 13px; height: 13px; }
   [data-kit='pill'][data-variant='outline'] {
     background: transparent; border: var(--size-hairline) solid var(--line); border-radius: var(--radius-pill);
     padding: var(--space-0) var(--space-3); font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--muted);
@@ -150,4 +155,14 @@
   [data-kit='cmt-x'] { position: absolute; right: 4px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: var(--faint); }
   [data-kit='cmt-x']:hover { color: var(--bad); }
   @media (pointer: coarse) { [data-kit='cmt-row'] { height: 44px; } [data-kit='cmt-x'] { width: 44px; height: 44px; right: 0; } }
+
+  /* v1 comments.css .ask-notes: the comments a prompt went out with, over its words */
+  [data-kit='ask-notes'] { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  [data-kit='ask-notes']:last-child { margin-bottom: 0; }
+  [data-kit='ask-note'] { display: flex; align-items: flex-start; gap: 8px; }
+  [data-kit='ask-note'] > [data-kit='cmt-n'] { margin-top: 1px; }
+  [data-kit='an-body'] { display: flex; flex-direction: column; min-width: 0; flex: 1; font-size: 13px; }
+  [data-kit='an-on'] { font-size: 12.5px; color: var(--muted); }
+  [data-kit='an-on'] > i { font-style: normal; color: var(--faint); }
+  [data-kit='an-say'] { overflow-wrap: anywhere; color: var(--ink); }
 }

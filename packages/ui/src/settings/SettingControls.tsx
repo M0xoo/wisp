@@ -99,6 +99,8 @@ export interface ChoiceOption {
 
 export interface ChoiceSettingProps extends BoundRowProps<string> {
   readonly items: readonly ChoiceOption[];
+  /** v1 drew this strip as a `<fieldset>` (its 2px side margin): Theme, Automations stop at; see Tabs `fieldset` */
+  readonly fieldset?: boolean;
 }
 
 /** A few choices side by side (v1 .pk-seg): Theme, Automations stop at, Scout first. */
@@ -116,6 +118,7 @@ export function ChoiceSetting(props: ChoiceSettingProps): JSX.Element {
       control={
         <Tabs
           variant="seg"
+          {...(props.fieldset && { fieldset: true })}
           aria-label={props.title}
           value={value()}
           onChange={(v) => {

@@ -6,8 +6,9 @@ import { useT, type Translate } from '../core/i18n.tsx';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 
-/** chip: v1's .chip-tog, a small bordered choice (Settings → Connectors' examples) */
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'chip';
+/** chip: v1's .chip-tog, a small bordered choice (Settings → Connectors' examples). link: v1's `button.link`, an
+ * action in running text (Settings → Plugins' Turn every plugin off) */
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'chip' | 'link';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 interface ButtonBase extends KitProps, Labelled {
@@ -34,6 +35,8 @@ export interface ButtonProps extends ButtonBase, WithChildren {
   readonly tone?: 'good' | 'bad' | undefined;
   readonly icon?: IconName;
   readonly iconEnd?: IconName;
+  /** A mark before the label from an image URL, where there's no icon: a harness's logo (v1 .chip-tog .model-logo) */
+  readonly logo?: string | undefined;
   /** A shortcut hint shown inside the button (hidden on touch). */
   readonly kbd?: string;
   /** Fill the width of its container. */
@@ -74,7 +77,8 @@ export function Button(props: ButtonProps): JSX.Element {
       data-fill={flag(props.fill)}
     >
       <span data-kit="button-content">
-        <Show when={props.icon}>{(name) => <Icon name={name()} size={props.size === 'xs' ? 'sm' : 'md'} />}</Show>
+        <Show when={props.icon}>{(name) => <Icon name={name()} size={props.size === 'xs' ? 'sm' : props.variant === 'primary' || props.variant === 'ghost' ? 'base' : 'md'} />}</Show>
+        <Show when={!props.icon && props.logo}>{(src) => <img data-kit="button-logo" src={src()} alt="" />}</Show>
         <Show when={props.children !== undefined}>
           <span data-kit="button-label" data-text="control">
             {props.children}
@@ -96,6 +100,8 @@ export interface IconButtonProps extends ButtonBase {
   readonly label: string;
   readonly variant?: 'ghost' | 'secondary' | 'primary';
   readonly tone?: 'good' | 'bad' | undefined;
+  /** xs only: v1's `.ghost.xs.icon-btn`, a ghost button's 6px sides around a 16px icon (32×24), beside xs text buttons */
+  readonly wide?: boolean;
 }
 
 /** A square button with an icon and no text; `label` is its accessible name and tooltip. */
@@ -124,9 +130,10 @@ export function IconButton(props: IconButtonProps): JSX.Element {
       data-size={props.size ?? 'md'}
       data-tone={props.tone}
       data-loading={flag(props.loading)}
+      data-wide={flag(props.wide)}
     >
       <span data-kit="button-content">
-        <Icon name={props.icon} size={props.size === 'xs' || props.size === 'sm' ? 'md' : 'base'} />
+        <Icon name={props.icon} size={props.wide ? 'base' : props.size === 'xs' || props.size === 'sm' ? 'md' : 'base'} />
       </span>
       <Show when={props.loading}>
         <Spinner label={t('loading')} />

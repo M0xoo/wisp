@@ -58,6 +58,10 @@ export default function Plugins(props: { readonly client: PluginClient }): JSX.E
       .finally(() => void refetch());
   };
   const yours = (): PluginRow[] => (rows() ?? []).filter((p) => !p.builtin);
+  // v1's Turn every spell off: each of yours that's on goes off (each switch shows at once, as one flip does)
+  const allOff = (): void => {
+    for (const p of yours()) if (p.enabled) flip(p, false);
+  };
   const builtins = (): PluginRow[] => (rows() ?? []).filter((p) => p.builtin).sort((a, b) => a.id.localeCompare(b.id));
   const row = (p: PluginRow): JSX.Element => (
     <SettingsRow
@@ -156,7 +160,12 @@ export default function Plugins(props: { readonly client: PluginClient }): JSX.E
           )}
         </Show>
       </SettingsGroup>
-      <SettingsNote part="plugins.foot">{t('plugins.foot')}</SettingsNote>
+      <SettingsNote part="plugins.foot">
+        {t('plugins.foot')}{' '}
+        <Button variant="link" size="xs" part="plugins.allOff" onClick={allOff}>
+          {t('plugins.allOff')}
+        </Button>
+      </SettingsNote>
       <SettingsGroup part="plugins.builtin" title={t('plugins.builtin')} description={t('plugins.builtin.description')}>
         <For each={builtins()}>{row}</For>
       </SettingsGroup>

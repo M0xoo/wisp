@@ -19,4 +19,5 @@ export function mount(view: () => JSX.Element): HTMLElement {
 
 export const tick = (ms = 0): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-export const part = (name: string): HTMLElement | null => document.querySelector<HTMLElement>(`[data-part="${name}"]`);
+// a data-part is a list of names (an element may answer to two, as v1's did): match one word
+export const part = (name: string): HTMLElement | null => document.querySelector<HTMLElement>(`[data-part~="${name}"]`);

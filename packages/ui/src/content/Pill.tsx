@@ -31,6 +31,7 @@ export function Pill(props: PillProps): JSX.Element {
       data-tone={props.tone ?? 'neutral'}
       data-variant={props.variant ?? 'soft'}
       data-size={props.size}
+      data-icon={props.icon ? '' : undefined}
     >
       <Show when={props.dot}>
         <span data-kit="pill-dot" data-live={flag(props.live)} />

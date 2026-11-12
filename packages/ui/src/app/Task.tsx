@@ -192,6 +192,8 @@ export interface TrailItem {
 
 export interface TurnViewProps {
   readonly prompt: string;
+  /** the comments the prompt went out with, as cards over its words (v1 comments.js sentComments). Additive (2026-11-12). */
+  readonly askNotes?: readonly { readonly n: number; readonly on: string; readonly removed?: boolean; readonly removedLabel?: string; readonly say: string }[];
   readonly logo?: string;
   readonly harness: string;
   readonly time: string;
@@ -222,7 +224,32 @@ export function TurnView(props: TurnViewProps): JSX.Element {
   return (
     <article data-kit="turn">
       <div data-kit="ask">
-        <div data-kit="ask-text">{props.prompt}</div>
+        <Show when={(props.askNotes ?? []).length > 0}>
+          <ol data-kit="ask-notes" data-part="turn.notes">
+            <For each={props.askNotes}>
+              {(c) => (
+                <li data-kit="ask-note">
+                  <span data-kit="cmt-n">{c.n}</span>
+                  <div data-kit="an-body">
+                    <span data-kit="an-on">
+                      <span data-kit="cmt-file">{c.on}</span>
+                      <Show when={c.removed}>
+                        {' '}
+                        <i>{c.removedLabel}</i>
+                      </Show>
+                    </span>
+                    <Show when={c.say}>
+                      <span data-kit="an-say">{c.say}</span>
+                    </Show>
+                  </div>
+                </li>
+              )}
+            </For>
+          </ol>
+        </Show>
+        <Show when={props.prompt}>
+          <div data-kit="ask-text">{props.prompt}</div>
+        </Show>
         <div data-kit="ask-foot">
           <span data-kit="model-logo" role="img" aria-label={props.harness}>
             <Show when={props.logo}>{(src) => <img src={src()} alt="" />}</Show>

@@ -123,13 +123,14 @@ export default function Connectors(props: { readonly client: PluginClient }): JS
           <SettingsGroup part="connectors.import">
             <SettingsRow
               part="connectors.found.row"
+              keepRight
               tile="download"
               title={t('connectors.found.title', { count: found().length, from: listOf(sourcesOf(found() as FoundServer[]), t('connectors.and')) })}
               description={found()
                 .map((f) => f.name)
                 .join(', ')}
               control={
-                <Inline gap="2">
+                <Inline gap="4">
                   <Button size="sm" variant="ghost" part="connectors.found.skip" onClick={() => quiet(c.run(importFound, { peer, names: [], dismiss: found().map((f) => f.name) }))}>
                     {t('connectors.found.skip')}
                   </Button>

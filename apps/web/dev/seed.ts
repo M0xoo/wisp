@@ -475,6 +475,9 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
   topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
   topics.set('plugin:wisp.worktrees:worktrees', WORKTREE_ROWS);
   // usage stats off by the environment, as on v1's QA box (DO_NOT_TRACK)
+  // the machine guard's reading, as v1's QA box showed it (Settings → Usage → Machine load: Now)
+  topics.set('plugin:wisp.machine:load', LOAD_ROWS);
+  topics.set('plugin:wisp.router:view', ROUTER_ROWS);
   topics.set('plugin:wisp.telemetry:state', [{ e: 'telemetry.state', id: 'this', v: { on: false, setting: true, blocked: true } }]);
   topics.set(
     'crew',
@@ -569,6 +572,41 @@ function overlaps(v1: V1Seed, peer: string): Map<string, { id: string; files: st
   return out;
 }
 
+const LOAD_ROWS: Row[] = [
+  { e: 'machine.load', id: 'this', v: { at: 0, platform: 'darwin', mem_free_pct: 71, cpu: 50, runs: 0, held: null, limits: { floor: 15, maxRuns: 8 }, paused_until: 0, left_behind: 0 } },
+];
+
+/** Settings → Auto (wisp.router's view), as v1's QA box showed it: its defaults (learn from picks, try new models,
+ * hand over on error; scout bigger tasks), every harness installed, 4 picks of yours and 3 runs learned from. */
+const ROUTER_ROWS: Row[] = [
+  {
+    e: 'router_view',
+    id: 'view',
+    v: {
+      priors: {},
+      learned: 3,
+      routed: 3,
+      picks: 4,
+      corrections: 0,
+      arms: (
+        [
+          ['claude', 'Claude Code'],
+          ['codex', 'Codex'],
+          ['opencode', 'opencode'],
+          ['cursor', 'Cursor'],
+          ['antigravity', 'Antigravity'],
+          ['grok', 'Grok'],
+          ['copilot', 'Copilot'],
+        ] as const
+      ).map(([agent, name], tier) => ({ key: agent, agent, model: '', effort: '', label: name, tier, state: 'ready', chance: 0, n: 0, usd: 0, minutes: 0, prior: true })),
+      recent: [],
+      goal: 'balanced',
+      settings: { explore: true, allowed: null, blocked: [], prefer: [], habits: true, escalate: true, best2: false, scout: 'big' },
+      projects: [],
+    },
+  },
+];
+
 export function fromV1(v1: V1Seed, peer: string): Seeded {
   const topics = new Map<Topic, Row[]>();
   const list: Row[] = [];
@@ -628,6 +666,9 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
   topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
   topics.set('plugin:wisp.worktrees:worktrees', WORKTREE_ROWS);
   // usage stats off by the environment, as on v1's QA box (DO_NOT_TRACK)
+  // the machine guard's reading, as v1's QA box showed it (Settings → Usage → Machine load: Now)
+  topics.set('plugin:wisp.machine:load', LOAD_ROWS);
+  topics.set('plugin:wisp.router:view', ROUTER_ROWS);
   topics.set('plugin:wisp.telemetry:state', [{ e: 'telemetry.state', id: 'this', v: { on: false, setting: true, blocked: true } }]);
   topics.set(
     'crew',

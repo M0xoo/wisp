@@ -42,5 +42,6 @@
   "plugins.example.7": "A bigger monospace prompt box without the compare and team buttons",
   "plugins.example.8": "Codex tasks always run the linter before they report",
   "plugins.foot": "Your plugins live in ~/.wisp/plugins. Switching one off puts back exactly what it changed.",
-  "plugins.pane.lede": "Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Each is a plugin you can switch off."
+  "plugins.allOff": "Turn every plugin off",
+  "plugins.pane.lede": "Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or install one a colleague sent."
 }

@@ -4,7 +4,7 @@
 
 import { createSignal, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Button, SettingsGroup, SettingsRow, Switch, SwitchSetting, useSignal } from '@wisp/ui';
+import { Button, Code, SettingsGroup, SettingsRow, Switch, SwitchSetting, useSignal } from '@wisp/ui';
 import { t } from '../i18n.ts';
 import { fromRow, onOff } from '../source.ts';
 import { KEYS, VIEW_ID } from '../types.ts';
@@ -58,7 +58,7 @@ export default function Notifications(props: { readonly client: PluginClient }):
           title={t('shell-settings.phone')}
           description={t('shell-settings.phone.hint')}
           control={
-            <Button size="sm" variant="secondary" icon="phone" onClick={openMachines}>
+            <Button size="sm" variant="ghost" onClick={openMachines}>
               {t('shell-settings.phone.setup')}
             </Button>
           }
@@ -66,7 +66,13 @@ export default function Notifications(props: { readonly client: PluginClient }):
         <SwitchSetting
           part="settings.acceptChannels"
           title={t('shell-settings.channels')}
-          description={t('shell-settings.channels.hint')}
+          description={
+            <>
+              {t('shell-settings.channels.hint.pre')}
+              <Code>{t('shell-settings.channels.hint.code')}</Code>
+              {t('shell-settings.channels.hint.post')}
+            </>
+          }
           source={onOff(fromRow(props.client, KEYS.acceptChannels), false, KEYS.acceptChannels)}
           locked={(by) => t('shell-settings.locked', { by })}
         />

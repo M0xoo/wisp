@@ -32,6 +32,9 @@ export interface TabsProps extends KitProps {
   readonly activation?: 'automatic' | 'manual';
   /** Stretch the tabs across the width (phone segments). */
   readonly fill?: boolean;
+  /** seg only: v1 drew some strips as a `<fieldset class="pk-seg">` (Theme, Automations stop at; Worktrees' filter sets its own margin),
+   * which keeps the browser's 2px side margin; its `<span class="pk-seg">` ones (Auto's Goal, Scout first) have none. */
+  readonly fieldset?: boolean;
 }
 
 export function Tabs(props: TabsProps): JSX.Element {
@@ -48,10 +51,10 @@ export function Tabs(props: TabsProps): JSX.Element {
   const part = (): PartName => props.part ?? 'ui.tabs';
   return (
     <div {...api().getRootProps()} data-kit="tabs" data-part={part()} data-variant={props.variant ?? 'line'}>
-      <div {...api().getListProps()} aria-label={props['aria-label']} data-kit="tab-list" data-part={sub(part(), 'list')} data-fill={flag(props.fill)}>
+      <div {...api().getListProps()} aria-label={props['aria-label']} data-kit="tab-list" data-part={sub(part(), 'list')} data-fill={flag(props.fill)} data-fieldset={flag(props.fieldset)}>
         <For each={props.items}>
           {(item) => (
-            <button {...api().getTriggerProps({ value: item.value, disabled: item.disabled })} data-kit="tab" data-part={sub(part(), 'tab')} data-value={item.value}>
+            <button {...api().getTriggerProps({ value: item.value, disabled: item.disabled })} data-kit="tab" data-part={sub(part(), 'tab')} data-value={item.value} data-icon={flag(item.icon !== undefined)}>
               <Show when={item.icon}>{(name) => <Icon name={name()} size="md" />}</Show>
               <span data-kit="tab-label" data-text="control">
                 {item.label}

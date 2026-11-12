@@ -60,6 +60,10 @@ export interface SettingsRowProps extends KitProps {
   readonly tile?: IconName;
   /** the title as the box's headline, 15px (v1 .wtr-total) */
   readonly big?: boolean;
+  /** the control is a set of choices that wraps (v1 .ro-allowed: Auto's harnesses): at most 360px beside the text */
+  readonly choices?: boolean;
+  /** when the control drops under the text (a narrow pane), it keeps to the right (v1 .cn-found: Not now · Review) */
+  readonly keepRight?: boolean;
 }
 
 export function SettingsRow(props: SettingsRowProps): JSX.Element {
@@ -74,6 +78,8 @@ export function SettingsRow(props: SettingsRowProps): JSX.Element {
       data-tile={props.tile ? '' : undefined}
       data-bare={props.control === undefined ? '' : undefined}
       data-big={props.big ? '' : undefined}
+      data-choices={props.choices ? '' : undefined}
+      data-keep-right={props.keepRight ? '' : undefined}
     >
       <Show when={props.tile}>
         {(n) => (

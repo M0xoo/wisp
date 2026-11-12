@@ -27,7 +27,7 @@
   /* Dialog: a card over a dim scrim (v1's .overlay / .modal). */
   [data-kit='backdrop'] { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--shadow-scrim); animation: kit-fade var(--dur-slow) var(--ease); }
   [data-kit='dialog-positioner'] {
-    position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: center; padding: var(--space-8) var(--space-7);
+    position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: center; padding: 1.25rem; /* v1 .overlay: 20px all round */
     overflow-y: auto; overscroll-behavior: contain;
   }
   [data-kit='dialog'], [data-kit='sheet'] {
@@ -42,7 +42,7 @@
   [data-kit='dialog'][data-size='v1'] { --dialog-w: 40rem; padding: 18px 20px 20px; }
   [data-kit='dialog'][data-size='v1'] > [data-kit='dialog-head'] { margin-bottom: 14px; }
   [data-kit='dialog'][data-size='v1'] [data-kit='dialog-title'] { font: 600 18px/1.2 var(--display); letter-spacing: -0.015em; }
-  [data-kit='dialog'][data-size='xl'] { --dialog-w: var(--size-dialog-xl); height: min(var(--size-dialog-xl-h), calc(100dvh - var(--space-8) * 2)); max-height: none; }
+  [data-kit='dialog'][data-size='xl'] { --dialog-w: var(--size-dialog-xl); height: min(var(--size-dialog-xl-h), calc(100dvh - 2.5rem)); max-height: none; }
   /* bare: the content is the whole surface, its own head and close; the title is for screen readers only */
   [data-kit='dialog'][data-bare], [data-kit='sheet'][data-bare] { padding: 0; overflow: hidden; }
   /* a bare dialog is v1's .modal.sx: the dialog keeps its line, corners and surface, its content fills it edge to edge */
@@ -95,6 +95,7 @@
   [data-kit='tab-count'] { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--faint); }
   /* v1 .pk-seg */
   [data-kit='tabs'][data-variant='seg'] > [data-kit='tab-list'] { align-self: flex-start; gap: 2px; padding: 2px; border: var(--size-hairline) solid var(--line); border-radius: 9px; background: var(--bg-2); }
+  [data-kit='tabs'][data-variant='seg'] > [data-kit='tab-list'][data-fieldset] { margin: 0 var(--space-1); } /* a <fieldset>'s own side margin */
   [data-kit='tabs'][data-variant='seg'] [data-kit='tab'] { flex: 1 0 auto; gap: 0; height: auto; padding: 4px 7px; border-radius: 7px; font-size: 12.5px; font-weight: var(--fw-regular); line-height: var(--lh-snug); }
   [data-kit='tabs'][data-variant='seg'] [data-kit='tab'][data-selected] { background: var(--surface); color: var(--accent-ink); font-weight: var(--fw-medium); box-shadow: var(--shadow-1); }
   [data-kit='tabs'][data-variant='seg'] [data-kit='tab'] > [data-kit='icon'] { width: 14px; height: 14px; margin-right: 6px; }
