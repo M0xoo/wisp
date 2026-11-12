@@ -640,6 +640,36 @@
     color: var(--ink-2);
     white-space: nowrap;
   }
+  /* ship.css .ov-x (v1 #787): last on the row, a 24px square like Open beside it; 44px to the thumb on touch,
+     the negative margin giving back what the height adds */
+  [data-kit='ov-x'] {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin-left: -4px;
+    border-radius: 7px;
+    color: var(--muted);
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  [data-kit='ov-x']:hover {
+    background: var(--bg-2);
+    color: var(--ink);
+  }
+  [data-kit='ov-x'] > [data-kit='icon'] {
+    width: 12px;
+    height: 12px;
+  }
+  @media (pointer: coarse) {
+    [data-kit='ov-x'] {
+      width: 44px;
+      height: 44px;
+      margin-block: -10px;
+    }
+  }
 
   /* composer.css .composer (awake: the reply box has the caret) */
   [data-kit='reply-box'] {

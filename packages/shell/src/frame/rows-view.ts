@@ -65,7 +65,7 @@ export function goalOf(s: SessionRow, t: ShellContext['t']): { n: number; progre
   return { n: g.round ?? 0, progress, title, paused };
 }
 
-interface OverlapRow {
+export interface OverlapRow {
   readonly id: string;
   readonly files: readonly string[];
   readonly conflicts?: readonly string[];

@@ -409,6 +409,8 @@ export interface OverlapNoteProps {
   readonly openTitle: string;
   readonly onOpen?: () => void;
   readonly moreAct?: Act;
+  /** v1 #787 .ov-x: the note's ×, last on the row (the host keeps it closed until something changes) */
+  readonly dismiss?: { readonly label: string; readonly title: string; readonly onDismiss: () => void };
 }
 
 /** v1 .overlap-strip: the first task changing the same files, above the reply box. */
@@ -433,6 +435,13 @@ export function OverlapNote(props: OverlapNoteProps): JSX.Element {
         <button type="button" data-kit="ghost-xs" data-compact="" title={props.openTitle} onClick={() => props.onOpen?.()}>
           {props.open}
         </button>
+        <Show when={props.dismiss}>
+          {(d) => (
+            <button type="button" data-kit="ov-x" data-part="card.overlapClose" aria-label={d().label} title={d().title} onClick={() => d().onDismiss()}>
+              <Icon name="x" />
+            </button>
+          )}
+        </Show>
       </div>
     </div>
   );

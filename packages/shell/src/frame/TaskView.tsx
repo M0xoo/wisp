@@ -42,6 +42,7 @@ import { noOutputLine } from './no-output.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { draftValue, replyDraft } from './drafts.ts';
 import { keep, placeOf, placesStore, scrollFor, type Place } from './place.ts';
+import { dismiss, dismissedStore, shownOverlaps, type Dismissed } from './overlap-dismiss.ts';
 import { menuEntryOf, taskMenu, type TaskMenuEntry } from '../task-menu.ts';
 import {
   rateTurn,
@@ -200,6 +201,15 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   let input: HTMLTextAreaElement | undefined;
   queueMicrotask(() => shell.nav().layout === 'split' && input?.focus());
   const titleOf = (id: string): string => sessions().find((s) => s.id === id)?.title ?? '';
+  // the overlap note's × (v1 #787): closed for this task until what it says changes; kept in this browser as v1 did
+  const closedNotes = dismissedStore(shell.client);
+  const closed = useSignal(closedNotes.value);
+  // until the kept ones load (a reload), a closed note would flash up and go: it waits for them
+  const [closedReady, setClosedReady] = createSignal(false);
+  void closedNotes.ready.catch(() => undefined).finally(() => setClosedReady(true)); // a failed load shows them all
+  const closeNote = (id: string, all: ReturnType<typeof overlapsOf>): void => {
+    closedNotes.set((cur) => dismiss(cur as unknown as Dismissed, id, all));
+  };
   const peer = ownerOf(key);
   const run = shell.client.commands.run;
   // the cold-cache line and Compact now (v1 cold-cache.js): asked again whenever the task settles or changes
@@ -618,7 +628,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
         const h = (): { name: string; logo?: string } => harnessOf(harnesses(), replyRun()?.agent ?? s().agent);
         const branch = (): string => String(s().summary['branch'] ?? '');
         const color = (): string => String(s().summary['color'] ?? 'slate');
-        const ov = createMemo(() => overlapsOf(s()));
+        const ov = createMemo(() => (!closedReady() ? [] : shownOverlaps(overlapsOf(s()), closed() as unknown as Dismissed | undefined, s().id)));
         const mode = (): Mode => (['plan', 'edits', 'auto'].includes(String(s().summary['mode'])) ? (s().summary['mode'] as Mode) : 'auto');
         return (
           <>
@@ -885,6 +895,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         open={t('shell.overlap.open')}
                         openTitle={t('shell.overlap.openTitle')}
                         onOpen={() => shell.navigate({ t: 'openTask', id: o().id as never })}
+                        dismiss={{ label: t('shell.overlap.dismiss'), title: t('shell.overlap.dismissTitle'), onDismiss: () => closeNote(s().id, overlapsOf(s())) }}
                         moreAct={{
                           menu: {
                             items: ov()

@@ -158,6 +158,8 @@ export const SHELL_STRINGS = {
   'shell.overlap.moreTitle': 'All the tasks that change the same files',
   'shell.overlap.open': 'Open',
   'shell.overlap.openTitle': 'Open that task',
+  'shell.overlap.dismiss': 'Dismiss',
+  'shell.overlap.dismissTitle': 'Dismiss until something changes',
   'shell.card.later': 'Save for later (L)',
   'shell.card.done': 'Mark done (E)',
   'shell.card.thisComputer': 'This computer',
