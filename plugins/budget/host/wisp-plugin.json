@@ -11,6 +11,7 @@
   },
   "permissions": [
     "runtime:release",
+    "runtime:turn.setExt",
     "accounts:read",
     "store:write{owner:budget}"
   ],

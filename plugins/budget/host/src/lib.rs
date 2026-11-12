@@ -19,7 +19,7 @@ use wisp_budget_core::Budget;
 use wisp_budget_core::limits::report_from_value;
 use wisp_kernel::services::Paths;
 use wisp_kernel::{Ctx, Failure, InterceptOpts, Manifest, Plugin, Result, Setup, Verdict, WireError};
-use wisp_runtime_api::events::{TurnEnded, TurnLimits};
+use wisp_runtime_api::events::{TurnEnded, TurnLimits, TurnStarted};
 use wisp_runtime_api::hooks::{BeforeRun, BeforeRunCtx};
 use wisp_runtime_api::model::Held;
 use wisp_store::Store;
@@ -30,6 +30,9 @@ pub const HOLD_KIND: &str = "plan";
 /// How often held work looks whether its account is free (v1 tick).
 const TICK_MS: u64 = 60_000;
 const STOP_AT: [&str; 4] = ["off", "50", "75", "90"];
+
+/// Each turn's plan shares so far: turn → (last touched, task, shares).
+type TurnPlans = BTreeMap<String, (u64, String, Vec<wisp_budget_api::Share>)>;
 
 /// Turns held per (agent, account): (task, turn).
 type HeldTurns = BTreeMap<(String, String), Vec<(String, String)>>;
@@ -47,7 +50,15 @@ struct State {
     running: Mutex<BTreeMap<String, (String, String, f64)>>,
     /// automations Ask near the limit holds: (task, turn, until)
     asked: Mutex<Vec<(String, String, i64)>>,
+    /// the account each turn is about to run on (`before:run`), until it starts: the ledger begins it then
+    starting: Mutex<BTreeMap<String, (String, String)>>,
+    /// each turn's plan shares so far (v1 turn.plan), the newest `MAX_PLANS` turns: written to its `wisp.budget` slot
+    plans: Mutex<TurnPlans>,
+    plan_seq: std::sync::atomic::AtomicU64,
 }
+
+/// turns whose plan shares are kept in memory to add to (a share lands during the run or with the next report)
+const MAX_PLANS: usize = 500;
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
@@ -114,9 +125,34 @@ impl State {
         }
     }
 
+    /// Where a window's move went (v1 budget.js addShare → turn.plan): each turn's shares, added to what it has, on
+    /// its own turn (`ext["wisp.budget"].plan`), so Compare's Plan row and the receipt read them.
+    async fn keep_shares(&self, ctx: &Ctx, shares: &[(String, String, wisp_budget_api::Share)]) {
+        let mut writes = Vec::new();
+        {
+            let mut plans = lock(&self.plans);
+            for (sid, tid, share) in shares {
+                let seq = self.plan_seq.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let e = plans.entry(tid.clone()).or_insert_with(|| (seq, sid.clone(), Vec::new()));
+                e.0 = seq;
+                wisp_budget_core::where_went::add_share(&mut e.2, share);
+                writes.push((sid.clone(), tid.clone(), e.2.clone()));
+            }
+            while plans.len() > MAX_PLANS {
+                let Some(old) = plans.iter().min_by_key(|(_, v)| v.0).map(|(k, _)| k.clone()) else { break };
+                plans.remove(&old);
+            }
+        }
+        writes.dedup_by(|a, b| a.1 == b.1);
+        for (sid, tid, plan) in writes {
+            let _ = ctx.run_json(&ctx.root_call(), "runtime.turn.setExt", json!({ "id": sid, "turnId": tid, "plugin": PLUGIN_ID, "value": { "plan": plan } })).await;
+        }
+    }
+
     async fn record(&self, ctx: &Ctx, agent: &str, account: &str, report: &wisp_budget_api::LimitsReport) -> c::RecordOut {
         let r = lock(&self.budget).record(agent, &account_of(account), report, now(ctx));
         self.save().await;
+        self.keep_shares(ctx, &r.shares).await;
         self.release(ctx).await;
         c::RecordOut { past: r.past }
     }
@@ -124,6 +160,7 @@ impl State {
 
 /// `before:run`: unattended work on an account past its stop line is held until it resets.
 fn guard(ctx: &Ctx, st: &State, mut c: BeforeRunCtx) -> Verdict<BeforeRunCtx> {
+    lock(&st.starting).insert(c.turn_id.0.clone(), (c.agent.clone(), account_of(c.account.as_deref().unwrap_or(""))));
     let subject = wisp_budget_core::subject_of(&c.agent, c.account.as_deref(), c.by.as_deref());
     let at = now(ctx);
     let Some(h) = wisp_budget_core::decide(&subject, |g, a| st.hold(g, a, at)) else { return st.ask(ctx, c).unwrap_or(Verdict::Continue) };
@@ -131,6 +168,39 @@ fn guard(ctx: &Ctx, st: &State, mut c: BeforeRunCtx) -> Verdict<BeforeRunCtx> {
     lock(&st.held).entry((h.agent.clone(), h.account.clone())).or_default().push((c.session_id.0.clone(), c.turn_id.0.clone()));
     c.hold = Some(Held { by: PLUGIN_ID.into(), kind: HOLD_KIND.into(), until: Some(h.until), data: json!({ "hold": h, "why": why }) });
     Verdict::Modify { ctx: c }
+}
+
+/// A turn's start and end: the ledger knows which turns ran on an account while its windows moved (they share the
+/// move, v1 #sharers; the account is the one `before:run` saw); an end also feeds Drain watch and Ask near the limit.
+fn on_turns(s: &mut Setup, slot: &Slot) {
+    // the ledger knows which turns ran on an account while its windows moved: they share the move (v1 #sharers)
+    let started = slot.clone();
+    s.on::<TurnStarted, _, _>(move |ctx, e| {
+        let slot = started.clone();
+        async move {
+            if let Ok(st) = state(&slot)
+                && let Some((agent, account)) = lock(&st.starting).remove(e.turn_id.as_str())
+            {
+                lock(&st.budget).begin(&agent, &account, e.session_id.as_str(), e.turn_id.as_str(), now(&ctx));
+            }
+        }
+    });
+    let ended = slot.clone();
+    s.on::<TurnEnded, _, _>(move |ctx, e| {
+        let slot = ended.clone();
+        async move {
+            if let Ok(st) = state(&slot) {
+                lock(&st.budget).end(e.session_id.as_str(), e.turn_id.as_str(), now(&ctx));
+                st.ended(&ctx, &e).await;
+                lock(&st.running).remove(e.turn_id.as_str());
+                let learned = ask::learn(&mut lock(&st.runs), &e, now(&ctx));
+                if learned {
+                    let runs = lock(&st.runs).clone();
+                    let _ = st.store.write(move |w| store::put_runs(w, &runs)).await;
+                }
+            }
+        }
+    });
 }
 
 macro_rules! on {
@@ -216,21 +286,7 @@ impl Plugin for BudgetPlugin {
                 st.record(&ctx, &e.agent, e.account.as_deref().unwrap_or(""), &report).await;
             }
         });
-        let ended = slot.clone();
-        s.on::<TurnEnded, _, _>(move |ctx, e| {
-            let slot = ended.clone();
-            async move {
-                if let Ok(st) = state(&slot) {
-                    st.ended(&ctx, &e).await;
-                    lock(&st.running).remove(e.turn_id.as_str());
-                    let learned = ask::learn(&mut lock(&st.runs), &e, now(&ctx));
-                    if learned {
-                        let runs = lock(&st.runs).clone();
-                        let _ = st.store.write(move |w| store::put_runs(w, &runs)).await;
-                    }
-                }
-            }
-        });
+        on_turns(s, &slot);
         let start = slot;
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();
@@ -239,7 +295,7 @@ impl Plugin for BudgetPlugin {
                 store::import_v1(&store, p.home()).await.map_err(WireError::from)?;
             }
             let (accs, settings, runs) = store::load(&store).await.map_err(WireError::from)?;
-            let st = Arc::new(State { store, budget: Mutex::new(Budget::load(accs)), settings: Mutex::new(settings), held: Mutex::new(BTreeMap::new()), notes: Mutex::default(), runs: Mutex::new(runs), running: Mutex::default(), asked: Mutex::default() });
+            let st = Arc::new(State { store, budget: Mutex::new(Budget::load(accs)), settings: Mutex::new(settings), held: Mutex::new(BTreeMap::new()), notes: Mutex::default(), runs: Mutex::new(runs), running: Mutex::default(), asked: Mutex::default(), starting: Mutex::default(), plans: Mutex::default(), plan_seq: std::sync::atomic::AtomicU64::new(0) });
             let _ = start.set(st.clone());
             // held work starts when its windows reset on their own, or a live read says they reset early
             if let Ok(clock) = ctx.clock() {
