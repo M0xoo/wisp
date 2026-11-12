@@ -28,6 +28,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A picture loading in a task no longer moves the page.** Pictures and videos in an answer load once they're near, with no room kept for them, so at the end of a task each one pushed the end off screen (by up to its height) as it arrived. The view now stays at the end, before the page paints; read higher up, it holds what you're reading.
 - **No more Allow & retry that can't allow anything.** In Full auto, Claude Code still refuses a few commands with its own safety check (a heredoc it can't parse: “could not be checked for dangerous rm operations”), and no rule lifts that. The *Blocked by permissions* card offered Allow & retry for them anyway, which did nothing useful. It now lists what was refused with a note that wisp can't allow it, and no buttons.
 - **A subagent's title on a phone is one line, like its lead's beside it.** Opening a subagent's task on a phone, the lead's title in the head was cut short on one line while the subagent's own title wrapped to two; now both are one line, cut short.
+- **A long task with many subagents opens fast on the desktop too.** The phone's fix fetched only a task's latest turns and the subagent runs their cards show; the desktop still fetched every turn and every subagent's whole run, again on each refresh while it ran (68 MB for a task of 257 turns and 52 subagents, now 2.4 MB). Unfolding an older turn fetches only that turn. The usage popover also counts a long task's older turns on the phone again.
 
 ## [0.58.0] - 2026-11-11
 

@@ -53,3 +53,38 @@ test('the phone window: a crew job on another machine goes whole, opening it mus
   assert.equal(out.childSessions.k3.turns.length, 2);
   assert.equal('beforeFile' in out.childSessions.k3.turns[0].changes[0], false);
 });
+
+test('the window: also= sends an older turn whole, with the subagent its card shows', () => {
+  const out = leanSession(lead(), 1, { also: ['t1'] });
+  assert.equal(out.turns[0].stub, undefined, 't1 was unfolded by hand');
+  assert.deepEqual(out.turns[0].activity, [{ kind: 'tool' }]);
+  assert.equal(out.turns[1].stub, true);
+  assert.equal(out.turns[2].stub, undefined);
+  assert.deepEqual(Object.keys(out.childSessions).sort(), ['k1', 'k3']);
+});
+
+test('the window: a stub keeps what the usage popover sums and Fork reads, not a checkpoint’s file lists', () => {
+  const s = lead();
+  Object.assign(s.turns[0], { stats: { tokens: 5 }, details: { tools: { hash: 'h' } }, checkpoint: { commit: 'c', head: 'h1', branch: 'b', dirty: true, at: 1, untracked: ['x'.repeat(1000)] } });
+  const st = leanSession(s, 1).turns[0];
+  assert.equal(st.stub, true);
+  assert.deepEqual(st.stats, { tokens: 5 });
+  assert.deepEqual(st.details, { tools: { hash: 'h' } });
+  assert.deepEqual(st.checkpoint, { commit: 'c', head: 'h1', branch: 'b', dirty: true, at: 1 });
+});
+
+test('the window: a stub reads none of its turn’s heavy fields (a task from its light file stays unread on disk)', () => {
+  const s = lead();
+  for (const k of ['activity', 'changes', 'raw'])
+    Object.defineProperty(s.turns[0], k, {
+      enumerable: true,
+      get: () => assert.fail(`read ${k} of a stubbed turn`),
+    });
+  assert.equal(leanSession(s, 1).turns[0].stub, true);
+});
+
+test('the window: a Compact now stub keeps what it did, for its folded row', () => {
+  const s = lead();
+  Object.assign(s.turns[0], { by: 'compact', presentation: { blocks: [{ type: 'markdown', text: 'Compacted 80k to 12k' }, { type: 'code', code: 'x' }] } });
+  assert.deepEqual(leanSession(s, 1).turns[0].presentation, { blocks: [{ type: 'markdown', text: 'Compacted 80k to 12k' }] });
+});
