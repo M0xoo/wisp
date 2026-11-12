@@ -1,5 +1,14 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on cee52d53 (2026-11-12).** `crates/wisp/tests/serve_cli.rs` `ctrl_c_detaches_and_a_second_ctrl_c_stops`
+fails: "wisp serve never advertised its port" with an empty serve.log. It passed on 497ec9cb; between the two, Rust
+only changed `crates/wisp/src/serve.rs` (`stdin_closed`/`WISP_EXIT_WITH_STDIN`). Repro on the lead's Mac:
+`WISP_HOME=/tmp/x FAKE_HANG=1 wisp serve --port 0` never writes server.json and logs nothing, the same without
+`FAKE_HANG` starts in under a second. Find why boot depends on that env (a harness probe at start that waits on a
+hanging CLI would also break the cold-start budget: boot must never wait on a harness). Root cause + the test.
+The `tauri` linux-qa and `tauri windows` desktop/migrate/web jobs failed on cee52d53 too (v1 QA scripts): check they
+pass with round 30's qa/desktop-v2.mjs on the next run.
+
 **Done in round 29: #756 CI red on f45efe67 (2026-11-12)** (see docs/v2-round-7.md Round 29).
 1. `crates/wisp/tests/serve_budget.rs:34` `unattended_work_past_the_stop_line_is_held_until_the_window_resets`: the
    user's own codex run at 90 % now comes back `error` with "past your 90% line … confirmLimit" (the usage-limit flow,
@@ -9,6 +18,11 @@
 2. `tauri windows` build: `desktop/scripts/package.mjs:42` reads `pkg.files`, which v2's root package.json dropped
    (TypeError reading 'map'). macOS `tauri` passes. Make the Windows desktop build package the v2 binary the way the
    macOS one does (no `files` dependency), so both use one v2 path.
+
+**Round 30 (done):** v1's row menu (12 entries through `shell.row:menu`, crew.adopt), the kit ProjectsSheet (parity 0
+in the dialog), desktop QA on v2 on every OS (qa/desktop-v2.mjs in tauri, tauri-windows, tauri-package). Next: the open
+task's More as v1 (Rename, Copy task ID, Copy resume command, Open project in editor, Save for later, Restore to before
+latest turn, sized to fit), a re-captured v1 reference without `launcher.tryTwo`, then v1-features rows.
 
 **Round 29 (done):** #756 (serve_budget by v1's numbers; the desktop app runs the v2 binary on every OS); Auto's
 popover; the issue picker as v1's palette; right-click selects its row; one pane frame per app across tasks. Next:

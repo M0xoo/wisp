@@ -1262,3 +1262,45 @@ Checks: typecheck, `npm run check` (0 errors), css-rules 12/12; each touched tes
 shell auto, palette; stuff pins; shell-task term; shell-list crew; issues model); `cargo test -p wisp --test
 serve_budget`; `cargo check` desktop/src-tauri; clippy -D warnings -p wisp; parity home.auto-preview, home.issues,
 task.right-click, projects, and home/palette/task at 1440+390 light (home and task unchanged at 0 parts off).
+
+## Round 30 (2026-11-12)
+
+**1. v1's row menu, all 12 entries, through the contract.** `ExtensionDef.bar` gains `keys`, `text` (words for this
+task), `place: 'end'` (after Save for later) and `rowOnly` (not in the open task's More), all additive (graph impact:
+36 UI packages, none breaks). The list hands extensions its flattened row (summary and body: branch, toShip, pr) and
+lays the menu out as v1's taskMenu: no separators, plugin entries after Copy task ID (renamed from Copy ID, v1's words).
+Owners: shell (`frame/row-menu.ts`: Rerun… ⇧R, Fork… ⇧F, Side discussion… (`/side` in the reply box), Changes, Shell),
+stuff (Share…: `ShareDialog` mounted as `stuff.share`, its strings in v1's words), ship (Ship it… S, Push to PR #n),
+shell-task (Run app: the task's Preview), automations (Save as recipe…: a new recipe editor, `automations.recipe`, from
+the task's title, first prompt, mode and runner), crew (Add to crew… / Open <member>: the editor's task mode and a new
+`crew.adopt` handler in the host, which also needed the manifest entry), goal (Set/Edit goal…, Goal checks…, Pause/Resume,
+Drop: its three views registered, renamed `goal.*` as view ids must start with the namespace), worktrees (Keep worktree
+/ Stop keeping worktree). A right-click menu opens at the pointer and slides to fit (Zag `overlap`, v1 clampToViewport),
+up to the window's height. The open task's More lists the same plugin entries (v1 moreMenu). Tests: `menu.test.ts`,
+`row-menu.test.ts`, `recipe.test.ts`, `share-params.test.ts`, `cargo test -p wisp --test serve_task
+a_task_added_to_the_crew…`. Parity task.right-click at 390: every v1 entry present; two v2-only entries remain (Pin, Mark
+read: the owner's call).
+
+**2. Projects as v1 (kit `ProjectsSheet`).** v1's place strip (This computer, + Machine), the 38px folder field with
+Browse… and a dark Add (Clone for a URL), v1's hint with `wisp add` as code, rows with a colour swatch, the name edited in
+place, the folder, the count and remove, and the found repos' grid; the dialog has v1's .modal padding, header and 14px
+body. Shell-wide: dialogs stay cards on a phone (v1's modals did; viewers like Settings still fill it), and the dialog
+positioner has one window-wide column so a card's `min(…, 100%)` holds. Parity projects: 0 parts off in the dialog at
+every width and theme; what's left is behind it (the stale `launcher.tryTwo` reference and its index shift, the list's
+`card.title` weight, the feed's height at 320). Test: kit `projects-sheet.test.tsx`.
+
+**3. Desktop QA on v2, every OS.** `qa/desktop-v2.mjs` (Node built-ins): the shell starts `wisp serve` (v2's health,
+v2's page), killed hard it takes the server with it, quit stops it; with `--install` (Windows) it checks the installer
+put `wisp.exe` and `web/` in resources\app with no Node, and the app's version; `--over` installs the last release
+first. `tauri.yml` runs it on macOS, Windows and Ubuntu (Xvfb) from a checkout build; `tauri-windows.yml`'s desktop and
+migrate jobs and `tauri-package.yml`'s release gates (the mac zip, the Windows installer, the AppImage) run it instead of
+v1's scripts. Run here: the server half (`wisp serve` with WISP_EXIT_WITH_STDIN: v2 health and page, exit in 117 ms when
+stdin closes). The shell itself couldn't run on this Mac (the owner's wisp app holds the single instance), so CI is the
+first full run.
+
+**4. v1-features.** F-task-7, F-share-1, F-task-28, F-comp-29 built. Partial 138, missing 24.
+
+Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, each touched test file alone, `cargo test -p wisp --test
+serve_task a_task_added_to_the_crew_becomes_the_new_members_first_job`, clippy -D warnings on wisp-crew, parity
+projects (all widths and themes), task.right-click, task.more, settings.general and crew.add at 390, home and task at
+1440 and 390 (unchanged, 0 parts off).

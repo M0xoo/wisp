@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Everything v1's task menu had, on a right-click.** Rerun, Fork, Side discussion, Share, Ship it, Changes, Shell, Run app, Save as recipe (a new recipe editor, from the task), Add to crew (the task becomes the new member's first job), Set goal and the goal's other actions, and Keep worktree, with their keys. The menu slides to fit the window, and the open task's More has them too.
 - **See why Auto picked what it did.** Click Auto's pick in New task: its reasons, odds, cost and time, a model worth a try and others to run instead, *Never pick this model for this kind of task* (with Undo) and How Auto picks. It shows before you type, too.
 - **The desktop app runs wisp's own server.** The app starts the same `wisp` binary Homebrew and npm ship, no bundled Node, and stops it when you quit, however the app goes.
 - **Panes beside tasks.** In My Stuff, an app's ⋯ → Pin beside tasks puts it in a tab of the panel beside every task, after Changes, PR, Shell and Preview; the app is told which task is open. Unpin from the tab's bar or My Stuff.
@@ -110,6 +111,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Projects looks as it did**: where you are, the folder field with Add (Clone for a link), your projects with their colour, a name you edit in place and their task count, and the repos found on this machine. On a phone, dialogs stay cards, as before.
 - **Start from an issue opens like ⌘K**, near the top and 640 wide, with each issue on two lines and why there's nothing to list above it.
 - **Right-clicking a task in the list picks it**, so it shows which task the menu is for.
 - **An app pinned beside tasks keeps running when you switch task**: it's told which task is open instead of reloading.
