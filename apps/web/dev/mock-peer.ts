@@ -140,6 +140,13 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
     later: (ms, fn) => void timers.setTimeout(() => commit(fn()), ms),
   };
 
+  const peerIds = (args: unknown): unknown => {
+    const a = args as Record<string, unknown> | null;
+    const id = a?.['id'];
+    if (!a || typeof id !== 'string' || id.includes(':') || !store.get('list')?.has(rowKey('session', `${ctx.peer}:${id}`))) return args;
+    return { ...a, id: `${ctx.peer}:${id}` };
+  };
+
   function mutate(c: Conn, m: Extract<ClientMessage, { t: 'mutate' }>): void {
     const fail = failing.get(m.cmd);
     const fn = handlers.get(m.cmd);
@@ -150,7 +157,8 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
       return;
     }
     try {
-      const out = fn(m.args, ctx);
+      // the client sends a task's bare id (`runtime.*` wire, as the Rust peer wants); the mock keys its rows `peer:id`
+      const out = fn(peerIds(m.args), ctx);
       commit(out.ops, { clientId: c.clientId, messages: [{ t: 'ack', mid: m.mid, seq: 0, ...(out.result !== undefined && { result: out.result }) }] });
     } catch (err) {
       const e = err as { code?: string; message?: string };
@@ -160,7 +168,9 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
 
   function windowRows(c: Conn, w: Extract<ClientMessage, { t: 'window' }>): void {
     const sid = w.topic.startsWith('session:') ? w.topic.slice('session:'.length) : '';
-    const list = (store.get(w.topic)?.get(rowKey('event', sid))?.v as { seq: number }[] | undefined) ?? [];
+    const rows = store.get(w.topic);
+    // the event row is keyed by the task's row id (`peer:id`), the topic by its bare id
+    const list = ((rows?.get(rowKey('event', sid)) ?? rows?.get(rowKey('event', `${ctx.peer}:${sid}`)))?.v as { seq: number }[] | undefined) ?? [];
     const older = list.filter((e) => e.seq < w.before_seq);
     const page = older.slice(-w.limit);
     c.send({ id: null, messages: [{ t: 'rows', req: w.req, rows: [{ e: 'event', id: sid, v: page }], done: page.length < w.limit }] });
@@ -223,7 +233,8 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
 
   /** A turn that streams: a tool call, the answer token by token, then done with a presentation. */
   function runStream(sid: string, tokens: number, everyMs: number, ownId?: string, prompt?: string): void {
-    const topic: Topic = `session:${sid}`;
+    // the task's topic is `session:<bare id>` (as the client subscribes), its rows keep the peer's key
+    const topic: Topic = `session:${sid.slice(sid.indexOf(':') + 1)}`;
     const turns = topicRows(topic).filter((r) => r.e === 'turn');
     // the client may have named it (its follow-up shows at once under that id)
     const turnId = ownId ?? `${sid}:t${turns.length + 1}`;

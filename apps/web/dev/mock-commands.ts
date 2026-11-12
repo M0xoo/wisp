@@ -50,6 +50,8 @@ export interface CommandCtx {
 export type CommandFn = (args: unknown, ctx: CommandCtx) => { ops: EntityOp[]; result?: unknown };
 
 type Args = Record<string, unknown>;
+/** A task's own topic: `session:<bare id>`, as the client subscribes (the Rust peer's name), whatever its rows' keys. */
+const own = (id: string): Topic => `session:${id.slice(id.indexOf(':') + 1)}` as Topic;
 const obj = (a: unknown): Args => (typeof a === 'object' && a !== null ? (a as Args) : {});
 const refuse = (code: string, message: string): never => {
   throw { code, message };
@@ -63,7 +65,7 @@ const str = (a: Args, k: string): string => {
 function sessionPatch(ctx: CommandCtx, id: string, ops: PatchOp[]): EntityOp[] {
   if (ctx.row('list', 'session', id) === undefined) refuse('not_found', `no task ${id}`);
   const out: EntityOp[] = [{ topic: 'list', e: 'session', id, op: 'patch', ops }];
-  if (ctx.row(`session:${id}`, 'session', id) !== undefined) out.push({ topic: `session:${id}`, e: 'session', id, op: 'patch', ops });
+  if (ctx.row(own(id), 'session', id) !== undefined) out.push({ topic: own(id), e: 'session', id, op: 'patch', ops });
   return out;
 }
 
@@ -85,7 +87,7 @@ function copyTask(x: Args, ctx: CommandCtx, kind: 'rerun' | 'fork'): { ops: Enti
   return {
     ops: [
       { topic: 'list', e: 'session', id, op: 'upsert', v: row },
-      { topic: `session:${id}`, e: 'session', id, op: 'upsert', v: row },
+      { topic: own(id), e: 'session', id, op: 'upsert', v: row },
     ],
     result: { id },
   };
@@ -115,8 +117,8 @@ export const COMMANDS: Record<string, CommandFn> = {
   'runtime.delete': (a, ctx) => {
     const id = str(obj(a), 'id');
     if (ctx.row('list', 'session', id) === undefined) refuse('not_found', `no task ${id}`);
-    const own: Topic = `session:${id}`;
-    return { ops: [{ topic: 'list', e: 'session', id, op: 'del' }, ...ctx.rows(own).map((r): EntityOp => ({ topic: own, e: r.e, id: r.id, op: 'del' }))] };
+    const mine: Topic = own(id);
+    return { ops: [{ topic: 'list', e: 'session', id, op: 'del' }, ...ctx.rows(mine).map((r): EntityOp => ({ topic: mine, e: r.e, id: r.id, op: 'del' }))] };
   },
   'runtime.stop': (a, ctx) => ({
     ops: sessionPatch(ctx, str(obj(a), 'id'), [
@@ -172,7 +174,7 @@ export const COMMANDS: Record<string, CommandFn> = {
     return {
       ops: [
         { topic: 'list', e: 'session', id, op: 'upsert', v: row },
-        { topic: `session:${id}`, e: 'session', id, op: 'upsert', v: row },
+        { topic: own(id), e: 'session', id, op: 'upsert', v: row },
       ],
       result: { id },
     };
@@ -188,6 +190,24 @@ export const COMMANDS: Record<string, CommandFn> = {
   'runtime.agents': () => ({ ops: [], result: [] }),
   'runtime.cold': () => ({ ops: [], result: { cache: null, compact: null } }), // a small task: no cache hint, no Compact now
   'stuff.targets': () => ({ ops: [], result: [] }), // no grid to publish to
+  // the panes wisp ships (v1 GET /stuff/starters); Add keeps one in My Stuff
+  'stuff.starters': () => ({
+    ops: [],
+    result: {
+      starters: [
+        { id: 'prs', name: 'Open pull requests', description: 'Your open PRs by repo, with their checks' },
+        { id: 'usage', name: 'Token budget', description: 'What each harness spent this week' },
+      ],
+    },
+  }),
+  'stuff.addStarter': (a) => ({ ops: [], result: { id: `st-${String(obj(a)['id'])}`, kind: 'app', title: String(obj(a)['id']) } }),
+  // a member's fields (the editor, Org's links): patched on the crew topic, as the crew host does
+  'crew.update': (a, ctx) => {
+    const { id, ...patch } = obj(a);
+    if (typeof id !== 'string' || ctx.row('crew', 'crew_member', id) === undefined) refuse('not_found', `no crew member ${String(id)}`);
+    const ops: PatchOp[] = Object.entries(patch).map(([k, v]) => ({ op: 'add', path: `/${k}`, value: v }));
+    return { ops: [{ topic: 'crew', e: 'crew_member', id: id as string, op: 'patch', ops }], result: { ...(ctx.row('crew', 'crew_member', id as string) as object), ...patch } };
+  },
   'plugins.ui': () => ({ ops: [], result: [] }),
   'runtime.fork': (a, ctx) => copyTask(obj(a), ctx, 'fork'),
   'runtime.setMode': (a, ctx) => {

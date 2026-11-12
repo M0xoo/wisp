@@ -175,13 +175,13 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
   TASKS.forEach((t, i) => {
     const s = sessionTopic(o.peer, i, t, o.now);
     list.push(s.list);
-    topics.set(`session:${s.list.id}`, s.own);
+    topics.set(`session:${s.list.id.slice(s.list.id.indexOf(':') + 1)}`, s.own); // the bare id, as the client subscribes
   });
   for (let i = 0; i < o.extra; i++) {
     const t: Task = { title: `Background task ${i + 1}: tidy module ${i % 97}`, agent: i % 3 === 0 ? 'codex' : 'claude', state: i % 11 === 0 ? 'running' : 'done', ago: (i + 30) * 7 * MIN, cwd: '~/code/wisp', prompt: 'Tidy it.', answer: 'Tidied.' };
     const s = sessionTopic(o.peer, TASKS.length + i, t, o.now);
     list.push(s.list);
-    topics.set(`session:${s.list.id}`, s.own);
+    topics.set(`session:${s.list.id.slice(s.list.id.indexOf(':') + 1)}`, s.own); // the bare id, as the client subscribes
   }
   topics.set('list', list);
   topics.set('config', [

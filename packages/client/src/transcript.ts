@@ -10,6 +10,9 @@ import { entityKey, uuidv7 } from './ids.ts';
 import type { Peers, RowsAnswer } from './peers.ts';
 import type { Scope } from './scope.ts';
 import { computed, signal, untracked, type Readable, type WritableSignal } from './signals.ts';
+
+/** A task's own topic: `session:<its bare id>`, as the peer names it, whatever key the client holds it by (`peer:id`). */
+const sessionTopic = (sessionId: string): Topic => `session:${sessionId.slice(sessionId.indexOf(':') + 1)}` as Topic;
 import type { DeepReadonly, PeerId } from './types.ts';
 
 export type Paging = { kind: 'idle'; atStart: boolean } | { kind: 'loading' } | { kind: 'failed'; reason: string };
@@ -113,7 +116,7 @@ export function createTranscripts(o: TranscriptOptions): Transcripts {
   }
 
   function load(scope: Scope, peer: PeerId, sessionId: string, events: Readable<readonly unknown[]>, paging: WritableSignal<Paging>): Promise<void> {
-    const topic = `session:${sessionId}` as Topic;
+    const topic = sessionTopic(sessionId) as Topic;
     const held = untracked(events);
     const oldest = held.length > 0 ? seqOf(held[0]) : Number.MAX_SAFE_INTEGER; // nothing held: the latest page
     paging({ kind: 'loading' });
@@ -128,7 +131,7 @@ export function createTranscripts(o: TranscriptOptions): Transcripts {
 
   return {
     open<T>(peer: PeerId, sessionId: string, scope: Scope): Transcript<T> {
-      o.peers.watch(peer, `session:${sessionId}` as Topic, scope); // opening a task is use: it wakes a box
+      o.peers.watch(peer, sessionTopic(sessionId) as Topic, scope); // opening a task is use: it wakes a box
       const row = o.reader.row<T[]>(kind, entityKey(peer, sessionId));
       const events = computed(() => row() ?? []) as Readable<readonly DeepReadonly<T>[]>;
       const paging = signal<Paging>({ kind: 'idle', atStart: false });
