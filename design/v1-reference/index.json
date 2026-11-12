@@ -388,6 +388,230 @@
       "widths": "all",
       "themes": "all",
       "reason": "v1 #771 (3435a2b9) dropped Try it two ways after the capture; home and its launcher views re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:19:41.530Z",
+      "finished": "2026-11-12T02:22:14.242Z",
+      "views": [
+        "palette"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; palette re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:29:48.598Z",
+      "finished": "2026-11-12T02:31:33.261Z",
+      "views": [
+        "crew.add"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; crew.add re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:40:50.078Z",
+      "finished": "2026-11-12T02:43:24.359Z",
+      "views": [
+        "crew"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "crew re-captured from origin/main a5b1c646: the reference predated the crew tint (#768)"
+    },
+    {
+      "started": "2026-11-12T02:44:51.275Z",
+      "finished": "2026-11-12T02:47:47.932Z",
+      "views": [
+        "settings.general"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.general re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:49:33.511Z",
+      "finished": "2026-11-12T02:51:33.251Z",
+      "views": [
+        "settings.notifications"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.notifications re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:51:43.707Z",
+      "finished": "2026-11-12T02:53:43.338Z",
+      "views": [
+        "settings.agents"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.agents re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:53:53.788Z",
+      "finished": "2026-11-12T02:55:53.443Z",
+      "views": [
+        "settings.connectors"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.connectors re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:56:18.863Z",
+      "finished": "2026-11-12T02:58:18.492Z",
+      "views": [
+        "settings.auto"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.auto re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:58:28.931Z",
+      "finished": "2026-11-12T03:00:28.567Z",
+      "views": [
+        "settings.machines"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.machines re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:00:38.880Z",
+      "finished": "2026-11-12T03:02:38.573Z",
+      "views": [
+        "settings.cloud"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.cloud re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:02:49.109Z",
+      "finished": "2026-11-12T03:04:48.565Z",
+      "views": [
+        "settings.memory"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.memory re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:06:53.659Z",
+      "finished": "2026-11-12T03:08:52.976Z",
+      "views": [
+        "settings.automations"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.automations re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:09:03.302Z",
+      "finished": "2026-11-12T03:11:02.871Z",
+      "views": [
+        "settings.spells"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.spells re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:11:17.224Z",
+      "finished": "2026-11-12T03:13:16.577Z",
+      "views": [
+        "settings.usage"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.usage re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:13:26.911Z",
+      "finished": "2026-11-12T03:15:26.374Z",
+      "views": [
+        "settings.worktrees"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.worktrees re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:15:36.603Z",
+      "finished": "2026-11-12T03:17:36.350Z",
+      "views": [
+        "settings.privacy"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.privacy re-captured from origin/main a5b1c646"
     }
   ]
 }

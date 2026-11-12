@@ -267,7 +267,12 @@ const splitTop = (s) => {
 };
 
 // v1 selectors the openers use that aren't a PARTS entry, in terms of the parts v2 renders.
-const EXTRA = { '.it-dock .composer textarea': '[data-part="composer.input"]' };
+const EXTRA = {
+  '.it-dock .composer textarea': '[data-part="composer.input"]',
+  // the rail's Add a crew member (v1 has no PARTS name for it; v2's kit rail names it crew.add)
+  '#crewRail .cl-add': '[data-part="crew.add"]',
+  '#secCrew .cr-add': '[data-part="crew.add"]',
+};
 
 // A v1 selector, in terms of the PARTS contract v2 renders (data-part). Rows are found by their title.
 export function translator(seed) {
@@ -322,6 +327,9 @@ const V2_STATES = {
   'task.composer': '[data-part="composer.mode"]:visible, [data-part="composer"] button:visible',
 };
 
+// Commands that only read: they go through to the mock (the pane they fill is part of the shot)
+const READS = /^(git\.(changes|status|tools)|runtime\.(cold|agents|get|list|search)|plugins\.(ui|list)|worktrees\.(files|grep))$/;
+
 async function openV2(browser, url, open, [width, height], colorScheme, at, desktop) {
   const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   // The desktop app's mode (design/v1-reference desktop-* shots): v2 finds the Tauri shell by its
@@ -334,7 +342,9 @@ async function openV2(browser, url, open, [width, height], colorScheme, at, desk
     const req = route.request();
     if (req.method() === 'POST') {
       try {
-        if (JSON.parse(req.postData() ?? '{}').t === 'mutate') return void (await route.fulfill({ status: 204, body: '' }));
+        // a write never reaches the shared mock; a read (git.changes, runtime.cold…) changes nothing there, so it goes
+        const m = JSON.parse(req.postData() ?? '{}');
+        if (m.t === 'mutate' && !READS.test(String(m.cmd ?? ''))) return void (await route.fulfill({ status: 204, body: '' }));
       } catch {}
     }
     await route.continue();
