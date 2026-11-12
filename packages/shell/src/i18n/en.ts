@@ -269,6 +269,7 @@ export const SHELL_STRINGS = {
   'shell.task.rerun': 'Rerun…',
   'shell.task.rerunTitle': 'Rerun: the same task again, on any harness, model or computer (⇧R)',
   'shell.task.openIn': 'Open in {harness}',
+  'shell.task.commentRemoved': 'removed',
   'shell.task.openInTitle': 'Open in {harness}: carry on with the agent yourself, in a terminal (T)',
   'shell.task.changes': 'Changes',
   'shell.task.changesTitle': 'Changes: every file this task changed (D)',

@@ -15,6 +15,7 @@ import { TaskHeadSlot } from './slots.tsx';
 import { changeFigures, duration, folded, longTime, nextNeedsYou, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { coldHint, compactItem } from './cold.ts';
 import { goalGate } from './goal-gate.ts';
+import { readComments } from './comment-text.ts';
 import { useNow } from '../clock.ts';
 import { stopQuestion, type StopQuestion } from './stop-question.ts';
 import { archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
@@ -465,10 +466,13 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       const changes = b.ext?.['wisp.runtime']?.changes ?? b.changes ?? [];
                       const figures = changeFigures(changes);
                       const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
+                      // a follow-up with comments on lines: the cards over the words typed with them (v1 sentComments)
+                      const sent = readComments(turn.prompt);
                       return (
                         <>
                           <TurnView
-                            prompt={turn.prompt}
+                            prompt={sent.rest}
+                            askNotes={sent.notes.map((c) => ({ n: c.n, on: c.kind === 'text' && c.quote ? `“${c.quote.replace(/\s+/g, ' ')}”` : c.label, removed: c.removed, removedLabel: t('shell.task.commentRemoved'), say: c.note }))}
                             harness={h().name}
                             {...(h().logo && { logo: h().logo })}
                             time={clock(turn.started_at)}
