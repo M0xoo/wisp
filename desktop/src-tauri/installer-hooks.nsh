@@ -16,6 +16,19 @@
   ${EndIf}
 !macroend
 
+; v1's Tauri build installed to this same folder with its own Node (node\) and the Node app beside it
+; (resources\app\bin, server, grid, skills, desktop, web, CHANGELOG.md). NSIS writes this build's files over
+; it but never removes what this build no longer ships, so a v1 → v2 update kept a whole Node runtime and v1's
+; server (DESK2-01). Before this build's files go in: v1's tree goes, all of resources\app with it (this
+; build puts its own there next, and a stale v1 web file must not linger beside v2's). Only the install
+; folder: ~/.wisp (the user's tasks, settings and secrets) and %APPDATA% are never touched.
+!macro NSIS_HOOK_PREINSTALL
+  ${If} ${FileExists} "$INSTDIR\node\node.exe"
+    RMDir /r "$INSTDIR\node"
+    RMDir /r "$INSTDIR\resources\app"
+  ${EndIf}
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
   ${If} ${FileExists} "${ELECTRON_COPY}\Uninstall wisp.exe"
   ${AndIf} $INSTDIR != "${ELECTRON_COPY}"
@@ -42,9 +55,9 @@
       RMDir "${ELECTRON_COPY}"
       ; Started from its Start menu shortcut, Electron's update runs this installer from a cmd.exe
       ; standing in that folder, and Windows won't delete a folder a process stands in until it's
-      ; gone, after this installer. A hidden helper on the bundled Node waits for it.
+      ; gone, after this installer. This build has no Node: a hidden cmd.exe tries every 5 s for 2 min.
       ${If} ${FileExists} "${ELECTRON_COPY}\*.*"
-        ExecShell "open" "$INSTDIR\node\node.exe" '"$INSTDIR\resources\app\desktop\remove-electron.mjs" "${ELECTRON_COPY}"' SW_HIDE
+        ExecShell "open" "$SYSDIR\cmd.exe" '/d /c for /l %i in (1,1,24) do (rmdir /s /q "${ELECTRON_COPY}" 2>nul & if not exist "${ELECTRON_COPY}" exit /b 0 & ping -n 6 127.0.0.1 >nul)' SW_HIDE
       ${EndIf}
     ${EndIf}
   ${EndIf}

@@ -113,6 +113,9 @@ console.log(`\n  desktop v2 · ${process.platform} · port ${PORT}\n`);
 ok(!(await listening()), `port ${PORT} is taken: set QA_DESKTOP_PORT`);
 
 if (arg('--over')) await check('DESK2-00', 'an older install is there first (the update case)', async () => install(arg('--over')));
+// over an older install, ~/.wisp holds the user's data: a file put there now must outlive the update (DESK2-01)
+const keep = arg('--over') ? path.join(os.homedir(), '.wisp', `qa-keep-${process.pid}`) : '';
+if (keep) (fs.mkdirSync(path.dirname(keep), { recursive: true }), fs.writeFileSync(keep, 'kept'));
 if (arg('--install')) {
   await check('DESK2-01', 'setup.exe /S installs the app', async () => {
     install(arg('--install'));
@@ -120,6 +123,14 @@ if (arg('--install')) {
     ok(fs.existsSync(path.join(path.dirname(installed), 'resources/app/wisp.exe')), 'no wisp.exe in resources/app: the app would have no server');
     ok(fs.existsSync(path.join(path.dirname(installed), 'resources/app/web/index.html')), 'no web build beside it');
     ok(!fs.existsSync(path.join(path.dirname(installed), 'node')), 'a bundled Node is still there: v1 packaging');
+    // v1's Node app beside it (an update over v1 must clear it: installer-hooks.nsh NSIS_HOOK_PREINSTALL)
+    for (const left of ['server', 'bin', 'grid', 'skills', 'desktop', 'CHANGELOG.md'])
+      ok(!fs.existsSync(path.join(path.dirname(installed), 'resources/app', left)), `v1's resources/app/${left} is still there`);
+    // the update keeps the user's data: a file in ~/.wisp from before the install is still there
+    if (keep) {
+      ok(fs.existsSync(keep), `the update removed ${keep}: ~/.wisp must stay`);
+      fs.rmSync(keep, { force: true });
+    }
   });
   app = installed;
 }
