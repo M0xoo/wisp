@@ -230,6 +230,8 @@ export interface PaletteItem {
   icon?: string;
   /** the shortcut hint shown on the row ('E', '⇧R') */
   kbd?: string;
+  /** a project's colour: the row leads with its dot instead of an icon */
+  color?: string;
   /** extra words it matches */
   keywords?: string;
   /** topic words: "#auth" in the query keeps only items tagged auth */

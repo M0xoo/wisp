@@ -12,6 +12,7 @@ import { THEMES } from './theme.ts';
 import { SESSION, type SessionRow } from './rows.ts';
 import { archive, markRead, remove, setState } from './frame/commands.ts';
 import { TASK_KEY, type TaskKey } from './frame/task-keys.ts';
+import { PROJECT_SOURCE, projectItems, projectShortcuts } from './frame/project-switch.ts';
 
 export const SHELL_SETTINGS = [
   { key: 'shell.theme', type: 'enum', values: THEMES, default: 'system', scope: 'server', overridable: true },
@@ -33,6 +34,14 @@ const overlay = (id: string): { t: 'openOverlay'; overlay: { kind: 'dialog'; id:
   overlay: { kind: 'dialog', id: id as ExtensionId, params: null },
 });
 const none = (p: unknown): null | undefined => (p === null || p === undefined ? null : undefined);
+/** The palette's params: nothing (⌘K), or the switcher's narrowing ({ only, placeholder, title }: ⌘P). */
+const paletteParams = (p: unknown): Json | undefined => {
+  if (p === null || p === undefined) return null;
+  if (typeof p !== 'object' || Array.isArray(p)) return undefined;
+  const o = p as { only?: unknown; placeholder?: unknown; title?: unknown };
+  const only = Array.isArray(o.only) ? o.only.filter((x): x is string => typeof x === 'string') : undefined;
+  return { ...(only && { only }), ...(typeof o.placeholder === 'string' && { placeholder: o.placeholder }), ...(typeof o.title === 'string' && { title: o.title }) };
+};
 
 function appItems(ctx: ShellContext): PaletteItem[] {
   const g = ctx.t('shell.palette.group.app');
@@ -205,6 +214,7 @@ function shortcuts(ctx: ShellContext): ShortcutDef[] {
     { id: 'shell.escape', keys: 'escape', label: 'shell.key.back', group: 'general', when: 'always', run: ({ event }) => escape(ctx, event) },
     { id: 'shell.help', keys: '?', label: 'shell.key.shortcuts', group: 'general', run: () => ctx.navigate(overlay('shell.shortcuts')) },
     { id: 'shell.sidebar', keys: '[', label: 'shell.key.sidebar', group: 'general', run: () => (ctx.nav().layout === 'split' ? ctx.sidebar.toggle() : false) },
+    ...projectShortcuts(ctx),
   ];
 }
 
@@ -213,7 +223,7 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
     id: 'shell',
     extensions: [],
     views: [
-      defineView({ kind: 'shell.palette', slot: 'overlay', overlay: 'dialog', parse: none, component: Palette }),
+      defineView({ kind: 'shell.palette', slot: 'overlay', overlay: 'dialog', parse: paletteParams, component: Palette, title: (p) => ((p as { title?: string } | null)?.title ?? ctx.t('shell.palette.title')) }),
       defineView({ kind: 'shell.shortcuts', slot: 'overlay', overlay: 'dialog', parse: none, component: Shortcuts, title: () => ctx.t('shell.shortcuts.title') }),
       // add, order, rename and remove projects (v1 features/projects.js); every "Add a project" opens it
       defineView({ kind: 'shell.projects', slot: 'overlay', overlay: 'dialog', parse: none, component: lazy(() => import('./frame/Projects.tsx')), title: () => ctx.t('shell.projects.title') }),
@@ -226,6 +236,7 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
     palette: [
       { id: 'shell.app', order: 100, items: () => appItems(ctx) },
       { id: 'shell.tasks', order: 50, items: () => taskItems(ctx) },
+      { id: PROJECT_SOURCE, order: 40, items: () => projectItems(ctx) },
     ],
     shortcuts: shortcuts(ctx),
   };

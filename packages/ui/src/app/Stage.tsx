@@ -4,7 +4,7 @@
 // grip on the sidebar's edge. Split (≥ 900 px) shows them side by side; stack shows one page.
 // Every element carries v1's PARTS name (web/js/spell-schema.js) as its data-part.
 import { For, Show, type JSX } from 'solid-js';
-import { flag } from '../core/props.ts';
+import { flag, type PartName } from '../core/props.ts';
 import { reorderable, type OnReorder } from '../core/reorder.ts';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
@@ -160,6 +160,10 @@ export interface SidebarHeadProps {
   readonly chips: readonly ProjectChip[];
   /** the chip on (All is '') */
   readonly on: string;
+  /** one selector instead of the row of chips (owner, 2026-11-12): the project on, a ▾, and this opens the switcher */
+  readonly onSwitch?: () => void;
+  /** the selector's tip ("Switch project ⌘P") */
+  readonly switchLabel?: string;
   readonly onBrand?: () => void;
   /** Home is open: the brand (which goes there) is where you are */
   readonly homeOn?: boolean;
@@ -184,6 +188,38 @@ export interface SidebarHeadProps {
   };
 }
 
+/** v1's row of project chips (draggable into your order): what the head shows without a switcher. */
+function Chips(props: SidebarHeadProps & { readonly projectIds: () => string[] }): JSX.Element {
+  return (
+    <div data-kit="p-scroll">
+      <For each={props.chips}>
+        {(c) => (
+          <button
+            type="button"
+            {...reorderable('topbar.projects', c.id, props.projectIds, c.color === undefined ? undefined : props.onReorder)}
+            data-kit="p-chip"
+            data-on={flag(props.on === c.id)}
+            aria-current={props.on === c.id ? 'true' : undefined}
+            data-color={c.color ?? 'slate'}
+            title={c.title}
+            onClick={() => props.onChip?.(c.id)}
+          >
+            <Show when={c.color}>
+              <i data-kit="p-dot" />
+            </Show>
+            <span data-text="control">{c.name}</span>
+            <Show when={c.need > 0}>
+              <span data-kit="p-need" title={c.needLabel}>
+                {c.need}
+              </span>
+            </Show>
+          </button>
+        )}
+      </For>
+    </div>
+  );
+}
+
 /** v1 #topbar in split: the brand, Search, the avatar, the sidebar button, then the project chips. */
 export function SidebarHead(props: SidebarHeadProps): JSX.Element {
   const projectIds = (): string[] => props.chips.filter((c) => c.color !== undefined).map((c) => c.id);
@@ -206,32 +242,25 @@ export function SidebarHead(props: SidebarHeadProps): JSX.Element {
         {props.slots?.lead}
       </div>
       <div data-kit="projects" data-part="topbar.projects" data-no-drag="">
-        <div data-kit="p-scroll">
-          <For each={props.chips}>
-            {(c) => (
-              <button
-                type="button"
-                {...reorderable('topbar.projects', c.id, projectIds, c.color === undefined ? undefined : props.onReorder)}
-                data-kit="p-chip"
-                data-on={flag(props.on === c.id)}
-                aria-current={props.on === c.id ? 'true' : undefined}
-                data-color={c.color ?? 'slate'}
-                title={c.title}
-                onClick={() => props.onChip?.(c.id)}
-              >
-                <Show when={c.color}>
+        <Show when={props.onSwitch} fallback={<Chips {...props} projectIds={projectIds} />}>
+          {(open) => {
+            const cur = (): ProjectChip | undefined => props.chips.find((c) => c.id === props.on) ?? props.chips[0];
+            return (
+              <button type="button" data-kit="p-select" data-part="topbar.project-select" data-color={cur()?.color ?? 'slate'} title={props.switchLabel} aria-label={props.switchLabel} aria-haspopup="dialog" onClick={() => open()()}>
+                <Show when={cur()?.color} fallback={<Icon name="feed" />}>
                   <i data-kit="p-dot" />
                 </Show>
-                <span data-text="control">{c.name}</span>
-                <Show when={c.need > 0}>
-                  <span data-kit="p-need" title={c.needLabel}>
-                    {c.need}
+                <span data-kit="p-name" data-text="control">{cur()?.name}</span>
+                <Show when={(cur()?.need ?? 0) > 0}>
+                  <span data-kit="p-need" title={cur()?.needLabel}>
+                    {cur()?.need}
                   </span>
                 </Show>
+                <Icon name="chevron" />
               </button>
-            )}
-          </For>
-        </div>
+            );
+          }}
+        </Show>
         {props.slots?.chips}
         <WithAct
           act={props.manageAct ?? { onClick: () => props.onManage?.() }}
@@ -310,6 +339,15 @@ export interface FeedSectionProps {
   readonly collapsed?: boolean;
   readonly onToggle?: () => void;
   readonly children?: JSX.Element;
+}
+
+/** v1 #feed .item: one task's row in a feed, its 1px border (transparent at rest) around the row's head. */
+export function FeedItem(props: { readonly part?: PartName; readonly children?: JSX.Element }): JSX.Element {
+  return (
+    <div data-kit="feed-item" data-part={props.part ?? 'ui.feed-item'}>
+      {props.children}
+    </div>
+  );
 }
 
 /** v1 #feed: the sections, each a heading that folds it and its rows. */

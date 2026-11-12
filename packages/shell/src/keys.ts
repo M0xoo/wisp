@@ -27,6 +27,7 @@ export const BUILT_IN_KEYS: ReadonlySet<string> = new Set([
   'n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f',
   's', 'r', 'v', '/', '?', 'escape', '\\', '[', ']', 'p', 'd', '1', '2', '3', '4', '5', '6', '7', '8', '9',
   'mod+k', 'mod+l', 'ctrl+`', 'ctrl+tab', 'ctrl+shift+tab',
+  'mod+p', 'mod+0', 'mod+1', 'mod+2', 'mod+3', 'mod+4', 'mod+5', 'mod+6', 'mod+7', 'mod+8', 'mod+9',
 ]);
 
 interface Parsed {

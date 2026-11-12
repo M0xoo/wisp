@@ -30,6 +30,7 @@
 @import './terminal.css';
 @import './frame.css';
 @import './app-frame.css';
+@import './project-select.css';
 @import './app-feed.css';
 @import './app-home.css';
 @import './app-task.css';

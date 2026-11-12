@@ -1,0 +1,17 @@
+@layer kit {
+  /* The project selector (owner, 2026-11-12): one control where the row of chips was. It reads like the chip that's on
+     (surface, a line, ink): the project's dot, its name, how many need you, and a ▾ that says it opens a switcher. */
+  [data-kit='p-select'] {
+    display: inline-flex; align-items: center; gap: var(--space-3); min-width: 0; max-width: 100%; height: 26px;
+    padding: 0 var(--space-3) 0 var(--space-5); border: 1px solid var(--line-2); border-radius: var(--radius-pill);
+    background: var(--surface); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap;
+    transition: background var(--dur-fast), border-color var(--dur-fast);
+  }
+  [data-kit='p-select']:hover { background: var(--bg-2); }
+  [data-kit='p-select']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--size-ring); }
+  [data-kit='p-select'] > [data-kit='p-name'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='p-select'] > [data-kit='icon'] { flex: none; width: var(--size-icon-xs); height: var(--size-icon-xs); color: var(--muted); }
+  [data-kit='p-select'] > [data-kit='icon']:first-child { color: var(--ink-2); }
+  /* the kit's chevron points right: turned down, it reads "opens a list" */
+  [data-kit='p-select'] > [data-kit='icon']:last-child { transform: rotate(90deg); }
+}

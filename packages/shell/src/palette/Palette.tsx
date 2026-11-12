@@ -7,7 +7,8 @@
 
 import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Icon, Input, Kbd, ListRow, Stack, Text, useSignal, type IconName } from '@wisp/ui';
+import { Dot, Icon, Input, Kbd, ListRow, Stack, Text, useSignal, type IconName } from '@wisp/ui';
+import type { ProjectColor } from '@wisp/tokens';
 import type { PaletteContext, PaletteItem } from '../contract.ts';
 import { useShell } from '../context.tsx';
 import { useClients } from '../slot.tsx';
@@ -16,7 +17,15 @@ import { rank, type Ranked } from './match.ts';
 const DEEP_PAUSE_MS = 160;
 
 // size-ok: one component whose closures (query, deep search, keys, run) share its signals
+/** What opened the palette may narrow it: `only` its sources (the project switcher, ⌘P), its own words in the box. */
+interface PaletteParams {
+  readonly only?: readonly string[];
+  readonly placeholder?: string;
+  readonly title?: string;
+}
+
 export default function Palette(_p: { readonly client: PluginClient; readonly params: unknown }): JSX.Element {
+  const params = (_p.params ?? {}) as PaletteParams;
   const shell = useShell();
   const host = useClients();
   const sources = useSignal(host.palette);
@@ -33,7 +42,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
     return { client: host.client(plugin), nav: n, focused };
   };
   const items = createMemo(() =>
-    sources().flatMap((s) => {
+    sources().filter((s) => !params.only || params.only.includes(s.id)).flatMap((s) => {
       try {
         return s.items(ctxFor(s.plugin));
       } catch {
@@ -104,8 +113,8 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
         spellcheck={false}
         autocomplete="off"
         value={query()}
-        placeholder={shell.t('shell.palette.placeholder')}
-        aria-label={shell.t('shell.palette.title')}
+        placeholder={params.placeholder ?? shell.t('shell.palette.placeholder')}
+        aria-label={params.title ?? shell.t('shell.palette.title')}
         onInput={(v) => {
           setQuery(v);
           setSel(0);
@@ -122,13 +131,14 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
             {(r, i) => (
               <>
                 <Show when={headAt(i())}>{(g) => <Text size="xs" tone="faint" weight="medium" part="shell.palette.group">{shell.client.i18n.has(g()) ? shell.t(g()) : g()}</Text>}</Show>
+                {/* a row's shortcut always shows (as VS Code and Linear do), not only on hover: it's how you learn it */}
                 <ListRow
                   id={`palette-row-${i()}`}
                   part="shell.palette.row"
                   title={r.item.label}
-                  lead={<Icon name={(r.item.icon ?? 'arrow') as IconName} size="sm" />}
+                  lead={r.item.color ? <Dot size="md" color={`pc-${r.item.color}` as ProjectColor} /> : <Icon name={(r.item.icon ?? 'arrow') as IconName} size="sm" />}
                   {...(r.item.sub !== undefined && { sub: r.item.sub })}
-                  {...(r.item.kbd !== undefined && { actions: <Kbd keys={r.item.kbd.split(' ')} /> })}
+                  {...(r.item.kbd !== undefined && { pills: <Kbd keys={r.item.kbd.split(' ')} /> })}
                   selected={sel() === i()}
                   onOpen={() => run(r)}
                 />

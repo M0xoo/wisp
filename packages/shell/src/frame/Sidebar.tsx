@@ -6,6 +6,8 @@
 import { For, Show, createMemo, createSignal, type JSX } from 'solid-js';
 import type { EntityKey, Json } from '@wisp/client';
 import { forLater, markRead, setState } from './commands.ts';
+import { openSwitcher } from './project-switch.ts';
+import { displayCombo } from '../keys.ts';
 import { CrewRail, EmptyState, Feed, FeedSection, SidebarHead, SplitTop, TaskCard, useSignal, type MenuEntry, type ProjectChip, type RailMember } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { routeOf, routeTip } from './auto.ts';
@@ -106,6 +108,8 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
       onSearch={() => shell.palette.open()}
       onView={() => shell.sidebar.toggle()}
       onChip={(id) => props.setFilter(id)}
+      onSwitch={() => openSwitcher(shell)}
+      switchLabel={`${shell.t('shell.projects.switch')} (${displayCombo('mod+p', shell.platform.apple).join('')})`}
       onReorder={reorder}
       accountAct={{ menu: { items: account(), onSelect: onAccount } }}
       manageAct={{
@@ -113,8 +117,13 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
           items: [
             { value: 'add', label: shell.t('shell.home.addProject'), icon: 'folder' },
             { value: 'manage', label: shell.t('shell.side.manage'), icon: 'settings' },
+            // a project's committed agent history (wisp.history's Repo view), when that plugin is on
+            ...(shell.view('history.repo') ? [{ value: 'repo', label: shell.t('shell.side.repo'), icon: 'branch' as const }] : []),
           ],
-          onSelect: () => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }),
+          onSelect: (v: string) =>
+            v === 'repo'
+              ? shell.navigate({ t: 'openView', id: 'history.repo' as never, params: {} })
+              : shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }),
         },
       }}
     />
