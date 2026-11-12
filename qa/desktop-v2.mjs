@@ -96,9 +96,18 @@ function launch() {
   const exited = new Promise((r) => proc.once('exit', (c, s) => r(c ?? s)));
   return { proc, exited };
 }
-const hardKill = (pid) => (win ? execFileSync('taskkill', ['/F', '/PID', String(pid)], { stdio: 'ignore' }) : process.kill(pid, 'SIGKILL'));
+// a process that's already gone is done: taskkill says "not found" (exit 128), process.kill throws ESRCH; anything
+// else, with the process still there, is a real failure
+const signal = (pid, f) => {
+  try {
+    f();
+  } catch (e) {
+    if (alive(pid)) throw e;
+  }
+};
+const hardKill = (pid) => signal(pid, () => (win ? execFileSync('taskkill', ['/F', '/PID', String(pid)], { stdio: 'ignore' }) : process.kill(pid, 'SIGKILL')));
 // asks the shell to quit: its window's close on Windows, a TERM elsewhere
-const askQuit = (pid) => (win ? execFileSync('taskkill', ['/PID', String(pid)], { stdio: 'ignore' }) : process.kill(pid, 'SIGTERM'));
+const askQuit = (pid) => signal(pid, () => (win ? execFileSync('taskkill', ['/PID', String(pid)], { stdio: 'ignore' }) : process.kill(pid, 'SIGTERM')));
 
 console.log(`\n  desktop v2 · ${process.platform} · port ${PORT}\n`);
 ok(!(await listening()), `port ${PORT} is taken: set QA_DESKTOP_PORT`);

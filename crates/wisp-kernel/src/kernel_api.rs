@@ -20,12 +20,24 @@ pub(crate) fn contributions<T: ?Sized + Send + Sync + 'static>(
     k: &KernelState,
     p: &Point<T>,
 ) -> Vec<(Ctx, Arc<T>)> {
-    let Ok(reg) = k.reg.read() else {
-        return Vec::new();
+    // The registry's entries first, its guard dropped before the plugins' lock: life.rs `plan` takes the plugins'
+    // lock, then the registry's write, so holding a registry read while waiting on the plugins deadlocked the two
+    // (and every reader queued behind the writer): a quit then never finished (DESK2-05)
+    let items: Vec<(Arc<str>, Arc<T>)> = {
+        let Ok(reg) = k.reg.read() else {
+            return Vec::new();
+        };
+        let Some(list) = reg.points.get(p.id) else {
+            return Vec::new();
+        };
+        list.iter()
+            .filter(|e| e.version == p.version)
+            .filter_map(|e| Some((e.owner.clone(), (*e.item.clone().downcast::<Arc<T>>().ok()?).clone())))
+            .collect()
     };
-    let Some(list) = reg.points.get(p.id) else {
+    if items.is_empty() {
         return Vec::new();
-    };
+    }
     let owners: Vec<(Arc<str>, Ctx)> = k
         .lock_plugins()
         .map(|ps| {
@@ -35,13 +47,9 @@ pub(crate) fn contributions<T: ?Sized + Send + Sync + 'static>(
                 .collect()
         })
         .unwrap_or_default();
-    list.iter()
-        .filter(|e| e.version == p.version)
-        .filter_map(|e| {
-            let item = e.item.clone().downcast::<Arc<T>>().ok()?;
-            let ctx = owners.iter().find(|(o, _)| *o == e.owner)?.1.clone();
-            Some((ctx, (*item).clone()))
-        })
+    items
+        .into_iter()
+        .filter_map(|(owner, item)| Some((owners.iter().find(|(o, _)| *o == owner)?.1.clone(), item)))
         .collect()
 }
 
