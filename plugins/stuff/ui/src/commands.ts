@@ -142,4 +142,39 @@ export const revealItem = defineCommand<ItemArgs, { ok: boolean; path?: string }
 /** Where an app can be published (the publisher's targets): your wisp Grids, by host. */
 export const publishTargets = defineCommand<{ readonly peer: PeerId }, { host: string }[]>({ id: 'stuff.targets', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the stuff.targets control' });
 
+// --- what a pinned pane's calls do, after your click on its card (panes/host.ts) ---
+
+/** tasks.launch: a task as New task sends it (launchBody), on Edits: a pane never starts Full auto. */
+export const launchTask = defineCommand<{ readonly peer: PeerId; readonly body: Record<string, unknown> }, { id: string }>({
+  id: 'runtime.create',
+  owner: (a) => a.peer,
+  wire: (a) => ({ ...a.body, mode: 'edits' }),
+  optimistic: 'none',
+  pending: 'the task a pane starts',
+});
+/** tasks.followUp */
+export const followJob = defineCommand<{ readonly key: EntityKey; readonly sessionId: string; readonly text: string }>({
+  id: 'runtime.followUp',
+  owner: (a) => a.key,
+  wire: (a) => ({ id: a.sessionId, text: a.text }),
+  optimistic: 'none',
+  pending: 'the follow-up a pane sends',
+});
+/** tasks.done */
+export const markDone = defineCommand<{ readonly key: EntityKey; readonly id: string }>({
+  id: 'runtime.setState',
+  owner: (a) => a.key,
+  wire: (a) => ({ id: a.id, state: 'done' }),
+  optimistic: 'none',
+  pending: 'the task a pane marks done',
+});
+/** usage.accounts: one harness's plan windows (wisp.budget's budget.view) */
+export const planWindows = defineCommand<{ readonly peer: PeerId; readonly agent: string }, unknown>({
+  id: 'budget.view',
+  owner: (a) => a.peer,
+  wire: (a) => ({ agent: a.agent }),
+  optimistic: 'none',
+  pending: 'the plan windows',
+});
+
 export const STUFF_COMMANDS = [updateItem, removeItem, restoreItem, launchApp, stopApp, resetData, allowPane, grantOf, publishApp, unpublishApp, saveItem, listStarters, addStarter, revealItem, publishTargets] as const;

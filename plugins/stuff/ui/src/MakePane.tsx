@@ -1,11 +1,16 @@
 // Make a pane (v1 pane-make.js openMakePane): say what it should show or do and an agent writes it into My Stuff, in
-// an empty folder of its own (a task of kind `pane`); or start from one of the panes wisp ships (stuff.starters), Add
-// keeping it in My Stuff. Enter makes it; a refusal brings the dialog back with what you typed.
+// an empty folder of its own (a task of kind `pane`); or start from one of the panes wisp ships (stuff.starters): Add keeps
+// it in My Stuff and pins it on Home (the Allow card first when it asks to use wisp; v1 pane-make.js), and the dialog
+// closes once it's pinned. Said no to the card: it stays added, and its button pins it. Enter makes it; a refusal brings
+// the dialog back with what you typed.
 import { createResource, createSignal, For, Show, type JSX } from 'solid-js';
-import type { PluginClient } from '@wisp/client';
+import { entityKey, type PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
 import { Button, Inline, Skeleton, Stack, Text, TextArea } from '@wisp/ui';
 import { addStarter, listStarters, makePane } from './commands.ts';
+import { useEntries } from './items.ts';
+import { PaneCards, pinsOf } from './pins.tsx';
+import type { Item } from './types.ts';
 
 export const MAKE_VIEW = 'stuff.make';
 
@@ -34,10 +39,21 @@ export default function MakePane(props: { readonly client: PluginClient; readonl
       })
       .catch(() => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: MAKE_VIEW as never, params: { prefill: prompt } } }));
   };
+  const pins = pinsOf(c);
+  const entries = useEntries(c);
+  const [kept, setKept] = createSignal<ReadonlyMap<string, Item>>(new Map());
+  const pinIt = async (it: Item): Promise<void> => {
+    if (await pins.pin(entityKey(c.home, it.id), it, 'home', [...entries().map((e) => e.it), it])) close();
+  };
   const add = (id: string): void => {
     setAdding(id);
-    c.run(addStarter, { peer: c.home, id })
-      .then(() => setAdded(new Set([...added(), id])))
+    const had = kept().get(id);
+    (had ? Promise.resolve(had) : c.run(addStarter, { peer: c.home, id }))
+      .then(async (it) => {
+        setAdded(new Set([...added(), id]));
+        setKept(new Map([...kept(), [id, it]]));
+        await pinIt(it);
+      })
       .catch(() => undefined)
       .finally(() => setAdding(undefined));
   };
@@ -79,11 +95,9 @@ export default function MakePane(props: { readonly client: PluginClient; readonl
                       {s.description}
                     </Text>
                   </Stack>
-                  <Show when={!added().has(s.id)} fallback={<Text size="sm" tone="good">{t('stuff.make.added')}</Text>}>
-                    <Button size="sm" variant="ghost" loading={adding() === s.id} aria-label={t('stuff.make.addOne', { name: s.name })} onClick={() => add(s.id)}>
-                      {t('stuff.make.add')}
-                    </Button>
-                  </Show>
+                  <Button size="sm" variant="ghost" loading={adding() === s.id} aria-label={t(added().has(s.id) ? 'stuff.make.pinOne' : 'stuff.make.addOne', { name: s.name })} onClick={() => add(s.id)}>
+                    {t(added().has(s.id) ? 'stuff.make.pin' : 'stuff.make.add')}
+                  </Button>
                 </Inline>
               )}
             </For>
@@ -98,6 +112,7 @@ export default function MakePane(props: { readonly client: PluginClient; readonl
           {t('stuff.make.go')}
         </Button>
       </Inline>
+      <PaneCards client={c} />
     </Stack>
   );
 }

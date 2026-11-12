@@ -10,13 +10,14 @@ import { Button, Card, Icon, Inline, Menu, Stack, StuffFrame, Text, Wrap } from 
 import { itemActions, type ActionId } from './actions.ts';
 import { launchApp, publishApp, publishTargets, removeItem, revealItem, stopApp, unpublishApp, updateItem } from './commands.ts';
 import { stuffState } from './state.ts';
+import { PaneCards, pinsOf } from './pins.tsx';
 import { useEntries, type Entry } from './items.ts';
 import { kindOf } from './kinds.ts';
 import { cardMeta, groupItems, kindChips, shownItems, when, type KindFilter } from './model.ts';
 import { TOPIC } from './types.ts';
 
 /** The actions this page carries out; the rest (pins, edit) live where they're done. */
-const HERE: ReadonlySet<ActionId> = new Set(['open', 'stop', 'publish', 'pubcopy', 'pubopen', 'update', 'unpublish', 'copy', 'download', 'star', 'task', 'folder', 'remove']);
+const HERE: ReadonlySet<ActionId> = new Set(['open', 'pin-home', 'unpin-home', 'stop', 'publish', 'pubcopy', 'pubopen', 'update', 'unpublish', 'copy', 'download', 'star', 'task', 'folder', 'remove']);
 
 /** a link without its scheme, as v1 shows it */
 const bare = (url: string): string => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -31,6 +32,7 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
   onCleanup(() => scope.dispose());
   c.watch(c.home, TOPIC, scope);
   const entries = useEntries(c);
+  const pins = pinsOf(c);
   // where an app can be published: the grids this computer is on (none: no Publish)
   const st = stuffState(c);
   c.run(publishTargets, { peer: c.home }).then(
@@ -119,6 +121,11 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
         return quiet(c.run(revealItem, args));
       case 'remove':
         return quiet(c.run(removeItem, args));
+      // Pin on home (v1 panes.js pinApp): the Allow card first when it asks to use wisp
+      case 'pin-home':
+        return quiet(pins.pin(key, e.it, 'home', entries().map((x) => x.it)));
+      case 'unpin-home':
+        return quiet(pins.unpin(e.it, 'home', entries().map((x) => x.it)));
       default:
     }
   };
@@ -135,7 +142,7 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
 
   const card = (e: Entry): JSX.Element => {
     const k = kindOf(e.it.kind);
-    const actions = () => itemActions(e.it, { ...(st.publishTo()[0] && { publishTo: st.publishTo()[0] }), pinnedTask: false, pinnedHome: false, task: !!e.it.from?.session, mobile: false }).filter((a) => HERE.has(a.id));
+    const actions = () => itemActions(e.it, { ...(st.publishTo()[0] && { publishTo: st.publishTo()[0] }), pinnedTask: false, pinnedHome: pins.pinned(e.it, 'home', entries().map((x) => x.it)), task: !!e.it.from?.session, mobile: false }).filter((a) => HERE.has(a.id));
     return (
       <Card part="stuff.card" as="li" interactive onClick={() => run(e, 'open')}>
         <Stack gap="2">
@@ -234,6 +241,7 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
           )}
         </For>
       </Show>
+      <PaneCards client={c} />
     </StuffFrame>
   );
 }
