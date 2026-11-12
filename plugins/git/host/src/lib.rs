@@ -8,6 +8,7 @@ pub mod commands;
 mod error;
 mod read;
 mod repo;
+mod place;
 pub mod run;
 pub mod service;
 mod shared;
@@ -16,7 +17,7 @@ mod write;
 use std::sync::Arc;
 
 use wisp_git_api::commands::{
-    Clone as CloneCmd, Commit, GetChanges, GetStatus, GetTools, Revert, Stage,
+    Checkout, Clone as CloneCmd, Commit, GetChanges, GetOrigin, GetStatus, GetTools, Revert, Stage,
 };
 use wisp_git_api::{Blobs, GitServiceV1};
 use wisp_kernel::{Manifest, Plugin, Result, Setup, WireError};
@@ -114,6 +115,26 @@ impl Plugin for GitPlugin {
             async move { wisp_git_api::GitService::tools(&sv, &call).await }
         });
         checkpoint::register(s, &svc);
+        // a task's folder on another computer (v1 places.js): its repo here, and that computer's checkout of it
+        let sv = svc.clone();
+        s.command::<GetOrigin, _, _>(move |_ctx, call, a| {
+            let sv = sv.clone();
+            async move {
+                call.require("git:read")?;
+                Ok(sv.origin_at(&a.path).await)
+            }
+        });
+        let sv = svc.clone();
+        s.command::<Checkout, _, _>(move |ctx, call, a| {
+            let sv = sv.clone();
+            async move {
+                call.require("git:clone")?;
+                let home = std::env::var("HOME").unwrap_or_default();
+                let set = ctx.setting(CLONE_DIR);
+                let parent = wisp_git_core::repo_url::clone_root(set.as_ref().and_then(|v| v.as_str()), &home, |d| std::path::Path::new(d).is_dir());
+                sv.checkout(a, &home, parent).await.map_err(w)
+            }
+        });
         let sv = Service(svc);
         s.command::<CloneCmd, _, _>(move |ctx, call, mut a| {
             let sv = sv.clone();

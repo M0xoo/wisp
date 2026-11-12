@@ -156,7 +156,7 @@ impl GitServiceImpl {
         })
     }
 
-    async fn clone_repo_into(&self, req: CloneRequest) -> Result<Cloned> {
+    pub(crate) async fn clone_repo_into(&self, req: CloneRequest) -> Result<Cloned> {
         let repo = wisp_git_core::repo_url::parse_repo(&req.url, false)
             .ok_or_else(|| GitError::Refused(format!("{} isn’t a repo URL", req.url)))?;
         tokio::fs::create_dir_all(&req.parent).await?;

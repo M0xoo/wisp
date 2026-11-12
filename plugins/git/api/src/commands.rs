@@ -166,6 +166,8 @@ command!(
     Committed
 );
 command!(GetTools, "git.tools", "git:read", true, (), Tools);
+command!(GetOrigin, "git.origin", "git:read", true, crate::OriginArgs, crate::Origin);
+command!(Checkout, "git.checkout", "git:clone", false, crate::CheckoutArgs, Cloned);
 command!(
     Clone,
     "git.clone",

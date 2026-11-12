@@ -293,6 +293,29 @@ pub struct CloneRequest {
     pub parent: String,
 }
 
+/// `git.origin`: a folder's repo, for running its task on another computer (v1 GET /projects/origin).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OriginArgs {
+    pub path: String,
+}
+
+/// The folder's origin URL and its checkout's top folder ('' for either when it isn't a repo with an origin).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Origin {
+    pub origin: String,
+    pub root: String,
+}
+
+/// `git.checkout` (v1 POST /projects/checkout, services/places.js `checkout`): this computer's checkout of a repo:
+/// one already here (`known`: its projects' folders first, then the usual repo folders, two levels deep), else a
+/// fresh clone of it where clones go.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CheckoutArgs {
+    pub url: String,
+    #[serde(default)]
+    pub known: Vec<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Cloned {
     pub dir: String,

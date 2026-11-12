@@ -592,3 +592,31 @@ async fn restore_puts_the_folder_and_the_branch_back_at_a_checkpoint() {
     assert_eq!(st.trim(), "?? notes.txt", "untracked again, nothing else changed: {st}");
     assert!(r.restore(&stranger(), &snap, &head).await.is_err(), "git:restore is checked");
 }
+
+/// v1 services/places.js: a task's folder on another computer is that computer's checkout of the same repo, found
+/// (a project's folder, else the usual repo folders) or cloned.
+#[tokio::test]
+async fn a_folders_repo_and_the_other_computers_checkout_of_it_found_or_cloned_v1_run_on_checkout() {
+    let t = tmp("place");
+    let dir = repo(&t);
+    let origin = t.0.join("origin.git");
+    let s = svc();
+    std::fs::create_dir_all(dir.join("web/src")).unwrap();
+    // here: the task's folder (a subfolder) names its repo and its checkout's top
+    let o = s.origin_at(&dir.join("web/src").to_string_lossy()).await;
+    assert_eq!((o.origin.as_str(), o.root.as_str()), (origin.to_str().unwrap(), dir.to_str().unwrap()));
+    assert_eq!(s.origin_at(&t.0.to_string_lossy()).await, wisp_git_api::Origin::default(), "not a repo: nothing");
+    // there: a project folder with that origin is used as it is
+    let url = format!("file://{}", origin.to_string_lossy());
+    let home = t.0.join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let parent = home.join("code").to_string_lossy().into_owned();
+    let known = s.checkout(wisp_git_api::CheckoutArgs { url: url.clone(), known: vec![dir.to_string_lossy().into_owned()] }, &home.to_string_lossy(), parent.clone()).await.unwrap();
+    assert_eq!((known.dir.as_str(), known.existed), (dir.to_str().unwrap(), true));
+    // none known, none in the usual folders: a fresh clone where clones go
+    let fresh = s.checkout(wisp_git_api::CheckoutArgs { url: url.clone(), known: vec![] }, &home.to_string_lossy(), parent.clone()).await.unwrap();
+    assert!(!fresh.existed && fresh.dir.starts_with(&parent), "{fresh:?}");
+    // asked again: the clone it made is found in the usual folders, not cloned twice
+    let again = s.checkout(wisp_git_api::CheckoutArgs { url, known: vec![] }, &home.to_string_lossy(), parent).await.unwrap();
+    assert_eq!((again.dir.as_str(), again.existed), (fresh.dir.as_str(), true));
+}

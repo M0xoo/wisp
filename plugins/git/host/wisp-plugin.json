@@ -66,6 +66,15 @@
         "title": "Clone a repo"
       },
       {
+        "id": "git.origin",
+        "title": "A folder's repo (its origin), to run its task on another computer",
+        "readOnly": true
+      },
+      {
+        "id": "git.checkout",
+        "title": "This computer's checkout of a repo: one already here, else a clone"
+      },
+      {
         "id": "git.restoreTurn",
         "title": "Put a task's folder back as it was before one of its turns"
       }
