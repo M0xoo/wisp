@@ -319,13 +319,14 @@ async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
     drop(serve);
 }
 
-/// The folder each recorded claude run ran in.
-fn run_dirs(rec: &Path) -> Vec<String> {
-    std::fs::read_to_string(rec.join("claude.jsonl"))
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
-        .filter(|v| v["argv"].as_array().is_some_and(|a| a.iter().any(|x| x == "-p")))
+/// The folders the runs given `prompt` ran in, on whichever harness: with none named, Auto picks one
+/// (Thompson-sampled, so not always claude), and every fake records to `<harness>.jsonl`.
+fn run_dirs(rec: &Path, prompt: &str) -> Vec<String> {
+    let Ok(files) = std::fs::read_dir(rec) else { return Vec::new() };
+    files
+        .filter_map(|f| std::fs::read_to_string(f.ok()?.path()).ok())
+        .flat_map(|t| t.lines().filter_map(|l| serde_json::from_str::<Value>(l).ok()).collect::<Vec<_>>())
+        .filter(|v| v["stdin"].as_str().is_some_and(|s| s.contains(prompt)) || v["argv"].as_array().is_some_and(|a| a.iter().any(|x| x.as_str().is_some_and(|x| x.contains(prompt)))))
         .filter_map(|v| v["cwd"].as_str().map(str::to_owned))
         .collect()
 }
@@ -346,7 +347,7 @@ async fn a_task_never_runs_in_the_servers_own_folder() {
     // none at all: an empty folder of its own under ~/.wisp/scratch (v1 store.scratchDir), not the server's
     let id = api.cmd("runtime.create", json!({ "prompt": "what's a monad?" })).await["id"].as_str().unwrap().to_owned();
     finished(&api, &id).await;
-    let ran = run_dirs(&rec);
+    let ran = run_dirs(&rec, "what's a monad?");
     assert_eq!(ran.len(), 1, "{ran:?}");
     let scratch = std::fs::canonicalize(dir.join("home/scratch")).unwrap();
     assert!(Path::new(&ran[0]).starts_with(&scratch), "ran in {} (the server's is {})", ran[0], here.display());
@@ -366,9 +367,9 @@ async fn a_task_never_runs_in_the_servers_own_folder() {
     let out = api.cmd("automations.trigger.fire", json!({ "name": "nightly" })).await;
     let id = out["session"].as_str().unwrap_or_else(|| panic!("fired nothing: {out}")).to_owned();
     finished(&api, &id).await;
-    let ran = run_dirs(&rec);
-    assert_eq!(ran.len(), 2, "{ran:?}");
-    assert_eq!(Path::new(&ran[1]), std::fs::canonicalize(&proj).unwrap(), "a hand-fired trigger runs in its project");
+    let ran = run_dirs(&rec, "Tidy the docs");
+    assert_eq!(ran.len(), 1, "{ran:?}");
+    assert_eq!(Path::new(&ran[0]), std::fs::canonicalize(&proj).unwrap(), "a hand-fired trigger runs in its project");
     // and no harness's detect probe left a file in the server's folder
     for f in ["math.js", "notes.txt"] {
         assert!(!here.join(f).exists(), "{f} in the server's folder {}", here.display());
