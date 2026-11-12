@@ -1,5 +1,12 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 0b5bff88 (2026-11-12).** tauri and tauri windows green on every OS (DESK2-01, DESK2-05 fixed).
+`pr` fails 3 tests in one file (`a_changed_harness_holds_its_turn_until_trusted`,
+`a_second_codex_account_signs_in_and_its_runs_use_its_folder`, `keys_limits_and_the_v1_routes`) at
+`crates/wisp/tests/common/mod.rs:65`: "…/build/wisp/<hash>/out/wisp-fake-agent after the build": the helper builds
+`wisp-fake-agent` into the target dir but expects it at the build script's OUT_DIR. One home for the fake binary, the
+same locally and in CI.
+
 **Fix first: #756 CI on 9912daf5 (2026-11-12).** DESK2-01 passes now. Left:
 1. **wisp's git reads race the user's commits (real bug, flaky test).** `serve_code.rs:33` on node 22: the test's
    `git commit -qam` failed with `.git/index.lock: File exists` because wisp ran git in the same repo at that moment.
