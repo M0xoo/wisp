@@ -4,6 +4,7 @@
 
 mod install;
 mod kinds;
+pub mod remote;
 
 pub use install::{UserPlugin, at_start as user_plugins, read as read_plugin};
 
@@ -40,6 +41,17 @@ impl wisp_kernel::Command for Trust {
     type Out = serde_json::Value;
 }
 
+/// `plugins.ui` (ADR-0048): untrusted plugins' UI modules, for the shell's remote view host.
+#[derive(Debug)]
+pub struct Ui;
+impl wisp_kernel::Command for Ui {
+    const ID: &'static str = "plugins.ui";
+    const PERMISSION: Option<&'static str> = Some(wisp_plugins_api::perm::READ);
+    const READ_ONLY: bool = true;
+    type Args = serde_json::Value;
+    type Out = Vec<remote::RemoteUi>;
+}
+
 #[derive(Debug, Default)]
 pub struct PluginsPlugin;
 
@@ -74,6 +86,7 @@ impl Plugin for PluginsPlugin {
         s.command::<Install, _, _>(|ctx, _call, a| async move { install::install(&ctx, &a).await });
         s.command::<Uninstall, _, _>(|ctx, _call, a| async move { install::uninstall(&ctx, &a).await });
         s.command::<Trust, _, _>(|ctx, _call, a| async move { install::trust(&ctx, &a).await });
+        s.command::<Ui, _, _>(|ctx, _call, _a| async move { remote::list(&ctx).await });
         Ok(())
     }
 }

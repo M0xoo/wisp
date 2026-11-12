@@ -115,3 +115,29 @@ async fn an_installed_plugin_is_untrusted_whatever_its_manifest_says() {
     let read = wisp_plugins::read_plugin(&home.join("plugins/claims"), &text, false).unwrap();
     assert_eq!(wisp_kernel::Plugin::manifest(&read).trust.as_deref(), Some("untrusted"));
 }
+
+/// ADR-0048: an untrusted plugin's UI calls wisp as the plugin (`plugin:<id>`), checked against the permissions its
+/// manifest asked for and nothing more; and `plugins.ui` hands the app its module, only once it's on.
+#[tokio::test]
+async fn an_untrusted_plugins_calls_are_checked_against_its_own_permissions() {
+    let home = dir("calls");
+    let k = TestApp::new().with(wisp_plugins::PluginsPlugin).service(Paths::new(&home)).start().await;
+    let d = home.join("src-pane");
+    std::fs::create_dir_all(&d).unwrap();
+    let m = json!({ "wispPlugin": 1, "id": "user.pane", "name": "Pane", "version": "1.0.0", "api": "^1", "permissions": ["plugins:read"], "activation": [],
+        "contributes": { "ui": [{ "id": "user.pane.settings", "attachTo": { "id": "shell.settings", "input": "pane" }, "component": "./ui.js#default", "title": "Pane" }] } });
+    std::fs::write(d.join("wisp-plugin.json"), m.to_string()).unwrap();
+    std::fs::write(d.join("ui.js"), "wisp.render({ c: 'Text', text: 'hi' });").unwrap();
+    k.call(Caller::user(), "plugins.install", json!({ "source": d.display().to_string() })).await.unwrap();
+    assert_eq!(k.call(Caller::user(), "plugins.ui", json!({})).await.unwrap(), json!([]), "off: nothing shows");
+    k.call(Caller::user(), "plugins.setEnabled", json!({ "id": "user.pane", "enabled": true })).await.unwrap();
+    let ui = k.call(Caller::user(), "plugins.ui", json!({})).await.unwrap();
+    assert_eq!((ui[0]["plugin"].as_str(), ui[0]["place"].as_str(), ui[0]["module"].as_str()), (Some("user.pane"), Some("shell.settings"), Some("wisp.render({ c: 'Text', text: 'hi' });")));
+    // as itself: what it asked for, and nothing it didn't
+    let me = Caller::set("plugin:user.pane");
+    assert!(k.call(me.clone(), "plugins.list", json!({})).await.is_ok(), "plugins:read it asked for");
+    let no = k.call(me.clone(), "plugins.install", json!({ "source": d.display().to_string() })).await.unwrap_err();
+    assert_eq!(no.code, wisp_kernel::Code::Forbidden, "plugins:write it never asked for: {no:?}");
+    assert!(k.call(me, "plugins.setEnabled", json!({ "id": "user.pane", "enabled": false })).await.is_err());
+    let _ = std::fs::remove_dir_all(&home);
+}

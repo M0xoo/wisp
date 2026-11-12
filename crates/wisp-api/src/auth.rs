@@ -10,6 +10,7 @@
 //! | via the proxy with `x-wisp-proxy-via: key`        | `apikey` (a grid API key, checked at the grid) |
 //! | via the proxy, otherwise                          | the user set                                 |
 //! | the local page (Host and Origin checked)          | the user set                                 |
+//! | either of those two with `x-wisp-plugin: user.<x>` | `plugin:user.<x>`: an untrusted plugin's UI (ADR-0048), never more than the user |
 //!
 //! The session an agent token speaks for is named by the URL (`:id`, `:sid`), then `x-wisp-session`,
 //! then the JSON body's `session`; a token for another session is a 403. The master token is never
@@ -126,10 +127,11 @@ pub fn resolve(
     body: &[u8],
     o: &AuthOptions<'_>,
 ) -> Result<Caller, ApiError> {
-    let user = || Caller {
-        set: o.user_set.to_owned(),
-        session: None,
-        plugin: None,
+    // an untrusted plugin's UI speaks as that plugin (ADR-0048): only ever less than the user, never a built-in
+    let as_plugin = header(h, "x-wisp-plugin").filter(|p| untrusted_plugin_id(p)).map(str::to_owned);
+    let user = || match &as_plugin {
+        Some(p) => Caller { set: format!("plugin:{p}"), session: None, plugin: Some(p.clone()) },
+        None => Caller { set: o.user_set.to_owned(), session: None, plugin: None },
     };
     if let Some(token) = h.get("x-wisp-token") {
         let token = token.to_str().map_err(|_| ApiError::BadToken)?;
@@ -182,6 +184,11 @@ pub fn resolve(
     Ok(user())
 }
 
+/// A plugin the user installed (`user.<name>`): the only ids `x-wisp-plugin` may name.
+pub fn untrusted_plugin_id(id: &str) -> bool {
+    id.strip_prefix("user.").is_some_and(|n| !n.is_empty() && n.len() <= 64 && n.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.')))
+}
+
 /// Rules the edge keeps whatever the capability data says (v1 edge case 3): a grid API key never
 /// manages API keys, and a connector token opens only the connectors' token route.
 pub fn edge_denies(caller: &Caller, permission: &str) -> bool {
@@ -231,6 +238,22 @@ mod tests {
             derive("key", "The quick brown fox jumps over the lazy dog"),
             "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
         );
+    }
+
+    /// ADR-0048: the app sends an untrusted plugin's UI calls with `x-wisp-plugin`: they speak as that plugin (its
+    /// own capability set), never as more; a built-in's id, or an agent's token, isn't lowered or raised by it.
+    #[test]
+    fn an_untrusted_uis_call_speaks_as_its_plugin_and_never_as_more() {
+        let page = resolve(&hm(&[("x-wisp-plugin", "user.theme")]), &BTreeMap::new(), b"", &opts(false)).unwrap();
+        assert_eq!((page.set.as_str(), page.plugin.as_deref()), ("plugin:user.theme", Some("user.theme")));
+        let master = resolve(&hm(&[("x-wisp-token", M), ("x-wisp-plugin", "user.theme")]), &BTreeMap::new(), b"", &opts(false)).unwrap();
+        assert_eq!(master.set, "plugin:user.theme");
+        for id in ["wisp.plugins", "user.", "user.a b", "kernel"] {
+            assert_eq!(resolve(&hm(&[("x-wisp-plugin", id)]), &BTreeMap::new(), b"", &opts(false)).unwrap().set, "user:full", "{id}");
+        }
+        let t = session_token(M, "s1");
+        let agent = resolve(&hm(&[("x-wisp-token", &t), ("x-wisp-plugin", "user.theme")]), &params("s1"), b"", &opts(false)).unwrap();
+        assert_eq!(agent.set, "agent:session", "an agent's token stays an agent's");
     }
 
     #[test]
