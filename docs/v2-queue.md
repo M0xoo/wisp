@@ -1,5 +1,9 @@
 # v2 build queue (code first, verify later)
 
+**Round 37 (done):** window close checked against v1 (unchanged on macOS; quit elsewhere, as v1), F-task-32 drafts,
+F-task-38 and F-task-4 verified with tests. Next: a queued follow-up in the mock for F-comp-24, then partial (126) and
+missing (18) rows, most-used first.
+
 **Round 36 (done):** serve_grid's Box credential (401 forged / 403 verified, tests agree with ADR-0014), DESK2-05 on
 Windows (close quits; Job Object; QA names the side: CI to confirm), the first-run launcher at 390. Next: partial (129)
 and missing (18) rows, most-used first.

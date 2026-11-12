@@ -143,6 +143,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **What you're typing survives a reload or an update**, in New task and in a reply. Text shared to wisp lands in New task again.
 - **Quitting the Windows app stops wisp's server.** Closing the window quits, and the server can no longer outlive the app.
 - **Updating the Windows app from v1 removes v1's leftovers.** Its bundled Node and old server files are deleted on install; your tasks and settings in `~/.wisp` stay.
 - **Quitting the desktop app stops wisp's server again** (on macOS and Windows it could stay up): a plugin switching off while the list was being read could lock the server's plugin registry.

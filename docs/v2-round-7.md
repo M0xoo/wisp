@@ -1493,3 +1493,26 @@ so the mode's sparkle and Auto's never sit side by side unnamed.
 
 Checks: typecheck, `npm run check` (0 errors), the cargo tests above, vitest first-run.
 
+## Round 37 (2026-11-12)
+
+**Window close vs v1.** v1's shell (`~/Downloads/wisp/desktop/src-tauri/src/main.rs`): on macOS a close hides the
+window and the app keeps running (`prevent_close` + `leave_fullscreen_and_hide`); elsewhere "closing it quits"
+(Tauri's default once the last, and only, window closes). Round 36's arm is `cfg(not(target_os = "macos"))` and calls
+that same exit explicitly: macOS is untouched, Windows and Linux quit on close as v1 did. Only the exit path
+(`RunEvent::Exit`: ⌘Q, Quit, or a close where close is quit) stops the server; the Job Object only acts when the shell's
+process ends. Kept as is.
+
+**v1-features, most-used first.**
+- F-task-32 built: New task's text and each reply are drafts in the client's drafts store (`frame/drafts.ts`). Home
+  kept its text in a local signal and ignored `<home>:launcher` → text, where wisp.stuff's share-in writes what was
+  shared: that works now too. Test `drafts.test.ts` (a new client on the same disk); seen in Chrome after a reload.
+- F-task-38 built (verified): a refused follow-up's text comes back, with the client's toast; the code was there.
+- F-task-4 built (verified): every section's heading folds by click, Enter or Space and stays folded across reloads;
+  test `fold-head.test.tsx`; seen in Chrome.
+- F-comp-24 looked at, not changed: the queue (drag, ↑/↓, ×, Send now) is shell-composer's `QueueFoot`, wired to
+  `runtime.queue.order`; the mock never holds a follow-up in a queue, so it couldn't be seen or measured here (next:
+  a queued follow-up in the mock, then a test).
+Partial 126, missing 18.
+
+Checks: typecheck, `npm run check` (0 errors), vitest drafts, prompt-keys (2), first-run, fold-head.
+
