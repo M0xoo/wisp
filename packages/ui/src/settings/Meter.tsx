@@ -37,9 +37,7 @@ export function Meter(props: MeterProps): JSX.Element {
       style={styleOf({ '--k-v': pct(props.value) })}
     >
       <span data-kit="meter-fill" data-part={sub(part(), 'fill')} />
-      <Show when={props.mark}>
-        {(m) => <span data-kit="meter-mark" data-part={sub(part(), 'mark')} title={props.markLabel} style={styleOf({ '--k-m': pct(m()) })} />}
-      </Show>
+      <Show when={props.mark}>{(m) => <span data-kit="meter-mark" data-part={sub(part(), 'mark')} title={props.markLabel} style={styleOf({ '--k-m': pct(m()) })} />}</Show>
     </div>
   );
 }

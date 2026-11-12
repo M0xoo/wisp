@@ -41,14 +41,28 @@
   [data-kit='settings-up'] { display: none; }
   [data-kit='settings-pane-title'] { flex: 1 1 auto; margin: 0; min-width: 0; font: var(--fw-semibold) var(--fs-title) / 1.3 var(--display); letter-spacing: -0.01em; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   [data-kit='settings-body'] { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  [data-kit='settings-pane'] { display: flex; flex-direction: column; gap: 14px; padding: var(--space-7) var(--space-8) 28px; }
-  [data-kit='settings-lede'] { margin: 0 var(--space-1) var(--space-1); font-size: var(--fs-sm); color: var(--muted); line-height: 1.5; }
+  /* v1 .sx-pane: groups 14px apart by their own margin (.sx-group + .sx-group), not a gap */
+  /* v1 .sx-pane is a block: its children's margins meet (a group's 14px under a head's 22px is 22px) */
+  [data-kit='settings-pane'] { display: block; padding: var(--space-7) var(--space-8) 28px; }
+  [data-kit='settings-pane'] > * + * { margin-top: 14px; }
+  /* a group a plugin put in through a slot (a `contents` wrapper) keeps the same 14px */
+  [data-kit='settings-pane'] [data-kit='settings-group'] { margin-top: 14px; }
+  /* v1 .sx-head: a group's head sits 22px under what's above it, 2px in, its button on the head's last line */
+  [data-kit='settings-pane'] [data-kit='settings-group'][data-head] { margin-top: 22px; }
+  [data-kit='settings-pane'] > [data-kit='settings-group']:first-child { margin-top: 0; }
+  /* v1 .sx-lede: 16px under it, and what follows it takes no margin of its own */
+  [data-kit='settings-lede'] { margin: 0 var(--space-1) var(--space-7); font-size: var(--fs-sm); color: var(--muted); line-height: 1.5; }
 
-  [data-kit='settings-group'] { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
-  [data-kit='settings-group-head'] { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); }
+  /* a group with no head is v1's .sx-group itself (the box); with a head, the head sits 8px above it */
+  [data-kit='settings-group'] { display: flex; flex-direction: column; min-width: 0; }
+  [data-kit='settings-group'][data-head] { gap: var(--space-4); }
+  /* headless, the group is the box (v1 .sx-group: its line, corners and surface); its body inside is plain */
+  [data-kit='settings-group']:not([data-head]) { --field-bg: var(--surface); border: var(--size-hairline) solid var(--line); border-radius: calc(var(--radius-lg) + var(--space-1)); background: var(--surface-2); }
+  [data-kit='settings-group']:not([data-head]) > [data-kit='settings-group-body'] { border: 0; border-radius: 0; background: none; }
+  [data-kit='settings-group-head'] { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-6); margin: 0 2px; }
   [data-kit='settings-group-titles'] { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
   [data-kit='settings-group-title'] { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
-  [data-kit='settings-group-description'] { margin: 0; font-size: var(--fs-sm); color: var(--muted); line-height: var(--lh-snug); }
+  [data-kit='settings-group-description'] { margin: 0; font-size: var(--fs-sm); color: var(--muted); line-height: var(--lh-base); }
   [data-kit='settings-group-actions'] { display: flex; align-items: center; gap: var(--space-2); flex: none; }
   [data-kit='settings-group-body'] {
     /* v1 .sx-group: the box is --surface-2, so its fields take --surface and don't melt into it */
@@ -80,7 +94,58 @@
     [data-kit='settings-nav-chevron'] { display: flex; }
     [data-kit='settings-up'] { display: flex; }
     [data-kit='settings-main'] > [data-kit='bar'] { min-height: var(--size-settings-head-phone); padding: var(--space-4); gap: var(--space-1); }
-    [data-kit='settings-pane'] { padding: 14px var(--space-7) var(--space-8); gap: 14px; }
+    [data-kit='settings-pane'] { padding: 14px var(--space-7) var(--space-8); }
     [data-kit='settings-row'] { padding: 11px 14px; }
   }
+
+  /* a box inside a group, under its row (v1 .sx-accts: a harness's accounts and "Add another … account") */
+  [data-kit='settings-inset'] { margin: 0 14px 12px 3.125rem; border: var(--size-hairline) solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  @container settings (max-width: 520px) { [data-kit='settings-inset'] { margin-left: 14px; } }
+  [data-kit='settings-inset'] > * + * { border-top: var(--size-hairline) solid var(--line); }
+  [data-kit='settings-inset'] + [data-kit='settings-row'] { border-top: var(--size-hairline) solid var(--line); }
+  [data-kit='settings-inset-row'] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 8px 6px 12px; font-size: 13px; text-align: left; }
+  [data-kit='settings-inset-text'] { flex: 1; display: flex; align-items: baseline; gap: 0 8px; min-width: 0; }
+  [data-kit='settings-inset-text'] > b { flex: none; font-weight: var(--fw-medium); color: var(--ink); white-space: nowrap; }
+  [data-kit='settings-inset-text'] > small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--muted); }
+  [data-kit='settings-inset-state'] { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--warn); }
+  [data-kit='settings-inset-row'][data-add] { color: var(--muted); transition: background 0.12s, color 0.12s; }
+  [data-kit='settings-inset-row'][data-add]:hover { background: var(--bg-2); color: var(--ink); }
+  [data-kit='settings-inset-row'][data-add] > [data-kit='icon'] { width: 14px; height: 14px; margin: 0 4px 0 3px; }
+  [data-kit='settings-inset-row'][data-add]:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent); }
+
+  /* a titled block in a group's box (v1 .cg-signin): its head, then what it holds, 10px apart */
+  [data-kit='settings-block'] { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+  [data-kit='settings-block-head'] { display: flex; flex-direction: column; gap: 3px; margin: 0; }
+  [data-kit='settings-block-head'] > b { font-size: 14px; font-weight: var(--fw-semibold); color: var(--ink); }
+  [data-kit='settings-block-head'] > small { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  [data-kit='settings-pane'] > [data-kit='settings-lede'] + * { margin-top: 0; }
+  /* a group first in a column of its own (a pane's block) takes no margin */
+  [data-kit='settings-pane'] [data-kit='stack'] > [data-kit='settings-group']:first-child { margin-top: 0; }
+  [data-kit='settings-note'] { margin: 8px 0 0; font-size: 12.5px; line-height: var(--lh-base); color: var(--muted); }
+  [data-kit='settings-note'][data-after='10'] { margin-top: 10px; }
+  [data-kit='settings-note'][data-inset] { margin-left: 2px; margin-right: 2px; }
+  /* a group with a head straight in a pane: v1's head and box were siblings there, the box 14px under the head */
+  [data-kit='settings-pane'] > [data-kit='settings-group'][data-head] { gap: 0; }
+  [data-kit='settings-pane'] > [data-kit='settings-group'][data-head] > [data-kit='settings-group-body'] { margin-top: 14px; }
+  [data-kit='settings-group'][data-after] { margin-bottom: 14px; }
+  /* v1 .wtr-row: fixed columns (who, state, size, buttons), a line on top */
+  [data-kit='settings-item'] { display: grid; grid-template-columns: minmax(0, 1fr) 7.375rem 4rem auto; align-items: center; gap: 12px; min-height: 52px; padding: 7px 14px; border-top: var(--size-hairline) solid var(--line); }
+  [data-kit='settings-item-who'] { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+  [data-kit='settings-item-who'] > b, [data-kit='settings-item-name'] { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--fw-medium); color: var(--ink); text-align: left; }
+  [data-kit='settings-item-who'] > b[data-mono] { font-family: var(--mono); }
+  [data-kit='settings-item-name']:hover { text-decoration: underline; }
+  [data-kit='settings-item-who'] > small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+  [data-kit='settings-item-state'], [data-kit='settings-item-size'] { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  [data-kit='settings-item-state'][data-warn] { color: var(--warn); }
+  [data-kit='settings-item-size'] { text-align: right; }
+  /* narrow (v1 squeezed the name to a letter): the name and its line on their own line, the rest under it */
+  @container settings (max-width: 520px) {
+    [data-kit='settings-item'] { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 4px; }
+    [data-kit='settings-item-who'] { grid-column: 1 / -1; }
+  }
+  [data-kit='settings-item-acts'] { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+  /* a filter in a group's box, over its items (v1 .wtr-filters) */
+  [data-kit='settings-group-body'] > [data-kit='tabs'] { margin: 10px 14px; width: fit-content; max-width: calc(100% - 28px); }
+  /* a row's title as the box's headline (v1 .wtr-total) */
+  [data-kit='settings-row'][data-big] [data-kit='settings-row-title'] { font-size: 15px; font-variant-numeric: tabular-nums; }
 }

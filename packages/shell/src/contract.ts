@@ -25,6 +25,11 @@ export const INPUTS = {
   'shell.list:top': 'sidebar.top',
   'shell.list:feedTop': 'feed.top',
   'shell.list:needs': 'section.needs',
+  // added 2026-11-12 (additive): rows other plugins add at the end of Settings → General (v1 kept Updates there)
+  'shell.settings:general': 'settings.general',
+  // added 2026-11-12 (additive): what other plugins put in Settings → Machines under its first group (wisp.grid-client's
+  // Reach this computer from anywhere, v1 .mc-grid)
+  'shell.settings:machines': 'machines.reach',
   // added 2026-11-12 (additive): what goes between Needs you and Working (the crew's section on the phone, v1 #secCrew)
   'shell.list:crew': 'section.crew',
   'shell.list:working': 'section.working',
@@ -130,6 +135,8 @@ export interface ViewDef<P = unknown> {
   bare?: boolean;
   /** added 2026-11-12 (additive): 'top' draws the overlay near the top over a light scrim (v1's ⌘K palette) */
   place?: 'top';
+  /** added 2026-11-12 (additive): another name for the dialog it opens in (Settings: v1's `settings`, the .modal.sx box) */
+  part?: string;
   /** added 2026-11-12 (additive): the dialog's size ('v1': v1's .modal, 640 wide) */
   size?: 'sm' | 'md' | 'lg' | 'v1';
 }

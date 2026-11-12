@@ -4,7 +4,7 @@
 // row above it changes height or new rows arrive; in `anchor="bottom"` (a transcript) it starts
 // at the end and follows new rows while you are at the tail.
 import { Key } from '@zag-js/solid';
-import { batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, type Accessor, type JSX } from 'solid-js';
+import { batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, type Accessor, type JSX, For } from 'solid-js';
 import type { Size } from '@wisp/tokens';
 import { sizeVar } from '@wisp/tokens';
 import { flag, styleOf, sub, type KitProps, type Labelled, type PartName, type WithVars } from '../core/props.ts';
@@ -31,6 +31,9 @@ export interface VirtualListProps<T> extends KitProps, WithVars, Labelled {
   readonly ref?: (el: HTMLDivElement) => void;
   /** the row at this index sits a list gap below the one before it (data-gap: v1 .f-list's 2px between two task rows). Additive (2026-11-12). */
   readonly gapBefore?: (index: number) => boolean;
+  /** runs of rows that belong together (a section: its heading and rows), each drawn as one box behind them, named
+   *  `part`, so it can be measured and restyled as v1's section was (#secNeeds). Item indices, inclusive. Additive. */
+  readonly groups?: readonly { readonly part: string; readonly from: number; readonly to: number }[];
 }
 
 interface Measured {
@@ -119,16 +122,20 @@ function useScroller<T>(props: VirtualListProps<T>, offs: Accessor<readonly numb
 
   // After the rows or their heights change: follow the tail, or put the anchor row back.
   createEffect(
-    on(offs, (o) => {
-      const el = box.el;
-      if (!el) return;
-      if (bottom() && following()) return scrollTo(el, el.scrollHeight);
-      const a = anchor.at;
-      const index = a ? props.items.findIndex((item) => props.key(item) === a.key) : -1;
-      if (!a || index < 0) return;
-      const want = restoreAnchor(o, { index, delta: a.delta });
-      if (Math.abs(el.scrollTop - want) > 0.5) scrollTo(el, want);
-    }, { defer: true }),
+    on(
+      offs,
+      (o) => {
+        const el = box.el;
+        if (!el) return;
+        if (bottom() && following()) return scrollTo(el, el.scrollHeight);
+        const a = anchor.at;
+        const index = a ? props.items.findIndex((item) => props.key(item) === a.key) : -1;
+        if (!a || index < 0) return;
+        const want = restoreAnchor(o, { index, delta: a.delta });
+        if (Math.abs(el.scrollTop - want) > 0.5) scrollTo(el, want);
+      },
+      { defer: true },
+    ),
   );
 
   onMount(() => {
@@ -191,6 +198,16 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
         {row}
       </Key>
       <div data-kit="virtual-spacer" aria-hidden="true" style={{ height: `${range().padBottom}px` }} />
+      <For each={props.groups ?? []}>
+        {(g) => (
+          <div
+            data-kit="virtual-group"
+            data-part={g.part}
+            aria-hidden="true"
+            style={{ top: `${offs()[g.from] ?? 0}px`, height: `${Math.max(0, (offs()[g.to + 1] ?? 0) - (offs()[g.from] ?? 0))}px` }}
+          />
+        )}
+      </For>
     </div>
   );
 }

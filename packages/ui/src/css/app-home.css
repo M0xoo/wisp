@@ -14,7 +14,7 @@
 
   /* launcher.css .launcher (focused: the prompt has the caret) */
   [data-kit='launcher'] {
-    container: launcher / inline-size; padding: var(--space-6) var(--space-6) var(--space-5); border: 1px solid var(--line-2); border-radius: var(--radius);
+    container: launcher / inline-size; padding: var(--space-6) var(--space-6) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius); /* v1: .card's line wins over .launcher's line-2 */
     background: var(--surface); box-shadow: var(--shadow-1); transition: box-shadow 0.15s, border-color 0.15s;
   }
   [data-kit='launcher']:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }

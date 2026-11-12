@@ -50,9 +50,13 @@
   [data-kit='icon'][data-size='lg'] { width: var(--size-icon-lg); height: var(--size-icon-lg); }
 
   [data-kit='kbd-group'] { display: inline-flex; gap: var(--space-1); flex: none; }
+  /* in a sentence the keys are inline, as v1's were: the line keeps its height */
+  [data-kit='kbd-group'][data-inline] { display: inline; }
+  [data-kit='kbd-group'][data-inline] > [data-kit='kbd'] { display: inline; }
+  [data-kit='kbd-group'][data-inline] > [data-kit='kbd'] + [data-kit='kbd'] { margin-left: 2px; }
   [data-kit='kbd'] {
     display: inline-block; font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-snug);
-    padding: 1px 5px; border-radius: 5px; border: var(--size-hairline) solid var(--line-2); /* v1 tokens.css kbd */
+    padding: 1px 5px; border-radius: 5px; border: var(--size-hairline) solid var(--line-2); line-height: 1.4; /* v1 tokens.css kbd */
     border-bottom-width: var(--size-ring); color: var(--muted); background: var(--surface); white-space: nowrap;
   }
   /* No keyboard hints on touch screens (design/mobile.md). */
@@ -111,4 +115,15 @@
   [data-kit='skeleton'][data-shape='block'] { height: var(--k-h, var(--size-control-md)); border-radius: var(--radius-control); }
   [data-kit='skeleton'][data-shape='circle'] { display: inline-block; width: var(--k-h, var(--size-avatar-md)); height: var(--k-h, var(--size-avatar-md)); border-radius: 50%; }
   [data-kit='skeleton'][data-shape='pill'] { display: inline-block; width: var(--k-w, var(--size-time-col)); height: var(--k-h, var(--size-pill)); border-radius: var(--radius-pill); }
+
+  /* v1 .setup-cmd: a command to copy; in a settings row's line, on its own line 6px under the text */
+  [data-kit='copy-command'] {
+    display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg-2); color: var(--ink-2); font: 12.5px/1 var(--mono); cursor: copy; transition: border-color 0.12s, color 0.12s;
+  }
+  [data-kit='copy-command']:hover { border-color: var(--line-2); color: var(--ink); }
+  [data-kit='copy-command-p'] { color: var(--faint); }
+  [data-kit='copy-command'] > code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; background: none; padding: 0; }
+  [data-kit='copy-command'] > [data-kit='icon'] { flex: none; width: 13px; height: 13px; color: var(--muted); }
+  [data-kit='settings-row-description'] [data-kit='copy-command'] { display: flex; width: fit-content; margin-top: 6px; }
 }

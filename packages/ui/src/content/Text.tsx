@@ -87,12 +87,14 @@ export function Heading(props: HeadingProps): JSX.Element {
 export interface KbdProps extends KitProps {
   /** One key or chord per entry: `['⌘', 'K']`. */
   readonly keys: readonly string[];
+  /** in a sentence: the keys sit in the line (v1 `… or <kbd>V</kbd>`), not in a box of their own. Additive. */
+  readonly inline?: boolean;
 }
 
 /** Keyboard keys. Hidden on touch screens, where there's no keyboard to press them on. */
 export function Kbd(props: KbdProps): JSX.Element {
   return (
-    <span data-kit="kbd-group" data-part={props.part ?? 'ui.kbd'} id={props.id}>
+    <span data-kit="kbd-group" data-part={props.part ?? 'ui.kbd'} id={props.id} data-inline={props.inline ? '' : undefined}>
       {props.keys.map((k) => (
         <kbd data-kit="kbd">{k}</kbd>
       ))}

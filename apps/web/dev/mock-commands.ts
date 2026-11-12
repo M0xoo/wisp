@@ -188,6 +188,19 @@ export const COMMANDS: Record<string, CommandFn> = {
   'git.commit': (a) => ({ ops: [], result: gitCommit(obj(a)) }),
   // read-only answers the app asks for at start and on a task page: nothing to show in the mock
   'runtime.agents': () => ({ ops: [], result: [] }),
+  // Settings → Machines → This computer over SSH, as v1's reference showed it (names the same length, not the same)
+  'machines.reachable': () => ({
+    ops: [],
+    result: {
+      user: 'dev1',
+      hostname: 'studio-macbook-pro-1',
+      ssh: { running: true, banner: 'SSH-2.0-OpenSSH_9.9', port: 22 },
+      tailscale: { installed: true, running: true, name: 'studio-macbook-pro-1.tail24f2b2.ts.net' },
+      keys: 3,
+      target: 'dev1@studio-macbook-pro-1.tail24f2b2.ts.net',
+      supported: true,
+    },
+  }),
   'runtime.cold': () => ({ ops: [], result: { cache: null, compact: null } }), // a small task: no cache hint, no Compact now
   'stuff.targets': () => ({ ops: [], result: [] }), // no grid to publish to
   // the panes wisp ships (v1 GET /stuff/starters); Add keeps one in My Stuff
@@ -209,6 +222,7 @@ export const COMMANDS: Record<string, CommandFn> = {
     return { ops: [{ topic: 'crew', e: 'crew_member', id: id as string, op: 'patch', ops }], result: { ...(ctx.row('crew', 'crew_member', id as string) as object), ...patch } };
   },
   'plugins.ui': () => ({ ops: [], result: [] }),
+  'plugins.list': () => ({ ops: [], result: [] }), // Settings → Plugins: nothing of your own, no built-ins listed by the mock
   'runtime.fork': (a, ctx) => copyTask(obj(a), ctx, 'fork'),
   'runtime.setMode': (a, ctx) => {
     const x = obj(a);

@@ -75,7 +75,16 @@ export function SelectSetting(props: SelectSettingProps): JSX.Element {
       title={props.title}
       wideControl
       description={<Description row={props} by={by()} />}
-      control={<Select aria-label={props.title} items={props.items} value={value()} onChange={(v) => props.source.set(v)} disabled={props.disabled === true || by() !== undefined} mono={props.mono === true} />}
+      control={
+        <Select
+          aria-label={props.title}
+          items={props.items}
+          value={value()}
+          onChange={(v) => props.source.set(v)}
+          disabled={props.disabled === true || by() !== undefined}
+          mono={props.mono === true}
+        />
+      }
     />
   );
 }

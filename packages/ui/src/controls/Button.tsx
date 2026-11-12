@@ -6,7 +6,8 @@ import { useT, type Translate } from '../core/i18n.tsx';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/** chip: v1's .chip-tog, a small bordered choice (Settings → Connectors' examples) */
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'chip';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 interface ButtonBase extends KitProps, Labelled {
@@ -75,7 +76,9 @@ export function Button(props: ButtonProps): JSX.Element {
       <span data-kit="button-content">
         <Show when={props.icon}>{(name) => <Icon name={name()} size={props.size === 'xs' ? 'sm' : 'md'} />}</Show>
         <Show when={props.children !== undefined}>
-          <span data-kit="button-label" data-text="control">{props.children}</span>
+          <span data-kit="button-label" data-text="control">
+            {props.children}
+          </span>
         </Show>
         <Show when={props.iconEnd}>{(name) => <Icon name={name()} size="sm" />}</Show>
         <Show when={props.kbd}>{(k) => <kbd data-kit="kbd">{k()}</kbd>}</Show>

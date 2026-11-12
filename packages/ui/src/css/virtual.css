@@ -2,11 +2,13 @@
    the list restores the reader's row itself, and two corrections would fight. */
 @layer kit {
   [data-kit='virtual-list'] {
-    display: block; min-width: 0; min-height: 0; height: var(--k-vl-h, auto);
+    position: relative; display: block; min-width: 0; min-height: 0; height: var(--k-vl-h, auto);
     overflow-x: hidden; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: auto; /* v1 reserved no gutter: rows keep their full width */
   }
   [data-kit='virtual-list'][data-grow] { flex: 1 1 0; height: auto; }
   /* flow-root: a row's margins stay inside it, so its measured height is the space it takes. */
   [data-kit='virtual-row'] { display: flow-root; }
   [data-kit='virtual-spacer'] { flex: none; pointer-events: none; }
+  /* a group's box behind its rows (a section): measured and restyled, never in the way */
+  [data-kit='virtual-group'] { position: absolute; left: 0; right: 0; z-index: -1; margin-bottom: 14px; pointer-events: none; } /* v1 .f-group's margin (absolute: it moves nothing) */
 }

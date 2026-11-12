@@ -1,7 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
 import { createSignal } from 'solid-js';
 import { mount, part, tick } from './helpers.tsx';
-import { Meter, SettingsFrame, SettingsGroup, type SettingsNavGroup } from '../src/settings/index.ts';
+import { Meter, SettingsBlock, SettingsFrame, SettingsGroup, SettingsInset, SettingsInsetAdd, SettingsItem, SettingsNote, type SettingsNavGroup } from '../src/settings/index.ts';
+import { SettingsRow } from '../src/composites/index.ts';
+import { CopyCommand } from '../src/content/index.ts';
 
 const GROUPS: readonly SettingsNavGroup[] = [
   { id: 'a', items: [{ id: 'general', label: 'General', icon: 'settings' }, { id: 'theme', label: 'Appearance', icon: 'sun' }] },
@@ -125,4 +127,38 @@ describe('bound setting rows', () => {
     document.querySelector<HTMLElement>('[data-part="t.ch"] [role="tab"][data-value="light"], [data-part="t.ch"] button[role="tab"]')?.click();
     expect(set).not.toHaveBeenCalled();
   });
+});
+
+// round 23: the pieces v1's Settings panes had that the kit lacked (Agents' accounts box, Cloud's sign-in block, the
+// notes under groups, Worktrees' fixed columns, a command to copy), each with the part and the hooks its CSS reads
+test('v1_settings_pieces_render_their_parts_and_the_flags_their_css_reads', () => {
+  const add = vi.fn();
+  const copied = vi.fn();
+  mount(() => (
+    <SettingsGroup part="accounts.harnesses" bodyPart="settings.reachable" title="This computer over SSH">
+      <SettingsRow part="accounts.tool" title="GitHub" icon="github" description="For pushing branches" />
+      <SettingsInset part="settings.accounts">
+        <SettingsInsetAdd part="accounts.add" label="Add another Claude account" onClick={add} />
+      </SettingsInset>
+      <SettingsBlock part="settings.cloud.signin" title="Sign in to a wisp Grid" description="Your own wisp on a server" />
+      <SettingsItem part="worktrees.row" title="Fix the login bug" sub="wisp-repo · wisp/fix" state="1 uncommitted" warn size="8 KB" />
+      <SettingsNote part="connectors.reach" after={10} inset>
+        They reach Claude Code
+      </SettingsNote>
+      <CopyCommand command="ssh-copy-id me@box" label="Copy" onCopy={copied} />
+    </SettingsGroup>
+  ));
+  // a head names its box apart from the group (v1 .sx-reach is the box, not the head)
+  expect(part('settings.reachable')?.dataset.kit).toBe('settings-group-body');
+  // no control: the row's text takes the whole width
+  expect(part('accounts.tool')?.hasAttribute('data-bare')).toBe(true);
+  expect(part('accounts.tool')?.querySelector('[data-kit="settings-row-control"]')).toBeNull();
+  part('accounts.add')?.click();
+  expect(add).toHaveBeenCalledOnce();
+  expect(part('settings.cloud.signin')?.querySelector('b')?.textContent).toBe('Sign in to a wisp Grid');
+  expect(part('worktrees.row.state')?.hasAttribute('data-warn')).toBe(true);
+  expect(part('connectors.reach')?.dataset.after).toBe('10');
+  expect(part('connectors.reach')?.hasAttribute('data-inset')).toBe(true);
+  part('ui.copy-command')?.click();
+  expect(copied).toHaveBeenCalledWith('ssh-copy-id me@box');
 });

@@ -25,6 +25,8 @@ export interface SettingsNavGroup {
 }
 
 export interface SettingsFrameProps extends KitProps, WithChildren {
+  /** the root box's own name when the dialog around it carries `part` (v1's settings is the .modal.sx box). Additive. */
+  readonly rootPart?: PartName | undefined;
   /** "Settings" */
   readonly title: string;
   readonly groups: readonly SettingsNavGroup[];
@@ -65,7 +67,13 @@ function NavItems(props: { readonly frame: SettingsFrameProps; readonly part: Pa
       <For each={props.frame.groups}>
         {(g) => (
           <div data-kit="settings-nav-group" role="presentation" data-part={sub(props.part, 'group')} data-group={g.id}>
-            <Show when={g.label}>{(l) => <span data-kit="settings-nav-group-label" data-text="control">{l()}</span>}</Show>
+            <Show when={g.label}>
+              {(l) => (
+                <span data-kit="settings-nav-group-label" data-text="control">
+                  {l()}
+                </span>
+              )}
+            </Show>
             <For each={g.items}>
               {(item) => (
                 <button
@@ -79,11 +87,13 @@ function NavItems(props: { readonly frame: SettingsFrameProps; readonly part: Pa
                   onClick={() => props.frame.onPick(item.id)}
                 >
                   <Icon name={item.icon} size="md" />
-                  <span data-kit="settings-nav-label" data-text="control">{item.label}</span>
-                  <Show when={item.alert}>
-                    {(tone) => <span data-kit="settings-nav-alert" data-tone={tone()} role="img" aria-label={item.alertLabel} title={item.alertLabel} />}
-                  </Show>
-                  <span data-kit="settings-nav-chevron"><Icon name="chevron" size="sm" /></span>
+                  <span data-kit="settings-nav-label" data-text="control">
+                    {item.label}
+                  </span>
+                  <Show when={item.alert}>{(tone) => <span data-kit="settings-nav-alert" data-tone={tone()} role="img" aria-label={item.alertLabel} title={item.alertLabel} />}</Show>
+                  <span data-kit="settings-nav-chevron">
+                    <Icon name="chevron" size="sm" />
+                  </span>
                 </button>
               )}
             </For>
@@ -98,15 +108,23 @@ export function SettingsFrame(props: SettingsFrameProps): JSX.Element {
   const part = (): PartName => props.part ?? 'settings.frame';
   const refs: { body?: HTMLDivElement } = {};
   // a new pane starts at its top, not where the last one was scrolled to
-  createEffect(on(() => props.current, () => {
-    if (refs.body) refs.body.scrollTop = 0;
-  }, { defer: true }));
+  createEffect(
+    on(
+      () => props.current,
+      () => {
+        if (refs.body) refs.body.scrollTop = 0;
+      },
+      { defer: true },
+    ),
+  );
   return (
-    <div id={props.id} data-kit="settings-frame" data-part={part()} data-view={props.view} onKeyDown={(e) => props.onKeyDown?.(e)}>
+    <div id={props.id} data-kit="settings-frame" data-part={props.rootPart ?? part()} data-view={props.view} onKeyDown={(e) => props.onKeyDown?.(e)}>
       <div data-kit="settings-frame-grid">
         <nav data-kit="settings-nav" data-part={sub(part(), 'nav')} aria-label={props.title}>
           <div data-kit="settings-nav-head" data-part={sub(part(), 'nav-head')}>
-            <h2 data-kit="settings-nav-title" data-text="control">{props.title}</h2>
+            <h2 data-kit="settings-nav-title" data-text="control">
+              {props.title}
+            </h2>
             <Show when={props.onClose}>
               {(close) => (
                 <span data-kit="settings-nav-close">
@@ -125,10 +143,10 @@ export function SettingsFrame(props: SettingsFrameProps): JSX.Element {
             <span data-kit="settings-up">
               <IconButton icon="back" label={props.upLabel} onClick={() => props.onUp()} />
             </span>
-            <h2 data-kit="settings-pane-title" data-text="control">{props.paneTitle}</h2>
-            <Show when={props.onClose}>
-              {(close) => <IconButton icon="x" label={props.closeLabel} onClick={() => close()()} />}
-            </Show>
+            <h2 data-kit="settings-pane-title" data-text="control">
+              {props.paneTitle}
+            </h2>
+            <Show when={props.onClose}>{(close) => <IconButton icon="x" label={props.closeLabel} onClick={() => close()()} />}</Show>
           </header>
           <div data-kit="settings-body" data-part={sub(part(), 'body')} ref={(el) => (refs.body = el)}>
             <div data-kit="settings-pane">

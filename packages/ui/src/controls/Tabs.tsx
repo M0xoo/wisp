@@ -24,7 +24,8 @@ export interface TabsProps extends KitProps {
   readonly defaultValue?: string;
   readonly onChange?: (value: string) => void;
   /** `line` (an underline, the default) or `pill` (a segmented control). */
-  readonly variant?: 'line' | 'pill';
+  /** seg: v1 .pk-seg, a bordered strip of small choices, the picked one in the accent (Settings → Worktrees' filter) */
+  readonly variant?: 'line' | 'pill' | 'seg';
   /** The tab list's accessible name. */
   readonly 'aria-label'?: string;
   /** Select on focus (automatic, the default) or on Enter/Space (manual). */
@@ -50,16 +51,15 @@ export function Tabs(props: TabsProps): JSX.Element {
       <div {...api().getListProps()} aria-label={props['aria-label']} data-kit="tab-list" data-part={sub(part(), 'list')} data-fill={flag(props.fill)}>
         <For each={props.items}>
           {(item) => (
-            <button
-              {...api().getTriggerProps({ value: item.value, disabled: item.disabled })}
-              data-kit="tab"
-              data-part={sub(part(), 'tab')}
-              data-value={item.value}
-            >
+            <button {...api().getTriggerProps({ value: item.value, disabled: item.disabled })} data-kit="tab" data-part={sub(part(), 'tab')} data-value={item.value}>
               <Show when={item.icon}>{(name) => <Icon name={name()} size="md" />}</Show>
-              <span data-kit="tab-label" data-text="control">{item.label}</span>
+              <span data-kit="tab-label" data-text="control">
+                {item.label}
+              </span>
               <Show when={item.count !== undefined}>
-                <span data-kit="tab-count" data-text="control">{item.count}</span>
+                <span data-kit="tab-count" data-text="control">
+                  {item.count}
+                </span>
               </Show>
             </button>
           )}

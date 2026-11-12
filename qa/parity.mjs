@@ -272,6 +272,8 @@ const EXTRA = {
   // the rail's Add a crew member (v1 has no PARTS name for it; v2's kit rail names it crew.add)
   '#crewRail .cl-add': '[data-part="crew.add"]',
   '#secCrew .cr-add': '[data-part="crew.add"]',
+  // v1's Spells pane is v2's Plugins (ADR-0031: changes to wisp itself are plugins)
+  'button[role="tab"][data-pane="spells"]': 'button[role="tab"][data-pane="plugins"]',
 };
 
 // A v1 selector, in terms of the PARTS contract v2 renders (data-part). Rows are found by their title.
@@ -328,7 +330,7 @@ const V2_STATES = {
 };
 
 // Commands that only read: they go through to the mock (the pane they fill is part of the shot)
-const READS = /^(git\.(changes|status|tools)|runtime\.(cold|agents|get|list|search)|plugins\.(ui|list)|worktrees\.(files|grep))$/;
+const READS = /^(git\.(changes|status|tools)|runtime\.(cold|agents|get|list|search)|plugins\.(ui|list)|worktrees\.(files|grep)|machines\.reachable)$/;
 
 async function openV2(browser, url, open, [width, height], colorScheme, at, desktop) {
   const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });

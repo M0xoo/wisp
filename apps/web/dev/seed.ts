@@ -13,21 +13,50 @@ interface Row {
 
 /** The harnesses Settings → Agents lists (wisp.accounts' topic), as v1's reference had them: Claude Code and Codex
  * with their own sign-in, opencode wanting a key, the others signed in. */
-const HARNESS_ROWS = (
-  [
-    { id: 'claude', name: 'Claude Code', version: '9.9.9 (Fake Claude Code)', models: 3, signIn: 'cli', brand: 'Claude' },
-    { id: 'codex', name: 'Codex', version: 'fake-codex 9.9.9', models: 2, signIn: 'cli', brand: 'Codex', provider: 'ChatGPT' },
-    { id: 'opencode', name: 'opencode', version: '1.99.0', models: 2, signIn: 'key', hasKey: false },
-    { id: 'cursor', name: 'Cursor', version: 'fake-cursor-agent 9.9.9', models: 2, signIn: 'none' },
-    { id: 'antigravity', name: 'Antigravity', version: 'fake-agy 9.9.9', models: 2, signIn: 'cli' },
-    { id: 'grok', name: 'Grok', version: 'fake-grok 9.9.9', models: 2, signIn: 'cli' },
-    { id: 'copilot', name: 'Copilot', version: 'fake-copilot 9.9.9', models: 2, signIn: 'none' },
-  ] as const
-).map((h, ord) => ({
-  e: 'accounts.harness',
-  id: h.id,
-  v: { ...h, ord, available: true, models: Array.from({ length: h.models }, (_, i) => ({ id: `${h.id}-m${i}`, label: `Model ${i + 1}` })) },
-}));
+const HARNESS_ROWS: Row[] = [
+  ...(
+    [
+      { id: 'claude', name: 'Claude Code', version: '9.9.9 (Fake Claude Code)', models: 4, signIn: 'cli', brand: 'Claude' },
+      { id: 'codex', name: 'Codex', version: 'fake-codex 9.9.9', models: 2, signIn: 'cli', brand: 'Codex', provider: 'ChatGPT' },
+      { id: 'opencode', name: 'opencode', version: '1.99.0', models: 2, signIn: 'key' },
+      { id: 'cursor', name: 'Cursor', version: 'fake-cursor-agent 9.9.9', models: 2, signIn: 'none' },
+      { id: 'antigravity', name: 'Antigravity', version: 'fake-agy 9.9.9', models: 2, signIn: 'cli' },
+      { id: 'grok', name: 'Grok', version: 'fake-grok 9.9.9', models: 2, signIn: 'cli' },
+      { id: 'copilot', name: 'Copilot', version: 'fake-copilot 9.9.9', models: 2, signIn: 'none' },
+    ] as const
+  ).map((h, ord) => ({
+    e: 'accounts.harness',
+    id: h.id,
+    v: { ...h, ord, available: true, models: Array.from({ length: h.models }, (_, i) => ({ id: `${h.id}-m${i}`, label: `Model ${i + 1}` })) },
+  })),
+  // Antigravity and Grok signed in through their CLIs (v1's reference: "✓ Signed in · Sign out")
+  ...(['antigravity', 'grok'] as const).map((agent) => ({ e: 'accounts.login', id: agent, v: { agent, account: '', state: 'done', signedIn: true } })),
+  // what Ship it needs: git and the GitHub CLI, both installed
+  { e: 'accounts.tool', id: 'git', v: { id: 'git', name: 'git', installed: true } },
+  { e: 'accounts.tool', id: 'gh', v: { id: 'gh', name: 'GitHub CLI', installed: true } },
+];
+
+/** Settings → Connectors (wisp.connectors' topic), as v1's reference had it: none added, two found in OpenCode and
+ * Cursor's own configs, and the harnesses that take connectors per turn. */
+const CONNECTOR_ROWS: Row[] = [
+  { e: 'connectors.found', id: 'posthog', v: { name: 'posthog', from: ['OpenCode'], transport: 'remote', url: 'https://mcp.posthog.com/mcp' } },
+  { e: 'connectors.found', id: 'unstyle', v: { name: 'unstyle', from: ['Cursor'], transport: 'local', command: 'npx', args: ['-y', 'unstyle-mcp'] } },
+  { e: 'connectors.reach', id: 'this', v: { harnesses: ['claude', 'codex', 'copilot', 'opencode', 'grok'] } },
+];
+
+/** Settings → Worktrees (wisp.worktrees' topic), as v1's reference had it: four tasks' folders, one uncommitted
+ * file each, 8 KB apiece, 91.7 GB free. */
+const WORKTREE_ROWS: Row[] = [
+  ...(
+    [
+      ['wt-login', 'Fix the login bug', 'wisp/fix-the-login-bug-784f69c2'],
+      ['wt-docs', 'Write docs for the API', 'wisp/write-docs-for-the-api-e5a1b7d0'],
+      ['wt-store', 'Refactor the store', 'wisp/refactor-the-store-3c9e0a14'],
+      ['wt-tests', 'Make the tests pass', 'wisp/make-the-tests-pass-b28d6f51'],
+    ] as const
+  ).map(([id, title, branch]) => ({ e: 'worktrees.item', id, v: { id, title, project: 'wisp-repo-ZaGhoN', branch, status: 'dirty', only: 1, size: 8192, used_at: 0, clean_at: null } })),
+  { e: 'worktrees.status', id: 'status', v: { size: 32768, disk: { free: 91.7 * 1024 ** 3, total: 494 * 1024 ** 3 }, looking: false, cleaning: null, last: null } },
+];
 
 /** The terminals a Mac offers (Settings → General → Take over in), In wisp first as in v1's reference. */
 const TERMINALS = [
@@ -65,36 +94,189 @@ interface Task {
 }
 
 const TASKS: Task[] = [
-  { title: 'Fix the flaky reconnect test in sync', agent: 'claude', state: 'running', ago: 1 * MIN, cwd: '~/code/wisp', prompt: 'The reconnect test in packages/sync fails one run in ten. Find out why and fix it at the root.', answer: 'Reading the test and the retry timer…', live: 'Running npm test -- sync', turns: 2, branch: 'fix/sync-reconnect', cost: 0.42 },
-  { title: 'Add rate limiting to /login', agent: 'claude', state: 'review', ago: 12 * MIN, cwd: '~/code/api', prompt: 'Add a sliding-window rate limit to /login: 5 attempts per minute per IP.', answer: 'Added a sliding-window limiter to /login. Five attempts per minute per IP, then 429 with Retry-After. Tests cover the window edge and X-Forwarded-For.', unread: true, turns: 3, branch: 'feat/login-limit', cost: 1.18 },
-  { title: 'Why is the list query slow on 5k sessions?', agent: 'codex', state: 'review', ago: 40 * MIN, cwd: '~/code/wisp', prompt: 'List query takes 40 ms on 5k sessions. Profile it and tell me what to change.', answer: 'The list query sorts in JS after reading every row. An index on (archived, updated_at) and a LIMIT bring it to 1.8 ms.', turns: 1, cost: 0.31 },
-  { title: 'Ship the settings redesign', agent: 'claude', state: 'done', ago: 3 * HOUR, cwd: '~/code/wisp', prompt: 'Commit the settings redesign, open a PR and merge it once CI is green.', answer: 'Merged #812 into main. CI passed on Node 22 and 24.', turns: 4, branch: 'feat/settings-v2', cost: 2.05 },
-  { title: 'Migrate the grid box image to Debian 13', agent: 'gemini', state: 'error', ago: 5 * HOUR, cwd: '~/code/grid', prompt: 'Move the box image from Debian 12 to 13 and keep gVisor working.', answer: 'The build failed: runsc 2025-10 does not start on the 6.12 kernel. Pinning runsc 2026-02 fixes it, but I need you to approve the kernel change.', turns: 2, cost: 0.88 },
-  { title: 'Write the onboarding email copy', agent: 'claude', state: 'done', ago: 26 * HOUR, cwd: '~/notes', prompt: 'Three short onboarding emails for new grid users. Plain words, one action each.', answer: 'Three emails: Welcome (open your first task), Day 2 (add your laptop), Day 7 (invite a teammate). Each under 90 words.', turns: 1, cost: 0.12 },
-  { title: 'Review PR #806: virtual list measuring', agent: 'codex', state: 'review', ago: 2 * HOUR, cwd: '~/code/wisp', prompt: 'Review PR #806 and leave comments where it reads layout after writing.', answer: 'Two places read offsetHeight after a write in the same frame (VirtualList.tsx:88 and :141). Suggested batching both into the ResizeObserver callback.', turns: 1, cost: 0.27 },
-  { title: 'Bump the Android app to SDK 36', agent: 'claude', state: 'running', ago: 4 * MIN, cwd: '~/code/wisp/mobile', prompt: 'Update targetSdk to 36 and fix whatever breaks.', answer: 'Updating Gradle and the manifest…', live: 'Running ./gradlew assembleDebug', turns: 1, cost: 0.19 },
-  { title: 'Archive: old Electron notes', agent: 'claude', state: 'done', ago: 9 * 24 * HOUR, cwd: '~/notes', prompt: 'Summarise why we dropped Electron.', answer: 'Tauri: 36 MB vs 180 MB, one Rust shell, no Node in the app.', archived: true, turns: 1, cost: 0.04 },
-  { title: 'A very long task title that goes on and on to check that the row truncates with an ellipsis and never wraps onto a second line in the list', agent: 'claude', state: 'review', ago: 7 * HOUR, cwd: '~/code/wisp', prompt: 'Check long titles.', answer: 'They truncate.', turns: 1 },
+  {
+    title: 'Fix the flaky reconnect test in sync',
+    agent: 'claude',
+    state: 'running',
+    ago: 1 * MIN,
+    cwd: '~/code/wisp',
+    prompt: 'The reconnect test in packages/sync fails one run in ten. Find out why and fix it at the root.',
+    answer: 'Reading the test and the retry timer…',
+    live: 'Running npm test -- sync',
+    turns: 2,
+    branch: 'fix/sync-reconnect',
+    cost: 0.42,
+  },
+  {
+    title: 'Add rate limiting to /login',
+    agent: 'claude',
+    state: 'review',
+    ago: 12 * MIN,
+    cwd: '~/code/api',
+    prompt: 'Add a sliding-window rate limit to /login: 5 attempts per minute per IP.',
+    answer: 'Added a sliding-window limiter to /login. Five attempts per minute per IP, then 429 with Retry-After. Tests cover the window edge and X-Forwarded-For.',
+    unread: true,
+    turns: 3,
+    branch: 'feat/login-limit',
+    cost: 1.18,
+  },
+  {
+    title: 'Why is the list query slow on 5k sessions?',
+    agent: 'codex',
+    state: 'review',
+    ago: 40 * MIN,
+    cwd: '~/code/wisp',
+    prompt: 'List query takes 40 ms on 5k sessions. Profile it and tell me what to change.',
+    answer: 'The list query sorts in JS after reading every row. An index on (archived, updated_at) and a LIMIT bring it to 1.8 ms.',
+    turns: 1,
+    cost: 0.31,
+  },
+  {
+    title: 'Ship the settings redesign',
+    agent: 'claude',
+    state: 'done',
+    ago: 3 * HOUR,
+    cwd: '~/code/wisp',
+    prompt: 'Commit the settings redesign, open a PR and merge it once CI is green.',
+    answer: 'Merged #812 into main. CI passed on Node 22 and 24.',
+    turns: 4,
+    branch: 'feat/settings-v2',
+    cost: 2.05,
+  },
+  {
+    title: 'Migrate the grid box image to Debian 13',
+    agent: 'gemini',
+    state: 'error',
+    ago: 5 * HOUR,
+    cwd: '~/code/grid',
+    prompt: 'Move the box image from Debian 12 to 13 and keep gVisor working.',
+    answer: 'The build failed: runsc 2025-10 does not start on the 6.12 kernel. Pinning runsc 2026-02 fixes it, but I need you to approve the kernel change.',
+    turns: 2,
+    cost: 0.88,
+  },
+  {
+    title: 'Write the onboarding email copy',
+    agent: 'claude',
+    state: 'done',
+    ago: 26 * HOUR,
+    cwd: '~/notes',
+    prompt: 'Three short onboarding emails for new grid users. Plain words, one action each.',
+    answer: 'Three emails: Welcome (open your first task), Day 2 (add your laptop), Day 7 (invite a teammate). Each under 90 words.',
+    turns: 1,
+    cost: 0.12,
+  },
+  {
+    title: 'Review PR #806: virtual list measuring',
+    agent: 'codex',
+    state: 'review',
+    ago: 2 * HOUR,
+    cwd: '~/code/wisp',
+    prompt: 'Review PR #806 and leave comments where it reads layout after writing.',
+    answer: 'Two places read offsetHeight after a write in the same frame (VirtualList.tsx:88 and :141). Suggested batching both into the ResizeObserver callback.',
+    turns: 1,
+    cost: 0.27,
+  },
+  {
+    title: 'Bump the Android app to SDK 36',
+    agent: 'claude',
+    state: 'running',
+    ago: 4 * MIN,
+    cwd: '~/code/wisp/mobile',
+    prompt: 'Update targetSdk to 36 and fix whatever breaks.',
+    answer: 'Updating Gradle and the manifest…',
+    live: 'Running ./gradlew assembleDebug',
+    turns: 1,
+    cost: 0.19,
+  },
+  {
+    title: 'Archive: old Electron notes',
+    agent: 'claude',
+    state: 'done',
+    ago: 9 * 24 * HOUR,
+    cwd: '~/notes',
+    prompt: 'Summarise why we dropped Electron.',
+    answer: 'Tauri: 36 MB vs 180 MB, one Rust shell, no Node in the app.',
+    archived: true,
+    turns: 1,
+    cost: 0.04,
+  },
+  {
+    title: 'A very long task title that goes on and on to check that the row truncates with an ellipsis and never wraps onto a second line in the list',
+    agent: 'claude',
+    state: 'review',
+    ago: 7 * HOUR,
+    cwd: '~/code/wisp',
+    prompt: 'Check long titles.',
+    answer: 'They truncate.',
+    turns: 1,
+  },
 ];
 
-const WORDS = 'I read the test and the retry timer. The flake comes from a timer that fires after the stream closes, so the second connect sees a stale cursor. The fix clears the timer in the scope that owns the stream, and the test now waits on the welcome instead of a fixed delay. I ran it 200 times with no failure.'.split(' ');
+const WORDS =
+  'I read the test and the retry timer. The flake comes from a timer that fires after the stream closes, so the second connect sees a stale cursor. The fix clears the timer in the scope that owns the stream, and the test now waits on the welcome instead of a fixed delay. I ran it 200 times with no failure.'.split(
+    ' ',
+  );
 
 export const PRESENTATION = {
   v: 1,
   dropped: [],
   blocks: [
-    { type: 'hero', title: 'Reconnect test fixed', topic: 'Flaky reconnect test', summary: 'A retry timer outlived its stream. It now belongs to the stream scope; 200 runs, no failure.', status: 'done' },
-    { type: 'steps', title: 'What I did', items: [{ title: 'Reproduced', detail: '1 in 9 runs failed locally', status: 'done' }, { title: 'Found the timer', detail: 'peers.ts retry fired after dispose', status: 'done' }, { title: 'Moved it into the scope', status: 'done' }, { title: 'Ran it 200 times', status: 'done' }] },
+    {
+      type: 'hero',
+      title: 'Reconnect test fixed',
+      topic: 'Flaky reconnect test',
+      summary: 'A retry timer outlived its stream. It now belongs to the stream scope; 200 runs, no failure.',
+      status: 'done',
+    },
+    {
+      type: 'steps',
+      title: 'What I did',
+      items: [
+        { title: 'Reproduced', detail: '1 in 9 runs failed locally', status: 'done' },
+        { title: 'Found the timer', detail: 'peers.ts retry fired after dispose', status: 'done' },
+        { title: 'Moved it into the scope', status: 'done' },
+        { title: 'Ran it 200 times', status: 'done' },
+      ],
+    },
     { type: 'diff', file: 'packages/client/src/peers.ts', before: 'setTimeout(() => feed(p, { kind: "open" }), delay);', after: 'p.scope.timeout(delay, () => feed(p, { kind: "open" }));' },
     { type: 'tests', command: 'npm test -- sync', passed: 48, failed: 0, skipped: 2, durationMs: 4100 },
-    { type: 'files', items: [{ path: 'packages/client/src/peers.ts', change: 'modified', note: 'retry belongs to the scope' }, { path: 'packages/client/test/peers.test.ts', change: 'modified', note: 'waits on welcome' }] },
+    {
+      type: 'files',
+      items: [
+        { path: 'packages/client/src/peers.ts', change: 'modified', note: 'retry belongs to the scope' },
+        { path: 'packages/client/test/peers.test.ts', change: 'modified', note: 'waits on welcome' },
+      ],
+    },
     { type: 'callout', tone: 'info', title: 'Assumption', text: 'The 15 s heartbeat stays; only the retry moved.' },
     { type: 'actions', items: [{ label: 'Commit and open a PR', reply: 'Commit this and open a PR' }] },
   ],
 };
 
 const PLUGINS: PeerInfo['plugins'] = [
-  { id: 'wisp.runtime', version: '2.0.0', commands: ['runtime.create', 'runtime.followUp', 'runtime.stop', 'runtime.rename', 'runtime.archive', 'runtime.markRead', 'runtime.setState', 'runtime.delete', 'runtime.rerun', 'runtime.fork', 'runtime.setMode', 'runtime.setAgent', 'runtime.forLater', 'goal.set', 'ship.open', 'checkpoint.restore'], topics: ['list', 'session:*'], blocks: ['hero', 'steps', 'diff', 'tests', 'files', 'callout', 'actions'] },
+  {
+    id: 'wisp.runtime',
+    version: '2.0.0',
+    commands: [
+      'runtime.create',
+      'runtime.followUp',
+      'runtime.stop',
+      'runtime.rename',
+      'runtime.archive',
+      'runtime.markRead',
+      'runtime.setState',
+      'runtime.delete',
+      'runtime.rerun',
+      'runtime.fork',
+      'runtime.setMode',
+      'runtime.setAgent',
+      'runtime.forLater',
+      'goal.set',
+      'ship.open',
+      'checkpoint.restore',
+    ],
+    topics: ['list', 'session:*'],
+    blocks: ['hero', 'steps', 'diff', 'tests', 'files', 'callout', 'actions'],
+  },
   { id: 'wisp.settings', version: '2.0.0', commands: ['settings.set'], topics: ['config'], blocks: [] },
   { id: 'wisp.crew', version: '2.0.0', commands: [], topics: ['crew'], blocks: [] },
   { id: 'wisp.machines', version: '2.0.0', commands: [], topics: ['machines'], blocks: [] },
@@ -106,7 +288,20 @@ const MODEL: Record<Task['agent'], string> = { claude: 'claude-opus-5-5', codex:
 function turnRow(session: string, id: string, idx: number, prompt: string, at: number, answer = '', status = 'running', agent: Task['agent'] = 'claude'): unknown {
   const done = status === 'done';
   const body = {
-    id, session_id: session, idx, prompt, agent, model: MODEL[agent], effort: 'high', mode: 'auto', attachments: [], status, started_at: at, n_events: 4, is_error: status === 'error', ext: {},
+    id,
+    session_id: session,
+    idx,
+    prompt,
+    agent,
+    model: MODEL[agent],
+    effort: 'high',
+    mode: 'auto',
+    attachments: [],
+    status,
+    started_at: at,
+    n_events: 4,
+    is_error: status === 'error',
+    ext: {},
     ...(answer && { text: answer }),
     ...(done && { presentation: PRESENTATION, ended_at: at + 2 * MIN, stats: { cost_usd: 0.42, input_tokens: 18200, output_tokens: 2100, ms: 96000 } }),
   };
@@ -120,8 +315,29 @@ function sessionRow(peer: string, i: number, t: Task, now: number): { id: string
   return {
     id,
     v: {
-      id, parent_id: null, title: t.title, state: t.state, agent: t.agent, archived: t.archived === true, unread: t.unread === true, created_at: at - (t.turns ?? 1) * 20 * MIN, updated_at: at, rev: 1,
-      summary: { status, turnCount: t.turns ?? 1, queued: 0, preview: t.answer.slice(0, 90), live: t.live ?? '', cwd: t.cwd, model: MODEL[t.agent], mode: 'auto', forLater: false, ...(t.cost !== undefined && { costUsd: t.cost }), ...(t.branch && { branch: t.branch }) },
+      id,
+      parent_id: null,
+      title: t.title,
+      state: t.state,
+      agent: t.agent,
+      archived: t.archived === true,
+      unread: t.unread === true,
+      created_at: at - (t.turns ?? 1) * 20 * MIN,
+      updated_at: at,
+      rev: 1,
+      summary: {
+        status,
+        turnCount: t.turns ?? 1,
+        queued: 0,
+        preview: t.answer.slice(0, 90),
+        live: t.live ?? '',
+        cwd: t.cwd,
+        model: MODEL[t.agent],
+        mode: 'auto',
+        forLater: false,
+        ...(t.cost !== undefined && { costUsd: t.cost }),
+        ...(t.branch && { branch: t.branch }),
+      },
       body: { cwd: t.cwd, dirs: [], queue_held: false, tags: [], ext: {} },
     },
   };
@@ -144,9 +360,67 @@ const CREW = [
 ];
 
 const MACHINES = [
-  { id: 'studio', peer: 'studio', name: 'studio-mac', transport: 'ssh', address: 'studio.local', port: 22, kind: 'ssh', target: 'studio.local', state: 'online', steps: [], error: '', stale: false, attempt: 0, projects: 3, working: 1, remote: { version: '2.0.0', platform: 'darwin', agents: [] }, outdated: null, log: [] },
-  { id: 'box', peer: 'box', name: 'mokh.grid', transport: 'grid', address: 'mokh.grid.trywisp.dev', port: 443, kind: 'grid', target: 'mokh.grid.trywisp.dev', state: 'asleep', steps: [], error: '', stale: false, attempt: 0, projects: 1, working: 0, remote: null, outdated: null, log: [] },
-  { id: 'pi', peer: 'pi', name: 'raspberry', transport: 'ssh', address: '192.168.1.40', port: 22, kind: 'ssh', target: 'pi@192.168.1.40', state: 'error', steps: [], error: 'Connection refused', hint: { text: 'Is sshd running on the Pi?' }, stale: false, attempt: 3, projects: 0, working: 0, remote: null, outdated: '2.0.0', log: [] },
+  {
+    id: 'studio',
+    peer: 'studio',
+    name: 'studio-mac',
+    transport: 'ssh',
+    address: 'studio.local',
+    port: 22,
+    kind: 'ssh',
+    target: 'studio.local',
+    state: 'online',
+    steps: [],
+    error: '',
+    stale: false,
+    attempt: 0,
+    projects: 3,
+    working: 1,
+    remote: { version: '2.0.0', platform: 'darwin', agents: [] },
+    outdated: null,
+    log: [],
+  },
+  {
+    id: 'box',
+    peer: 'box',
+    name: 'mokh.grid',
+    transport: 'grid',
+    address: 'mokh.grid.trywisp.dev',
+    port: 443,
+    kind: 'grid',
+    target: 'mokh.grid.trywisp.dev',
+    state: 'asleep',
+    steps: [],
+    error: '',
+    stale: false,
+    attempt: 0,
+    projects: 1,
+    working: 0,
+    remote: null,
+    outdated: null,
+    log: [],
+  },
+  {
+    id: 'pi',
+    peer: 'pi',
+    name: 'raspberry',
+    transport: 'ssh',
+    address: '192.168.1.40',
+    port: 22,
+    kind: 'ssh',
+    target: 'pi@192.168.1.40',
+    state: 'error',
+    steps: [],
+    error: 'Connection refused',
+    hint: { text: 'Is sshd running on the Pi?' },
+    stale: false,
+    attempt: 3,
+    projects: 0,
+    working: 0,
+    remote: null,
+    outdated: '2.0.0',
+    log: [],
+  },
 ];
 
 const STUFF = [
@@ -178,7 +452,15 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
     topics.set(`session:${s.list.id.slice(s.list.id.indexOf(':') + 1)}`, s.own); // the bare id, as the client subscribes
   });
   for (let i = 0; i < o.extra; i++) {
-    const t: Task = { title: `Background task ${i + 1}: tidy module ${i % 97}`, agent: i % 3 === 0 ? 'codex' : 'claude', state: i % 11 === 0 ? 'running' : 'done', ago: (i + 30) * 7 * MIN, cwd: '~/code/wisp', prompt: 'Tidy it.', answer: 'Tidied.' };
+    const t: Task = {
+      title: `Background task ${i + 1}: tidy module ${i % 97}`,
+      agent: i % 3 === 0 ? 'codex' : 'claude',
+      state: i % 11 === 0 ? 'running' : 'done',
+      ago: (i + 30) * 7 * MIN,
+      cwd: '~/code/wisp',
+      prompt: 'Tidy it.',
+      answer: 'Tidied.',
+    };
     const s = sessionTopic(o.peer, TASKS.length + i, t, o.now);
     list.push(s.list);
     topics.set(`session:${s.list.id.slice(s.list.id.indexOf(':') + 1)}`, s.own); // the bare id, as the client subscribes
@@ -190,9 +472,20 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
     ...TERMINALS,
   ]);
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
-  topics.set('crew', CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c })));
-  topics.set('machines', MACHINES.map((m) => ({ e: 'machine', id: m.id, v: { ...m, addedAt: o.now - 30 * 24 * HOUR } })));
-  topics.set('stuff', STUFF.map((s, i) => ({ e: 'stuff', id: s.id, v: { ...s, savedAt: o.now - (i + 1) * 5 * HOUR } })));
+  topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
+  topics.set('plugin:wisp.worktrees:worktrees', WORKTREE_ROWS);
+  topics.set(
+    'crew',
+    CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c })),
+  );
+  topics.set(
+    'machines',
+    MACHINES.map((m) => ({ e: 'machine', id: m.id, v: { ...m, addedAt: o.now - 30 * 24 * HOUR } })),
+  );
+  topics.set(
+    'stuff',
+    STUFF.map((s, i) => ({ e: 'stuff', id: s.id, v: { ...s, savedAt: o.now - (i + 1) * 5 * HOUR } })),
+  );
   return {
     topics,
     plugins: PLUGINS,
@@ -263,8 +556,13 @@ function overlaps(v1: V1Seed, peer: string): Map<string, { id: string; files: st
   const out = new Map<string, { id: string; files: string[]; conflicts: string[] }[]>();
   for (const s of byAge) {
     const mine = files.get(s.id) ?? new Set<string>();
-    const with_ = byAge.filter((o) => o.id !== s.id && o['projectId'] === s['projectId']).map((o) => ({ id: `${peer}:${o.id}`, files: [...(files.get(o.id) ?? [])].filter((f) => mine.has(f)), conflicts: [] as string[] }));
-    out.set(s.id, with_.filter((o) => o.files.length > 0));
+    const with_ = byAge
+      .filter((o) => o.id !== s.id && o['projectId'] === s['projectId'])
+      .map((o) => ({ id: `${peer}:${o.id}`, files: [...(files.get(o.id) ?? [])].filter((f) => mine.has(f)), conflicts: [] as string[] }));
+    out.set(
+      s.id,
+      with_.filter((o) => o.files.length > 0),
+    );
   }
   return out;
 }
@@ -278,7 +576,16 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
     const full = v1.sessions[s.id] ?? {};
     const { id: _id, title, agent, state, unread, archived, createdAt, updatedAt, ...summary } = s;
     const v = {
-      id, parent_id: null, title, state: V1_STATE[state] ?? 'review', agent, archived, unread, created_at: createdAt, updated_at: updatedAt, rev: 1,
+      id,
+      parent_id: null,
+      title,
+      state: V1_STATE[state] ?? 'review',
+      agent,
+      archived,
+      unread,
+      created_at: createdAt,
+      updated_at: updatedAt,
+      rev: 1,
       summary: { ...summary, forLater: false, worktree: full.worktree ?? null, overlaps: shared.get(s.id) ?? [] },
       body: { cwd: s.cwd, dirs: [], queue_held: false, tags: [], ext: {} },
     };
@@ -288,7 +595,21 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
     turns.forEach((t, idx) => {
       const tid = `${id}:${t.id}`;
       const text = typeof t['raw'] === 'string' ? t['raw'] : '';
-      own.push({ e: 'turn', id: tid, v: { id: tid, session_id: id, idx, status: t.status, started_at: t.startedAt, ended_at: t.endedAt ?? null, prompt: t.prompt, answer: text, body: { ...t, id: tid, session_id: id, idx, started_at: t.startedAt } } });
+      own.push({
+        e: 'turn',
+        id: tid,
+        v: {
+          id: tid,
+          session_id: id,
+          idx,
+          status: t.status,
+          started_at: t.startedAt,
+          ended_at: t.endedAt ?? null,
+          prompt: t.prompt,
+          answer: text,
+          body: { ...t, id: tid, session_id: id, idx, started_at: t.startedAt },
+        },
+      });
     });
     const last = turns[turns.length - 1];
     if (last) own.push({ e: 'event', id, v: (last.activity ?? []).map((a, i) => ({ session_id: id, seq: i + 1, turn_id: `${id}:${last.id}`, t: a.t, kind: a.kind, body: { ...a } })) });
@@ -302,7 +623,12 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
     ...TERMINALS,
   ]);
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
-  topics.set('crew', v1.crew.map((c) => ({ e: 'crew_member', id: c.id, v: c })));
+  topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
+  topics.set('plugin:wisp.worktrees:worktrees', WORKTREE_ROWS);
+  topics.set(
+    'crew',
+    v1.crew.map((c) => ({ e: 'crew_member', id: c.id, v: c })),
+  );
   topics.set('machines', []);
   topics.set('stuff', []);
   return {

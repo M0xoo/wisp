@@ -22,12 +22,38 @@ function OverlayView(props: { readonly overlay: Overlay }): JSX.Element {
   const title = (): string => (def?.title ? def.title(params()) : shell.t('shell.palette.title'));
   const body = (): JSX.Element => (def ? <Dynamic component={def.component} client={client} params={params()} /> : <EmptyState icon="info" title={shell.t('shell.view.missing')} compact />);
   // a text field inside takes the focus first (the palette's search), else the kit's default
-  const initialFocus = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-part="shell.overlay"] input, [data-part="shell.overlay"] textarea');
+  const initialFocus = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-part~="shell.overlay"] input, [data-part~="shell.overlay"] textarea');
   // a view placed at the top (⌘K) stays a card on phones too, dropping from the top out of the keyboard's way (v1)
   const sheet = (): boolean => def?.place !== 'top' && (nav().layout === 'stack' || props.overlay.kind === 'sheet');
   return (
-    <Show when={sheet()} fallback={<Dialog open title={title()} bare={def?.bare === true} {...(def?.place && { place: def.place })} onOpenChange={close} initialFocus={initialFocus} size={props.overlay.kind === 'viewer' ? 'xl' : (def?.size ?? 'md')} part="shell.overlay">{body()}</Dialog>}>
-      <Sheet open title={title()} bare={def?.bare === true} onOpenChange={close} initialFocus={initialFocus} {...(props.overlay.kind === 'viewer' && { size: 'xl' as const })} part="shell.overlay">{body()}</Sheet>
+    <Show
+      when={sheet()}
+      fallback={
+        <Dialog
+          open
+          title={title()}
+          bare={def?.bare === true}
+          {...(def?.place && { place: def.place })}
+          onOpenChange={close}
+          initialFocus={initialFocus}
+          size={props.overlay.kind === 'viewer' ? 'xl' : (def?.size ?? 'md')}
+          part={(def?.part ? `shell.overlay ${def.part}` : 'shell.overlay') as `${string}.${string}`}
+        >
+          {body()}
+        </Dialog>
+      }
+    >
+      <Sheet
+        open
+        title={title()}
+        bare={def?.bare === true}
+        onOpenChange={close}
+        initialFocus={initialFocus}
+        {...(props.overlay.kind === 'viewer' && { size: 'xl' as const })}
+        part={(def?.part ? `shell.overlay ${def.part}` : 'shell.overlay') as `${string}.${string}`}
+      >
+        {body()}
+      </Sheet>
     </Show>
   );
 }
@@ -37,9 +63,5 @@ export function Overlays(): JSX.Element {
   const nav = useSignal(shell.nav);
   const ids = createMemo(() => nav().overlays.map((o) => o.id), undefined, { equals: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) });
   const byId = (id: string): Overlay | undefined => nav().overlays.find((o) => o.id === id);
-  return (
-    <For each={ids()}>
-      {(id) => <Show when={byId(id)}>{(o) => <OverlayView overlay={o()} />}</Show>}
-    </For>
-  );
+  return <For each={ids()}>{(id) => <Show when={byId(id)}>{(o) => <OverlayView overlay={o()} />}</Show>}</For>;
 }
