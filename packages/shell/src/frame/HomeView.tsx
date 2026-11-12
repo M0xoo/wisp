@@ -23,6 +23,7 @@ import { defaultHarness, harnessOf } from './harness.ts';
 import { MAX_RUNNERS, newGroup, nextRun } from './compare.ts';
 import { firstRunOf, firstRunTools, launcherFull } from './first-run.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
+import { draftValue, launcherDraft } from './drafts.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
 
 interface SettingRow {
@@ -44,7 +45,12 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const harnesses = useSignal(shell.harnesses());
   /** what Auto runs today: the default harness (wisp's router picks per task once it's there) */
   const auto = (): string => defaultHarness(harnesses()) ?? '';
-  const [text, setText] = createSignal('');
+  // New task's text is a draft (kind 5): kept across reloads and updates (v1 F-task-32), under `<home>:launcher` → text,
+  // where wisp.stuff's share-in puts what was shared to wisp
+  const [draftKey, draftField] = launcherDraft(home);
+  const draft = useSignal(shell.client.drafts.get<string>(draftKey, draftField));
+  const text = (): string => draft() ?? '';
+  const setText = (v: string): void => shell.client.drafts.set(draftKey, draftField, draftValue(v));
   const [mode, setMode] = createSignal<Mode>('auto');
   const [agent, setAgent] = createSignal('auto');
   // the model and thinking level picked for the harness (Default: '')

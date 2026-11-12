@@ -20,6 +20,7 @@ import { useNow } from '../clock.ts';
 import { stopQuestion, type StopQuestion } from './stop-question.ts';
 import { noOutputLine } from './no-output.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
+import { draftValue, replyDraft } from './drafts.ts';
 import { editorUrl } from '../editor.ts';
 import { resumeCommand } from './commands.ts';
 import { archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
@@ -109,7 +110,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       .filter((x) => x.session_id === key || x.session_id === bare)
       .sort((a, b) => a.idx - b.idx),
   );
-  const [text, setText] = createSignal('');
+  // the reply being written is a draft (kind 5): kept across reloads and updates, per task (v1 F-task-32)
+  const [rKey, rField] = replyDraft(key);
+  const reply$ = useSignal(shell.client.drafts.get<string>(rKey, rField));
+  const text = (): string => reply$() ?? '';
+  const setText = (v: string): void => shell.client.drafts.set(rKey, rField, draftValue(v));
   let input: HTMLTextAreaElement | undefined;
   queueMicrotask(() => shell.nav().layout === 'split' && input?.focus());
   const titleOf = (id: string): string => sessions().find((s) => s.id === id)?.title ?? '';
