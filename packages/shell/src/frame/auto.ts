@@ -9,6 +9,49 @@ export interface AutoPreview {
   readonly why: string;
   readonly chance?: number;
   readonly usd?: number;
+  readonly goal?: string;
+  readonly minutes?: number;
+  readonly alternatives?: readonly AutoAlt[];
+  readonly suggest?: (AutoAlt & { readonly why?: string }) | null;
+}
+
+/** Another pick Auto weighed (the popover's rows). */
+export interface AutoAlt {
+  readonly agent: string;
+  readonly model: string;
+  readonly effort: string;
+  readonly key: string;
+  readonly label: string;
+  readonly chance: number;
+  readonly usd: number;
+}
+
+/** v1 shortLabel: "Claude Code · Opus 4.7 · Medium" → "Opus 4.7 · Medium" (the logo says the harness). */
+export const shortLabel = (p: { readonly label: string; readonly model: string }): string => (p.model ? p.label.split(' · ').slice(1).join(' · ') : p.label);
+
+/** v1 neverRule: `<agent>:<model>@<type>`, 'codex:' for its default model. */
+export const neverRule = (p: { readonly agent: string; readonly model: string }, type: string): string => `${p.agent}:${p.model || ''}@${type}`;
+
+export const pct = (x: number): string => `${Math.round(x * 100)}%`;
+export const usd = (x: number): string => (x ? `~$${x.toFixed(2)}` : '');
+
+/** v1 popover: the why without "High thinking for Balanced" (the title says it), capitalised; the facts (chance only
+ *  when the why gives none, cost, time); Worth a try when it isn't the pick; up to four others. */
+export function popOf(p: AutoPreview): { why: string; chance: string; usd: string; minutes: number; suggest: (AutoAlt & { readonly why?: string }) | null; others: readonly AutoAlt[] } {
+  const w = p.why
+    .split(' · ')
+    .filter((x) => !/ thinking for /.test(x))
+    .join(' · ');
+  const why = w ? w.charAt(0).toUpperCase() + w.slice(1) : '';
+  const suggest = p.suggest && p.suggest.key !== p.pick?.key ? p.suggest : null;
+  return {
+    why,
+    chance: /\d%/.test(why) ? '' : pct(p.chance ?? 0),
+    usd: usd(p.usd ?? 0),
+    minutes: p.minutes ? Math.round(p.minutes) : 0,
+    suggest,
+    others: (p.alternatives ?? []).filter((a) => a.key !== suggest?.key).slice(0, 4),
+  };
 }
 
 /** v1 waits this long after the last key before asking. */

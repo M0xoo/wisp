@@ -40,4 +40,25 @@
   @media (hover: none) and (pointer: coarse) {
     [data-kit='pal-foot'] { display: none; }
   }
+  /* v1 .pal-note: why there's nothing to list, on the ground colour, with its fix */
+  [data-kit='pal-note'] { flex: none; display: flex; align-items: center; gap: 10px; margin: 6px 6px 2px; padding: 10px 10px 10px 12px; border-radius: 10px; background: var(--bg-2); color: var(--ink-2); font-size: 13px; line-height: 1.45; }
+  [data-kit='pal-note'] > [data-kit='icon'] { flex: none; width: 0.9375rem; height: 0.9375rem; color: var(--muted); }
+  [data-kit='pal-note'] > p { flex: 1; min-width: 0; margin: 0; }
+  [data-kit='pal-note'] > button { flex: none; }
+  /* v1 .pal-sk: placeholders in the rows' shape */
+  [data-kit='pal-sk-wrap'] { padding: 2px 0; }
+  [data-kit='pal-sk-group'] { display: block; width: 7rem; height: 0.5625rem; margin: 8px 10px 10px; }
+  [data-kit='pal-sk'] { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; }
+  [data-kit='pal-sk'] > [data-kit='skeleton'] { width: 1rem; height: 1rem; flex: none; }
+  [data-kit='pal-sk-lines'] { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.4375rem; }
+  [data-kit='pal-sk-lines'] > [data-kit='skeleton'] { height: 0.625rem; min-height: 0; }
+  [data-kit='pal-sk-sub'] { display: none; width: 30%; height: 0.5rem; }
+  [data-kit='pal-sk-group'] > [data-kit='skeleton'], [data-kit='pal-sk-sub'] > [data-kit='skeleton'] { display: block; height: 100%; }
+  /* v1 .palette.issues: two lines a row (the title, then its labels and who has it), the list one height */
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-list'] { flex: none; height: min(27.5rem, calc(100vh - 13.75rem)); }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-row'] { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; row-gap: 1px; align-content: center; height: auto; min-height: 52px; padding: 6px 10px; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-label'] { max-width: none; min-width: 0; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-sub'] { grid-column: 2; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-sk'] { height: 52px; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-sk-sub'] { display: block; }
 }

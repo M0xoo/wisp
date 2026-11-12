@@ -91,6 +91,8 @@ export interface LauncherProps {
     readonly compare: string;
     readonly act?: Act;
     readonly pickAct?: Act;
+    /** what the pick opens is open (the Auto popover): the launcher stays lit while it is */
+    readonly pickOpen?: boolean;
     readonly compareAct?: Act;
   };
   /** before the runner: attach, where */
@@ -199,7 +201,15 @@ export function Launcher(props: LauncherProps): JSX.Element {
   const within = useOpenWithin();
   return (
     <div data-kit="sh-launch">
-      <section data-kit="launcher" data-part="launcher" ref={within.ref} data-open={flag(within.open())} data-nudge={flag(nudge())} data-drop={flag(over())} {...dropHandlers(() => props.onFiles, setOver)}>
+      <section
+        data-kit="launcher"
+        data-part="launcher"
+        ref={within.ref}
+        data-open={flag(within.open())}
+        data-nudge={flag(nudge())}
+        data-drop={flag(over())}
+        {...dropHandlers(() => props.onFiles, setOver)}
+      >
         <div data-kit="l-projects" data-part="launcher.projects">
           <span data-kit="l-in">{props.inLabel}</span>
           <span data-kit="lp-group">
@@ -275,7 +285,15 @@ export function Launcher(props: LauncherProps): JSX.Element {
             <WithAct
               act={props.runner.pickAct}
               render={(trigger) => (
-                <button type="button" {...trigger()} data-kit="auto-pv" data-part="launcher.autoPreview" title={props.runner.pickTitle} aria-label={props.runner.pickTitle}>
+                <button
+                  type="button"
+                  {...trigger()}
+                  data-kit="auto-pv"
+                  data-part="launcher.autoPreview"
+                  aria-expanded={props.runner.pickOpen === undefined ? undefined : props.runner.pickOpen ? 'true' : 'false'}
+                  title={props.runner.pickTitle}
+                  aria-label={props.runner.pickTitle}
+                >
                   <span data-kit="rb-logo" data-small="">
                     <Show when={props.runner.logo}>{(src) => <img src={src()} alt="" />}</Show>
                   </span>

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { autoPick, overrideOf, routeOf, routeTip, type AutoPreview } from '../src/frame/auto.ts';
+import { autoPick, neverRule, overrideOf, popOf, routeOf, routeTip, shortLabel, type AutoPreview } from '../src/frame/auto.ts';
 
 test('picking_your_own_harness_after_autos_preview_tells_auto_what_it_had_shown', () => {
   const p: AutoPreview = { pick: { agent: 'claude', model: 'sonnet', effort: 'high', key: 'claude:sonnet:high', label: 'Claude Code · Sonnet · High' }, type: 'bugfix', why: 'Balanced' };
@@ -39,4 +39,29 @@ test('a_routed_rows_logo_says_why_auto_picked_it_as_v1_did', () => {
   // moved to another harness since, or never routed: no route
   expect(routeOf({ ext: { 'wisp.router': { route: { switched: true } } } })).toBeUndefined();
   expect(routeOf({})).toBeUndefined();
+});
+
+test('the popover says why without what its title says, the odds once, Worth a try only when it is not the pick, four others at most_v1_auto_pop', () => {
+  const alt = (agent: string, model: string, chance: number) => ({ agent, model, effort: 'high', key: `${agent}:${model}`, label: `${agent} · ${model} · High`, chance, usd: 0.3 });
+  const p = {
+    pick: { agent: 'claude', model: '', effort: '', key: 'claude:', label: 'Claude Code' },
+    why: 'your usual pick (4 of yours) · Medium thinking for Balanced',
+    type: 'feature',
+    chance: 0.83,
+    usd: 0.111,
+    minutes: 1.4,
+    suggest: { ...alt('claude', 'opus', 0.89), why: '89% expected from public benchmarks' },
+    alternatives: [alt('claude', 'opus', 0.89), alt('codex', 'a', 0.88), alt('codex', 'b', 0.85), alt('claude', 'c', 0.5), alt('x', 'd', 0.4), alt('y', 'e', 0.3)],
+  };
+  const pop = popOf(p);
+  expect(pop.why).toBe('Your usual pick (4 of yours)');
+  expect([pop.chance, pop.usd, pop.minutes]).toEqual(['83%', '~$0.11', 1]);
+  expect(pop.suggest?.key).toBe('claude:opus');
+  expect(pop.others.map((a) => a.key)).toEqual(['codex:a', 'codex:b', 'claude:c', 'x:d']); // the suggestion isn't repeated
+  // a why that already gives the odds: not twice
+  expect(popOf({ ...p, why: '87% expected from public benchmarks' }).chance).toBe('');
+  // the suggestion is the pick: no Worth a try
+  expect(popOf({ ...p, suggest: { ...p.suggest, key: 'claude:' } }).suggest).toBeNull();
+  expect(shortLabel({ label: 'Claude Code · Opus 4.7 · Medium', model: 'opus' })).toBe('Opus 4.7 · Medium');
+  expect(neverRule({ agent: 'codex', model: '' }, 'bug')).toBe('codex:@bug');
 });

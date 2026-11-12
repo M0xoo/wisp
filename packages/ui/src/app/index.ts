@@ -43,3 +43,4 @@ export { RunPreview, type RunPreviewLabels, type RunPreviewProps } from './RunPr
 export { CommentCard, CommentTray, type CommentCardProps, type CommentTrayProps } from './Comments.tsx';
 export { SpareCards, type SpareCard, type SpareCardsProps } from './Spare.tsx';
 export { RailCardBody, headingForCard, stepRow, type RailCardBodyProps, type RailCardRow } from './RailCard.tsx';
+export { AutoPop, type AutoPopProps, type AutoPopRow } from './AutoPop.tsx';

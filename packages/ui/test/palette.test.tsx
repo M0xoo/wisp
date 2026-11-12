@@ -54,3 +54,45 @@ test('no rows: the empty line instead of a listbox', () => {
   expect(host.querySelector('[data-kit="pal-empty"]')?.textContent).toBe('No results for “zzz”');
   expect(host.querySelector('[data-kit="pal-list"]')?.getAttribute('role')).toBe('presentation');
 });
+
+test('the issue picker: its note sits over the list with its fix, placeholders while it asks, two-line rows_v1_palette_issues', () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const fixed: string[] = [];
+  const [loading, setLoading] = createSignal(true);
+  const rows: PaletteRow[] = [{ id: 'o:linear', head: 'Other sources', label: [['Connect Linear…', false]], sub: 'Sign in with your Linear account', icon: 'plug' }];
+  dispose = render(
+    () => (
+      <PaletteSheet
+        variant="issues"
+        value=""
+        placeholder="Search issues…"
+        label="Start from an issue"
+        rows={loading() ? [] : rows}
+        selected={0}
+        empty="Looking…"
+        loading={loading()}
+        note={{ text: 'Couldn’t list the issues', tone: 'warn', action: { label: 'Try again', onClick: () => fixed.push('retry') } }}
+        foot={{ navigate: 'navigate', open: 'open', close: 'close' }}
+        onInput={() => {}}
+        onKeyDown={() => {}}
+        onPick={() => {}}
+        onHover={() => {}}
+      />
+    ),
+    host,
+  );
+  const pal = host.querySelector('[data-kit="pal"]') as HTMLElement;
+  expect(pal.dataset['variant']).toBe('issues');
+  // v1: the note between the input and the list, not in it
+  const note = pal.querySelector('[data-kit="pal-note"]') as HTMLElement;
+  expect(note.nextElementSibling?.getAttribute('data-kit')).toBe('pal-list');
+  (note.querySelector('button') as HTMLButtonElement).click();
+  expect(fixed).toEqual(['retry']);
+  expect(pal.querySelectorAll('[data-kit="pal-sk"]').length).toBe(4);
+  expect(pal.querySelector('[data-kit="pal-empty"]')).toBeNull();
+  setLoading(false);
+  expect(pal.querySelector('[data-kit="pal-sk"]')).toBeNull();
+  expect(pal.querySelector('[data-kit="pal-group"]')?.textContent).toBe('Other sources');
+  expect(pal.querySelector('[data-kit="pal-sub"]')?.textContent).toBe('Sign in with your Linear account');
+});

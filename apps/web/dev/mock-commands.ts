@@ -261,13 +261,75 @@ export const COMMANDS: Record<string, CommandFn> = {
     return { ops: [{ topic: 'crew', e: 'crew_member', id: id as string, op: 'patch', ops }], result: { ...(ctx.row('crew', 'crew_member', id as string) as object), ...patch } };
   },
   'plugins.ui': () => ({ ops: [], result: [] }),
+  // what Auto would run (router.preview, v1 POST /router/preview), as v1's reference shows it: Claude Code's default
+  // model, Opus worth a try, three others; Never pick lists go in `blocked`
+  'router.preview': (a) => {
+    const alt = (agent: string, model: string, effort: string, label: string, chance: number, usd: number) => ({ agent, model, effort, key: `${agent}:${model}:${effort}`, label, chance, usd });
+    return {
+      ops: [],
+      result: {
+        pick: { agent: 'claude', model: '', effort: '', key: 'claude::', label: 'Claude Code' },
+        why: `your usual pick (4 of yours) · Medium thinking for Balanced`,
+        goal: 'balanced',
+        type: 'feature',
+        chance: 0.83,
+        usd: 0.11,
+        minutes: 1,
+        suggest: { ...alt('claude', 'opus', 'high', 'Claude Code · Opus · High', 0.89, 0.28), trying: false, why: '89% expected from public benchmarks' },
+        alternatives: [
+          alt('claude', 'opus', 'high', 'Claude Code · Opus · High', 0.89, 0.28),
+          alt('codex', 'gpt-5.5-codex', 'high', 'Codex · Codex · High', 0.88, 0.34),
+          alt('codex', '', '', 'Codex', 0.85, 0.25),
+          alt('claude', 'fable', '', 'Claude Code · Fable', 0.5, 0.3),
+        ],
+      },
+    };
+  },
+  // a project's GitHub issues (issues.list): the mock's projects have no GitHub remote, so it answers as the peer
+  // does then (plugins/issues/core no_remote); Linear and Jira aren't connected
+  'issues.list': (a, ctx) => {
+    const id = str(obj(a), 'project');
+    const name = String((ctx.row('config', 'project', id) as { name?: string } | undefined)?.name ?? (id || 'This project'));
+    return {
+      ops: [],
+      result: { source: str(obj(a), 'source') || 'github', issues: [], linear: false, jira: false, error: `${name} has no GitHub remote, so it has no issues to list.`, fix: 'remote' },
+    };
+  },
+  // git repos found on this machine (runtime.discover, v1 GET /discover): what v1's reference shows under Projects
+  'runtime.discover': () => ({
+    ops: [],
+    result: [
+      { path: '/Users/me/code/kilocode', name: 'kilocode' },
+      { path: '/Users/me/Code/kilocode', name: 'kilocode' },
+      ...[30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18].map((n) => ({ path: `/Users/me/code/web-app-${n}`, name: `web-app-${n}` })),
+      { path: '/Users/me/Code/web-app-18', name: 'web-app-18' },
+      { path: '/Users/me/code/t3code-2', name: 't3code-2' },
+      { path: '/Users/me/Code/t3code-2', name: 't3code-2' },
+      ...[17, 16, 15].flatMap((n) => [
+        { path: `/Users/me/code/web-app-${n}`, name: `web-app-${n}` },
+        { path: `/Users/me/Code/web-app-${n}`, name: `web-app-${n}` },
+      ]),
+    ],
+  }),
+  'router.view': () => ({ ops: [], result: { settings: { blocked: [] } } }),
+  'router.set': () => ({ ops: [], result: {} }),
   // a folder picker's suggestions (runtime.folders, v1 GET /fs?q=): a small home, answered in the form typed
   'runtime.folders': (a) => {
     const q = str(obj(a), 'q');
     const tree = ['~/code', '~/code/api', '~/code/web', '~/code/wisp', '~/Documents', '~/Downloads', '~/notes'];
     const dir = q.endsWith('/') ? q.slice(0, -1) : q.slice(0, q.lastIndexOf('/'));
     const start = q.slice(q.lastIndexOf('/') + 1).toLowerCase();
-    return { ops: [], result: tree.filter((p) => p.slice(0, p.lastIndexOf('/')) === dir && p.slice(p.lastIndexOf('/') + 1).toLowerCase().startsWith(start)) };
+    return {
+      ops: [],
+      result: tree.filter(
+        (p) =>
+          p.slice(0, p.lastIndexOf('/')) === dir &&
+          p
+            .slice(p.lastIndexOf('/') + 1)
+            .toLowerCase()
+            .startsWith(start),
+      ),
+    };
   },
   // the Org chart's layout (v1 /crew-layout): none placed until you move a card; a save answers what it kept
   'crew.layout': () => ({ ops: [], result: mockLayout.value }),

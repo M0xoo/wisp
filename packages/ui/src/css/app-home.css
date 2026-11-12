@@ -122,6 +122,8 @@
     [data-kit='rb-h'], [data-kit='apv-l'], [data-kit='l-bar'] > [data-a='team'] > [data-text='control'] { display: none; }
     [data-kit='auto-pv'] { padding: 0 5px; }
     [data-kit='auto-pv'] > [data-kit='rb-logo'] { margin-right: 0; }
+    /* the pick is its logo alone now: it keeps its 28px (v1), the bar scrolls before it gives way */
+    [data-kit='runners'] > [data-kit='auto-pv'] { flex: none; }
   }
   @container launcher (max-width: 520px) {
     [data-kit='runner-btn'] { padding: 0 3px; }
@@ -130,6 +132,8 @@
     [data-kit='l-bar'] [data-text='control'] { display: none; }
     [data-kit='l-bar'] > [data-kit='mode-btn'] { padding: 0 7px; }
     [data-kit='l-bar'] { overflow-x: auto; scrollbar-width: none; }
+    /* the bar scrolls (v1), so nothing on it gives way: the harness, the pick, vs keep their size */
+    [data-kit='l-bar'] > [data-kit='runners'], [data-kit='runners'] > * { flex: none; }
     [data-kit='l-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
   }
   @container launcher (max-width: 480px) {
@@ -283,4 +287,36 @@
   [data-kit='pc-acts'] { display: flex; justify-content: flex-end; gap: 8px; }
   [data-kit='pc-acts'] [data-kit='button']:disabled { cursor: not-allowed; }
   @media (pointer: coarse), (max-width: 520px) { [data-kit='pc-acts'] { flex: 1; } [data-kit='pc-acts'] > * { flex: 1; } [data-kit='pc-acts'] [data-kit='button'] { width: 100%; } }
+  /* What Auto will run (v1 auto.css .auto-pop): 340 wide under the Auto pick, its rows the menu's */
+  [data-kit='menu'][data-auto-pop] {
+    position: fixed; left: var(--k-x); top: var(--k-y); z-index: var(--z-overlay-menu);
+    width: 21.25rem; min-width: 0; max-width: calc(100vw - 1rem); max-height: calc(100vh - 1rem); overflow-y: auto;
+  }
+  /* v1 .menu: 5px in, 13px round; its plain rows 7px 10px, 13px text */
+  [data-kit='menu'][data-auto-pop] { padding: 0.3125rem; border-radius: 0.8125rem; }
+  [data-auto-pop] > [data-kit='menu-item'] { gap: 0.625rem; padding: 0.4375rem 0.625rem; border-radius: 0.5rem; font-size: 0.8125rem; }
+  [data-auto-pop] > [data-kit='menu-separator'] { margin: 0.3125rem 0.25rem; }
+  /* v1 .auto-pv.open: the pill's ground, its text as at rest, the logo on the surface */
+  [data-kit='launcher'] [data-kit='auto-pv'][aria-expanded='true'] { color: var(--ink-2); }
+  [data-kit='auto-pv']:hover > [data-kit='rb-logo'], [data-kit='auto-pv'][aria-expanded='true'] > [data-kit='rb-logo'] { background: var(--surface); }
+  [data-kit='ap-head'] { display: flex; align-items: center; gap: 0.625rem; padding: 0.5625rem 0.625rem 0.125rem; }
+  [data-kit='ap-head'] > [data-kit='rb-logo'] { width: 1.75rem; height: 1.75rem; margin: 0; border-radius: 0.5rem; }
+  [data-kit='ap-head'] > [data-kit='rb-logo'] > * { width: 0.9375rem; height: 0.9375rem; }
+  [data-kit='ap-title'] { display: grid; gap: 0.0625rem; min-width: 0; }
+  [data-kit='ap-title'] > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+  [data-kit='ap-title'] > small { font-size: 0.78125rem; color: var(--muted); }
+  [data-kit='ap-why'] { margin: 0.375rem 0.625rem 0; font-size: 0.78125rem; line-height: 1.45; color: var(--ink-2); }
+  [data-kit='ap-facts'] { display: flex; gap: 0.125rem 0.75rem; margin: 0.25rem 0.625rem; font-size: 0.78125rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  [data-kit='ap-facts'] b { font-weight: 600; color: var(--ink); }
+  [data-kit='ap-h'] { margin: 0.625rem 0.625rem 0.125rem; font-size: 0.71875rem; font-weight: 500; color: var(--faint); }
+  [data-auto-pop] > [data-ap] { gap: 0.5rem; padding: 0.375rem 0.5rem; text-align: left; }
+  [data-auto-pop] > [data-ap] > [data-kit='rb-logo'] { margin: 0; }
+  [data-kit='ap-text'] { flex: 1; display: grid; gap: 0.0625rem; min-width: 0; }
+  [data-kit='ap-text'] > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink); }
+  [data-kit='ap-text'] > small { font-size: 0.71875rem; line-height: 1.35; color: var(--muted); }
+  [data-ap='alt'] > [data-kit='ap-text'] > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-ap='sug'] > [data-kit='ap-text'] > b { color: var(--accent-ink); }
+  [data-kit='ap-n'] { flex: none; min-width: 2rem; text-align: right; font-size: 0.78125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  [data-auto-pop] > [data-kit='menu-item'] > [data-kit='icon'] { width: 0.875rem; height: 0.875rem; flex: none; }
+  [data-auto-pop] > [data-kit='menu-item']:hover, [data-auto-pop] > [data-kit='menu-item']:focus-visible { background: var(--bg-2); color: var(--ink); }
 }

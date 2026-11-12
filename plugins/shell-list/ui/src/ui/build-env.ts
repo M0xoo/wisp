@@ -69,7 +69,12 @@ export function buildEnv(shell: ShellContext, client: PluginClient): ListEnv {
       readOnOpen(actions, key);
     },
     menuFor,
-    setMenuFor: (key) => setMenuFor(key),
+    // a row's menu also makes it the keyboard's row (v1 feed.js contextmenu: setFocus, no scroll), so it shows as
+    // picked, its actions in view, while the menu is up
+    setMenuFor: (key) => {
+      shell.selection.set(key);
+      setMenuFor(key);
+    },
     menuAt: (key, el) => {
       setMenuFor(key);
       // the one row menu is a context menu around the list: open it under the button

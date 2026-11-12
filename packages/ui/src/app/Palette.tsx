@@ -8,6 +8,8 @@ import { flag, type PartName } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 import { Dot } from '../shell-list/Dot.tsx';
+import { Skeleton } from '../content/Skeleton.tsx';
+import { Button } from '../controls/Button.tsx';
 
 export interface PaletteRow {
   readonly id: string;
@@ -39,13 +41,19 @@ export interface PaletteSheetProps {
   readonly onHover: (i: number) => void;
   readonly inputRef?: (el: HTMLInputElement) => void;
   readonly part?: PartName;
+  /** added 2026-11-12: v1's issue picker (.palette.issues): two lines a row, the list one height whatever it holds */
+  readonly variant?: 'issues';
+  /** added 2026-11-12: a line over the rows (v1 .pal-note): why there's nothing, with what to do about it */
+  readonly note?: { readonly text: string; readonly tone?: 'info' | 'warn'; readonly action?: { readonly label: string; readonly onClick: () => void } } | undefined;
+  /** added 2026-11-12: still asking: a group line and rows of placeholders in the rows' shape (v1 .pal-sk) */
+  readonly loading?: boolean;
 }
 
 export const paletteRowId = (i: number): string => `palette-row-${i}`;
 
 export function PaletteSheet(props: PaletteSheetProps): JSX.Element {
   return (
-    <div data-kit="pal" data-part={props.part ?? 'shell.palette'}>
+    <div data-kit="pal" data-part={props.part ?? 'shell.palette'} data-variant={props.variant}>
       <div data-kit="pal-input" data-part="shell.palette.input">
         <Icon name="search" size="md" />
         <input
@@ -64,8 +72,43 @@ export function PaletteSheet(props: PaletteSheetProps): JSX.Element {
           onKeyDown={(e) => props.onKeyDown(e)}
         />
       </div>
+      <Show when={props.note}>
+        {(n) => (
+          <div data-kit="pal-note" role="status" data-part="shell.palette.note">
+            <Icon name={n().tone === 'warn' ? 'warn' : 'info'} />
+            <p>{n().text}</p>
+            <Show when={n().action}>
+              {(a) => (
+                <Button variant="ghost" size="sm" onClick={() => a().onClick()}>
+                  {a().label}
+                </Button>
+              )}
+            </Show>
+          </div>
+        )}
+      </Show>
       <div data-kit="pal-list" id="palList" role={props.rows.length > 0 ? 'listbox' : 'presentation'} aria-label={props.label} data-part="shell.palette.list">
-        <Show when={props.rows.length > 0} fallback={<div data-kit="pal-empty">{props.empty}</div>}>
+        <Show when={props.loading}>
+          <div data-kit="pal-sk-wrap" aria-hidden="true">
+            <span data-kit="pal-sk-group">
+              <Skeleton shape="pill" width="full" />
+            </span>
+            <For each={[0, 1, 2, 3]}>
+              {() => (
+                <div data-kit="pal-sk">
+                  <Skeleton shape="circle" />
+                  <span data-kit="pal-sk-lines">
+                    <Skeleton shape="pill" width="2/3" />
+                    <span data-kit="pal-sk-sub">
+                      <Skeleton shape="pill" width="full" />
+                    </span>
+                  </span>
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
+        <Show when={props.rows.length > 0 || props.loading || props.note} fallback={<div data-kit="pal-empty">{props.empty}</div>}>
           <For each={props.rows}>
             {(r, i) => (
               <>

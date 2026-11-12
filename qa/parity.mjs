@@ -272,6 +272,8 @@ const splitTop = (s) => {
 // v1 selectors the openers use that aren't a PARTS entry, in terms of the parts v2 renders.
 const EXTRA = {
   '.it-dock .composer textarea': '[data-part="composer.input"]',
+  // v1 #autoPv: what Auto will run, on the harness pill (v2's Auto pick chip)
+  '#autoPv': '[data-part="launcher.autoPreview"]',
   // the rail's Add a crew member (v1 has no PARTS name for it; v2's kit rail names it crew.add)
   '#crewRail .cl-add': '[data-part="crew.add"]',
   '#secCrew .cr-add': '[data-part="crew.add"]',
@@ -364,7 +366,7 @@ const V2_STATES = {
 };
 
 // Commands that only read: they go through to the mock (the pane they fill is part of the shot)
-const READS = /^(git\.(changes|status|tools)|runtime\.(cold|agents|get|list|search)|plugins\.(ui|list)|worktrees\.(files|grep)|machines\.reachable|runtime\.usage|budget\.view|crew\.stats)$/;
+const READS = /^(git\.(changes|status|tools)|runtime\.(cold|agents|get|list|search)|plugins\.(ui|list)|worktrees\.(files|grep)|machines\.reachable|runtime\.usage|budget\.view|crew\.stats|router\.(preview|view)|issues\.list|runtime\.discover)$/;
 
 async function openV2(browser, url, open, [width, height], colorScheme, at, desktop) {
   const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
@@ -429,6 +431,9 @@ const v2Sels = () => ({
   'x.row': '[data-part="card"], [data-part="list.row"]',
   // v1's .pill is a class; v2's kit names it by data-kit
   'x.pill': '[data-kit="it-pill"], [data-kit="it-state"]',
+  // v1's .menu is a class; v2's kit menus (Menu, AutoPop, the @ list) are data-kit="menu", their rows menu-item
+  'x.menu': '[data-kit="menu"]',
+  'x.menuItem': '[data-kit="menu"] [data-kit="menu-item"], [data-kit="menu"] button',
 });
 
 // ---------- One view ----------

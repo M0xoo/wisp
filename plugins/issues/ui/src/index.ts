@@ -8,7 +8,7 @@ import { parsePicker, PICKER } from './model.ts';
 export default definePluginUi({
   id: 'wisp.issues',
   catalogue,
-  views: [defineView({ kind: PICKER, slot: 'overlay', overlay: 'dialog', parse: parsePicker, title: () => t('issues.title'), component: lazy(() => import('./Picker.tsx')) })],
+  views: [defineView({ kind: PICKER, slot: 'overlay', overlay: 'dialog', bare: true, place: 'top', parse: parsePicker, title: () => t('issues.title'), component: lazy(() => import('./Picker.tsx')) })],
   // ⌘K's Actions, right after New task (v1 commands.js): the picker, for the launcher's project
   palette: [
     {

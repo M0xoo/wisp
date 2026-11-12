@@ -78,7 +78,9 @@ export const create = defineCommand<CreateArgs, { id: string }>({
   id: 'runtime.create',
   owner: (a) => a.peer,
   wire: ({ shows: _shows, ...a }) => a,
-  optimistic: (_base, a) => [{ e: SESSION, id: a.id as EntityKey, op: 'upsert', v: startingRow({ ...a, agent: a.shows ?? a.agent, title: a.prompt.split('\n')[0]?.slice(0, 80) ?? a.prompt }) as never }],
+  optimistic: (_base, a) => [
+    { e: SESSION, id: a.id as EntityKey, op: 'upsert', v: startingRow({ ...a, agent: a.shows ?? a.agent, title: a.prompt.split('\n')[0]?.slice(0, 80) ?? a.prompt }) as never },
+  ],
 });
 
 /** What Auto would run for the launcher's prompt (`router.preview`, read-only; the router plugin off: refused). */
@@ -91,50 +93,145 @@ export const autoPreview = defineCommand<{ peer: string; prompt: string; attachm
   dedupe: (a) => JSON.stringify([a.peer, a.prompt, a.attachments, a.goal, a.team]),
 });
 
+/** Auto's rules as they are (`router.view`): Never pick reads the list it adds to. */
+export const autoRules = defineCommand<{ peer: string }, { settings?: { blocked?: string[] } }>({
+  id: 'router.view',
+  owner: (a) => a.peer,
+  wire: () => ({}),
+  optimistic: 'none',
+  pending: 'Auto',
+});
+
+/** Never pick a model for a kind of task (v1 auto-preview.js never: PATCH /router { blocked }), the whole list. */
+export const autoBlocked = defineCommand<{ peer: string; blocked: readonly string[] }, unknown>({
+  id: 'router.set',
+  owner: (a) => a.peer,
+  wire: (a) => ({ blocked: a.blocked }),
+  optimistic: 'none',
+  pending: 'Never pick',
+});
+
 /** A follow-up: it shows in the transcript at once (its turn, under the id the client chose, Starting…),
  * and the task is working again. */
-export const followUp = defineCommand<{ id: string; text: string; turnId: string; idx: number; at: number; attachments?: readonly Attachment[]; run?: { agent?: string; model?: string; effort?: string } }>({
+export const followUp = defineCommand<{
+  id: string;
+  text: string;
+  turnId: string;
+  idx: number;
+  at: number;
+  attachments?: readonly Attachment[];
+  run?: { agent?: string; model?: string; effort?: string };
+}>({
   id: 'runtime.followUp',
-  owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }),
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
   optimistic: (_base, a) => [
-    { e: SESSION, id: a.id as EntityKey, op: 'patch', ops: [{ op: 'replace', path: '/state', value: 'running' }, { op: 'replace', path: '/summary/live', value: 'Starting…' }] },
-    { e: 'turn', id: a.turnId as EntityKey, op: 'upsert', v: { id: a.turnId, session_id: a.id, idx: a.idx, status: 'running', started_at: a.at, ended_at: null, prompt: a.text, answer: '', body: { prompt: a.text, status: 'running' } } as never },
+    {
+      e: SESSION,
+      id: a.id as EntityKey,
+      op: 'patch',
+      ops: [
+        { op: 'replace', path: '/state', value: 'running' },
+        { op: 'replace', path: '/summary/live', value: 'Starting…' },
+      ],
+    },
+    {
+      e: 'turn',
+      id: a.turnId as EntityKey,
+      op: 'upsert',
+      v: { id: a.turnId, session_id: a.id, idx: a.idx, status: 'running', started_at: a.at, ended_at: null, prompt: a.text, answer: '', body: { prompt: a.text, status: 'running' } } as never,
+    },
   ],
 });
 
 /** Opening a task reads it (v1 feed.js): the row loses its bold at once. */
-export const markRead = defineCommand<{ id: string; unread: boolean }>({ id: 'runtime.markRead', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/unread', a.unread) });
+export const markRead = defineCommand<{ id: string; unread: boolean }>({
+  id: 'runtime.markRead',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => patch(a.id, '/unread', a.unread),
+});
 
 /** Mark done: the row moves to Done at once. */
 /** Rename in place (the head's title): the title changes everywhere at once. */
-export const rename = defineCommand<{ id: string; title: string }>({ id: 'runtime.rename', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id), title: a.title }), optimistic: (_b, a) => patch(a.id, '/title', a.title) });
-export const setState = defineCommand<{ id: string; state: 'running' | 'review' | 'done' | 'error' }>({ id: 'runtime.setState', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/state', a.state) });
+export const rename = defineCommand<{ id: string; title: string }>({
+  id: 'runtime.rename',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), title: a.title }),
+  optimistic: (_b, a) => patch(a.id, '/title', a.title),
+});
+export const setState = defineCommand<{ id: string; state: 'running' | 'review' | 'done' | 'error' }>({
+  id: 'runtime.setState',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => patch(a.id, '/state', a.state),
+});
 
 /** Save for later: the bookmark fills at once. */
-export const forLater = defineCommand<{ id: string; forLater: boolean }>({ id: 'runtime.forLater', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/summary/forLater', a.forLater) });
+export const forLater = defineCommand<{ id: string; forLater: boolean }>({
+  id: 'runtime.forLater',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => patch(a.id, '/summary/forLater', a.forLater),
+});
 
 /** Stop: the run ends where it is; queued follow-ups stay, held (v1 /stop). It answers once the run has wound down. */
 export const stopRun = defineCommand<{ id: string }>({ id: 'runtime.stop', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id) }), optimistic: 'none', pending: 'Stopping…' });
 
-export const archive = defineCommand<{ id: string; archived: boolean }>({ id: 'runtime.archive', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/archived', a.archived) });
+export const archive = defineCommand<{ id: string; archived: boolean }>({
+  id: 'runtime.archive',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => patch(a.id, '/archived', a.archived),
+});
 
-export const remove = defineCommand<{ id: string }>({ id: 'runtime.delete', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => [{ e: SESSION, id: a.id as EntityKey, op: 'del' }] });
+export const remove = defineCommand<{ id: string }>({
+  id: 'runtime.delete',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => [{ e: SESSION, id: a.id as EntityKey, op: 'del' }],
+});
 
-export const setMode = defineCommand<{ id: string; mode: string }>({ id: 'runtime.setMode', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/summary/mode', a.mode) });
+export const setMode = defineCommand<{ id: string; mode: string }>({
+  id: 'runtime.setMode',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => patch(a.id, '/summary/mode', a.mode),
+});
 
-export const setAgent = defineCommand<{ id: string; agent: string }>({ id: 'runtime.setAgent', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/agent', a.agent) });
+export const setAgent = defineCommand<{ id: string; agent: string }>({
+  id: 'runtime.setAgent',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => patch(a.id, '/agent', a.agent),
+});
 
-export const setGoal = defineCommand<{ id: string; text: string }>({ id: 'goal.set', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/summary/goal', a.text.trim() ? { text: a.text, status: 'working', round: 0, checks: [] } : null) });
+export const setGoal = defineCommand<{ id: string; text: string }>({
+  id: 'goal.set',
+  owner: (a) => a.id,
+  wire: (a) => ({ ...a, id: bare(a.id) }),
+  optimistic: (_b, a) => patch(a.id, '/summary/goal', a.text.trim() ? { text: a.text, status: 'working', round: 0, checks: [] } : null),
+});
 
 /** Rerun and Fork: the new task's row and page show at once (the client names it). */
 function copyOf(id: 'runtime.rerun' | 'runtime.fork') {
   return defineCommand<{ id: string; newId: string; agent?: string; at: number }, { id: string }>({
     id,
-    owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }),
+    owner: (a) => a.id,
+    wire: (a) => ({ ...a, id: bare(a.id) }),
     optimistic: (base, a) => {
       const src = base.peek<SessionRow>(SESSION, a.id as EntityKey) as SessionRow | undefined;
       if (!src) return [];
-      const row: SessionRow = { ...src, id: a.newId, state: 'running', unread: false, created_at: a.at, updated_at: a.at, ...(a.agent && { agent: a.agent }), summary: { ...src.summary, status: 'running', live: 'Starting…', overlaps: [] } };
+      const row: SessionRow = {
+        ...src,
+        id: a.newId,
+        state: 'running',
+        unread: false,
+        created_at: a.at,
+        updated_at: a.at,
+        ...(a.agent && { agent: a.agent }),
+        summary: { ...src.summary, status: 'running', live: 'Starting…', overlaps: [] },
+      };
       return [{ e: SESSION, id: a.newId as EntityKey, op: 'upsert', v: row as never }];
     },
   });
@@ -145,7 +242,13 @@ export const fork = copyOf('runtime.fork');
 /** Ship it: no result to show before the push, so the button shows it's working. */
 
 /** Restore the worktree to before a turn (git keeps a checkpoint as each turn starts): the rollback button shows it's working. */
-export const restore = defineCommand<{ id: string; turn: string }, { restored: boolean }>({ id: 'git.restoreTurn', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id), turn: a.turn }), optimistic: 'none', pending: 'the turn’s restore button (tb-btn rollback)' });
+export const restore = defineCommand<{ id: string; turn: string }, { restored: boolean }>({
+  id: 'git.restoreTurn',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), turn: a.turn }),
+  optimistic: 'none',
+  pending: 'the turn’s restore button (tb-btn rollback)',
+});
 
 /** A setting on this wisp (the new-task defaults): it reads its new value at once. */
 export const setSetting = defineCommand<{ peer: string; key: string; value: unknown }>({
@@ -155,7 +258,13 @@ export const setSetting = defineCommand<{ peer: string; key: string; value: unkn
 });
 
 /** An answer's one-click command (actions, terminal, tests), run in the task's folder; the user's click only. */
-export const exec = defineCommand<{ id: string; command: string }, { code: number; output: string }>({ id: 'runtime.exec', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id), command: a.command }), optimistic: 'none', pending: 'the block’s Run button' });
+export const exec = defineCommand<{ id: string; command: string }, { code: number; output: string }>({
+  id: 'runtime.exec',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), command: a.command }),
+  optimistic: 'none',
+  pending: 'the block’s Run button',
+});
 /** A `blocked` block's Allow & retry / Deny. */
 export const approveBlocked = defineCommand<{ id: string; turnId: string; allow: boolean }, unknown>({
   id: 'runtime.approveBlocked',
@@ -174,7 +283,12 @@ export const appState = defineCommand<{ id: string; turnId: string; block: strin
 });
 
 /** This task's own lean runs ('on' | 'off'), or none to follow Settings (runtime.leanRuns). */
-export const setLean = defineCommand<{ id: string; lean?: 'on' | 'off' }>({ id: 'runtime.setLean', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id), ...(a.lean && { lean: a.lean }) }), optimistic: (_b, a) => patch(a.id, '/body/lean', a.lean ?? null) });
+export const setLean = defineCommand<{ id: string; lean?: 'on' | 'off' }>({
+  id: 'runtime.setLean',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), ...(a.lean && { lean: a.lean }) }),
+  optimistic: (_b, a) => patch(a.id, '/body/lean', a.lean ?? null),
+});
 
 /** A large idle task's prompt cache and Compact now's estimate (`runtime.cold`, read-only). */
 export const coldOf = defineCommand<{ id: string }, ColdOut>({ id: 'runtime.cold', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id) }), optimistic: 'none', pending: 'the cache' });
