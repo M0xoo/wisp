@@ -806,3 +806,53 @@ no ext, no steps). Tests: runtime `a_terminal_task_opens_on_its_prompt_named_by_
 `a_terminal_task_runs_in_the_harnesss_own_cli_…`.
 
 **Left:** the untrusted tier's descriptor UI; Discord's grid-side signature check.
+
+## Round 19 (2026-11-12): the grid checks Discord, the untrusted tier's UI, terminal tasks everywhere, the burndowns
+
+**Security: the grid checks Discord's signature itself.** A box sets its application's public key on the grid
+(`POST /api/channels/key {channel, key}`, from `channels`' `set_channel_key`, at Discord's start on a box; migration
+adds `channel_urls.channel_key`). `Inbox::accept` checks Ed25519 over timestamp+body before anything is held, answered
+live or woken: no key, unsigned, forged, another key or another body → 401, nothing held, nothing woken, nothing
+delivered (a ping too). Test `the_grid_refuses_an_unsigned_or_forged_discord_interaction_and_wakes_nothing`; the
+earlier `discords_slash_and_press_…` now signs for real. Left: linked people at the edge.
+
+**The untrusted tier's UI (ADR-0048).** Server: `plugins.ui` gives the app each enabled `user.` plugin's
+`contributes.ui` entries placed where an untrusted UI may show (`shell.settings`, `shell.side`, `shell.block`,
+`shell.toolbar`) with the module's text (`./ui.js#default`, inside its folder, 256 KB at most). The edge's
+`x-wisp-plugin: user.<x>` makes a user-level request speak as `plugin:user.<x>` (only ever less; a built-in's id or an
+agent token is untouched). Tests: wisp-api `an_untrusted_uis_call_speaks_as_its_plugin_and_never_as_more`, plugins
+`an_untrusted_plugins_calls_are_checked_against_its_own_permissions`, `an_untrusted_ui_is_a_module_in_its_own_folder_…`.
+Shell (`packages/shell/src/remote/`): `descriptor.ts` keeps a tree to the kit (Stack, Inline, Text, Button, Input,
+Switch, Select, SettingsRow, ListRow, Callout, Code, Markdown; typed or enumerated props; text only; 2000 nodes, depth
+32); `frame.ts` is the frame (`sandbox="allow-scripts"`, CSP `default-src 'none'` but its inline bootstrap and a blob
+Worker) and the Worker's `wisp` (`render`, `call`, `on`); `RemoteView.tsx` relays only its own frame's messages,
+draws with the kit in place (by index, so an input keeps focus) and runs `wisp.call` as the plugin
+(`x-wisp-plugin`, through `RawRequest.headers`, additive in @wisp/client). `remoteUiDefs` turns `plugins.ui` into
+Settings panes (Advanced); apps/web loads them after the home peer starts. Two fixes on the way: Settings' pane list
+now follows the registry (a Solid signal fed by it: a pane registered after first paint shows), and an icon name the
+kit doesn't know drops a nav item silently (the remote pane uses `plug`). Tests: shell `remote.test.tsx` (the ADR's
+three UI cases). Seen in Chrome 1440 light / 390 dark: the pane drawn by the plugin, a Switch, an Input that answers
+as you type, `plugins.list` allowed (it asked for plugins:read), `plugins.install` refused (403), fetch blocked,
+no storage, its `div` with innerHTML never drawn. Left: a side view, a block renderer and a toolbar button (the ADR's
+other places), `wisp.watch`, the WASM host.
+
+**Terminal tasks on every harness.** All seven have `resume_command`; Claude and Copilot let wisp name the
+conversation, the others (Codex, opencode, Cursor, Grok, Antigravity) don't, so a terminal task records when it opened
+(`openedAt`) and, when the terminal ends, takes the newest conversation that harness kept in its folder since
+(`conversation_since`, each harness's own session reader) as its `resumeId`, then reads its turns back; a later
+follow-up resumes it. Tests: runtime `a_cli_that_names_no_conversation_is_found_by_its_folder_and_time`, e2e
+`a_terminal_task_runs_on_codex_too_through_its_own_resume_command`.
+
+**v1-features burndown.** F-page-33 (Take over) built: T and *Open in <harness>* opened the Shell pane; now
+`runtime.terminal` on a task wisp ran resumes its conversation in its CLI (`--resume`, model, effort, v1's
+`TAKEOVER_NOTE`) in shell-task's Terminal tab (shown while it's open), from home when the task has no folder; a task
+with no conversation is refused. Test `take_over_resumes_a_tasks_conversation_in_its_own_cli_inside_wisp`; Chrome.
+
+**UI parity burndown (started).** `qa/parity.mjs --views=home` wasn't reachable at 600 px: shell-list replaces the
+whole `shell.sidebar:list` area, and New task (v1 `.split-top`, `sidebar.new`) went with it, so at 600 px there was no
+way to start a task at all (and at every width the sidebar lacked v1's New task box). `SidebarTop` is now the frame's,
+above whichever list fills the area (seen in Chrome at 600). Home is reachable: 0/48 shots pass, first gap
+`feed#0: missing` (shell-list renders no `feed` part). Scores per view in `docs/v2-ui-burndown.md`.
+(Port 4590 was held by a vite from this worktree that isn't mine; the runs use `QA_PARITY_PORT=4592`.)
+F-task-11 built: Mark done, archive and delete open the next task that needs you (`nextNeedsYou`), else Home; test
+`leaving_a_task_opens_the_next_that_needs_you_else_new_task`; Chrome.
