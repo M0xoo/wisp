@@ -1040,3 +1040,29 @@ Tests: runtime-core `usage_breaks_down_by_day_project_and_harness_model_with_emp
 `spare_allowance_offers_a_long_window_resetting_within_a_day_with_a_fifth_left_v1_spare_js`, shell-task ui
 `comments_on_diff_lines_go_out_at_the_top_of_the_next_follow_up_in_v1_words`; kit css-rules 12/12. Clippy -D warnings on
 runtime-core/-api/runtime and terminal-core/-api/terminal.
+
+## Round 25 (2026-11-12)
+
+**1. Fix-first from the lead's pass.** crew and task.transcript reach at 390 (the translator: v1's `.menu [data-a]` is
+a kit menu item by value; the phone Crew row is `crew.row`). Pixel regions: traced on home with v1 running live (its
+QA seed restored): v1's list rows use 1.55 line heights (20.140625 / 19.375 px), so v2's rows now sit on v1's sub-pixel
+grid; the section heading's chevron margin and count weight; the palette's keys inline and 7 px project dots; the open
+row's quick actions show as v1's `.focused` did; "Open in <harness>" is the owner's rename (ADR-0033) as an `owner` rule
+(parity's owner rules now also find a part only v2 names). home 19 → 16, palette 37 → 14, task 17 → 8 regions. What is
+left is recorded in allowed.md §6: every box and text rect matches v1 to 1/64 px and still two rows' glyphs land a pixel
+apart. settings.agents at 390: a control that doesn't fit beside its text goes under it (v1's `.sx-row` wrap, through
+the kit's Wrap layout), Sign out is the small button; Agents' own rows now match v1 at 390.
+
+**2. Open in editor / terminal app.** `terminal.app.open` is served (it was declared and unrouted): the planner
+already in wisp-terminal-core, each program started on its own; refused through a proxy or without a desktop. The
+place ⋯ offers Copy path, Copy branch name, Open in editor (v1's URL schemes for vscode/cursor/windsurf/zed/idea, from
+Settings → Open files in) and Open in terminal app (only where one can open).
+
+**4. stuff 1 → 0, crew.org 2 → 0.** The font-weight read: parity counts generic buttons by index, and after the owner
+recount the index pointed at the stuff page's ×: v2's kit icon buttons were weight 500, v1's `.icon-btn` 400. crew.org's
+avatar is the org card's 36 px face (v1 `.cr-av`, its emoji 0.55 of the disc).
+
+**3. Settings at 390 (started).** The phone home behind the sheet: the Crew section's 14 px gap (`gapBefore` can say
+`section`), the top bar's empty fourth track, the Crew rows' 30 px faces; the phone settings head (40 px Back and ×, a
+17 px title); v1's switch is a `<button role="switch">` again (Zag's label + hidden input shifted every later button);
+two lines the owner's rename had lengthened.

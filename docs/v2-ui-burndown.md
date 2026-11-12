@@ -190,3 +190,16 @@ Phone and dark checked by eye at 390 (Agents, Machines dark; Worktrees, Agents, 
 | task | | 0/150 | (checked after the reply-box change) |
 | crew.org | 4/112 | 2/112 | re-captured reference; left: crew.avatar#1 and the same x.button weight as stuff |
 | stuff | 3/118 | 1/118 | re-captured reference (rows read by an earlier view); x.button#11 fw 500 vs 400 left: a probe of the same box reads 400 |
+
+## 2026-11-12 (round 25)
+
+| View | Before | After |
+|---|---|---|
+| home (1440) | 0 parts, 19 regions | 0 parts, 16 regions (rest recorded in allowed.md §6) |
+| palette (1440) | 0 parts, 37 regions | 0 parts, 14 regions |
+| task (1440) | 0 parts, 17 regions | 0 parts, 8 regions |
+| stuff (1440) | 1 | 0 |
+| crew.org (1440) | 2 | 0 |
+| crew (390) | not reachable | reachable: 81/86 (the phone member page) |
+| task.transcript (390) | not reachable | reachable: 11/32 |
+| settings.* (390) | see the round notes | see the round notes |

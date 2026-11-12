@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Open a task's folder in your editor or terminal app** from the side panel's ⋯ (with Copy path and Copy branch name). The editor is the one Settings → General names.
+
 - **Preview in a task's side panel.** Run the app from the task's folder (wisp guesses the command from the project) and see it there, with its logs, Restart, Stop and Open in browser.
 - **Comments on lines of a task's changes.** Point at a line, press +, say what should change: comments wait over the reply box and go with your next follow-up.
 - **Usage charts and the crew's track record.** Settings → Usage → Open usage shows spend or turns per day, by project and by harness · model, over 7, 30 or 90 days; Crew track record shows each member's jobs.
@@ -100,6 +102,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 
 ### Fixed
+
+- On a phone, a setting's controls that don't fit beside its text go under it (Agents: Add key, Signed in · Sign out no longer crowd the row).
+- Switches in Settings are buttons again, so keyboard and screen readers treat them as v1 did.
 
 - A goal isn't checked while Claude Code's background subagents are still working: the turn waits for their reports.
 - An opened step shows its whole title, not the label cut for the row, for every harness.
