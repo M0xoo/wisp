@@ -177,3 +177,16 @@ two-column padding now applies (a container query can't style its own container)
 
 Phone and dark checked by eye at 390 (Agents, Machines dark; Worktrees, Agents, Connectors light) and 1440 dark
 (Machines). Other widths still differ (390: the phone settings list v1 doesn't have; 900: the frame is 8px wider).
+
+## 2026-11-12 (round 24)
+
+1440 light at rest, parts off.
+
+| View | Before | After | What it took |
+|---|---|---|---|
+| settings.usage | 14/194 | 0/194 | v1's layout: Charts and breakdowns, Crew track record (slot), Plan budget in v1's order with each harness's line and logo, Spare allowance, Window changes, Machine load (wisp.machine through `shell.settings:usageEnd`); `ChoiceSetting` is v1's `.pk-seg` |
+| settings.spells | 6/182 | 0/182 | Plugins pane: v1's Cast box (it starts a real task), an empty card, Install as v1's "Add a spell" box, the foot line |
+| task.changes | 19/174 | 0/174 | Preview tab, comments on lines, reply box tools on desktop, the panel's own edge, the place ⋯, gutter padding, head button pressed, re-captured reference |
+| task | | 0/150 | (checked after the reply-box change) |
+| crew.org | 4/112 | 2/112 | re-captured reference; left: crew.avatar#1 and the same x.button weight as stuff |
+| stuff | 3/118 | 1/118 | re-captured reference (rows read by an earlier view); x.button#11 fw 500 vs 400 left: a probe of the same box reads 400 |

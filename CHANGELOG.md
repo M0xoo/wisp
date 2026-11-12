@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Preview in a task's side panel.** Run the app from the task's folder (wisp guesses the command from the project) and see it there, with its logs, Restart, Stop and Open in browser.
+- **Comments on lines of a task's changes.** Point at a line, press +, say what should change: comments wait over the reply box and go with your next follow-up.
+- **Usage charts and the crew's track record.** Settings → Usage → Open usage shows spend or turns per day, by project and by harness · model, over 7, 30 or 90 days; Crew track record shows each member's jobs.
+- **Spare allowance on Home.** When a weekly window resets within a day with a fifth or more left, Home says so and offers that account.
+- **Cast a plugin.** Settings → Plugins: describe a change to wisp and an agent makes it as a plugin, installed off until you switch it on.
+
 - **Org.** The crew as a chart of who hands work to whom: select a member and pick their delegates in the chart (+ adds, ✓ takes off); the column beside it lists who they hand work to and get work from.
 - **Import crew members, and Make a pane.** Paste a shared member's .crew.json or a link, review who joins, add them paused; or describe a pane and an agent builds it, or start from one wisp ships.
 - **The working panel is back on a task:** who's working, for how long, the last steps, and Stop, which asks first and says what else stops.

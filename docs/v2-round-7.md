@@ -1007,3 +1007,36 @@ the v1-features sweep) were not started.
 
 Tests: kit settings `v1_settings_pieces_render_their_parts_and_the_flags_their_css_reads` (new), css-rules 12/12.
 typecheck clean; `npm run check` 0 errors.
+
+## Round 24 (2026-11-12)
+
+**1. Usage and Spells to 0.** settings.usage 14 → 0, settings.spells 6 → 0 (1440 light). Usage is v1's layout:
+Charts and breakdowns (Open usage: a Usage dialog with 7/30/90 days, the tiles, spend or turns per day, by project and
+by harness · model; `runtime.usage` gained `daily`, `projects`, `runners`, `priced`, `sessions`, additive, from
+`wisp_runtime_core::usage::breakdown`), Crew track record (wisp.crew's row and a `crew.record` view over `crew.stats`),
+Plan budget in v1's order with each harness's stop line and logo, Spare allowance and Window changes (Spare allowance is
+now on Home too: `budget.spareCard`, wisp.budget's `home.spare` cards through `shell.home:cards`, Use puts the harness
+in the prompt box), and Machine load (wisp.machine's group through `shell.settings:usageEnd`: Now, Memory floor, CPU
+ceiling, Runs at once). Spells is v2's Plugins with v1's Cast box, acting for real: describe a change, an agent gets a
+task (`runtime.create`, titled with your words) that makes a user plugin with `wisp plugin new` and installs it off.
+
+**2. task.changes 19 → 0.** The side panel's **Preview** (v1 run.js/runs.js): wisp.terminal's `run` kind
+(`terminal.run.info` with the port and a guessed command from `.wisp/worktree.json` or package.json, `terminal.run.start`
+with PORT set, `/sessions/:id/run` stream); the pane frames the first local address the app prints, with Logs,
+Restart, Stop, Open in browser; ended runs say how. **Comments on diff lines** (v1 comments.js): a + on the line under
+the pointer, a card under the line, marks in the gutter, a tray over the reply box (Send comments, ×), and the next
+follow-up carries them in v1's `<comments>` words (`PromptSourceDef.pending`, additive). Also: the reply box's tools
+stay on a desktop (they fold only on a phone), the panel draws its own left edge, the place row's ⋯ (copy path,
+branch), the diff gutter got its padding back (a `td { padding: 0 }` outranked it). task.changes' v1 reference was
+re-captured with the seed restored (its first row had been read by an earlier view).
+Left: v1's Open in editor / terminal app on the place ⋯ (`terminal.app.open` is declared, not served), the picker
+in Preview (v1's proxy), comments on answer text and images.
+
+**3–5 not started:** Settings panes at 390/900, Org drag/link, starters on Home, phone Crew job cards, the
+v1-features sweep.
+
+Tests: runtime-core `usage_breaks_down_by_day_project_and_harness_model_with_empty_days_kept`, terminal-core
+`preview_runs_the_worktree_run_else_the_dev_script_with_a_stable_port`, budget ui
+`spare_allowance_offers_a_long_window_resetting_within_a_day_with_a_fifth_left_v1_spare_js`, shell-task ui
+`comments_on_diff_lines_go_out_at_the_top_of_the_next_follow_up_in_v1_words`; kit css-rules 12/12. Clippy -D warnings on
+runtime-core/-api/runtime and terminal-core/-api/terminal.
