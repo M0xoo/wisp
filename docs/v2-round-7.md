@@ -1304,3 +1304,40 @@ Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, each touched tes
 serve_task a_task_added_to_the_crew_becomes_the_new_members_first_job`, clippy -D warnings on wisp-crew, parity
 projects (all widths and themes), task.right-click, task.more, settings.general and crew.add at 390, home and task at
 1440 and 390 (unchanged, 0 parts off).
+
+## Round 31 (2026-11-12)
+
+**The owner's decision.** Pin and Mark read stay in a task's menu, after every one of v1's entries (`model/menu.ts`,
+`menu.test.ts`), recorded in allowed.md §5 with an owner rule masking `list.menu` in task.right-click.
+
+**1. Run app / Stop app as v1.** wisp.terminal marks a task while its app runs: `ext["wisp.terminal"].run` (running,
+port) through `runtime.setExt` (its manifest now asks for `runtime:setExt`), set before the app starts (an app that
+exits at once can't leave it stale), cleared on Stop and when the app exits by itself. The row menu says Stop app while
+it's marked (and stops it); Run app opens the task's Preview and starts the app with its command (the worktree's `run`,
+else the package.json guess: v1's config.command), unless it's already running or failed there (v1 runApp). The menu
+leaves the request in `side/run-request.ts`; Preview takes it once `terminal.run.info` answered, open or not. Tests:
+`serve_terminal.rs` a_tasks_running_app_is_marked_on_its_row_until_it_stops_or_exits (stop, exit after a beat, exit at
+once), shell-task `run-request.test.ts`; clippy on wisp-terminal.
+
+**2. The open task's More as v1 (moreMenu).** In v1's order: on a phone Transcript, Rerun…, Open in <harness> first;
+then Rename, Copy task ID, Copy resume command (a new read-only `runtime.resumeCommand`: `cd <folder> && <the harness's
+resume argv>`, quoted, without the in-wisp note; `serve_task.rs` a_tasks_resume_command…, `term.rs` sh_quote test), Open
+project in editor (`editorUrl` now in @wisp/shell, shell-task re-exports it), Fork…, Compact, Lean runs, the row menu's
+plugin entries (Changes and Shell only where the bar doesn't have them, Ship it never: `bar.rowOnly`), Save for later,
+Keep worktree, Restore to before latest turn, Archive, Delete task. Kit menus are as tall as they are (up to the window)
+and slide to fit, covering their button if they must, as v1's More did. The mock seed gives finished tasks a
+conversation id. Left: Compare runs, Merge/Review PR and Watch entries (F-task-46); the Lean runs group (newer v1 than
+the reference) makes the menu taller than v1's there; kit menu rows are 1.5px shorter than v1's.
+
+**3. Re-captured v1 reference, no launcher.tryTwo.** `REF_RESTORE=1` on the four views that still had it
+(automations.trigger-new, me-menu, projects, task.right-click), from this repo's v1 (after #771), reason kept in
+index.json. What it shows now: projects needs v1 #772's `project.rows` part (added to the kit sheet's list); the home
+behind projects and the right-click shows its tips and Auto pick at other sizes than home's own reference (capture state:
+v1's code there didn't change after #771); automations.trigger-new's v2 opener finds nothing (⌘K "Triggers"), so that
+view isn't reached in v2; me-menu's parts (topbar.machines, …) were missing before.
+
+**4. v1-features.** F-page-29 built (Run app / Stop app); F-task-46 updated. Partial 137, missing 24.
+
+Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, each touched test file alone, the two serve tests and the
+runtime unit test, clippy -D warnings on wisp-terminal, wisp-runtime, wisp-runtime-api, runtime bindings regenerated
+(ResumeLine.ts), parity task.more, task.right-click, projects, me-menu, automations.trigger-new, home.mode-menu.

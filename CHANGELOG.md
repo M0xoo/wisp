@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Run app starts the app, and Stop app stops it.** From a task's menu: Run app opens its Preview and starts the app with its command; while it runs the menu says Stop app.
+- **The open task's More has everything again**: Rename, Copy task ID, Copy resume command (paste it in your own terminal to carry on the conversation), Open project in editor, Save for later, Restore to before latest turn, and what the right-click menu offers. Long menus fit the window.
 - **Everything v1's task menu had, on a right-click.** Rerun, Fork, Side discussion, Share, Ship it, Changes, Shell, Run app, Save as recipe (a new recipe editor, from the task), Add to crew (the task becomes the new member's first job), Set goal and the goal's other actions, and Keep worktree, with their keys. The menu slides to fit the window, and the open task's More has them too.
 - **See why Auto picked what it did.** Click Auto's pick in New task: its reasons, odds, cost and time, a model worth a try and others to run instead, *Never pick this model for this kind of task* (with Undo) and How Auto picks. It shows before you type, too.
 - **The desktop app runs wisp's own server.** The app starts the same `wisp` binary Homebrew and npm ship, no bundled Node, and stops it when you quit, however the app goes.

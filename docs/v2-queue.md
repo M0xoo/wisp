@@ -6,7 +6,11 @@ only changed `crates/wisp/src/serve.rs` (`stdin_closed`/`WISP_EXIT_WITH_STDIN`).
 `WISP_HOME=/tmp/x FAKE_HANG=1 wisp serve --port 0` never writes server.json and logs nothing, the same without
 `FAKE_HANG` starts in under a second. Find why boot depends on that env (a harness probe at start that waits on a
 hanging CLI would also break the cold-start budget: boot must never wait on a harness). Root cause + the test.
-The `tauri` linux-qa and `tauri windows` desktop/migrate/web jobs failed on cee52d53 too (v1 QA scripts): check they
+Then, from 5168dd55's run: `qa/desktop-v2.mjs` passes DESK2-02/03/04 on macOS but **DESK2-05 fails** (Quit doesn't
+stop the server: "waited 15 s for the server to stop"; Windows smoke too): Quit must stop `wisp serve` and close the
+port within the shutdown budget (find what keeps it alive: a plugin's scope, a child, the stdin reader). On Windows
+desktop/migrate, `hardKill` (desktop-v2.mjs:99) throws when `taskkill /F` finds the process already gone: treat
+"not found" as done. Earlier note: the `tauri` linux-qa and `tauri windows` desktop/migrate/web jobs failed on cee52d53 too (v1 QA scripts): check they
 pass with round 30's qa/desktop-v2.mjs on the next run.
 
 **Done in round 29: #756 CI red on f45efe67 (2026-11-12)** (see docs/v2-round-7.md Round 29).
@@ -18,6 +22,11 @@ pass with round 30's qa/desktop-v2.mjs on the next run.
 2. `tauri windows` build: `desktop/scripts/package.mjs:42` reads `pkg.files`, which v2's root package.json dropped
    (TypeError reading 'map'). macOS `tauri` passes. Make the Windows desktop build package the v2 binary the way the
    macOS one does (no `files` dependency), so both use one v2 path.
+
+**Round 31 (done):** Pin/Mark read after v1's entries (allowed.md §5); Run app / Stop app as v1 (the run mark on the
+row); the task's More in v1's order (runtime.resumeCommand); the four references re-captured without launcher.tryTwo.
+Next: automations.trigger-new's v2 opener, me-menu's missing parts, More's Compare/Merge/Review/Watch entries, then
+v1-features rows.
 
 **Round 30 (done):** v1's row menu (12 entries through `shell.row:menu`, crew.adopt), the kit ProjectsSheet (parity 0
 in the dialog), desktop QA on v2 on every OS (qa/desktop-v2.mjs in tauri, tauri-windows, tauri-package). Next: the open
