@@ -1,5 +1,15 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on d4ad3fe1 (2026-11-12).** `tauri windows` migrate: **DESK2-01** "setup.exe /S installs the app: a
+bundled Node is still there: v1 packaging". Installing v2 over a v1 install must remove v1's bundled Node and its
+other leftovers (the installer's upgrade step, NSIS), keeping the user's data in ~/.wisp. (DESK2-05 and hardKill were
+fixed in round 33; clippy items_after_test_module in term.rs too.)
+
+**Round 33 (done):** DESK2-05 (Quit hung on a kernel lock-order deadlock: fixed, test) and `hardKill`'s "not found";
+v1's trigger form to parity; Compare runs (F-comp-30) and Watch (F-page-32) with their menu entries. Next: the
+launcher's vs toggle and Plan row for Compare; Watch's tab opening by itself; the Harness runner picker in the trigger
+form; docs/v1-features.md partial and missing rows (132 partial, 23 missing), most-used first.
+
 **Done in round 32: #756 CI on cee52d53 (2026-11-12)** (boot no longer waits on a harness: docs/v2-round-7.md Round 32). `crates/wisp/tests/serve_cli.rs` `ctrl_c_detaches_and_a_second_ctrl_c_stops`
 fails: "wisp serve never advertised its port" with an empty serve.log. It passed on 497ec9cb; between the two, Rust
 only changed `crates/wisp/src/serve.rs` (`stdin_closed`/`WISP_EXIT_WITH_STDIN`). Repro on the lead's Mac:

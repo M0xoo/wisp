@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Compare runs.** `wisp --compare codex,opencode "…"` runs the same ask on each harness as one group; a run's menu then has Compare runs: the numbers side by side (time, cost, tokens, cache, steps, files, tests, questions asked), a plain sentence against run A, each run's answer, and Keep this (the other runs are archived and their worktrees deleted, after you confirm).
+- **Watch beside a task.** When an agent calls `wisp_watch`, its page (a progress page it draws, or the app it's running) shows in a Watch tab beside the task and updates as it works, with how to run the thing yourself under it. Watch is in the task's menus too.
+- **v1's trigger form is back.** Automations from ⌘K (Recipes, Triggers) opens as v1's dialog, and New trigger has the kind tiles, Send to, Project, When with its presets and what it understood, the GitHub, webhook and Slack fields, Run (a prompt or a recipe), Mode and Harness.
+
 - **⌘K Recipes and Triggers** open Automations on that tab, as before.
 - **Merge PR and Review PR in a task's menus**: Merge asks its confirm on the task's PR strip; Review opens the PR pane (P).
 - **Run app starts the app, and Stop app stops it.** From a task's menu: Run app opens its Preview and starts the app with its command; while it runs the menu says Stop app.
@@ -127,6 +131,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Quitting the desktop app stops wisp's server again** (on macOS and Windows it could stay up): a plugin switching off while the list was being read could lock the server's plugin registry.
 - Installing a plugin from `~/code/my-plugin` (as the box suggests) works: `~` is your home folder. The same for a project added as `~/…`.
 - The backdrop behind a dialog is as light in dark mode as in light mode, as before.
 

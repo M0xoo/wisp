@@ -1369,3 +1369,41 @@ compare view (F-comp-30) and no watch pane (F-page-32), so there's nothing for t
 
 Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, `origin-mark.test.ts`, `menu.test.ts`, the cargo tests
 above, parity automations.trigger-new at 1440 and 390.
+
+## Round 33 (2026-11-12)
+
+**DESK2-05: Quit left `wisp serve` running.** Root cause: a lock-order deadlock in the kernel. `life::plan` (a plugin
+switched off or on) holds the plugins mutex and then waits on `reg.write()`, while `kernel_api::contributions` held
+`reg.read()` and then locked the plugins: with a writer queued, std's RwLock blocks new readers, so the shutdown path
+(and anything reading contributions) hung. Process samples showed it: main in `set_enabled` on `reg.write`, workers on
+`reg.read`, one thread on the plugins mutex. `contributions()` now copies the items under the read lock, drops it, then
+maps owners. Test `crates/wisp-kernel/tests/kernel_contrib_lock.rs` (3 readers vs 200 off/on, 30 s watchdog): passes;
+the old code hangs. Seen: `qa/desktop-v2.mjs` DESK2-02..05 4/4 on this Mac with the QA shell. `hardKill`/`askQuit` go
+through `signal()`: a `taskkill`/`kill` that fails because the process is already gone is done, not an error.
+
+**v1's trigger form to parity.** ⌘K Recipes / Triggers open v1's Automations dialog (`automations.page`): lede, tabs
+with counts, lists, New trigger. The form (`AutomationsPage.tsx`, sans-IO `trigger-form.ts`) is v1's row for row and
+saves a `trigger` resource; Task marked done and Linear issue have no v2 source, so they show and say so. Kit:
+`Automations.tsx` + `app-automations.css`; `toCron`/`cronWords` moved to `@wisp/shell` (crew re-exports). Parity
+`automations.trigger-new`: metrics pass at 1440 and 900 (0/177 parts off, 0.2% px); 390/320 differ only by Harness
+(v1's runner picker button, v2 a select: the picker lives in shell-composer) and 320's select widths.
+
+**Compare runs (F-comp-30).** Runs of one ask share `ext["wisp.runtime"].group` (set by `wisp --compare`), carried
+on the row as `groupId` (`group.rs`); worktrees' done-cleanup now sees the group too. Compare runs in the row menu
+(order 86) opens `shell.compare`: kit `CompareRuns` (v1 ship.css values), `compare.ts` (rows, sentence; tests),
+live per-run topics, Keep this → confirm → archive the others, stop them, `worktrees.clean` their folders (force).
+Left: the launcher's vs toggle, v1's Plan row, the feed folding a compare into one task.
+
+**Watch (F-page-32).** `wisp_watch` had no owner in v2 (`watch.agent.apply`, never built). It's wisp.runtime's now
+(`runtime.agent.watch`): sans-IO `core/src/watch.rs` (v1 applyWatch, 3 tests), `host/src/watch.rs`, migration 4
+(`runtime_watch`, `runtime_watch_page`: a state never re-sends the page), the row's `watch` marker written in the same
+transaction (`persist_with`). UI: the Watch tab (`WatchPane.tsx`, `watch-doc.ts`), Watch in the row menu (order 84).
+Left: the activity line on open, the tab opening by itself when the agent opens a watch.
+
+**Also.** `term.rs`'s `sh_quote` sat after its test module (clippy `items_after_test_module`, committed): moved above.
+
+Checks: typecheck, `npm run check` (0 errors), vitest `trigger-form`, `compare`, `row-menu`, `watch-doc`, crew
+`editor`; cargo `wisp-runtime-core --lib watch` (3), `wisp-runtime --test watch`, `--lib group`,
+`wisp-kernel --test kernel_contrib_lock`; clippy -D warnings on runtime(+core, api), mcp-api, worktrees, kernel, wisp;
+parity automations.trigger-new at 1440/900/390/320 light and dark; Compare and Watch seen in Chrome (1440, 390, dark).
+
