@@ -311,7 +311,8 @@ impl Engine {
     pub async fn fire(&self, ctx: &Ctx, call: &Call, name: &str, payload: Option<Value>, summary: Option<String>, now: i64) -> Result<FireOut> {
         let mut t = self.find(ctx, name)?;
         t.spec.filters.clear();
-        t.spec.project.clear();
+        // the project it watches doesn't filter a hand-fired event, but it's still the folder the task runs in
+        let folder = std::mem::take(&mut t.spec.project);
         t.spec.branch.clear();
         t.spec.label.clear();
         t.spec.users = vec!["anyone".into()];
@@ -322,6 +323,7 @@ impl Engine {
         let _one = self.gate.lock().await;
         let mut st = self.load(name).await;
         let d = core::admit(name, &t.spec, &mut st, ev, &Self::world(&t, now));
+        t.spec.project = folder;
         let out = self.act(ctx, call, &t, &mut st, d, now).await;
         self.save(name, &st).await?;
         Ok(out)
@@ -483,6 +485,10 @@ async fn start(ctx: &Ctx, call: &Call, store: &Store, t: &Live, job: &Job) -> Re
     let made = match t.spec.target() {
         Target::Task(task) => crate::run_by(ctx, call, store, task, &cwd, &by).await?,
         Target::Prompt(_) => {
+            // never the server's own folder (v1 triggers.js: "Not a project folder: (none)")
+            if cwd.is_empty() {
+                return Err(WireError::invalid(format!("Not a project folder: (none). Trigger {} starts a task, so it needs spec.project, the folder it runs in", t.name)));
+            }
             let mut a = json!({ "prompt": text("{event.summary}"), "title": t.name, "lineage": { "triggeredBy": by }, "ext": { "wisp.automations": { "trigger": t.name, "event": first.key } } });
             for (k, v) in [("cwd", &cwd), ("agent", &t.spec.agent), ("model", &t.spec.model), ("mode", &t.spec.mode)] {
                 if !v.is_empty() {

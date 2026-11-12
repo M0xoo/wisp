@@ -350,10 +350,21 @@ impl Runtime {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         set.extend(launch.env.iter().map(|(k, v)| (k.clone(), fill(v))));
+        // never the server's own folder: a task with none (adopted from a share, made before
+        // `specs::folder`) runs in one empty folder of its own, the same each turn so a resume finds it
+        let cwd = if !launch.cwd.is_empty() {
+            launch.cwd.clone()
+        } else if !s.cwd.is_empty() {
+            s.cwd.clone()
+        } else {
+            let dir = std::env::temp_dir().join(format!("wisp-scratch-{}", s.id.0));
+            tokio::fs::create_dir_all(&dir)
+                .await
+                .map_err(|e| RuntimeError::Invalid(format!("couldn't make a folder for the task: {e}")))?;
+            dir.to_string_lossy().into_owned()
+        };
         let opts = SpawnOpts {
-            cwd: (!launch.cwd.is_empty())
-                .then(|| launch.cwd.clone().into())
-                .or_else(|| (!s.cwd.is_empty()).then(|| s.cwd.clone().into())),
+            cwd: Some(cwd.into()),
             env: Env {
                 clear: false,
                 set,

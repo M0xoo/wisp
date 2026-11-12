@@ -319,6 +319,63 @@ async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
     drop(serve);
 }
 
+/// The folder each recorded claude run ran in.
+fn run_dirs(rec: &Path) -> Vec<String> {
+    std::fs::read_to_string(rec.join("claude.jsonl"))
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .filter(|v| v["argv"].as_array().is_some_and(|a| a.iter().any(|x| x == "-p")))
+        .filter_map(|v| v["cwd"].as_str().map(str::to_owned))
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_task_never_runs_in_the_servers_own_folder() {
+    let dir = temp("serve-kinds-folder");
+    let (proj, rec) = (dir.join("proj"), dir.join("rec"));
+    let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap())]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let here = std::env::current_dir().unwrap();
+    // a folder that isn't there: refused at once, with what to do (v1 launch.js "Not a directory")
+    let gone = dir.join("gone");
+    let r = api.try_cmd("runtime.create", json!({ "prompt": "fix it", "cwd": gone })).await;
+    assert_eq!(r["ok"], false, "no task in a missing folder: {r}");
+    assert!(r.to_string().contains("Not a project folder"), "{r}");
+    assert!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().is_empty());
+    // none at all: an empty folder of its own under ~/.wisp/scratch (v1 store.scratchDir), not the server's
+    let id = api.cmd("runtime.create", json!({ "prompt": "what's a monad?" })).await["id"].as_str().unwrap().to_owned();
+    finished(&api, &id).await;
+    let ran = run_dirs(&rec);
+    assert_eq!(ran.len(), 1, "{ran:?}");
+    let scratch = std::fs::canonicalize(dir.join("home/scratch")).unwrap();
+    assert!(Path::new(&ran[0]).starts_with(&scratch), "ran in {} (the server's is {})", ran[0], here.display());
+    assert!(api.cmd("runtime.spec", json!({ "id": id })).await["cwd"].as_str().unwrap_or_default().is_empty(), "the spec keeps no folder: a rerun gets a fresh one");
+    // a trigger with no project starts nothing (v1 triggers.js "Not a project folder: (none)")
+    api.cmd("settings.set", json!({ "key": "automations.webhookTriggers", "value": true })).await;
+    apply(&api, json!([
+        { "kind": "trigger", "name": "loose", "spec": { "on": "webhook", "secret": "s3cret-loose-value", "prompt": "Deploy it" } },
+        { "kind": "trigger", "name": "nightly", "spec": { "on": "schedule", "cron": "0 3 * * *", "prompt": "Tidy the docs", "project": proj } }
+    ]))
+    .await;
+    let r = api.http.post(format!("http://127.0.0.1:{port}/api/triggers/loose")).header("content-type", "application/json").header("x-wisp-secret", "s3cret-loose-value").body("{}").send().await.unwrap();
+    let body: Value = serde_json::from_str(&r.text().await.unwrap()).unwrap_or_default();
+    assert!(body["id"].is_null(), "started a task with no folder: {body}");
+    assert!(body["why"].as_str().unwrap_or_default().contains("Not a project folder"), "{body}");
+    // fired by hand: its project doesn't filter the event, but it's still where the task runs
+    let out = api.cmd("automations.trigger.fire", json!({ "name": "nightly" })).await;
+    let id = out["session"].as_str().unwrap_or_else(|| panic!("fired nothing: {out}")).to_owned();
+    finished(&api, &id).await;
+    let ran = run_dirs(&rec);
+    assert_eq!(ran.len(), 2, "{ran:?}");
+    assert_eq!(Path::new(&ran[1]), std::fs::canonicalize(&proj).unwrap(), "a hand-fired trigger runs in its project");
+    // and no harness's detect probe left a file in the server's folder
+    for f in ["math.js", "notes.txt"] {
+        assert!(!here.join(f).exists(), "{f} in the server's folder {}", here.display());
+    }
+    drop(serve);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_harness_from_brew_is_installed_when_it_isnt_there() {
     let dir = temp("serve-kinds-brew");

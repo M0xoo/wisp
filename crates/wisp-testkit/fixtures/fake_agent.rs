@@ -16,6 +16,16 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
+/// A run: it was given a prompt. A harness's detect probe (`models`, `--help`, `auth list`) has none, runs in
+/// the server's folder, and must never edit a file there (it left math.js and notes.txt in crates/wisp).
+static RUN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn edit(path: &Path, text: &str) {
+    if RUN.load(std::sync::atomic::Ordering::Relaxed) {
+        let _ = std::fs::write(path, text);
+    }
+}
+
 fn out(v: &Value) {
     println!("{v}");
     let _ = std::io::stdout().flush();
@@ -157,7 +167,7 @@ fn claude(prompt: &str, target: &Path, before: &str, after: &str) {
     );
     // as a real Edit: no change, no write
     if after != before {
-        let _ = std::fs::write(target, after);
+        edit(target, after);
     }
     out(
         &json!({ "type": "result", "subtype": "success", "is_error": false, "result": final_text("claude", prompt), "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01, "usage": { "input_tokens": 10, "output_tokens": 5 } }),
@@ -176,9 +186,9 @@ fn codex(prompt: &str, target: &Path, after: &str) {
     out(
         &json!({ "type": "item.completed", "item": { "id": "i0", "type": "command_execution", "command": "npm test", "exit_code": 1, "aggregated_output": "1 failing", "status": "failed" } }),
     );
-    let _ = std::fs::write(target, after);
+    edit(target, after);
     let cwd = target.parent().unwrap_or(Path::new("."));
-    let _ = std::fs::write(cwd.join("notes.txt"), "new file\n");
+    edit(&cwd.join("notes.txt"), "new file\n");
     out(
         &json!({ "type": "item.completed", "item": { "id": "i1", "type": "file_change", "changes": [{ "path": target, "kind": "update" }, { "path": "notes.txt", "kind": "add" }], "status": "completed" } }),
     );
@@ -215,8 +225,8 @@ fn fill(v: &mut Value, cwd: &str, answer: &str) {
 
 fn replay_turn(name: &str, stream: &str, prompt: &str, target: &Path, after: &str) {
     let cwd = target.parent().unwrap_or(Path::new("."));
-    let _ = std::fs::write(target, after);
-    let _ = std::fs::write(cwd.join("notes.txt"), "new file\n");
+    edit(target, after);
+    edit(&cwd.join("notes.txt"), "new file\n");
     let short = name.split('-').next().unwrap_or(name);
     let answer = final_text(short, prompt);
     for (i, line) in stream.lines().enumerate() {
@@ -251,6 +261,7 @@ fn main() {
         prompt = std::fs::read_to_string(argv.get(i + 1).map_or("", String::as_str)).unwrap_or_default();
     }
     record(&name, &argv, &prompt);
+    RUN.store(!prompt.trim().is_empty(), std::sync::atomic::Ordering::Relaxed);
     // only a run (it has a prompt) hits it: a harness's detect probe (`opencode models`, `auth list`) that
     // lands late must not use the limit up (serve_kinds' best-of-n flaked on that under CI load)
     if let Some(f) = env("FAKE_LIMIT_ONCE")
@@ -278,7 +289,7 @@ fn main() {
         "codex" => codex(&prompt, &target, &after),
         n if recorded(n).is_some() => replay_turn(n, recorded(n).unwrap_or_default(), &prompt, &target, &after),
         _ => {
-            let _ = std::fs::write(&target, &after);
+            edit(&target, &after);
             println!("{}", final_text(&name, &prompt));
         }
     }

@@ -301,6 +301,22 @@ async fn defaults(a: &mut StartArgs, kinds: Option<&crate::kinds::Kinds>) {
     }
 }
 
+/// Where a task runs, never the server's own folder (v1 `launch.js`): a folder that isn't there is refused,
+/// and a task with none gets an empty one of its own under `~/.wisp/scratch` (v1 `store.scratchDir`).
+pub async fn folder(home: Option<&std::path::Path>, a: &mut StartArgs) -> Result<()> {
+    let cwd = a.cwd.clone().unwrap_or_default();
+    if cwd.trim().is_empty() {
+        let dir = home.map_or_else(std::env::temp_dir, std::path::Path::to_path_buf).join("scratch").join(wisp_kernel::ids::uuid7());
+        tokio::fs::create_dir_all(&dir).await.map_err(|e| WireError::internal(format!("couldn't make a scratch folder at {}: {e}", dir.display())))?;
+        a.cwd = Some(dir.display().to_string());
+        return Ok(());
+    }
+    if !tokio::fs::metadata(&cwd).await.is_ok_and(|m| m.is_dir()) {
+        return Err(WireError::invalid(format!("Not a project folder: {cwd} (it isn't on this computer; pick a project that is)")));
+    }
+    Ok(())
+}
+
 pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>, kinds: Option<&crate::kinds::Kinds>, mut a: StartArgs) -> Result<Prepared> {
     defaults(&mut a, kinds).await;
     let asked = a.agent.clone().unwrap_or_default();
@@ -308,6 +324,8 @@ pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>,
     // flags > the spec's own fields > the formula's profile, so a rerun under another formula re-resolves)
     let (asked_model, asked_effort, asked_mode) = (a.model.clone().unwrap_or_default(), a.effort.clone().unwrap_or_default(), a.mode);
     let project = a.cwd.clone().unwrap_or_default();
+    // the spec keeps "no folder", so a rerun gets a fresh scratch folder of its own
+    folder(home, &mut a).await?;
     let resolved = resolve(store, &mut a, &asked).await?;
     let brief = act(kinds, &mut a, resolved.as_ref().map(|(_, p)| p)).await?;
     // the code it starts from
