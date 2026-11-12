@@ -42,6 +42,11 @@ export function desktopPlatform(w: PlatformWindow): Platform {
         return base.badge(count);
       }
     },
+    // desktop/src-tauri main.rs pick_folder: the native dialog (NSOpenPanel on a Mac)
+    async pickFolder() {
+      const dir = await invoke('pick_folder').catch(() => null);
+      return typeof dir === 'string' && dir ? dir : null;
+    },
     openExternal(url) {
       invoke('plugin:opener|open_url', { url }).catch(() => base.openExternal(url));
     },

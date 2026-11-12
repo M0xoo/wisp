@@ -5,6 +5,7 @@
 // `shell` plugin in builtins.tsx.
 
 import { render } from 'solid-js/web';
+import type { JSX } from 'solid-js';
 import { computed, effect, signal, untracked, type Client, type PeerId, type PluginClient, type Readable } from '@wisp/client';
 import { BLOCK_STRINGS, KitProvider, KIT_STRINGS, type KitString, type Toaster } from '@wisp/ui';
 import type { PluginUiDef, PromptBox, SettingsPaneDef, ShellApi, ShellContext } from './contract.ts';
@@ -80,6 +81,7 @@ export function createShell(o: ShellOptions): Shell {
   const selected = signal<string | undefined>(undefined);
   const focusTargets = new Map<string, () => void>();
   const prompts = new Map<string, PromptBox>();
+  const taskCard = signal<((key: string) => JSX.Element) | undefined>(undefined);
   const recent = signal<readonly string[]>([]);
   const nav = client.nav.nav;
   const openTask = computed(() => {
@@ -114,6 +116,15 @@ export function createShell(o: ShellOptions): Shell {
         };
       },
       get: (name) => prompts.get(name),
+    },
+    taskCards: {
+      provide(render) {
+        taskCard(render);
+        return () => {
+          if (untracked(taskCard) === render) taskCard(undefined);
+        };
+      },
+      render: taskCard,
     },
     focusTargets: {
       provide(name, focus) {

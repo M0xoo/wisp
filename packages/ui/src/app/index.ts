@@ -35,6 +35,7 @@ export {
   type TurnViewProps,
 } from './Task.tsx';
 export { WithAct, ActIcon, type Act } from './act.tsx';
+export { HomePanes, PaneOff, PaneRow, PaneRows, PaneView, type HomePanesProps, type PaneRowProps, type PaneViewProps } from './Panes.tsx';
 export { ChangesList, firstLine, hunkKey, hunkRuns, rowKey, type ChangeFile, type ChangeRow, type ChangesLabels, type ChangesListProps, type StageState } from './Changes.tsx';
 export { PaletteSheet, paletteRowId, type PaletteRow, type PaletteSheetProps } from './Palette.tsx';
 export { StuffFrame, type StuffFrameProps } from './StuffFrame.tsx';

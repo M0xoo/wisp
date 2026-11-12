@@ -84,6 +84,12 @@
   [data-kit='cr-org'][data-on] { background: var(--accent-soft); color: var(--accent-ink); }
   [data-kit='cr-org'] > [data-kit='icon'] { width: 13px; height: 13px; }
   [data-kit='cr-list'] { display: flex; flex-direction: column; gap: 2px; }
+  /* v1 .cr-member: the row, its jobs for other tasks as list cards 18px in, and "N more · open Ada" */
+  [data-kit='cr-member'] { display: flex; flex-direction: column; }
+  [data-kit='cr-jobs'] { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 6px; padding-left: 18px; }
+  [data-kit='cr-jobs']:empty { display: none; }
+  [data-kit='cr-more'] { align-self: flex-start; margin: 0 0 6px 26px; padding: 0; border: 0; background: none; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--accent-ink); cursor: pointer; }
+  [data-kit='cr-more']:hover { text-decoration: underline; text-underline-offset: 3px; }
   [data-kit='cr-row'] {
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; width: 100%; padding: 6px 12px 6px 8px;
     border: 1px solid transparent; border-radius: var(--radius); text-align: left; cursor: pointer;
@@ -103,4 +109,22 @@
   [data-kit='cr-n'] { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; font-size: 11.5px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); }
   [data-kit='cr-row'][data-empty] { padding-left: 10px; column-gap: 8px; color: var(--muted); border: 1px dashed var(--line-2); }
   [data-kit='cr-row'][data-empty] b { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+
+  /* v1 org.js: placed by hand, each card at its spot; a card dragged follows the pointer; a link drawn from a card's
+     handle onto another */
+  [data-kit='org-graph'][data-free] { max-width: none; }
+  [data-kit='org-free'] { position: relative; display: block; width: 100%; }
+  [data-kit='org-free'] > [data-kit='org-card'] { position: absolute; }
+  [data-kit='org-card'][data-lifted] { z-index: 2; border-color: var(--line-2); box-shadow: var(--shadow-2); }
+  [data-kit='org-view'][data-moving], [data-kit='org-view'][data-moving] [data-kit='org-card'] { cursor: grabbing; }
+  @media (pointer: coarse) { [data-kit='org-card'][data-sel] { touch-action: none; } }
+  [data-kit='org-card'][data-drop='ok'] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-1); }
+  [data-kit='org-card'][data-drop='no'] { opacity: 0.6; }
+  [data-kit='org-port'] { position: absolute; left: 50%; bottom: -6px; width: 11px; height: 11px; margin-left: -0.34375rem; border-radius: 50%; border: var(--size-hairline) solid var(--line-2); background: var(--surface); cursor: crosshair; touch-action: none; opacity: 0; transition: opacity var(--dur-base); }
+  [data-kit='org-port']::before { content: ''; position: absolute; inset: -7px; }
+  [data-kit='org-card']:hover > [data-kit='org-port'], [data-kit='org-card'][data-sel] > [data-kit='org-port'], [data-kit='org-view'][data-dragging] [data-kit='org-port'] { opacity: 1; }
+  [data-kit='org-port']:hover { border-color: var(--accent); background: var(--accent-soft); }
+  @media (pointer: coarse) { [data-kit='org-port'] { display: none; } }
+  [data-kit='org-view'][data-dragging], [data-kit='org-view'][data-dragging] [data-kit='org-card'] { cursor: crosshair; }
+  [data-kit='org-temp'] { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
 }

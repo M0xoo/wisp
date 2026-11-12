@@ -4,6 +4,7 @@ export { Field, useField, type FieldProps, type FieldState } from './Field.tsx';
 export { Input, TextArea, type InputProps, type TextAreaProps, type FieldSize } from './Input.tsx';
 export { Select, type SelectProps, type SelectOption } from './Select.tsx';
 export { Combobox, type ComboboxProps } from './Combobox.tsx';
+export { PathField, type PathFieldProps } from './PathField.tsx';
 export { Switch, Checkbox, type SwitchProps, type CheckboxProps } from './Switch.tsx';
 export { RadioGroup, type RadioGroupProps, type RadioOption } from './RadioGroup.tsx';
 export { Popover, type PopoverProps } from './Popover.tsx';

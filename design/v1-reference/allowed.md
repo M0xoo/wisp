@@ -62,6 +62,18 @@ shift every later index. Everything outside the part still has to match.
   are one selector with a ⌘P switcher (search, ↑↓ Enter, colour dots, need-you counts, ⌘0–⌘9).
 - **Take over is Open in <harness>** (the owner, 2026-11-09, ADR-0033 "Name"): the task's details say "Open in Claude
   Code" where v1 said "Take over" (`details.openIn`).
+- **Settings-row titles never wrap** (the owner, 2026-11-12, round 26; ADR-0012, `design/layout.md` §1: settings-row
+  labels are control text): at 390 v1 put Privacy's "Ask before a repo’s hooks, servers and setup run" on two lines;
+  v2 keeps it on one, reworded to "Ask before a repo’s hooks and setup run" so nothing is cut. The row is 20 px
+  shorter, so the row under it (Hide .env values) sits 20 px higher: both are masked at 390 only. Every other width
+  is checked as before.
+- **Install, not Review** (the owner, 2026-11-12, round 26): Settings → Plugins' box installs at once, switched off,
+  and shows what the plugin asks for before you switch it on; v1's Review read a spell first. The shorter word makes
+  the box beside it wider (`settings.spells`' one generic input).
+- **Folder…, not File…** (the owner, 2026-11-12, round 26): a v2 plugin is a folder, so v1's File… (a spell's JSON) is
+  a folder picker: the desktop app's own dialog, in a browser the box with the server's folder suggestions. Its
+  label is longer, and the foot's "Turn every plugin off" says plugin (ADR-0031). Not masked: at 390
+  `settings.spells` keeps those two buttons' widths (and a sub-pixel the box above leaves) as its known parts off.
 
 ## 6. Known, not allowed: the list rows' glyph phase (the coder, round 25, 2026-11-12)
 
@@ -76,7 +88,7 @@ the next step is a Chrome paint trace of one row on each side. Fixed on the way:
 
 ## Rules (read by `qa/parity.mjs`)
 
-One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is §2, `fold` is §4
+One rule a line: `<view glob> <part glob> <kind> [widths]` (widths: `390` or `320,390`; none means every width). `wrap` is §1, `pending` is §2, `fold` is §4
 (320 px only), `owner` is §5. Nothing else is accepted: a rule of another kind fails the run.
 
 ```rules
@@ -98,4 +110,7 @@ One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is �
 *   topbar             fold
 *   topbar.projects    owner
 task*  details.openIn  owner
+settings.privacy  settings.projectAsk  owner  390
+settings.privacy  settings.maskEnvFiles  owner  390
+settings.spells  x.input  owner  900,1440
 ```

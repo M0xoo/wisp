@@ -48,6 +48,49 @@ export interface OrgViewProps {
   readonly onPick: (id: string) => void;
   /** the column beside the chart (under it on a narrow pane) */
   readonly side: JSX.Element;
+  /** where you put each member, x from the chart's middle and y from its top (v1 /crew-layout); with none placed, the
+   *  tiers lay themselves out. Members not placed yet go in rows under the rest. */
+  readonly layout?: Readonly<Record<string, Spot>> | undefined;
+  /** a card dragged to a new spot (with a mouse from anywhere on it, on touch once it's selected): every card's spot */
+  readonly onMove?: ((layout: Record<string, Spot>) => void) | undefined;
+  /** a link drawn from a card's handle onto another card */
+  readonly onLink?: ((from: string, to: string) => void) | undefined;
+  /** the handle's name (a screen reader's, and its tip) */
+  readonly handleLabel?: ((name: string) => string) | undefined;
+}
+
+export interface Spot {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** The free chart's gaps (v1 org.js GAP and the row step). */
+const FREE_GAP = 18;
+const FREE_ROW = 22;
+
+/** Where each card sits in the free chart (v1 placeFree): placed ones at their spot, the rest in rows under them,
+ *  centred; nothing cut off on the left (the shift holds while the width does). Pure: sizes in, left/top out. */
+export function placeFree(
+  ids: readonly string[],
+  layout: Readonly<Record<string, Spot>>,
+  o: { w: number; cw: number; ch: number; shift?: number },
+): { at: Map<string, { left: number; top: number }>; shift: number; height: number; minWidth: number } {
+  const spot = new Map<string, Spot>(ids.filter((id) => layout[id]).map((id) => [id, layout[id] as Spot]));
+  const rest = ids.filter((id) => !spot.has(id));
+  if (rest.length) {
+    const y0 = spot.size ? Math.max(...[...spot.values()].map((p) => p.y)) + o.ch + 40 : 0;
+    const per = Math.max(1, Math.floor((o.w + FREE_GAP) / (o.cw + FREE_GAP)));
+    rest.forEach((id, i) => {
+      const n = Math.min(per, rest.length - Math.floor(i / per) * per);
+      spot.set(id, { x: -(n * o.cw + (n - 1) * FREE_GAP) / 2 + (i % per) * (o.cw + FREE_GAP), y: y0 + Math.floor(i / per) * (o.ch + FREE_ROW) });
+    });
+  }
+  const xs = [...spot.values()].map((p) => p.x);
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs) + o.cw;
+  const shift = Math.max(o.shift ?? o.w / 2, -lo);
+  const at = new Map([...spot].map(([id, p]) => [id, { left: Math.round(p.x + shift), top: Math.round(p.y) }]));
+  return { at, shift, height: Math.max(...[...spot.values()].map((p) => p.y)) + o.ch, minWidth: hi + shift > o.w ? hi + shift : 0 };
 }
 
 interface Box {
@@ -74,7 +117,7 @@ export function edgePath(a: Box, b: Box): string {
   return `M${sx} ${ay}C${sx + dx} ${ay} ${ex - dx} ${by} ${ex} ${by}`;
 }
 
-function Card(props: { readonly c: OrgCard; readonly p: OrgViewProps }): JSX.Element {
+function Card(props: { readonly c: OrgCard; readonly p: OrgViewProps; readonly over?: boolean; readonly lifted?: boolean }): JSX.Element {
   const sel = (): boolean => props.p.selected === props.c.id;
   const how = (): 'add' | 'remove' | undefined => (props.p.selected && !sel() ? props.p.pick?.(props.c.id) : undefined);
   return (
@@ -85,6 +128,8 @@ function Card(props: { readonly c: OrgCard; readonly p: OrgViewProps }): JSX.Ele
       data-sel={flag(sel())}
       data-dim={flag(!!props.p.selected && !sel())}
       data-picked={flag(how() === 'remove')}
+      data-drop={props.over ? ((props.p.edges.some((x) => x.to === props.c.id && x.from === props.p.selected) ? 'no' : 'ok') as string) : undefined}
+      data-lifted={flag(props.lifted)}
       role="button"
       tabIndex={0}
       aria-pressed={sel()}
@@ -105,6 +150,9 @@ function Card(props: { readonly c: OrgCard; readonly p: OrgViewProps }): JSX.Ele
           {props.c.state.text}
         </span>
       </div>
+      <Show when={props.p.onLink}>
+        <span data-kit="org-port" role="presentation" title={props.p.handleLabel?.(props.c.name)} data-from={props.c.id} />
+      </Show>
       <Show when={how()}>
         {(h) => (
           <button
@@ -125,41 +173,181 @@ function Card(props: { readonly c: OrgCard; readonly p: OrgViewProps }): JSX.Ele
   );
 }
 
-// size-ok: one view, its parts share the measured boxes
+// size-ok: one view, its parts share the measured boxes and the pointer's drags
 export function OrgView(props: OrgViewProps): JSX.Element {
   const [paths, setPaths] = createSignal<{ d: string; e: OrgEdge }[]>([]);
   const [size, setSize] = createSignal({ w: 0, h: 0 });
+  // a link being drawn from a card's handle (graph coordinates), the card it's over; a card being moved
+  const [temp, setTemp] = createSignal<{ x0: number; y0: number; x: number; y: number } | undefined>();
+  const [over, setOver] = createSignal<string | undefined>();
+  const [moving, setMoving] = createSignal<string | undefined>();
+  // the spots while a drag holds them (the tiers pinned where they sat, then the card moved), until the owner's arrive
+  const [held, setHeld] = createSignal<Readonly<Record<string, Spot>> | undefined>();
+  createEffect(() => {
+    void props.layout;
+    setHeld(undefined);
+  });
+  const cards = (): OrgCard[] => [...props.tiers.flat(), ...props.alone];
+  const spots = (): Readonly<Record<string, Spot>> => held() ?? props.layout ?? {};
+  const free = (): boolean => cards().some((c) => spots()[c.id]);
   let graphEl: HTMLDivElement | undefined;
+  let freeEl: HTMLDivElement | undefined;
+  let shift: { w: number; at: number } | undefined;
+  const cardEls = (): HTMLElement[] => [...(graphEl?.querySelectorAll<HTMLElement>('[data-kit="org-card"]') ?? [])];
+  const place = (): void => {
+    const box = freeEl;
+    if (!box || !graphEl) return;
+    const els = [...box.querySelectorAll<HTMLElement>(':scope > [data-kit="org-card"]')];
+    const first = els[0];
+    if (!first) return;
+    const w = graphEl.clientWidth;
+    const out = placeFree(
+      els.map((e) => e.dataset['m'] ?? ''),
+      spots(),
+      { w, cw: first.offsetWidth, ch: first.offsetHeight, ...(shift && shift.w === w && { shift: shift.at }) },
+    );
+    shift = { w, at: out.shift };
+    for (const e of els) {
+      const at = out.at.get(e.dataset['m'] ?? '');
+      if (!at || e.dataset['m'] === moving()) continue;
+      e.style.setProperty('left', `${at.left}px`);
+      e.style.setProperty('top', `${at.top}px`);
+    }
+    box.style.setProperty('height', `${out.height}px`);
+    box.style.setProperty('min-width', out.minWidth ? `${out.minWidth}px` : '');
+  };
   const measure = (): void => {
     const g = graphEl;
     if (!g) return;
+    if (free()) place();
     const box = g.getBoundingClientRect();
     const at = new Map<string, Box>();
-    for (const c of g.querySelectorAll<HTMLElement>('[data-kit="org-card"]')) {
+    for (const c of cardEls()) {
       const r = c.getBoundingClientRect();
       const left = r.left - box.left;
       const right = r.right - box.left;
       at.set(c.dataset['m'] ?? '', { x: (left + right) / 2, left, right, top: r.top - box.top, bottom: r.bottom - box.top });
     }
     setSize({ w: box.width, h: box.height });
-    setPaths(props.edges.flatMap((e) => {
-      const a = at.get(e.from);
-      const b = at.get(e.to);
-      return a && b ? [{ d: edgePath(a, b), e }] : [];
-    }));
+    setPaths(
+      props.edges.flatMap((e) => {
+        const a = at.get(e.from);
+        const b = at.get(e.to);
+        return a && b ? [{ d: edgePath(a, b), e }] : [];
+      }),
+    );
   };
   const ro = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => measure());
   onCleanup(() => ro?.disconnect());
-  // the arrows follow the graph: a link made or taken off, a member added, the selection
+  // the arrows follow the graph: a link made or taken off, a member added, the selection, a spot
   createEffect(() => {
     void props.edges;
     void props.tiers;
     void props.alone;
     void props.selected;
+    void spots();
     requestAnimationFrame(measure);
   });
+  // Every card as it sits now, as spots (x from the middle): what a move saves (v1 where()).
+  const where = (moved?: { id: string; left: number; top: number }): Record<string, Spot> => {
+    const out: Record<string, Spot> = {};
+    const g = graphEl?.getBoundingClientRect();
+    const f = freeEl?.getBoundingClientRect() ?? g;
+    if (!g || !f) return out;
+    const mid = shift?.at ?? g.width / 2;
+    for (const c of cardEls()) {
+      const id = c.dataset['m'] ?? '';
+      const r = c.getBoundingClientRect();
+      const left = moved?.id === id ? moved.left : r.left - f.left;
+      const top = moved?.id === id ? moved.top : r.top - f.top;
+      out[id] = { x: Math.round(left - (freeEl ? mid : g.width / 2)), y: Math.round(top) };
+    }
+    return out;
+  };
+  // A card dragged to a new spot: it follows the pointer, arrows and all, and is saved on release (Escape-free: a
+  // cancelled pointer puts it back).
+  const onCardDown = (e: PointerEvent): void => {
+    const card = (e.target as Element).closest<HTMLElement>('[data-kit="org-card"]');
+    if (!card || e.button !== 0 || !props.onMove || (e.target as Element).closest('button, [data-kit="org-port"]')) return;
+    const id = card.dataset['m'] ?? '';
+    if (e.pointerType === 'touch' && props.selected !== id) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let m: { el: HTMLElement; l0: number; t0: number; left: number; top: number; room: number } | undefined;
+    const go = (ev: PointerEvent): void => {
+      if (!m) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+        if (!free()) setHeld(where()); // the tiers pinned where they sit, into the free chart
+        measure();
+        const el = graphEl?.querySelector<HTMLElement>(`[data-kit="org-card"][data-m="${CSS.escape(id)}"]`);
+        if (!el) return;
+        const left = parseFloat(el.style.left) || 0;
+        const top = parseFloat(el.style.top) || 0;
+        m = { el, l0: left, t0: top, left, top, room: Math.max(left, (graphEl?.clientWidth ?? 0) - el.offsetWidth) };
+        setMoving(id);
+        getSelection()?.removeAllRanges();
+      }
+      ev.preventDefault();
+      // kept inside the chart's width: it grows downwards, not sideways
+      m.left = Math.max(0, Math.min(m.l0 + ev.clientX - x0, m.room));
+      m.top = Math.max(0, m.t0 + ev.clientY - y0);
+      m.el.style.setProperty('left', `${m.left}px`);
+      m.el.style.setProperty('top', `${m.top}px`);
+      requestAnimationFrame(measure);
+    };
+    const end = (ev: PointerEvent): void => {
+      removeEventListener('pointermove', go);
+      removeEventListener('pointerup', end);
+      removeEventListener('pointercancel', end);
+      if (!m) return;
+      const done = m;
+      setMoving(undefined);
+      // the click a drag ends with doesn't select the card
+      card.addEventListener('click', (c) => c.stopPropagation(), { capture: true, once: true });
+      if (ev.type === 'pointerup') {
+        const next = where({ id, left: done.left, top: done.top });
+        setHeld(next);
+        props.onMove?.(next);
+      } else setHeld(undefined);
+    };
+    addEventListener('pointermove', go, { passive: false });
+    addEventListener('pointerup', end);
+    addEventListener('pointercancel', end);
+  };
+  // Drag from a card's handle onto another card: a link, drawn as it goes.
+  const onDown = (e: PointerEvent): void => {
+    const port = (e.target as Element).closest<HTMLElement>('[data-kit="org-port"]');
+    if (!port) return onCardDown(e);
+    if (e.button !== 0 || !props.onLink || !graphEl) return;
+    const from = port.dataset['from'] ?? '';
+    e.preventDefault();
+    const g = graphEl.getBoundingClientRect();
+    const r = port.getBoundingClientRect();
+    const x0 = r.left + r.width / 2 - g.left;
+    const y0 = r.top + r.height / 2 - g.top;
+    setTemp({ x0, y0, x: e.clientX - g.left, y: e.clientY - g.top });
+    port.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent): void => {
+      const gg = graphEl?.getBoundingClientRect() ?? g;
+      setTemp({ x0, y0, x: ev.clientX - gg.left, y: ev.clientY - gg.top });
+      const card = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('[data-kit="org-card"]');
+      const to = card?.dataset['m'];
+      setOver(to && to !== from ? to : undefined);
+    };
+    const up = (): void => {
+      port.removeEventListener('pointermove', move);
+      const to = over();
+      setTemp(undefined);
+      setOver(undefined);
+      if (to) props.onLink?.(from, to);
+    };
+    port.addEventListener('pointermove', move);
+    port.addEventListener('pointerup', up, { once: true });
+    port.addEventListener('pointercancel', () => (port.removeEventListener('pointermove', move), setTemp(undefined), setOver(undefined)), { once: true });
+  };
+  const cardOf = (c: OrgCard): JSX.Element => <Card c={c} p={props} over={over() === c.id} lifted={moving() === c.id} />;
   return (
-    <section data-kit="org-view" data-part="org.page" data-sel={flag(!!props.selected)}>
+    <section data-kit="org-view" data-part="org.page" data-sel={flag(!!props.selected)} data-dragging={flag(!!temp())} data-moving={flag(!!moving())}>
       <header data-kit="sf-top" data-part="org.head">
         <span data-kit="org-ic">
           <Icon name="org" />
@@ -198,6 +386,8 @@ export function OrgView(props: OrgViewProps): JSX.Element {
           </Show>
           <div
             data-kit="org-graph"
+            data-free={flag(free())}
+            onPointerDown={onDown}
             ref={(el) => {
               graphEl = el;
               ro?.observe(el);
@@ -221,24 +411,34 @@ export function OrgView(props: OrgViewProps): JSX.Element {
                   </g>
                 )}
               </For>
+              <Show when={temp()}>{(l) => <path data-kit="org-temp" d={`M${l().x0} ${l().y0}L${l().x} ${l().y}`} />}</Show>
             </svg>
-            <div data-kit="org-tiers">
-              <For each={props.tiers}>
-                {(tier) => (
-                  <div data-kit="org-tier" data-layout="wrap">
-                    <For each={tier}>{(c) => <Card c={c} p={props} />}</For>
-                  </div>
-                )}
-              </For>
-              <Show when={props.alone.length > 0}>
-                <div data-kit="org-alone" data-part="org.alone">
-                  <h5>{props.aloneLabel}</h5>
-                  <div data-kit="org-row-cards" data-layout="wrap">
-                    <For each={props.alone}>{(c) => <Card c={c} p={props} />}</For>
-                  </div>
+            <Show
+              when={free()}
+              fallback={
+                <div data-kit="org-tiers">
+                  <For each={props.tiers}>
+                    {(tier) => (
+                      <div data-kit="org-tier" data-layout="wrap">
+                        <For each={tier}>{cardOf}</For>
+                      </div>
+                    )}
+                  </For>
+                  <Show when={props.alone.length > 0}>
+                    <div data-kit="org-alone" data-part="org.alone">
+                      <h5>{props.aloneLabel}</h5>
+                      <div data-kit="org-row-cards" data-layout="wrap">
+                        <For each={props.alone}>{cardOf}</For>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
-              </Show>
-            </div>
+              }
+            >
+              <div data-kit="org-free" data-part="org.free" ref={(el) => (freeEl = el)}>
+                <For each={cards()}>{cardOf}</For>
+              </div>
+            </Show>
           </div>
         </div>
         <aside data-kit="org-side" data-part="org.details">
@@ -354,6 +554,11 @@ export interface CrewListRow {
   readonly live?: number | undefined;
   readonly time?: string | undefined;
   readonly paused?: boolean | undefined;
+  /** the member's jobs for other tasks, as list cards, under the row (v1 .cr-jobs); none: nothing under it */
+  readonly jobs?: JSX.Element | undefined;
+  /** more jobs than shown: "2 more · open Ada" (v1 .cr-more), opening the member; read as it changes, so a job
+   * coming or going never rebuilds the member's row */
+  readonly more?: (() => string | undefined) | undefined;
 }
 
 /** v1 #secCrew (the phone's list, with no rail): a folding Crew heading with Org and +, then a row per member that
@@ -406,23 +611,48 @@ export function CrewListSection(props: {
           >
             <For each={props.rows}>
               {(m) => (
-                <div data-kit="cr-row" data-part="crew.row" data-paused={flag(m.paused)} role="button" tabindex="0" title={props.openLabel(m.name)} onClick={() => props.onOpen(m.id)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), props.onOpen(m.id))}>
-                  <Face avatar={m.avatar} name={m.name} {...(m.color !== undefined && { color: m.color })} size="row" part="crew.avatar" />
-                  <span data-kit="cr-main">
-                    <span data-kit="cr-top">
-                      <b data-kit="cr-name">{m.name}</b>
-                      <Show when={m.role}>{(r) => <span data-kit="cr-role">{r()}</span>}</Show>
+                <div data-kit="cr-member" data-part="crew.member">
+                  <div
+                    data-kit="cr-row"
+                    data-part="crew.row"
+                    data-paused={flag(m.paused)}
+                    role="button"
+                    tabindex="0"
+                    title={props.openLabel(m.name)}
+                    onClick={() => props.onOpen(m.id)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), props.onOpen(m.id))}
+                  >
+                    <Face avatar={m.avatar} name={m.name} {...(m.color !== undefined && { color: m.color })} size="row" part="crew.avatar" />
+                    <span data-kit="cr-main">
+                      <span data-kit="cr-top">
+                        <b data-kit="cr-name">{m.name}</b>
+                        <Show when={m.role}>{(r) => <span data-kit="cr-role">{r()}</span>}</Show>
+                      </span>
+                      <span data-kit="cr-sub" data-tone={m.tone} title={m.sub}>
+                        {m.sub}
+                      </span>
                     </span>
-                    <span data-kit="cr-sub" data-tone={m.tone} title={m.sub}>
-                      {m.sub}
+                    <span data-kit="cr-side">
+                      <Show when={m.live} fallback={<Show when={m.time}>{(tm) => <span>{tm()}</span>}</Show>}>
+                        {(n) => <span data-kit="cr-n">{n()}</span>}
+                      </Show>
+                      <Icon name="chevron" size="sm" />
                     </span>
-                  </span>
-                  <span data-kit="cr-side">
-                    <Show when={m.live} fallback={<Show when={m.time}>{(tm) => <span>{tm()}</span>}</Show>}>
-                      {(n) => <span data-kit="cr-n">{n()}</span>}
-                    </Show>
-                    <Icon name="chevron" size="sm" />
-                  </span>
+                  </div>
+                  <Show when={m.jobs}>
+                    {(jobs) => (
+                      <div data-kit="cr-jobs" data-part="crew.jobs">
+                        {jobs()}
+                      </div>
+                    )}
+                  </Show>
+                  <Show when={m.more?.()}>
+                    {(more) => (
+                      <button type="button" data-kit="cr-more" data-part="crew.more" onClick={() => props.onOpen(m.id)}>
+                        {more()}
+                      </button>
+                    )}
+                  </Show>
                 </div>
               )}
             </For>

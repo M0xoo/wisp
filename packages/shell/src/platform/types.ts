@@ -62,6 +62,9 @@ export interface Platform {
   badge(count: number): Promise<'set' | 'unsupported'>;
   share(d: ShareData): Promise<'shared' | 'cancelled' | 'unsupported'>;
   pickFiles(o?: PickOptions): Promise<readonly File[]>;
+  /** added 2026-11-12 (additive): the system's folder dialog, where there is one (the desktop app); null when you
+   * cancel. Absent in a browser: there, a folder is typed with the server's suggestions (kit PathField). */
+  pickFolder?(): Promise<string | null>;
   haptic(kind: Haptic): void;
   copy(text: string): Promise<boolean>;
   openExternal(url: string): void;

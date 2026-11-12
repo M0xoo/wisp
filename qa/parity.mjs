@@ -241,9 +241,12 @@ export function readAllowed(file) {
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#'))
     .map((l) => {
-      const [view, part, kind] = l.split(/\s+/);
+      // an optional fourth column names the widths the rule holds at ("390" or "320,390"); every width without it
+      const [view, part, kind, widths] = l.split(/\s+/);
       if (!['wrap', 'pending', 'fold', 'owner'].includes(kind)) throw new Error(`allowed.md: unknown kind "${kind}" in "${l}"`);
-      return { view: glob(view), part: glob(part), name: part, kind };
+      const at = widths ? widths.split(',').map(Number) : null;
+      if (at?.some((n) => !Number.isInteger(n) || n <= 0)) throw new Error(`allowed.md: bad widths "${widths}" in "${l}"`);
+      return { view: glob(view), part: glob(part), name: part, kind, at };
     });
 }
 
@@ -493,9 +496,13 @@ export function foldImage(ref, shot, folds, limit = Infinity) {
   return { width: w, height: h, data };
 }
 
+// What each view is doing now, for the watchdog's report (a view that never returns names where it stopped).
+const stepOf = new Map();
+
 async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
   const metrics = JSON.parse(fs.readFileSync(path.join(ref, name, 'metrics.json'), 'utf8'));
-  const rules = allowed.filter((r) => r.view.test(name));
+  const forView = allowed.filter((r) => r.view.test(name));
+  let rules = forView;
   const wrapRule = (part) => rules.some((r) => r.kind === 'wrap' && r.part.test(part));
   const pendingRule = (part) => rules.some((r) => r.kind === 'pending' && r.part.test(part));
   const foldRule = (part) => rules.some((r) => r.kind === 'fold' && r.part.test(part));
@@ -509,9 +516,11 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
     if (only.modes && !only.modes.includes(desktop ? 'desktop' : 'browser')) continue;
     if (only.widths && !only.widths.includes(Number(w))) continue;
     if (only.themes && !only.themes.includes(theme)) continue;
+    rules = forView.filter((r) => !r.at || r.at.includes(Number(w)));
     const states = Object.entries(entry.states).filter(([, s]) => s.png || s.same?.includes('/'));
     res.shots += states.length;
     let v;
+    stepOf.set(name, `opening ${key}`);
     try {
       v = await openV2(browser, url, open, entry.viewport, theme, metrics.clock ?? metrics.captured, desktop);
     } catch (err) {
@@ -524,6 +533,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
       res.note = `not reachable in v2 (${key}): ${openErr}`;
     }
     for (const [state, s] of states) {
+      stepOf.set(name, `${key}-${state}`);
       try {
         if (state !== 'rest') {
           const loc = p.locator(v2Target(name, state)).first();
@@ -653,8 +663,15 @@ async function startV2(seedFile) {
     stdio: ['ignore', log, log],
     detached: false,
   });
+  // Gone with this run whatever ends it (a throw, Ctrl-C, a watchdog): a server left on the port made every later run
+  // fail with "port taken" (round 27's batch), and a busy vite can sit out a SIGTERM.
+  const kill = () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  };
+  process.once('exit', kill);
+  for (const sig of ['SIGINT', 'SIGTERM']) process.once(sig, () => (kill(), process.exit(130)));
   for (let i = 0; i < 60; i++) {
-    if (await fetch(url).then((r) => r.ok, () => false)) return { url, stop: () => child.kill('SIGTERM') };
+    if (await fetch(url).then((r) => r.ok, () => false)) return { url, stop: () => (child.kill('SIGTERM'), setTimeout(kill, 3000).unref()) };
     await new Promise((r) => setTimeout(r, 500));
   }
   child.kill('SIGTERM');
@@ -686,7 +703,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const results = [];
   const worker = async () => {
     for (let name = queue.shift(); name; name = queue.shift()) {
-      const r = await checkView(browser, v2.url, name, (p) => openers[name](v2Page(p, tr)), ref, allowed, only, outDir);
+      // A view that never returns (a wait with no end) is a failure that says where it stopped, not a batch that hangs.
+      const limit = Number(process.env.PARITY_VIEW_TIMEOUT) || 240_000;
+      let timer;
+      const r = await Promise.race([
+        checkView(browser, v2.url, name, (p) => openers[name](v2Page(p, tr)), ref, allowed, only, outDir),
+        new Promise((done) => {
+          timer = setTimeout(() => done({ view: name, shots: 1, pixelPass: 0, metricPass: 0, pass: 0, reachable: false, note: `timed out after ${limit / 1000} s at ${stepOf.get(name) ?? 'the start'}`, worst: [`timed out at ${stepOf.get(name) ?? 'the start'}`], metrics: {}, shotsBy: {} }), limit);
+        }),
+      ]);
+      clearTimeout(timer);
       results.push(r);
       if (!r.shots) r.note = `no reference${only.modes ? ` for ${only.modes.join(', ')}` : ''}: not covered`;
       console.log(`  ${!r.shots ? '–' : r.pass === r.shots ? '✔' : '✗'} ${name}: ${r.shots ? `${r.pass}/${r.shots}` : r.note}${r.reachable ? '' : ` · ${r.note}`}`);

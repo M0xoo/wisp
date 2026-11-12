@@ -30,7 +30,7 @@
   [data-kit='button'][data-size='lg'] { height: var(--size-control-lg); padding: var(--space-0) var(--space-7); font-size: var(--fs-lg); }
   [data-kit='button'][data-fill] { display: flex; width: 100%; }
   /* v1 button.link: an action in running text, the accent's ink, underlined on hover */
-  [data-kit='button'][data-variant='link'], [data-kit='button'][data-variant='link'][data-size] { display: inline; height: auto; padding: 0; border-width: 0; background: none; color: var(--accent-ink); font-weight: var(--fw-medium); line-height: inherit; vertical-align: baseline; }
+  [data-kit='button'][data-variant='link'], [data-kit='button'][data-variant='link'][data-size] { display: inline; height: auto; padding: 0; border-width: 0; border-radius: 0; background: none; color: var(--accent-ink); font-weight: var(--fw-medium); line-height: inherit; vertical-align: baseline; }
   [data-kit='button'][data-variant='link'] > [data-kit='button-content'] { display: inline; }
   [data-kit='button'][data-variant='link']:hover { text-decoration: underline; text-underline-offset: 3px; }
 
@@ -80,4 +80,10 @@
   [data-kit='button'][data-variant='chip'], [data-kit='button'][data-variant='chip'] > [data-kit='button-content'] { gap: 5px; } /* .chip-tog's gap is the button's own */
   [data-kit='button'][data-variant='chip'][aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); } /* .chip-tog.on */
   [data-kit='button-logo'] { display: block; flex: none; width: 0.8125rem; height: 0.8125rem; } /* v1 .model-logo: 13px */
+
+  /* v1 .path-input + .suggest: a folder path with the server's suggestions under it */
+  [data-kit='path-field'] { position: relative; min-width: 0; }
+  [data-kit='path-suggest'] { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 2; padding: 4px; border-radius: 12px; background: var(--surface); border: var(--size-hairline) solid var(--line); box-shadow: var(--shadow-2); }
+  [data-kit='path-option'] { padding: 6px 10px; border-radius: 8px; font: 12.5px var(--mono); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  [data-kit='path-option']:hover, [data-kit='path-option'][data-on] { background: var(--accent-soft); color: var(--ink); }
 }

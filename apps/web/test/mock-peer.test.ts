@@ -85,7 +85,7 @@ const title = (c: ReturnType<typeof createClient>, key: EntityKey): string => (c
 
 test('the hello brings the list, and the peer says what it offers', async () => {
   const { client } = await setup();
-  expect(client.entities.list('session')().length).toBe(10);
+  expect(client.entities.list('session')().length).toBe(11); // the seed's tasks, Ada's delegated review among them
   expect(client.peers.status(peerId('local'))().kind).toBe('online');
   expect(client.peers.hasFeature(peerId('local'), { plugin: 'wisp.runtime', command: 'runtime.rename' }).ok).toBe(true);
 });

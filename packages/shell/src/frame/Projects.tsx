@@ -5,7 +5,7 @@
 
 import { createMemo, createResource, createSignal, For, Show, type JSX } from 'solid-js';
 import { defineCommand, entityKey, type PeerId, type PluginClient } from '@wisp/client';
-import { Button, Card, Dot, Grid, Icon, IconButton, Inline, Input, ListRow, Menu, Stack, Text, reorderable, useSignal } from '@wisp/ui';
+import { Button, Card, Dot, Grid, Icon, IconButton, Inline, Input, ListRow, Menu, PathField, Stack, Text, reorderable, useSignal } from '@wisp/ui';
 import type { ProjectColor } from '@wisp/tokens';
 import { useShell } from '../context.tsx';
 import { usePluginClient } from '../slot.tsx';
@@ -42,6 +42,8 @@ const renameProject = defineCommand<{ peer: string; from: string; to: string; sp
   wire: (a) => ({ kind: 'project', from: a.from, to: a.to }),
   optimistic: (_b, a) => [{ e: 'project', id: entityKey(a.peer as PeerId, a.from), op: 'del' }, row(a.peer, a.to, a.spec)],
 });
+/** v1 GET /fs?q=: the folders the typed path could go on to (answered in the form typed: `~/…` stays `~/…`) */
+const folders = defineCommand<{ peer: string; q: string }, string[]>({ id: 'runtime.folders', owner: (a) => a.peer, wire: (a) => ({ q: a.q }), optimistic: 'none', pending: 'the folder suggestions' });
 const discover = defineCommand<{ peer: string }, Found[]>({ id: 'runtime.discover', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'Found on this machine' });
 const clone = defineCommand<{ peer: string; url: string }, { dir: string }>({ id: 'git.clone', owner: (a) => a.peer, wire: (a) => ({ url: a.url }), optimistic: 'none', pending: 'Add' });
 
@@ -145,14 +147,26 @@ export default function Projects(_p: { readonly client: PluginClient; readonly p
   return (
     <Stack gap="4" part="projects.dialog">
       <Inline gap="2" part="projects.add">
-        <Input
-          icon="folder"
+        <PathField
           value={source()}
           onInput={setSource}
-          onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && (e.preventDefault(), submit())}
+          suggest={(q) => shell.client.commands.run(folders, { peer: home, q })}
+          skip={(q) => IS_URL.test(q)}
+          onPick={(p) => {
+            setSource('');
+            add(p);
+          }}
+          onEnter={submit}
           placeholder={t('shell.projects.placeholder')}
           aria-label={t('shell.projects.add')}
         />
+        <Show when={shell.platform.pickFolder}>
+          {(pick) => (
+            <Button variant="ghost" icon="folder" part="projects.browse" onClick={() => void pick()().then((dir) => dir && add(dir))}>
+              {t('shell.projects.browse')}
+            </Button>
+          )}
+        </Show>
         <Button variant="primary" loading={adding()} disabled={!source().trim()} onClick={submit}>
           {t('shell.projects.add')}
         </Button>

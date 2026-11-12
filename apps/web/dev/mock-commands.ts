@@ -93,6 +93,9 @@ function copyTask(x: Args, ctx: CommandCtx, kind: 'rerun' | 'fork'): { ops: Enti
   };
 }
 
+/** the Org layout the mock keeps between calls */
+const mockLayout: { value: Record<string, unknown> } = { value: {} };
+
 export const COMMANDS: Record<string, CommandFn> = {
   'runtime.rename': (a, ctx) => {
     const x = obj(a);
@@ -243,6 +246,10 @@ export const COMMANDS: Record<string, CommandFn> = {
       ],
     },
   }),
+  // a pinned pane: the app served here (the mock's own page), what it may use, and Allow (answered as asked)
+  'stuff.launch': () => ({ ops: [], result: { port: 4593, url: `${globalThis.location?.origin ?? 'http://localhost:4593'}/__mock/app` } }),
+  'stuff.grant': () => ({ ops: [], result: { allowed: [], changed: false } }),
+  'stuff.allow': (a) => ({ ops: [], result: { id: str(obj(a), 'id'), allowed: obj(a)['uses'] } }),
   'stuff.addStarter': (a) => ({ ops: [], result: { id: `st-${String(obj(a)['id'])}`, kind: 'app', title: String(obj(a)['id']) } }),
   // a member's fields (the editor, Org's links): patched on the crew topic, as the crew host does
   'crew.update': (a, ctx) => {
@@ -252,6 +259,17 @@ export const COMMANDS: Record<string, CommandFn> = {
     return { ops: [{ topic: 'crew', e: 'crew_member', id: id as string, op: 'patch', ops }], result: { ...(ctx.row('crew', 'crew_member', id as string) as object), ...patch } };
   },
   'plugins.ui': () => ({ ops: [], result: [] }),
+  // a folder picker's suggestions (runtime.folders, v1 GET /fs?q=): a small home, answered in the form typed
+  'runtime.folders': (a) => {
+    const q = str(obj(a), 'q');
+    const tree = ['~/code', '~/code/api', '~/code/web', '~/code/wisp', '~/Documents', '~/Downloads', '~/notes'];
+    const dir = q.endsWith('/') ? q.slice(0, -1) : q.slice(0, q.lastIndexOf('/'));
+    const start = q.slice(q.lastIndexOf('/') + 1).toLowerCase();
+    return { ops: [], result: tree.filter((p) => p.slice(0, p.lastIndexOf('/')) === dir && p.slice(p.lastIndexOf('/') + 1).toLowerCase().startsWith(start)) };
+  },
+  // the Org chart's layout (v1 /crew-layout): none placed until you move a card; a save answers what it kept
+  'crew.layout': () => ({ ops: [], result: mockLayout.value }),
+  'crew.set_layout': (a) => ((mockLayout.value = (obj(a)['layout'] ?? {}) as Record<string, unknown>), { ops: [], result: mockLayout.value }),
   'plugins.list': () => ({ ops: [], result: [] }), // Settings → Plugins: nothing of your own, no built-ins listed by the mock
   'runtime.fork': (a, ctx) => copyTask(obj(a), ctx, 'fork'),
   'runtime.setMode': (a, ctx) => {

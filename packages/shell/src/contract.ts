@@ -388,6 +388,10 @@ export interface ShellContext {
   /** added 2026-11-11 (additive): the prompt boxes ('launcher' for New task) a plugin may fill, as v1's Start from an
    * issue fills New task's prompt; the owner registers its box while it shows */
   readonly prompts?: { provide(name: string, box: PromptBox): () => void; get(name: string): PromptBox | undefined };
+  /** added 2026-11-12 (additive): the list's task card, lent to other screens: the phone's Crew section nests a member's
+   * jobs as list cards (v1 crew.js placeCards). The list registers its renderer while it shows; `render` is undefined
+   * until then (and with no list plugin), so a borrower shows nothing rather than a card of its own. */
+  readonly taskCards?: { provide(render: (key: string) => JSX.Element): () => void; readonly render: Readable<((key: string) => JSX.Element) | undefined> };
   readonly palette: { open(query?: string): void };
   /** the extensions on one input, resolved (overrides, disable, attach, config, order) */
   extensions(input: string): () => readonly ResolvedExtension[];

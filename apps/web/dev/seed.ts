@@ -91,9 +91,22 @@ interface Task {
   turns?: number;
   branch?: string;
   cost?: number;
+  /** a crew member's job (body.ext["wisp.crew"]): a delegated one sits under its member in the phone's Crew section */
+  crew?: { id: string; job: string };
 }
 
 const TASKS: Task[] = [
+  {
+    title: 'Review the reconnect fix against the sync spec',
+    agent: 'claude',
+    state: 'running',
+    ago: 3 * MIN,
+    cwd: '~/code/wisp',
+    prompt: 'Ada, check the reconnect fix against docs/sync.md and say what it misses.',
+    answer: 'Reading the spec next to the diff.',
+    live: 'Reading docs/sync.md',
+    crew: { id: 'crew:ada', job: 'delegated' },
+  },
   {
     title: 'Fix the flaky reconnect test in sync',
     agent: 'claude',
@@ -338,7 +351,7 @@ function sessionRow(peer: string, i: number, t: Task, now: number): { id: string
         ...(t.cost !== undefined && { costUsd: t.cost }),
         ...(t.branch && { branch: t.branch }),
       },
-      body: { cwd: t.cwd, dirs: [], queue_held: false, tags: [], ext: {} },
+      body: { cwd: t.cwd, dirs: [], queue_held: false, tags: [], ext: t.crew ? { 'wisp.crew': t.crew } : {} },
     },
   };
 }
@@ -469,6 +482,8 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
   topics.set('config', [
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },
     { e: 'setting', id: 'defaults.agent', v: { key: 'defaults.agent', value: 'claude', locked_by: null } },
+    // the token dashboard pinned on Home (wisp.stuff's panes setting)
+    { e: 'setting', id: 'stuff.panes', v: { key: 'stuff.panes', value: 'st2@home', locked_by: null } },
     ...TERMINALS,
   ]);
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
@@ -489,7 +504,12 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
   );
   topics.set(
     'stuff',
-    STUFF.map((s, i) => ({ e: 'stuff', id: s.id, v: { ...s, savedAt: o.now - (i + 1) * 5 * HOUR } })),
+    // wisp.stuff's rows (its UI reads `stuff.item`): name, when, who kept it; the dashboard asks to read tasks
+    STUFF.map((s, i) => ({
+      e: 'stuff.item',
+      id: s.id,
+      v: { ...s, name: s.path.slice(s.path.lastIndexOf('/') + 1), at: o.now - (i + 1) * 5 * HOUR, by: 'you', ...(s.kind === 'app' && { uses: ['tasks:read'], rev: 1 }) },
+    })),
   );
   return {
     topics,

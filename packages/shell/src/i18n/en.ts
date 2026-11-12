@@ -318,6 +318,7 @@ export const SHELL_STRINGS = {
   'shell.projects.title': 'Projects',
   'shell.prompt.open': 'Open {name}',
   'shell.projects.add': 'Add',
+  'shell.projects.browse': 'Browse…',
   'shell.projects.already': 'That folder is already {name}',
   'shell.projects.placeholder': '~/code/my-app or a GitHub URL',
   'shell.projects.hint': 'Paste a GitHub URL and wisp clones it for you. Or run wisp add inside any folder: it is added automatically. Drag a project (or Alt+↑/↓) to put them in your order.',
