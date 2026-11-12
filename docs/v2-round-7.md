@@ -880,3 +880,75 @@ off. v1's Transcript (F-task-34) on the kit's Timeline (`TurnTranscript.tsx`), t
 (`BlockContext.heroMeta`), Transcript pressed (`TaskAction.on`); test `a_heros_state_row_is_left_out_…`. Parity's
 translator reaches the task bar's actions. Not started: the Changes pane (item 3), the v1 sync ports (item 4), the
 `wisp add .` fix (item 5), and parity for palette, crew, settings, stuff.
+
+## Round 21 (2026-11-12)
+
+**1. Stage, commit and revert in Changes (F-page-21/22).** The side panel is v1's #sidePanel: head with the tab strip,
+the place line (machine · branch · n uncommitted), then the pane. The kit's `ChangesList` (packages/ui/src/app/Changes.tsx,
+changes.css) is v1 features/changes.js: summary row (files, +/−, vs base, Expand/Collapse all, Open file…), the commit
+row (Enter commits; empty uses the task title), one row per file (badge, path cut from its start, +/−, Stage with its
+part state, Viewed, Edit, ⋯ Revert file / Copy path) opening to hunks with their own head (Line n, Stage/Unstage, Revert).
+`ChangesPane` (plugins/shell-task/ui) wires `git.changes {stageState}`, `git.stage`, `git.revert`, `git.commit`:
+optimistic (the toggle flips, a reverted hunk is hidden at once), rolled back with an error toast, then re-read.
+The task bar's Changes/Shell actions are pressed while their pane is open (v1's grey `.on`; Transcript keeps accent).
+The mock answers the four git commands from the seed's turns (apps/web/dev/mock-git.ts) and `runtime.cold`; parity
+lets read commands through. task.changes 1440: **80 → 20 of 174 parts off, 11.1 % → 3.0 % px**. Left: v1's Preview tab
+(x.tab#3), the comments line (panel.changes.comment), the panel's own left border (v2's is on the side pane, x+1),
+card.title weight in the main pane and the overlap note's y (the narrow composer lacks its toolbar row).
+Two bugs the new tests caught in the mock: an added file showed a removed blank line; `git.commit {all}` left untouched
+files listed. Tests: packages/ui/test/changes.test.tsx (4: v1 hash vectors shared with wisp-git's hunks.rs, hunk runs
+and first line, the stage/hunk/revert/viewed/commit callbacks, a reverting hunk hidden and no staging outside a
+worktree), apps/web/test/mock-git.test.ts (2). In Chrome (playwright-core): Stage flips in < 50 ms, Commit empties the
+list and toasts the sha. The place line's "n uncommitted" is the server's `summary.toShip`; the mock doesn't refresh it.
+PNGs: /tmp/r21-changes-1440-light.png, -1440-dark, -390-light, -390-dark, /tmp/r21-changes-staged.png, -committed.png.
+
+**2. Parity: palette, crew, Settings panes, My Stuff.** Before/after per view in `docs/v2-ui-burndown.md` (round 21).
+- ⌘K is v1's sheet: the kit's `PaletteSheet` (packages/ui/src/app/Palette.tsx, palette.css) in a dialog placed at the
+  top over a light scrim (`ViewDef.place: 'top'`, additive; a card on phones too, 8px in), v1's groups in v1's order
+  (Tasks with the project's dot and "project · state · age", Crew, Actions: New task, Start from an issue…, Add
+  project…, Manage projects, then what plugins add, the two themes you're not on; Projects last). Test
+  packages/ui/test/palette.test.tsx (2).
+- The crew editor is v1's (kit `CrewEditorForm`, crew-editor.css): Start from (v1's six templates, words in the
+  catalogue), the face and its dice, Name/Role inline with the @handle line, Their job, Checks in (Custom… in words via
+  `toCron`), Also starts when (v1's events, plus a hand-off chip per other member: ADR-0043's wakes), project, harness,
+  mode, n at once, First check-in now. A new member starts in the project you're on. Test
+  `a_template_fills_the_editor_as_v1s_does_and_the_event_chips_and_face_save_with_the_rest`; the old test now expects
+  v1's 2 jobs at once for a new member.
+- The crew page: the picked face is v1's tile, Edit/+ links are accent, "No delegates ›" opens Org, the details
+  column sits beside the thread at 1440 (fixed a container-query bug).
+- My Stuff: the kit's `StuffFrame` (v1's head bar, search with `/`, By time/By task, cards/list, v1's empty shelf);
+  the sidebar's Stuff button is pressed while it's open.
+- Not built (features, not parity): the Org page (F-crew-14), Make a pane, crew Import…, the Task panel tint (needs a
+  `bg` on members), the phone list's Crew section.
+PNGs: /tmp/r21-{palette,crewadd,crew,settings,stuff}-{1440,390}-{light,dark}.png.
+
+**3. The row's element tree follows v1's.** In the feed layout the kit's `ListRow` is v1's `#feed .it-head` element for
+element: the head is the row's one button (role=button, Enter/Space, aria-current), and in it the dot, the title, the
+sub's words (its tone and tooltip on the box), the run line (kit `RowRun`: logo, harness, `·` where), the pills with the
+time last (pinned in the corner), then the quick actions (aria-hidden, out of the Tab order, no inner box: v1's, the
+keys E and L do the same). Extension slots draw nothing on a row they don't apply to (the PR pill now declares `if`).
+Home: hover 28/45 → 0/45 and focus → 0/42 parts off at 1440 and 900, light and dark; rest 1/162 (the section
+container). task at 600 still passes. Test `a_feed_row_is_v1s_it_head_element_for_element_the_head_its_one_button`.
+PNGs: /tmp/r21-row-hover-{1440,390}-{light,dark}.png.
+
+**4. v1 sync #775–#782** (rows in docs/v1-sync.md):
+- #775, partly: a turn whose agent set its own wake-up isn't judged; the goal remembers it (`GoalState.wake`, additive)
+  and judges after that wake-up's turn. `wisp.later` now emits `later.dropped` (declared, never sent) for an agent's or
+  crew's entry: cancelled → the goal judges now, done/missed → it pauses. Goal core `waits_for_wake`, `wake_gone`;
+  tests goal/core/tests/wake.rs (2); goal's manifest gains `later:list`. Left: holding the turn while Claude Code's
+  background subagents run (the runtime's reducer needs a harness-neutral signal, not the goal's state).
+- #776: the kit's `TaskBody` holds the view as pictures load (`mediaShift`, ResizeObserver + MutationObserver);
+  test `a_picture_loading_in_a_task_keeps_the_view_where_the_reader_had_it`.
+- #777: runtime-core `allowable` (a Full auto turn keeps no refusals to allow), the page offers Allow & retry only for
+  kept ones and says why otherwise (`BlockContext.unallowed`, additive); tests in Rust, kit and shell.
+- #778 and #782 hold in v2 already; each pinned by a CSS rule test.
+- #779: an opened step's title wraps; test. #780 left (a `title` on `Activity::Tool` from every parser).
+- #781: This Mac's Stop and Later ask first (`stopAsk`, test). v2's task page has no Stop yet.
+Checks: clippy -D warnings on wisp-goal, -goal-core, -goal-api, -later, -runtime-core, -runtime.
+
+**5. `wisp add .` paths canonical.** `wisp_runtime_api::paths::canonical_project_path` (pure): drops a trailing `/.` and
+`/`, resolves `.` and `..`, resolves a relative path against the folder it was typed in, strips Windows' `\\?\` and
+`\\?\UNC\` (git refuses them), leaves URLs. The CLI's `wisp add` sends it canonical; the runtime's project kind tidies
+every spec on apply, whoever applies it (`StoredKind::tidied`, an additive hook in resources-api; monoflow: 18 dependents,
+none changed). Tests runtime-api tests/paths.rs (2), runtime `a_project_applied_with_a_trailing_dot_or_verbatim_prefix_is_stored_canonical`.
+Clippy -D warnings: wisp-runtime-api, -resources-api, -runtime, wisp (bins).

@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Stage, commit and revert from Changes.** The side panel's Changes is v1's again: Stage a file or a hunk, Revert a hunk (it's hidden at once) or a whole file, mark files Viewed, and commit from the panel (Enter; an empty message uses the task's title).
+- **⌘K looks and reads like v1's.** One sheet near the top: your tasks first with their project's dot and "project · state · age", then the crew, then Actions (New task, Start from an issue…, Add project…, Manage projects…), projects last.
+- **Add to your crew, as v1 had it.** Start from a ready-made member (Verifier, CI watcher, PR reviewer…), roll a face, name them and give their job, pick when they check in (or type it in words) and what else wakes them, then where and how they run.
 - **Sandboxes.** `/sandbox fix the login` in New task runs the task in a box of its own on your wisp Grid: your project goes in (uncommitted changes too), the agent can install and break anything there, and the task shows in your list as Sandbox. A delegate (its place: Sandbox), a crew member's jobs (a sandbox per job, or their own) and a goal's judges can run in one too. Each sandbox goes with what it was made for.
 - **Plugins you install can have a Settings pane, safely.** An untrusted plugin's UI runs in a sealed frame with no access to wisp, your cookies or the network; it describes what to show and wisp draws it with its own components, and anything it does goes through the permissions it asked for.
 - **Discord on a cloud wisp checks every interaction at the grid.** A forged or unsigned `/wisp` is refused before it can wake your box.
@@ -86,6 +89,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- `wisp add .` stores the project's folder itself ("/repo", not "/repo/."), and a Windows path without its `\\?\` prefix, whoever adds it.
+- A picture or video loading in a task no longer moves the page: at the end you stay at the end, elsewhere what you were reading stays put (the Mac app too).
+- No Allow & retry after a turn that already ran in Full auto: what its harness still refused can't be allowed, and the card says so.
+- A goal isn't checked while its agent waits for the wake-up it set itself: it's checked after that turn, now if you cancel the wake-up, and it pauses if the wake-up never goes.
+- Stop in This Mac → What's using it asks first, and says what stops.
+- An opened step in a task's transcript shows its whole title.
+- The crew page's details sit beside the thread on a wide window again; My Stuff and Settings line up with v1 (the head bar, the search, the empty shelf; the nav's spacing, fields on white).
 - Settings no longer shows "unknown command terminal.apps": the terminal apps on this computer are listed, and `npm run check` now catches a command the UI calls that no plugin handles.
 - Menus and selects inside a dialog open in front of it.
 - Discord calls wait their turn per channel when Discord says to slow down, instead of failing.

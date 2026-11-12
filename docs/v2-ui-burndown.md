@@ -120,3 +120,32 @@ parts off** at 1440, 1024 and 900 (only `section.needs`), 0.5–0.9 % px; 600 px
 clean. **Next:** the hover and focus states compare everything inside the row by document order (`target#n`), and
 v2's row nests differently from v1's `.it-head` (lead › dot, main › hit › title …): its element tree has to follow v1's
 for those to line up; 390 / 320 px: the composer bar's folded items (autoPreview, harness) sized as v1's.
+
+## 2026-11-12 (round 21)
+
+At 1440 light, at rest; before → after. Re-captured from v1 origin/main a5b1c646 as each was reached (Try two ways gone,
+#771; crew also predated the crew tint, #768): palette, crew, crew.add, every `settings.*` pane (`index.json` recaptures).
+
+| View | Before | After | Left |
+|---|---|---|---|
+| task.changes | 80/178 parts, 11.1 % px | 20/174, 3.0 % px | v1's Preview tab, the comments line, the panel's own left border, the main pane's card.title weight |
+| palette | 110/171, 77 % px | 3/165, 0.9 % px | the home launcher's border behind it (every overlay); 390: 3.1 % px, the rest is home behind |
+| crew.add | not opened (opener untranslated) | 16/176, 13.5 % px | the Task panel tint row (no `bg` on a member yet), Delegate, Import… (no import view); at 390 v1 opens it from the phone list's Crew section, which v2 lacks |
+| crew | 26/50, 24.4 % px | 17/50, 1.6 % px | the Skills "+ Add" (F-crew-10 partial), two avatar part names |
+| crew.org | 15/112, 7.7 % px | same | no Org page in v2 (F-crew-14): `crew.org` isn't a registered view |
+| settings.general | 21/187, 1.4 % px | 7/187, 1.3 % px | v1's Updates row (v2 has an Updates pane); "Open tasks in" is the owner's rename (bcc9c039) |
+| settings.notifications | | 9/181, 1.7 % px | Accept tasks from channels row |
+| settings.agents | 126/190, 4.6 % px (old ref) | 13/185, 3.6 % px | the accounts rows |
+| settings.connectors | | 10/182, 3.5 % px | connectors list and Import |
+| settings.memory | | 4/180, 1.1 % px | |
+| settings.automations | | 5/181, 1.1 % px | webhook triggers row |
+| settings.spells | | 8/182, 7.2 % px | spells are gone in v2 (ADR-0031) |
+| settings.usage | 135/199, 6.6 % px (old ref) | 18/194, 5.3 % px | the budget section |
+| settings.worktrees | | 10/186, 5.6 % px | the worktrees list and cleanup |
+| settings.privacy | | 5/182, 3.7 % px | mask env files, project ask rows |
+| stuff | 92/122, 4.3 % px | 12/118, 1.1 % px | Make a pane (no dialog in v2 yet) |
+
+Kit fixes behind several rows at once: Settings nav rows 1px apart (v1 .sx-nav), fields on a Settings group take
+--surface (v1 --field-bg), the kit Select's trigger answers to `form.select`, a bare dialog is the card itself (its
+edge and corners) and drops its own hidden head, kbd is v1's `1px 5px` / 5px radius, and the crew page's wide
+two-column padding now applies (a container query can't style its own container).

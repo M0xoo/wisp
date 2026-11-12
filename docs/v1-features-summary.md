@@ -51,7 +51,7 @@ of v1's ~30 shortcuts are registered. There is no desktop app and no Android fro
 | 3 | F-comp-1, F-comp-2 | The searchable harness · model picker with the thinking slider | partial | mount `RunnerPicker.tsx` |
 | 4 | F-comp-12 | Drop or paste files on the prompt box | partial | a drop target on Home and the reply box → `stuff.upload` |
 | 5 | F-page-19, 27, 28 | Side panel PR and Shell panes | partial | both show *later*; wire `ship.details` and `terminal.shell.start` |
-| 6 | F-page-21, 22 | Stage, commit and revert from Changes | partial | GUI controls for `git.stage`/`commit`/`revert` |
+| 6 | F-page-21, 22 | Stage, commit and revert from Changes | built | ChangesPane on the kit ChangesList |
 | 7 | F-page-33 | Take over / *Open in <harness>* in a terminal inside wisp | partial | an in-page terminal and the T key; the rename is queued |
 | 8 | F-crew-3, 1, 10 | Crew member thread, editor and kit | missing / partial | `crew` UI registers no view; `openCrew` renders nothing |
 | 9 | F-page-12, 13 | Usage receipt on every turn (tokens, cache, % of weekly) | partial | `Receipt.tsx` is a stub |
