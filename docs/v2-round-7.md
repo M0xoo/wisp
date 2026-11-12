@@ -1066,3 +1066,55 @@ avatar is the org card's 36 px face (v1 `.cr-av`, its emoji 0.55 of the disc).
 `section`), the top bar's empty fourth track, the Crew rows' 30 px faces; the phone settings head (40 px Back and ×, a
 17 px title); v1's switch is a `<button role="switch">` again (Zag's label + hidden input shifted every later button);
 two lines the owner's rename had lengthened.
+
+## Round 26 (2026-11-12)
+
+**1. Select, and the kit tests since round 21.** The two Select failures were the test helper, not the component:
+round 22 gave the trigger two part names (`select.trigger form.select`, v1 answered to both) and `part()` matched
+the attribute exactly; it now matches one word (`[data-part~=…]`). apps/web's slots test waited a fixed tick for a
+screen that is a lazy import now; it waits for the head. Every test file in packages/ui, packages/shell and the
+plugins touched since round 21, one at a time: all pass.
+
+**2. The comments envelope.** `packages/shell/src/frame/comment-text.ts` reads a sent prompt's `<comments>` head back
+(v1 comment-text.js readComments): each note a card (file:line or lines a–b, the quoted line, removed lines marked,
+the note), then the words typed with them; a head that isn't ours stays as typed. Named test with the exact envelope
+withComments sends.
+
+**3. Settings at 390, 900, dark: every pane 0 parts off, but for two recorded below.**
+- Kit buttons: v1's `.primary`/`.ghost` have no edge (their width came from the old border), gap on the button,
+  v1's padding per variant (primary md 0 14 0 16, ghost 0 10, xs 0 6, ghost xs radius 7), ghost weight 400, 16 px
+  icons (`.i`). A `link` variant (v1 `button.link`) and a `logo` (a harness mark on a chip, v1 `.model-logo`).
+- Seg strips: v1 drew some as `<fieldset>` (its 2 px side margin: Theme, Automations stop at): Tabs `fieldset`;
+  only icon segs have the 6 px gap; Worktrees' filter has no edge and the pane's line height.
+- Usage: four tiles across at every width (v1's `.us-tiles` comes after the narrow `.sx-usage` rule); Machine
+  load's Now reads the CPU and the runs cap as v1 did: `machine_load.cpu` (migration 2, test asserts it), `nowLine`
+  with a named test; the mock seeds the reading.
+- Auto: its lede; the mock seeds the router view (v1's defaults, 7 harnesses, 4 picks · 3 runs); harnesses as chip
+  toggles with logos in a 360 px wrap (SettingsRow `choices`); "What it learned" in v1's words.
+- Worktrees: Keep is v1's `.ghost.xs.icon-btn` (IconButton `wide`, 32×24); phone rows 10 px padding, 6 px row gap.
+- Machines: the grid address and Sign in and add it share a line only while they fit (kit `SettingsInputRow`, v1
+  `.cg-row`); Connectors' Not now · Review keep right when they drop (SettingsRow `keepRight`), 8 px apart.
+- Spells/Plugins: suggestion gap; v1's lede sentence back ("Cast one, or install one a colleague sent."); Turn every
+  plugin off in the foot. Notifications: Set up is v1's ghost; the channel example is code. Agents: plain pills are
+  v1's `.sx-state`/`.sx-signed` (weight 400, muted words, ✓ 13 px 4 px off).
+- 900: the dialog positioner pads 20 px all round as v1's `.overlay` (the sheet was 868 wide, v1 860) → 25 → 0 per
+  pane. Dark: the scrim token was 0.5 in dark, v1's overlay is 0.28 in both themes → 3.4 % → 0.9 % px.
+
+Left, recorded: **Privacy 390** (4): v1 wraps "Ask before a repo’s hooks, servers and setup run" onto two lines;
+v2's settings-row labels never wrap (design/layout.md §1). The title is now "Ask before a repo’s hooks and setup
+run" (fits at 390, keeps "run"); v1's second line still moves the rows under it by 20 px. **Spells 390** (4) and the
+Install/Review label (1 at every width): v1's File… read a spell's JSON; a v2 plugin is a folder, which a browser
+can't hand over as a path (see Questions). **settings.cloud** hung twice in batch runs (fine alone): not traced.
+
+**4. Not started.** Scoped: the phone Crew section's nested job cards need the shell to lend its task card to a
+plugin (a contract addition: ShellApi `taskRow(id)` or a `shell.list:crewJobs` input), plus v1's memberJobs rules
+(under the member, not in the list, standing or open, by urgency, 3 max, "N more · open Ada"). Pinning a starter
+on Home needs the `panes` pin setting, a Home mount for `shell.home:cards`, the sandboxed frame + wrapper CSP and the
+bridge host (`plugins/stuff/ui/src/panes/*` has the pure parts). Org drag and Preview's element picker untouched.
+
+**Questions.** File… in Settings → Plugins: drop it (v2 plugins are folders: the box takes a path or git URL), or
+pick a folder through the desktop app's native picker where there is one?
+
+Checks: typecheck, `npm run check` (0 errors), kit css-rules 12/12, every test file of the 13 touched packages one at
+a time, `now-line.test.ts`, wisp-machine `the_snapshot_and_load_rows_are_published…`, clippy -D warnings on
+wisp-machine. Seen in playwright at 1440/900/390, light and dark.

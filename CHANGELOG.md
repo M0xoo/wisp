@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Comments you sent show as cards.** A follow-up that carried comments on a task's changes shows each one in the transcript (file:line, the quoted line, your note) above what you typed, instead of the raw `<comments>` text.
+- **Machine load says how busy the CPU is.** Settings → Usage → Machine load's *Now* reads "71% memory free · CPU at 50% of its cores · 0 runs of 8 going", as v1 did.
+- **Turn every plugin off**, from the note under Install a plugin in Settings → Plugins.
+
 - **Open a task's folder in your editor or terminal app** from the side panel's ⋯ (with Copy path and Copy branch name). The editor is the one Settings → General names.
 
 - **Preview in a task's side panel.** Run the app from the task's folder (wisp guesses the command from the project) and see it there, with its logs, Restart, Stop and Open in browser.
@@ -102,6 +106,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 
 ### Fixed
+
+- **Settings on a phone match v1.** Usage's four tiles stay in one row; Auto shows its intro, which harnesses it may use as chips with their logos, and what it learned in v1's words; Worktrees' rows, Keep and Remove buttons and filter are v1's size; Machines puts the grid address on its own line when Sign in and add it doesn't fit beside it; Connectors keeps Not now · Review on the right; Plugins' suggestions and Notifications' channel example are spaced and set as v1's. Buttons draw v1's 16 px icons, and ghost buttons are v1's weight and padding.
+- The *Ask before a repo’s hooks and setup run* setting's name fits on a phone instead of being cut off.
 
 - **A doc block's Read all stays under your finger on a phone.** Pressing it shrank the button and dropped its centring, so it jumped right by half its width as you tapped.
 - On a phone, a setting's controls that don't fit beside its text go under it (Agents: Add key, Signed in · Sign out no longer crowd the row).

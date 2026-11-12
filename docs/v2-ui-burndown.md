@@ -203,3 +203,26 @@ Phone and dark checked by eye at 390 (Agents, Machines dark; Worktrees, Agents, 
 | crew (390) | not reachable | reachable: 81/86 (the phone member page) |
 | task.transcript (390) | not reachable | reachable: 11/32 |
 | settings.* (390) | see the round notes | see the round notes |
+
+## 2026-11-12 (round 26)
+
+Settings panes, parts off (light unless named).
+
+| View | 390 before | 390 after | 900 after | dark 1440/900/390 |
+|---|---|---|---|---|
+| settings.general | 3 | 0 | 0 (was 25) | 0/0/0 |
+| settings.notifications | 3 | 0 | 0 | 0/0/0 |
+| settings.agents | 4 | 0 | 0 | 0/0/0 |
+| settings.connectors | 9 | 0 | 0 | 0/0/0 |
+| settings.auto | 18 | 0 | 0 | 0/0/0 |
+| settings.machines | 9 | 0 | 0 | 0/0/1 (a 1 px button) |
+| settings.cloud | 1 | 0 | 0 | 0/0/0 |
+| settings.memory | 1 | 0 | 0 | 0/0/0 |
+| settings.automations | 2 | 0 | 0 | 0/0/0 |
+| settings.spells | 12 | 4 (File…) | 1 (label) | 1/1/4 |
+| settings.worktrees | 19 | 0 | 0 | 0/0/0 |
+| settings.usage | 43 | 0 | 0 | 0/0/0 |
+| settings.privacy | 4 | 4 (v1 wraps its title) | 0 | 0/0/4 |
+
+1440 light after: every Settings pane 0 (spells 1: the Install/Review label); home, palette, task, stuff, crew.org
+0. Dark Settings pixels 3.4 % → 0.9 % (the scrim).
