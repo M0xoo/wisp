@@ -6,7 +6,25 @@
 import { createMemo, createSignal, For, Match, onCleanup, Show, Switch as Pick, type JSX } from 'solid-js';
 import { entityKey, type PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
-import { Button, Dialog, Inline, Input, Link, Menu, Pill, SelectSetting, SettingsGroup, SettingsRow, Stack, Switch, Text, useSignal } from '@wisp/ui';
+import {
+  Button,
+  Dialog,
+  Inline,
+  Input,
+  Link,
+  Menu,
+  Pill,
+  SelectSetting,
+  SettingsGroup,
+  SettingsInset,
+  SettingsInsetAdd,
+  SettingsInsetRow,
+  SettingsRow,
+  Stack,
+  Switch,
+  Text,
+  useSignal,
+} from '@wisp/ui';
 import { fromRow, text } from '../source.ts';
 import { addAccount, install, keyRemove, keySet, loginCancel, loginInput, loginStart, logout, recheck, removeAccount, setAsk, trust } from '../commands.ts';
 import { t } from '../i18n.ts';
@@ -76,7 +94,13 @@ function Keys(props: { readonly c: PluginClient; readonly h: HarnessRow; readonl
   const [typed, setTyped] = createSignal<Record<string, string>>({});
   const peer = props.c.home;
   return (
-    <Dialog open onOpenChange={(o) => !o && props.onClose()} title={t('accounts.keys.title', { name: props.h.name })} description={t('accounts.keys.where', { site: site(props.keys[0]?.url ?? '') })} part="accounts.keys">
+    <Dialog
+      open
+      onOpenChange={(o) => !o && props.onClose()}
+      title={t('accounts.keys.title', { name: props.h.name })}
+      description={t('accounts.keys.where', { site: site(props.keys[0]?.url ?? '') })}
+      part="accounts.keys"
+    >
       <Stack gap="1">
         <For each={props.keys}>
           {(k) => (
@@ -87,7 +111,15 @@ function Keys(props: { readonly c: PluginClient; readonly h: HarnessRow; readonl
               wideControl
               control={
                 <Inline gap="2">
-                  <Input size="sm" mono type="password" aria-label={t('accounts.keys.input', { name: k.name })} placeholder={k.set ? t('accounts.keys.replace') : t('accounts.keys.paste')} value={typed()[k.provider] ?? ''} onInput={(v) => setTyped({ ...typed(), [k.provider]: v })} />
+                  <Input
+                    size="sm"
+                    mono
+                    type="password"
+                    aria-label={t('accounts.keys.input', { name: k.name })}
+                    placeholder={k.set ? t('accounts.keys.replace') : t('accounts.keys.paste')}
+                    value={typed()[k.provider] ?? ''}
+                    onInput={(v) => setTyped({ ...typed(), [k.provider]: v })}
+                  />
                   <Button
                     size="sm"
                     disabled={(typed()[k.provider] ?? '').trim() === ''}
@@ -132,7 +164,10 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
   const [rechecking, setRechecking] = createSignal(false);
   const sorted = createMemo(() => [...harnesses()].sort((a, b) => a.ord - b.ord));
   const login = (agent: string, account = ''): LoginRow | undefined => logins().find((l) => l.agent === agent && loginId(l.agent, l.account) === loginId(agent, account));
-  const accs = (agent: string): AccountRow[] => accounts().filter((a) => a.agent === agent).sort((a, b) => a.ord - b.ord);
+  const accs = (agent: string): AccountRow[] =>
+    accounts()
+      .filter((a) => a.agent === agent)
+      .sort((a, b) => a.ord - b.ord);
   const keysFor = (agent: string): KeyRow[] => keys().filter((k) => k.agent === agent);
 
   const signControl = (h: HarnessRow, account: string, isAccount: boolean): JSX.Element => {
@@ -152,7 +187,7 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
         </Match>
         <Match when={ctl() === 'signedIn'}>
           <Inline gap="2">
-            <Pill tone="good" icon="check" variant="outline">
+            <Pill tone="good" icon="check" variant="plain">
               {t('accounts.login.signedIn')}
             </Pill>
             <Button size="sm" variant="ghost" onClick={() => quiet(c.run(logout, args))}>
@@ -171,16 +206,15 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
 
   return (
     <>
-      <SettingsGroup
-        part="accounts.harnesses"
-      >
+      {/* v1 .sx-agents: one row per harness, lines between; its accounts in a box under it; then GitHub (and git while it's missing) */}
+      <SettingsGroup part="accounts.harnesses">
         <For each={sorted()}>
           {(h) => {
             const state = () => harnessState(h);
             return (
-              <Stack gap="0" part="accounts.harness">
+              <>
                 <SettingsRow
-                  part="accounts.harness.row"
+                  part="accounts.harness"
                   title={h.name}
                   {...(logoOf(h.id) && { logo: logoOf(h.id) as string })}
                   description={harnessLine(h, accs(h.id).length)}
@@ -219,72 +253,59 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
                 </Show>
                 <Steps c={c} agent={h.id} account="" login={login(h.id)} />
                 <Show when={h.brand && present(h)}>
-                  <For each={accs(h.id).length > 1 ? accs(h.id) : []}>
-                    {(a) => (
-                      <SettingsRow
-                        part="accounts.account"
-                        title={a.label}
-                        description={a.state === 'limit' ? a.why : a.state === 'signedOut' ? t('accounts.state.signedOut') : accountLine(a)}
-                        control={
-                          <Inline gap="2">
-                            {signControl(h, a.id, true)}
-                            <Show when={!a.default}>
-                              <Menu
-                                trigger={{ icon: 'dots', 'aria-label': t('accounts.account.more', { name: a.label }), variant: 'ghost', size: 'sm' }}
-                                items={[
-                                  { value: 'out', label: t('accounts.login.signOut'), icon: 'lock' },
-                                  { kind: 'separator' },
-                                  { value: 'remove', label: t('accounts.account.remove'), icon: 'trash', danger: true },
-                                ]}
-                                onSelect={(v) => quiet(v === 'out' ? c.run(logout, { peer, agent: h.id, account: a.id }) : c.run(removeAccount, { peer, agent: h.id, account: a.id }))}
-                              />
-                            </Show>
-                          </Inline>
-                        }
-                      />
-                    )}
-                  </For>
-                  <Inline>
-                    <Button size="sm" variant="ghost" icon="plus" part="accounts.add" onClick={() => addAnother(h)}>
-                      {t('accounts.account.add', { brand: h.brand ?? h.name })}
-                    </Button>
-                  </Inline>
+                  <SettingsInset part="settings.accounts">
+                    <For each={accs(h.id).length > 1 ? accs(h.id) : []}>
+                      {(a) => (
+                        <SettingsInsetRow
+                          part="accounts.account"
+                          title={a.label}
+                          description={accountLine(a)}
+                          state={a.state === 'limit' ? a.why || t('accounts.state.limit') : a.state === 'signedOut' ? t('accounts.state.signedOut') : undefined}
+                          control={
+                            <Inline gap="2">
+                              {signControl(h, a.id, true)}
+                              <Show when={!a.default}>
+                                <Menu
+                                  trigger={{ icon: 'dots', 'aria-label': t('accounts.account.more', { name: a.label }), variant: 'ghost', size: 'sm' }}
+                                  items={[
+                                    { value: 'out', label: t('accounts.login.signOut'), icon: 'lock' },
+                                    { kind: 'separator' },
+                                    { value: 'remove', label: t('accounts.account.remove'), icon: 'trash', danger: true },
+                                  ]}
+                                  onSelect={(v) => quiet(v === 'out' ? c.run(logout, { peer, agent: h.id, account: a.id }) : c.run(removeAccount, { peer, agent: h.id, account: a.id }))}
+                                />
+                              </Show>
+                            </Inline>
+                          }
+                        />
+                      )}
+                    </For>
+                    <SettingsInsetAdd part="accounts.add" label={t('accounts.account.add', { brand: h.brand ?? h.name })} onClick={() => addAnother(h)} />
+                  </SettingsInset>
                 </Show>
-              </Stack>
+              </>
             );
           }}
         </For>
-        <For each={tools()}>
+        {/* git only while it's missing; GitHub always (v1: "For pushing branches and opening pull requests") */}
+        <For each={tools().filter((x) => x.id === 'gh' || !x.installed)}>
           {(x) => (
             <SettingsRow
               part="accounts.tool"
-              title={x.name}
-              description={x.installed ? t('accounts.tool.ready') : (x.setup?.tip ?? t('accounts.tool.missing'))}
+              title={x.id === 'gh' ? t('accounts.tool.github') : x.name}
+              icon={x.id === 'gh' ? 'github' : 'branch'}
+              description={x.installed ? t('accounts.tool.gh') : (x.setup?.tip ?? t('accounts.tool.missing'))}
               control={
-                <Pill tone={x.installed ? 'good' : 'bad'} dot variant="plain">
-                  {x.installed ? t('accounts.state.ready') : t('accounts.state.notFound')}
-                </Pill>
+                <Show when={!x.installed}>
+                  <Pill tone="bad" dot variant="plain">
+                    {t('accounts.state.notFound')}
+                  </Pill>
+                </Show>
               }
             />
           )}
         </For>
       </SettingsGroup>
-      {/* Re-check under the list: v1's pane opens on the harnesses */}
-      <Inline justify="end">
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="rerun"
-          part="accounts.recheck"
-          disabled={rechecking()}
-          onClick={() => {
-            setRechecking(true);
-            c.run(recheck, { peer }).finally(() => setRechecking(false));
-          }}
-        >
-          {rechecking() ? t('accounts.recheck.running') : t('accounts.recheck')}
-        </Button>
-      </Inline>
       <SettingsGroup part="accounts.watch">
         {/* v1 Lean Claude Code runs (`runtime.leanRuns`): off, wisp's side runs, every run */}
         <SelectSetting
@@ -295,10 +316,32 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
           items={(['off', 'on', 'all'] as const).map((v) => ({ value: v, label: t(`accounts.lean.${v}`) }))}
         />
         <SettingsRow
-          part="accounts.ask"
+          part="settings.harnessAsk"
           title={t('accounts.ask.title')}
           description={t('accounts.ask.description')}
           control={<Switch aria-label={t('accounts.ask.title')} checked={place()?.ask ?? false} onChange={(on) => quiet(c.run(setAsk, { peer, on }))} />}
+        />
+      </SettingsGroup>
+      {/* v1: Installed something new? Re-check, last */}
+      <SettingsGroup part="accounts.recheck.group">
+        <SettingsRow
+          part="accounts.recheck"
+          title={t('accounts.recheck.title')}
+          description={t('accounts.recheck.hint')}
+          control={
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="replay"
+              disabled={rechecking()}
+              onClick={() => {
+                setRechecking(true);
+                c.run(recheck, { peer }).finally(() => setRechecking(false));
+              }}
+            >
+              {rechecking() ? t('accounts.recheck.running') : t('accounts.recheck')}
+            </Button>
+          }
         />
       </SettingsGroup>
       <Show when={keysOf()}>{(h) => <Keys c={c} h={h()} keys={keysFor(h().id)} onClose={() => setKeysOf(undefined)} />}</Show>

@@ -74,6 +74,8 @@ function ListBody(): JSX.Element {
             aria-label={t('shell-list.list.label')}
             part={'list.rows feed' as `${string}.${string}`}
             gapBefore={(i) => isTaskItem(items()[i]) && isTaskItem(items()[i - 1])}
+            // each section a box from its heading to its last row (v1 #secNeeds, …): parity measures it, spells style it
+            groups={sectionGroups(items())}
           >
             {(item) => <ItemView item={item()} />}
           </VirtualList>
@@ -83,6 +85,21 @@ function ListBody(): JSX.Element {
       <DeleteDialog />
     </Stack>
   );
+}
+
+/** Each section's run of items: its heading and the rows under it, up to the next heading or slot. */
+export function sectionGroups(items: readonly Item[]): { part: string; from: number; to: number }[] {
+  const out: { part: string; from: number; to: number }[] = [];
+  items.forEach((it, i) => {
+    if (it.t === 'head') out.push({ part: `section.${it.id === 'forLater' ? 'forLater' : it.id}`, from: i, to: i });
+    else if (it.t !== 'slot' && out.length > 0) {
+      const g = out[out.length - 1];
+      if (g) g.to = i;
+    }
+    // a slot (the crew) closes the section before it
+    if (it.t === 'slot') out.push({ part: '', from: i, to: i - 1 });
+  });
+  return out.filter((g) => g.part !== '' && g.to >= g.from);
 }
 
 /** A task's row (its FeedItem): two in a row are 2px apart (v1 .f-list gap), a heading and a row are not. */

@@ -3,9 +3,10 @@
 // `settings.set` (instant, rolled back with a toast on a refusal); a row a plugin locked says so.
 // "Open tasks in" shows only with two terminals or more, and its command field only for Custom.
 
+import { Slot, useShell } from '@wisp/shell';
 import { Show, createMemo, createResource, type JSX } from 'solid-js';
 import { computed, defineCommand, type PluginClient } from '@wisp/client';
-import { Input, SelectSetting, SettingsGroup, SettingsRow, SwitchSetting, useSignal, type SelectOption } from '@wisp/ui';
+import { Input, SelectSetting, SettingsGroup, SettingsRow, SwitchSetting, useSignal, type SelectOption, Kbd, ChoiceSetting } from '@wisp/ui';
 import { t, type Key } from '../i18n.ts';
 import { fromRow, onOff, text } from '../source.ts';
 import { EDITORS, HARNESS_KIND, KEYS, REVIEW_HARNESSES, TERMINAL_KIND, type Harness, type TerminalApp } from '../types.ts';
@@ -22,16 +23,36 @@ export function reviewChoices(harnesses: readonly Harness[], picked: string): Se
   ];
 }
 
-function OnOffRow(props: { readonly client: PluginClient; readonly k: string; readonly dflt: boolean; readonly title: Key; readonly hint: Key }): JSX.Element {
-  return <SwitchSetting title={t(props.title)} description={t(props.hint)} source={onOff(fromRow(props.client, props.k), props.dflt, props.k)} locked={locked} />;
+function OnOffRow(props: { readonly client: PluginClient; readonly k: string; readonly dflt: boolean; readonly title: Key; readonly hint: Key; readonly keys?: readonly string[] }): JSX.Element {
+  // a hint that ends on its key (v1: "… with its Transcript button or <kbd>V</kbd>"); no keys on a touch screen (the kit hides kbd)
+  const hint = (): JSX.Element =>
+    props.keys ? (
+      <>
+        {t(props.hint)} <Kbd keys={props.keys} inline />
+      </>
+    ) : (
+      t(props.hint)
+    );
+  return <SwitchSetting title={t(props.title)} description={hint()} source={onOff(fromRow(props.client, props.k), props.dflt, props.k)} locked={locked} />;
 }
 
 /** wisp.terminal's list for this computer (v1 config.terminals): In wisp, the terminal apps found, Custom. */
-const terminalApps = defineCommand<{ peer: string }, { terminals: TerminalApp[]; defaultTerminal: string }>({ id: 'terminal.apps', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the Take over in list' });
+const terminalApps = defineCommand<{ peer: string }, { terminals: TerminalApp[]; defaultTerminal: string }>({
+  id: 'terminal.apps',
+  owner: (a) => a.peer,
+  wire: () => ({}),
+  optimistic: 'none',
+  pending: 'the Take over in list',
+});
 
 function TakeOver(props: { readonly client: PluginClient }): JSX.Element {
   const rows = useSignal(props.client.entities.list<TerminalApp>(TERMINAL_KIND));
-  const [asked] = createResource(() => props.client.run(terminalApps, { peer: props.client.home }).then((r) => r.terminals, () => [] as TerminalApp[]));
+  const [asked] = createResource(() =>
+    props.client.run(terminalApps, { peer: props.client.home }).then(
+      (r) => r.terminals,
+      () => [] as TerminalApp[],
+    ),
+  );
   const apps = (): readonly TerminalApp[] => (rows().length > 0 ? rows() : (asked() ?? []));
   const terminal = text(fromRow(props.client, KEYS.terminal), 'wisp');
   const current = useSignal(terminal.value);
@@ -39,7 +60,13 @@ function TakeOver(props: { readonly client: PluginClient }): JSX.Element {
   const commandValue = useSignal(command.value);
   return (
     <Show when={apps().length > 1}>
-      <SelectSetting title={t('shell-settings.terminal')} description={t('shell-settings.terminal.hint')} source={terminal} locked={locked} items={apps().map((a) => ({ value: a.id, label: a.label }))} />
+      <SelectSetting
+        title={t('shell-settings.terminal')}
+        description={t('shell-settings.terminal.hint')}
+        source={terminal}
+        locked={locked}
+        items={apps().map((a) => ({ value: a.id, label: a.label }))}
+      />
       <Show when={current() === 'custom'}>
         <SettingsRow
           title={t('shell-settings.terminal-command')}
@@ -70,6 +97,7 @@ function Review(props: { readonly client: PluginClient }): JSX.Element {
 }
 
 export default function General(props: { readonly client: PluginClient }): JSX.Element {
+  const shell = useShell();
   const editors = computed(() => EDITORS.map((v) => ({ value: v, label: t(`shell-settings.editor.${v}`) })));
   return (
     <>
@@ -90,11 +118,24 @@ export default function General(props: { readonly client: PluginClient }): JSX.E
         <OnOffRow client={props.client} k={KEYS.apps} dflt title="shell-settings.apps" hint="shell-settings.apps.hint" />
       </SettingsGroup>
       <SettingsGroup part="settings.general.crew">
+        {/* v1 kept Theme here, above Crew tint (Appearance has it too) */}
+        <ChoiceSetting
+          title={t('shell-settings.theme')}
+          description={t('shell-settings.theme.hint')}
+          source={{ value: () => shell.theme.pref(), set: (v: string) => void shell.theme.set(v as never) }}
+          items={[
+            { value: 'system', label: t('shell-settings.theme.system'), icon: 'laptop' },
+            { value: 'light', label: t('shell-settings.theme.light'), icon: 'sun' },
+            { value: 'dark', label: t('shell-settings.theme.dark'), icon: 'moon' },
+          ]}
+        />
         <OnOffRow client={props.client} k={KEYS.crewTint} dflt title="shell-settings.crew-tint" hint="shell-settings.crew-tint.hint" />
       </SettingsGroup>
       <SettingsGroup part="settings.general.transcript">
-        <OnOffRow client={props.client} k={KEYS.transcript} dflt={false} title="shell-settings.transcript" hint="shell-settings.transcript.hint" />
+        <OnOffRow client={props.client} k={KEYS.transcript} dflt={false} title="shell-settings.transcript" hint="shell-settings.transcript.hint" keys={['V']} />
       </SettingsGroup>
+      {/* what other plugins put at the end of General (wisp.update's Updates row, as v1 had it here) */}
+      <Slot input="shell.settings:general" layout="contents" />
     </>
   );
 }

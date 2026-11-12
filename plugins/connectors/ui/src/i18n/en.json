@@ -2,7 +2,6 @@
   "connectors.pane": "Connectors",
   "connectors.cancel": "Cancel",
   "connectors.and": "and",
-  "connectors.lede": "MCP servers every task's agent can use, whatever the harness.",
   "connectors.found.title.one": "{count} connector found in {from}",
   "connectors.found.title.other": "{count} connectors found in {from}",
   "connectors.found.skip": "Not now",
@@ -55,5 +54,6 @@
   "connectors.review.title": "Found in your harnesses",
   "connectors.review.description": "Servers your harnesses already have. Add them as connectors to give every task's agent their tools.",
   "connectors.review.add.one": "Add {count}",
-  "connectors.review.add.other": "Add {count}"
+  "connectors.review.add.other": "Add {count}",
+  "connectors.pane.lede": "MCP servers every task's agent can use, whatever the harness."
 }

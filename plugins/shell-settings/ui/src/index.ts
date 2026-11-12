@@ -45,6 +45,8 @@ export function settingsView(deps: FrameDeps): ViewDef<SettingsParams> {
     slot: 'overlay',
     // its own head (the panes' list, the pane's title and close): the dialog draws none
     bare: true,
+    // the dialog is v1's .modal.sx, named `settings` (the frame inside it is `settings.frame`)
+    part: 'settings',
     parse: parseParams,
     // getters, not a copy: the props stay live, so picking a pane (a new `params`) reaches the frame
     component: (p) =>

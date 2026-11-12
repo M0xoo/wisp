@@ -56,14 +56,18 @@
   "accounts.account.remove": "Remove",
   "accounts.change.why": "Its program changed since wisp last ran it. Unattended runs wait until you trust it.",
   "accounts.change.trust": "Trust it",
-  "accounts.tool.ready": "Ship it pushes branches and opens pull requests with it",
   "accounts.tool.missing": "Needed to ship a task's work",
-  "accounts.ask.title": "Ask when a harness changes",
-  "accounts.ask.description": "When a harness's program is updated or moved, unattended runs wait for you to trust it",
+  "accounts.ask.title": "Ask before running a changed harness",
+  "accounts.ask.description": "wisp keeps the path, size and sha256 of each harness’s program from the first time it runs it. Off, a change shows on the task and here. On, a run on a changed harness waits until you trust it",
   "accounts.pane.lede": "The harnesses wisp found on this machine. Pick one next to the model in the launcher.",
   "accounts.lean.title": "Lean Claude Code runs",
   "accounts.lean.description": "Without telemetry, error reports and update checks: fewer connections and about a second faster to start. A lean run has no claude.ai connectors (Google Drive, Docs, …), no org memory (Team plans), no /ultrareview or /advisor, no push notifications, and none of Claude Code’s server-rolled features. wisp’s side runs (judges, reviews, the retro) need none of these",
   "accounts.lean.off": "Off",
   "accounts.lean.on": "wisp’s side runs",
-  "accounts.lean.all": "All Claude runs"
+  "accounts.lean.all": "All Claude runs",
+  "accounts.tool.github": "GitHub",
+  "accounts.tool.gh": "For pushing branches and opening pull requests (the gh CLI)",
+  "accounts.recheck.title": "Installed something new?",
+  "accounts.recheck.hint": "After installing a CLI, signing in or adding a provider, look for harnesses and models again",
+  "accounts.state.limit": "At its limit"
 }

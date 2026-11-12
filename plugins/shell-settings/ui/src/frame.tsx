@@ -108,6 +108,7 @@ export function SettingsView(props: { readonly client: PluginClient; readonly pa
     <SettingsFrame
       // v1's own name for the whole sheet (.modal.sx), without a namespace: parity measures it by this
       part={'settings' as `${string}.${string}`}
+      rootPart={'settings.frame' as `${string}.${string}`}
       title={own('shell-settings.title')}
       groups={groups()}
       current={current()?.pane.id ?? ''}
@@ -123,7 +124,13 @@ export function SettingsView(props: { readonly client: PluginClient; readonly pa
     >
       <Show when={current()} keyed fallback={<EmptyState compact icon="settings" title={own('shell-settings.empty')} />}>
         {(entry) => (
-          <ErrorBoundary fallback={() => <Callout tone="bad" icon="warn">{own('shell-settings.pane-failed')}</Callout>}>
+          <ErrorBoundary
+            fallback={() => (
+              <Callout tone="bad" icon="warn">
+                {own('shell-settings.pane-failed')}
+              </Callout>
+            )}
+          >
             <Dynamic component={entry.pane.component} client={entry.client} {...(props.params.filter !== undefined && { filter: props.params.filter })} />
           </ErrorBoundary>
         )}

@@ -2,7 +2,7 @@
 // (never prompts, paths or code), and the repo-trust question before a repo's own programs run.
 import { onCleanup, type JSX } from 'solid-js';
 import { entityKey, type PluginClient } from '@wisp/client';
-import { SettingsGroup, SettingsRow, Switch, SwitchSetting, Text, useSignal, type SettingSource } from '@wisp/ui';
+import { SettingsGroup, SettingsNote, SettingsRow, Switch, SwitchSetting, useSignal, type SettingSource } from '@wisp/ui';
 import { KIND, setStats, TOPIC, type StateRow } from '../commands.ts';
 import { t } from '../i18n.ts';
 import { fromRow, onOff } from '../source.ts';
@@ -35,18 +35,35 @@ export default function Privacy(props: { readonly client: PluginClient }): JSX.E
           part="telemetry.privacy.stats.row"
           title={t('telemetry.privacy.stats.title')}
           description={stats()?.blocked ? t('telemetry.privacy.stats.blocked') : stats()?.on ? t('telemetry.privacy.stats.on') : t('telemetry.privacy.stats.off')}
-          control={<Switch aria-label={t('telemetry.privacy.stats.title')} checked={stats()?.on ?? false} disabled={stats()?.blocked ?? true} onChange={(on) => void c.run(setStats, { peer, on }).catch(() => {})} />}
+          control={
+            <Switch
+              aria-label={t('telemetry.privacy.stats.title')}
+              checked={stats()?.on ?? false}
+              disabled={stats()?.blocked ?? true}
+              onChange={(on) => void c.run(setStats, { peer, on }).catch(() => {})}
+            />
+          }
         />
       </SettingsGroup>
-      <Text as="p" size="sm" tone="muted" part="telemetry.privacy.stats.what">
-        {t('telemetry.privacy.stats.what')}
-      </Text>
+      <SettingsNote part="telemetry.privacy.stats.what">{t('telemetry.privacy.stats.what')}</SettingsNote>
       <SettingsGroup part="telemetry.privacy.trust">
-        <SwitchSetting part="telemetry.privacy.trust.row" title={t('telemetry.privacy.trust.title')} description={t('telemetry.privacy.trust.description')} source={onOff(fromRow(c, 'worktrees.projectAsk'), true)} locked={(by) => t('telemetry.privacy.locked', { by })} />
+        <SwitchSetting
+          part="settings.projectAsk"
+          title={t('telemetry.privacy.trust.title')}
+          description={t('telemetry.privacy.trust.description')}
+          source={onOff(fromRow(c, 'worktrees.projectAsk'), true)}
+          locked={(by) => t('telemetry.privacy.locked', { by })}
+        />
       </SettingsGroup>
       {/* v1 Hide .env values: wisp.git masks them (KEY=••••) in Changes and diffs unless this is off */}
       <SettingsGroup part="telemetry.privacy.env">
-        <SwitchSetting part="settings.maskEnv" title={t('telemetry.privacy.env.title')} description={t('telemetry.privacy.env.description')} source={maskEnv(c)} locked={(by) => t('telemetry.privacy.locked', { by })} />
+        <SwitchSetting
+          part="settings.maskEnvFiles"
+          title={t('telemetry.privacy.env.title')}
+          description={t('telemetry.privacy.env.description')}
+          source={maskEnv(c)}
+          locked={(by) => t('telemetry.privacy.locked', { by })}
+        />
       </SettingsGroup>
     </>
   );

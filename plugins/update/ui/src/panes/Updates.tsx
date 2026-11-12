@@ -16,13 +16,13 @@ import { channelHint, channelItems, showsInstall, versionLine } from '../words.t
 type Row = DeepReadonly<UpdateState>;
 const quiet = (p: Promise<unknown>): void => void p.catch(() => {}); // the shell toasts a refusal
 
-function Channel(props: { readonly client: PluginClient; readonly row: Row | undefined }): JSX.Element {
+export function Channel(props: { readonly client: PluginClient; readonly row: Row | undefined; readonly title?: string; readonly part?: `${string}.${string}` }): JSX.Element {
   const src = text(fromRow(props.client, KEYS.channel, 'stable'), 'stable');
   const channel = useSignal(src.value);
   return (
     <SelectSetting
-      part="settings.update.channel"
-      title={t('update.channel')}
+      part={props.part ?? 'settings.update.channel'}
+      title={props.title ?? t('update.channel')}
       description={channelHint(channel(), props.row)}
       items={channelItems()}
       source={src}
@@ -47,7 +47,14 @@ function Version(props: { readonly row: Row; readonly onInstall: () => void }): 
       title={t('update.version')}
       description={versionLine(props.row)}
       control={
-        <Show when={showsInstall(props.row)} fallback={<Text size="sm" tone="muted" mono numeric nowrap>{props.row.current}</Text>}>
+        <Show
+          when={showsInstall(props.row)}
+          fallback={
+            <Text size="sm" tone="muted" mono numeric nowrap>
+              {props.row.current}
+            </Text>
+          }
+        >
           <InstallButton row={props.row} onInstall={props.onInstall} />
         </Show>
       }
@@ -83,8 +90,17 @@ function Failed(props: { readonly client: PluginClient; readonly row: Row }): JS
   const action = (): JSX.Element => {
     const cmd = props.row.command;
     if (!cmd) return undefined;
-    if (props.row.method === 'app') return <Link href={cmd} external>{t('update.downloads')}</Link>;
-    return <Button size="sm" icon={copied() ? 'check' : 'copy'} onClick={() => copy(cmd)}>{copied() ? t('update.copied') : t('update.copy')}</Button>;
+    if (props.row.method === 'app')
+      return (
+        <Link href={cmd} external>
+          {t('update.downloads')}
+        </Link>
+      );
+    return (
+      <Button size="sm" icon={copied() ? 'check' : 'copy'} onClick={() => copy(cmd)}>
+        {copied() ? t('update.copied') : t('update.copy')}
+      </Button>
+    );
   };
   return (
     <Banner part="settings.update.error" tone="bad" title={t('update.failed')} action={action()}>
@@ -104,8 +120,12 @@ function Confirm(props: { readonly open: boolean; readonly row: Row; readonly on
       title={t('update.confirm.title', { latest: props.row.latest ?? '' })}
       footer={
         <>
-          <Button variant="ghost" onClick={() => props.onClose()}>{t('update.cancel')}</Button>
-          <Button variant="primary" icon="update" onClick={() => props.onConfirm()}>{t('update.confirm.ok')}</Button>
+          <Button variant="ghost" onClick={() => props.onClose()}>
+            {t('update.cancel')}
+          </Button>
+          <Button variant="primary" icon="update" onClick={() => props.onConfirm()}>
+            {t('update.confirm.ok')}
+          </Button>
         </>
       }
     >

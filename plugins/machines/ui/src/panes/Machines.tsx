@@ -3,7 +3,8 @@
 // computer from anywhere through a wisp Grid, and what another computer needs to reach this one over SSH.
 import { createResource, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
 import { type PluginClient } from '@wisp/client';
-import { Button, Dialog, Field, Inline, Input, Menu, Pill, SettingsGroup, SettingsRow, Stack, Text, useSignal } from '@wisp/ui';
+import { Slot } from '@wisp/shell';
+import { Button, Code, CopyCommand, Dialog, Field, Inline, Input, Link, Menu, Pill, SettingsGroup, SettingsNote, SettingsRow, Stack, useSignal } from '@wisp/ui';
 import { addMachine, connect, disconnect, PEER, reachable, removeMachine, STATUS, TOPIC, type PeerBody, type StatusBody } from '../commands.ts';
 import { t } from '../i18n.ts';
 
@@ -70,87 +71,159 @@ export default function Machines(props: { readonly client: PluginClient }): JSX.
     else if (v === 'remove') quiet(c.run(removeMachine, { peer, id }));
   };
   const r = () => reach();
+  const [managing, setManaging] = createSignal(false);
+  const copy = (cmd: string): void => {
+    void navigator.clipboard?.writeText(cmd).catch(() => {});
+  };
+  // v1 places.js machinesSummary: "None yet · run agents…", or how many and how many are online
+  const summary = (): string => {
+    const n = list().length;
+    if (!n) return t('machines.summary.none');
+    const on = list().filter((m) => stateOf(m.id)?.state === 'online').length;
+    return t('machines.summary', { count: n, online: on ? t('machines.summary.online', { count: on }) : t('machines.summary.noneOnline') });
+  };
+  const listGroup = (): JSX.Element => (
+    <SettingsGroup
+      part="machines.list"
+      actions={
+        <Button size="sm" variant="ghost" icon="plus" part="machines.add.open" onClick={() => setAdding(true)}>
+          {t('machines.add.title')}
+        </Button>
+      }
+    >
+      <Show when={list().length > 0} fallback={<SettingsRow part="machines.empty" title={t('machines.none')} description={t('machines.none.description')} />}>
+        <For each={list()}>
+          {(m) => {
+            const s = () => stateOf(m.id)?.state ?? 'off';
+            return (
+              <SettingsRow
+                part="machines.row"
+                title={m.name}
+                description={stateOf(m.id)?.error || m.address}
+                control={
+                  <Inline gap="2">
+                    <Pill tone={TONE[s()] ?? 'neutral'} dot live={s() === 'connecting' || s() === 'reconnecting'} variant="outline">
+                      {t(`machines.state.${s() as 'off'}`)}
+                    </Pill>
+                    <Menu
+                      trigger={{ icon: 'dots', 'aria-label': t('machines.more', { name: m.name }), variant: 'ghost', size: 'sm' }}
+                      items={[
+                        s() === 'off' || s() === 'error' ? { value: 'connect', label: t('machines.connect'), icon: 'play' } : { value: 'disconnect', label: t('machines.disconnect'), icon: 'stop' },
+                        { kind: 'separator' },
+                        { value: 'remove', label: t('machines.remove'), icon: 'trash', danger: true },
+                      ]}
+                      onSelect={(v) => act(m.id, v)}
+                    />
+                  </Inline>
+                }
+              />
+            );
+          }}
+        </For>
+      </Show>
+    </SettingsGroup>
+  );
   return (
     <>
-      <Text as="p" tone="muted" part="machines.lede">
-        {t('machines.lede')}
-      </Text>
-      <SettingsGroup
-        part="machines.list"
-        title={t('machines.title')}
-        description={t('machines.description')}
-        actions={
-          <Button size="sm" variant="ghost" icon="plus" part="machines.add.open" onClick={() => setAdding(true)}>
-            {t('machines.add.title')}
-          </Button>
-        }
-      >
-        <Show when={list().length > 0} fallback={<SettingsRow part="machines.empty" title={t('machines.none')} description={t('machines.none.description')} control={<span />} />}>
-          <For each={list()}>
-            {(m) => {
-              const s = () => stateOf(m.id)?.state ?? 'off';
-              return (
-                <SettingsRow
-                  part="machines.row"
-                  title={m.name}
-                  description={stateOf(m.id)?.error || m.address}
-                  control={
-                    <Inline gap="2">
-                      <Pill tone={TONE[s()] ?? 'neutral'} dot live={s() === 'connecting' || s() === 'reconnecting'} variant="outline">
-                        {t(`machines.state.${s() as 'off'}`)}
-                      </Pill>
-                      <Menu
-                        trigger={{ icon: 'dots', 'aria-label': t('machines.more', { name: m.name }), variant: 'ghost', size: 'sm' }}
-                        items={[
-                          s() === 'off' || s() === 'error' ? { value: 'connect', label: t('machines.connect'), icon: 'play' } : { value: 'disconnect', label: t('machines.disconnect'), icon: 'stop' },
-                          { kind: 'separator' },
-                          { value: 'remove', label: t('machines.remove'), icon: 'trash', danger: true },
-                        ]}
-                        onSelect={(v) => act(m.id, v)}
-                      />
-                    </Inline>
-                  }
-                />
-              );
-            }}
-          </For>
-        </Show>
+      {/* v1: one row (how many, Manage), the line on where they show, this computer on a grid, then SSH */}
+      <SettingsGroup part="machines.summary">
+        <SettingsRow
+          part="machines.open"
+          title={t('machines.title')}
+          description={summary()}
+          control={
+            <Button size="sm" variant="ghost" part="machines.manage" onClick={() => setManaging(true)}>
+              {t('machines.manage')}
+            </Button>
+          }
+        />
       </SettingsGroup>
+      <SettingsNote part="machines.hint">{t('machines.description')}</SettingsNote>
+      <Slot input="shell.settings:machines" layout="contents" />
       <SettingsGroup
         part="machines.ssh"
+        bodyPart="settings.reachable"
         title={t('machines.ssh.title')}
         description={t('machines.ssh.description')}
         actions={
-          <Button size="sm" variant="ghost" icon="rerun" onClick={() => void refetch()}>
+          <Button size="sm" variant="ghost" icon="replay" onClick={() => void refetch()}>
             {t('machines.recheck')}
           </Button>
         }
       >
-        <Show when={r()} fallback={<Text tone="muted">{t('machines.ssh.looking')}</Text>}>
+        <Show when={r()} fallback={<SettingsRow part="machines.ssh.looking" title={t('machines.ssh.looking')} />}>
           {(x) => (
             <>
-              <SettingsRow part="machines.ssh.server" title={t('machines.ssh.server')} description={x().ssh.running ? x().ssh.banner || t('machines.on') : t('machines.ssh.server.off')} control={<Pill tone={x().ssh.running ? 'good' : 'bad'} dot variant="outline">{x().ssh.running ? t('machines.on') : t('machines.off')}</Pill>} />
+              <SettingsRow
+                part="machines.ssh.server"
+                title={t('machines.ssh.server')}
+                description={x().ssh.running ? x().ssh.banner || t('machines.on') : t('machines.ssh.server.off')}
+                control={
+                  <Pill tone={x().ssh.running ? 'good' : 'bad'} dot variant="plain">
+                    {x().ssh.running ? t('machines.on') : t('machines.off')}
+                  </Pill>
+                }
+              />
               <SettingsRow
                 part="machines.ssh.tailscale"
                 title="Tailscale"
-                description={x().tailscale.running ? t('machines.tailscale.on', { name: x().tailscale.name ?? '' }) : x().tailscale.installed ? t('machines.tailscale.stopped') : t('machines.tailscale.none')}
-                control={<Pill tone={x().tailscale.running ? 'good' : 'neutral'} dot variant="outline">{x().tailscale.running ? t('machines.on') : t('machines.off')}</Pill>}
+                description={
+                  x().tailscale.running ? (
+                    <>
+                      {t('machines.tailscale.on.pre')}
+                      <Code>{x().tailscale.name ?? ''}</Code>
+                    </>
+                  ) : x().tailscale.installed ? (
+                    t('machines.tailscale.stopped')
+                  ) : (
+                    t('machines.tailscale.none')
+                  )
+                }
+                control={
+                  <Pill tone={x().tailscale.running ? 'good' : 'neutral'} dot variant="plain">
+                    {x().tailscale.running ? t('machines.on') : t('machines.off')}
+                  </Pill>
+                }
               />
               <SettingsRow
                 part="machines.ssh.keys"
                 title={t('machines.keys')}
                 description={
-                  <Stack gap="1">
-                    <Text tone="muted">{t('machines.keys.description', { count: x().keys })}</Text>
-                    <Text mono>{`ssh-copy-id ${x().target}`}</Text>
-                  </Stack>
+                  <>
+                    {t('machines.keys.pre', { count: x().keys })}
+                    <Code>~/.ssh/authorized_keys</Code>
+                    {t('machines.keys.post')}
+                    <CopyCommand command={`ssh-copy-id ${x().target}`} label={t('machines.copy')} onCopy={copy} />
+                  </>
                 }
-                control={<Pill tone={x().keys > 0 ? 'good' : 'warn'} dot variant="outline">{x().keys > 0 ? t('machines.ready') : t('machines.keys.none')}</Pill>}
+                control={
+                  <Pill tone={x().keys > 0 ? 'good' : 'neutral'} dot variant="plain">
+                    {x().keys > 0 ? t('machines.ready') : t('machines.keys.none')}
+                  </Pill>
+                }
+              />
+              <SettingsRow
+                part="machines.ssh.target"
+                title={t('machines.connectWith')}
+                description={
+                  <>
+                    {t('machines.connectWith.description')}{' '}
+                    <Link href="https://trywisp.dev/guides/connect-machines-with-tailscale.html" external>
+                      {t('machines.guide')}
+                    </Link>
+                    <CopyCommand command={x().target} bare label={t('machines.copy')} onCopy={copy} />
+                  </>
+                }
               />
             </>
           )}
         </Show>
       </SettingsGroup>
+      <Show when={managing()}>
+        <Dialog open onOpenChange={(o) => !o && setManaging(false)} title={t('machines.title')} description={t('machines.manage.description')} part="machines.manage.dialog">
+          {listGroup()}
+        </Dialog>
+      </Show>
       <Show when={adding()}>
         <Add
           onClose={() => setAdding(false)}

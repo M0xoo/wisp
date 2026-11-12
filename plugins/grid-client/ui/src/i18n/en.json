@@ -1,8 +1,6 @@
 {
   "grid-client.pane": "Cloud",
-  "grid-client.lede": "Your wisp on a server: it keeps working while this computer sleeps.",
   "grid-client.signin.title": "Sign in to a wisp Grid",
-  "grid-client.signin.description": "Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (wisp grid serve), your team’s, or a hosted one.",
   "grid-client.signin.grid": "The grid's address",
   "grid-client.signin.go": "Sign in",
   "grid-client.waiting.title": "Approve it in your browser",
@@ -44,5 +42,15 @@
   "grid-client.shares.copied": "Link copied",
   "grid-client.shares.open": "Open",
   "grid-client.shares.stop": "Stop sharing",
-  "grid-client.shares.stopped": "Stopped sharing {title}: the link no longer opens"
+  "grid-client.shares.stopped": "Stopped sharing {title}: the link no longer opens",
+  "grid-client.signin.description.pre": "Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (",
+  "grid-client.signin.description.post": "), your team’s, or a hosted one.",
+  "grid-client.pane.lede": "Your wisp on a server: it keeps working while this computer sleeps.",
+  "grid-client.reach.title": "Reach this computer from anywhere",
+  "grid-client.reach.description": "Sign in to a wisp Grid with GitHub or Google, here and on your phone or other computers: they find each other through it. No SSH, no Tailscale, no open ports. You get a cloud computer there too, which works while this one sleeps.",
+  "grid-client.reach.go": "Sign in and add it",
+  "grid-client.here.title": "This computer",
+  "grid-client.here.add": "Add to grid",
+  "grid-client.here.remove": "Remove from grid",
+  "grid-client.signin.command": "wisp grid serve"
 }

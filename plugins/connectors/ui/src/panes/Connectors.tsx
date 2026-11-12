@@ -5,7 +5,7 @@
 import { createMemo, createSignal, For, onCleanup, Show, untrack, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
-import { Button, Inline, Menu, Pill, SettingsGroup, SettingsRow, Switch, Text, useSignal } from '@wisp/ui';
+import { Button, Inline, Menu, Pill, SettingsGroup, SettingsNote, SettingsRow, Stack, Switch, Text, useSignal, Wrap } from '@wisp/ui';
 import { addConnector, importFound, removeConnector, signIn, signOut, testConnector, updateConnector } from '../commands.ts';
 import { homeRow, homeRows } from '../data.ts';
 import { t } from '../i18n.ts';
@@ -102,104 +102,116 @@ export default function Connectors(props: { readonly client: PluginClient }): JS
   const menu = (x: ConnectorView) => [
     { value: 'test', label: t('connectors.menu.test'), icon: 'replay' as const },
     { value: 'edit', label: t('connectors.menu.edit'), icon: 'pen' as const },
-    ...(x.transport === 'remote' ? [x.signed_in ? { value: 'signout', label: t('connectors.menu.signout'), icon: 'lock' as const } : { value: 'signin', label: t('connectors.menu.signin'), icon: 'external' as const }] : []),
+    ...(x.transport === 'remote'
+      ? [x.signed_in ? { value: 'signout', label: t('connectors.menu.signout'), icon: 'lock' as const } : { value: 'signin', label: t('connectors.menu.signin'), icon: 'external' as const }]
+      : []),
     { kind: 'separator' as const },
     { value: 'remove', label: t('connectors.menu.remove'), icon: 'trash' as const, danger: true },
   ];
   const where = (x: ConnectorView): string => (x.transport === 'local' ? commandLine(x) : hostOf(x.url));
-  const reachLine = (): string => listOf((reach()?.harnesses ?? []).map((h) => harnessName(h, names())), t('connectors.and'));
+  const reachLine = (): string =>
+    listOf(
+      (reach()?.harnesses ?? []).map((h) => harnessName(h, names())),
+      t('connectors.and'),
+    );
 
   return (
     <>
-      <Text as="p" tone="muted" part="connectors.lede">
-        {t('connectors.lede')}
-      </Text>
-      <Show when={found().length > 0}>
-        <SettingsGroup part="connectors.found">
-          <SettingsRow
-            part="connectors.found.row"
-            title={t('connectors.found.title', { count: found().length, from: listOf(sourcesOf(found() as FoundServer[]), t('connectors.and')) })}
-            description={found()
-              .map((f) => f.name)
-              .join(', ')}
-            control={
-              <Inline gap="2">
-                <Button size="sm" variant="ghost" part="connectors.found.skip" onClick={() => quiet(c.run(importFound, { peer, names: [], dismiss: found().map((f) => f.name) }))}>
-                  {t('connectors.found.skip')}
-                </Button>
-                <Button size="sm" part="connectors.found.review" onClick={() => setReviewing(true)}>
-                  {t('connectors.found.review')}
-                </Button>
-              </Inline>
-            }
-          />
-        </SettingsGroup>
-      </Show>
-      <SettingsGroup
-        part="connectors.list"
-        title={t('connectors.yours')}
-        description={t('connectors.yours.description')}
-        actions={
-          <Button size="sm" variant="ghost" icon="plus" part="connectors.add" onClick={() => setEditing({ draft: emptyDraft() })}>
-            {t('connectors.add')}
-          </Button>
-        }
-      >
-        <Show
-          when={rows().length > 0}
-          fallback={
+      {/* v1 .cn-box: what was found, your connectors, and who they reach */}
+      <Stack part="settings.connectors">
+        <Show when={found().length > 0}>
+          <SettingsGroup part="connectors.import">
             <SettingsRow
-              part="connectors.empty"
-              title={t('connectors.empty.title')}
-              description={t('connectors.empty.description')}
+              part="connectors.found.row"
+              tile="download"
+              title={t('connectors.found.title', { count: found().length, from: listOf(sourcesOf(found() as FoundServer[]), t('connectors.and')) })}
+              description={found()
+                .map((f) => f.name)
+                .join(', ')}
               control={
                 <Inline gap="2">
-                  <For each={EXAMPLES}>
-                    {(e) => (
-                      <Button size="sm" variant="secondary" part="connectors.example" onClick={() => setEditing({ draft: { ...e.draft, env: [...e.draft.env], headers: [...e.draft.headers] } })}>
-                        {e.label}
-                      </Button>
-                    )}
-                  </For>
+                  <Button size="sm" variant="ghost" part="connectors.found.skip" onClick={() => quiet(c.run(importFound, { peer, names: [], dismiss: found().map((f) => f.name) }))}>
+                    {t('connectors.found.skip')}
+                  </Button>
+                  <Button size="sm" variant="primary" part="connectors.found.review" onClick={() => setReviewing(true)}>
+                    {t('connectors.found.review')}
+                  </Button>
                 </Inline>
               }
             />
+          </SettingsGroup>
+        </Show>
+        <SettingsGroup
+          part="connectors.list"
+          title={t('connectors.yours')}
+          description={t('connectors.yours.description')}
+          actions={
+            <Button size="sm" variant="ghost" icon="plus" part="connectors.add" onClick={() => setEditing({ draft: emptyDraft() })}>
+              {t('connectors.add')}
+            </Button>
           }
         >
-          <For each={rows()}>
-            {(x) => (
+          <Show
+            when={rows().length > 0}
+            fallback={
               <SettingsRow
-                part="connectors.row"
-                title={x.name}
-                description={
-                  <Inline gap="2">
-                    <Text tone="muted" truncate>
-                      {where(x)}
-                    </Text>
-                    <Pill tone={toneOf(x, isSigning(x))} dot live={x.testing || isSigning(x)}>
-                      {statusLine(x, isSigning(x))}
-                    </Pill>
-                  </Inline>
-                }
+                part="connectors.empty"
+                title={t('connectors.empty.title')}
+                description={t('connectors.empty.description')}
                 control={
-                  <Inline gap="2">
-                    <Show when={statusOf(x, isSigning(x)).kind === 'signin'}>
-                      <Button size="sm" part="connectors.signin" onClick={() => login(x)}>
-                        {t('connectors.menu.signin')}
-                      </Button>
-                    </Show>
-                    <Switch aria-label={t('connectors.on', { name: x.name })} checked={x.enabled} onChange={(on) => quiet(c.run(updateConnector, { peer, id: x.id, enabled: on }))} />
-                    <Menu part="connectors.row.menu" trigger={{ icon: 'dots', 'aria-label': t('connectors.menu', { name: x.name }), variant: 'ghost', size: 'sm' }} items={menu(x)} onSelect={(v) => act(x, v)} />
-                  </Inline>
+                  <Wrap gap="4" justify="end">
+                    <For each={EXAMPLES}>
+                      {(e) => (
+                        <Button size="sm" variant="chip" part="connectors.example" onClick={() => setEditing({ draft: { ...e.draft, env: [...e.draft.env], headers: [...e.draft.headers] } })}>
+                          {e.label}
+                        </Button>
+                      )}
+                    </For>
+                  </Wrap>
                 }
               />
-            )}
-          </For>
-        </Show>
-      </SettingsGroup>
-      <Text as="p" tone="muted" part="connectors.reach">
-        {t('connectors.reach', { harnesses: reachLine() })}
-      </Text>
+            }
+          >
+            <For each={rows()}>
+              {(x) => (
+                <SettingsRow
+                  part="connectors.row"
+                  title={x.name}
+                  description={
+                    <Inline gap="2">
+                      <Text tone="muted" truncate>
+                        {where(x)}
+                      </Text>
+                      <Pill tone={toneOf(x, isSigning(x))} dot live={x.testing || isSigning(x)}>
+                        {statusLine(x, isSigning(x))}
+                      </Pill>
+                    </Inline>
+                  }
+                  control={
+                    <Inline gap="2">
+                      <Show when={statusOf(x, isSigning(x)).kind === 'signin'}>
+                        <Button size="sm" part="connectors.signin" onClick={() => login(x)}>
+                          {t('connectors.menu.signin')}
+                        </Button>
+                      </Show>
+                      <Switch aria-label={t('connectors.on', { name: x.name })} checked={x.enabled} onChange={(on) => quiet(c.run(updateConnector, { peer, id: x.id, enabled: on }))} />
+                      <Menu
+                        part="connectors.row.menu"
+                        trigger={{ icon: 'dots', 'aria-label': t('connectors.menu', { name: x.name }), variant: 'ghost', size: 'sm' }}
+                        items={menu(x)}
+                        onSelect={(v) => act(x, v)}
+                      />
+                    </Inline>
+                  }
+                />
+              )}
+            </For>
+          </Show>
+        </SettingsGroup>
+        <SettingsNote part="connectors.reach" after={10} inset>
+          {t('connectors.reach', { harnesses: reachLine() })}
+        </SettingsNote>
+      </Stack>
       <Show when={editing()}>{(e) => <Editor draft={e().draft} editing={e().id !== undefined} onSave={(d) => save(d, e().id)} onClose={() => setEditing(undefined)} />}</Show>
       <Review
         open={reviewing()}

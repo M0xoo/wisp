@@ -34,7 +34,7 @@ export function listOf(xs: readonly string[], and: string): string {
 }
 
 /** v1's names for harnesses the accounts rows don't name. */
-const NAMES: Readonly<Record<string, string>> = { claude: 'Claude Code', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', grok: 'Grok' };
+const NAMES: Readonly<Record<string, string>> = { claude: 'Claude Code', codex: 'Codex', copilot: 'Copilot', opencode: 'opencode', grok: 'Grok' };
 export const harnessName = (id: string, known: ReadonlyMap<string, string>): string => known.get(id) ?? NAMES[id] ?? id;
 
 /** A form's fields, both transports kept so switching back finds what was typed. */
@@ -124,19 +124,16 @@ export const EXAMPLES: readonly Example[] = [
   { label: 'Linear', draft: { ...emptyDraft(), name: 'linear', transport: 'remote', url: 'https://mcp.linear.app/mcp' } },
   { label: 'Jira', draft: { ...emptyDraft(), name: 'atlassian', transport: 'remote', url: 'https://mcp.atlassian.com/v1/mcp' } },
   { label: 'PostHog', draft: { ...emptyDraft(), name: 'posthog', transport: 'remote', url: 'https://mcp.posthog.com/mcp' } },
-  { label: 'GitHub', draft: { ...emptyDraft(), name: 'github', transport: 'remote', url: 'https://api.githubcopilot.com/mcp/', headers: [{ key: 'Authorization', value: '', set: false, placeholder: 'Bearer ghp_…' }] } },
+  {
+    label: 'GitHub',
+    draft: { ...emptyDraft(), name: 'github', transport: 'remote', url: 'https://api.githubcopilot.com/mcp/', headers: [{ key: 'Authorization', value: '', set: false, placeholder: 'Bearer ghp_…' }] },
+  },
   { label: 'Filesystem', draft: { ...emptyDraft(), name: 'filesystem', command: 'npx -y @modelcontextprotocol/server-filesystem ~/Documents' } },
   { label: 'Postgres', draft: { ...emptyDraft(), name: 'postgres', command: 'npx -y @modelcontextprotocol/server-postgres postgresql://localhost/mydb' } },
 ];
 
 /** What the row's status column says. */
-export type Status =
-  | { kind: 'signing' }
-  | { kind: 'signin' }
-  | { kind: 'checking' }
-  | { kind: 'unchecked' }
-  | { kind: 'ok'; count: number }
-  | { kind: 'failed'; error: string };
+export type Status = { kind: 'signing' } | { kind: 'signin' } | { kind: 'checking' } | { kind: 'unchecked' } | { kind: 'ok'; count: number } | { kind: 'failed'; error: string };
 
 /** Signing in wins (the browser is open), then a sign-in the last check asked for, then the check. */
 export function statusOf(c: ConnectorView, signing: boolean): Status {
@@ -165,4 +162,5 @@ export const foundLine = (f: FoundServer): string => (f.transport === 'local' ? 
 export const exampleFor = (source: string): Example | undefined => EXAMPLES.find((x) => x.label.toLowerCase() === source);
 
 /** Whether a connector is for that issue source: its name, URL or command says so, as wisp.issues reads it. */
-export const isFor = (source: string, c: Pick<ConnectorView, 'name' | 'url' | 'command' | 'args'>): boolean => (source === 'jira' ? /jira|atlassian/i : /linear/i).test([c.name, c.url, c.command, ...c.args].join(' '));
+export const isFor = (source: string, c: Pick<ConnectorView, 'name' | 'url' | 'command' | 'args'>): boolean =>
+  (source === 'jira' ? /jira|atlassian/i : /linear/i).test([c.name, c.url, c.command, ...c.args].join(' '));
