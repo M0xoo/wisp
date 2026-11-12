@@ -9,7 +9,7 @@ import { For, Show, createMemo, createSignal, type JSX } from 'solid-js';
 import { machineCommands, stopTask } from './commands.ts';
 import type { MachineData } from './data.ts';
 import type { Host } from './host.ts';
-import { clock, laterChoices, pctText, size, usingRows, wispRow, type UsingRow } from './view.ts';
+import { clock, laterChoices, pctText, size, stopAsk, usingRows, wispRow, type UsingRow } from './view.ts';
 
 interface Props {
   readonly client: PluginClient;
@@ -53,14 +53,17 @@ export function Using(props: Props): JSX.Element {
       mark(x.key, false);
     }
   };
+  // Stop is hard to take back: it asks first, here as on the task (v1 #781); Later stops it now too, so it asks as well
+  const askStop = (x: UsingRow): void => props.confirm({ ...stopAsk(x, t), ok: t('machine.act.stop'), run: () => void stop(x).catch(() => {}) });
+  const askLater = (x: UsingRow, at: number): void => props.confirm({ ...stopAsk(x, t, clock(at, props.host.now())), ok: t('machine.act.stop'), run: () => void later(x, at) });
   const actions = (x: UsingRow): JSX.Element => (
     <Show when={x.kind !== 'wisp'}>
       <Menu
         trigger={{ label: t('machine.act.later'), variant: 'ghost', size: 'xs' }}
         items={laterChoices(props.data.now(), t).map((c) => ({ value: String(c.at), label: c.label }))}
-        onSelect={(v) => void later(x, Number(v))}
+        onSelect={(v) => askLater(x, Number(v))}
       />
-      <Button variant="ghost" size="xs" tone="bad" loading={busy().has(x.key)} onClick={() => void stop(x).catch(() => {})}>
+      <Button variant="ghost" size="xs" tone="bad" loading={busy().has(x.key)} onClick={() => askStop(x)}>
         {t('machine.act.stop')}
       </Button>
     </Show>

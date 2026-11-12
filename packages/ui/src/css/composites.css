@@ -15,34 +15,57 @@
      line, at least 26px wide); the sub and the pills share the second line; the run line runs across the third. The
      quick actions float over the title's end (v1 .it-quick top 7px right 40px, .it-later right 68px: 24px, 4px
      apart), so the dot, the title and the time always share one line. */
-  [data-kit='list-row'][data-layout='feed'] { grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-rows: auto; column-gap: 10px; row-gap: 1px; padding: 9px 12px; min-height: 0; align-items: center; border-radius: var(--radius); }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-lead'] { grid-column: 1; grid-row: 1; align-self: center; display: flex; align-items: center; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-main'] { display: contents; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-main'] > [data-kit='list-row-hit'] { grid-column: 2 / -1; grid-row: 1; min-width: 0; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-main'] > [data-kit='list-row-sub'] { grid-column: 2; grid-row: 2; min-width: 0; line-height: 1.56; color: var(--faint); } /* 19.5px on v1's 12.5px */
+  [data-kit='list-row'][data-layout='feed'] { grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-rows: auto; column-gap: 10px; row-gap: 1px; padding: 9px 12px; min-height: 0; align-items: center; border-radius: var(--radius); cursor: pointer; outline: 0; }
+  [data-kit='list-row'][data-layout='feed']:focus-visible { box-shadow: inset 0 0 0 var(--size-ring) var(--accent); }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='dot'] { grid-column: 1; grid-row: 1; align-self: center; width: 7px; height: 7px; color: var(--ink); }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon'][data-part~='list.row.mark'] { grid-column: 1; grid-row: 1; align-self: center; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-title'] { grid-column: 2 / -1; grid-row: 1; min-width: 0; font-size: 13px; line-height: 20px; padding-right: 36px; font-weight: var(--fw-medium); color: var(--ink-2); border-radius: 5px; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'] { grid-column: 2; grid-row: 2; min-width: 0; line-height: 1.56; color: var(--faint); } /* 19.5px on v1's 12.5px */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'][data-tone='accent-ink'] { color: var(--accent-ink); }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'][data-tone='warn'] { color: var(--warn); font-weight: var(--fw-medium); }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'] > [data-kit='icon'] { display: inline-block; margin-right: 4px; vertical-align: -2px; }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] { grid-column: 3; grid-row: 2; flex-wrap: nowrap; justify-content: flex-end; gap: 2px 6px; min-height: 19px; padding-inline-start: 0; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-foot'] { grid-column: 2 / -1; grid-row: 3; min-width: 0; font-size: 11.5px; line-height: 17px; color: var(--faint); }
-  [data-kit='list-row'][data-layout='feed'] [data-kit='list-row-title'] { font-size: 13px; line-height: 20px; padding-right: 36px; font-weight: var(--fw-medium); color: var(--ink-2); border-radius: 5px; }
+  /* v1 .it-run: harness, model and where, across the third line */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='row-run'] { grid-column: 2 / -1; grid-row: 3; display: flex; align-items: center; min-width: 0; font-size: 11.5px; line-height: 17px; color: var(--faint); white-space: nowrap; overflow: hidden; }
+  [data-kit='row-run'] > * { flex: none; }
+  [data-kit='row-run'] > [data-kit='ir-logo'] { margin-right: 5px; }
+  [data-kit='row-run'] > [data-kit='ir-h'] { flex: 0 1 auto; min-width: 7ch; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  [data-kit='ir-w'] { flex: 0 1 auto; display: inline-flex; align-items: center; min-width: 8ch; overflow: hidden; }
+  [data-kit='ir-w']::before { content: '·'; padding: 0 5px; }
+  [data-kit='ir-w'] > span { overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='ir-w'] > [data-kit='icon'] { flex: none; width: 11px; height: 11px; margin-right: 4px; }
   /* 600 in ink while it wants you (v1 .item.unread / .st-waiting / .open .it-title) */
-  [data-kit='list-row'][data-layout='feed'][data-strong] [data-kit='list-row-title'] { font-weight: var(--fw-semibold); color: var(--ink); }
+  [data-kit='list-row'][data-layout='feed'][data-strong] > [data-kit='list-row-title'] { font-weight: var(--fw-semibold); color: var(--ink); }
+  [data-kit='list-row'][data-layout='feed'][data-quiet] > [data-kit='list-row-title'] { color: var(--muted); }
   /* while the quick actions show (hover, the open or keyboard's row), the title ends before them (v1: 64px, 92px) */
-  [data-kit='list-row'][data-layout='feed']:is(:hover, [data-current], [data-selected]):has(> [data-kit='list-row-actions'] > [data-part~='card.quickDone']) [data-kit='list-row-title'] { padding-right: 64px; }
-  [data-kit='list-row'][data-layout='feed']:is(:hover, [data-current], [data-selected]):has(> [data-kit='list-row-actions'] > [data-part~='card.quickLater']) [data-kit='list-row-title'] { padding-right: 92px; }
-  [data-kit='list-row'][data-layout='feed']:is(:hover, [data-current], [data-selected]):has(> [data-kit='list-row-actions'] > [data-part~='card.quickLater']):not(:has(> [data-kit='list-row-actions'] > [data-part~='card.quickDone'])) [data-kit='list-row-title'] { padding-right: 64px; }
-  /* no grid placement: an absolute grid item with one is placed in its grid area (inside the padding), not the row */
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-time'] { position: absolute; grid-area: auto; top: 9px; right: 12px; display: block; width: auto; min-width: 26px; padding: 0; font-size: 11.5px; line-height: 21px; text-align: right; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-time'] > * { display: block; min-width: 0; line-height: inherit; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] { position: absolute; grid-area: auto; top: 7px; right: 40px; padding-inline-start: 0; gap: 4px; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] > [data-kit='icon-button'] { margin: 0; border-width: 0; border-radius: 7px; background: var(--bg-2); font-size: 14px; font-weight: 400; line-height: 1.55; color: var(--faint); }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] > [data-kit='icon-button'][data-tone='good']:hover { color: var(--good); }
-  [data-kit='list-row'][data-layout='feed'] [data-kit='dot'] { width: 7px; height: 7px; color: var(--ink); }
+  /* while the quick actions show (hover, the open or keyboard's row), the title ends before them (v1: one 64px, two 92px) */
+  [data-kit='list-row'][data-layout='feed'][data-quick='1']:hover > [data-kit='list-row-title'] { padding-right: 64px; }
+  [data-kit='list-row'][data-layout='feed'][data-quick='2']:hover > [data-kit='list-row-title'] { padding-right: 92px; }
+  [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-current] > [data-kit='list-row-title'] { padding-right: 64px; }
+  [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-current] > [data-kit='list-row-title'] { padding-right: 92px; }
+  [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-selected] > [data-kit='list-row-title'] { padding-right: 64px; }
+  [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-selected] > [data-kit='list-row-title'] { padding-right: 92px; }
+  /* the time is the pills' last, pinned in the row's corner (v1 split.css .it-side .q-time) */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-kit='time'], [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-part~='list.row.time'] { position: absolute; top: 9px; right: 12px; display: block; min-width: 26px; font-size: 11.5px; line-height: 21px; text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
+  /* the quick actions float over the title's end: Mark done at 40px, Save for later at 68px before it (v1 .it-quick, .it-later) */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] {
+    position: absolute; top: 7px; right: 40px; display: grid; place-items: center; width: 24px; height: 24px; margin: 0; border-width: 0; border-radius: 7px;
+    background: var(--bg-2); font-size: 14px; font-weight: 400; line-height: 1.55; color: var(--faint); cursor: pointer; opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+  }
+  [data-kit='list-row'][data-layout='feed'][data-quick='2'] > [data-kit='icon-button'] { right: 68px; }
+  [data-kit='list-row'][data-layout='feed'][data-quick='2'] > [data-kit='icon-button'] ~ [data-kit='icon-button'] { right: 40px; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] > [data-kit='icon'] { width: 14px; height: 14px; }
+  [data-kit='list-row'][data-layout='feed']:hover > [data-kit='icon-button'], [data-kit='list-row'][data-layout='feed']:focus-visible > [data-kit='icon-button'], [data-kit='list-row'][data-layout='feed'][data-selected] > [data-kit='icon-button'] { opacity: 1; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'][data-tone='good']:hover { color: var(--good); }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='gap'] { display: none; }
+  @media (hover: none) { [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] { opacity: 1; } }
   /* the item round it (v1 #feed .item): a 1px border, transparent at rest; hover and open fill the item, focus (the
      keyboard's row) outlines it; 2px between items (.f-list gap), the virtual row's own padding so it's measured */
   [data-kit='feed-item'] { border: 1px solid transparent; border-radius: var(--radius); }
-  [data-kit='feed-item']:hover, [data-kit='feed-item']:has(> [data-kit='list-row'][data-layout='feed'][data-current]) { background: var(--bg-2); }
-  [data-kit='feed-item']:has(> [data-kit='list-row'][data-layout='feed'][data-selected]) { border-color: var(--line); }
+  [data-kit='feed-item']:hover, [data-kit='feed-item'][data-current] { background: var(--bg-2); }
+  [data-kit='feed-item'][data-selected] { border-color: var(--line); }
   [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed']:hover, [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-current], [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-selected] { background: none; }
-  [data-kit='virtual-row']:has(> [data-kit='feed-item']) + [data-kit='virtual-row']:has(> [data-kit='feed-item']) { padding-top: 2px; }
+  [data-kit='virtual-row'] + [data-kit='virtual-row'] > [data-kit='feed-item'] { margin-top: 2px; } /* rows are flow-root: measured */
   [data-kit='list-row'][data-interactive]:hover { background: var(--bg-2); }
   [data-kit='list-row'][data-current] { background: var(--bg-2); }
   [data-kit='list-row'][data-selected] { background: var(--accent-soft); }

@@ -40,7 +40,7 @@ export type LineHeight = 'tight' | 'snug' | 'base' | 'loose';
 /** Letter spacing. */
 export type Tracking = 'body' | 'title' | 'display';
 /** Shadows, for floating things only. */
-export type Shadow = '1' | '2' | '3' | 'scrim';
+export type Shadow = '1' | '2' | '3' | 'scrim' | 'palette' | 'scrim-light';
 /** Fixed sizes: controls, icons, avatars, caps on floating widths. */
 export type Size = 'hairline' | 'ring' | 'ring-thin' | 'tests-ring' | 'dialog-xl' | 'dialog-xl-h' | 'settings-nav' | 'settings-nav-narrow' | 'settings-head' | 'settings-head-phone' | 'map' | 'preview' | 'dot' | 'dot-lg' | 'icon-xs' | 'icon-sm' | 'icon-md' | 'icon' | 'icon-lg' | 'avatar-sm' | 'avatar-md' | 'avatar-lg' | 'pill' | 'control-xs' | 'control-sm' | 'control-md' | 'control-lg' | 'touch' | 'bar' | 'bar-compact' | 'switch-w' | 'switch-h' | 'switch-knob' | 'check' | 'time-col' | 'menu-min' | 'menu-max' | 'tooltip-max' | 'popover' | 'toast' | 'dialog-sm' | 'dialog-md' | 'dialog-lg' | 'sheet-max' | 'prose' | 'row-min' | 'diff-gutter' | 'lazy-chunk' | 'rail' | 'rail-w' | 'panel-w' | 'side' | 'icon-tile' | 'pill-row' | 'time-row' | 'chip-lg' | 'pip' | 'new-task' | 'home-foot' | 'action-tile' | 'later-offset' | 'title-reserve' | 'meta-min' | 'home-top' | 'pick-max' | 'details' | 'read' | 'v1-nudge' | 'v1-snug' | 'v1-tight' | 'v1-grip' | 'v1-indent' | 'task-head' | 'mac-rail-top' | 'mac-strip-top' | 'mac-strip-left' | 'mac-chips' | 'mac-brand' | 'mac-back' | 'mac-head' | 'meta-wide' | 'read-w';
 /** Motion durations. */

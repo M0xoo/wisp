@@ -67,7 +67,8 @@ export function Select(props: SelectProps): JSX.Element {
         aria-labelledby={props['aria-labelledby']}
         aria-describedby={props['aria-describedby'] ?? field()?.describedBy}
         data-kit="select-trigger"
-        data-part={sub(part(), 'trigger')}
+        // v1's name for a list's button in dialogs and Settings (ui/select.js .kit-sel), beside the kit's own
+        data-part={`${sub(part(), 'trigger')} form.select`}
         data-size={props.size ?? 'md'}
         data-mono={flag(props.mono)}
         data-placeholder={flag(!api().hasSelectedItems)}

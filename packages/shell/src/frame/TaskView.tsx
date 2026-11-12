@@ -17,7 +17,7 @@ import { coldHint, compactItem } from './cold.ts';
 import { goalGate } from './goal-gate.ts';
 import { useNow } from '../clock.ts';
 import { archive, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
-import { answerContext } from './answer-ctx.ts';
+import { answerContext, blockedOf } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
 import { useAttachments } from './attach.ts';
@@ -277,8 +277,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       title: t('shell.task.openInTitle', { harness: harnessOf(harnesses(), s.agent).name }),
       act: { onClick: () => side('shell') },
     },
-    { id: 'changes', key: 'D', icon: 'file', label: t('shell.task.changes'), title: t('shell.task.changesTitle'), part: 'split.changes', act: { onClick: () => side('changes') } },
-    { id: 'shell', key: '⌃`', icon: 'shell', label: t('shell.task.shell'), title: t('shell.task.shellTitle'), part: 'split.shell', act: { onClick: () => side('shell') } },
+    { id: 'changes', key: 'D', icon: 'file', label: t('shell.task.changes'), title: t('shell.task.changesTitle'), part: 'split.changes', on: nav().side.kind === 'changes', act: { onClick: () => side('changes') } },
+    { id: 'shell', key: '⌃`', icon: 'shell', label: t('shell.task.shell'), title: t('shell.task.shellTitle'), part: 'split.shell', on: nav().side.kind === 'shell', act: { onClick: () => side('shell') } },
     { id: 'ship', key: 'S', icon: 'send', label: t('shell.task.ship'), title: t('shell.task.shipTitle'), act: { onClick: ship } },
     { id: 'done', key: 'E', icon: 'done', label: t('shell.task.done'), title: t('shell.card.done'), tone: 'good', act: { onClick: markDone } },
     { id: 'more', icon: 'dots', label: t('shell.task.more'), title: t('shell.task.more'), act: { menu: { items: more(), onSelect: onMore } } },
@@ -411,6 +411,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                     shell,
                                     key,
                                     turnId: turn.id,
+                                    blocked: () => blockedOf(b),
                                     latest: () => turn.id === turns().at(-1)?.id,
                                     title: () => s().title,
                                     transcript: stepsOpen,

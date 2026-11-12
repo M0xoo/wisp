@@ -39,4 +39,8 @@
 @import './crew.css';
 @import './crew-view.css';
 @import './transcript.css';
+@import './changes.css';
+@import './palette.css';
+@import './crew-editor.css';
+@import './stuff-frame.css';
 @import './home.css';

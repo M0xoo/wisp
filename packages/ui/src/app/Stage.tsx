@@ -86,6 +86,8 @@ export interface CrewRailProps {
   readonly addLabel: string;
   /** the list beside it shows every task (All picked) */
   readonly allOn: boolean;
+  /** the member whose thread is open: their face is the picked tile (v1 .cl-face.on) */
+  readonly pickedId?: string | undefined;
   readonly members: readonly RailMember[];
   readonly onAll?: () => void;
   readonly onMember?: (id: string) => void;
@@ -122,7 +124,16 @@ export function CrewRail(props: CrewRailProps): JSX.Element {
       <div data-kit="cl-faces">
         <For each={props.members}>
           {(m) => (
-            <button type="button" data-kit="cl-face" data-part="crew.rail.face" aria-label={m.name} title={m.name} onClick={() => props.onMember?.(m.id)}>
+            <button
+              type="button"
+              data-kit="cl-face"
+              data-part="crew.rail.face"
+              data-on={flag(props.pickedId === m.id)}
+              aria-current={props.pickedId === m.id ? 'page' : undefined}
+              aria-label={m.name}
+              title={m.name}
+              onClick={() => props.onMember?.(m.id)}
+            >
               <i data-kit="cl-pip" data-part="crew.rail.pick" />
               <span data-kit="cl-av">
                 <span data-kit="cr-av" data-part="crew.avatar" data-color={m.color}>
@@ -309,6 +320,8 @@ export interface SplitTopProps {
   readonly stuffLabel: string;
   /** Home is open beside it */
   readonly on: boolean;
+  /** My Stuff is open beside it (v1 .split-stuff.on) */
+  readonly stuffOn?: boolean;
   readonly onNew?: () => void;
   readonly onStuff?: () => void;
 }
@@ -323,7 +336,16 @@ export function SplitTop(props: SplitTopProps): JSX.Element {
           <span data-text="control">{props.newLabel}</span>
           <kbd>N</kbd>
         </button>
-        <button type="button" data-kit="split-stuff" data-part="stuff.button" title={props.stuffLabel} aria-label={props.stuffLabel} onClick={() => props.onStuff?.()}>
+        <button
+          type="button"
+          data-kit="split-stuff"
+          data-part="stuff.button"
+          data-on={flag(props.stuffOn)}
+          aria-current={props.stuffOn ? 'page' : undefined}
+          title={props.stuffLabel}
+          aria-label={props.stuffLabel}
+          onClick={() => props.onStuff?.()}
+        >
           <Icon name="stuff" />
         </button>
       </div>
@@ -342,9 +364,10 @@ export interface FeedSectionProps {
 }
 
 /** v1 #feed .item: one task's row in a feed, its 1px border (transparent at rest) around the row's head. */
-export function FeedItem(props: { readonly part?: PartName; readonly id?: string; readonly children?: JSX.Element }): JSX.Element {
+/** v1 #feed .item round a row: open (current) it's filled, picked by the keyboard (selected) it's outlined. */
+export function FeedItem(props: { readonly part?: PartName; readonly id?: string; readonly current?: boolean; readonly selected?: boolean; readonly children?: JSX.Element }): JSX.Element {
   return (
-    <div data-kit="feed-item" data-part={props.part ?? 'ui.feed-item'} data-id={props.id}>
+    <div data-kit="feed-item" data-part={props.part ?? 'ui.feed-item'} data-id={props.id} data-current={flag(props.current)} data-selected={flag(props.selected)}>
       {props.children}
     </div>
   );

@@ -10,12 +10,14 @@ export interface Fact {
   readonly icon: 'clock' | 'queue' | 'folder' | 'agent' | 'crew';
   readonly text: string;
   readonly logo?: string | undefined;
+  /** the fact opens something (the delegates: Org on them, v1's › row) */
+  readonly onClick?: (() => void) | undefined;
 }
 
 const base = (p: string): string => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 
 /** v1's side: cadence, how many at once, where, which harness and mode, delegates. */
-export function facts(m: Member, o: { t: T; harness: (id: string) => { name: string; logo?: string | undefined }; place: (machine: string) => string }): Fact[] {
+export function facts(m: Member, o: { t: T; harness: (id: string) => { name: string; logo?: string | undefined }; place: (machine: string) => string; onTeam?: () => void }): Fact[] {
   const { t } = o;
   const h = o.harness(m.agent);
   const mode = m.mode === 'plan' || m.mode === 'edits' ? m.mode : 'auto';
@@ -26,7 +28,7 @@ export function facts(m: Member, o: { t: T; harness: (id: string) => { name: str
     { icon: 'queue', text: t('wisp.crew.page.parallel', { count: Math.max(1, m.parallel || 1) }) },
     { icon: 'folder', text: [m.cwd ? base(m.cwd) : t('wisp.crew.page.noFolder'), m.machine ? o.place(m.machine) : t('wisp.crew.page.here')].join(' · ') },
     { icon: 'agent', text: [h.name, t(`wisp.crew.page.mode.${mode}`)].join(' · '), logo: h.logo },
-    { icon: 'crew', text: team ? t('wisp.crew.page.delegates', { count: team }) : t('wisp.crew.page.delegates.none') },
+    { icon: 'crew', text: team ? t('wisp.crew.page.delegates', { count: team }) : t('wisp.crew.page.delegates.none'), onClick: o.onTeam },
   ];
 }
 

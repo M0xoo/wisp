@@ -59,7 +59,8 @@ function StepRow(props: TimelineStepProps & { readonly part: PartName }): JSX.El
       <span data-kit="timeline-icon">
         <Icon name={props.icon} size="sm" />
       </span>
-      <span data-kit="timeline-label" data-part={sub(props.part, 'label')} data-text="control" title={props.label}>
+      {/* an opened step shows its whole title (v1 #779): no longer one control line, it wraps */}
+      <span data-kit="timeline-label" data-part={sub(props.part, 'label')} data-text={props.expanded ? undefined : 'control'} title={props.label}>
         {props.label}
       </span>
       <Show when={props.command}>

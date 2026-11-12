@@ -49,6 +49,10 @@ export function Rail(): JSX.Element {
       orgLabel={shell.t('shell.rail.org')}
       addLabel={shell.t('shell.rail.add')}
       allOn={nav().main.kind !== 'crew'}
+      pickedId={(() => {
+        const m = nav().main;
+        return m.kind === 'crew' ? String(m.id) : undefined;
+      })()}
       members={members()}
       onAll={() => shell.navigate({ t: 'home' })}
       onMember={(id) => shell.navigate({ t: 'openCrew', id: id as never })}
@@ -134,12 +138,17 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
  *  shell-list's): it's the frame's, so a list plugin never takes New task away (at 600 px it was the only way in). */
 export function SidebarTop(props: { readonly onNew: () => void; readonly homeOn: boolean }): JSX.Element {
   const shell = useShell();
+  const nav = useSignal(shell.nav);
   return (
     <SplitTop
       newLabel={shell.t('shell.side.new')}
       newTitle={shell.t('shell.side.newTitle')}
       stuffLabel={shell.t('shell.side.stuff')}
       on={props.homeOn}
+      stuffOn={(() => {
+        const m = nav().main;
+        return m.kind === 'view' && String(m.id) === 'stuff.page';
+      })()}
       onNew={props.onNew}
       onStuff={() => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null as Json })}
     />

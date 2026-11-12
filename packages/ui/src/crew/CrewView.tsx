@@ -84,7 +84,7 @@ export function CrewView(props: CrewViewProps): JSX.Element {
               {props.thread}
             </div>
           </div>
-          <div data-kit="cv-about" data-open={flag(open())}>
+          <div data-kit="cv-about" data-part="crew.details" data-open={flag(open())}>
             <button type="button" data-kit="cv-summary" aria-expanded={open()} onClick={() => setOpen(!open())}>
               <Icon name="info" />
               <b data-text="control">{props.about.label}</b>
@@ -96,7 +96,7 @@ export function CrewView(props: CrewViewProps): JSX.Element {
             </div>
           </div>
         </div>
-        <div data-kit="cv-dock" data-part="crew.dock">
+        <div data-kit="cv-dock" data-part="crew.dock crew.compose">
           <div data-kit="cv-box">
             <textarea
               data-kit="cv-input"
@@ -249,7 +249,7 @@ export function CrewEmpty(props: { readonly face: JSX.Element; readonly name: st
 }
 
 /** v1 .cv-facts: how it works, one line each. */
-export function CrewFacts(props: { readonly items: readonly { readonly icon: IconName; readonly text: string; readonly logo?: string | undefined; readonly onClick?: () => void }[] }): JSX.Element {
+export function CrewFacts(props: { readonly items: readonly { readonly icon: IconName; readonly text: string; readonly logo?: string | undefined; readonly onClick?: (() => void) | undefined }[] }): JSX.Element {
   return (
     <div data-kit="cv-facts" data-part="crew.facts">
       <For each={props.items}>
@@ -318,7 +318,7 @@ export function CrewSection(props: {
         {props.title}
         <Show when={props.link}>
           {(l) => (
-            <button type="button" data-kit="link" onClick={() => l().onClick()}>
+            <button type="button" data-kit="link" data-tone="accent" onClick={() => l().onClick()}>
               {l().label}
             </button>
           )}

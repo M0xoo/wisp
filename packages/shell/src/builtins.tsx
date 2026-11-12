@@ -12,7 +12,8 @@ import { THEMES } from './theme.ts';
 import { SESSION, type SessionRow } from './rows.ts';
 import { archive, markRead, remove, setState } from './frame/commands.ts';
 import { TASK_KEY, type TaskKey } from './frame/task-keys.ts';
-import { PROJECT_SOURCE, projectItems, projectShortcuts } from './frame/project-switch.ts';
+import { PROJECT_ACTIONS, PROJECT_SOURCE, projectItems, projectShortcuts, projectsNow } from './frame/project-switch.ts';
+import { flatRow, projectOf, shortAgo, statusOf } from './frame/rows-view.ts';
 
 export const SHELL_SETTINGS = [
   { key: 'shell.theme', type: 'enum', values: THEMES, default: 'system', scope: 'server', overridable: true },
@@ -43,23 +44,35 @@ const paletteParams = (p: unknown): Json | undefined => {
   return { ...(only && { only }), ...(typeof o.placeholder === 'string' && { placeholder: o.placeholder }), ...(typeof o.title === 'string' && { title: o.title }) };
 };
 
+// v1 features/commands.js paletteItems(): the tasks, the crew, then Actions (New task first, the themes you're not on
+// near the end), the projects last; an empty query shows each group's first six.
+
+/** Actions, after New task: adding and managing projects (v1's next rows; the ⌘P switcher lists them too). */
+function actionHead(ctx: ShellContext): PaletteItem[] {
+  const g = 'shell.palette.group.actions';
+  const projects = (): void => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } });
+  return [
+    { id: 'project:add', group: g, label: ctx.t('shell.cmd.addProject'), icon: 'folder', keywords: 'new project folder repo directory', run: projects },
+    { id: 'project:manage', group: g, label: ctx.t('shell.side.manage'), icon: 'folder', keywords: 'order rename colour color remove', run: projects },
+  ];
+}
+
+/** Actions, its tail: the list, the keys, the two themes you're not on, diagnostics, home. */
 function appItems(ctx: ShellContext): PaletteItem[] {
-  const g = ctx.t('shell.palette.group.app');
+  const g = 'shell.palette.group.actions';
   const theme = (pref: 'light' | 'dark' | 'system', label: string, icon: string): PaletteItem => ({
     id: `shell.theme.${pref}`,
     group: g,
     label: ctx.t(label),
     icon,
-    keywords: 'theme appearance colour color mode',
+    keywords: 'theme appearance light dark mode system colors night',
     run: () => void ctx.theme.set(pref),
   });
+  const themes = ([['system', 'shell.cmd.theme.system', 'laptop'], ['light', 'shell.cmd.theme.light', 'sun'], ['dark', 'shell.cmd.theme.dark', 'moon']] as const).filter(([p]) => p !== ctx.theme.pref());
   return [
-    { id: 'shell.home', group: g, label: ctx.t('shell.cmd.home'), icon: 'back', keywords: 'new task launcher start', run: () => ctx.navigate({ t: 'home' }) },
-    theme('light', 'shell.cmd.theme.light', 'sun'),
-    theme('dark', 'shell.cmd.theme.dark', 'moon'),
-    theme('system', 'shell.cmd.theme.system', 'settings'),
-    { id: 'shell.sidebar', group: g, label: ctx.t('shell.cmd.sidebar'), icon: 'panel', kbd: '[', keywords: 'sidebar list fold', run: () => ctx.sidebar.toggle() },
-    { id: 'shell.shortcuts', group: g, label: ctx.t('shell.cmd.shortcuts'), icon: 'info', kbd: '?', keywords: 'keys keyboard help', run: () => ctx.navigate(overlay('shell.shortcuts')) },
+    { id: 'shell.sidebar', group: g, label: ctx.t('shell.cmd.sidebar'), icon: 'split', kbd: '[', keywords: 'sidebar collapse expand toggle focus full width', run: () => ctx.sidebar.toggle() },
+    { id: 'shell.shortcuts', group: g, label: ctx.t('shell.cmd.shortcuts'), icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: () => ctx.navigate(overlay('shell.shortcuts')) },
+    ...themes.map(([p, label, icon]) => theme(p, label, icon)),
     {
       id: 'shell.diagnostics',
       group: g,
@@ -68,26 +81,64 @@ function appItems(ctx: ShellContext): PaletteItem[] {
       keywords: 'devtools debug inspector log state report',
       run: () => ctx.navigate(overlay('shell.devtools')),
     },
+    { id: 'shell.home', group: g, label: ctx.t('shell.cmd.home'), icon: 'back', keywords: 'new task launcher start', run: () => ctx.navigate({ t: 'home' }) },
   ];
 }
 
+/** Tasks: the title, then project · state · age, led by the project's dot (v1 taskSub), newest first. */
 function taskItems(ctx: ShellContext): PaletteItem[] {
-  const g = ctx.t('shell.palette.group.tasks');
+  const g = 'shell.palette.group.tasks';
   const rows = ctx.client.entities.list<SessionRow>(SESSION)();
+  const projects = projectsNow(ctx);
+  const now = ctx.client.scope.timers.now();
   const out: PaletteItem[] = [];
   for (const s of rows) {
     if (s.archived) continue;
+    const sum = s.summary as Record<string, unknown>;
+    const p = projectOf(String(sum['cwd'] ?? ''), projects);
+    const name = p?.name ?? (typeof sum['project'] === 'string' ? sum['project'] : '');
+    const color = p?.color ?? (typeof sum['color'] === 'string' && sum['color'] ? sum['color'] : 'slate');
     out.push({
       id: `task:${s.id}`,
       group: g,
       label: s.title,
-      sub: ctx.t(`shell.state.${s.state}`),
-      icon: s.state === 'running' ? 'spark' : 'feed',
+      sub: [name, statusOf(s, ctx.t).label, shortAgo(s.updated_at, now)].filter(Boolean).join(' · '),
+      color: color || 'slate',
+      keywords: [sum['preview'], sum['live'], s.agent].filter((x) => typeof x === 'string' && x).join(' '),
+      // live and waiting work floats up while typing (v1 rank)
+      rank: (s.state === 'waiting' ? 3 : 0) + (s.unread ? 2 : 0) + (s.state === 'running' ? 1 : 0),
       at: s.updated_at,
       run: () => ctx.navigate({ t: 'openTask', id: s.id as never }),
     });
   }
   return out.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+}
+
+interface CrewMember {
+  readonly id: string;
+  readonly name: string;
+  readonly role?: string;
+  readonly cron?: string;
+  readonly paused?: boolean;
+}
+
+/** Crew: each member (role · when they run), Org once there is a crew, Add a crew member… (v1). */
+function crewItems(ctx: ShellContext): PaletteItem[] {
+  const g = 'shell.palette.group.crew';
+  const crew = ctx.client.entities.list<unknown>('crew_member')().map((r) => flatRow<CrewMember>(r));
+  const out: PaletteItem[] = crew.map((m) => ({
+    id: `crew:${m.id}`,
+    group: g,
+    label: m.name,
+    sub: [m.role, m.paused ? ctx.t('shell.crew.paused') : m.cron ? m.cron : ctx.t('shell.crew.whenAsked')].filter(Boolean).join(' · '),
+    icon: 'crew',
+    keywords: `crew agent @${m.name}`,
+    run: () => ctx.navigate({ t: 'openCrew', id: m.id as never }),
+  }));
+  if (crew.length > 0)
+    out.push({ id: 'crew:org', group: g, label: ctx.t('shell.crew.org'), sub: ctx.t('shell.crew.orgSub'), icon: 'org', keywords: 'crew org chart delegates team hierarchy', run: () => ctx.navigate({ t: 'openView', id: 'crew.org' as never, params: null as Json }) });
+  out.push({ id: 'crew:add', group: g, label: ctx.t('shell.crew.addMember'), icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar', run: () => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'crew.editor' as never, params: {} } }) });
+  return out;
 }
 
 /** Esc (v1 keys.js): the overlay first, then out of a text box, then Back (side, then the task). */
@@ -223,7 +274,7 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
     id: 'shell',
     extensions: [],
     views: [
-      defineView({ kind: 'shell.palette', slot: 'overlay', overlay: 'dialog', parse: paletteParams, component: Palette, title: (p) => ((p as { title?: string } | null)?.title ?? ctx.t('shell.palette.title')) }),
+      defineView({ kind: 'shell.palette', slot: 'overlay', overlay: 'dialog', bare: true, place: 'top', parse: paletteParams, component: Palette, title: (p) => ((p as { title?: string } | null)?.title ?? ctx.t('shell.palette.title')) }),
       defineView({ kind: 'shell.shortcuts', slot: 'overlay', overlay: 'dialog', parse: none, component: Shortcuts, title: () => ctx.t('shell.shortcuts.title') }),
       // add, order, rename and remove projects (v1 features/projects.js); every "Add a project" opens it
       defineView({ kind: 'shell.projects', slot: 'overlay', overlay: 'dialog', parse: none, component: lazy(() => import('./frame/Projects.tsx')), title: () => ctx.t('shell.projects.title') }),
@@ -234,9 +285,13 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
       { id: 'shell.diagnostics', group: 'advanced', title: 'shell.diag.title', icon: 'bug', component: Inspector, order: 100 },
     ],
     palette: [
-      { id: 'shell.app', order: 100, items: () => appItems(ctx) },
-      { id: 'shell.tasks', order: 50, items: () => taskItems(ctx) },
-      { id: PROJECT_SOURCE, order: 40, items: () => projectItems(ctx) },
+      // v1's order: tasks, crew, Actions (its head, then what plugins add at 60, then its tail), projects last
+      { id: 'shell.tasks', order: 10, items: () => taskItems(ctx) },
+      { id: 'shell.crew', order: 20, items: () => crewItems(ctx) },
+      { id: 'shell.new', order: 29, items: () => [{ id: 'shell.new', group: 'shell.palette.group.actions', label: ctx.t('shell.cmd.new'), icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: () => launcher(ctx) }] },
+      { id: PROJECT_ACTIONS, order: 30, items: () => actionHead(ctx) },
+      { id: 'shell.app', order: 90, items: () => appItems(ctx) },
+      { id: PROJECT_SOURCE, order: 200, items: () => projectItems(ctx) },
     ],
     shortcuts: shortcuts(ctx),
   };

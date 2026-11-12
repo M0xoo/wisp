@@ -123,5 +123,11 @@
   "machine.ram": "{size} of memory",
   "machine.which": "Computer",
   "machine.ask.cancel": "Cancel",
-  "machine.chip.long": "{lead}{rest}"
+  "machine.chip.long": "{lead}{rest}",
+  "machine.stop.title": "Stop {what}?",
+  "machine.stop.body": "The run ends where it is. Queued follow-ups stay, held until you send one.",
+  "machine.stop.nowTitle": "Stop {what} now?",
+  "machine.stop.nowBody": "The run ends where it is and carries on {at}.",
+  "machine.stop.jobs.one": "{name}’s job",
+  "machine.stop.jobs.other": "{name}’s {count} jobs"
 }

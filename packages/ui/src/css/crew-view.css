@@ -28,7 +28,8 @@
   [data-kit='cv-about'] > [data-kit='cv-side'] { padding: var(--space-2) var(--space-6) var(--space-6); }
 
   @container crewview (min-width: 860px) {
-    [data-kit='crew-view'] { --cv-pad: max(var(--space-8), calc((100% - var(--size-read-w) - var(--size-details) - 48px) / 2)); }
+    /* a container query can't style its own container: the wide padding goes on the parts that use it */
+    [data-kit='cv-top'], [data-kit='cv-scroll'] { --cv-pad: max(var(--space-8), calc((100% - var(--size-read-w) - var(--size-details) - 48px) / 2)); }
     [data-kit='cv-top'] { padding-right: calc(var(--cv-pad) - var(--space-4)); }
     [data-kit='cv-cols'] { display: grid; grid-template-columns: minmax(0, 1fr) var(--size-details); column-gap: 48px; align-items: start; }
     [data-kit='cv-about'] { order: 0; position: sticky; top: 18px; margin: 0; border: 0; background: none; }

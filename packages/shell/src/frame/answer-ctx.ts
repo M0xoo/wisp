@@ -12,6 +12,9 @@ export interface AnswerHost {
   readonly shell: ShellContext;
   readonly key: EntityKey;
   readonly turnId: string;
+  /** what the turn's refusals allow (v1 #777): `allowable` (the server kept them: Allow & retry), `unallowed` (a Full
+   *  auto run its harness still refused: a note, no retry), `none` */
+  readonly blocked?: () => 'allowable' | 'unallowed' | 'none';
   /** this answer is the task's latest (read live: a new turn makes the older answers inert) */
   readonly latest: () => boolean;
   /** the task's title (a hero repeating it says nothing) */
@@ -51,8 +54,15 @@ export function answerContext(h: AnswerHost): BlockContext {
       const r = await run(exec, { id: key, command });
       return { exitCode: r.code, output: r.output, durationMs: Date.now() - at };
     },
-    allow: () => run(approveBlocked, { id: key, turnId: h.turnId, allow: true }),
-    deny: () => run(approveBlocked, { id: key, turnId: h.turnId, allow: false }),
+    get allow() {
+      return (h.blocked?.() ?? 'allowable') === 'allowable' ? () => run(approveBlocked, { id: key, turnId: h.turnId, allow: true }) : undefined;
+    },
+    get deny() {
+      return (h.blocked?.() ?? 'allowable') === 'allowable' ? () => run(approveBlocked, { id: key, turnId: h.turnId, allow: false }) : undefined;
+    },
+    get unallowed() {
+      return h.blocked?.() === 'unallowed';
+    },
     openTask: (id) => shell.navigate({ t: 'openTask', id: keyOf(id) as never }),
     openUrl: (url) => shell.platform.openExternal(url),
     openFile: () => h.openChanges(),
@@ -78,4 +88,14 @@ export function answerContext(h: AnswerHost): BlockContext {
       };
     },
   };
+}
+
+/** What a turn's refusals allow (v1 #777): the server keeps them (`ext['wisp.runtime'].blocked`) only for a run that
+ *  wasn't in Full auto; a Full auto run that its harness still refused can't be retried, and a card from before
+ *  has nothing to allow. */
+export function blockedOf(turn: unknown): 'allowable' | 'unallowed' | 'none' {
+  const o = (turn ?? {}) as { readonly ext?: Readonly<Record<string, unknown>>; readonly mode?: unknown };
+  const kept = (o.ext?.['wisp.runtime'] as { readonly blocked?: unknown } | undefined)?.blocked;
+  if (Array.isArray(kept) && kept.length > 0) return 'allowable';
+  return o.mode === 'auto' ? 'unallowed' : 'none';
 }

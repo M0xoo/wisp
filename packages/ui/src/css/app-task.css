@@ -42,7 +42,8 @@
     border-radius: 7px; font-size: var(--fs-sm); color: var(--ink-2); white-space: nowrap; transition: background 0.15s, color 0.15s;
   }
   /* v1 .ghost.tx-toggle.on: an action whose view is open (Transcript while it shows) */
-  [data-kit='ghost-xs'][data-on] { color: var(--accent-ink); background: var(--accent-soft); }
+  [data-kit='ghost-xs'][data-on] { color: var(--ink-2); background: var(--bg-2); } /* v1 .ghost.on: its pane is open */
+  [data-kit='ghost-xs'][data-on][data-a='transcript'] { color: var(--accent-ink); background: var(--accent-soft); }
   [data-kit='ghost-xs']:hover { background: var(--bg-2); }
   [data-kit='ghost-xs'] > [data-kit='icon'] { width: var(--size-icon); height: var(--size-icon); }
   [data-kit='it-actions'] > [data-kit='ghost-xs'][data-desk] { display: none; }

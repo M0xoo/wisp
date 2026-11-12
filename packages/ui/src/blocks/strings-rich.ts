@@ -83,6 +83,7 @@ export const RICH_STRINGS = {
   'block.blocked.deny': 'Deny',
   'block.blocked.denied': 'Denied',
   'block.blocked.note': 'Allows exactly these, for the retry only.',
+  'block.blocked.unallowed': 'Refused by the harness’s own safety check, even in Full auto: wisp can’t allow it. Ask for it another way.',
   'block.app.name': 'Interactive',
   'block.app.frame': 'Interactive block',
   'block.app.cant': '{title} can’t be shown.',

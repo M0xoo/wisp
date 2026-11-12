@@ -11,7 +11,8 @@ import { Icon } from '../content/Icon.tsx';
 import type { MenuTrigger } from './Menu.tsx';
 import { TriggerButton } from './trigger.tsx';
 
-export type DialogSize = 'sm' | 'md' | 'lg' | 'xl';
+/** v1: v1's .modal (640 wide, 18px 20px 20px, its 600 18px title): the crew editor */
+export type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | 'v1';
 
 export interface DialogProps extends KitProps, WithChildren, WithVars {
   readonly title: string;
@@ -31,6 +32,8 @@ export interface DialogProps extends KitProps, WithChildren, WithVars {
   readonly closeOnOutside?: boolean;
   /** the content brings its own head and close (a frame like Settings): the title stays for screen readers only */
   readonly bare?: boolean;
+  /** 'top': near the top over a light scrim, the content its own box (v1's ⌘K palette) */
+  readonly place?: 'top';
   /** Where focus goes first (default: the first focusable inside). */
   readonly initialFocus?: () => HTMLElement | null;
   readonly t?: Translate;
@@ -55,14 +58,15 @@ function Surface(props: DialogProps & { readonly kind: Kind; readonly api: dialo
   const t = useT(() => props.t);
   return (
     <Portal>
-      <div {...props.api.getBackdropProps()} data-kit="backdrop" data-sheet={props.kind === 'sheet' ? '' : undefined} />
-      <div {...props.api.getPositionerProps()} data-kit="dialog-positioner" data-sheet={props.kind === 'sheet' ? '' : undefined} data-size={props.size ?? 'md'}>
+      <div {...props.api.getBackdropProps()} data-kit="backdrop" data-sheet={props.kind === 'sheet' ? '' : undefined} data-place={props.place} />
+      <div {...props.api.getPositionerProps()} data-kit="dialog-positioner" data-sheet={props.kind === 'sheet' ? '' : undefined} data-size={props.size ?? 'md'} data-place={props.place}>
         <div
           {...props.api.getContentProps()}
           data-kit={props.kind}
           data-part={props.part}
           data-size={props.size ?? 'md'}
           data-bare={props.bare ? '' : undefined}
+          data-place={props.place}
           style={styleOf({}, props.vars)}
         >
           <Show when={props.kind === 'sheet'}>

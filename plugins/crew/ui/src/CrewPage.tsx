@@ -191,7 +191,7 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
               about={{ label: t('wisp.crew.page.about', { name: m().name }), hint: line().text }}
               side={
                 <>
-                  <CrewFacts items={facts(m(), { t: say as never, harness, place: (id) => id })} />
+                  <CrewFacts items={facts(m(), { t: say as never, harness, place: (id) => id, onTeam: () => c.navigate({ t: 'openView', id: VIEW.org as never, params: null }) })} />
                   <CrewSideActions
                     items={[
                       { icon: 'clock', label: t('wisp.crew.page.checkin'), act: { onClick: checkin } },

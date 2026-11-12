@@ -6,7 +6,7 @@
 import { createMemo, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
 import { entityKey, ownerOf, type EntityKey, type PluginClient, type SessionId } from '@wisp/client';
 import { useShell } from '@wisp/shell';
-import { Button, Card, EmptyState, Icon, Inline, Input, Menu, Stack, Text, Wrap } from '@wisp/ui';
+import { Button, Card, Icon, Inline, Menu, Stack, StuffFrame, Text, Wrap } from '@wisp/ui';
 import { itemActions, type ActionId } from './actions.ts';
 import { launchApp, publishApp, publishTargets, removeItem, revealItem, stopApp, unpublishApp, updateItem } from './commands.ts';
 import { stuffState } from './state.ts';
@@ -39,15 +39,19 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
   );
   const [q, setQ] = createSignal('');
   const [kind, setKind] = createSignal<KindFilter>('all');
+  // v1's sort and layout: by time or by the task each came from; cards or rows
+  const [byTask, setByTask] = createSignal(false);
+  const [list, setList] = createSignal(false);
+  const sessions = c.entities.list<{ id: string; title: string }>('session');
   const byKey = createMemo(() => new Map(entries().map((e) => [e.it.id, e])));
   const filter = () => ({ query: q(), kind: kind(), starred: false });
   const chips = createMemo(() => kindChips(entries().map((e) => e.it), filter(), t));
   const shown = createMemo(() => shownItems(entries().map((e) => e.it), { ...filter(), kind: chips().kind }, t));
   const groups = createMemo(() =>
-    groupItems(shown(), 'time', {
+    groupItems(shown(), byTask() ? 'task' : 'time', {
       t,
       now: Date.now(),
-      task: () => undefined,
+      task: (id) => sessions().find((s) => s.id === id || s.id.endsWith(`:${id}`))?.title,
       month: (at, withYear) => new Date(at).toLocaleDateString(undefined, withYear ? { month: 'long', year: 'numeric' } : { month: 'long' }),
     }),
   );
@@ -167,28 +171,17 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
     );
   };
 
+  const total = (): string => (entries().length > 0 ? t('stuff.page.count', { count: entries().length }) : '');
   return (
-    <Stack gap="4" part="stuff.page" pad="4">
-      <Inline gap="3" justify="between" part="stuff.head">
-        <Inline gap="2">
-          <Icon name="stuff" />
-          <Text weight="semibold" truncate>
-            {t('stuff.title')}
-          </Text>
-        </Inline>
-        <Inline gap="2">
-          <Button size="sm" variant="ghost" icon="plus" part="stuff.add" onClick={() => picker?.click()}>
-            {t('stuff.page.add')}
-          </Button>
-          <input ref={(el) => (picker = el)} type="file" multiple hidden onChange={(ev) => upload(ev.currentTarget.files)} />
-        </Inline>
-      </Inline>
-      <Text tone="muted" part="stuff.role">
-        {t('stuff.role')}
-      </Text>
-      <Input icon="search" aria-label={t('stuff.page.search')} placeholder={t('stuff.page.search')} value={q()} onInput={setQ} />
-      <Show when={chips().chips.length > 1}>
-        <Wrap gap="2" part="stuff.kinds">
+    <StuffFrame
+      title={t('stuff.title')}
+      role={t('stuff.role')}
+      count={total()}
+      actions={[{ id: 'add', icon: 'plus', label: t('stuff.page.add'), title: t('stuff.page.addTitle'), onClick: () => picker?.click() }]}
+      close={{ label: t('stuff.page.close'), onClick: () => c.navigate({ t: 'home' }) }}
+      search={{ value: q(), placeholder: t('stuff.page.search'), label: t('stuff.page.searchLabel'), onInput: setQ }}
+      kinds={
+        <Show when={chips().chips.length > 1}>
           <For each={chips().chips}>
             {(ch) => (
               <Button size="sm" variant={chips().kind === ch.id ? 'primary' : 'ghost'} onClick={() => setKind(ch.id)}>
@@ -196,32 +189,49 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
               </Button>
             )}
           </For>
-        </Wrap>
-      </Show>
-      <Show
-        when={entries().length > 0}
-        fallback={
-          <EmptyState part="stuff.empty" icon="stuff" title={t('stuff.page.empty.title')} action={<Button size="sm" onClick={() => picker?.click()}>{t('stuff.page.add')}</Button>}>
-            {t('stuff.page.empty.description')}
-          </EmptyState>
-        }
-      >
-        <Show when={shown().length > 0} fallback={<Text tone="muted">{t('stuff.page.nothing')}</Text>}>
-          <For each={groups()}>
-            {(g) => (
-              <Stack gap="2" part="stuff.group">
-                <Text size="sm" tone="muted" weight="medium">
-                  {g.label}
-                </Text>
-                <Wrap gap="3" part="stuff.cards">
-                  <For each={g.items}>{(it) => (byKey().get(it.id) ? card(byKey().get(it.id) as Entry) : null)}</For>
-                </Wrap>
-              </Stack>
-            )}
-          </For>
         </Show>
+      }
+      sort={{ icon: byTask() ? 'feed' : 'clock', label: byTask() ? t('stuff.page.byTask') : t('stuff.page.byTime'), onClick: () => setByTask(!byTask()) }}
+      view={{ list: list(), gridLabel: t('stuff.page.grid'), listLabel: t('stuff.page.list'), onPick: setList }}
+      empty={
+        entries().length > 0
+          ? undefined
+          : {
+              title: t('stuff.page.empty.title'),
+              keep: [t('stuff.page.empty.keep1'), t('stuff.page.empty.keep2')],
+              asks: [t('stuff.page.empty.ask1'), t('stuff.page.empty.ask2'), t('stuff.page.empty.ask3'), t('stuff.page.empty.ask4'), t('stuff.page.empty.ask5')],
+              mention: [t('stuff.page.empty.mention1'), '@', t('stuff.page.empty.mention2')],
+              or: t('stuff.page.empty.or'),
+              add: t('stuff.page.empty.add'),
+              onAdd: () => picker?.click(),
+            }
+      }
+    >
+      <input ref={(el) => (picker = el)} type="file" multiple hidden onChange={(ev) => upload(ev.currentTarget.files)} />
+      <Show when={shown().length > 0} fallback={<Text tone="muted">{t('stuff.page.nothing')}</Text>}>
+        <For each={groups()}>
+          {(g) => (
+            <Stack gap="2" part="stuff.group">
+              <Text size="sm" tone="muted" weight="medium">
+                {g.label}
+              </Text>
+              <Show
+                when={list()}
+                fallback={
+                  <Wrap gap="3" part="stuff.cards">
+                    <For each={g.items}>{(it) => (byKey().get(it.id) ? card(byKey().get(it.id) as Entry) : null)}</For>
+                  </Wrap>
+                }
+              >
+                <Stack gap="2" part="stuff.cards">
+                  <For each={g.items}>{(it) => (byKey().get(it.id) ? card(byKey().get(it.id) as Entry) : null)}</For>
+                </Stack>
+              </Show>
+            </Stack>
+          )}
+        </For>
       </Show>
-    </Stack>
+    </StuffFrame>
   );
 }
 

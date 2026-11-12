@@ -113,3 +113,12 @@ test('an_earlier_answers_question_reads_agent_asked_and_a_host_without_actions_s
   expect(part('block.blocked')?.textContent).not.toContain('Allow');
   expect(part('block.actions.go')).toBeNull();
 });
+
+test('a_full_auto_turns_refusals_show_a_note_and_no_allow_and_retry', () => {
+  // the server kept nothing to allow (the run was in Full auto): no Allow & retry, the card says why (v1 #777)
+  mount(() => <Answer ctx={{ latest: true, unallowed: true, reply: () => {} }} blocks={[{ type: 'blocked', items: [{ tool: 'Bash', detail: 'cat <<EOF' }] }]} />);
+  const card = part('block.blocked');
+  expect(card?.textContent).toContain('cat <<EOF');
+  expect(card?.querySelector('[data-kit="rb-btn"]')).toBeNull();
+  expect(part('block.blocked.unallowed')?.textContent).toContain('even in Full auto');
+});

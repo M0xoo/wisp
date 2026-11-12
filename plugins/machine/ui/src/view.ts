@@ -257,3 +257,12 @@ export function memTone(free: number | null, floor: number | null): 'bad' | 'war
   if (free === null || floor === null) return 'neutral';
   return free < floor ? 'bad' : free < floor + TIGHT ? 'warn' : 'neutral';
 }
+
+/** What Stop asks first (v1 #781): what stops (a crew member's jobs, or the task), and that the run ends where it is.
+ *  With `carryOn` (Later's time), it stops now and carries on then. */
+export function stopAsk(x: Pick<UsingRow, 'kind' | 'title' | 'ids'>, t: T, carryOn?: string): { title: string; body: string } {
+  const what = x.kind === 'crew' ? t('machine.stop.jobs', { name: x.title, count: x.ids.length }) : x.title;
+  return carryOn === undefined
+    ? { title: t('machine.stop.title', { what }), body: t('machine.stop.body') }
+    : { title: t('machine.stop.nowTitle', { what }), body: t('machine.stop.nowBody', { at: carryOn }) };
+}

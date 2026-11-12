@@ -18,6 +18,22 @@
     padding: var(--space-5) var(--space-6); border-left: 1px solid var(--line); background: var(--bg);
     display: flex; flex-direction: column;
   }
+  /* the task's side panel is v1's #sidePanel, edge to edge: its head (42px, the tabs 14px in), the place line (32px),
+     then the pane; a pane other than Changes keeps the side's own padding */
+  [data-part~='panel'] { margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-6)); flex: 1; min-height: 0; }
+  [data-part~='panel'] > [data-part='side.head'] { flex: none; height: 2.625rem; /* v1 .pn-head: 42px */ gap: 8px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--line); }
+  [data-part='panel.place'] {
+    flex: none; height: 32px; gap: 6px; padding: 0 6px 0 12px; min-width: 0; border-bottom: 1px solid var(--line);
+    color: var(--muted); font-size: 12.5px; white-space: nowrap;
+  }
+  /* v1 panel.css .pn-tabs: a bordered strip pulled 8px left, its tabs 26px, 500 12.5px, the open one accent ink */
+  [data-kit='tabs'][data-part='panel.tabs'] { flex: 0 1 auto; min-width: 0; gap: 2px; margin-left: -8px; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-2); }
+  [data-kit='tabs'][data-part='panel.tabs'] > [data-kit='tab-list'] { gap: 2px; padding: 0; border-radius: 0; background: none; }
+  [data-kit='tabs'][data-part='panel.tabs'] [data-kit='tab'] { gap: 5px; height: 26px; padding: 0 9px; border-radius: 7px; font: 500 12.5px var(--sans); color: var(--muted); }
+  [data-kit='tabs'][data-part='panel.tabs'] [data-kit='tab'][data-selected] { background: var(--surface); color: var(--accent-ink); box-shadow: var(--shadow-1); }
+  [data-kit='tabs'][data-part='panel.tabs'] [data-kit='tab'] > [data-kit='icon'] { width: 13px; height: 13px; }
+  [data-part~='panel'] > [data-part='side.body'] { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: var(--space-5) var(--space-6); }
+  [data-part~='panel'] > [data-part='side.body'] > [data-part~='panel.changes'] { margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-6)); }
   /* v1's controls keep the browser's letter-spacing (base.css sets only font on them) */
   [data-kit='stage'] button, [data-kit='stage'] textarea, [data-kit='stage'] input { letter-spacing: normal; }
   [data-color='violet'] { --pc: var(--pc-violet); }
@@ -139,7 +155,7 @@
   }
   [data-kit='feed-wrap'] > * { flex-shrink: 0; }
   /* a picked crew member tints the list beside the rail and its top bar (v1 split.css .crew-tint, #768) */
-  [data-kit='stage'][data-layout='split'][data-rail] > :is([data-kit='topbar'], [data-kit='feed-wrap'])[data-tint] { --side-bg: color-mix(in srgb, var(--pc) 8%, var(--panel)); }
+  [data-kit='stage'][data-layout='split'][data-rail] > [data-kit='topbar'][data-tint], [data-kit='stage'][data-layout='split'][data-rail] > [data-kit='feed-wrap'][data-tint] { --side-bg: color-mix(in srgb, var(--pc) 8%, var(--panel)); }
   [data-kit='feed-wrap'] > [data-grow] { flex: 1 1 0; min-height: 0; }
   [data-kit='stage']:not([data-rail]) > [data-kit='feed-wrap'] { margin: 0; border-width: 0 1px 0 0; border-radius: 0; }
   /* split.css body.split .split-main, body.has-rail .split-main */
@@ -176,6 +192,7 @@
     background: var(--surface); box-shadow: var(--shadow-1); color: var(--muted); transition: color 0.15s, border-color 0.15s;
   }
   [data-kit='split-stuff']:hover { border-color: var(--faint); color: var(--ink); }
+  [data-kit='split-stuff'][data-on] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); color: var(--accent); }
   [data-kit='split-stuff'] > [data-kit='icon'] { width: 17px; height: 17px; }
 
   /* split.css body.split .feed, .f-group, .f-group h4.sec-toggle, .f-list */

@@ -76,9 +76,12 @@ export interface BlockContext {
   readonly openUrl?: (url: string) => void;
   /** Allow & retry on a `blocked` block (one item, or all of them when `item` is undefined); a rejection puts
    *  the card back */
-  readonly allow?: (item: BlockedItem | undefined) => void | Promise<unknown>;
+  readonly allow?: ((item: BlockedItem | undefined) => void | Promise<unknown>) | undefined;
   /** Deny on a `blocked` block */
-  readonly deny?: () => void | Promise<unknown>;
+  readonly deny?: (() => void | Promise<unknown>) | undefined;
+  /** the turn ran in Full auto and its harness still refused (its own safety check): nothing wisp can allow, so the
+   *  `blocked` card says so and offers no retry (v1 #777). Additive (2026-11-12). */
+  readonly unallowed?: boolean;
   /** a task by id, live: the `task` block's title and state */
   readonly task?: (id: string) => Accessor<TaskRef | undefined>;
   readonly stuff?: (id: string) => Accessor<StuffRef | undefined>;

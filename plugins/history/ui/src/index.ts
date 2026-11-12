@@ -11,7 +11,8 @@ export default definePluginUi({
   palette: [
     definePalette({
       id: 'history.palette',
-      items: (ctx) => [{ id: 'history.repo', group: 'shell.palette.go', label: t('history.tab.repo'), icon: 'branch', keywords: 'history git commits agents committed', run: () => ctx.client.navigate({ t: 'openView', id: REPO_VIEW as never, params: {} }) }],
+      order: 60,
+      items: (ctx) => [{ id: 'history.repo', group: 'shell.palette.group.actions', label: t('history.tab.repo'), icon: 'branch', keywords: 'history git commits agents committed', run: () => ctx.client.navigate({ t: 'openView', id: REPO_VIEW as never, params: {} }) }],
     }),
   ],
   views: [

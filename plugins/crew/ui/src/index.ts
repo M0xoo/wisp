@@ -41,6 +41,7 @@ export default definePluginUi({
       kind: VIEW.editor,
       slot: 'overlay',
       overlay: 'dialog',
+      size: 'v1',
       parse: parseEditor,
       title: (p) => t(p.id ? 'wisp.crew.editor.edit' : 'wisp.crew.editor.add'),
       component: lazy(() => import('./CrewEditor.tsx')),

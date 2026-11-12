@@ -31,7 +31,8 @@ export default definePluginUi({
   palette: [
     definePalette({
       id: 'machine.palette',
-      items: (ctx) => [{ id: 'machine.open', group: 'shell.palette.go', label: ctx.client.t('machine.palette'), icon: 'laptop', keywords: 'memory ram cpu disk this mac pc computer', run: () => openSettings((i) => ctx.client.navigate(i), 'machine') }],
+      order: 60,
+      items: (ctx) => [{ id: 'machine.open', group: 'shell.palette.group.actions', label: ctx.client.t('machine.palette'), icon: 'laptop', keywords: 'memory ram cpu disk this mac pc computer', run: () => openSettings((i) => ctx.client.navigate(i), 'machine') }],
     }),
   ],
 });

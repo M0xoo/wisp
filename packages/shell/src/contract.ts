@@ -126,6 +126,10 @@ export interface ViewDef<P = unknown> {
   overlay?: 'viewer' | 'dialog' | 'sheet';
   /** added 2026-11-10 (additive): the view draws its own head and close (Settings); the dialog adds none */
   bare?: boolean;
+  /** added 2026-11-12 (additive): 'top' draws the overlay near the top over a light scrim (v1's ⌘K palette) */
+  place?: 'top';
+  /** added 2026-11-12 (additive): the dialog's size ('v1': v1's .modal, 640 wide) */
+  size?: 'sm' | 'md' | 'lg' | 'v1';
 }
 
 /** A Settings pane. */

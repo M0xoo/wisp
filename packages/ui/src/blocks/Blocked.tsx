@@ -63,6 +63,11 @@ export function BlockedBlock(props: BlockProps): JSX.Element {
           )}
         </For>
       </ul>
+      <Show when={!open() && state() === undefined && ctx.unallowed === true}>
+        <div data-kit="rb-bl-foot" data-part="block.blocked.unallowed">
+          <span data-kit="rb-bl-note">{t('block.blocked.unallowed')}</span>
+        </div>
+      </Show>
       <Show when={open()}>
         <div data-kit="rb-bl-foot">
           <Wrap gap="5" align="center" part="block.blocked.foot">

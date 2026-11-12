@@ -227,3 +227,48 @@ describe('the rest', () => {
     expect(part('ui.card.header')?.textContent).toBe('Head');
   });
 });
+
+describe('the feed row (v1 #feed .it-head)', () => {
+  test('a_feed_row_is_v1s_it_head_element_for_element_the_head_its_one_button', async () => {
+    const { Dot } = await import('../src/shell-list/Dot.tsx');
+    const { Time } = await import('../src/content/Time.tsx');
+    const { RowButton, RowRun } = await import('../src/composites/ListRow.tsx');
+    const opened = vi.fn();
+    const done = vi.fn();
+    const host = mount(() => (
+      <ListRow
+        layout="feed"
+        part="card.head"
+        title="Fix the login bug"
+        lead={<Dot size="md" color="pc-violet" />}
+        sub="No question asked."
+        subTone="muted"
+        foot={<RowRun name="Claude Code" where={{ icon: 'laptop', text: 'This computer' }} />}
+        pills={<span data-kit="it-pill">Finished</span>}
+        time={<Time at={0} now={300_000} />}
+        actions={<RowButton icon="done" tone="good" label="Mark done" onClick={done} />}
+        onOpen={opened}
+      />
+    ));
+    const head = host.querySelector<HTMLElement>('[data-kit="list-row"]');
+    // the head's children in v1's order: dot, title, the sub's words, the run line, the pills (the time last), the quick action
+    expect([...(head?.children ?? [])].map((e) => (e as HTMLElement).dataset['kit'])).toEqual(['dot', 'list-row-title', 'list-row-sub', 'row-run', 'list-row-pills', 'icon-button']);
+    expect(head?.querySelector('[data-kit="list-row-sub"]')?.childElementCount).toBe(0); // its words alone, as .it-sub
+    expect([...(head?.querySelector('[data-kit="list-row-pills"]')?.children ?? [])].map((e) => (e as HTMLElement).dataset['kit'])).toEqual(['it-pill', 'time']);
+    // the run line: the harness, then where (`·` is CSS), its glyph and words in one box
+    expect([...(head?.querySelector('[data-kit="row-run"]')?.children ?? [])].map((e) => (e as HTMLElement).dataset['kit'])).toEqual(['ir-h', 'ir-w']);
+    // the head is the button; the quick action is the pointer's (hidden from assistive tech, out of the Tab order)
+    expect(head?.getAttribute('role')).toBe('button');
+    expect(head?.tabIndex).toBe(0);
+    const quick = head?.querySelector<HTMLElement>('[data-kit="icon-button"]');
+    expect(quick?.getAttribute('aria-hidden')).toBe('true');
+    expect(quick?.hasAttribute('tabindex')).toBe(false);
+    expect(quick?.children.length).toBe(1); // the glyph, no box around it
+    quick?.click();
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(opened).not.toHaveBeenCalled(); // a quick action never opens the row
+    head?.dispatchEvent(key('Enter'));
+    head?.click();
+    expect(opened).toHaveBeenCalledTimes(2);
+  });
+});

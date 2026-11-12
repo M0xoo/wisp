@@ -63,6 +63,8 @@
     border-radius: var(--radius-pill); background: var(--surface); color: var(--faint);
   }
   [data-kit='timeline-label'] { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* an opened step shows its whole title: the line it was cut to wraps (v1 transcript.css .tx-step.open .tx-label) */
+  [data-kit='timeline-step'][data-open] > [data-kit='timeline-row'] > [data-kit='timeline-label'] { text-wrap-mode: wrap; overflow-wrap: anywhere; }
   [data-kit='timeline-cmd'] { flex: 0 3 auto; min-width: 0; font-family: var(--mono); font-size: var(--fs-sm); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   [data-kit='timeline-nums'] { display: inline-flex; gap: var(--space-2); margin-left: auto; flex: none; font-family: var(--mono); font-size: var(--fs-xs); white-space: nowrap; }
   [data-kit='timeline-add'] { color: var(--good); }

@@ -42,6 +42,11 @@ export interface ListRowProps extends KitProps {
   /** More part names for the row's elements, so a list keeps another contract's names too (v1's `card`,
    *  `card.title`… that `qa/parity.mjs` measures): `{ row: 'card', title: 'card.title' }`. Additive (2026-11-12). */
   readonly also?: Partial<Readonly<Record<RowPiece, string>>> | undefined;
+  /** the sub line's tone (feed: v1 .q-live running in accent ink, waiting in warn) and its tooltip. Additive (2026-11-12). */
+  readonly subTone?: 'accent-ink' | 'warn' | 'muted' | undefined;
+  readonly subTitle?: string | undefined;
+  /** feed: how many quick actions the row has (0–2): the title makes room for them while they show. Additive (2026-11-12). */
+  readonly quick?: 0 | 1 | 2 | undefined;
 }
 
 type RowPiece = 'row' | 'lead' | 'main' | 'title' | 'sub' | 'foot' | 'pills' | 'time' | 'actions';
@@ -61,27 +66,12 @@ function Hit(props: { readonly row: ListRowProps; readonly part: PartName }): JS
     </span>
   );
   const current = (): 'page' | undefined => (props.row.current ? 'page' : undefined);
-  const key = (e: KeyboardEvent, open: (e: MouseEvent) => void): void => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    e.preventDefault();
-    open(new MouseEvent('click'));
-  };
   const plain = (): JSX.Element => (
     <Show when={props.row.onOpen} fallback={<span data-kit="list-row-hit">{title()}</span>}>
       {(open) => (
-        <Show
-          when={props.row.layout === 'feed'}
-          fallback={
-            <button type="button" data-kit="list-row-hit" aria-current={current()} onClick={(e) => open()(e)}>
-              {title()}
-            </button>
-          }
-        >
-          {/* v1 feed.js .it-head role="button": a feed row has no <button> in it (its quick actions neither) */}
-          <div role="button" tabIndex={0} data-kit="list-row-hit" aria-current={current()} onClick={(e) => open()(e)} onKeyDown={(e) => key(e, open())}>
-            {title()}
-          </div>
-        </Show>
+        <button type="button" data-kit="list-row-hit" aria-current={current()} onClick={(e) => open()(e)}>
+          {title()}
+        </button>
       )}
     </Show>
   );
@@ -96,41 +86,104 @@ function Hit(props: { readonly row: ListRowProps; readonly part: PartName }): JS
   );
 }
 
-/** A row's quick action (v1 .it-quick, .it-later): an icon that acts like a button, without being one inside the
- *  row (v1 kept a row's head the one button-like thing in it). Space and Enter press it; it never opens the row. */
+/** A row's quick action (v1 .it-quick, .it-later): an icon the pointer presses, hidden from assistive tech and the
+ *  Tab order as v1's are (the row's head is the one button in it; the keys E and L do the same from the keyboard).
+ *  It never opens the row. v1's element tree: the box, the glyph, its path. */
 export function RowButton(props: { readonly icon: IconName; readonly label: string; readonly tone?: 'good' | 'bad'; readonly pressed?: boolean; readonly part?: PartName; readonly onClick: () => void }): JSX.Element {
-  const press = (e: Event): void => {
-    e.stopPropagation();
-    props.onClick();
-  };
   return (
     <span
-      role="button"
-      tabIndex={0}
-      aria-label={props.label}
+      aria-hidden="true"
       title={props.label}
-      aria-pressed={props.pressed === undefined ? undefined : props.pressed}
       data-kit="icon-button"
       data-part={props.part ?? 'ui.row-button'}
       data-variant="ghost"
       data-size="sm"
       data-tone={props.tone}
-      onClick={press}
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        e.preventDefault();
-        press(e);
+      data-on={flag(props.pressed)}
+      onClick={(e) => {
+        e.stopPropagation();
+        props.onClick();
       }}
     >
-      <span data-kit="button-content">
-        <Icon name={props.icon} size="md" />
-      </span>
+      <Icon name={props.icon} size="md" />
     </span>
+  );
+}
+
+/** v1 feed.js runLine(): the harness's logo and name (and its model), then where it runs after a `·`. */
+export function RowRun(props: {
+  readonly logo?: JSX.Element;
+  readonly name: string;
+  readonly nameTitle?: string | undefined;
+  readonly where: { readonly icon: IconName; readonly text: string };
+  readonly part?: PartName;
+}): JSX.Element {
+  return (
+    <div data-kit="row-run" data-part={props.part ?? 'ui.row-run'}>
+      {props.logo}
+      <span data-kit="ir-h" title={props.nameTitle}>
+        {props.name}
+      </span>
+      <span data-kit="ir-w">
+        <Icon name={props.where.icon} size="xs" />
+        <span>{props.where.text}</span>
+      </span>
+    </div>
+  );
+}
+
+/** v1 #feed .it-head, element for element (qa/parity.mjs compares a hovered row's tree by index): the head is the
+ *  row's one button; in it the dot, the title, the sub's words, the run line, the pills with the time last, then the
+ *  quick actions. */
+function FeedRow(props: ListRowProps & { readonly partName: PartName }): JSX.Element {
+  const p = (): PartName => props.partName;
+  const open = (e: MouseEvent): void => props.onOpen?.(e);
+  return (
+    <div
+      {...props.reorder}
+      id={props.id}
+      role="button"
+      tabIndex={0}
+      aria-current={props.current ? 'page' : undefined}
+      data-kit="list-row"
+      data-part={named(props, p(), 'row')}
+      data-selected={flag(props.selected)}
+      data-current={flag(props.current)}
+      data-quiet={flag(props.quiet)}
+      data-strong={flag(props.strong)}
+      data-time={flag(props.time !== undefined)}
+      data-layout="feed"
+      data-quick={props.quick ? String(props.quick) : undefined}
+      data-foot={flag(!!props.foot)}
+      data-interactive={flag(props.onOpen !== undefined)}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        open(new MouseEvent('click'));
+      }}
+      onContextMenu={(e) => props.onContextMenu?.(e)}
+    >
+      {props.lead}
+      <span data-kit="list-row-title" data-text="control" data-part={named(props, p(), 'title')} title={props.title}>
+        {props.title}
+      </span>
+      <div data-kit="list-row-sub" data-part={named(props, p(), 'sub')} data-tone={props.subTone} title={props.subTitle}>
+        {props.sub}
+      </div>
+      {props.foot}
+      <div data-kit="list-row-pills" data-part={named(props, p(), 'pills')}>
+        {props.pills}
+        {props.time}
+      </div>
+      {props.actions}
+    </div>
   );
 }
 
 export function ListRow(props: ListRowProps): JSX.Element {
   const part = (): PartName => props.part ?? 'ui.list-row';
+  if (props.layout === 'feed') return <FeedRow {...props} partName={part()} />;
   return (
     <div
       {...props.reorder}
@@ -143,7 +196,6 @@ export function ListRow(props: ListRowProps): JSX.Element {
       data-quiet={flag(props.quiet)}
       data-strong={flag(props.strong)}
       data-time={flag(props.time !== undefined)}
-      data-layout={props.layout === 'feed' ? 'feed' : undefined}
       data-foot={flag(!!props.foot)}
       data-interactive={flag(props.onOpen !== undefined || props.href !== undefined)}
       onContextMenu={(e) => props.onContextMenu?.(e)}

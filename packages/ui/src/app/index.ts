@@ -5,3 +5,6 @@ export { GoalPill, OverlapPill, RowPill, TaskCard, type CardStatus, type TaskCar
 export { KeysHint, Launcher, NextList, SplitHome, Tips, type LauncherChip, type LauncherProps, type LauncherTool, type NextRow, type PlainTip, type SetupTip, type SplitHomeProps } from './Home.tsx';
 export { OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, type OverlapNoteProps, type ReplyBoxProps, type TaskAction, type TaskDetailsProps, type TaskHeadProps, type TrailItem, type TurnViewProps } from './Task.tsx';
 export { WithAct, ActIcon, type Act } from './act.tsx';
+export { ChangesList, firstLine, hunkKey, hunkRuns, type ChangeFile, type ChangeRow, type ChangesLabels, type ChangesListProps, type StageState } from './Changes.tsx';
+export { PaletteSheet, paletteRowId, type PaletteRow, type PaletteSheetProps } from './Palette.tsx';
+export { StuffFrame, type StuffFrameProps } from './StuffFrame.tsx';

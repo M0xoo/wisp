@@ -13,6 +13,8 @@ import { PROJECT_ORDER, projectList, projectOf, sectionOf, type ProjectView } fr
 
 /** The palette source's id: the switcher opens the palette on it alone. */
 export const PROJECT_SOURCE = 'shell.projects';
+/** ⌘K's Actions head (New task, Add project…, Manage projects): the switcher lists it under its projects. */
+export const PROJECT_ACTIONS = 'shell.actions';
 
 /** The projects in your order, from the store as it is now. */
 export function projectsNow(ctx: ShellContext): readonly ProjectView[] {
@@ -48,7 +50,7 @@ export function switchTo(ctx: ShellContext, id: string): void {
 export function openSwitcher(ctx: ShellContext): void {
   ctx.navigate({
     t: 'openOverlay',
-    overlay: { kind: 'dialog', id: 'shell.palette' as never, params: { only: [PROJECT_SOURCE], placeholder: ctx.t('shell.projects.switchPlaceholder'), title: ctx.t('shell.projects.switch') } },
+    overlay: { kind: 'dialog', id: 'shell.palette' as never, params: { only: [PROJECT_SOURCE, PROJECT_ACTIONS], placeholder: ctx.t('shell.projects.switchPlaceholder'), title: ctx.t('shell.projects.switch') } },
   });
 }
 
@@ -90,11 +92,7 @@ export function projectItems(ctx: ShellContext): PaletteItem[] {
       run: () => switchTo(ctx, p.id),
     });
   });
-  out.push(
-    { id: 'project:add', group: g, label: ctx.t('shell.home.addProject'), icon: 'folder', keywords: 'new project folder', run: () => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }) },
-    { id: 'project:manage', group: g, label: ctx.t('shell.side.manage'), icon: 'settings', keywords: 'order rename colour color remove', run: () => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }) },
-  );
-  return out;
+  return out; // adding and managing them are Actions (v1), which the switcher lists too
 }
 
 /** ⌘P opens the switcher; ⌘1…⌘9 go to your first nine projects, ⌘0 to All projects. */

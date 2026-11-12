@@ -1,5 +1,6 @@
 // The `hero` block (v1 R.hero): what happened, in one line under a status pill, and a sentence or
 // two of summary. The title is content (it wraps, balanced); the pill is control text.
+import { flag } from '../core/props.ts';
 import { For, Show, type JSX } from 'solid-js';
 import type { Tone } from '@wisp/tokens';
 import { Pill } from '../content/Pill.tsx';
@@ -23,7 +24,7 @@ export function HeroBlock(props: BlockProps): JSX.Element {
   const status = (): HeroStatus => oneOf(props.block['status'], STATUS, 'done');
   const summary = (): string => str(props.block['summary']);
   return (
-    <div data-kit="cb-hero" data-part="block.hero" data-status={status()}>
+    <div data-kit="cb-hero" data-part="block.hero" data-status={status()} data-top={flag(!own())} data-titled={flag(!echo())}>
       <Show when={!own()}>
         <div data-kit="cb-hero-top" data-part="block.hero.top">
           <Pill part="block.hero.status" tone={TONE[status()]} dot>

@@ -5,7 +5,7 @@
 
 import { routeOf, routeTip, type HarnessUiDef, type RouteSeen } from '@wisp/shell';
 import { For, Match, Show, Switch, type JSX } from 'solid-js';
-import { Dot, Gap, GoalPill, Icon, Inline, OverlapPill, Pill, RowButton, RowLogo, RowPill, Text, Time, futureLabel, timeTitle, useSignal } from '@wisp/ui';
+import { Dot, Gap, GoalPill, Icon, OverlapPill, Pill, RowButton, RowLogo, RowPill, RowRun, Text, Time, futureLabel, timeTitle, useSignal } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import { colorToken, type SessionRow } from '../types.ts';
 import type { PillView, RowView, RunView, SubView } from '../model/row.ts';
@@ -40,50 +40,50 @@ export function Mark(props: { readonly s: SessionRow; readonly view: RowView; re
   );
 }
 
+/** The line under the title as v1 has it (#feed .it-sub): its words alone (an icon before them for a held or scheduled
+ *  task); its tone and tooltip go on the row's sub (`subOf`). */
 export function SubLine(props: { readonly sub: SubView | undefined }): JSX.Element {
   const env = useEnv();
   return (
     <Show when={props.sub}>
       {(sub) => (
-        <Inline gap="2" align="center" part="list.row.line">
+        <>
           <Show when={sub().icon}>{(ic) => <Icon name={ic()} size="xs" tone={sub().held ? 'warn' : 'muted'} />}</Show>
-          <Text size="sm" truncate tone={sub().live === 'running' ? 'accent-ink' : sub().live === 'waiting' ? 'warn' : 'muted'} {...(sub().title ? { title: say(env.shell.t, sub().title ?? sub().text, env.now()) } : {})}>
-            {say(env.shell.t, sub().text, env.now())}
-          </Text>
-        </Inline>
+          {say(env.shell.t, sub().text, env.now())}
+        </>
       )}
     </Show>
   );
 }
 
-/** Harness · model · where, then the project and the branch: the row's third line. */
-export function RunLine(props: { readonly run: RunView | undefined; readonly s: SessionRow }): JSX.Element {
+/** The sub's tone (running in accent ink, waiting in warn) and its tooltip. */
+export function subOf(sub: SubView | undefined, t: (k: string) => string, now: number): { tone: 'accent-ink' | 'warn' | 'muted'; title: string | undefined } {
+  const tone = sub?.live === 'running' ? 'accent-ink' : sub?.live === 'waiting' ? 'warn' : 'muted';
+  return { tone, title: sub?.title ? say(t as never, sub.title ?? sub.text, now) : undefined };
+}
+
+/** Harness · model · where: the row's third line (v1 feed.js runLine(): nothing else; the project and the branch are
+ *  the task page's details, split.css hides .q-proj in the sidebar). */
+export function RunLine(props: { readonly run: RunView; readonly s: SessionRow }): JSX.Element {
   const env = useEnv();
   const route = (): RouteSeen | undefined => routeOf({ ext: (props.s as { ext?: unknown }).ext });
   const harnesses = useSignal(env.shell.harnesses());
   /** the harness as its plugin registered it: v1's name ("Claude Code") and logo */
   const harness = (): HarnessUiDef | undefined => harnesses().find((h) => h.id === props.s.agent);
+  const name = (): string => (props.run.model ? `${harness()?.name ?? props.run.agentName} · ${props.run.model}` : (harness()?.name ?? props.run.agentName));
   return (
-    <Inline gap="3" align="center" part="list.row.run">
-      <Show when={props.run}>
-        {(r) => (
-          <Inline gap="2" align="center" part="list.row.harness">
-            {/* v1 runBadge: the harness's logo (Auto's accent dot on its corner when it picked the run) and its name */}
-            <Show when={harness()?.logo} fallback={<Show when={route()}><Dot tone="accent" /></Show>}>
-              {(src) => <RowLogo src={src()} routed={!!route()} />}
-            </Show>
-            <Text size="xs" tone="muted" truncate title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, r().title, env.now())}>
-              {r().model ? `${harness()?.name ?? r().agentName} · ${r().model}` : (harness()?.name ?? r().agentName)}
-            </Text>
-            <Text size="xs" tone="faint">·</Text>
-            <Icon name={r().sandbox ? 'box' : r().remote ? 'server' : 'laptop'} size="xs" tone="faint" />
-            <Text size="xs" tone="faint" truncate>{r().where}</Text>
-          </Inline>
-        )}
-      </Show>
-      {/* v1 feed.js runLine(): the harness, its model and the computer, nothing else (the project and the branch are
-          the task page's details; split.css hides .q-proj in the sidebar) */}
-    </Inline>
+    <RowRun
+      part="list.row.run card.run"
+      // v1 runBadge: the harness's logo (Auto's accent dot on its corner when it picked the run)
+      logo={
+        <Show when={harness()?.logo} fallback={<Show when={route()}><Dot tone="accent" /></Show>}>
+          {(src) => <RowLogo src={src()} routed={!!route()} />}
+        </Show>
+      }
+      name={name()}
+      nameTitle={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, props.run.title, env.now())}
+      where={{ icon: props.run.sandbox ? 'box' : props.run.remote ? 'server' : 'laptop', text: props.run.where }}
+    />
   );
 }
 
@@ -136,9 +136,9 @@ export function TimeCell(props: { readonly view: RowView }): JSX.Element {
   return (
     <Show
       when={props.view.time.kind === 'ahead'}
-      fallback={<Time at={props.view.time.at} now={env.now()} t={kitT(env.shell.t)} part="list.row.time" />}
+      fallback={<Time at={props.view.time.at} now={env.now()} t={kitT(env.shell.t)} part={'list.row.time card.time' as `${string}.${string}`} />}
     >
-      <Text size="xs" tone="faint" numeric nowrap title={tip() ?? timeTitle(props.view.time.at, env.now(), kitT(env.shell.t))} part="list.row.time">
+      <Text size="xs" tone="faint" numeric nowrap title={tip() ?? timeTitle(props.view.time.at, env.now(), kitT(env.shell.t))} part={'list.row.time card.time' as `${string}.${string}`}>
         {futureLabel(props.view.time.at, env.now())}
       </Text>
     </Show>

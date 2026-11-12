@@ -2,7 +2,7 @@
 // resolved by the shell (overrides, disable, attach, order) and filtered by their own `if`. Rendered
 // through the kit's ExtensionSlot, so one extension that throws renders nothing and the rest stay.
 
-import { createMemo, type JSX } from 'solid-js';
+import { createMemo, Show, type JSX } from 'solid-js';
 import { ExtensionSlot, type ExtensionOutput } from '@wisp/ui';
 import type { ExtensionProps, InputId } from '@wisp/shell/contract';
 import { useEnv } from './env.ts';
@@ -22,7 +22,12 @@ export function Slot(props: { readonly input: InputId; readonly session?: Sessio
       .filter(({ ext, p }) => ext.def.if?.(p) ?? true)
       .map(({ ext, p }) => ({ id: ext.id, render: () => ext.def.component(p) })),
   );
-  return <ExtensionSlot input={props.input as `${string}.${string}`} extensions={outputs()} layout={props.layout ?? 'inline'} gap="2" />;
+  // nothing applies to this row: no box at all (v1's row has no element there; qa/parity.mjs compares the tree)
+  return (
+    <Show when={outputs().length > 0}>
+      <ExtensionSlot input={props.input as `${string}.${string}`} extensions={outputs()} layout={props.layout ?? 'inline'} gap="2" />
+    </Show>
+  );
 }
 
 /** Whether anything is attached to an input (a row skips the slot's box when not). */

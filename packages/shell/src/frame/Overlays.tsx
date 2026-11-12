@@ -23,9 +23,10 @@ function OverlayView(props: { readonly overlay: Overlay }): JSX.Element {
   const body = (): JSX.Element => (def ? <Dynamic component={def.component} client={client} params={params()} /> : <EmptyState icon="info" title={shell.t('shell.view.missing')} compact />);
   // a text field inside takes the focus first (the palette's search), else the kit's default
   const initialFocus = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-part="shell.overlay"] input, [data-part="shell.overlay"] textarea');
-  const sheet = (): boolean => nav().layout === 'stack' || props.overlay.kind === 'sheet';
+  // a view placed at the top (⌘K) stays a card on phones too, dropping from the top out of the keyboard's way (v1)
+  const sheet = (): boolean => def?.place !== 'top' && (nav().layout === 'stack' || props.overlay.kind === 'sheet');
   return (
-    <Show when={sheet()} fallback={<Dialog open title={title()} bare={def?.bare === true} onOpenChange={close} initialFocus={initialFocus} size={props.overlay.kind === 'viewer' ? 'xl' : 'md'} part="shell.overlay">{body()}</Dialog>}>
+    <Show when={sheet()} fallback={<Dialog open title={title()} bare={def?.bare === true} {...(def?.place && { place: def.place })} onOpenChange={close} initialFocus={initialFocus} size={props.overlay.kind === 'viewer' ? 'xl' : (def?.size ?? 'md')} part="shell.overlay">{body()}</Dialog>}>
       <Sheet open title={title()} bare={def?.bare === true} onOpenChange={close} initialFocus={initialFocus} {...(props.overlay.kind === 'viewer' && { size: 'xl' as const })} part="shell.overlay">{body()}</Sheet>
     </Show>
   );

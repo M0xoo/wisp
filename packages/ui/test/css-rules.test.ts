@@ -101,3 +101,21 @@ test('a bar has a token height and never wraps', () => {
   expect(rule).toMatch(/height: var\(--bar-h\)/);
   expect(rule).toMatch(/flex-wrap: nowrap/);
 });
+
+test('a_pressed_button_never_jumps_none_is_centred_by_transform_v1_782', () => {
+  // the press is a transform (scale): a button centred by translate(-50%) jumps by half its width under the finger
+  for (const s of sheets) {
+    for (const m of s.css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const [, sel = '', body = ''] = m;
+      if (/(button|btn|icon-button|link)/.test(sel)) expect(body, `${s.name}: ${sel.trim()}`).not.toMatch(/transform:\s*translate(X)?\(\s*-50%/);
+    }
+  }
+});
+
+test('the_task_heads_title_is_one_line_at_every_width_v1_778', () => {
+  // a subagent's title beside its lead's is one line too on the phone: no sheet lets the head's title wrap
+  const rules = sheets.flatMap((s) => [...s.css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) => (m[1] ?? '').includes("[data-kit='sh-title']")).map((m) => ({ file: s.name, body: m[2] ?? '' })));
+  expect(rules.length).toBeGreaterThan(0);
+  for (const r of rules) expect(r.body, r.file).not.toMatch(/white-space:\s*(normal|pre-wrap)|line-clamp|text-wrap-mode:\s*wrap/);
+  expect(rules.some((r) => /white-space: nowrap/.test(r.body) && /text-overflow: ellipsis/.test(r.body))).toBe(true);
+});

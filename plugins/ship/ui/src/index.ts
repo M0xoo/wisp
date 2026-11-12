@@ -5,13 +5,24 @@ import { defineExtension, definePluginUi, defineView } from '@wisp/shell';
 import { catalogue } from './i18n.ts';
 import { parseShipParams } from './ShipDialog.tsx';
 import { SHIP_VIEW } from './use.ts';
+import { prOf } from './model/pr.ts';
+import type { ShipSession } from './types.ts';
 
 export default definePluginUi({
   id: 'wisp.ship',
   catalogue: { ...catalogue },
   extensions: [
     // `● #412` on a task's row, in the PR's tone
-    defineExtension({ id: 'wisp.ship.pill', attachTo: { id: 'shell.row:head' }, component: lazy(() => import('./PrPill.tsx')) }),
+    // only on a row with a PR or a ship in flight: the rest get no pill's box at all (v1)
+    defineExtension({
+      id: 'wisp.ship.pill',
+      attachTo: { id: 'shell.row:head' },
+      component: lazy(() => import('./PrPill.tsx')),
+      if: (p) => {
+        const s = p.session?.() as ShipSession | undefined;
+        return !!s?.shipping || prOf(s) !== undefined;
+      },
+    }),
     // the PR row over the open task: its line and what to do next (Merge, Fix conflicts)
     defineExtension({ id: 'wisp.ship.strip', attachTo: { id: 'shell.task:band' }, component: lazy(() => import('./PrStrip.tsx')) }),
   ],

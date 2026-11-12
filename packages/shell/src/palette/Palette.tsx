@@ -5,14 +5,14 @@
 // answers come after a pause in typing and go under the rest, so nothing above them moves; an
 // answer for words no longer in the box is dropped.
 
-import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
+import { createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Dot, Icon, Input, Kbd, ListRow, Stack, Text, useSignal, type IconName } from '@wisp/ui';
+import { PaletteSheet, paletteRowId, useSignal, type IconName, type PaletteRow } from '@wisp/ui';
 import type { ProjectColor } from '@wisp/tokens';
 import type { PaletteContext, PaletteItem } from '../contract.ts';
 import { useShell } from '../context.tsx';
 import { useClients } from '../slot.tsx';
-import { rank, type Ranked } from './match.ts';
+import { marks, rank, type Ranked } from './match.ts';
 
 const DEEP_PAUSE_MS = 160;
 
@@ -93,7 +93,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
       e.preventDefault();
       if (n === 0) return;
       setSel((s) => (s + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
-      document.getElementById(`palette-row-${sel()}`)?.scrollIntoView({ block: 'nearest' });
+      document.getElementById(paletteRowId(sel()))?.scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault();
       run(shown()[sel()]);
@@ -104,52 +104,42 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
     return i === 0 || shown()[i - 1]?.item.group !== cur ? cur : undefined;
   };
 
+  const groupName = (g: string): string => (shell.client.i18n.has(g) ? shell.t(g) : g);
+  const rows = createMemo<PaletteRow[]>(() =>
+    shown().map((r, i) => {
+      const head = headAt(i);
+      const it = r.item;
+      return {
+        id: it.id,
+        ...(head !== undefined && { head: groupName(head) }),
+        label: marks(it.label, r.idx),
+        ...(it.sub ? { sub: it.sub } : {}),
+        ...(it.color ? { dot: `pc-${it.color}` as ProjectColor } : { icon: (it.icon ?? 'arrow') as IconName }),
+        // a row's shortcut always shows (as VS Code and Linear do), not only on hover: it's how you learn it
+        ...(it.kbd !== undefined && { kbd: it.kbd.split(' ') }),
+      };
+    }),
+  );
+
   return (
-    <Stack gap="3" part="shell.palette">
-      <Input
-        type="search"
-        icon="search"
-        autofocus
-        spellcheck={false}
-        autocomplete="off"
-        value={query()}
-        placeholder={params.placeholder ?? shell.t('shell.palette.placeholder')}
-        aria-label={params.title ?? shell.t('shell.palette.title')}
-        onInput={(v) => {
-          setQuery(v);
-          setSel(0);
-          ask(v);
-        }}
-        onKeyDown={onKey}
-        part="shell.palette.input"
-        // the palette loads after its dialog opened, so the dialog's first focus missed the input
-        ref={(el) => requestAnimationFrame(() => el.focus())}
-      />
-      <Show when={shown().length > 0} fallback={<Text tone="muted" size="sm">{shell.t('shell.palette.empty', { q: query().trim() })}</Text>}>
-        <Stack gap="0" role="listbox" aria-label={shell.t('shell.palette.title')} part="shell.palette.list">
-          <For each={shown()}>
-            {(r, i) => (
-              <>
-                <Show when={headAt(i())}>{(g) => <Text size="xs" tone="faint" weight="medium" part="shell.palette.group">{shell.client.i18n.has(g()) ? shell.t(g()) : g()}</Text>}</Show>
-                {/* a row's shortcut always shows (as VS Code and Linear do), not only on hover: it's how you learn it */}
-                <ListRow
-                  id={`palette-row-${i()}`}
-                  part="shell.palette.row"
-                  title={r.item.label}
-                  lead={r.item.color ? <Dot size="md" color={`pc-${r.item.color}` as ProjectColor} /> : <Icon name={(r.item.icon ?? 'arrow') as IconName} size="sm" />}
-                  {...(r.item.sub !== undefined && { sub: r.item.sub })}
-                  {...(r.item.kbd !== undefined && { pills: <Kbd keys={r.item.kbd.split(' ')} /> })}
-                  selected={sel() === i()}
-                  onOpen={() => run(r)}
-                />
-              </>
-            )}
-          </For>
-        </Stack>
-      </Show>
-      <Text size="xs" tone="faint" part="shell.palette.foot">
-        <Kbd keys={['↑', '↓']} /> {shell.t('shell.palette.navigate')} · <Kbd keys={['↵']} /> {shell.t('shell.palette.open')} · <Kbd keys={['esc']} /> {shell.t('shell.palette.close')}
-      </Text>
-    </Stack>
+    <PaletteSheet
+      value={query()}
+      placeholder={params.placeholder ?? shell.t('shell.palette.placeholder')}
+      label={params.title ?? shell.t('shell.palette.title')}
+      rows={rows()}
+      selected={sel()}
+      empty={shell.t('shell.palette.empty', { q: query().trim() })}
+      foot={{ navigate: shell.t('shell.palette.navigate'), open: shell.t('shell.palette.open'), close: shell.t('shell.palette.close') }}
+      onInput={(v) => {
+        setQuery(v);
+        setSel(0);
+        ask(v);
+      }}
+      onKeyDown={onKey}
+      onPick={(i) => run(shown()[i])}
+      onHover={setSel}
+      // the palette loads after its dialog opened, so the dialog's first focus missed the input
+      inputRef={(el) => requestAnimationFrame(() => el.focus())}
+    />
   );
 }

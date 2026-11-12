@@ -52,7 +52,7 @@
   [data-kit='kbd-group'] { display: inline-flex; gap: var(--space-1); flex: none; }
   [data-kit='kbd'] {
     display: inline-block; font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-snug);
-    padding: var(--space-0) var(--space-2); border-radius: var(--radius-xs); border: var(--size-hairline) solid var(--line-2);
+    padding: 1px 5px; border-radius: 5px; border: var(--size-hairline) solid var(--line-2); /* v1 tokens.css kbd */
     border-bottom-width: var(--size-ring); color: var(--muted); background: var(--surface); white-space: nowrap;
   }
   /* No keyboard hints on touch screens (design/mobile.md). */

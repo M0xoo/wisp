@@ -1,5 +1,6 @@
 {
   "issues.title": "Start from an issue",
+  "issues.palette": "Start from an issue…",
   "issues.search.github": "Search {name}’s open issues…",
   "issues.search.linear": "Search the Linear issues assigned to you…",
   "issues.search.jira": "Search the Jira issues assigned to you…",
