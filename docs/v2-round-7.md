@@ -1571,3 +1571,74 @@ Not done: F-page-44 and F-comp-46 need a layout-level check (no unit surface); F
 feature (v1 env-mask.js + changes.js Reveal per file).
 
 Checks: see the hand-off (typecheck, `npm run check`, each new test alone, clippy on the touched crates).
+
+
+## Round 40 (2026-11-12)
+
+**Fix first: #756 CI on 9912daf5.**
+1. **Git reads take no index.lock.** wisp-proc now adds `GIT_OPTIONAL_LOCKS=0` to every git it spawns
+   (`Env::for_program`, in `LocalProc::spawn`/`spawn_detached`; a caller's own value wins), so the git plugin was
+   already fine but history's notes/blame, the harness drivers' `git` disk, runtime's specs and found repos, github's
+   remote read were not; the CLI's own `std::process` git calls (folder, repo, hook, termctx, tui) set it too. Test
+   `crates/wisp-proc/tests/git_locks.rs`: `a_commit_lands_while_wisp_refreshes_status_in_a_loop` (40 commits while
+   `git status` runs in a loop through the proc service; with `GIT_OPTIONAL_LOCKS=1` it fails at commit 3 with
+   `index.lock: File exists`), plus the env rule and a fake git that prints what it got.
+2. **serve_kinds, three tests, three causes, none a retry:**
+   - *webhook :315*: not flaky, it failed every time. A trigger's flat `project` was a filter on the event, and a
+     webhook (or schedule, once, manual) event names no project, so `admit` said Nothing ("seen before"). For those
+     sources `project` is only where the task runs (`TriggerSpec::all_filters`); test
+     `a_project_on_a_webhook_or_schedule_trigger_is_where_it_runs_not_a_filter`. The test's own prompt then asserted
+     the body is appended to any prompt; v1 fills the prompt template only (`{{body.ref}}`), so the test now uses
+     `{event.payload.ref}`.
+   - *trigger + pipeline*: also deterministic: `on: finished` is v1's kind name, v2's source is `task.finished`, so the
+     trigger never fired (broken since the ADR-0043 engine). The test says `task.finished`; and applying a trigger
+     with a v1 name is now refused with the name to use (`spec::check`, test
+     `a_v1_kind_name_as_on_is_refused_with_its_v2_source`; serve_code's fixture `on: ci` → `ci.failed`).
+   - *pipeline best of n*: the race. The fake agent's `FAKE_LIMIT_ONCE` was used up by whichever call reached it
+     first, detect probes included (`opencode models --verbose`, `auth list` aren't meta calls); a probe landing after
+     the test armed the limit took it, and the claude run carried on without hitting it (common/mod.rs:159 timeout).
+     Only a run with a prompt hits it now. The test re-detects opencode right after arming (`runtime.agents
+     {fresh: opencode}`), which made the CI failure happen every time before the fix and never after.
+   - Note for the lead: `cargo test -p wisp` doesn't rebuild wisp-testkit's fake binaries (a dependency's bins);
+     `cargo build -p wisp-testkit --bins` first, or a local run uses a stale fake.
+3. **DESK2-05 on Windows.** The QA's `taskkill /PID` (no /F) posts WM_CLOSE to every top-level window of the
+   process, tao's hidden one included, and the app window may never get CloseRequested. The QA now closes the window as
+   a user does (`CloseMainWindow`, after waiting for the window to show); the shell also exits on the main window's
+   `Destroyed` (not macOS). CI to confirm (no Windows here).
+
+**Security: GET /api/sessions/:id/file.** A file outside the task's folder (named by a block, or a link in the folder
+that points out of it: canonical paths) goes only when its first bytes are the picture or video its extension says
+(core `sniff`/`content_fits`: PNG, JPEG, GIF, WebP, SVG; MP4/MOV boxes, WebM); keepImages copies only those too. Tests
+`a_file_outside_the_folder_goes_only_when_its_bytes_are_the_picture_or_video_its_extension_says` (core) and
+`a_file_a_block_names_outside_the_folder_is_served_only_when_its_bytes_are_a_picture_or_video` (host: a key renamed
+.png, a .png link to a key, a link in the folder pointing out, a picture named .mp4 are refused; a real picture
+outside, and any picture inside the folder, as v1, go).
+
+**F-page-41 (.env Reveal in Changes).** git already masked; the pane now has v1's line over a masked file's diff,
+Reveal ⇄ Hide in place (flips in ~40 ms, the button keeps its box), revealed per task for the tab's life, asked of
+git as `reveal`. The mock masks as wisp-git does (`?seed=env`: a `.env.local` change). Still partial: the activity's
+captured edits, code blocks and `cat .env` output.
+
+**F-auto-5 (times in the reply box): built.** wisp.later's `later.reply` prompt source (`replyPlan`, v1's exceptions)
+schedules `later.add`; the new `wisp.later.foot` shows the task's follow-ups over the box (At 14:45 · set by you, Send
+now, Cancel). A refusal rolls the row back and puts the text back in the box (`send` ctx `restore`, additive in
+`packages/shell/src/contract.ts`). Found on the way, a phone bug for every row over the reply box: the box folded on
+pointerdown, its toolbar went, the row moved 30 px under the finger and the tap was lost (queue rows too). It folds
+on the click the release makes now (kit `ReplyBox`, test `reply-box.test.tsx`).
+
+A delegate review (medium) found, and this round fixed: the route served bytes read after the check (now the
+bytes that go out are sniffed themselves, for every file), keepImages checked and copied through two opens (now one
+handle), SVG text passed as a `.png` (only `.svg` takes markup now; raster magic for raster names), QuickTime's
+`free`/`wide` boxes needed a plausible size (no text starts with one), ReplyBox armed its fold on a right-click (a
+primary press only; a press inside disarms), and Hide dropped the line until git's masked read came (kept now).
+
+PNGs looked at (/tmp/pw): r40-env-{1440,390}-{light,dark}.png, r40-env-revealed-1440.png,
+r40-later-{1440,390}-{light,dark}.png, r40-later-refused.png.
+Partial 103, missing 17.
+
+Checks: `npm run typecheck`, `npm run check` (0 errors), clippy `-D warnings` on wisp-proc, wisp-automations-api,
+wisp-automations-core, wisp-runtime-core, wisp-runtime, wisp-testkit, wisp. Tests run alone: wisp-proc `git_locks` (3),
+automations-core `a_project_on…`, automations-api `a_v1_kind…`, wisp `serve_kinds` (the three), wisp `serve_code` (2),
+runtime-core media (3), runtime `media` (3); vitest: ui `changes.test.tsx`, `reply-box.test.tsx`, shell-task
+`changes.test.ts`, later `reply.test.ts`, apps/web `mock-git.test.ts`. desktop/src-tauri not compiled here (the
+changed arm is Windows/Linux only).

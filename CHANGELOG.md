@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **`.env` values are hidden in Changes until you press Reveal.** A `.env` or `.env.*` file's diff reads `KEY=••••` with a line over it saying so; **Reveal** shows that file's values as they are until **Hide** (for as long as the tab is open). Settings → *Hide .env values* turns it off.
+- **Type a time in the reply box to send it later.** *in 10 min check again* or *remind me to look at the deploy in 1 hour* goes into the same conversation at that time; it shows over the box (*At 14:45 · set by you*) with **Send now** and **Cancel**. Settings → *Read times* turns it off.
 - **Run on another computer sets the project up there**, as before: that computer finds its own checkout of the repo (or clones it from the origin), adds it to its projects, and the task runs in the same subfolder. A folder with no git remote says so.
 - **Pictures and videos in answers show again**, served from the task's own computer. Click one for a full-screen viewer that goes through the answer's other pictures and videos with ← / →; hover for **Copy image**, **Download** and **Show in folder**. A screenshot the agent saved in /tmp is kept in `~/.wisp/shots`, so it still shows after a restart.
 - **👍 / 👎 on each finished turn**, with an optional line on what went wrong after 👎, and **Send feedback** (⌘K, *Tell us* at the foot of home, `/feedback …` or `/bug …` in any prompt box). It goes to the wisp team with the harness and model, never your prompt or code; offline, it waits and goes later.
@@ -155,6 +157,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 
 ### Fixed
+
+- **wisp's own git reads never block your `git commit`.** Every git call wisp makes skips git's optional locks, so a commit no longer fails with `index.lock: File exists` while wisp refreshes the same repo.
+- **A webhook or scheduled trigger with a project starts its task again.** The project was read as a filter on the event, and a webhook or a schedule names none, so nothing started. A trigger written with v1's source names (`on: finished`, `on: ci`) is now refused when applied, with the name to use (`task.finished`, `ci.failed`), instead of never firing.
+- **A file an answer names outside the task's folder is served only when it really is a picture or video.** Its first bytes must match its extension, so a `.png` that is a link to a key, or a renamed secret, is never sent to the page or copied into `~/.wisp/shots`.
+- **On a phone, the first tap after sending a reply works.** The reply box used to fold as the finger went down, which moved what was over it (a follow-up's ×, Send now) before the tap landed.
+- **Closing the window on Windows quits the app and stops its server**, also when Windows ends the window itself.
 
 - **A new question brings an archived task back** to the list at once.
 - **Compare runs keep the prompt's title**; one run's answer no longer renames the task.
