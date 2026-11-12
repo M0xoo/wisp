@@ -3,10 +3,12 @@
 // the list is read again after it; switching off frees everything the plugin made (its scope).
 import { createResource, createSignal, For, Show, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Button, Callout, IconButton, Inline, Input, Pill, SettingsCast, SettingsEmpty, SettingsFieldRow, SettingsGroup, SettingsNote, SettingsRow, Stack, Switch, Text } from '@wisp/ui';
-import { cast, castPrompt, install, list, permissionWords, setEnabled, uninstall, type Installed, type PluginRow } from '../commands.ts';
+import { Button, Callout, Code, IconButton, Inline, PathField, Pill, SettingsCast, SettingsEmpty, SettingsFieldRow, SettingsGroup, SettingsNote, SettingsRow, Stack, Switch, Text } from '@wisp/ui';
+import { useShell } from '@wisp/shell';
+import { cast, castPrompt, folders, install, list, permissionWords, setEnabled, uninstall, type Installed, type PluginRow } from '../commands.ts';
 import { t } from '../i18n.ts';
 
+const IS_URL = /^(https?:\/\/|git@|ssh:\/\/)/;
 const TONE: Record<string, 'good' | 'neutral' | 'bad'> = { active: 'good', resolved: 'good', off: 'neutral', refused: 'bad' };
 
 export default function Plugins(props: { readonly client: PluginClient }): JSX.Element {
@@ -27,6 +29,19 @@ export default function Plugins(props: { readonly client: PluginClient }): JSX.E
   // Install…: a folder or a git URL; the answer says what it asks for before anything of it runs
   const say = t as (k: string, v?: Readonly<Record<string, string>>) => string;
   const [source, setSource] = createSignal('');
+  // Folder… (v1 File…): the system's folder dialog in the desktop app; in a browser the box, which suggests the
+  // folders under what you type (Tab goes into one)
+  const platform = useShell().platform;
+  let field: HTMLInputElement | undefined;
+  const browse = async (): Promise<void> => {
+    if (platform.pickFolder) {
+      const dir = await platform.pickFolder();
+      if (dir) setSource(dir);
+      return;
+    }
+    if (!source().trim()) setSource('~/');
+    field?.focus();
+  };
   const [installing, setInstalling] = createSignal(false);
   const [got, setGot] = createSignal<Installed | undefined>(undefined);
   const go = (): void => {
@@ -122,12 +137,25 @@ export default function Plugins(props: { readonly client: PluginClient }): JSX.E
         </Show>
       </SettingsGroup>
       <SettingsGroup part="plugins.install">
-        <SettingsRow part="plugins.install.row" title={t('plugins.install')} description={t('plugins.install.hint')} />
+        <SettingsRow
+          part="plugins.install.row"
+          title={t('plugins.install')}
+          description={t('plugins.install.hint')}
+          control={
+            <Button size="sm" variant="ghost" icon="folder" part="plugins.install.folder" onClick={() => void browse()}>
+              {t('plugins.install.folder')}
+            </Button>
+          }
+        />
         <SettingsFieldRow part="plugins.install.box">
-          <Input
+          <PathField
+            ref={(el) => (field = el)}
             value={source()}
             onInput={setSource}
-            onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && (e.preventDefault(), go())}
+            suggest={(q) => c.run(folders, { peer, q })}
+            skip={(q) => IS_URL.test(q)}
+            onPick={setSource}
+            onEnter={() => go()}
             placeholder={t('plugins.install.placeholder')}
             aria-label={t('plugins.install')}
           />
@@ -161,7 +189,9 @@ export default function Plugins(props: { readonly client: PluginClient }): JSX.E
         </Show>
       </SettingsGroup>
       <SettingsNote part="plugins.foot">
-        {t('plugins.foot')}{' '}
+        {t('plugins.foot.pre')}
+        <Code>{t('plugins.foot.path')}</Code>
+        {t('plugins.foot.post')}{' '}
         <Button variant="link" size="xs" part="plugins.allOff" onClick={allOff}>
           {t('plugins.allOff')}
         </Button>

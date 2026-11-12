@@ -12,6 +12,10 @@ export interface PluginRow {
   readonly reason?: string;
 }
 
+/** The folders a typed path could go on to (wisp.runtime's `runtime.folders`, v1 GET /fs?q=): the install box's
+ * suggestions. Answered in the form typed (`~/…` stays `~/…`). */
+export const folders = defineCommand<{ peer: PeerId; q: string }, string[]>({ id: 'runtime.folders', owner: (a) => a.peer, wire: (a) => ({ q: a.q }), optimistic: 'none', pending: 'the folder suggestions' });
+
 export const list = defineCommand<{ peer: PeerId }, PluginRow[]>({ id: 'plugins.list', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the plugins list' });
 export const setEnabled = defineCommand<{ peer: PeerId; id: string; enabled: boolean }>({
   id: 'plugins.setEnabled',

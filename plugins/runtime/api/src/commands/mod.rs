@@ -125,6 +125,7 @@ command!(Quick = "runtime.quick": QuickArgs => QuickResult);
 command!(ProjectRun = "runtime.projectRun": ProjectRunArgs => Value);
 command!(ProjectTest = "runtime.projectTest": ProjectTestArgs => Ack);
 command!(Discover = "runtime.discover": DiscoverArgs => Vec<FoundRepo>, read_only);
+command!(Folders = "runtime.folders": FoldersArgs => Vec<String>, read_only);
 command!(Usage = "runtime.usage": UsageArgs => UsageSummary, read_only);
 command!(Sessions = "runtime.sessions": SessionsArgs => Vec<crate::harness::sessions::OutsideSession>, read_only);
 command!(AdoptSession = "runtime.adoptSession": AdoptSessionArgs => Created);

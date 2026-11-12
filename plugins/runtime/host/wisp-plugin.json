@@ -295,6 +295,11 @@
         "readOnly": true
       },
       {
+        "id": "runtime.folders",
+        "title": "Folders a typed path could go on to (the folder pickers' suggestions)",
+        "readOnly": true
+      },
+      {
         "id": "runtime.exec",
         "title": "Run a one-click command from a presentation in the task's folder"
       },

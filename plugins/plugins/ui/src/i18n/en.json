@@ -12,9 +12,10 @@
   "plugins.state.off": "Off",
   "plugins.state.refused": "Refused",
   "plugins.install": "Install a plugin",
-  "plugins.install.hint": "A plugin folder a colleague sent, on this computer, or its git URL (https or git@). It’s installed off: you see what it asks for before any of it runs, then switch it on",
+  "plugins.install.hint": "A plugin folder a colleague sent, or its git URL (https or git@). It comes in off: you see what it asks for first.",
   "plugins.install.placeholder": "~/code/my-plugin or https://github.com/you/wisp-plugin",
   "plugins.install.go": "Install",
+  "plugins.install.folder": "Folder…",
   "plugins.installed": "{name} {version} is installed, off",
   "plugins.asks": "Switching it on lets it:",
   "plugins.asksNothing": "It asks for nothing beyond showing itself.",
@@ -41,7 +42,9 @@
   "plugins.example.6": "When a task finishes with failing tests, send it back once to fix them",
   "plugins.example.7": "A bigger monospace prompt box without the compare and team buttons",
   "plugins.example.8": "Codex tasks always run the linter before they report",
-  "plugins.foot": "Your plugins live in ~/.wisp/plugins. Switching one off puts back exactly what it changed.",
+  "plugins.foot.pre": "Plugins live in ",
+  "plugins.foot.path": "~/.wisp/plugins",
+  "plugins.foot.post": ". Turning one off puts back exactly what it changed.",
   "plugins.allOff": "Turn every plugin off",
   "plugins.pane.lede": "Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or install one a colleague sent."
 }

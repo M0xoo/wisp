@@ -542,6 +542,16 @@ pub struct ColdOut {
     pub compact: Option<CompactOffer>,
 }
 
+/// `runtime.folders`: the folders a typed path could go on to (v1 `GET /fs?q=`, the project picker's suggestions):
+/// under the path's folder, starting with its last part (any case), no hidden ones, 12 at most, sorted. `~` is your
+/// home, and a path typed from `~` is answered from `~`. A path that is neither absolute nor `~` gets none (v1 listed the server's own working folder). Additive
+/// (2026-11-12).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct FoldersArgs {
+    pub q: String,
+}
+
 /// `runtime.discover`: git repos on this computer that aren't projects yet (v1 `/projects/discover`, places.js
 /// `discoverRepos`): the usual folders under your home, two levels down, the 24 touched last. Additive (2026-11-11).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]

@@ -368,6 +368,7 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
     cmd!(s, slot, c::Overage, |r, call, a| r.overage(a.id.as_str(), &a.turn_id, &a.kind).await.map(|()| c::Ack {}));
     project_test(s, kinds_for_run.clone());
     discover(s, kinds_for_run.clone());
+    folders(s);
     let projects = kinds_for_run;
     s.command::<c::ProjectRun, _, _>(move |ctx, call, a| {
         let projects = projects.clone();
@@ -621,6 +622,14 @@ fn discover(s: &mut Setup, known: Arc<wisp_resources_api::StoredKind>) {
                 None => Vec::new(),
             })
         }
+    });
+}
+
+/// `runtime.folders`: the folders a typed path could go on to (`found.rs` `folders`).
+fn folders(s: &mut Setup) {
+    s.command::<c::Folders, _, _>(move |_ctx, _call, a| async move {
+        let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(std::path::PathBuf::from);
+        Ok(crate::found::folders(&a.q, home.as_deref()).await)
     });
 }
 

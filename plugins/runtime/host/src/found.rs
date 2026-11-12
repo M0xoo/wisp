@@ -63,6 +63,49 @@ pub async fn discover(home: &Path, known: &[String]) -> Vec<FoundRepo> {
     found
 }
 
+/// The suggestions a folder picker shows (v1 `GET /fs?q=`).
+const FOLDERS_SHOWN: usize = 12;
+
+/// The folders `q` could go on to: under its folder (all of it when `q` ends in a separator), the ones whose name
+/// starts with what follows (any case), no hidden ones, sorted, 12 at most. `~` is `home`, and a path typed from
+/// `~` is answered from `~`. A relative path gets
+/// none: v1 read it against the server's own working folder, which is no folder of yours.
+pub async fn folders(q: &str, home: Option<&Path>) -> Vec<String> {
+    let (raw, tilde) = match (q.strip_prefix('~'), home) {
+        (Some(rest), Some(h)) if rest.is_empty() || rest.starts_with(['/', '\\']) => (format!("{}{rest}", h.display()), Some(h.display().to_string())),
+        (Some(_), _) => return Vec::new(),
+        (None, _) => (q.to_owned(), None),
+    };
+    if !Path::new(&raw).is_absolute() {
+        return Vec::new();
+    }
+    let trailing = raw.ends_with(['/', '\\']);
+    let p = Path::new(&raw);
+    let (dir, prefix) = if trailing { (p.to_owned(), String::new()) } else { (p.parent().map_or_else(|| p.to_owned(), Path::to_owned), p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default()) };
+    let Ok(mut rd) = tokio::fs::read_dir(&dir).await else { return Vec::new() };
+    let mut out = Vec::new();
+    while let Ok(Some(e)) = rd.next_entry().await {
+        let name = e.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') || !name.to_lowercase().starts_with(&prefix) {
+            continue;
+        }
+        if e.file_type().await.is_ok_and(|t| t.is_dir()) {
+            out.push(dir.join(&name).display().to_string());
+        }
+    }
+    out.sort();
+    out.truncate(FOLDERS_SHOWN);
+    // typed from `~`: answered from `~` too, so the box keeps the form you typed
+    if let Some(h) = tilde {
+        for p in &mut out {
+            if let Some(rest) = p.strip_prefix(&h) {
+                *p = format!("~{rest}");
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -81,6 +124,30 @@ mod tests {
         let mut names: Vec<String> = discover(&home, &known).await.into_iter().map(|f| f.name).collect();
         names.sort();
         assert_eq!(names, ["api", "web"]);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// v1 `GET /fs?q=`: the folders under the typed path's folder that start with its last part, any case; a trailing
+    /// separator lists the folder; no files, no hidden folders; `~` is home (and the answer keeps it); 12 at most, sorted. A relative path gets
+    /// none (v1 listed the server's working folder) and so does `~user`.
+    #[tokio::test]
+    async fn a_typed_path_suggests_the_folders_it_could_go_on_to_v1_fs() {
+        let home = std::env::temp_dir().join(format!("wisp-folders-{}", wisp_kernel::ids::uuid7()));
+        for d in ["code/web", "code/Wisp", "code/wiki", "code/.wip", "notes"] {
+            std::fs::create_dir_all(home.join(d)).unwrap();
+        }
+        std::fs::write(home.join("code/wip.txt"), "x").unwrap();
+        let h = home.display().to_string();
+        let got = folders(&format!("{h}/code/wi"), None).await;
+        assert_eq!(got, [format!("{h}/code/Wisp"), format!("{h}/code/wiki")]);
+        assert_eq!(folders(&format!("{h}/code/"), None).await.len(), 3, "a trailing / lists the folder: web, Wisp, wiki");
+        assert_eq!(folders("~/no", Some(&home)).await, ["~/notes"], "typed from ~, answered from ~");
+        assert_eq!(folders("code/wi", Some(&home)).await, Vec::<String>::new(), "relative: none");
+        assert_eq!(folders("~bob/x", Some(&home)).await, Vec::<String>::new());
+        for i in 0..20 {
+            std::fs::create_dir_all(home.join(format!("many/d{i:02}"))).unwrap();
+        }
+        assert_eq!(folders(&format!("{h}/many/"), None).await.len(), 12);
         let _ = std::fs::remove_dir_all(&home);
     }
 }

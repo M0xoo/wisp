@@ -117,6 +117,15 @@ async fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// A folder as typed: `~/code/my-plugin` is under your home (the box's own example; the folder picker's suggestions
+/// keep the `~` you typed). Anything else as it is.
+pub fn local_path(source: &str, home: Option<&Path>) -> PathBuf {
+    match (source.strip_prefix('~'), home) {
+        (Some(rest), Some(h)) if rest.is_empty() || rest.starts_with(['/', '\\']) => h.join(rest.trim_start_matches(['/', '\\'])),
+        _ => PathBuf::from(source),
+    }
+}
+
 /// `plugins.install`: the source fetched into a staging folder, checked, then moved into place and added (off).
 pub async fn install(ctx: &Ctx, a: &InstallArgs) -> Result<Installed> {
     let home = ctx.service::<wisp_kernel::services::Paths>()?;
@@ -137,7 +146,8 @@ pub async fn install(ctx: &Ctx, a: &InstallArgs) -> Result<Installed> {
             Err(e) => Err(format!("git couldn't run: {e}")),
         }
     } else {
-        let from = PathBuf::from(source);
+        let user = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+        let from = local_path(source, user.as_deref());
         if tokio::fs::metadata(from.join(MANIFEST)).await.is_ok_and(|m| m.is_file()) {
             copy_dir(&from, &staging).await.map_err(|e| format!("couldn't copy it: {e}"))
         } else {
@@ -207,4 +217,21 @@ pub async fn trust(ctx: &Ctx, a: &TrustArgs) -> Result<serde_json::Value> {
         ctx.set_plugin_enabled(&a.id, true).await?;
     }
     Ok(serde_json::json!({ "id": a.id, "trusted": a.trusted }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The box says "~/code/my-plugin": that is a folder under your home, not a folder named `~` (it was refused as
+    /// "has no wisp-plugin.json"). `~bob` and plain paths stay as typed.
+    #[test]
+    fn a_folder_typed_from_home_is_found_under_home() {
+        let h = Path::new("/home/ada");
+        assert_eq!(local_path("~/code/my-plugin", Some(h)), Path::new("/home/ada/code/my-plugin"));
+        assert_eq!(local_path("~", Some(h)), Path::new("/home/ada"));
+        assert_eq!(local_path("~bob/x", Some(h)), Path::new("~bob/x"));
+        assert_eq!(local_path("/opt/p", Some(h)), Path::new("/opt/p"));
+        assert_eq!(local_path("~/x", None), Path::new("~/x"));
+    }
 }

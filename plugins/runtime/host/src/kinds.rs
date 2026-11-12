@@ -183,10 +183,21 @@ pub struct Kinds {
     pub team: std::sync::Arc<wisp_resources_api::StoredKind>,
 }
 
-/// A project spec as it's stored: its path canonical (`wisp_runtime_api::paths`).
+/// A project spec as it's stored: its path canonical (`wisp_runtime_api::paths`), `~` your home's.
 pub fn tidy_project(spec: &mut Value) {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(std::path::PathBuf::from);
+    tidy_project_at(spec, home.as_deref());
+}
+
+/// [`tidy_project`] with the home folder given: "~/code/app" typed in Projects is that folder under your home (v1's
+/// server expanded it; v2 stored a folder named `~`).
+pub fn tidy_project_at(spec: &mut Value, home: Option<&std::path::Path>) {
     if let Some(p) = spec.get("path").and_then(Value::as_str) {
-        let c = wisp_runtime_api::paths::canonical_project_path(p, None);
+        let p = match (p.trim().strip_prefix('~'), home) {
+            (Some(rest), Some(h)) if rest.is_empty() || rest.starts_with(['/', '\\']) => format!("{}{rest}", h.display()),
+            _ => p.to_owned(),
+        };
+        let c = wisp_runtime_api::paths::canonical_project_path(&p, None);
         if let Some(o) = spec.as_object_mut() {
             o.insert("path".into(), Value::String(c));
         }
@@ -377,6 +388,19 @@ mod tests {
         let mut url = json!({ "path": "https://github.com/acme/api.git" });
         tidy_project(&mut url);
         assert_eq!(url["path"], "https://github.com/acme/api.git");
+    }
+
+    /// Projects' box takes "~/code/app" (its folder suggestions answer in that form): stored under your home, as v1's
+    /// server did. `~bob` stays as typed.
+    #[test]
+    fn a_project_typed_from_home_is_stored_under_home() {
+        let h = std::path::Path::new("/home/ada");
+        let mut spec = json!({ "path": "~/code/app/" });
+        tidy_project_at(&mut spec, Some(h));
+        assert_eq!(spec["path"], "/home/ada/code/app");
+        let mut bob = json!({ "path": "~bob/app" });
+        tidy_project_at(&mut bob, Some(h));
+        assert_eq!(bob["path"], "~bob/app");
     }
 
     use serde_json::json;
