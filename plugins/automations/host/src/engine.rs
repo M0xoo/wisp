@@ -200,7 +200,7 @@ impl Engine {
     /// A run a trigger started ended: its outcome counts (a quiet member's answer is a skip, not a failure).
     pub async fn ended(&self, ctx: &Ctx, session: &str, o: Outcome, from_crew: bool, now: i64) {
         let all = self.all(ctx);
-        for (name, mut st) in self.states().await {
+        for (name, st) in self.states().await {
             if !st.running.iter().any(|s| s == session) {
                 continue;
             }
@@ -210,6 +210,12 @@ impl Engine {
                 continue;
             }
             let _one = self.gate.lock().await;
+            // read again under the gate: the row read above may be older than a dispatch or tick that held it,
+            // and saving it whole would drop what they wrote (seen keys: an event fired again)
+            let mut st = self.load(&name).await;
+            if !st.running.iter().any(|s| s == session) {
+                continue;
+            }
             if let Some(why) = core::ended(&t.spec, &mut st, session, o, now) {
                 notify(ctx, &name, &why);
             }

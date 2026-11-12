@@ -118,6 +118,18 @@ fn trigger_started_tasks_do_not_retrigger_themselves() {
 }
 
 #[test]
+fn a_pipeline_step_of_a_task_does_not_fire_its_trigger_again() {
+    let (s, mut st) = (TriggerSpec { on: "task.finished".into(), ..spec() }, State::default());
+    let task = TriggerEvent { on: "task.finished".into(), ..ev("task-1:turn-1") };
+    assert!(matches!(admit("after", &s, &mut st, task, &w(0)), Decision::Start(_)));
+    // the trigger's own run ended before the review did: no "already running" to hide a second fire
+    st.running.clear();
+    let review = TriggerEvent { on: "task.finished".into(), by: Some("pipeline:default".into()), ..ev("review-1:turn-1") };
+    assert!(matches!(admit("after", &s, &mut st, review, &w(1)), Decision::Skipped(w) if w.contains("pipeline step")));
+    assert_eq!(st.runs_total, 1, "one task, one fire");
+}
+
+#[test]
 fn mention_in_chat_from_unknown_user_is_refused() {
     let chat = |user: &str| TriggerEvent { on: "chat.message".into(), key: format!("m-{user}"), payload: json!({ "user": user, "text": "@ada deploy please", "channel": "C1" }), ..TriggerEvent::default() };
     let s = TriggerSpec { on: "chat.message".into(), crew: "ada".into(), users: vec!["bo".into()], ..TriggerSpec::default() };

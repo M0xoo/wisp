@@ -2,7 +2,7 @@
 //! happens. The host runs what's decided (starts the job, stops a run, notifies) and saves the state.
 //!
 //! In order, for an event: off, unavailable or paused → skipped; a key seen before → nothing (dedupe holds
-//! across polls and restarts: the seen set is part of the state); its own task's event, or one 3 causes deep →
+//! across polls and restarts: the seen set is part of the state); its own task's event, a pipeline step's, or one 3 causes deep →
 //! skipped (no loops); `match` and `users` → nothing / refused; `if` → nothing; `when` → skipped or queued;
 //! `debounce` → batched. Then the gate, for a job (an event, a batch, a queued job): a paused member, a
 //! cooldown, the `rate`, the daily `budget` → held and queued, with why (never dropped); `concurrency`; and
@@ -307,6 +307,11 @@ pub fn admit(name: &str, spec: &TriggerSpec, st: &mut State, ev: TriggerEvent, w
     }
     if ev.by.as_deref() == Some(format!("trigger:{name}").as_str()) {
         return skip(st, "its own task's event (no loops)");
+    }
+    // a pipeline's review is a step of the task it reviews, not a task of its own: that task's event already
+    // came (the pipeline skips trigger-started tasks the same way, router pipeline.rs)
+    if ev.by.as_deref().is_some_and(|b| b.starts_with("pipeline:")) {
+        return skip(st, "a pipeline step of a task, not a task of its own");
     }
     if ev.depth >= MAX_DEPTH {
         return skip(st, &format!("{} causes deep: a loop of triggers (cut at {MAX_DEPTH})", ev.depth));
