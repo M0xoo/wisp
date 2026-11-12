@@ -38,6 +38,10 @@
   }
   [data-kit='dialog'][data-size='sm'], [data-kit='sheet'][data-size='sm'] { --dialog-w: var(--size-dialog-sm); }
   [data-kit='dialog'][data-size='lg'], [data-kit='sheet'][data-size='lg'] { --dialog-w: var(--size-dialog-lg); }
+  /* v1: v1's .modal, 640 wide, 18px 20px 20px in, its title 600 18px (the crew editor) */
+  [data-kit='dialog'][data-size='v1'] { --dialog-w: 40rem; padding: 18px 20px 20px; }
+  [data-kit='dialog'][data-size='v1'] > [data-kit='dialog-head'] { margin-bottom: 14px; }
+  [data-kit='dialog'][data-size='v1'] [data-kit='dialog-title'] { font: 600 18px/1.2 var(--display); letter-spacing: -0.015em; }
   [data-kit='dialog'][data-size='xl'] { --dialog-w: var(--size-dialog-xl); height: min(var(--size-dialog-xl-h), calc(100dvh - var(--space-8) * 2)); max-height: none; }
   /* bare: the content is the whole surface, its own head and close; the title is for screen readers only */
   [data-kit='dialog'][data-bare], [data-kit='sheet'][data-bare] { padding: 0; overflow: hidden; }

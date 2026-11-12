@@ -9,7 +9,9 @@ export type Item =
   | { readonly t: 'head'; readonly id: SectionId; readonly count: number; readonly open: boolean }
   | { readonly t: 'entry'; readonly section: SectionId; readonly entry: Entry }
   | { readonly t: 'run'; readonly section: SectionId; readonly group: string; readonly key: EntityKey; readonly last: boolean }
-  | { readonly t: 'sub'; readonly section: SectionId; readonly lead: EntityKey; readonly key: EntityKey };
+  | { readonly t: 'sub'; readonly section: SectionId; readonly lead: EntityKey; readonly key: EntityKey }
+  /** what plugins put between the sections: the crew's section after Needs you on the phone (v1 #secCrew) */
+  | { readonly t: 'slot'; readonly id: 'shell.list:crew' };
 
 /** Done and Archived start folded; the rest start open. */
 export const FOLDED_BY_DEFAULT: ReadonlySet<SectionId> = new Set(['done', 'archived']);
@@ -22,6 +24,8 @@ export interface FlatOptions {
   readonly split: boolean;
   /** the open task's lead, when the open task is a subagent */
   readonly openLead?: EntityKey | undefined;
+  /** something fills `shell.list:crew` here (the stacked list): it goes right after Needs you, as v1's #secCrew */
+  readonly crew?: boolean | undefined;
 }
 
 /** Open by default unless folded by default; a toggle flips that. */
@@ -40,6 +44,8 @@ export function itemKey(i: Item): string {
       return `r:${i.key}`;
     case 'sub':
       return `s:${i.key}`;
+    case 'slot':
+      return `x:${i.id}`;
   }
 }
 
@@ -61,7 +67,10 @@ export function flatten(sec: Sections, o: FlatOptions): Item[] {
     // a folded section in split view keeps the task open beside it: its row stays
     const shown = open ? list : o.split ? list.filter((e) => holds(e, o.open) || holds(e, o.openLead)) : [];
     for (const e of shown) out.push(...rowsOf(id, e, o));
+    if (id === 'needs' && o.crew) out.push({ t: 'slot', id: 'shell.list:crew' });
   }
+  // nothing needs you: the crew still comes first
+  if (o.crew && !out.some((i) => i.t === 'slot')) out.unshift({ t: 'slot', id: 'shell.list:crew' });
   return out;
 }
 

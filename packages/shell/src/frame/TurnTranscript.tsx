@@ -12,6 +12,8 @@ const ICON: Readonly<Record<string, IconName>> = { read: 'read', edit: 'pen', ru
 export interface TranscriptStepRow {
   readonly kind: string;
   readonly label?: string;
+  /** the whole title when the label was cut (v1 #780): what the opened step shows */
+  readonly title?: string;
   readonly detail?: string;
   readonly out?: string;
   readonly bad?: boolean;
@@ -27,15 +29,17 @@ function Step(props: { readonly a: TranscriptStepRow; readonly changes: readonly
   const nums = a.kind === 'edit' && change ? changeFigures([change]) : undefined;
   const command = a.kind === 'run' && a.detail && !(a.label ?? '').includes(a.detail.slice(0, 24)) ? props.here(a.detail) : undefined;
   const more = a.out ?? (a.kind === 'error' ? a.label : undefined);
+  // a step whose label was cut opens to its whole title (v1 #779/#780), with its output when it has one
+  const opens = more !== undefined || a.title !== undefined;
   return (
     <TimelineStep
       icon={ICON[a.kind] ?? 'tool'}
-      label={props.here(a.label ?? a.kind)}
+      label={props.here(open() && a.title ? a.title : (a.label ?? a.kind))}
       kind={a.kind}
       {...(command !== undefined && { command })}
       {...(nums && { nums: { add: nums.plus, del: nums.minus } })}
       {...(a.bad || a.kind === 'error' ? { tone: 'bad' as const } : {})}
-      {...(more !== undefined && { expanded: open(), onToggle: () => setOpen(!open()), detail: () => <pre>{props.here(more)}</pre> })}
+      {...(opens && { expanded: open(), onToggle: () => setOpen(!open()), detail: () => (more !== undefined ? <pre>{props.here(more)}</pre> : null) })}
     />
   );
 }

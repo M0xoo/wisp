@@ -17,7 +17,7 @@ import { DeleteDialog, RenameDialog } from './Dialogs.tsx';
 import { Env, useEnv, type ListEnv } from './env.ts';
 import { GroupRow, PlanRow, SectionHead } from './OtherRows.tsx';
 import { revealIn } from './reveal.ts';
-import { Slot } from './Slot.tsx';
+import { Slot, hasExtensions } from './Slot.tsx';
 import { TaskRow } from './TaskRow.tsx';
 
 /** px of a row not measured yet: three lines (title, what it's doing, where it runs) */
@@ -51,7 +51,9 @@ function ListBody(): JSX.Element {
     return t(view().filter !== 'all' ? 'shell-list.empty.project' : 'shell-list.empty.all');
   };
   const toggled = createMemo(() => new Set(view().toggled));
-  const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split() }));
+  // the crew's section (on the phone, where there's no rail): a plugin fills shell.list:crew
+  const crew = hasExtensions('shell.list:crew');
+  const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split(), crew: !env.split() && crew() }));
   const plugins = useSignal(env.shell.extensions('shell.row:menu'));
   const menu = createMemo<MenuEntry[]>(() => menuFor(env, plugins()));
   const box: { el?: HTMLElement } = {};
@@ -71,6 +73,7 @@ function ListBody(): JSX.Element {
             grow
             aria-label={t('shell-list.list.label')}
             part={'list.rows feed' as `${string}.${string}`}
+            gapBefore={(i) => isTaskItem(items()[i]) && isTaskItem(items()[i - 1])}
           >
             {(item) => <ItemView item={item()} />}
           </VirtualList>
@@ -81,6 +84,9 @@ function ListBody(): JSX.Element {
     </Stack>
   );
 }
+
+/** A task's row (its FeedItem): two in a row are 2px apart (v1 .f-list gap), a heading and a row are not. */
+const isTaskItem = (it: Item | undefined): boolean => it?.t === 'entry' && it.entry.kind === 'task';
 
 function ItemView(props: { readonly item: Item }): JSX.Element {
   const env = useEnv();
@@ -116,6 +122,9 @@ function ItemView(props: { readonly item: Item }): JSX.Element {
         {(e) => <PlanRow plan={e().plan} />}
       </Match>
       <Match when={nested()}>{(n) => <TaskRow k={n().key} nested={n().t} />}</Match>
+      <Match when={props.item.t === 'slot'}>
+        <Slot input="shell.list:crew" layout="stack" />
+      </Match>
     </Switch>
   );
 }

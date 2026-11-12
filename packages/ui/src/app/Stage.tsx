@@ -86,6 +86,8 @@ export interface CrewRailProps {
   readonly addLabel: string;
   /** the list beside it shows every task (All picked) */
   readonly allOn: boolean;
+  /** Org is open beside it: its button is the picked tile (v1 .cl-org.on) */
+  readonly orgOn?: boolean | undefined;
   /** the member whose thread is open: their face is the picked tile (v1 .cl-face.on) */
   readonly pickedId?: string | undefined;
   readonly members: readonly RailMember[];
@@ -95,17 +97,19 @@ export interface CrewRailProps {
   readonly onAdd?: () => void;
 }
 
-function RailBtn(props: { readonly icon: IconName; readonly label: string; readonly part: string; readonly kind: string; readonly on?: boolean; readonly onClick?: () => void }): JSX.Element {
+/** `pressed`: a toggle (Org: aria-pressed, no pip) rather than where you are (All: aria-current and its pip). */
+function RailBtn(props: { readonly icon: IconName; readonly label: string; readonly part: string; readonly kind: string; readonly on?: boolean; readonly pressed?: boolean; readonly onClick?: () => void }): JSX.Element {
   return (
     <button
       type="button"
       data-kit="cl-btn"
       data-a={props.kind}
       data-part={props.part}
-      data-on={flag(props.on)}
+      data-on={flag(props.on || props.pressed)}
       aria-label={props.label}
       title={props.label}
       aria-current={props.on ? 'page' : undefined}
+      aria-pressed={props.pressed}
       onClick={() => props.onClick?.()}
     >
       <Show when={props.on !== undefined}>
@@ -145,7 +149,7 @@ export function CrewRail(props: CrewRailProps): JSX.Element {
         </For>
       </div>
       <div data-kit="cl-foot">
-        <RailBtn icon="org" label={props.orgLabel} part="crew.org" kind="org" onClick={() => props.onOrg?.()} />
+        <RailBtn icon="org" label={props.orgLabel} part="crew.org" kind="org" pressed={props.orgOn === true} onClick={() => props.onOrg?.()} />
         <RailBtn icon="plus" label={props.addLabel} part="crew.add" kind="add" onClick={() => props.onAdd?.()} />
       </div>
     </nav>

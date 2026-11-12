@@ -7,7 +7,7 @@
 
 import { For, Show, createMemo, createResource, createSignal, onCleanup, untrack, type JSX } from 'solid-js';
 import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
-import { Answer, Button, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
+import { Answer, Button, Dialog, Inline, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, WorkingPanel, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot } from '../slot.tsx';
@@ -16,7 +16,8 @@ import { changeFigures, duration, folded, longTime, nextNeedsYou, overlapLine, o
 import { coldHint, compactItem } from './cold.ts';
 import { goalGate } from './goal-gate.ts';
 import { useNow } from '../clock.ts';
-import { archive, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
+import { stopQuestion, type StopQuestion } from './stop-question.ts';
+import { archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
 import { answerContext, blockedOf } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
@@ -51,6 +52,8 @@ interface EventRow {
     readonly kind?: string;
     readonly tool?: string;
     readonly label?: string;
+    /** its whole title when the label was cut (v1 #780) */
+    readonly title?: string;
     readonly text?: string;
     readonly detail?: string;
     readonly output?: string;
@@ -105,6 +108,26 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const run = shell.client.commands.run;
   // the cold-cache line and Compact now (v1 cold-cache.js): asked again whenever the task settles or changes
   const now = useNow(shell.client);
+  // Stop asks first (v1 #781): what else stops (its running subagents, a subagent's report), and that queued follow-ups stay
+  const [stopAsk, setStopAsk] = createSignal<StopQuestion | undefined>();
+  const [stopping, setStopping] = createSignal(false);
+  const allRows = useSignal(shell.client.entities.list<SessionRow>(SESSION));
+  const askStop = (): void => {
+    const r = row();
+    if (!r) return;
+    const live = allRows().filter((x) => x.parent_id === key && x.state === 'running').length;
+    setStopAsk(stopQuestion({ sub: !!r.parent_id, name: harnessOf(harnesses(), r.agent).name, live, queued: Number(r.summary.queued ?? 0) }, t));
+  };
+  const doStop = (): void => {
+    setStopAsk(undefined);
+    // checked again after the answer: a run that ended while the question was open isn't stopped by an old Yes
+    const st = row()?.state;
+    if (st !== 'running' && st !== 'waiting') return;
+    setStopping(true);
+    void run(stopRun, { id: key })
+      .catch(() => undefined)
+      .finally(() => setStopping(false));
+  };
   const [cold] = createResource(
     () => {
       const r = row();
@@ -361,7 +384,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       const b = turn.body;
                       const hero = b.presentation?.blocks?.find((x) => x.type === 'hero');
                       // the steps come as the turn's events (the task's topic); a turn row that carries its own still reads
-                      const steps = createMemo((): { kind: string; label?: string; detail?: string; out?: string; bad?: boolean }[] => {
+                      const steps = createMemo((): { kind: string; label?: string; title?: string; detail?: string; out?: string; bad?: boolean }[] => {
                         const all = stepsOf(turn.id);
                         const kindOf = (e: EventRow): string => e.kind ?? e.body?.kind ?? '';
                         // a tool's output: on the step itself, or the tool_output that names its call
@@ -374,6 +397,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                             : {
                                 kind: e.body?.tool ?? 'tool',
                                 label: e.body?.label ?? '',
+                                ...(e.body?.title && { title: e.body.title }),
                                 ...(e.body?.detail && { detail: e.body.detail }),
                                 ...((e.body?.output ?? outputs.get(e.body?.callId ?? '')) && { out: e.body?.output ?? outputs.get(e.body?.callId ?? '') ?? '' }),
                               },
@@ -430,6 +454,39 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                               ),
                             })}
                             {...(turn.status === 'running' && { live: s().summary.live || t('shell.task.starting') })}
+                            {...(turn.status === 'running' &&
+                              turn.id === turns().at(-1)?.id &&
+                              (s().state === 'running' || s().state === 'waiting') && {
+                                working: (
+                                  <WorkingPanel
+                                    part="task.working"
+                                    waiting={s().state === 'waiting'}
+                                    status={
+                                      (b as { by?: string }).by === 'compact'
+                                        ? t('shell.work.compacting')
+                                        : t(s().state === 'waiting' ? 'shell.work.waiting' : 'shell.work.working', { name: harnessName() })
+                                    }
+                                    elapsed={duration(now() - turn.started_at)}
+                                    count={t('shell.work.actions', { count: steps().filter((a) => a.kind !== 'text').length })}
+                                    ticker={steps()
+                                      .filter((a) => a.kind !== 'text')
+                                      .slice(-5)
+                                      .reverse()
+                                      .map((a) => ({ icon: ACT_ICON[a.kind] ?? 'tool', text: here(a.label ?? a.kind) }))}
+                                    actions={
+                                      <>
+                                        <Show when={Number(s().summary.queued ?? 0) > 0}>
+                                          <span data-kit="working-queued">{t('shell.work.queued', { count: Number(s().summary.queued ?? 0) })}</span>
+                                        </Show>
+                                        <span data-kit="working-grow" />
+                                        <Button size="sm" variant="ghost" tone="bad" icon="stop" part="task.stop" loading={stopping()} onClick={askStop}>
+                                          {stopping() ? t('shell.stop.stopping') : t('shell.stop.ok')}
+                                        </Button>
+                                      </>
+                                    }
+                                  />
+                                ),
+                              })}
                             actsTitle={t('shell.task.activity')}
                             acts={stepsOpen() ? [] : [
                               { icon: 'read', text: String(count('read')), title: t('shell.task.read', { n: count('read') }) },
@@ -608,6 +665,29 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
               onPanel={() => side('changes')}
               panelOn={nav().side.kind !== 'none'}
             />
+            <Show when={stopAsk()}>
+              {(q) => (
+                <Dialog
+                  open
+                  role="alertdialog"
+                  size="sm"
+                  title={q().title}
+                  description={q().body}
+                  onOpenChange={(open) => !open && setStopAsk(undefined)}
+                  part="task.stopAsk"
+                  footer={
+                    <Inline gap="4" justify="end">
+                      <Button variant="ghost" onClick={() => setStopAsk(undefined)}>
+                        {t('shell.stop.cancel')}
+                      </Button>
+                      <Button variant="danger" part="task.stopAsk.ok" onClick={doStop}>
+                        {q().ok}
+                      </Button>
+                    </Inline>
+                  }
+                />
+              )}
+            </Show>
           </>
         );
       }}

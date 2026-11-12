@@ -56,13 +56,13 @@ export function StuffFrame(props: StuffFrameProps): JSX.Element {
           </Show>
         </span>
       </header>
-      <div data-kit="sf-bar" data-layout="wrap" data-part="stuff.bar">
+      <div data-kit="sf-bar" data-layout="wrap" data-part="stuff.bar stuff.filters">
         <label data-kit="sf-search" data-part="stuff.search">
           <Icon name="search" size="sm" />
           <input type="search" value={props.search.value} placeholder={props.search.placeholder} aria-label={props.search.label} autocomplete="off" spellcheck={false} onInput={(e) => props.search.onInput(e.currentTarget.value)} />
           <kbd data-kit="kbd">/</kbd>
         </label>
-        <div data-kit="sf-kinds" data-part="stuff.filters" role="tablist">
+        <div data-kit="sf-kinds" data-part="stuff.kinds" role="tablist">
           {props.kinds}
         </div>
         <div data-kit="sf-opts">

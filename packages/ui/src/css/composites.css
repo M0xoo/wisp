@@ -65,7 +65,8 @@
   [data-kit='feed-item']:hover, [data-kit='feed-item'][data-current] { background: var(--bg-2); }
   [data-kit='feed-item'][data-selected] { border-color: var(--line); }
   [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed']:hover, [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-current], [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-selected] { background: none; }
-  [data-kit='virtual-row'] + [data-kit='virtual-row'] > [data-kit='feed-item'] { margin-top: 2px; } /* rows are flow-root: measured */
+  /* 2px between two task rows, none after a heading (v1 .f-list gap); a virtual row is flow-root, so it's measured */
+  [data-kit='virtual-row'][data-gap] { padding-top: 2px; }
   [data-kit='list-row'][data-interactive]:hover { background: var(--bg-2); }
   [data-kit='list-row'][data-current] { background: var(--bg-2); }
   [data-kit='list-row'][data-selected] { background: var(--accent-soft); }

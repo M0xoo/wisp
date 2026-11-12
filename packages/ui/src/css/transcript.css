@@ -117,5 +117,18 @@
   @keyframes kit-shine { from { background-position: 100% 0; } to { background-position: 0% 0; } }
   [data-kit='working-elapsed'], [data-kit='working-count'] { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
   [data-kit='working-note'] { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-sm); color: var(--warn); }
+  /* v1 .ticker .act: the newest step in ink, its glyph accent; the four before it fading */
+  [data-kit='working-ticker'] { list-style: none; margin: 0; padding: 0; }
+  [data-kit='working-act'] { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: 13px; color: var(--ink-2); min-width: 0; }
+  [data-kit='working-act'] > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='working-act'] > [data-kit='icon'] { width: 14px; height: 14px; color: var(--faint); }
+  [data-kit='working-act']:nth-child(1) { color: var(--ink); }
+  [data-kit='working-act']:nth-child(1) > [data-kit='icon'] { color: var(--accent); }
+  [data-kit='working-act']:nth-child(2) { opacity: 0.8; }
+  [data-kit='working-act']:nth-child(3) { opacity: 0.6; }
+  [data-kit='working-act']:nth-child(4) { opacity: 0.42; }
+  [data-kit='working-act']:nth-child(5) { opacity: 0.25; }
+  [data-kit='working-queued'] { font-size: 12.5px; color: var(--accent-ink); font-weight: 500; white-space: nowrap; }
+  [data-kit='working-grow'] { flex: 1; }
   [data-kit='working-actions'] { display: flex; align-items: center; gap: var(--space-4); min-width: 0; flex-wrap: nowrap; }
 }

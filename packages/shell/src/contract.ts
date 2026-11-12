@@ -25,6 +25,8 @@ export const INPUTS = {
   'shell.list:top': 'sidebar.top',
   'shell.list:feedTop': 'feed.top',
   'shell.list:needs': 'section.needs',
+  // added 2026-11-12 (additive): what goes between Needs you and Working (the crew's section on the phone, v1 #secCrew)
+  'shell.list:crew': 'section.crew',
   'shell.list:working': 'section.working',
   'shell.list:scheduled': 'section.scheduled',
   'shell.list:scheduledRow': 'scheduled.row',

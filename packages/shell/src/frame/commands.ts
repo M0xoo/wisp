@@ -113,6 +113,9 @@ export const setState = defineCommand<{ id: string; state: 'running' | 'review' 
 /** Save for later: the bookmark fills at once. */
 export const forLater = defineCommand<{ id: string; forLater: boolean }>({ id: 'runtime.forLater', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/summary/forLater', a.forLater) });
 
+/** Stop: the run ends where it is; queued follow-ups stay, held (v1 /stop). It answers once the run has wound down. */
+export const stopRun = defineCommand<{ id: string }>({ id: 'runtime.stop', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id) }), optimistic: 'none', pending: 'Stopping…' });
+
 export const archive = defineCommand<{ id: string; archived: boolean }>({ id: 'runtime.archive', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/archived', a.archived) });
 
 export const remove = defineCommand<{ id: string }>({ id: 'runtime.delete', owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }), optimistic: (_b, a) => [{ e: SESSION, id: a.id as EntityKey, op: 'del' }] });

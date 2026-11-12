@@ -175,3 +175,15 @@ describe('Each', () => {
     expect(host.children.length).toBe(5);
   });
 });
+
+test('a_row_says_when_it_sits_a_list_gap_below_the_one_before_it', () => {
+  // the task list: two task rows are 2px apart, a heading and the row after it are not (v1 .f-list gap)
+  const items = [{ id: 'h', text: 'Needs you' }, { id: 'a', text: 'A' }, { id: 'b', text: 'B' }];
+  const host = mount(() => (
+    <VirtualList items={items} key={(r) => r.id} estimate={30} viewport={300} gapBefore={(i) => i > 1}>
+      {(r) => <span data-id={r().id}>{r().text}</span>}
+    </VirtualList>
+  ));
+  const gap = (id: string): boolean | undefined => nodeFor(host, id)?.closest('[data-kit="virtual-row"]')?.hasAttribute('data-gap');
+  expect([gap('h'), gap('a'), gap('b')]).toEqual([false, false, true]);
+});

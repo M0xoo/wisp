@@ -8,7 +8,7 @@ export interface TintMember {
   readonly name: string;
   readonly avatar?: string;
   readonly color?: string;
-  /** the task panel's tint: '' their glow, 'none', or a crew colour (v1 `bg`; the peer doesn't keep it yet) */
+  /** the task panel's tint: '' their glow, 'none', or a crew colour (v1 `bg`, kept on the member) */
   readonly bg?: string;
 }
 

@@ -29,6 +29,8 @@ export interface VirtualListProps<T> extends KitProps, WithVars, Labelled {
   /** Called when a bottom-anchored list arrives at or leaves its tail (for a *Latest* pill). */
   readonly onTailChange?: (atTail: boolean) => void;
   readonly ref?: (el: HTMLDivElement) => void;
+  /** the row at this index sits a list gap below the one before it (data-gap: v1 .f-list's 2px between two task rows). Additive (2026-11-12). */
+  readonly gapBefore?: (index: number) => boolean;
 }
 
 interface Measured {
@@ -157,6 +159,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       role="listitem"
       data-kit="virtual-row"
       data-part={sub(part(), 'row')}
+      data-gap={props.gapBefore?.(range().start + i()) ? '' : undefined}
       ref={(el) => {
         measured.observe(el, props.key(item()));
         onCleanup(() => measured.unobserve(el));

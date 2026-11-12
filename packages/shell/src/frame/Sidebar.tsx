@@ -49,6 +49,7 @@ export function Rail(): JSX.Element {
       orgLabel={shell.t('shell.rail.org')}
       addLabel={shell.t('shell.rail.add')}
       allOn={nav().main.kind !== 'crew'}
+      orgOn={nav().main.kind === 'view' && String((nav().main as { id?: unknown }).id) === 'crew.org'}
       pickedId={(() => {
         const m = nav().main;
         return m.kind === 'crew' ? String(m.id) : undefined;

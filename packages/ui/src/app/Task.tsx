@@ -213,6 +213,8 @@ export interface TurnViewProps {
   readonly notes?: string;
   /** still running: what it's doing, in place of the trail */
   readonly live?: string;
+  /** still running: v1's working panel (status, last steps, Stop), in place of the live line. Additive (2026-11-12). */
+  readonly working?: JSX.Element;
 }
 
 /** v1 .turn: the ask, the answer's brief, and the trail under it. */
@@ -287,8 +289,10 @@ export function TurnView(props: TurnViewProps): JSX.Element {
           </ul>
         )}
       </Show>
-      <Show when={props.live}>{(l) => <p data-kit="turn-live">{l()}</p>}</Show>
-      <div data-kit="trail" hidden={props.live !== undefined}>
+      <Show when={props.working} fallback={<Show when={props.live}>{(l) => <p data-kit="turn-live">{l()}</p>}</Show>}>
+        <div data-kit="turn-working">{props.working}</div>
+      </Show>
+      <div data-kit="trail" hidden={props.live !== undefined || props.working !== undefined}>
         <div data-kit="trail-bar">
           <button type="button" data-kit="tb-acts" title={props.actsTitle} aria-expanded={props.activity?.open ?? false} onClick={() => props.activity?.onToggle()}>
             <For each={props.acts}>

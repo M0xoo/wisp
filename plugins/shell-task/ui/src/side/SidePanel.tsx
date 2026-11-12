@@ -68,7 +68,8 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
           </Inline>
         )}
       </Show>
-      <Stack gap="0" grow part="side.body">
+      {/* Changes runs edge to edge (v1 #sidePanel .cx); PR and Shell keep the body's padding */}
+      <Stack gap="0" grow part={props.pane === 'changes' && !props.file ? 'side.body side.flush' : 'side.body'}>
         <Switch>
           <Match when={props.pane === 'changes' && props.file}>{(f) => <FilePane path={f()} />}</Match>
           <Match when={props.pane === 'changes'}>

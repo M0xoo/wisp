@@ -14,7 +14,10 @@
   [data-kit='stage'][data-layout='stack'][data-page='main'] > [data-kit='feed-wrap'] { display: none; }
   [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] > [data-kit='feed-wrap'] { display: flex; grid-row: 1 / -1; transform: translateX(-100%); }
   [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='split-top'],
-  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='sec-toggle'] { visibility: hidden; }
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='sec-toggle'],
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='cr-org'],
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='cr-add'],
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='cr-row'] { visibility: hidden; }
 
   /* Home as its own page */
   [data-kit='stage'][data-layout='stack'] [data-kit='split-home'] { align-items: stretch; padding: 0 var(--space-7) var(--space-9); }
