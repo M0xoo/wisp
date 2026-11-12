@@ -242,7 +242,7 @@ export function readAllowed(file) {
     .filter((l) => l && !l.startsWith('#'))
     .map((l) => {
       const [view, part, kind] = l.split(/\s+/);
-      if (!['wrap', 'pending', 'fold'].includes(kind)) throw new Error(`allowed.md: unknown kind "${kind}" in "${l}"`);
+      if (!['wrap', 'pending', 'fold', 'owner'].includes(kind)) throw new Error(`allowed.md: unknown kind "${kind}" in "${l}"`);
       return { view: glob(view), part: glob(part), kind };
     });
 }
@@ -282,6 +282,9 @@ export function translator(seed) {
         if (EXTRA[bare]) return `${EXTRA[bare]}${vis}`;
         const m = bare.match(/^#feed \.item\[data-id="(\w+)"\] \.it-head$/);
         if (m) return row(m[1]);
+        // the open task's actions (v1 .item.open .it-actions [data-a=…]): v2's task bar carries the same data-a
+        const act = bare.match(/^\.item\.open \.it-actions \[data-a="([\w-]+)"\]$/);
+        if (act) return `[data-part="split.actions"] [data-a="${act[1]}"]${vis}`;
         return piece;
       })
       .join(', ');
@@ -479,6 +482,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
   const wrapRule = (part) => rules.some((r) => r.kind === 'wrap' && r.part.test(part));
   const pendingRule = (part) => rules.some((r) => r.kind === 'pending' && r.part.test(part));
   const foldRule = (part) => rules.some((r) => r.kind === 'fold' && r.part.test(part));
+  const ownerRule = (part) => rules.some((r) => r.kind === 'owner' && r.part.test(part));
   const res = { view: name, shots: 0, pixelPass: 0, metricPass: 0, pass: 0, reachable: true, note: '', worst: [], metrics: {}, shotsBy: {} };
   const dir = path.join(outDir, name);
   fs.mkdirSync(dir, { recursive: true });
@@ -559,6 +563,24 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
           }
         }
         for (const [part, ...box] of busy) if (pendingRule(part || '*')) masks.push(box);
+        // Allowed: the owner's decisions (allowed.md §5). The part's box, v1's and v2's, is masked; it and what's inside
+        // it aren't compared; the generic parts (x.button…) are counted again on both sides without them, so one
+        // decided difference doesn't shift every later index.
+        const owned = { ref: refParts.filter((r) => ownerRule(r.part)).map((r) => r.box), v2: got.filter((g) => ownerRule(g.part)).map((g) => g.box) };
+        if (owned.ref.length || owned.v2.length) {
+          masks.push(...owned.ref, ...owned.v2);
+          const within = (b, boxes) => boxes.some(([x, y, bw, bh]) => b[0] + b[2] / 2 >= x && b[0] + b[2] / 2 <= x + bw && b[1] + b[3] / 2 >= y && b[1] + b[3] / 2 <= y + bh);
+          const recount = (list, boxes) => {
+            const n = {};
+            return [...list]
+              .filter((x) => !ownerRule(x.part) && !within(x.box, boxes))
+              .sort((a, b) => (a.part === b.part ? a.i - b.i : 0))
+              .map((x) => (x.part.startsWith('x.') ? { ...x, i: (n[x.part] = (n[x.part] ?? -1) + 1) } : x));
+          };
+          refParts = recount(refParts, owned.ref);
+          gotBy.clear();
+          for (const g of recount(got, owned.v2)) gotBy.set(`${g.part}#${g.i}`, g);
+        }
         const inside = (b) => exempt.some(([x, y, ew, eh]) => b[0] + b[2] / 2 >= x && b[0] + b[2] / 2 <= x + ew && b[1] + b[3] / 2 >= y && b[1] + b[3] / 2 <= y + eh);
         const mdiffs = [];
         for (const r of refParts) {

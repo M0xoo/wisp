@@ -51,10 +51,20 @@ than v2's, `qa/parity.mjs`:
 Everything else at 320 still has to match v1: content text (a heading, a prompt) wraps as v1 wraps it,
 and a pill or title is never cut shorter than v1 cuts it.
 
+## 5. The owner's decisions
+
+A difference the owner chose on purpose, named here with its commit. For the part a rule names, `qa/parity.mjs` masks
+the part's box (v1's and v2's) in the pixel diff, skips the metrics of the part and of everything inside it, and counts
+the generic parts (`x.button`, `x.heading`, …) again on both sides without what's inside it, so the decision doesn't
+shift every later index. Everything outside the part still has to match.
+
+- **One project selector instead of the chips** (the owner, 2026-11-12, commit 10d8f30f): the sidebar's project chips
+  are one selector with a ⌘P switcher (search, ↑↓ Enter, colour dots, need-you counts, ⌘0–⌘9).
+
 ## Rules (read by `qa/parity.mjs`)
 
 One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is §2, `fold` is §4
-(320 px only). Nothing else is accepted: a rule of another kind fails the run.
+(320 px only), `owner` is §5. Nothing else is accepted: a rule of another kind fails the run.
 
 ```rules
 *   topbar             wrap
@@ -73,4 +83,5 @@ One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is �
 *   split.head         fold
 *   panel.head         fold
 *   topbar             fold
+*   topbar.projects    owner
 ```

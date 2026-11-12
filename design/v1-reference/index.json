@@ -67,7 +67,7 @@
       "selected": "task.composer-goal"
     }
   },
-  "file": "<view>/<width>-<theme>-<state>.png; <view>/metrics.json: widths[\"<width>-<theme>\"].states[state].parts[] = {part, i, box:[x,y,w,h], s:{pad, mar, gap, fs, lh, fw, ff, col, bg, bw, bc, rad, …}}",
+  "file": "<view>/<width>-<theme>-<state>.png; <view>/metrics.json: widths[\"<width>-<theme>\"].states[state].parts[] = {part, i, box:[x,y,w,h], s:{pad, mar, gap, fs, lh, fw, ff, col, bg, bw, bc, rad, \u2026}}",
   "views": {
     "automations.trigger-new": {
       "shots": 8,
@@ -349,6 +349,45 @@
       "widths": "all",
       "themes": "all",
       "reason": "verify round 1 #9: the dark shots of home, task and task.composer had state left by earlier views (a task read, Worktree off). Each view now starts from seed.json state restored, with its clock pinned; desktop mode (body.desktop.mac) added."
+    },
+    {
+      "started": "2026-11-12T01:23:00.000Z",
+      "finished": "2026-11-12T01:44:00.000Z",
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "themes": "all",
+      "widths": "all",
+      "views": [
+        "home.auto-preview",
+        "home.goal-judges",
+        "home.issues",
+        "home.mode-menu",
+        "home.team",
+        "home.where"
+      ],
+      "reason": "v1 #771 (3435a2b9) dropped Try it two ways after the capture; re-captured from origin/main a5b1c646 (first run, stopped after these views by hand, so it wrote no entry itself)"
+    },
+    {
+      "started": "2026-11-12T01:46:29.009Z",
+      "finished": "2026-11-12T01:59:28.393Z",
+      "views": [
+        "home",
+        "home.later",
+        "home.compare",
+        "home.typed",
+        "home.goal-on",
+        "home.runner",
+        "home.worktree-off"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 (3435a2b9) dropped Try it two ways after the capture; home and its launcher views re-captured from origin/main a5b1c646"
     }
   ]
 }
