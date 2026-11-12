@@ -4667,6 +4667,7 @@ dependencies = [
  "wisp-goal-api",
  "wisp-goal-core",
  "wisp-kernel",
+ "wisp-later-api",
  "wisp-resources-api",
  "wisp-runtime-api",
 ]

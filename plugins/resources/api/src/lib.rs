@@ -12,7 +12,7 @@
 
 mod adapters;
 
-pub use adapters::{CrudKind, SettingsKind, StoredKind, stored, stored_published};
+pub use adapters::{CrudKind, SettingsKind, StoredKind, stored, stored_published, stored_published_tidied};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wisp_kernel::{BoxFuture, Call, Command, Point, Result};

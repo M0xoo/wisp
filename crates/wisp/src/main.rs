@@ -378,7 +378,8 @@ async fn add(_home: &Path, port: u16, what: Option<&String>, cwd: &Path) -> Resu
         let cloned = c.cmd("git.clone", json!({ "url": w, "parent": cwd.display().to_string() })).await?;
         cloned.get("dir").and_then(Value::as_str).unwrap_or_default().to_owned()
     } else {
-        args::expand(if w.is_empty() { "." } else { w }, cwd, cwd).display().to_string()
+        // `wisp add .` is the folder itself, never "/repo/." (and no `\\?\` on Windows): canonical before it's sent
+        wisp_runtime_api::paths::canonical_project_path(&args::expand(if w.is_empty() { "." } else { w }, cwd, cwd).display().to_string(), None)
     };
     let name = Path::new(&path).file_name().map_or_else(|| "project".into(), |n| n.to_string_lossy().to_lowercase().replace(' ', "-"));
     c.cmd("resources.apply", json!({ "resources": [{ "kind": "project", "name": name, "spec": { "path": path } }] })).await?;

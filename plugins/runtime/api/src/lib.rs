@@ -11,6 +11,7 @@ pub mod events;
 pub mod harness;
 pub mod hooks;
 pub mod model;
+pub mod paths;
 pub mod points;
 pub mod spec;
 

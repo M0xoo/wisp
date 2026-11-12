@@ -88,3 +88,33 @@ mod tests {
         assert!(matches!(next("all", &v(&[false]), 3, 3), Next::Stall(s) if s.contains("after 3 rounds")));
     }
 }
+
+/// A scheduled entry on the task, as `wisp.later` lists it: who set it, whether it's a reminder, when it was set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Scheduled {
+    pub id: String,
+    pub by: String,
+    pub remind: bool,
+    pub set_at: i64,
+}
+
+/// v1 #775: a turn whose agent scheduled its own wake-up (`resume_later`) during it says it's waiting, not done. The
+/// goal isn't checked on it but after the wake-up's turn: that wake-up's id. Yours ('user'), wisp's own goal rounds
+/// ('wisp') and reminders don't count; nor does one set before this turn started.
+#[must_use]
+pub fn waits_for_wake(scheduled: &[Scheduled], turn_started_at: i64) -> Option<String> {
+    scheduled.iter().find(|l| !l.remind && l.by != "user" && l.by != "wisp" && l.set_at >= turn_started_at).map(|l| l.id.clone())
+}
+
+/// What the goal does when the wake-up it waited for went without going (`later.dropped`): you cancelled it, so the
+/// round's report stands and is checked now; otherwise (the task marked done, missed while wisp was off) it waits for you.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WakeGone {
+    CheckNow,
+    Pause,
+}
+
+#[must_use]
+pub fn wake_gone(why: &str) -> WakeGone {
+    if why == "cancelled" { WakeGone::CheckNow } else { WakeGone::Pause }
+}

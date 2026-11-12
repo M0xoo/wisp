@@ -74,6 +74,9 @@ pub struct GoalState {
     /// the goal set after the task started (`goal.set`), over its spec's
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub text: String,
+    /// the agent's own wake-up (a `wisp.later` entry) the goal waits for before it's checked (v1 #775). Additive.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub wake: String,
 }
 
 /// A task's goal was met: its judges agreed (ADR-0043: the `goal.met` trigger source). Durable.

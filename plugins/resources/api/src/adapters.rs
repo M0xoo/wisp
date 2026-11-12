@@ -253,6 +253,8 @@ pub struct StoredKind {
     owner: &'static str,
     sql: &'static str,
     ready: std::sync::OnceLock<()>,
+    /// the owner's normalisation of a spec before it's stored (a project's path made canonical). Additive (2026-11-12).
+    tidy: Option<fn(&mut Value)>,
 }
 
 impl std::fmt::Debug for StoredKind {
@@ -285,7 +287,7 @@ impl StoredKind {
         let prefix = ctx.plugin().rsplit('.').next().unwrap_or("plugin").replace('-', "_");
         let table = leak(format!("{prefix}_spec_{}", info.kind.replace('-', "_")));
         let def = wisp_store::EntityDef { kind: table, table, key: "id", columns: &[("id", wisp_store::Col::Text), ("body", wisp_store::Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: stored_topics };
-        Self { owner: leak(format!("{prefix}.spec.{}", info.kind)), sql: leak(format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")), def, info, ctx, ready: std::sync::OnceLock::new() }
+        Self { owner: leak(format!("{prefix}.spec.{}", info.kind)), sql: leak(format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")), def, info, ctx, ready: std::sync::OnceLock::new(), tidy: None }
     }
 
     /// Its rows reach every client as entity `entity` on `config` (a row is `{id: name, body: spec}`), the topic
@@ -295,6 +297,13 @@ impl StoredKind {
     pub fn published(mut self, entity: &'static str) -> Self {
         self.def.kind = entity;
         self.def.topics = config_topics;
+        self
+    }
+
+    /// Every spec applied goes through `f` first (the owner's normalisation: a canonical path, a trimmed name).
+    #[must_use]
+    pub fn tidied(mut self, f: fn(&mut Value)) -> Self {
+        self.tidy = Some(f);
         self
     }
 
@@ -358,7 +367,10 @@ impl ResourceKind for StoredKind {
     fn apply<'a>(&'a self, _call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let store = self.store()?;
-            let (kind, name, spec, del) = (self.def.kind, op.name.clone(), op.spec.clone(), op.op == OpKind::Delete);
+            let (kind, name, mut spec, del) = (self.def.kind, op.name.clone(), op.spec.clone(), op.op == OpKind::Delete);
+            if let Some(f) = self.tidy {
+                f(&mut spec);
+            }
             store
                 .write(move |w| {
                     if del {
@@ -379,6 +391,16 @@ impl ResourceKind for StoredKind {
 /// [`stored`], its rows published as entity `entity` on `config` ([`StoredKind::published`]), defined at start.
 pub fn stored_published<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, entity: &'static str, info: impl FnOnce(Value) -> KindInfo) -> std::sync::Arc<StoredKind> {
     let k = std::sync::Arc::new(StoredKind::new(info(crate::schema_of::<S>()), s.ctx()).published(entity));
+    let as_kind: std::sync::Arc<dyn ResourceKind> = k.clone();
+    s.contribute(&crate::RESOURCE_KIND, as_kind);
+    let start = k.clone();
+    s.on_start(move |_| async move { start.ensure() });
+    k
+}
+
+/// [`stored_published`], each spec tidied by `tidy` before it's stored ([`StoredKind::tidied`]).
+pub fn stored_published_tidied<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, entity: &'static str, info: impl FnOnce(Value) -> KindInfo, tidy: fn(&mut Value)) -> std::sync::Arc<StoredKind> {
+    let k = std::sync::Arc::new(StoredKind::new(info(crate::schema_of::<S>()), s.ctx()).published(entity).tidied(tidy));
     let as_kind: std::sync::Arc<dyn ResourceKind> = k.clone();
     s.contribute(&crate::RESOURCE_KIND, as_kind);
     let start = k.clone();

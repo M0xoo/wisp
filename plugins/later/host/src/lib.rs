@@ -58,6 +58,14 @@ fn wire(e: wisp_later_core::LaterError) -> WireError {
 }
 
 /// What wisp.later needs of a task, as wisp.runtime has it; None: it's gone.
+/// Entries that went without being sent, other than your own (`later.dropped`): an agent's wake-up a goal waits for
+/// hears why (v1 #775 wakeGone: `cancelled` checks the goal now; `done` or `missed` pauses it).
+fn dropped(ctx: &Ctx, call: &Call, session_id: &str, gone: &[LaterEntry], why: &str) {
+    for l in gone.iter().filter(|l| l.by != "user") {
+        ctx.emit(call, &wisp_later_api::events::Dropped { session_id: session_id.to_owned(), entry: l.into(), why: why.to_owned() });
+    }
+}
+
 async fn task_of(ctx: &Ctx, call: &Call, id: &str) -> Option<Task> {
     let s = ctx.run_json(call, "runtime.get", json!({ "id": id })).await.ok()?;
     let st = s["state"].as_str().unwrap_or("review");
@@ -208,6 +216,7 @@ impl State {
                     if let (Some(l), Some(t)) = (self.take(std::slice::from_ref(&id)).pop(), tasks.get(&session_id)) {
                         let text = rules::missed_text(&l, at, self.tz(at));
                         let _ = self.remind(ctx, call, t, &l, text, true).await;
+                        dropped(ctx, call, &session_id, std::slice::from_ref(&l), "missed");
                         touched.push(session_id);
                     }
                 }
@@ -285,15 +294,17 @@ fn commands(s: &mut Setup, slot: &Slot) {
         let gone = st.take(&ids);
         st.write(store::Ops { drop_entries: ids, ..store::Ops::default() }).await?;
         st.mirror(&ctx, &call, &a.session_id).await;
+        dropped(&ctx, &call, &a.session_id, &gone, "cancelled");
         Ok(c::Cancelled { ok: true, entry: gone.into_iter().next() })
     });
     on!(s, slot, c::Done, |st, ctx, call, a| {
         let (keep, gone) = rules::done_split(st.of_task(&a.session_id));
         let ids: Vec<String> = gone.into_iter().map(|l| l.id).collect();
-        st.take(&ids);
+        let taken = st.take(&ids);
         st.write(store::Ops { drop_entries: ids, ..store::Ops::default() }).await?;
         let _ = keep;
         st.mirror(&ctx, &call, &a.session_id).await;
+        dropped(&ctx, &call, &a.session_id, &taken, "done");
         Ok(c::Empty {})
     });
     on!(s, slot, c::Park, |_st, ctx, call, a| {

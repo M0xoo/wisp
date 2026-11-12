@@ -6,7 +6,7 @@
 
 use serde_json::Value;
 use wisp_runtime_api::harness::{HarnessEvent, HarnessStats};
-use wisp_runtime_api::model::{Activity, ChangeOp, Edit, FileChange, ToolKind};
+use wisp_runtime_api::model::{Activity, ChangeOp, Edit, FileChange, Mode, ToolKind};
 
 /// An agent message is kept whole up to this (UTF-16 units, as v1 counted).
 pub const MAX_TEXT: usize = 20_000;
@@ -81,6 +81,14 @@ pub struct BlockedAction {
     pub detail: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
+}
+
+/// What of a turn's refusals wisp can still allow (v1 #777): a run in Full auto was already allowed everything wisp
+/// can allow, so what its harness still refused was its own safety check (Claude Code's on a heredoc it can't parse),
+/// which no rule lifts. Nothing to retry then; the card still says what was refused.
+#[must_use]
+pub fn allowable(mode: Mode, blocked: &[BlockedAction]) -> &[BlockedAction] {
+    if mode == Mode::Auto { &[] } else { blocked }
 }
 
 /// What a running turn knows besides its log: the projection its events update.

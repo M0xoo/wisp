@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 use wisp_goal_api::{GoalState, PLUGIN};
-use wisp_goal_core::{MAX_ROUNDS, Next, judge_prompt, next, verdict};
+use wisp_goal_core::{MAX_ROUNDS, Next, Scheduled, WakeGone, judge_prompt, next, verdict, wake_gone, waits_for_wake};
 use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup};
 use wisp_runtime_api::events::TurnEnded;
 use wisp_runtime_api::model::TurnStatus;
@@ -150,6 +150,49 @@ async fn judge(ctx: &Ctx, g: &Goal, task: &Value, answer: &str) -> Vec<wisp_goal
     out
 }
 
+/// The task's scheduled entries (`later.list`), as the goal reads them.
+async fn scheduled(ctx: &Ctx, id: &str) -> Vec<Scheduled> {
+    let list = ctx.run_json(&ctx.root_call(), "later.list", json!({ "sessionId": id })).await.unwrap_or_default();
+    list.as_array()
+        .map(|a| {
+            a.iter()
+                .map(|l| Scheduled {
+                    id: l.get("id").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                    by: l.get("by").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                    remind: l.get("remind").and_then(Value::as_bool).unwrap_or(false),
+                    set_at: l.get("setAt").and_then(Value::as_i64).unwrap_or(0),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The wake-up a goal waited for went without going (`later.dropped`, v1 goal.js wakeGone): cancelled, the round's
+/// report is checked now; otherwise the goal pauses and waits for you.
+async fn wake_dropped(ctx: &Ctx, defaults: &kinds::Defaults, e: &wisp_later_api::Dropped) {
+    let call = ctx.root_call();
+    let Ok(task) = ctx.run_json(&call, "runtime.get", json!({ "id": e.session_id })).await else { return };
+    let mut st: GoalState = task.pointer("/ext/wisp.goal").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
+    if st.wake.is_empty() || st.wake != e.entry.id {
+        return;
+    }
+    st.wake.clear();
+    match wake_gone(&e.why) {
+        WakeGone::CheckNow => {
+            let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": e.session_id, "plugin": PLUGIN, "value": st })).await;
+            let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": e.session_id })).await.unwrap_or_default();
+            if let Some(last) = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("id")).and_then(Value::as_str) {
+                judge_turn(ctx, defaults, &e.session_id, last).await;
+            }
+        }
+        WakeGone::Pause => {
+            "paused".clone_into(&mut st.state);
+            "Its agent’s wake-up didn’t go".clone_into(&mut st.why);
+            let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": e.session_id, "plugin": PLUGIN, "value": st })).await;
+        }
+    }
+}
+
 async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
     if e.status != TurnStatus::Done {
         return;
@@ -177,6 +220,14 @@ async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, turn_id: &s
     if st.state == "stalled" && last.get("by").and_then(Value::as_str) != Some(BY) {
         st.rounds = 0;
     }
+    // its agent scheduled its own wake-up this turn: it's waiting, not done; the goal is checked after that turn (v1 #775)
+    let started = last.get("startedAt").or_else(|| last.get("started_at")).and_then(Value::as_i64).unwrap_or(0);
+    if let Some(wake) = waits_for_wake(&scheduled(ctx, id).await, started) {
+        st.wake = wake;
+        let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": PLUGIN, "value": st })).await;
+        return;
+    }
+    st.wake.clear();
     let answer = last.get("text").and_then(Value::as_str).unwrap_or_default().to_owned();
     let verdicts = judge(ctx, &g, &task, &answer).await;
     st.rounds += 1;
@@ -284,6 +335,12 @@ impl Plugin for GoalPlugin {
         s.on::<TurnEnded, _, _>(move |ctx, e| {
             let (d, e, c) = (d.clone(), e.clone(), ctx.clone());
             ctx.spawn(async move { after(&c, &d, &e).await });
+            async {}
+        });
+        let dw = Arc::clone(&defaults);
+        s.on::<wisp_later_api::Dropped, _, _>(move |ctx, e| {
+            let (d, e, c) = (dw.clone(), e.clone(), ctx.clone());
+            ctx.spawn(async move { wake_dropped(&c, &d, &e).await });
             async {}
         });
         Ok(())

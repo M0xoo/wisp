@@ -99,9 +99,11 @@ impl Runtime {
         turn.changed_files = u32::try_from(head.changes.len()).ok().filter(|n| *n > 0);
         turn.n_events = n_events;
         turn.resume_id.clone_from(&head.resume_id);
-        if !head.changes.is_empty() || !head.blocked.is_empty() || auth_failed || head.cli.is_some() {
+        // only what wisp can allow is kept for Allow & retry (a Full auto run's refusals are its harness's own: v1 #777)
+        let blocked = wisp_runtime_core::activity::allowable(turn.mode, &head.blocked);
+        if !head.changes.is_empty() || !blocked.is_empty() || auth_failed || head.cli.is_some() {
             // `cli`: what the CLI was this turn (version, catalog), for the page's "since the last turn" line
-            turn.ext.insert("wisp.runtime".into(), json!({ "changes": head.changes, "blocked": head.blocked, "authFailed": auth_failed, "cli": head.cli }));
+            turn.ext.insert("wisp.runtime".into(), json!({ "changes": head.changes, "blocked": blocked, "authFailed": auth_failed, "cli": head.cli }));
         }
         if status == TurnStatus::Done
             && turn.idx == 0

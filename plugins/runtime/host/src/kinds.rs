@@ -13,7 +13,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wisp_kernel::Setup;
-use wisp_resources_api::{KindInfo, stored, stored_published};
+use wisp_resources_api::{KindInfo, stored, stored_published_tidied};
 
 /// How a project uses worktrees (v1 `worktree`, `worktreeOnDone`, `worktreeCleanup`, `worktreeMax`,
 /// `cloneDir`, `fixConflicts`, `.worktreeinclude`).
@@ -183,11 +183,22 @@ pub struct Kinds {
     pub team: std::sync::Arc<wisp_resources_api::StoredKind>,
 }
 
+/// A project spec as it's stored: its path canonical (`wisp_runtime_api::paths`).
+pub fn tidy_project(spec: &mut Value) {
+    if let Some(p) = spec.get("path").and_then(Value::as_str) {
+        let c = wisp_runtime_api::paths::canonical_project_path(p, None);
+        if let Some(o) = spec.as_object_mut() {
+            o.insert("path".into(), Value::String(c));
+        }
+    }
+}
+
 pub fn register(s: &mut Setup) -> std::sync::Arc<Kinds> {
     let owner = "wisp.runtime";
     std::sync::Arc::new(Kinds {
         // every screen shows projects (chips, New task's "in", Home): published as `project` on `config`
-        project: stored_published::<ProjectSpec>(s, "project", |sc| KindInfo::new("project", "projects", owner, sc).order(10)),
+        // its path canonical whoever applies it (`wisp add .` sent "/repo/.", a pasted "C:\\x\\" or "\\\\?\\C:\\x")
+        project: stored_published_tidied::<ProjectSpec>(s, "project", |sc| KindInfo::new("project", "projects", owner, sc).order(10), tidy_project),
         harness: harness_kind(s),
         skill: stored::<SkillSpec>(s, |sc| KindInfo::new("skill", "skills", owner, sc).order(15)),
         team: stored::<TeamSpec>(s, |sc| KindInfo::new("team", "teams", owner, sc).order(25)),
@@ -353,6 +364,21 @@ impl wisp_runtime_api::points::PromptPart for Brief {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+
+    /// `wisp add .` (or a resource applied by hand) stored "/repo/."; on apply the project kind stores it canonical.
+    #[test]
+    fn a_project_applied_with_a_trailing_dot_or_verbatim_prefix_is_stored_canonical() {
+        let mut spec = json!({ "path": "/work/api/.", "color": "teal" });
+        tidy_project(&mut spec);
+        assert_eq!(spec, json!({ "path": "/work/api", "color": "teal" }));
+        let mut win = json!({ "path": r"\\?\C:\work\api\" });
+        tidy_project(&mut win);
+        assert_eq!(win["path"], r"C:\work\api");
+        let mut url = json!({ "path": "https://github.com/acme/api.git" });
+        tidy_project(&mut url);
+        assert_eq!(url["path"], "https://github.com/acme/api.git");
+    }
+
     use serde_json::json;
 
     use super::*;
