@@ -3,8 +3,9 @@
 // end. Clicking the row opens the side panel on PR. While a ship is in flight it shows the stages
 // instead; while the PR pane is open beside the task it hides, so the verdict never shows twice.
 
-import { Match, Show, Switch, type JSX } from 'solid-js';
-import { CommandError, type EntityKey, type PluginClient } from '@wisp/client';
+import { Match, Show, Switch, createEffect, type JSX } from 'solid-js';
+import { CommandError, readonly, type EntityKey, type PluginClient } from '@wisp/client';
+import { mergeRequest } from './merge-request.ts';
 import type { ExtensionProps } from '@wisp/shell/contract';
 import { Button, Card, Icon, IconButton, ListRow, Stack, Toolbar, ToneChip, useSignal, type ToolbarItem } from '@wisp/ui';
 import { fixConflicts, refresh, review } from './commands.ts';
@@ -19,16 +20,20 @@ import { useBusy } from './busy.ts';
 import { openShip, useReviewCtx, useSession, useShip } from './use.ts';
 import type { ShipSession } from './types.ts';
 
-
 export default function PrStrip(props: ExtensionProps): JSX.Element {
   const key = (): EntityKey | undefined => props.session?.()?.id as EntityKey | undefined;
-  return <Show when={key()} keyed>{(k) => <Strip client={props.client} k={k} />}</Show>;
+  return (
+    <Show when={key()} keyed>
+      {(k) => <Strip client={props.client} k={k} />}
+    </Show>
+  );
 }
 
 /** Commands whose refusal the shell already toasts: the caller only stops waiting. */
-export const quiet = (p: Promise<unknown>): void => void p.catch((err: unknown) => {
-  if (!(err instanceof CommandError)) throw err;
-});
+export const quiet = (p: Promise<unknown>): void =>
+  void p.catch((err: unknown) => {
+    if (!(err instanceof CommandError)) throw err;
+  });
 
 function Strip(props: { readonly client: PluginClient; readonly k: EntityKey }): JSX.Element {
   const s = useSession(props.client, () => props.k);
@@ -46,12 +51,8 @@ function Strip(props: { readonly client: PluginClient; readonly k: EntityKey }):
   return (
     <Show when={!paneOpen()}>
       <Switch>
-        <Match when={live()}>
-          {(tr) => <ShipRun track={tr()} onRetry={() => openShip(props.client, ship.shell, props.k, s())} onDismiss={() => ship.flows.dismiss()} />}
-        </Match>
-        <Match when={prsOf(s()).length > 0 && s()}>
-          {(row) => <PrRow client={props.client} k={props.k} s={row()} />}
-        </Match>
+        <Match when={live()}>{(tr) => <ShipRun track={tr()} onRetry={() => openShip(props.client, ship.shell, props.k, s())} onDismiss={() => ship.flows.dismiss()} />}</Match>
+        <Match when={prsOf(s()).length > 0 && s()}>{(row) => <PrRow client={props.client} k={props.k} s={row()} />}</Match>
       </Switch>
     </Show>
   );
@@ -62,6 +63,13 @@ function PrRow(props: { readonly client: PluginClient; readonly k: EntityKey; re
   const ship = useShip(props.client, props.k);
   const ctx = useReviewCtx(props.client, () => props.s);
   const merge = useMerge(ship.flows, () => props.s, ctx, ship.shell);
+  // Merge PR #n… from a task's menu: asked here, with this strip's confirm
+  const asked = useSignal(readonly(mergeRequest));
+  createEffect(() => {
+    if (asked() !== props.k) return;
+    mergeRequest(undefined);
+    merge.ask();
+  });
   const checking = useBusy();
   const prs = () => prsOf(props.s);
   const lead = () => prs()[0];
@@ -81,14 +89,29 @@ function PrRow(props: { readonly client: PluginClient; readonly k: EntityKey; re
     if (open().length) {
       const check = (): void => void checking.run(props.client.run(refresh, { key: props.k }));
       // icon-only in both forms: the ring replaces the icon while it checks, the width holds
-      out.push({ id: 'refresh', icon: 'replay', label: t('wisp.ship.strip.checkTitle'), priority: 1, onSelect: check, render: () => <IconButton icon="replay" size="sm" label={t('wisp.ship.strip.checkTitle')} loading={checking.busy()} onClick={check} part="pr.strip.check" /> });
+      out.push({
+        id: 'refresh',
+        icon: 'replay',
+        label: t('wisp.ship.strip.checkTitle'),
+        priority: 1,
+        onSelect: check,
+        render: () => <IconButton icon="replay" size="sm" label={t('wisp.ship.strip.checkTitle')} loading={checking.busy()} onClick={check} part="pr.strip.check" />,
+      });
     }
     if (!several()) out.push({ id: 'github', icon: 'external', label: t('wisp.ship.strip.github'), priority: 2, onSelect: () => ship.shell.platform.openExternal(x.pr.url) });
     if (x.pr.state === 'OPEN' && x.pr.conflict && props.s.pr && !fixing(fix()) && props.s.state !== 'running') {
       out.push({ id: 'fix', icon: 'merge', label: t('wisp.ship.action.fix'), priority: 'pin', onSelect: () => quiet(props.client.run(fixConflicts, { key: props.k })) });
     }
     const v = rv();
-    if (v) out.push({ id: 'review', icon: REVIEW_ICON[v.kind], label: v.label, priority: 3, ...(v.kind === 'tests' || v.kind === 'issues' ? { tone: 'bad' as const } : {}), onSelect: () => (reviewActs(v.kind) ? quiet(props.client.run(review, { key: props.k })) : ship.openPane()) });
+    if (v)
+      out.push({
+        id: 'review',
+        icon: REVIEW_ICON[v.kind],
+        label: v.label,
+        priority: 3,
+        ...(v.kind === 'tests' || v.kind === 'issues' ? { tone: 'bad' as const } : {}),
+        onSelect: () => (reviewActs(v.kind) ? quiet(props.client.run(review, { key: props.k })) : ship.openPane()),
+      });
     if (open().length && !open().some((o) => o.pr.conflict)) {
       const label = open().length > 1 ? t('wisp.ship.strip.mergeAll') : t('wisp.ship.strip.merge');
       out.push({ id: 'merge', icon: 'check', label, priority: 'pin', render: (form) => <MergeButton label={label} form={form} busy={merge.merging()} onClick={merge.ask} /> });
@@ -103,7 +126,20 @@ function PrRow(props: { readonly client: PluginClient; readonly k: EntityKey; re
           title={title()}
           sub={prLine(t, lead()?.pr ?? { number: 0, url: '', state: 'OPEN' }, fix())}
           lead={<Icon name={TONE_ICON[tone()]} size="md" tone={TONE[tone()] === 'accent' ? 'accent-ink' : TONE[tone()]} />}
-          pills={<Show when={several()}>{prs().slice(1).map((o) => <ToneChip label={`${o.repo ?? ''} #${o.pr.number}`} tone={TONE[prTone(o.pr)]} title={`${o.repo ?? ''}: ${t('wisp.ship.pill.title', { n: o.pr.number, line: prLine(t, o.pr) })}`} onClick={() => ship.shell.platform.openExternal(o.pr.url)} />)}</Show>}
+          pills={
+            <Show when={several()}>
+              {prs()
+                .slice(1)
+                .map((o) => (
+                  <ToneChip
+                    label={`${o.repo ?? ''} #${o.pr.number}`}
+                    tone={TONE[prTone(o.pr)]}
+                    title={`${o.repo ?? ''}: ${t('wisp.ship.pill.title', { n: o.pr.number, line: prLine(t, o.pr) })}`}
+                    onClick={() => ship.shell.platform.openExternal(o.pr.url)}
+                  />
+                ))}
+            </Show>
+          }
           actions={<Icon name="chevron" size="sm" tone="faint" />}
           onOpen={() => ship.openPane()}
         />
@@ -117,7 +153,9 @@ function PrRow(props: { readonly client: PluginClient; readonly k: EntityKey; re
 function MergeButton(props: { readonly label: string; readonly form: 'full' | 'icon'; readonly busy: boolean; readonly onClick: () => void }): JSX.Element {
   return (
     <Show when={props.form === 'full'} fallback={<IconButton icon="check" size="sm" label={props.label} loading={props.busy} onClick={() => props.onClick()} part="pr.strip.merge" />}>
-      <Button variant="ghost" size="sm" icon="check" loading={props.busy} onClick={() => props.onClick()} part="pr.strip.merge">{props.label}</Button>
+      <Button variant="ghost" size="sm" icon="check" loading={props.busy} onClick={() => props.onClick()} part="pr.strip.merge">
+        {props.label}
+      </Button>
     </Show>
   );
 }

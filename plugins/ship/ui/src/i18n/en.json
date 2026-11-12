@@ -169,5 +169,9 @@
   "wisp.ship.warn.pending.other": "⚠ {count} checks are still running{where}.",
   "wisp.ship.warn.unsent.one": "You have {count} review comment in Changes you haven’t sent.",
   "wisp.ship.warn.unsent.other": "You have {count} review comments in Changes you haven’t sent.",
-  "wisp.ship.warn.where": " on {repo}"
+  "wisp.ship.warn.where": " on {repo}",
+  "wisp.ship.menu.merge": "Merge PR #{n}…",
+  "wisp.ship.menu.mergeMany": "Merge {count} PRs…",
+  "wisp.ship.menu.review": "Review PR #{n}",
+  "wisp.ship.menu.reviewMany": "Review PRs"
 }

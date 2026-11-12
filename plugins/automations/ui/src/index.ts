@@ -1,6 +1,6 @@
 // wisp.automations' UI: Settings → Automations (recipes and the triggers that launch them).
 import { lazy } from 'solid-js';
-import { defineExtension, type PluginUiDef } from '@wisp/shell';
+import { defineExtension, definePalette, type PluginUiDef } from '@wisp/shell';
 import { parseDraft } from './recipe.ts';
 import { catalogue } from './i18n.ts';
 
@@ -37,6 +37,22 @@ const ui: PluginUiDef = {
           p.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'automations.recipe' as never, params } });
         },
       },
+    }),
+  ],
+  // ⌘K: Recipes and Triggers (v1 commands.js), each opening Automations on its tab
+  palette: [
+    definePalette({
+      id: 'automations.palette',
+      order: 55,
+      items: (ctx) =>
+        (['recipes', 'triggers'] as const).map((tab) => ({
+          id: `automations.${tab}`,
+          group: 'shell.palette.group.actions',
+          label: ctx.client.t(`automations.palette.${tab}`),
+          icon: tab === 'recipes' ? 'bolt' : 'replay',
+          keywords: tab === 'recipes' ? 'automations saved prompts templates' : 'automations schedule cron ci issues github',
+          run: () => ctx.client.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane: 'automations', filter: tab } } }),
+        })),
     }),
   ],
   catalogue,

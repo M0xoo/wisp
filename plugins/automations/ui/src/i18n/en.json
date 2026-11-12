@@ -54,5 +54,7 @@
   "automations.recipe.runsOn": "Runs on {runner}",
   "automations.recipe.cancel": "Cancel",
   "automations.recipe.create": "Create recipe",
-  "automations.recipe.need": "A recipe needs a name and a prompt."
+  "automations.recipe.need": "A recipe needs a name and a prompt.",
+  "automations.palette.recipes": "Recipes",
+  "automations.palette.triggers": "Triggers"
 }

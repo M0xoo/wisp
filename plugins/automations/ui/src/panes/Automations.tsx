@@ -33,7 +33,8 @@ export function summary(names: readonly string[], none: string): string {
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const TONE: Record<string, 'good' | 'warn' | 'bad' | 'neutral'> = { on: 'good', off: 'neutral', held: 'warn', failing: 'bad' };
 
-export default function Automations(props: { readonly client: PluginClient }): JSX.Element {
+/** `filter` (Settings' param): the tab it opens on, as v1's ⌘K Recipes and Triggers opened Automations on theirs */
+export default function Automations(props: { readonly client: PluginClient; readonly filter?: string }): JSX.Element {
   const c = props.client;
   const peer = c.home;
   const [rs, { refetch: again }] = createResource(() => c.run(recipes, { peer }).catch((): Recipe[] => []));
@@ -42,7 +43,7 @@ export default function Automations(props: { readonly client: PluginClient }): J
     p.then(then, () => {}); // a refusal toasts from the shell
   };
   const ago = (at: number | null | undefined): string => (at ? timeLabel(at, Date.now(), englishT) : t('automations.never'));
-  const [view, setView] = createSignal<'home' | 'recipes' | 'triggers'>('home');
+  const [view, setView] = createSignal<'home' | 'recipes' | 'triggers'>(props.filter === 'recipes' || props.filter === 'triggers' ? props.filter : 'home');
   const [adding, setAdding] = createSignal(false);
   const [tried, setTried] = createSignal<Record<string, Tried[]>>({});
   const back = (): JSX.Element => (
