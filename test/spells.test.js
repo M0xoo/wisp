@@ -99,7 +99,7 @@ test('theme: the theme setting takes system, light or dark, and its icons exist'
 
 test('the overlap pill and warning (another open task changes the same files) are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'card.overlap': { hide: true }, 'card.overlapNote': { style: { borderRadius: '4px' } } } }), []);
-  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.overlap', 'card.overlapNote'] } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.overlap', 'card.overlapNote', 'card.overlapClose'] } }), []);
   const p = problems({ ...base0, parts: { 'card.overlaps': { hide: true } } });
   assert.ok(p.some((x) => /card\.overlaps/.test(x)), p.join('\n'));
 });
@@ -538,6 +538,9 @@ test('Automations stop at (autoStop) is a setting; its row, Where it went and a 
   assert.deepEqual(problems({ ...base0, settings: { autoStop: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { autoStop: '80' } }).some((x) => /autoStop/.test(x) && /off \| 50 \| 75 \| 90/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['budget.where', 'details.plan'] }, parts: { 'settings.autoStop': { style: { opacity: '0.8' } } } }), []);
+  // A task's usage (web/js/task-usage.js): the line's context meter and the popover the line opens.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['details.context'] }, parts: { 'details.usage': { style: { opacity: '0.9' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['details.contexts'] } }).length, 'an unknown part is refused');
   // The usage receipt and Past your plan (web/js/receipt.js) can be hidden or restyled.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.receipt', 'budget.overage', 'budget.compare'] }, parts: { 'turn.overage': { style: { fontWeight: '600' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['turn.receipts'] } }).length, 'an unknown part is refused');

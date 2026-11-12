@@ -14,6 +14,7 @@ import { isForLater, MOBILE, S } from '../core/state.js';
 import { keyHint } from '../ui/kbd.js';
 import { overlay } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
+import { sectionsHtml, subHtml, wireSubmenus } from '../ui/submenu.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { autosize } from './attachments.js';
 import { saveAsRecipe } from './automations.js';
@@ -35,7 +36,7 @@ import { slotHtml } from './spells.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
 import { changesItem, openPanel, reviewLabel, runApp, runItem, shellItem, watchItem } from './panel.js';
 import { ask } from '../ui/confirm.js';
-import { goalMenuHtml, runGoalAction } from './goal.js';
+import { goalActions, runGoalAction } from './goal.js';
 import { DAY_TIME, fmtDate } from '../core/format.js';
 import { paintMeta, paintState } from './turns.js';
 
@@ -189,91 +190,135 @@ export function crewAction(id) {
   else addToCrew(id);
 }
 
+// A task's menu: the open task's More and a row's right-click menu build it here, so both say the
+// same things in the same order (design/ux.md → Task menus). Sections go from the task itself to
+// where to look, what to keep and, last, Delete; views, the goal, copies and files fold into
+// submenus, so the menu stays about a dozen rows however much the task has going on.
+//   more    the open task's More: what its bar or head already shows isn't said again
+//   folded  a narrow bar folded Transcript, Rerun and Take over into More
+//   txOn    Transcript is on
+function taskMenuHtml(id, { more = false, folded = false, txOn = false } = {}) {
+  const sum = S.sessions.get(id);
+  const full = S.full.get(id);
+  const busy = sum.state === 'running' || sum.state === 'waiting';
+  const lastTurn = full?.turns?.at(-1);
+  const canRollback = more && full && full.agent !== 'wisp' && sum.state !== 'running' && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit);
+  const rolledBack = !!lastTurn?.rolledBackAt;
+  const shellShown = folded && [...document.querySelectorAll(`.item[data-id="${CSS.escape(id)}"] .shell-door, .item[data-id="${CSS.escape(id)}"] .it-actions .it-shell`)].some((b) => b.offsetParent);
+  const btn = (a, ic, label, kbd) => `<button data-a="${a}">${icon(ic)}${label}${kbd ? keyHint(kbd) : ''}</button>`;
+  return sectionsHtml([
+    // What the bar does: on a row, opening it; in a folded More, the bar's own buttons.
+    more
+        ? folded
+          ? [
+              `<button data-a="transcript" aria-pressed="${txOn}">${icon('transcript')}Transcript${txOn ? icon('check', 'mi-on') : ''}${keyHint('V')}</button>`,
+              sum.sideOf ? '' : btn('rerun', 'rerun', 'Rerun…', '⇧R'),
+              sum.sideOf ? '' : btn('takeover', 'terminal', 'Take over', 'T'),
+            ]
+          : []
+        : [S.open.has(id) ? btn('collapse', 'chevron', 'Collapse', 'O') : btn('open', 'chevron', 'Open', 'O'), sum.sideOf ? '' : btn('rerun', 'rerun', 'Rerun…', '⇧R')],
+    // The task itself.
+    [btn('rename', 'pen', 'Rename', 'M'), forkable(sum) ? btn('fork', 'fork', 'Fork…', '⇧F') : '', sideable(sum) ? btn('side', 'discuss', 'Side discussion…') : '', shareable(sum) ? btn('share', 'share', 'Share…') : '', compactItem(id)],
+    // What's waiting on it: a held run, a follow-up or reminder, a PR to ship or merge.
+    [laterMenuHtml(sum), !more && shippable(sum) ? btn('ship', 'send', shipLabel(sum), 'S') : '', mergeLabel(sum) ? btn('merge', 'check', mergeLabel(sum)) : ''],
+    // Where to look, its goal, its crew.
+    [
+      subHtml('view', 'View', 'panel', [
+        sum.pending || folded ? '' : changesItem(),
+        sum.pending || shellShown ? '' : shellItem(id),
+        reviewLabel(sum) ? btn('review', 'merge', reviewLabel(sum), 'P') : '',
+        runItem(sum),
+        watchItem(sum),
+        sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : '',
+      ]),
+      subHtml('goal', 'Goal', 'target', goalActions(sum).map((x) => btn(x.a, x.icon, x.label))),
+      crewItem(sum),
+    ],
+    // Keep it, reuse it, take it elsewhere.
+    [
+      subHtml('copy', 'Copy', 'copy', [btn('copy-id', 'copy', 'Copy task ID'), (full || sum).agentSessionId ? btn('copy', 'copy', 'Copy resume command') : '']),
+      btn('recipe', 'bolt', 'Save as recipe…'),
+      subHtml('files', 'Files', 'folder', [
+        MOBILE || !full ? '' : btn('folder', 'folder', 'Open project in editor'),
+        keepItem(sum),
+        canRollback ? btn('rollback', rolledBack ? 'rerun' : 'replay', rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn') : '',
+      ]),
+    ],
+    // Where it sits in the list.
+    [
+      !more && !busy && !sum.archived ? btn('done', 'done', sum.state === 'done' ? 'Reopen' : 'Mark done', 'E') : '',
+      forLaterMenuHtml(sum),
+      sum.archived ? btn('unarchive', 'archive', 'Unarchive', 'A') : busy ? '' : btn('archive', 'archive', 'Archive', 'A'),
+      slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `),
+    ],
+    [`<button data-a="delete" class="danger">${icon('trash')}Delete task${keyHint('⌫')}</button>`],
+  ]);
+}
+
+// Run a task menu's item. anchor / point: where the items that open a menu of their own open it.
+async function runTaskItem(a, id, { anchor = null, point } = {}) {
+  const sum = S.sessions.get(id);
+  if (!a || !sum) return;
+  if (a === 'open') expand(id);
+  if (a === 'collapse') collapse(id);
+  if (a === 'rename') rename(id);
+  if (a === 'transcript') import('./turns.js').then((m) => m.toggleTranscript(id));
+  if (a === 'rerun') rerun(id);
+  if (a === 'takeover') takeOver(id);
+  if (a === 'copy-id') copyTaskId(id);
+  if (a === 'fork') forkTask(id);
+  if (a === 'compact') compactTask(id);
+  if (a === 'side') sideDraft(id);
+  if (a === 'share') shareTask(id);
+  if (a === 'ship') shipDialog(id);
+  if (a === 'merge') mergePr(id);
+  if (a === 'review') openPanel(id, 'pr');
+  if (a === 'changes') openPanel(id, 'changes');
+  if (a === 'shell') openPanel(id, 'shell');
+  if (a === 'watch') openPanel(id, 'watch');
+  if (a === 'run-app') runApp(id);
+  if (a === 'compare') compareView(id);
+  if (a === 'recipe') saveAsRecipe(id);
+  if (a === 'crew') crewAction(id);
+  if (a.startsWith('later-') || a.startsWith('held-')) runLaterAction(a, sum, anchor, point);
+  if (a.startsWith('goal-')) runGoalAction(a, id, anchor);
+  if (a === 'copy') {
+    await tryApi(async () => {
+      const { command } = await api(`/sessions/${id}/takeover`);
+      copy(command);
+      toast('Copied resume command');
+    });
+  }
+  if (a === 'folder') openInEditor(S.full.get(id), '.');
+  if (a === 'rollback') {
+    const t = S.full.get(id)?.turns?.at(-1);
+    rollbackTurn(id, t?.id, !!t?.rolledBackAt);
+  }
+  if (a === 'done') toggleDone(id);
+  if (a === 'keep-worktree' || a === 'unkeep-worktree') setKeepWorktree(id, a === 'keep-worktree');
+  if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');
+  if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
+  if (a === 'delete') deleteSession(id);
+}
+
 // The open card's More: with the bar's own buttons (Transcript, Rerun, Take over, Ship, Done), what
 // the task's right-click menu offers is all here too, so the open task never needs a right-click.
 export function moreMenu(id, anchor) {
-  const s = S.full.get(id);
-  const sum = S.sessions.get(id);
-  if (!s || !sum) return;
-  const lastTurn = s.turns?.at(-1);
-  const canRollback = s.agent !== 'wisp' && sum.state !== 'running' && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit);
-  const rolledBack = !!lastTurn?.rolledBackAt;
+  if (!S.full.get(id) || !S.sessions.get(id)) return;
   const r = anchor.getBoundingClientRect();
   // A narrow page's bar keeps four actions on one row: the ones it folds away lead its More, and
   // what's already on the page (Changes on the bar, the Shell card) isn't said again
-  const folded = document.body.matches('.split:not(.pane-wide)') && anchor.closest('.it-actions');
+  const folded = !!(document.body.matches('.split:not(.pane-wide)') && anchor.closest('.it-actions'));
   const txOn = $(`.item[data-id="${CSS.escape(id)}"] .tx-toggle`)?.getAttribute('aria-pressed') === 'true';
-  const menu = el(`
-    <div class="menu" style="top:${r.bottom + 6}px;right:${innerWidth - r.right}px">
-      ${folded ? `<button data-a="transcript" aria-pressed="${txOn}">${icon('transcript')}Transcript${txOn ? icon('check', 'mi-on') : ''}${keyHint('V')}</button>
-      ${sum.sideOf ? '' : `<button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
-      <button data-a="takeover">${icon('terminal')}Take over${keyHint('T')}</button>`}
-      <div class="wm-sep" role="separator"></div>` : ''}
-      <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
-      <button data-a="copy-id">${icon('copy')}Copy task ID</button>
-      ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
-      ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
-      ${forkable(sum) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
-      ${compactItem(id)}
-      ${sideable(sum) ? `<button data-a="side">${icon('discuss')}Side discussion…</button>` : ''}
-      ${shareable(sum) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
-      ${mergeLabel(sum) ? `<button data-a="merge">${icon('check')}${mergeLabel(sum)}</button>` : ''}
-      ${reviewLabel(sum) ? `<button data-a="review">${icon('merge')}${reviewLabel(sum)}${keyHint('P')}</button>` : ''}
-      ${sum.pending || folded ? '' : changesItem()}
-      ${folded && [...document.querySelectorAll(`.item[data-id="${CSS.escape(id)}"] :is(.shell-door, .it-actions .it-shell)`)].some((b) => b.offsetParent) ? '' : shellItem(id)}
-      ${runItem(sum)}
-      ${watchItem(sum)}
-      ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
-      <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
-      ${crewItem(sum)}
-      ${laterMenuHtml(sum)}
-      ${goalMenuHtml(sum)}
-      ${forLaterMenuHtml(sum)}
-      ${keepItem(sum)}
-      ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
-      ${sum.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : sum.state !== 'running' && sum.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
-      ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
-      <button data-a="delete" class="danger">${icon('trash')}Delete task${keyHint('⌫')}</button>
-    </div>`);
-  menu.onclick = async (e) => {
+  const menu = el(`<div class="menu task-menu" style="top:${r.bottom + 6}px;right:${innerWidth - r.right}px">${taskMenuHtml(id, { more: true, folded, txOn })}</div>`);
+  menu.onclick = (e) => {
     if (e.target.closest('[data-sp]')) return close();
     const a = e.target.closest('button')?.dataset.a;
     close();
-    if (a === 'rename') rename(id);
-    if (a === 'transcript') import('./turns.js').then((m) => m.toggleTranscript(id));
-    if (a === 'rerun') rerun(id);
-    if (a === 'takeover') takeOver(id);
-    if (a === 'copy-id') copyTaskId(id);
-    if (a === 'fork') forkTask(id);
-    if (a === 'compact') compactTask(id);
-    if (a === 'side') sideDraft(id);
-    if (a === 'share') shareTask(id);
-    if (a === 'merge') mergePr(id);
-    if (a === 'review') openPanel(id, 'pr');
-    if (a === 'changes') openPanel(id, 'changes');
-    if (a === 'shell') openPanel(id, 'shell');
-    if (a === 'watch') openPanel(id, 'watch');
-    if (a === 'run-app') runApp(id);
-    if (a === 'compare') compareView(id);
-    if (a === 'recipe') saveAsRecipe(id);
-    if (a === 'crew') crewAction(id);
-    if (a?.startsWith('later-') || a?.startsWith('held-')) runLaterAction(a, sum, anchor);
-    if (a?.startsWith('goal-')) runGoalAction(a, id, anchor);
-    if (a === 'copy') {
-      await tryApi(async () => {
-        const { command } = await api(`/sessions/${id}/takeover`);
-        copy(command);
-        toast('Copied resume command');
-      });
-    }
-    if (a === 'folder') openInEditor(s, '.');
-    if (a === 'rollback') rollbackTurn(id, lastTurn?.id, rolledBack);
-    if (a === 'keep-worktree' || a === 'unkeep-worktree') setKeepWorktree(id, a === 'keep-worktree');
-    if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');
-    if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
-    if (a === 'delete') deleteSession(id);
+    runTaskItem(a, id, { anchor });
   };
-  const close = popover(menu);
+  const escape = wireSubmenus(menu, anchor);
+  const close = popover(menu, { onEscape: escape });
   // More room above than under its button (the details column's More sits low): open upwards.
   if (r.bottom + 6 + menu.offsetHeight > innerHeight - 8) menu.style.top = `${Math.max(8, r.top - 6 - menu.offsetHeight)}px`;
 }
@@ -283,71 +328,17 @@ const keepItem = (s) => (s.branch && !s.foreign ? `<button data-a="${s.keepWorkt
 
 // Right-click on a feed item.
 export function taskMenu(id, e) {
-  const s = S.sessions.get(id);
-  if (!s) return;
+  if (!S.sessions.get(id)) return;
   $('.menu.task')?.close();
-  const busy = s.state === 'running' || s.state === 'waiting';
-  const menu = el(`
-    <div class="menu task" style="top:${e.clientY}px;left:${e.clientX}px">
-      ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
-      <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
-      <button data-a="copy-id">${icon('copy')}Copy task ID</button>
-      ${s.sideOf ? '' : `<button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>`}
-      ${forkable(s) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
-      ${compactItem(id)}
-      ${sideable(s) ? `<button data-a="side">${icon('discuss')}Side discussion…</button>` : ''}
-      ${shareable(s) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
-      ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
-      ${mergeLabel(s) ? `<button data-a="merge">${icon('check')}${mergeLabel(s)}</button>` : ''}
-      ${reviewLabel(s) ? `<button data-a="review">${icon('merge')}${reviewLabel(s)}${keyHint('P')}</button>` : ''}
-      ${s.pending ? '' : changesItem()}
-      ${s.pending ? '' : shellItem(s.id)}
-      ${runItem(s)}
-      ${watchItem(s)}
-      ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
-      <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
-      ${crewItem(s)}
-      ${laterMenuHtml(s)}
-      ${goalMenuHtml(s)}
-      ${forLaterMenuHtml(s)}
-      ${keepItem(s)}
-      ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
-      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
-      ${slotHtml('card.menu', s).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${s.id}" `)}
-      <button data-a="delete" class="danger">${icon('trash')}Delete task${keyHint('⌫')}</button>
-    </div>`);
-  menu.onclick = async (ev) => {
+  const menu = el(`<div class="menu task task-menu" style="top:${e.clientY}px;left:${e.clientX}px">${taskMenuHtml(id)}</div>`);
+  menu.onclick = (ev) => {
     if (ev.target.closest('[data-sp]')) return close();
     const a = ev.target.closest('button')?.dataset.a;
     close();
-    if (a === 'open') expand(id);
-    if (a === 'collapse') collapse(id);
-    if (a === 'rename') rename(id);
-    if (a === 'copy-id') copyTaskId(id);
-    if (a === 'rerun') rerun(id);
-    if (a === 'fork') forkTask(id);
-    if (a === 'compact') compactTask(id);
-    if (a === 'side') sideDraft(id);
-    if (a === 'share') shareTask(id);
-    if (a === 'ship') shipDialog(id);
-    if (a === 'merge') mergePr(id);
-    if (a === 'review') openPanel(id, 'pr');
-    if (a === 'changes') openPanel(id, 'changes');
-    if (a === 'shell') openPanel(id, 'shell');
-    if (a === 'watch') openPanel(id, 'watch');
-    if (a === 'run-app') runApp(id);
-    if (a === 'compare') compareView(id);
-    if (a === 'recipe') saveAsRecipe(id);
-    if (a === 'crew') crewAction(id);
-    if (a?.startsWith('later-') || a?.startsWith('held-')) runLaterAction(a, s, null, { x: e.clientX, y: e.clientY });
-    if (a?.startsWith('goal-')) runGoalAction(a, id, null);
-    if (a === 'done') toggleDone(id);
-    if (a === 'keep-worktree' || a === 'unkeep-worktree') setKeepWorktree(id, a === 'keep-worktree');
-    if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');
-    if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
-    if (a === 'delete') deleteSession(id);
+    runTaskItem(a, id, { point: { x: e.clientX, y: e.clientY } });
   };
-  const close = popover(menu);
+  const escape = wireSubmenus(menu, null);
+  const close = popover(menu, { onEscape: escape });
   clampToViewport(menu, e.clientX, e.clientY);
 }
 

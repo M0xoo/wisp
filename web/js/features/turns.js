@@ -176,6 +176,7 @@ export function renderBody(id, { fresh, byHand }) {
       if (a === 'forks') forksMenu(id, e.target.closest('button'));
       if (a === 'side-of') revealTask(S.full.get(id)?.sideOf?.id);
       if (a === 'sides') sidesMenu(id, e.target.closest('button'));
+      if (a === 'usage') import('./budget.js').then((m) => m.usageMenu(e.target.closest('button'), id));
     });
     // Narrow, the bar scrolls away with the task, and once its actions are gone the mini row pins
     // in their place: one row that does what the bar's buttons do.

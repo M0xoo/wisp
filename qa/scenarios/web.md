@@ -260,7 +260,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Two tasks, same files:** two open tasks in one repo edit the same lines → both cards show an
   amber *Clash* pill (icon only on a phone), the open card's warning names the other task and the
   file with **Open**, and Ship it / Merge repeat it. The same file at different lines says *Overlap*
-  and "merge cleanly". Merging or archiving one clears the other's warning.
+  and "merge cleanly". Merging or archiving one clears the other's warning. The warning's **×** closes
+  it at once (the pill stays), through a reload; a new task, file or conflict brings it back.
   **Suite** (`test/overlaps.test.js`) · **Manual** in the page
 
 ### WEB-29 · Open in <harness> (a terminal)

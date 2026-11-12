@@ -4,10 +4,15 @@
 
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { S, load, save } from '../core/state.js';
 import { atTail, toEnd } from '../tail.js';
 import { overlay } from '../ui/overlay.js';
 import { expand, renderFeed, reveal, setFocus } from './feed.js';
+
+// Dismissed strips, by task: what they said when closed. A new task, a new file or a new clash
+// brings the strip back; the pill on the card head stays either way.
+const DISMISSED = 'wisp.overlapsDismissed';
+const said = (all) => JSON.stringify(all.map((o) => [o.id, o.files, o.more || 0, o.conflicts || null]).sort((a, b) => (a[0] < b[0] ? -1 : 1)));
 
 const SHOWN = 2; // overlaps named in the follow-up's own words (the strip shows one); the rest are a click away
 
@@ -49,7 +54,8 @@ export function renderOverlapStrip(id) {
   const node = n?.body && $('.overlap-strip', n.body);
   const s = S.sessions.get(id);
   if (!node || !s) return;
-  const all = ranked(s);
+  let all = ranked(s);
+  if (all.length && load(DISMISSED, {})[id] === said(all)) all = [];
   // It comes seconds after the run ends, in a dock that sticks to the bottom: it would cover the end
   // of the answer and, at 44px, put a reader at the tail past its slack (the next answer wouldn't land).
   const tail = node.hidden && !!all.length && atTail(n.body);
@@ -60,11 +66,19 @@ export function renderOverlapStrip(id) {
   // and a line under them took ~60px above the reply box, a quarter of a phone's screen.
   const rest = all.length - 1;
   const more = rest > 0 ? `<button class="link xs ov-more" data-ov-all title="All the tasks that change the same files">+${rest} more${all.slice(1).some(clashes) ? ', with clashes' : ''}</button>` : '';
-  node.innerHTML = row(all[0], more);
+  const x = `<button class="icon-btn xs ov-x" data-ov-x aria-label="Dismiss" title="Dismiss until something changes">${icon('x')}</button>`;
+  node.innerHTML = row(all[0], more).replace(/<\/div>$/, `${x}</div>`);
   if (tail) toEnd(n.body);
   node.onclick = (e) => {
     // The card's own click handling mustn't see it: it would close the dialog as it opens.
-    if (e.target.closest('[data-ov-all], [data-ov]')) e.stopPropagation();
+    if (e.target.closest('[data-ov-all], [data-ov], [data-ov-x]')) e.stopPropagation();
+    if (e.target.closest('[data-ov-x]')) {
+      // Read afresh (another tab may have closed one), and forget tasks that are gone.
+      const kept = Object.fromEntries(Object.entries(load(DISMISSED, {})).filter(([k]) => S.sessions.has(k)));
+      save(DISMISSED, { ...kept, [id]: said(ranked(S.sessions.get(id))) });
+      renderOverlapStrip(id);
+      return;
+    }
     if (e.target.closest('[data-ov-all]')) {
       overlapsDialog(id);
       return;
