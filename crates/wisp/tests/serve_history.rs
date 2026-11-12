@@ -240,7 +240,7 @@ async fn the_same_session_is_adopted_once_and_the_pr_comes_from_gh() {
     write(&lines);
     // gh: a PR whose head is the task's commit, and an unrelated one
     let bin = dir.join("ghbin");
-    wisp_testkit::install_fakes(&bin, &["gh"]).unwrap();
+    common::install_fakes(&bin, &["gh"]);
     let state = dir.join("gh-state.json");
     let (serve, port) = start_with(&dir, &[("CLAUDE_CONFIG_DIR", dir.join("claude-cfg").to_str().unwrap()), ("WISP_GH_BIN", bin.join("gh").to_str().unwrap()), ("FAKE_GH_STATE", state.to_str().unwrap())]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };

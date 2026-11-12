@@ -35,8 +35,6 @@ impl Drop for Serve {
     }
 }
 
-/// wisp-testkit's fake harness is a bin of another crate: cargo doesn't build it for this one's
-/// tests, so build it into the same target dir and profile first.
 /// The fake CLIs the server is pointed at, by file name and override variable.
 pub const FAKES: [(&str, &str); 7] = [
     ("claude", "WISP_CLAUDE_BIN"),
@@ -48,22 +46,33 @@ pub const FAKES: [(&str, &str); 7] = [
     ("agy", "WISP_ANTIGRAVITY_BIN"),
 ];
 
-pub fn fake_agent() -> PathBuf {
-    let bin = wisp_testkit::fake_agent_bin();
-    if bin.is_file() {
-        return bin;
-    }
-    let exe = std::env::current_exe().unwrap();
-    let profile_dir = exe.parent().and_then(Path::parent).unwrap();
-    let target = profile_dir.parent().unwrap();
-    let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-    cmd.args(["build", "--quiet", "-p", "wisp-testkit", "--bin", "wisp-fake-agent", "--target-dir"]).arg(target);
-    if profile_dir.ends_with("release") {
-        cmd.arg("--release");
-    }
-    assert!(cmd.status().unwrap().success(), "building wisp-fake-agent");
-    assert!(bin.is_file(), "{} after the build", bin.display());
-    bin
+/// wisp-testkit's fakes (`wisp-fake-agent`, `wisp-fake-gh`) have one home: the artifact dir of this
+/// crate's `wisp` bin (`<target>/<profile>/`), in every cargo layout. Not the test's own folder:
+/// cargo's build-dir layout puts test executables under `build/<pkg>/<hash>/`, so
+/// `current_exe()` points nowhere useful. Cargo doesn't build another crate's bins for these
+/// tests, so the first call builds both into the same target dir and profile.
+pub fn fake_bins() -> (PathBuf, PathBuf) {
+    static BUILT: std::sync::Once = std::sync::Once::new();
+    let dir = Path::new(env!("CARGO_BIN_EXE_wisp")).parent().unwrap();
+    let exe = |n: &str| dir.join(format!("{n}{}", std::env::consts::EXE_SUFFIX));
+    let (agent, gh) = (exe("wisp-fake-agent"), exe("wisp-fake-gh"));
+    BUILT.call_once(|| {
+        let target = dir.parent().unwrap();
+        let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
+        cmd.args(["build", "--quiet", "-p", "wisp-testkit", "--bin", "wisp-fake-agent", "--bin", "wisp-fake-gh", "--target-dir"]).arg(target);
+        if dir.ends_with("release") {
+            cmd.arg("--release");
+        }
+        assert!(cmd.status().unwrap().success(), "building wisp-testkit's fakes into {}", target.display());
+    });
+    assert!(agent.is_file() && gh.is_file(), "{} and {} after the build", agent.display(), gh.display());
+    (agent, gh)
+}
+
+/// Puts the fakes in `dir` under the CLIs' names (`claude`, `gh`, …).
+pub fn install_fakes(dir: &Path, names: &[&str]) {
+    let (agent, gh) = fake_bins();
+    wisp_testkit::install_fakes_from(dir, names, &agent, &gh).unwrap();
 }
 
 pub fn start(dir: &Path) -> (Serve, u16) {
@@ -72,8 +81,7 @@ pub fn start(dir: &Path) -> (Serve, u16) {
 
 pub fn start_with(dir: &Path, env: &[(&str, &str)]) -> (Serve, u16) {
     let bin = dir.join("bin");
-    fake_agent();
-    wisp_testkit::install_fakes(&bin, &FAKES.map(|(n, _)| n)).unwrap();
+    install_fakes(&bin, &FAKES.map(|(n, _)| n));
     let home = dir.join("home");
     std::fs::create_dir_all(&home).unwrap();
     let log = std::fs::File::create(dir.join("serve.log")).unwrap();

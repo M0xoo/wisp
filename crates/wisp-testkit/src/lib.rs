@@ -309,19 +309,26 @@ fn sibling(name: &str) -> PathBuf {
 /// Puts the fake harnesses and gh in `dir` under the CLIs' names (symlinks; copies off Unix), for a
 /// PATH a test controls.
 pub fn install_fakes(dir: &Path, names: &[&str]) -> std::io::Result<()> {
+    install_fakes_from(dir, names, &fake_agent_bin(), &fake_gh_bin())
+}
+
+/// [`install_fakes`] from given binaries: for another crate's tests, whose executable doesn't sit
+/// next to this crate's bins (they find them next to `CARGO_BIN_EXE_<their bin>` instead).
+pub fn install_fakes_from(
+    dir: &Path,
+    names: &[&str],
+    agent: &Path,
+    gh: &Path,
+) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
     for n in names {
-        let src = if *n == "gh" {
-            fake_gh_bin()
-        } else {
-            fake_agent_bin()
-        };
+        let src = if *n == "gh" { gh } else { agent };
         let dst = dir.join(format!("{n}{}", std::env::consts::EXE_SUFFIX));
         let _ = std::fs::remove_file(&dst);
         #[cfg(unix)]
-        std::os::unix::fs::symlink(&src, &dst)?;
+        std::os::unix::fs::symlink(src, &dst)?;
         #[cfg(not(unix))]
-        std::fs::copy(&src, &dst).map(|_| ())?;
+        std::fs::copy(src, &dst).map(|_| ())?;
     }
     Ok(())
 }
