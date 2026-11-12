@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **A task's menu is grouped, and about a dozen rows long.** More and the right-click menu now show the same list, in sections with a line between them: the task itself, what's waiting on it, where to look, what to keep, then Delete on its own. Changes, Shell, Review PR, Run app and Watch move under **View ›**, the goal's actions under **Goal ›**, Copy task ID and Copy resume command under **Copy ›**, and Open project in editor, Keep worktree and Restore under **Files ›**. A submenu opens in place with a Back row; Escape or ← goes back. A task with a goal and a PR went from about 20 rows to 13.
 - **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.
 - **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 

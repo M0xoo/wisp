@@ -124,6 +124,13 @@ body.wisp-mobile .pal-note button { min-height: 44px; }
 .menu-kbd { margin-left: auto; }
 .menu .mi-on { margin-left: auto; color: var(--accent-ink); } /* a toggle that is on (Transcript in More) */
 .menu .mi-on + .menu-kbd { margin-left: 8px; }
+/* Submenus (ui/submenu.js): a row with a chevron drills in; its items replace the menu's under a
+   Back row that names them. The menu keeps its place and width. */
+.menu .mi-sub { width: 14px; height: 14px; margin-left: auto; color: var(--faint); }
+.menu .mi-pane[hidden] { display: none; }
+.menu.drilled > :not(.mi-pane) { display: none; }
+.menu .mi-back { margin-bottom: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; font-weight: 500; color: var(--ink); }
+.menu .mi-back .i { color: var(--muted); }
 /* Compact now: its prices are a second line under the label. width: 0 keeps them out of the menu's
    own width, so a task with the offer opens the same menu as one without. */
 .menu button[data-a="compact"] { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 10px; align-items: center; text-align: left; }
