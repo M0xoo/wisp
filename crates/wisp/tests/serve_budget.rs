@@ -19,9 +19,11 @@ async fn unattended_work_past_the_stop_line_is_held_until_the_window_resets() {
     let dir = temp("serve-budget");
     let (serve, port) = start(&dir);
     let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
-    api.cmd("budget.setStop", json!({ "key": "autoStopCodex", "value": "50" })).await;
+    // v1's numbers (test/budget.test.js "Automations stop at"): past the 75% stop line, under the 90% ask line, so the
+    // user's own run meets neither the stop (it's theirs) nor Ask near the limit (v1 asks at 90%: that's its own test)
+    api.cmd("budget.setStop", json!({ "key": "autoStopCodex", "value": "75" })).await;
     let window = |used: f64| json!({ "agent": "codex", "account": "default", "report": { "windows": [{ "id": "five_hour", "used": used, "resetsAt": now_ms() + 3_600_000, "ms": 18_000_000 }], "complete": true } });
-    api.cmd("budget.record", window(0.9)).await;
+    api.cmd("budget.record", window(0.8)).await;
     let hold = api.cmd("budget.hold", json!({ "agent": "codex", "account": "" })).await;
     assert_eq!(hold["window"], "five_hour", "{hold}");
     // a crew job waits for the plan
