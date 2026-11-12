@@ -612,6 +612,48 @@
       "widths": "all",
       "themes": "all",
       "reason": "v1 #771 dropped Try it two ways; settings.privacy re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T06:37:24.453Z",
+      "finished": "2026-11-12T06:39:35.549Z",
+      "views": [
+        "task.changes"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "task.changes re-captured with the seed restored first: its first row was read by an earlier view's open in the old capture"
+    },
+    {
+      "started": "2026-11-12T06:40:02.389Z",
+      "finished": "2026-11-12T06:42:39.300Z",
+      "views": [
+        "stuff"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "stuff re-captured with the seed restored first: rows read by an earlier view's open in the old capture"
+    },
+    {
+      "started": "2026-11-12T06:42:39.435Z",
+      "finished": "2026-11-12T06:44:24.962Z",
+      "views": [
+        "crew.org"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "crew.org re-captured with the seed restored first"
     }
   ]
 }

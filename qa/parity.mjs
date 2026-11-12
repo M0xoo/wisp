@@ -330,7 +330,7 @@ const V2_STATES = {
 };
 
 // Commands that only read: they go through to the mock (the pane they fill is part of the shot)
-const READS = /^(git\.(changes|status|tools)|runtime\.(cold|agents|get|list|search)|plugins\.(ui|list)|worktrees\.(files|grep)|machines\.reachable)$/;
+const READS = /^(git\.(changes|status|tools)|runtime\.(cold|agents|get|list|search)|plugins\.(ui|list)|worktrees\.(files|grep)|machines\.reachable|runtime\.usage|budget\.view|crew\.stats)$/;
 
 async function openV2(browser, url, open, [width, height], colorScheme, at, desktop) {
   const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
