@@ -1341,3 +1341,31 @@ view isn't reached in v2; me-menu's parts (topbar.machines, …) were missing be
 Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, each touched test file alone, the two serve tests and the
 runtime unit test, clippy -D warnings on wisp-terminal, wisp-runtime, wisp-runtime-api, runtime bindings regenerated
 (ResumeLine.ts), parity task.more, task.right-click, projects, me-menu, automations.trigger-new, home.mode-menu.
+
+## Round 32 (2026-11-12)
+
+**#756, fix first: boot waited on a harness.** `wisp serve` never wrote server.json under `FAKE_HANG=1` because the
+kernel runs every plugin's `on_start` before the edge listens, and wisp.router's `on_start` called `runtime.agents`
+to write its view row: that asks each harness's CLI for its version and models, so a hung CLI (the test's fake) or a
+slow one (`opencode models --verbose` on this Mac, which hung boot here even without FAKE_HANG) held boot. The view row
+is now written at once without the harness list, and the list follows from a scoped task (`ctx.spawn`), as telemetry's
+app_started already did. Seen: server.json within 3 s under FAKE_HANG. Not the round 30 `serve.rs` change (stdin
+only matters with WISP_EXIT_WITH_STDIN); why 497ec9cb's CI passed is not known (probe timing). `cargo test -p wisp --test
+serve_cli`: 3 passed; `cargo test -p wisp-router`, serve_task v1_files_are_imported_once (reads router.view), clippy
+on wisp-router.
+
+**automations.trigger-new reachable.** ⌘K Recipes and Triggers (v1 commands.js) open Settings → Automations on that
+tab: the pane takes Settings' `filter` as its tab. parity maps v1's `.auto-modal [data-act="new"]` to v2's New trigger.
+The view is reached now (28.9% px at 1440, was 92.9%: the opener found nothing). Left: v1's trigger form (kind tiles,
+Send to, Project, When, Run) and its Automations dialog shape vs v2's Settings pane.
+
+**More: Merge and Review.** wisp.ship attaches Merge PR #n… / Merge N PRs… (open PRs; the task opens and its PR
+strip asks its own confirm: `merge-request.ts`) and Review PR #n / Review PRs (P: the PR pane) to `shell.row:menu`, so
+both the right-click menu and the task's More have them, in v1's places. Compare runs and Watch are not there: v2 has no
+compare view (F-comp-30) and no watch pane (F-page-32), so there's nothing for them to open yet.
+
+**v1-features.** F-task-13 built (it was: the row's origin mark; test added). F-task-46 and F-auto-1 updated. Partial
+137, missing 23.
+
+Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, `origin-mark.test.ts`, `menu.test.ts`, the cargo tests
+above, parity automations.trigger-new at 1440 and 390.

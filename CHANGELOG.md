@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **⌘K Recipes and Triggers** open Automations on that tab, as before.
+- **Merge PR and Review PR in a task's menus**: Merge asks its confirm on the task's PR strip; Review opens the PR pane (P).
 - **Run app starts the app, and Stop app stops it.** From a task's menu: Run app opens its Preview and starts the app with its command; while it runs the menu says Stop app.
 - **The open task's More has everything again**: Rename, Copy task ID, Copy resume command (paste it in your own terminal to carry on the conversation), Open project in editor, Save for later, Restore to before latest turn, and what the right-click menu offers. Long menus fit the window.
 - **Everything v1's task menu had, on a right-click.** Rerun, Fork, Side discussion, Share, Ship it, Changes, Shell, Run app, Save as recipe (a new recipe editor, from the task), Add to crew (the task becomes the new member's first job), Set goal and the goal's other actions, and Keep worktree, with their keys. The menu slides to fit the window, and the open task's More has them too.
@@ -113,6 +115,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **wisp starts without waiting on your agents' CLIs**: a slow or stuck CLI no longer holds the server from starting; Settings → Auto's harness list fills in once they've answered.
 - **Projects looks as it did**: where you are, the folder field with Add (Clone for a link), your projects with their colour, a name you edit in place and their task count, and the repos found on this machine. On a phone, dialogs stay cards, as before.
 - **Start from an issue opens like ⌘K**, near the top and 640 wide, with each issue on two lines and why there's nothing to list above it.
 - **Right-clicking a task in the list picks it**, so it shows which task the menu is for.

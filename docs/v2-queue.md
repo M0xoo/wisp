@@ -1,6 +1,6 @@
 # v2 build queue (code first, verify later)
 
-**Fix first: #756 CI on cee52d53 (2026-11-12).** `crates/wisp/tests/serve_cli.rs` `ctrl_c_detaches_and_a_second_ctrl_c_stops`
+**Done in round 32: #756 CI on cee52d53 (2026-11-12)** (boot no longer waits on a harness: docs/v2-round-7.md Round 32). `crates/wisp/tests/serve_cli.rs` `ctrl_c_detaches_and_a_second_ctrl_c_stops`
 fails: "wisp serve never advertised its port" with an empty serve.log. It passed on 497ec9cb; between the two, Rust
 only changed `crates/wisp/src/serve.rs` (`stdin_closed`/`WISP_EXIT_WITH_STDIN`). Repro on the lead's Mac:
 `WISP_HOME=/tmp/x FAKE_HANG=1 wisp serve --port 0` never writes server.json and logs nothing, the same without
@@ -22,6 +22,10 @@ pass with round 30's qa/desktop-v2.mjs on the next run.
 2. `tauri windows` build: `desktop/scripts/package.mjs:42` reads `pkg.files`, which v2's root package.json dropped
    (TypeError reading 'map'). macOS `tauri` passes. Make the Windows desktop build package the v2 binary the way the
    macOS one does (no `files` dependency), so both use one v2 path.
+
+**Round 32 (done):** #756 boot fix (router's start no longer probes harnesses); ⌘K Recipes/Triggers; Merge/Review
+PR in the menus. Next: the Compare runs view (F-comp-30) and the Watch pane (F-page-32), v1's trigger form, then
+v1-features rows.
 
 **Round 31 (done):** Pin/Mark read after v1's entries (allowed.md §5); Run app / Stop app as v1 (the run mark on the
 row); the task's More in v1's order (runtime.resumeCommand); the four references re-captured without launcher.tryTwo.
