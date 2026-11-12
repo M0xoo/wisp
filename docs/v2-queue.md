@@ -1,5 +1,10 @@
 # v2 build queue (code first, verify later)
 
+**Lead, after round 24:** a sent prompt with diff comments shows the raw `<comments>…</comments>` envelope in the
+transcript. v1 parses it back (`web/js/comment-text.js` line 94) and draws the comments as cards above the text. Port
+that: parse in the prompt renderer, show each comment (file:line, quoted line, the note), then the rest of the prompt.
+Named test with the exact envelope v2 sends.
+
 **Lead's parity pass after round 23 (2026-11-12, `/tmp/qa-lead/parity`, 1440+390 browser):** the kit-wide CSS
 changes broke no metrics (home, palette, task, task.composer: 0 parts off at 1440). Left: (1) crew and task.transcript
 are not reachable at 390 (the opener's click times out: the phone layout hides what it clicks); (2) pixels fail on
