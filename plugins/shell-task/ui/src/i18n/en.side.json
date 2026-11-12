@@ -151,5 +151,13 @@
   "shell-task.preview.pickTitle": "Pick element: click one in the page to describe it in the reply box",
   "shell-task.preview.pickWait": "Pick element (once the page has loaded)",
   "shell-task.side.runApp": "Run app",
-  "shell-task.side.stopApp": "Stop app"
+  "shell-task.side.stopApp": "Stop app",
+  "shell-task.side.watch": "Watch",
+  "shell-task.watch.none": "Nothing to watch on this task.",
+  "shell-task.watch.working": "Working",
+  "shell-task.watch.stopped": "Stopped",
+  "shell-task.watch.finished": "Finished",
+  "shell-task.watch.openTab": "Open in a new tab",
+  "shell-task.watch.runIt": "Run it yourself",
+  "shell-task.watch.copyRun": "Copy the command, with cd into its folder"
 }

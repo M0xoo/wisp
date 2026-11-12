@@ -26,6 +26,8 @@ export const pickedTab = signal<string | undefined>(undefined);
 
 /** A terminal task's CLI, beside it (`shell-task.term`). */
 export const TERM_VIEW = 'shell-task.term';
+/** the watch beside a task (wisp_watch, F-page-32) */
+export const WATCH_VIEW = 'shell-task.watch';
 
 /** A terminal task: its list fields say so (`summary.tui`; flat on a flattened row). */
 export function isTui(row: unknown): boolean {
@@ -38,7 +40,7 @@ export function sideOf(nav: Nav): { pane: SidePane; id: string; file?: string } 
   const s = nav.side;
   if (s.kind === 'changes' && s.file) return { pane: s.kind, id: s.id, file: s.file };
   if (s.kind === 'changes' || s.kind === 'shell' || s.kind === 'pr' || s.kind === 'preview') return { pane: s.kind, id: s.id };
-  if (s.kind === 'view' && s.id === 'shell-task.watch' && nav.main.kind === 'task') return { pane: 'watch', id: nav.main.id };
+  if (s.kind === 'view' && s.id === WATCH_VIEW && nav.main.kind === 'task') return { pane: 'watch', id: nav.main.id };
   if (s.kind === 'view' && s.id === TERM_VIEW && nav.main.kind === 'task') return { pane: 'term', id: nav.main.id };
   if (s.kind === 'view' && s.id === TAB_VIEW && nav.main.kind === 'task') return { pane: 'tab', id: nav.main.id };
   return undefined;

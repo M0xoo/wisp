@@ -311,6 +311,11 @@ export const COMMANDS: Record<string, CommandFn> = {
       ]),
     ],
   }),
+  // Automations: no recipes or triggers yet (v1's reference shows Recipes 0 · Triggers 0)
+  'automations.tasks': () => ({ ops: [], result: [] }),
+  'automations.trigger.ls': () => ({ ops: [], result: [] }),
+  // Compare runs' Keep this: the other runs' folders (none on the mock)
+  'worktrees.clean': () => ({ ops: [], result: { queued: 0 } }),
   'router.view': () => ({ ops: [], result: { settings: { blocked: [] } } }),
   'router.set': () => ({ ops: [], result: {} }),
   // a folder picker's suggestions (runtime.folders, v1 GET /fs?q=): a small home, answered in the form typed

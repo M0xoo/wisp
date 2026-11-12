@@ -274,8 +274,8 @@ const EXTRA = {
   '.it-dock .composer textarea': '[data-part="composer.input"]',
   // v1 #autoPv: what Auto will run, on the harness pill (v2's Auto pick chip)
   '#autoPv': '[data-part="launcher.autoPreview"]',
-  // v1 .auto-modal's New (Triggers tab): v2's New trigger in Settings → Automations
-  '.auto-modal [data-act="new"]': '[data-part~="automations.trigger.new"]',
+  // v1 .auto-modal's New (Triggers tab): the Automations dialog's New trigger
+  '.auto-modal [data-act="new"]': '[data-part~="automations.new"]',
   // the rail's Add a crew member (v1 has no PARTS name for it; v2's kit rail names it crew.add)
   '#crewRail .cl-add': '[data-part="crew.add"]',
   '#secCrew .cr-add': '[data-part="crew.add"]',

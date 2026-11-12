@@ -1,6 +1,6 @@
 // The shell's own entries in a task's row menu (v1 actions.js taskMenu), on `shell.row:menu` like any plugin's:
 // Rerun… and Fork… (a new task from this one, its row and page at once, as the task's More does), Changes and Shell
-// (the panel beside it). Which show, by v1's rules (forkable, a side discussion has no Rerun, a pending row no panel).
+// (the panel beside it), Compare runs (the runs of one ask side by side). Which show, by v1's rules (forkable, a side discussion has no Rerun, a pending row no panel).
 import { entityKey, uuidv7, type PeerId } from '@wisp/client';
 import type { ExtensionDef, ExtensionProps, ShellContext } from '../contract.ts';
 import { defineExtension } from '../define.ts';
@@ -16,6 +16,8 @@ export interface MenuRow {
   readonly delegated?: unknown;
   readonly sideOf?: unknown;
   readonly machine?: unknown;
+  /** the runs of one ask share it (wisp --compare): Compare runs */
+  readonly groupId?: string;
 }
 
 export const rowOf = (p: ExtensionProps): MenuRow | undefined => p.session?.() as MenuRow | undefined;
@@ -88,6 +90,15 @@ export function rowMenuItems(ctx: ShellContext): ExtensionDef[] {
       70,
       (k) => side('shell', k),
       (s) => !!s && !s.pending,
+    ),
+    // v1: after Run app and Watch, before Save as recipe
+    item(
+      'shell.row.compare',
+      'shell.compare.menu',
+      'agent',
+      86,
+      (k) => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.compare' as never, params: { id: k } } }),
+      (s) => !!s?.groupId,
     ),
   ];
 }

@@ -4,7 +4,7 @@ import { lazy } from 'solid-js';
 
 const TaskSide = lazy(() => import('./TaskSide.tsx'));
 import { defineExtension, definePluginUi, defineView } from './define.ts';
-import { TAB_VIEW, TERM_VIEW } from './open-task.ts';
+import { TAB_VIEW, TERM_VIEW, WATCH_VIEW } from './open-task.ts';
 import { commentStore, waiting, withComments } from './comments.ts';
 import { CATALOGUE } from './i18n/index.ts';
 import { defineCommand } from '@wisp/client';
@@ -56,6 +56,25 @@ export default definePluginUi({
         },
       },
     }),
+    // Watch in a task's row menu (v1 panel.js watchItem): a task whose agent keeps a page beside it (wisp_watch)
+    defineExtension({
+      id: 'shell-task.rowWatch',
+      attachTo: { id: 'shell.row:menu' },
+      component: () => null,
+      order: 84,
+      if: (p) => !!(p.session?.() as { watch?: unknown } | undefined)?.watch,
+      bar: {
+        icon: 'eye',
+        label: 'shell-task.side.watch',
+        priority: 84,
+        select: (p) => {
+          const key = String((p.session?.() as { id?: string } | undefined)?.id ?? '');
+          if (!key) return;
+          p.client.navigate({ t: 'openTask', id: key as never });
+          p.client.navigate({ t: 'openSide', side: { kind: 'view', id: WATCH_VIEW as never } });
+        },
+      },
+    }),
     ...(['changes', 'pr', 'shell', 'preview'] as const).map((p) => defineExtension({ id: `shell-task.side.${p}`, attachTo: { id: `shell.side:${p}` }, component: TaskSide })),
     // under each turn: why it stopped, what holds it, what moved in the CLI, its receipt
     defineExtension({ id: 'shell-task.turn', attachTo: { id: 'shell.turn:foot' }, component: lazy(() => import('./cards/TurnFoot.tsx')) }),
@@ -94,6 +113,7 @@ export default definePluginUi({
     },
   ],
   views: [
+    defineView({ kind: WATCH_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.watch'] ?? '', component: TaskSide as never }),
     defineView({ kind: TERM_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.term'] ?? '', component: TaskSide as never }),
     defineView({ kind: TAB_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.label'] ?? '', component: TaskSide as never }),
   ],

@@ -45,3 +45,5 @@ export { SpareCards, type SpareCard, type SpareCardsProps } from './Spare.tsx';
 export { RailCardBody, headingForCard, stepRow, type RailCardBodyProps, type RailCardRow } from './RailCard.tsx';
 export { AutoPop, type AutoPopProps, type AutoPopRow } from './AutoPop.tsx';
 export { ProjectsSheet, type ProjectsSheetProps, type ProjectsRow, type ProjectsPlace } from './ProjectsSheet.tsx';
+export { CompareRuns, type CompareRunsProps, type CompareRowView, type CompareRunView, type CompareCellView } from './Compare.tsx';
+export { AutomationsBody, AutoList, TriggerKinds, AutoRow, AutoPresets, AutoNote, AutoFoot, type AutomationsTab, type AutoItem, type TriggerKind, type Rich } from './Automations.tsx';
