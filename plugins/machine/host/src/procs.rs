@@ -40,7 +40,9 @@ const MIGRATIONS: &[Migration] = &[Migration::sql(
        guard TEXT, tasks TEXT, crew TEXT, leftovers TEXT, leftover_groups TEXT, history TEXT, reclaim TEXT, cleanup TEXT) STRICT;
      CREATE TABLE machine_load (id TEXT PRIMARY KEY, at INTEGER NOT NULL, platform TEXT NOT NULL, mem_free_pct REAL, runs INTEGER NOT NULL,
        held TEXT, limits TEXT, paused_until INTEGER NOT NULL, left_behind INTEGER NOT NULL) STRICT;",
-)];
+),
+// v1's Now line reads the CPU too ("CPU at 50% of its cores"): the guard's reading, as a share of all cores
+Migration::sql(2, "ALTER TABLE machine_load ADD COLUMN cpu REAL;")];
 
 fn snapshot_topics(_: &Row) -> Vec<String> {
     vec![SNAPSHOT_TOPIC.into()]
@@ -85,6 +87,7 @@ pub const LOAD: EntityDef = EntityDef {
         ("at", Col::Int),
         ("platform", Col::Text),
         ("mem_free_pct", Col::Real),
+        ("cpu", Col::Real),
         ("runs", Col::Int),
         ("held", Col::Text),
         ("limits", Col::Text),
@@ -128,6 +131,7 @@ pub fn rows(v: &MachineView, reading: &LoadReading, paused_until: i64, cleanup: 
     load.insert("at".into(), json!(reading.at));
     load.insert("platform".into(), json!(platform));
     load.insert("mem_free_pct".into(), reading.mem_free_pct.map_or(Value::Null, |n| json!(n)));
+    load.insert("cpu".into(), reading.cpu.map_or(Value::Null, |n| json!(n)));
     load.insert("runs".into(), json!(reading.runs));
     load.insert("held".into(), serde_json::to_value(&reading.held).unwrap_or(Value::Null));
     load.insert("limits".into(), serde_json::to_value(reading.limits).unwrap_or(Value::Null));
@@ -509,6 +513,7 @@ mod tests {
         assert_eq!(s["cleanup"], "7");
         let l = db.read(|r| r.get("machine.load", "this")).unwrap().unwrap();
         assert_eq!(l["mem_free_pct"], 42.5);
+        assert_eq!(l["cpu"], 10.0, "v1's Now line: CPU at 10% of its cores");
         assert_eq!(l["paused_until"], 99);
         assert_eq!(l["left_behind"], 1);
         assert_eq!(l["limits"]["floor"], 15);

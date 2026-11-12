@@ -123,9 +123,11 @@ export interface MachineLoad {
   readonly at: number;
   readonly platform?: string;
   readonly mem_free_pct: number | null;
+  /** the CPU in use, as a share of all cores (v1 load.cpu); absent on rows written before it was kept */
+  readonly cpu?: number | null;
   readonly runs: number;
   readonly held: { readonly kind: Held; readonly why: string } | null;
-  readonly limits: { readonly floor: number | null };
+  readonly limits: { readonly floor: number | null; readonly maxRuns?: number | null };
   readonly paused_until: number;
   /** processes left behind, from the last snapshot */
   readonly left_behind: number;
