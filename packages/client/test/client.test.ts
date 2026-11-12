@@ -65,7 +65,10 @@ test('plugins get the same APIs, owned by their scope: stores, views, strings, s
   const crew = client.plugin('crew');
   crew.strings({ 'crew.title': 'Crew' });
   const view = crew.registerView({ id: 'crew.board', slot: 'main', parse: (p) => (p === null ? null : undefined) });
-  const settings = crew.settings([{ key: 'crew.size', type: 'int', min: 1, max: 9, default: 3, scope: 'device' }, { key: 'crew.mode', type: 'enum', values: ['auto', 'manual'], default: 'auto' }] as const);
+  const settings = crew.settings([
+    { key: 'crew.size', type: 'int', min: 1, max: 9, default: 3, scope: 'device' },
+    { key: 'crew.mode', type: 'enum', values: ['auto', 'manual'], default: 'auto' },
+  ] as const);
   const size: number = settings.get('crew.size')();
   assert.equal(size, 3);
   await settings.set('crew.size', 5);
@@ -159,4 +162,17 @@ test('a plugin writes drafts into the one drafts store (the composer keeps its t
   composer.drafts.clear('box:s1', 'text');
   assert.equal(client.drafts.get('box:s1', 'text')(), undefined);
   client.dispose();
+});
+
+test('plugin_clients_are_one_per_plugin_while_their_scope_lives: settings declared once however often a plugin is asked for', () => {
+  const { client } = make(memoryPersist());
+  const a = client.plugin('composer');
+  assert.equal(client.plugin('composer'), a, 'the same client: its settings, stores and caches are made once');
+  a.settings([{ key: 'composer.followUp', type: 'enum', values: ['interrupt', 'queue'], default: 'interrupt', scope: 'server' }] as never);
+  assert.doesNotThrow(() => client.plugin('composer'));
+  // switched off: its scope ends, the next ask is a fresh client that may declare its settings again
+  a.scope.dispose();
+  const b = client.plugin('composer');
+  assert.notEqual(b, a);
+  assert.doesNotThrow(() => b.settings([{ key: 'composer.followUp', type: 'enum', values: ['interrupt', 'queue'], default: 'interrupt', scope: 'server' }] as never));
 });

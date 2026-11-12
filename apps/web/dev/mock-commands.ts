@@ -112,6 +112,23 @@ function sessionPatch(ctx: CommandCtx, id: string, ops: PatchOp[]): EntityOp[] {
   return out;
 }
 
+interface QItem {
+  readonly id: string;
+  readonly text: string;
+  readonly at: number;
+}
+
+/** A task's queued follow-ups (the row's `body.queue`). */
+function queueOf(ctx: CommandCtx, id: string): QItem[] {
+  const row = obj(ctx.row('list', 'session', id));
+  const q = obj(row['body'])['queue'];
+  return Array.isArray(q) ? (q as QItem[]) : [];
+}
+
+/** The task's queue and its count on the row. */
+const setQueue = (ctx: CommandCtx, id: string, q: readonly QItem[]): EntityOp[] =>
+  sessionPatch(ctx, id, [{ op: 'add', path: '/body/queue', value: q }, { op: 'replace', path: '/summary/queued', value: q.length }, touch(ctx)]);
+
 const touch = (ctx: CommandCtx): PatchOp => ({ op: 'replace', path: '/updated_at', value: ctx.now() });
 
 /** Rerun and Fork: a copy of a task, running, under the id the client chose. */
@@ -166,19 +183,137 @@ export const COMMANDS: Record<string, CommandFn> = {
     const mine: Topic = own(id);
     return { ops: [{ topic: 'list', e: 'session', id, op: 'del' }, ...ctx.rows(mine).map((r): EntityOp => ({ topic: mine, e: r.e, id: r.id, op: 'del' }))] };
   },
-  'runtime.stop': (a, ctx) => ({
-    ops: sessionPatch(ctx, str(obj(a), 'id'), [
-      { op: 'replace', path: '/state', value: 'review' },
-      { op: 'replace', path: '/summary/live', value: '' },
-    ]),
-  }),
+  // a Stop keeps the queue, held: nothing goes by itself until you send something or Send now (v1 queued.js)
+  'runtime.stop': (a, ctx) => {
+    const id = str(obj(a), 'id');
+    const held = queueOf(ctx, id).length > 0;
+    return {
+      ops: sessionPatch(ctx, id, [
+        { op: 'replace', path: '/state', value: 'review' },
+        { op: 'replace', path: '/summary/live', value: '' },
+        ...(held ? [{ op: 'add' as const, path: '/body/queueHeld', value: true }] : []),
+      ]),
+    };
+  },
   'runtime.followUp': (a, ctx) => {
     const x = obj(a);
     const id = str(x, 'id');
     const text = str(x, 'text');
+    // Settings → Follow-ups: Queue (the client says so while the task works): it waits behind the run (v1 queued.js)
+    if (x['queue'] === true) {
+      const item = { id: typeof x['turnId'] === 'string' ? x['turnId'] : `q${ctx.now().toString(36)}`, text, at: ctx.now() };
+      return { ops: setQueue(ctx, id, [...queueOf(ctx, id), item]), result: { queued: true } };
+    }
     const ops = sessionPatch(ctx, id, [touch(ctx)]);
     ctx.stream(id, { prompt: text, ...(typeof x['turnId'] === 'string' && { turnId: x['turnId'] }) });
     return { ops, result: { queued: false } };
+  },
+  // the queue over the reply box (shell-composer's QueueFoot): edit, send now, combine, reorder, cancel
+  'runtime.queue.text': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'id');
+    return {
+      ops: setQueue(
+        ctx,
+        id,
+        queueOf(ctx, id).map((q) => (q.id === str(x, 'itemId') ? { ...q, text: str(x, 'text') } : q)),
+      ),
+    };
+  },
+  'runtime.queue.cancel': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'id');
+    return {
+      ops: setQueue(
+        ctx,
+        id,
+        queueOf(ctx, id).filter((q) => q.id !== str(x, 'itemId')),
+      ),
+    };
+  },
+  'runtime.queue.order': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'id');
+    const order = Array.isArray(x['order']) ? (x['order'] as string[]) : [];
+    const q = queueOf(ctx, id);
+    const moved = [...order.map((o) => q.find((i) => i.id === o)).filter((i): i is QItem => i !== undefined), ...q.filter((i) => !order.includes(i.id))];
+    return { ops: setQueue(ctx, id, moved) };
+  },
+  'runtime.queue.sendNow': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'id');
+    const it = queueOf(ctx, id).find((q) => q.id === str(x, 'itemId'));
+    if (it) ctx.stream(id, { prompt: it.text });
+    return {
+      ops: setQueue(
+        ctx,
+        id,
+        queueOf(ctx, id).filter((q) => q.id !== str(x, 'itemId')),
+      ),
+    };
+  },
+  'runtime.queue.merge': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'id');
+    const ids = Array.isArray(x['ids']) ? (x['ids'] as string[]) : [];
+    const q = queueOf(ctx, id);
+    const taken = q.filter((i) => ids.includes(i.id));
+    const first = taken[0];
+    if (!first) return { ops: [] };
+    const merged = { ...first, text: taken.map((i) => i.text).join('\n\n') };
+    return {
+      ops: setQueue(
+        ctx,
+        id,
+        q.filter((i) => !ids.includes(i.id) || i.id === first.id).map((i) => (i.id === first.id ? merged : i)),
+      ),
+    };
+  },
+  // New task, later (wisp.later's plans): a timed task, a reminder, a /draft, an /after <task>; Scheduled or Drafts in the list
+  'later.plan': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'tmp') || `p${ctx.now().toString(36)}`;
+    const body = obj(x['body']);
+    const v = {
+      id,
+      kind: str(x, 'kind') || 'task',
+      setAt: ctx.now(),
+      ...(typeof x['at'] === 'number' && { at: x['at'] }),
+      ...(x['draft'] === true && { draft: true }),
+      ...(x['after'] !== undefined && { after: x['after'] }),
+      ...(x['body'] !== undefined && {
+        body,
+        title: String(body['prompt'] ?? '')
+          .split('\n')[0]
+          ?.slice(0, 80),
+      }),
+      ...(typeof x['text'] === 'string' && { text: x['text'] }),
+    };
+    return { ops: [{ topic: 'plugin:wisp.later:later' as Topic, e: 'later_plan', id: `${ctx.peer}:${id}`, op: 'upsert', v }], result: v };
+  },
+  // a task's spec (ADR-0027), what Rerun… starts from: its first prompt, the steps after, how and where it ran
+  'runtime.spec': (a, ctx) => {
+    const id = str(obj(a), 'id');
+    const row = obj(ctx.row('list', 'session', id));
+    const sum = obj(row['summary']);
+    const turns = ctx
+      .rows(own(id))
+      .filter((r) => r.e === 'turn')
+      .map((r) => obj(r.v))
+      .sort((x, y) => Number(x['idx']) - Number(y['idx']));
+    const prompts = turns.map((t) => String(t['prompt'] ?? '')).filter(Boolean);
+    return {
+      ops: [],
+      result: {
+        prompt: prompts[0] ?? String(row['title'] ?? ''),
+        steps: prompts.slice(1),
+        agent: String(row['agent'] ?? 'claude'),
+        model: String(sum['model'] ?? ''),
+        effort: '',
+        mode: String(sum['mode'] ?? 'auto'),
+        cwd: String(sum['cwd'] ?? ''),
+      },
+    };
   },
   'runtime.create': (a, ctx) => {
     const x = obj(a);

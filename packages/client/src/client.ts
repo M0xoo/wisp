@@ -107,6 +107,8 @@ export function createClient(o: ClientOptions): Client {
   const settings = createSettings({ reader, commands, home: o.home, persist, warn });
   const i18n = createI18n({ dev: o.dev === true, warn });
   const stores = createStoreHost({ persist, warn });
+  /** one client per plugin while its scope lives (pluginClient) */
+  const plugins = new Map<string, PluginClient>();
   const saveNav = (url: string): void => {
     persist.write([{ ns: 'nav', key: 'last', value: url }]).catch(() => {});
   };
@@ -150,7 +152,21 @@ export function createClient(o: ClientOptions): Client {
     dispose: () => scope.dispose(),
   };
 
+  // One client per plugin while its scope lives: a plugin's settings, stores and caches keyed by its client are made
+  // once however many times it's asked for (a second client re-declared its settings and threw). Switched off (its
+  // scope disposed), the next ask makes a fresh one.
   function pluginClient(id: string): PluginClient {
+    const had = plugins.get(id);
+    if (had) return had;
+    const made = makePluginClient(id);
+    plugins.set(id, made);
+    made.scope.add(() => {
+      if (plugins.get(id) === made) plugins.delete(id);
+    });
+    return made;
+  }
+
+  function makePluginClient(id: string): PluginClient {
     const ps = scope.child(`plugin:${id}`);
     return {
       id,
