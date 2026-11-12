@@ -4,7 +4,8 @@
 //   POST /api/events             sub / unsub / window / mutate for the stream named by X-Wisp-Client
 //   POST /__mock/stream?id=      start a streaming turn (default: the first running task)
 //   POST /__mock/fail?cmd=       the next run of that command is refused (see a rollback)
-//   POST /__mock/reset           the mock starts over from its seed
+//   POST /__mock/reset           the mock starts over from its seed (?seed=first-run: no tasks yet,
+//                                 New task's first run; MOCK_FIRST_RUN=1 starts that way)
 // MOCK_SESSIONS=5000 adds that many plain tasks (a long list); MOCK_PEER names the peer.
 // MOCK_SEED=<design/v1-reference/seed.json> replays v1's reference data (qa/parity.mjs), with the
 // mock's clock starting at the capture time.
@@ -61,12 +62,12 @@ function runStream(req: IncomingMessage, res: ServerResponse): void {
   req.on('close', () => timers.forEach(clearTimeout));
 }
 
-function middleware(box: { peer: MockPeer; fresh: () => MockPeer }) {
+function middleware(box: { peer: MockPeer; fresh: (firstRun?: boolean) => MockPeer }) {
   return (req: IncomingMessage, res: ServerResponse, next: () => void): void => {
     const url = new URL(req.url ?? '/', 'http://mock');
     const peer = box.peer;
     if (url.pathname === '/__mock/reset') {
-      box.peer = box.fresh();
+      box.peer = box.fresh(url.searchParams.get('seed') === 'first-run' || undefined);
       resetGit();
       return void res.writeHead(204).end();
     }
@@ -98,7 +99,8 @@ function v1Seed(): { v1: V1Seed; timers: MockTimers } | undefined {
 }
 
 export function mockPeer(): Plugin {
-  const fresh = (): MockPeer => createMockPeer({ sessions: Number(process.env['MOCK_SESSIONS'] ?? 0), ...(process.env['MOCK_PEER'] && { peer: process.env['MOCK_PEER'] }), ...v1Seed() });
+  const fresh = (firstRun = process.env['MOCK_FIRST_RUN'] === '1'): MockPeer =>
+    createMockPeer({ sessions: Number(process.env['MOCK_SESSIONS'] ?? 0), ...(process.env['MOCK_PEER'] && { peer: process.env['MOCK_PEER'] }), ...(firstRun ? { firstRun } : v1Seed()) });
   // POST /__mock/reset starts it over from its seed (the QA gates, between presses)
   const box = { peer: fresh(), fresh };
   return {

@@ -38,6 +38,8 @@ export interface MockPeerOptions {
   timers?: MockTimers;
   /** a fixed epoch makes resumes testable; default: one per process */
   epoch?: string;
+  /** no tasks yet: the first-run launcher (MOCK_FIRST_RUN=1, or POST /__mock/reset?seed=first-run) */
+  firstRun?: boolean;
   /** v1's reference data (design/v1-reference/seed.json): replayed instead of the hand-written seed */
   v1?: V1Seed;
 }
@@ -77,7 +79,7 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
   const timers = o.timers ?? realTimers;
   const peer = o.peer ?? 'local';
   const epoch = o.epoch ?? `mock-${timers.now().toString(36)}`;
-  const data: Seeded = o.v1 ? fromV1(o.v1, peer) : seed({ peer, now: timers.now(), extra: o.sessions ?? 0 });
+  const data: Seeded = o.v1 ? fromV1(o.v1, peer) : seed({ peer, now: timers.now(), extra: o.sessions ?? 0, ...(o.firstRun && { firstRun: true }) });
   const store = new Map<Topic, Map<string, Row>>();
   const conns = new Map<string, Conn>();
   const handlers = new Map<string, CommandFn>(Object.entries(COMMANDS));
@@ -247,7 +249,11 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
       { topic, e: 'turn', id: turnId, op: 'upsert', v: data.turn(sid, turnId, turns.length, prompt ?? 'Keep going: and make the empty state say what to do next.', now) },
       { topic, e: 'event', id: sid, op: 'append', v: [{ session_id: sid, seq: nextSeq(), turn_id: turnId, t: now, kind: 'tool', body: { kind: 'tool', tool: 'read', label: 'Read src/list.ts' } }] },
       { topic, e: 'event', id: sid, op: 'append', v: [{ session_id: sid, seq: nextSeq() + 1, turn_id: turnId, t: now, kind: 'text', body: { kind: 'text', text: '' } }] },
-      ...listOps([{ op: 'replace', path: '/state', value: 'running' }, { op: 'replace', path: '/summary/status', value: 'running' }, { op: 'replace', path: '/summary/live', value: 'Reading src/list.ts' }]),
+      ...listOps([
+        { op: 'replace', path: '/state', value: 'running' },
+        { op: 'replace', path: '/summary/status', value: 'running' },
+        { op: 'replace', path: '/summary/live', value: 'Reading src/list.ts' },
+      ]),
     ]);
     let text = '';
     let n = 0;
@@ -256,7 +262,13 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
       text += `${words[n % words.length] ?? 'and'} `;
       n += 1;
       const ops: EntityOp[] = [{ topic, e: 'event', id: sid, op: 'patch', ops: [{ op: 'replace', path: `/${at}/body/text`, value: text }] }];
-      if (n % 20 === 0) ops.push(...listOps([{ op: 'replace', path: '/summary/live', value: `Writing… ${n} words` }, { op: 'replace', path: '/updated_at', value: timers.now() }]));
+      if (n % 20 === 0)
+        ops.push(
+          ...listOps([
+            { op: 'replace', path: '/summary/live', value: `Writing… ${n} words` },
+            { op: 'replace', path: '/updated_at', value: timers.now() },
+          ]),
+        );
       if (n < tokens) {
         commit(ops);
         timers.setTimeout(tick, everyMs);
@@ -264,8 +276,24 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
       }
       commit([
         ...ops,
-        { topic, e: 'turn', id: turnId, op: 'patch', ops: [{ op: 'replace', path: '/status', value: 'done' }, { op: 'replace', path: '/answer', value: text.trim() }, { op: 'replace', path: '/body/presentation', value: data.presentation() }] },
-        ...listOps([{ op: 'replace', path: '/state', value: 'review' }, { op: 'replace', path: '/summary/status', value: 'done' }, { op: 'replace', path: '/summary/live', value: '' }, { op: 'replace', path: '/summary/preview', value: text.slice(0, 80).trim() }, { op: 'replace', path: '/updated_at', value: timers.now() }]),
+        {
+          topic,
+          e: 'turn',
+          id: turnId,
+          op: 'patch',
+          ops: [
+            { op: 'replace', path: '/status', value: 'done' },
+            { op: 'replace', path: '/answer', value: text.trim() },
+            { op: 'replace', path: '/body/presentation', value: data.presentation() },
+          ],
+        },
+        ...listOps([
+          { op: 'replace', path: '/state', value: 'review' },
+          { op: 'replace', path: '/summary/status', value: 'done' },
+          { op: 'replace', path: '/summary/live', value: '' },
+          { op: 'replace', path: '/summary/preview', value: text.slice(0, 80).trim() },
+          { op: 'replace', path: '/updated_at', value: timers.now() },
+        ]),
       ]);
     };
     timers.setTimeout(tick, everyMs);

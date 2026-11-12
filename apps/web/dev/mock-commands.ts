@@ -7,6 +7,49 @@
 import type { EntityOp, PatchOp, Topic } from '@wisp/protocol';
 import { gitChanges, gitCommit, gitRevert, gitStage, type GitCtx } from './mock-git.ts';
 
+const EFFORTS = ['low', 'medium', 'high', 'xhigh'];
+const MOCK_AGENTS = [
+  {
+    id: 'claude',
+    name: 'Claude Code',
+    available: true,
+    efforts: EFFORTS,
+    models: [
+      { id: '', label: 'Default' },
+      { id: 'claude-opus-5-5', label: 'Opus 5.5', efforts: EFFORTS },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', efforts: EFFORTS },
+      { id: 'claude-haiku-5-5', label: 'Haiku 5.5' },
+    ],
+  },
+  {
+    id: 'codex',
+    name: 'Codex',
+    available: true,
+    efforts: ['low', 'medium', 'high'],
+    models: [
+      { id: '', label: 'Default' },
+      { id: 'gpt-5.5-codex', label: 'GPT-5.5 Codex' },
+      { id: 'gpt-5.5', label: 'GPT-5.5' },
+    ],
+  },
+  {
+    id: 'opencode',
+    name: 'opencode',
+    available: true,
+    efforts: [],
+    models: [
+      { id: '', label: 'Default' },
+      { id: 'anthropic/claude-sonnet-5-5', label: 'anthropic/claude-sonnet-5-5' },
+    ],
+  },
+  ...[
+    ['cursor', 'Cursor'],
+    ['copilot', 'Copilot'],
+    ['grok', 'Grok'],
+    ['antigravity', 'Antigravity'],
+  ].map(([id, name]) => ({ id, name, available: false, efforts: [], models: [] })),
+];
+
 /** The task whose worktree (or folder) is `dir`, and its turns' bodies (their `changes`). */
 function gitCtx(ctx: CommandCtx): GitCtx {
   const task = (dir: string): { id: string; v: Record<string, unknown> } | undefined =>
@@ -195,7 +238,32 @@ export const COMMANDS: Record<string, CommandFn> = {
   'git.revert': (a) => ({ ops: [], result: gitRevert(obj(a)) }),
   'git.commit': (a) => ({ ops: [], result: gitCommit(obj(a)) }),
   // read-only answers the app asks for at start and on a task page: nothing to show in the mock
-  'runtime.agents': () => ({ ops: [], result: [] }),
+  // the harnesses the picker offers (runtime.agents' AgentOffer): three set up, the rest registered but not on this
+  // machine, so the trigger form's runner picker and New task's show and can be measured
+  'runtime.agents': () => ({ ops: [], result: MOCK_AGENTS }),
+  // ⌘K past work: words in a task's prompts and answers (the peer's full-text index), a snippet around them
+  'runtime.search': (a, ctx) => {
+    const q = str(obj(a), 'q').toLowerCase().trim();
+    if (q.length < 3) return { ops: [], result: [] };
+    const hits: { id: string; title: string; snippet: string; updatedAt: number }[] = [];
+    for (const r of ctx.rows('list')) {
+      if (r.e !== 'session') continue;
+      const s = r.v as { id: string; title: string; updated_at: number };
+      const bare = s.id.slice(s.id.indexOf(':') + 1);
+      const texts = ctx
+        .rows(`session:${bare}` as Topic)
+        .filter((x) => x.e === 'turn')
+        .flatMap((x) => {
+          const v = x.v as { prompt?: string; answer?: string };
+          return [v.prompt ?? '', v.answer ?? ''];
+        });
+      const found = texts.find((t) => t.toLowerCase().includes(q));
+      if (!found) continue;
+      const at = found.toLowerCase().indexOf(q);
+      hits.push({ id: bare, title: s.title, snippet: found.slice(Math.max(0, at - 30), at + q.length + 50), updatedAt: s.updated_at });
+    }
+    return { ops: [], result: hits.slice(0, Number(obj(a)['limit'] ?? 20)) };
+  },
   // Settings → Usage as v1's reference had it: $0.09 over 9 turns, all worked, no questions; a week of days
   'runtime.usage': (a) => {
     const days = Number((obj(a) as { days?: number }).days ?? 7);

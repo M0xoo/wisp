@@ -456,10 +456,11 @@ function sessionTopic(peer: string, i: number, t: Task, now: number): { list: Ro
   return { list: { e: 'session', id: s.id, v: s.v }, own };
 }
 
-export function seed(o: { peer: string; now: number; extra: number }): Seeded {
+/** `firstRun`: no tasks yet (New task's first-run launcher, F-comp-35); the rest of the seed as it is. */
+export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean }): Seeded {
   const topics = new Map<Topic, Row[]>();
   const list: Row[] = [];
-  TASKS.forEach((t, i) => {
+  (o.firstRun ? [] : TASKS).forEach((t, i) => {
     const s = sessionTopic(o.peer, i, t, o.now);
     list.push(s.list);
     topics.set(`session:${s.list.id.slice(s.list.id.indexOf(':') + 1)}`, s.own); // the bare id, as the client subscribes
@@ -508,7 +509,13 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
     STUFF.map((s, i) => ({
       e: 'stuff.item',
       id: s.id,
-      v: { ...s, name: s.path.slice(s.path.lastIndexOf('/') + 1), at: o.now - (i + 1) * 5 * HOUR, by: 'you', ...(s.kind === 'app' && { uses: ['tasks:read', 'tasks:write'], allowed: ['tasks:read', 'tasks:write'], rev: 1 }) },
+      v: {
+        ...s,
+        name: s.path.slice(s.path.lastIndexOf('/') + 1),
+        at: o.now - (i + 1) * 5 * HOUR,
+        by: 'you',
+        ...(s.kind === 'app' && { uses: ['tasks:read', 'tasks:write'], allowed: ['tasks:read', 'tasks:write'], rev: 1 }),
+      },
     })),
   );
   return {
