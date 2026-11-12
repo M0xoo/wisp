@@ -58,16 +58,17 @@ jobs:
           name: desktop-mac
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      # A real Electron release, for the update people on one make onto this build (INST-18): the one
-      # INST-40 installs on Windows (ELECTRON in qa/install.mjs). macos-latest is Apple silicon.
-      # curl, not gh: this workflow never touches a release.
-      - run: mkdir -p dist/electron && curl -fsSLo dist/electron/wisp-mac-arm64.zip https://github.com/WispAgents/wisp/releases/download/v0.57.0/wisp-mac-arm64.zip
-      - run: node qa/install.mjs --old-electron dist/electron/wisp-mac-arm64.zip
+      # the gate (qa/desktop-v2.mjs): the app as downloaded runs its own wisp server and leaves nothing behind.
+      # macos-latest is Apple silicon.
+      - name: The downloaded app runs v2
+        run: |
+          mkdir -p dist/gate && ditto -x -k dist/tauri/wisp-mac-arm64.zip dist/gate
+          node qa/desktop-v2.mjs --app dist/gate/wisp.app/Contents/MacOS/wisp
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: install-gate-mac
-          path: qa/out/install.*
+          path: qa/out/desktop-v2.md
 
   windows:
     runs-on: windows-latest
@@ -101,12 +102,12 @@ jobs:
           name: desktop-windows
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      - run: node qa/install.mjs
+      - run: node qa/desktop-v2.mjs --install dist/tauri/wisp-windows-x64-setup.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: install-gate-windows
-          path: qa/out/install.*
+          path: qa/out/desktop-v2.md
 
   linux:
     strategy:
@@ -145,12 +146,15 @@ jobs:
           name: desktop-linux-${{ matrix.arch }}
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      - run: xvfb-run -a dbus-run-session -- node qa/install.mjs --only ${{ matrix.rows }}
+      - name: The AppImage runs v2
+        run: |
+          chmod +x dist/tauri/wisp-linux-${{ matrix.arch }}.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a dbus-run-session -- node qa/desktop-v2.mjs --app dist/tauri/wisp-linux-${{ matrix.arch }}.AppImage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: install-gate-linux-${{ matrix.arch }}
-          path: qa/out/install.*
+          path: qa/out/desktop-v2.md
 
   # A report, never a gate: a failed lookup here mustn't hold a release.
   sizes:
