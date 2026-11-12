@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde_json::{Value, json};
 use wisp_kernel::http::{Request, Response, Route};
 use wisp_kernel::{Result as WireResult, WireError};
-use wisp_runtime_core::media::{MediaFile, doc_file, keep_plan, kept, media_file, mime, resolve};
+use wisp_runtime_core::media::{MediaFile, SNIFF_LEN, content_fits, doc_file, keep_plan, kept, media_file, mime, resolve};
 
 use crate::error::{Result, RuntimeError};
 use crate::plugin::{Slot, rt};
@@ -51,6 +51,34 @@ fn range(h: Option<&str>, size: u64) -> Span {
     parse().unwrap_or(Span::Whole)
 }
 
+/// Whether `p`'s first bytes are the picture or video its extension says (`content_fits`).
+async fn fits(p: &Path) -> bool {
+    use tokio::io::AsyncReadExt as _;
+    let Ok(file) = tokio::fs::File::open(p).await else { return false };
+    let mut head = Vec::with_capacity(SNIFF_LEN);
+    file.take(SNIFF_LEN as u64).read_to_end(&mut head).await.is_ok() && content_fits(p, &head)
+}
+
+/// `from` copied to `to` when it's a file of at most `max` bytes whose bytes are what its name says: checked and
+/// copied through one open handle, so a file swapped for a link to a secret in between is never copied.
+async fn copy_fitting(from: &Path, to: &Path, max: u64) -> bool {
+    use tokio::io::{AsyncReadExt as _, AsyncSeekExt as _};
+    let Ok(mut file) = tokio::fs::File::open(from).await else { return false };
+    if !file.metadata().await.is_ok_and(|m| m.is_file() && m.len() <= max) {
+        return false;
+    }
+    let mut head = Vec::with_capacity(SNIFF_LEN);
+    if (&mut file).take(SNIFF_LEN as u64).read_to_end(&mut head).await.is_err() || !content_fits(from, &head) || file.rewind().await.is_err() {
+        return false;
+    }
+    let Ok(mut out) = tokio::fs::File::create(to).await else { return false };
+    let copied = tokio::io::copy(&mut file.take(max), &mut out).await.is_ok();
+    if !copied {
+        let _ = tokio::fs::remove_file(to).await;
+    }
+    copied
+}
+
 impl Runtime {
     /// v1 `keepImages`: every local picture or video the answer shows is copied into `~/.wisp/shots/<task>/` and its
     /// block names the copy (`source` keeps the original), so it still shows once /tmp is cleared. One that's gone,
@@ -59,8 +87,8 @@ impl Runtime {
         let Some(root) = self.host.shots() else { return };
         let shots = root.join(s.id.as_str());
         for k in keep_plan(Path::new(&s.cwd), blocks, turn, &shots) {
-            let fits = tokio::fs::metadata(&k.from).await.is_ok_and(|m| m.is_file() && m.len() <= k.max);
-            if !fits || tokio::fs::create_dir_all(&shots).await.is_err() || tokio::fs::copy(&k.from, &k.to).await.is_err() {
+            // a copy only of what is the picture or video it says (never a secret behind a `.png` link)
+            if tokio::fs::create_dir_all(&shots).await.is_err() || !copy_fitting(&k.from, &k.to, k.max).await {
                 continue;
             }
             if let Some(b) = blocks.get_mut(k.index) {
@@ -94,7 +122,17 @@ impl Runtime {
                 e.insert(is);
             }
         }
-        Ok(media_file(&dir, asked, &blocks, &|p| seen.get(p).copied().unwrap_or(false)))
+        let Some(mut f) = media_file(&dir, asked, &blocks, &|p| seen.get(p).copied().unwrap_or(false)) else { return Ok(None) };
+        // a link in the folder that points out of it is outside too
+        if !f.outside {
+            let (real, root) = (tokio::fs::canonicalize(&f.path).await, tokio::fs::canonicalize(&dir).await);
+            f.outside = !matches!((real, root), (Ok(real), Ok(root)) if real.starts_with(&root));
+        }
+        if f.outside && !fits(&f.path).await {
+            tracing::warn!(task = id, path = %f.path.display(), "not served: its bytes aren't the picture or video its name says");
+            return Ok(None);
+        }
+        Ok(Some(f))
     }
 
     /// Show in folder (v1 POST /sessions/:id/reveal): a picture's or video's (where the agent saved it, else the
@@ -126,6 +164,10 @@ async fn serve(slot: Slot, req: Request) -> WireResult<Response> {
     let not_found = || Response::Json { status: 404, body: json!({ "error": "not found" }) };
     let Some(f) = r.media(&id, &asked).await.map_err(WireError::from)? else { return Ok(not_found()) };
     let Ok(data) = tokio::fs::read(&f.path).await else { return Ok(not_found()) };
+    // the bytes that go out are checked themselves: the file may have been swapped since `media` looked
+    if !content_fits(&f.path, data.get(..SNIFF_LEN.min(data.len())).unwrap_or_default()) {
+        return Ok(not_found());
+    }
     let ty = mime(&f.path).to_owned();
     let size = data.len() as u64;
     let mut headers = vec![("accept-ranges".into(), "bytes".into()), ("x-content-type-options".into(), "nosniff".into()), ("content-security-policy".into(), MEDIA_CSP.into())];

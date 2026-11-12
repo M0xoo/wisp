@@ -46,11 +46,67 @@ pub fn mime(p: &Path) -> &'static str {
     }
 }
 
+/// What a file is, as its extension or its first bytes say: an SVG is text, so only `.svg` takes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Raster,
+    Svg,
+    Video,
+}
+
+/// What the extension claims.
+#[must_use]
+pub fn kind_of(p: &Path) -> Option<Kind> {
+    let ext = ext_of(p);
+    if ext == "svg" {
+        Some(Kind::Svg)
+    } else if IMAGE_EXT.contains(&ext.as_str()) {
+        Some(Kind::Raster)
+    } else if VIDEO_EXT.contains(&ext.as_str()) {
+        Some(Kind::Video)
+    } else {
+        None
+    }
+}
+
+/// How many bytes `sniff` reads: enough for an SVG's prolog and comments before `<svg`.
+pub const SNIFF_LEN: usize = 4096;
+
+/// What a file's first bytes are: PNG, JPEG, GIF, `WebP`; an ISO box (MP4/MOV: `ftyp`, or a `QuickTime` `moov`/`mdat`/
+/// `wide`/`free`/`skip` box whose size fits) or `WebM`; SVG markup.
+#[must_use]
+pub fn sniff(head: &[u8]) -> Option<Kind> {
+    let at = |i: usize, m: &[u8]| head.get(i..i + m.len()) == Some(m);
+    if at(0, b"\x89PNG\r\n\x1a\n") || at(0, b"\xff\xd8\xff") || at(0, b"GIF87a") || at(0, b"GIF89a") || (at(0, b"RIFF") && at(8, b"WEBP")) {
+        return Some(Kind::Raster);
+    }
+    // a box's size: 1 (a 64-bit size follows) or 8 up to 512 MB (a first byte under 0x20, which no text starts
+    // with); "key=free-tier" reads "free" at 4 too
+    let size = head.get(..4).map_or(0, |b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]));
+    let quicktime = (size == 1 || (8..0x2000_0000).contains(&size)) && [b"moov", b"mdat", b"wide", b"free", b"skip"].iter().any(|b| at(4, *b));
+    if at(0, b"\x1a\x45\xdf\xa3") || at(4, b"ftyp") || quicktime {
+        return Some(Kind::Video);
+    }
+    // an SVG is text: markup from its first character (a BOM and blank lines aside) and an `<svg` element early on
+    let text = String::from_utf8_lossy(head.get(..SNIFF_LEN.min(head.len())).unwrap_or_default()).to_ascii_lowercase();
+    let text = text.trim_start_matches('\u{feff}').trim_start();
+    (text.starts_with('<') && text.contains("<svg")).then_some(Kind::Svg)
+}
+
+/// A file goes out only when its bytes are what its extension says: a block naming `/tmp/s.png` that's a link to
+/// `~/.ssh/id_rsa`, a key renamed `.png`, or an HTML page with an inline `<svg>` named `.png` is not served.
+#[must_use]
+pub fn content_fits(p: &Path, head: &[u8]) -> bool {
+    kind_of(p).is_some_and(|k| sniff(head) == Some(k))
+}
+
 /// The file to serve for `asked`, and where the agent saved it when that's a copy (`source`, v1 keepImages).
+/// `outside`: it isn't under the task's folder, so its content must fit its extension (`content_fits`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaFile {
     pub path: PathBuf,
     pub source: Option<PathBuf>,
+    pub outside: bool,
 }
 
 /// v1 `mediaFile(s, asked)`: `blocks` are every turn's answer blocks.
@@ -73,7 +129,7 @@ pub fn media_file<'a>(dir: &Path, asked: &str, blocks: impl IntoIterator<Item = 
         return None;
     }
     let source = block.and_then(|b| field(b, "source")).map(|s| resolve(dir, &s)).filter(|s| exists(s));
-    Some(MediaFile { path: p, source })
+    Some(MediaFile { path: p, source, outside: !inside })
 }
 
 /// The largest picture and video wisp keeps a copy of (v1 `MAX_KEPT_IMAGE`, `MAX_KEPT_VIDEO`).
@@ -165,6 +221,46 @@ mod tests {
         assert_eq!(doc_file(dir, "docs/a.md", &docs, &all), Some(PathBuf::from("/w/app/docs/a.md")));
         assert_eq!(doc_file(dir, "/home/me/plan.md", &docs, &all), Some(PathBuf::from("/home/me/plan.md")));
         assert_eq!(doc_file(dir, "/home/me/other.md", &docs, &all), None);
+    }
+
+    #[test]
+    fn a_file_outside_the_folder_goes_only_when_its_bytes_are_the_picture_or_video_its_extension_says() {
+        let png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+        let mp4 = b"\0\0\0\x18ftypmp42\0\0\0\0";
+        assert_eq!(sniff(png), Some(Kind::Raster));
+        assert_eq!(sniff(b"\xff\xd8\xff\xe0\0\x10JFIF"), Some(Kind::Raster));
+        assert_eq!(sniff(b"GIF89a\x01\0"), Some(Kind::Raster));
+        assert_eq!(sniff(b"RIFF\x10\0\0\0WEBPVP8 "), Some(Kind::Raster));
+        assert_eq!(sniff(b"\xef\xbb\xbf\n<?xml version=\"1.0\"?>\n<!-- by hand -->\n<SVG xmlns=\"http://www.w3.org/2000/svg\"/>"), Some(Kind::Svg));
+        assert_eq!(sniff(mp4), Some(Kind::Video));
+        assert_eq!(sniff(b"\x1a\x45\xdf\xa3\x9f\x42\x86\x81"), Some(Kind::Video));
+        // what a secret looks like: never a picture
+        assert_eq!(sniff(b"-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk"), None);
+        assert_eq!(sniff(b"[default]\naws_access_key_id = AKIA"), None);
+        assert_eq!(sniff(b"<html><body>not an svg</body></html>"), None);
+        assert_eq!(sniff(b"see <svg> in the docs"), None, "text that mentions svg isn't one");
+        assert_eq!(sniff(b""), None);
+        // the extension and the bytes must agree on the kind
+        assert!(content_fits(Path::new("/tmp/s.png"), png));
+        assert!(content_fits(Path::new("/tmp/s.JPG"), png), "a PNG named .jpg is still a picture");
+        assert!(!content_fits(Path::new("/tmp/s.png"), mp4), "a video named .png");
+        assert!(!content_fits(Path::new("/tmp/s.mp4"), png));
+        assert!(!content_fits(Path::new("/tmp/id_rsa.png"), b"-----BEGIN OPENSSH PRIVATE KEY-----"));
+        assert!(!content_fits(Path::new("/tmp/s.txt"), png), "no extension of ours");
+        // an SVG is text: only .svg takes it, so a page with an inline icon named .png doesn't pass
+        let page = b"<html><body><svg viewBox=\"0 0 1 1\"/> token=abc</body></html>";
+        assert!(!content_fits(Path::new("/tmp/s.png"), page));
+        assert!(content_fits(Path::new("/tmp/s.svg"), b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"));
+        assert!(!content_fits(Path::new("/tmp/s.svg"), png));
+        // QuickTime's other first boxes count only with a box's size: text that reads "free" at 4 isn't a video
+        assert_eq!(sniff(b"\0\0\0\x08wide\0\0\0\0mdat"), Some(Kind::Video));
+        assert_eq!(sniff(b"key=free-tier"), None);
+        // media_file says which ones need the check
+        let dir = Path::new("/w/app");
+        let blocks = [json!({ "type": "image", "path": "/tmp/s.png" })];
+        let all = |_: &Path| true;
+        assert!(media_file(dir, "/tmp/s.png", &blocks, &all).unwrap().outside);
+        assert!(!media_file(dir, "shot.png", &blocks, &all).unwrap().outside);
     }
 
     #[test]
