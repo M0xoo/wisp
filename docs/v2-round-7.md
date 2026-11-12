@@ -873,3 +873,10 @@ composites + no-styling (19), shell remote + rows-view (6), shell-list wire (1).
 
 **Not started this round:** stage/commit/revert in Changes (F-page-21/22), the v1 sync ports #775 #776 #777
 #779/#780 #781, the untrusted UI's side view and toolbar button.
+**Round 20, second pass.** RepoTabs.tsx deleted for good (Repo is in ⌘K and the project + menu). allowed.md §5 and
+parity's `owner` rule kind (the project selector, 10d8f30f). The dot is the project's colour (v1 .q-dot); unread is
+the title's. The 13 home views re-captured from v1 origin/main (Try two ways gone, #771); home at rest 1 of 162 parts
+off. v1's Transcript (F-task-34) on the kit's Timeline (`TurnTranscript.tsx`), the hero's state row and meta with it
+(`BlockContext.heroMeta`), Transcript pressed (`TaskAction.on`); test `a_heros_state_row_is_left_out_…`. Parity's
+translator reaches the task bar's actions. Not started: the Changes pane (item 3), the v1 sync ports (item 4), the
+`wisp add .` fix (item 5), and parity for palette, crew, settings, stuff.

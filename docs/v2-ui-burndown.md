@@ -100,3 +100,23 @@ Mock: `runtime.agents` and `plugins.ui` answer (empty) in apps/web/dev/mock-comm
 carry a "the mock peer has no runtime.agents" toast.
 
 **Still to run this round:** palette, crew (its opener at 600), settings panes, stuff.
+
+## 2026-11-12 (round 20, second pass): the owner's decisions applied
+
+- **The project selector** (10d8f30f) is an owner decision: allowed.md §5 and the new rule kind `owner`
+  (`*  topbar.projects  owner`): the part's box masked, its metrics and what's inside it skipped, the generic parts
+  (`x.button`…) counted again on both sides without it.
+- **The dot** is v1's: the task's project colour (`colorToken`, slate without a project), warn while it asks, pulsing
+  while it runs; unread is the title's (600, ink), never the dot's.
+- **Try it two ways**: v1 dropped it (#771); the references that showed it are re-captured from v1 origin/main
+  a5b1c646 with the same tool and seed (`REF_RESTORE=1`, both modes).
+- **task.transcript**: v1's Transcript (F-task-34) on the kit's `Timeline`; 1440 from 30 to 15 parts off. Parity's
+  translator maps v1's `.item.open .it-actions [data-a=…]` to v2's task bar (the opener never reached it).
+- **task.changes**: the main pane is already 508px beside the panel, as v1's. The panel's content is next: the mock
+  has no `git.changes`, and the pane needs v1's head, stats, commit row, Stage / Viewed per file (item 3).
+
+`home` against the re-captured references (13 views from v1 origin/main a5b1c646, both modes): at rest **1 of 162
+parts off** at 1440, 1024 and 900 (only `section.needs`), 0.5–0.9 % px; 600 px 0.0 % px, 2 parts off; 4 shots pixel-
+clean. **Next:** the hover and focus states compare everything inside the row by document order (`target#n`), and
+v2's row nests differently from v1's `.it-head` (lead › dot, main › hit › title …): its element tree has to follow v1's
+for those to line up; 390 / 320 px: the composer bar's folded items (autoPreview, harness) sized as v1's.
