@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Panes beside tasks.** In My Stuff, an app's ⋯ → Pin beside tasks puts it in a tab of the panel beside every task, after Changes, PR, Shell and Preview; the app is told which task is open. Unpin from the tab's bar or My Stuff.
+- **A crew member's card beside the rail.** Hover a face (or focus it and press →) to see who it is, what it's up to and the jobs it's on, each one click away; its delegated jobs no longer repeat in the desktop list.
+- **Pick an element in Preview.** The run's page now goes through a small local proxy so wisp can add its picker; click Pick, then an element, and its selector, HTML and styles go in the reply box.
 - **Panes on Home.** Pin an app from My Stuff on Home (its ⋯ → Pin on home, or Add on one of Make a pane's starters): it shows in a tile under Needs you, side by side when there are several, and on a phone as a row that opens it full screen. It asks before it uses wisp (Allow…), and every task it wants to start or follow up waits for your click.
 - **A crew member's jobs for other tasks sit under them** in the phone's Crew section, as list cards (3 at most, then "2 more · open Ada"), and leave the list until they need you.
 - **Move and link on the Org page.** Drag a card to put it where you want (kept on every device), or drag from its handle onto another member to make them a delegate; Reset layout puts the chart back.

@@ -10,6 +10,12 @@
    (TypeError reading 'map'). macOS `tauri` passes. Make the Windows desktop build package the v2 binary the way the
    macOS one does (no `files` dependency), so both use one v2 path.
 
+**Round 28 (done):** the pane correction (saved defaults, v1's card exactly); the launcher focus border; Preview's
+element picker (ADR-0049, the run proxy); the crew rail's hover card; panes beside tasks (`SideTabDef`); v1-features
+partial 143 → 140. Next: v1-features partial rows, most-used first; for the lead: home.auto-preview (v1's Auto
+pick-preview popover is missing in v2), the issues picker's layout (v1 a top palette 640 wide), projects/right-click
+layout; one pane frame per app across tasks (v2 reloads it on a task switch).
+
 **Round 27 (done):** the owner's four decisions; phone Crew job cards (ShellApi `taskCards`); panes on Home with the
 bridge host; Org drag and link; folder suggestions (`runtime.folders`, kit `PathField`). Next: Preview's element picker
 (a proxy that injects the pick script: Rust), panes beside tasks, the rail's hover card (then side by side can leave

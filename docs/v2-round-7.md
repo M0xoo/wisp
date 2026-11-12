@@ -1164,3 +1164,48 @@ Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, every test file 
 time, the Rust tests above, clippy -D warnings on wisp-runtime, -runtime-api, -plugins. Seen in Chrome/playwright: panes
 1440 light/dark and 390 (row, page, Back), the Allow card, the phone Crew section light/dark, Org move and link, the
 Folder… suggestions 1440 light and 390 dark.
+
+## Round 28 (2026-11-12)
+
+**Correction first: a pane's task is v1's.** Round 27's "a pane's task always starts on Edits" is superseded. A task a
+pane starts takes your saved defaults (the `default` agent profile through `resources.export`, the worktree setting):
+no mode saved is Full auto, v1's DEFAULT_MODE (`panes/grant.ts` `defaultsFrom`); the wire passes the body as built. The
+card is v1's pane-card.js: rows Project, Harness, Mode (Full auto flagged), a follow-up's Task, Harness, Mode, State;
+invisible characters as `<U+…>` chips; the "From" line; Send waits 600 ms, Cancel has the focus; refused while a dialog is
+open, cancelled when another overlay opens; after it starts, the toast "{name} started {task}". No hold or ask v1 didn't
+have. Tests: `pane-host.test.ts` (5: Mode rows, default Full auto, a saved plan mode, the toast, follow-up rows, the body
+unchanged), kit `pane-card.test.tsx`.
+
+**Launcher focus border.** `useOpenWithin` (kit `core/open-within.ts`) marks the launcher open while a menu in it is
+(v1 `:focus-within` held through its popovers); Home's bars render with `<Index>` so focus isn't lost to a remount, and
+Home focuses the prompt only when nothing else has focus. parity `V2_OPENERS` reaches home.issues, projects and
+task.right-click. Left: home.auto-preview (v1's Auto pick-preview popover doesn't exist in v2), the issues picker's
+layout (v1 a top palette 640 wide), projects/right-click layout.
+
+**Preview's element picker.** ADR-0049 (a new kind of route: a per-run loopback proxy). `plugins/terminal/host/src/proxy.rs`
+serves each run's page on 42000 + hash % 900, strips X-Frame-Options and CSP frame-ancestors, injects v1's pick script
+(`core/assets/pick.js`, at `/__wisp/pick.js`), answers only a loopback Host, decodes gzip/deflate/br, passes websockets
+through, and stops with the run. `RunInfo.proxy`/`RunStarted.proxy` (additive). PreviewPane frames the proxy when the page
+is on loopback; Pick inserts v1's text in the reply box (`side/pick.ts`). Tests: `pick.rs` (2), `proxy.rs` (compression,
+end to end), `pick.test.ts`; seen live with the real binary and a python server.
+
+**The crew rail's hover card.** Kit `app/RailCard.tsx` (`useRailCard`, `RailCardBody`): v1's 160/180/90 ms, the crossing
+rule, keys, Escape, in a Portal; crew's `RailCard.tsx` on the new input `shell.rail:card`. Side by side, a member's
+delegated jobs leave the desktop list (they're on the card), as v1. Test: kit `rail-card.test.tsx` (2).
+
+**Panes beside tasks.** `SideTabDef` on the plugin UI contract (additive, `sideTabs`; ShellApi `sideTabs()` gives each
+with its plugin's client): tabs a plugin adds after Changes, PR, Shell, Preview. shell-task shows them through the side
+view `shell-task.tab` (which tab: the panel's own state, as v1; a reload, or an unpin while open, goes to Changes). My
+Stuff: Pin beside tasks / Unpin in its menu, each app pinned `@task` a tab (`TaskPane.tsx`, "Name: pinned from My Stuff"),
+its pane told the task (`wisp.context`). The panel's tabs now give way when they don't fit (labels cut short, icons only
+under 420px, v1). Tests: `pins.test.ts` (taskTabs), `term.test.ts` (the tab view). Left: v1 kept one frame per app across
+tasks; v2 remounts the pane when you switch task (it reloads).
+
+**v1-features.** F-page-30, F-crew-5, F-stuff-4, F-task-22 built; F-stuff-7 beside tasks done. Partial 143 → 140,
+missing 27 → 26.
+
+Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, each touched test file one at a time (kit rail-card,
+pane-card, path-field, org; stuff pane-host, pins; shell-task pick, term; shell-list crew; crew smoke), the Rust tests
+above, clippy -D warnings on wisp-terminal, -core, -api. Parity: task.changes 0/174 parts off at 1440 light,
+task.changes-diff 1/174 (card.title weight, known). Seen in playwright: the side tab 1440 light/dark and 390, the rail
+card light/dark, Pick live.
