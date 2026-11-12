@@ -177,6 +177,9 @@ The open task's **More** and a row's right-click menu are one list (`taskMenuHtm
 - More doesn't repeat what the open task already shows (Changes on a narrow bar, the Shell card).
 - A new task action goes in the section where it belongs, not at the end. If it's rare, put it in a
   submenu. Keep the menu at about a dozen rows at most.
+- v2: `taskMenu` in `packages/shell/src/task-menu.ts` lays out both menus with the kit's `submenu`
+  entry and `menuSections`; a plugin's `shell.row:menu` entry names its place with `bar.section` or
+  `bar.sub`. Pin and Mark read (v2's own) come after Delete.
 
 ## Keyboard and accessibility
 
