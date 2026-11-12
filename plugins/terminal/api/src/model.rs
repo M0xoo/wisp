@@ -13,6 +13,8 @@ pub enum TermKind {
     #[default]
     Takeover,
     Shell,
+    /// added 2026-11-12: the task's app, run from its folder for the side panel's Preview (v1 server/runs.js)
+    Run,
 }
 
 /// The terminal flow (plan §4.6.3): a STOP while starting cancels the start, and an ended terminal never
@@ -106,6 +108,30 @@ pub struct ShellInfo {
     pub app: bool,
     /// the shell's name (`zsh`)
     pub name: String,
+}
+
+/// The side panel's Preview before it runs (v1 GET /sessions/:id/run): whether the app runs, the port it gets
+/// (`PORT`, stable per task), the folder, and a command to start from.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "terminal/")]
+pub struct RunInfo {
+    pub open: bool,
+    pub port: u16,
+    pub dir: String,
+    /// `.wisp/worktree.json`'s run, else package.json's dev or start script
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub guess: Option<String>,
+}
+
+/// Run's answer: started (or already running), on which port, in which folder.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "terminal/")]
+pub struct RunStarted {
+    pub ok: bool,
+    pub started: bool,
+    pub port: u16,
+    pub dir: String,
 }
 
 /// v1 POST /sessions/:id/shell's answer.

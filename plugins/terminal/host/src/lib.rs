@@ -36,13 +36,63 @@ async fn task_dir(ctx: &Ctx, call: &wisp_kernel::Call, id: &str) -> Result<(Stri
 }
 
 fn kind_of(req: &Request) -> TermKind {
-    if req.path.ends_with("/term") { TermKind::Takeover } else { TermKind::Shell }
+    if req.path.ends_with("/term") {
+        TermKind::Takeover
+    } else if req.path.ends_with("/run") {
+        TermKind::Run
+    } else {
+        TermKind::Shell
+    }
+}
+
+/// A file in the task's folder, if it's there (the command to guess from).
+async fn read_in(dir: &str, name: &str) -> Option<String> {
+    tokio::fs::read_to_string(std::path::Path::new(dir).join(name)).await.ok()
+}
+
+/// The side panel's Preview before it runs: whether it runs, its port, its folder, a command to start from.
+async fn run_info(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, id: &str) -> Result<wisp_terminal_api::RunInfo> {
+    let (dir, _) = task_dir(ctx, call, id).await?;
+    let wt = read_in(&dir, ".wisp/worktree.json").await;
+    let pkg = read_in(&dir, "package.json").await;
+    let mut locks = Vec::new();
+    for f in ["pnpm-lock.yaml", "yarn.lock", "bun.lockb", "bun.lock"] {
+        if tokio::fs::try_exists(std::path::Path::new(&dir).join(f)).await.unwrap_or(false) {
+            locks.push(f);
+        }
+    }
+    let guess = wisp_terminal_core::run::guess(wt.as_deref(), pkg.as_deref(), &|f| locks.contains(&f));
+    Ok(wisp_terminal_api::RunInfo { open: r.live(TermKind::Run, id), port: wisp_terminal_core::run::port_for(id), dir, guess })
+}
+
+/// Runs the task's app in its folder on a PTY, `PORT` set (v1 POST /sessions/:id/run).
+async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, a: &c::RunStartArgs) -> Result<wisp_terminal_api::RunStarted> {
+    let port = wisp_terminal_core::run::port_for(&a.id);
+    if a.command.trim().is_empty() {
+        return Err(WireError::invalid("Say what runs the app (npm run dev, …)."));
+    }
+    if cfg!(windows) {
+        return Err(WireError::invalid("Preview runs the app under a POSIX shell: it needs macOS or Linux on the computer the task runs on."));
+    }
+    if r.live(TermKind::Run, &a.id) && !a.restart {
+        return Ok(wisp_terminal_api::RunStarted { ok: true, started: false, port, dir: String::new() });
+    }
+    if a.restart {
+        r.close(TermKind::Run, &a.id).await;
+    }
+    let (dir, _) = task_dir(ctx, call, &a.id).await?;
+    let mut argv = wisp_terminal_core::folder::shell_argv(std::env::var("SHELL").ok().as_deref());
+    argv.truncate(1);
+    argv.extend(["-lc".to_owned(), wisp_terminal_core::run::script(&a.command, port)]);
+    r.open(ctx, &c::OpenArgs { kind: TermKind::Run, id: a.id.clone(), argv, cwd: dir.clone(), cols: a.cols, rows: a.rows, tui: false });
+    Ok(wisp_terminal_api::RunStarted { ok: true, started: true, port, dir })
 }
 
 fn routes(s: &mut Setup, slot: &Slot) {
     for (method, pattern, summary) in [
         ("GET", "/sessions/:id/shell", "The task's shell, as an event stream (hello, data, exit)"),
         ("GET", "/sessions/:id/term", "The task's take over terminal, as an event stream"),
+        ("GET", "/sessions/:id/run", "The task's running app's output (Preview), as an event stream"),
     ] {
         let sl = slot.clone();
         s.route(Route {
@@ -59,7 +109,7 @@ fn routes(s: &mut Setup, slot: &Slot) {
             }),
         });
     }
-    for pattern in ["/sessions/:id/shell", "/sessions/:id/term"] {
+    for pattern in ["/sessions/:id/shell", "/sessions/:id/term", "/sessions/:id/run"] {
         let sl = slot.clone();
         s.route(Route {
             method: "DELETE",
@@ -184,6 +234,8 @@ impl Plugin for TerminalPlugin {
             let shell = std::env::var("SHELL").ok();
             Ok(ShellInfo { supported: !cfg!(windows), open: r.live(TermKind::Shell, &a.id), app: !a.via_proxy && cfg!(target_os = "macos"), name: wisp_terminal_core::folder::shell_name(shell.as_deref()) })
         });
+        on!(s, slot, c::RunStart, |r, ctx, call, a| start_run(&ctx, &call, &r, &a).await);
+        on!(s, slot, c::RunInfoOf, |r, ctx, call, a| run_info(&ctx, &call, &r, &a.id).await);
         s.command::<c::Apps, _, _>(|_ctx, _call, _a| async move { Ok(apps_here(std::env::consts::OS, &|k| std::env::var(k).ok())) });
         routes(s, &slot);
         let start = slot;

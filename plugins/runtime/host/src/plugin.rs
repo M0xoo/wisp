@@ -527,7 +527,9 @@ fn reads(s: &mut Setup, slot: &Slot) {
     cmd!(s, slot, c::Usage, |r, call, a| {
         let from = r.now() - i64::from(a.days.unwrap_or(7).clamp(1, 366)) * 86_400_000;
         let turns = r.repo.turns_since(from).await?;
-        Ok(wisp_runtime_core::usage::summarize(&turns, from))
+        // where each task ran, for the per-project breakdown (v1 usage.js By project)
+        let cwd: std::collections::HashMap<String, String> = r.repo.sessions().await?.into_iter().map(|x| (x.id.as_str().to_owned(), x.cwd)).collect();
+        Ok(wisp_runtime_core::usage::breakdown(&turns, from, r.now(), &|id| cwd.get(id).cloned()))
     });
     let sl = slot.clone();
     s.command::<c::Exec, _, _>(move |ctx, _call, a| {

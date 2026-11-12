@@ -450,6 +450,53 @@ pub struct UsageSummary {
     pub worked: Option<f64>,
     /// turns that ended by asking a question
     pub questions: u32,
+    /// added 2026-11-12 (additive): turns with a price (a harness that reports cost)
+    #[serde(default)]
+    pub priced: u32,
+    /// added 2026-11-12: tasks the turns belong to
+    #[serde(default)]
+    pub sessions: u32,
+    /// added 2026-11-12: one per day of the window, oldest first (v1 usage.js "Spend per day")
+    #[serde(default)]
+    pub daily: Vec<UsageDay>,
+    /// added 2026-11-12: by project (the task's folder), most spent first
+    #[serde(default)]
+    pub projects: Vec<UsageRow>,
+    /// added 2026-11-12: by harness · model, most spent first
+    #[serde(default)]
+    pub runners: Vec<UsageRow>,
+}
+
+/// One day of `runtime.usage`'s window (UTC).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct UsageDay {
+    /// `YYYY-MM-DD`
+    pub date: String,
+    pub cost: f64,
+    pub turns: u32,
+}
+
+/// One row of a breakdown: a project, or a harness · model.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct UsageRow {
+    /// the project's folder, or `agent model`
+    pub key: String,
+    /// the project's name, or the model
+    pub name: String,
+    /// a runner row's harness
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub agent: String,
+    pub cost: f64,
+    pub priced: u32,
+    pub turns: u32,
+    /// 0–100 of the ended ones; null when none ended
+    pub worked: Option<f64>,
+    pub questions: u32,
+    /// the ended turns' average length (ms)
+    pub avg_ms: Option<f64>,
 }
 
 /// `runtime.cold` (v1 web/js/cold-cache.js): a large idle task's prompt cache, and Compact now.

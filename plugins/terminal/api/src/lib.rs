@@ -14,10 +14,10 @@ pub mod service;
 
 pub use commands::{
     Apps, AppsArgs, Close, Done, Get, Input, InputArgs, KindId, Open, OpenApp, OpenAppArgs,
-    OpenArgs, ShellInfoArgs, ShellInfoOf, ShellStart, ShellStartArgs,
+    OpenArgs, RunInfoArgs, RunInfoOf, RunStart, RunStartArgs, ShellInfoArgs, ShellInfoOf, ShellStart, ShellStartArgs,
 };
 pub use model::{
-    Changed, InputOrder, ShellInfo, ShellStarted, TaskFolder, TermInfo, TermKind, TermState,
+    Changed, InputOrder, RunInfo, RunStarted, ShellInfo, ShellStarted, TaskFolder, TermInfo, TermKind, TermState,
     TerminalApp, TerminalApps,
 };
 pub use points::{FOLDER, FolderSource};

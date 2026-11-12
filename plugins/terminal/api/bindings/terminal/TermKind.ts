@@ -3,4 +3,4 @@
 /**
  * A take over (the task's agent on a terminal, v1 `app.terms`) or the shell beside it (`app.shells`).
  */
-export type TermKind = "takeover" | "shell";
+export type TermKind = "takeover" | "shell" | "run";

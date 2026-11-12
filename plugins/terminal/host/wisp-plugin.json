@@ -47,6 +47,17 @@
         "readOnly": true
       },
       {
+        "id": "terminal.run.start",
+        "title": "Run the task's app for its Preview",
+        "uiOnly": "the side panel's Preview; an agent runs the app in its own shell"
+      },
+      {
+        "id": "terminal.run.info",
+        "title": "The task's app: running or not, its port, a command to start from",
+        "readOnly": true,
+        "uiOnly": "the side panel's Preview"
+      },
+      {
         "id": "terminal.apps",
         "title": "This computer's terminal apps",
         "readOnly": true,

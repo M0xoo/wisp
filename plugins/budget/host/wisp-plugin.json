@@ -23,6 +23,7 @@
       { "key": "budget.drainWatch", "type": "bool", "default": false, "title": "Drain watch: tell the phone when a plan moves much faster than usual for the same work" },
       { "key": "budget.limitHold", "type": "enum", "values": ["off", "80", "90", "95"], "default": "90", "title": "Ask near the limit: before a task would take a usage window past this percent, ask first (automations wait for the reset)" },
       { "key": "budget.liveLimits", "type": "bool", "default": false, "title": "Check Codex while work waits: read its usage every 10 minutes while work waits for its plan (spends nothing)" },
+      { "key": "budget.spareCard", "type": "bool", "default": true, "title": "Spare allowance: say on home when a weekly window resets within a day with a fifth or more left" },
       { "key": "budget.windowNotice", "type": "bool", "default": true, "title": "Window notices: say when a usage window changed length or resets early" }
     ],
     "events": ["budget.changed", "budget.drain", "budget.plan_free", "budget.reset", "budget.share"],

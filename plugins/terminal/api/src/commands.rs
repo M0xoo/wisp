@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use wisp_kernel::Command;
 
-use crate::model::{ShellInfo, ShellStarted, TermInfo, TermKind, TerminalApps};
+use crate::model::{RunInfo, RunStarted, ShellInfo, ShellStarted, TermInfo, TermKind, TerminalApps};
 
 macro_rules! command {
     ($(#[$m:meta])* $name:ident = $id:literal, $perm:literal : $args:ty => $out:ty $(, $ro:ident)?) => {
@@ -104,6 +104,30 @@ pub struct ShellStartArgs {
     pub restart: bool,
 }
 
+/// Runs `command` for task `id` in its folder, with `PORT` set (v1 POST /sessions/:id/run). Already running and no
+/// `restart`: nothing changes, `started: false`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "terminal/")]
+pub struct RunStartArgs {
+    pub id: String,
+    pub command: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cols: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rows: Option<f64>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub restart: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "terminal/")]
+pub struct RunInfoArgs {
+    pub id: String,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "terminal/")]
@@ -136,6 +160,8 @@ command!(Open = "terminal.open", "terminal:open": OpenArgs => TermInfo);
 command!(Input = "terminal.input", "terminal:input": InputArgs => Done);
 command!(Close = "terminal.close", "terminal:close": KindId => Done);
 command!(ShellStart = "terminal.shell.start", "terminal:shell": ShellStartArgs => ShellStarted);
+command!(RunStart = "terminal.run.start", "terminal:shell": RunStartArgs => RunStarted);
+command!(RunInfoOf = "terminal.run.info", "terminal:read": RunInfoArgs => RunInfo, read_only);
 command!(OpenApp = "terminal.app.open", "terminal:open": OpenAppArgs => Done);
 command!(Get = "terminal.get", "terminal:read": KindId => Option<TermInfo>, read_only);
 command!(
