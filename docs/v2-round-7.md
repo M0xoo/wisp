@@ -1466,3 +1466,30 @@ row-menu, ship unsent, shell-list flat (3), menu, watch-open, comments, apps/web
 launcher (1440, 390), compare card (1440 light/dark, 390), vs Compare → dialog, ⌘K "forwarded"; parity home 1440 light
 and dark 0 parts off.
 
+## Round 36 (2026-11-12)
+
+**#756 fix first (03aeb5f8).**
+- *serve_grid:307, Box credential at a computer: 401 vs 403.* Since b2222737 the grid checks a `Box <handle> <secret>`
+  against the running box's own secret; the test's `Box ada x` proves nobody, so it gets Sign in first (401), which is
+  right: an unproven credential has no identity to refuse. A *verified* box at a computer is refused by the trust table
+  (ADR-0014: the rules as data; `trust.rs` Credential::Box denies Computer, GridTunnel, GridReport): 403. The test now
+  asserts 401 + "Sign in first" for the forged one, and `apps/grid/tests/box_reach.rs` pins the trust table's 403 side
+  (`a_verified_box_is_refused_at_any_computer_and_its_page_alike_grid_box_reach`). `cargo test -p wisp --test
+  serve_grid`: 2 passed; `cargo test -p wisp-grid --test box_reach`; clippy -D warnings on wisp-grid.
+- *DESK2-05 on Windows.* DESK2-04 (hard kill) passes there, so the server's stdin reader does see the pipe close on
+  Windows (Rust's Windows stdin reads a broken pipe as EOF; an error would end the copy too). The quit path is what
+  differed: Windows has no SIGTERM and QA's quit is `taskkill /PID` (WM_CLOSE). Two fixes, neither guessing which:
+  closing the window on Windows/Linux now goes straight to `app.exit(0)` (RunEvent::Exit closes the pipe and waits);
+  and the server is put in a Job Object with KILL_ON_JOB_CLOSE (`server.rs` `job`, the `windows` crate already a
+  dependency: four Win32 features added, no new crate), so it can't outlive the shell however the shell ends. QA's
+  DESK2-05 now says whether the shell itself quit, so a next failure names its side. Type-checked for
+  x86_64-pc-windows-msvc (the job module alone: the whole shell needs Windows' resource compiler); macOS `cargo check`
+  of the shell; CI's tauri windows jobs are the run.
+
+**First-run launcher at 390.** On a phone Home is the list; New task opens the prompt, first-run there: attach, mode,
+harness, More options, Send, no overflow at 390 and 320 (light and dark). v1's narrow first run keeps the mode's words
+(`.launcher.first-run .l-bar .mode-btn span`): the kit's launcher takes `firstRun` (`data-first-run`) and does the same,
+so the mode's sparkle and Auto's never sit side by side unnamed.
+
+Checks: typecheck, `npm run check` (0 errors), the cargo tests above, vitest first-run.
+

@@ -1,6 +1,10 @@
 # v2 build queue (code first, verify later)
 
-**Fix first: #756 CI on 03aeb5f8 (2026-11-12).** (1) `crates/wisp/tests/serve_grid.rs:307`
+**Round 36 (done):** serve_grid's Box credential (401 forged / 403 verified, tests agree with ADR-0014), DESK2-05 on
+Windows (close quits; Job Object; QA names the side: CI to confirm), the first-run launcher at 390. Next: partial (129)
+and missing (18) rows, most-used first.
+
+**Done in round 36: #756 CI on 03aeb5f8 (2026-11-12).** (1) `crates/wisp/tests/serve_grid.rs:307`
 `a_computer_and_a_box_through_the_grid`: a box's credential (`authorization: Box ada x`) sent to a computer's host now
 gets 401, the test wants 403 (a_box_never_gets_a_laptop_token). Decide which is right (a known box credential at the
 wrong place = 403; a malformed one = 401?) and make code and test agree with the ADR; first run of the pr suite since
