@@ -5,7 +5,8 @@
 // comes back. A refusal puts it back as it was, with the error. Without git, the edits wisp saw, per file.
 import { Show, createMemo, createResource, createSignal, type JSX } from 'solid-js';
 import { defineCommand, type EntityKey } from '@wisp/client';
-import { ChangesList, EmptyState, useSignal, type ChangeFile, type ChangeRow, type StageState } from '@wisp/ui';
+import { ChangesList, CommentCard, EmptyState, rowKey, useSignal, type ChangeFile, type ChangeRow, type StageState } from '@wisp/ui';
+import { added, commentStore, lineKey, lineLabel, placeOf, waiting } from '../comments.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
 import { filesOf, type ChangeTurn } from './changes.ts';
@@ -78,6 +79,11 @@ export function ChangesPane(): JSX.Element {
   const shell = useShell();
   const task = useTask();
   const t = shell.t;
+  // comments on lines (v1 comments.js): the card under a line, the ones waiting for the next follow-up
+  const comments = commentStore(task.client);
+  const all = useSignal(comments.value);
+  const mine = createMemo(() => waiting(all(), task.key));
+  const [draft, setDraft] = createSignal<{ path: string; key: string; at: NonNullable<ReturnType<typeof placeOf>>; note: string } | undefined>();
   const raw = (): Raw | undefined => task.task() as Raw | undefined;
   // the task's worktree: wisp.worktrees' own ext, or the list row's summary (a task from v1's data has it there)
   const wt = (): Wt | undefined => raw()?.body?.ext?.['wisp.worktrees'] ?? raw()?.summary?.worktree ?? undefined;
@@ -211,6 +217,45 @@ export function ChangesPane(): JSX.Element {
         onStage={onStage}
         onHunkStage={onHunkStage}
         onRevertHunk={onRevertHunk}
+        comment={{
+          label: (o) => t(o.op === '-' ? 'shell-task.comment.onRemoved' : 'shell-task.comment.onLine', { n: (o.op === '-' ? o.a : o.b) ?? 0 }),
+          onAdd: (path, o) => {
+            const at = placeOf(path, o);
+            if (at) setDraft({ path, key: rowKey(o) ?? '', at, note: mine().find((c) => c.file === path && lineKey(c.side, c.line) === rowKey(o))?.note ?? '' });
+          },
+          marks: (path) => new Map(mine().flatMap((c, i) => (c.file === path ? [[lineKey(c.side, c.line), i + 1] as const] : []))),
+          open: draft()
+            ? {
+                path: draft()?.path ?? '',
+                key: draft()?.key ?? '',
+                card: (
+                  <CommentCard
+                    n={(() => {
+                      const d = draft();
+                      const i = mine().findIndex((c) => d && c.file === d.path && lineKey(c.side, c.line) === d.key);
+                      return i >= 0 ? i + 1 : mine().length + 1;
+                    })()}
+                    where={draft() ? lineLabel({ file: draft()?.path ?? '', line: draft()?.at.line ?? 0, side: draft()?.at.side ?? 'new' }) : ''}
+                    code={draft()?.at.code ?? ''}
+                    value={draft()?.note ?? ''}
+                    placeholder={t('shell-task.comment.placeholder')}
+                    onInput={(v) => {
+                      const d = draft();
+                      if (d) setDraft({ ...d, note: v });
+                    }}
+                    onSave={() => {
+                      const d = draft();
+                      if (!d || !d.note.trim()) return;
+                      comments.set((cur) => added(cur, task.key, { ...d.at, note: d.note.trim() }) as never);
+                      setDraft(undefined);
+                    }}
+                    onCancel={() => setDraft(undefined)}
+                    labels={{ save: t('shell-task.comment.save'), cancel: t('shell-task.comment.cancel'), hint: t('shell-task.comment.hint') }}
+                  />
+                ),
+              }
+            : undefined,
+        }}
         fileMenu={(path) => ({
           menu: {
             items: [

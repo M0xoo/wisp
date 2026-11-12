@@ -12,7 +12,7 @@ export function openTaskKey(client: Client, nav: Nav): EntityKey | undefined {
   return nav.main.kind === 'task' ? keyOf(client, nav.main.id) : undefined;
 }
 
-export type SidePane = 'changes' | 'shell' | 'pr' | 'watch' | 'term';
+export type SidePane = 'changes' | 'shell' | 'pr' | 'preview' | 'watch' | 'term';
 
 /** A terminal task's CLI, beside it (`shell-task.term`). */
 export const TERM_VIEW = 'shell-task.term';
@@ -27,7 +27,7 @@ export function isTui(row: unknown): boolean {
 export function sideOf(nav: Nav): { pane: SidePane; id: string; file?: string } | undefined {
   const s = nav.side;
   if (s.kind === 'changes' && s.file) return { pane: s.kind, id: s.id, file: s.file };
-  if (s.kind === 'changes' || s.kind === 'shell' || s.kind === 'pr') return { pane: s.kind, id: s.id };
+  if (s.kind === 'changes' || s.kind === 'shell' || s.kind === 'pr' || s.kind === 'preview') return { pane: s.kind, id: s.id };
   if (s.kind === 'view' && s.id === 'shell-task.watch' && nav.main.kind === 'task') return { pane: 'watch', id: nav.main.id };
   if (s.kind === 'view' && s.id === TERM_VIEW && nav.main.kind === 'task') return { pane: 'term', id: nav.main.id };
   return undefined;
