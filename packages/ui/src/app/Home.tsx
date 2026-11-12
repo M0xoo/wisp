@@ -84,6 +84,8 @@ export interface LauncherProps {
   readonly value: string;
   readonly onInput: (v: string) => void;
   readonly onSend: () => void;
+  /** before the first task (v1 .launcher.first-run): on a narrow box the mode keeps its words, so two sparkles never sit unnamed side by side */
+  readonly firstRun?: boolean;
   /** the box's own keys after its menus (↑ history, Shift+Tab mode): true when taken */
   readonly onKey?: (e: KeyboardEvent) => boolean;
   /** the @ and / menus (under the box) */
@@ -225,6 +227,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
         data-open={flag(within.open())}
         data-nudge={flag(nudge())}
         data-drop={flag(over())}
+        data-first-run={flag(props.firstRun)}
         {...dropHandlers(() => props.onFiles, setOver)}
       >
         <div data-kit="l-projects" data-part="launcher.projects">

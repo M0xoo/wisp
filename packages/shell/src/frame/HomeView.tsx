@@ -301,6 +301,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         }}
         onSend={send}
         onKey={onKey}
+        firstRun={firstRun()}
         suggest={menu.suggest()}
         onPaste={att.paste}
         onFiles={att.add}

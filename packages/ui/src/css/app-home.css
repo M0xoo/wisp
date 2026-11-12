@@ -609,6 +609,10 @@
     [data-kit='l-bar'] > [data-kit='mode-btn'] {
       padding: 0 7px;
     }
+    /* v1: first run on a phone the bar has room again, so the mode says Full auto beside its icon */
+    [data-kit='launcher'][data-first-run] [data-kit='l-bar'] > [data-kit='mode-btn'] > [data-text='control'] {
+      display: inline;
+    }
     [data-kit='l-bar'] {
       overflow-x: auto;
       scrollbar-width: none;
