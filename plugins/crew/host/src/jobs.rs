@@ -154,6 +154,23 @@ macro_rules! on {
 }
 
 /// `crew.wake` and `crew.wakeMentions` (ADR-0043).
+fn adopt(s: &mut Setup, st: &Arc<State>) {
+    // Add to crew… on a task (v1 POST /sessions/:id/crew): a new member, and the task becomes its first job
+    on!(s, st, c::Adopt, |st, ctx, call, a| {
+        let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.session_id })).await.map_err(|_| WireError::not_found("That task is gone."))?;
+        if task.pointer("/ext/wisp.crew/id").and_then(|v| v.as_str()).is_some() {
+            return Err(WireError::invalid("That task is already a crew member's job."));
+        }
+        let m = st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await)?;
+        st.put(m.clone());
+        st.save().await;
+        let ext = CrewExt { id: m.id.clone(), job: JobKind::Task, ..CrewExt::default() };
+        ctx.run_json(&call, "runtime.setExt", json!({ "id": a.session_id, "plugin": PLUGIN_ID, "value": ext })).await?;
+        ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "task".into() });
+        Ok(view(&ctx, &call, &st, &m).await)
+    });
+}
+
 fn wakes(s: &mut Setup, st: &Arc<State>) {
     // a wake (ADR-0043): what happened is the job; where it came from is said in it
     on!(s, st, c::Wake, |st, ctx, call, a| {
@@ -182,6 +199,7 @@ fn wakes(s: &mut Setup, st: &Arc<State>) {
 }
 
 pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
+    adopt(s, st);
     on!(s, st, c::List, |st, ctx, call, _a| {
         let crew = lock(&st.saved).crew.clone();
         let mut out = Vec::new();

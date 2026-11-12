@@ -475,3 +475,24 @@ async fn a_question_open_when_its_turn_ends_is_cleared() {
     assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await["state"], "cancelled");
     drop(serve);
 }
+
+/// Add to crew… on a task (v1 POST /sessions/:id/crew): a new member, the task its first job; a task already a
+/// member's job is refused.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_task_added_to_the_crew_becomes_the_new_members_first_job() {
+    let dir = temp("serve-adopt");
+    let (serve, port) = start(&dir);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let (_, task) = run_task(&api, &dir, "claude").await;
+    let id = task["id"].as_str().unwrap().to_owned();
+    let made = api.cmd("crew.adopt", json!({ "sessionId": id, "name": "Fixer", "role": "Bug fixer", "brief": "fix the add bug", "agent": "claude" })).await;
+    let member = made["id"].as_str().unwrap_or_else(|| panic!("a member: {made}")).to_owned();
+    let s = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert_eq!(s["ext"]["wisp.crew"]["id"], member.as_str());
+    assert_eq!(s["ext"]["wisp.crew"]["job"], "task");
+    let again = api.try_cmd("crew.adopt", json!({ "sessionId": id, "name": "Other", "role": "x", "brief": "y" })).await;
+    assert!(again.to_string().contains("already a crew member"), "{again}");
+    assert_eq!(api.cmd("crew.list", json!({})).await.as_array().map(Vec::len), Some(1));
+    drop(serve);
+}
+

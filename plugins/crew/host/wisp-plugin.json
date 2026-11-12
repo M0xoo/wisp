@@ -64,6 +64,10 @@
         "title": "Add a member"
       },
       {
+        "id": "crew.adopt",
+        "title": "Add a task to the crew"
+      },
+      {
         "id": "crew.update",
         "title": "Change a member"
       },

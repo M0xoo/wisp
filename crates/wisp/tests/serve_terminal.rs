@@ -168,3 +168,46 @@ async fn take_over_resumes_a_tasks_conversation_in_its_own_cli_inside_wisp() {
     assert!(none.to_string().contains("no conversation to take over"), "{none}");
     drop(serve);
 }
+
+/// Run app / Stop app on a task's row (v1 panel.js runLabel): wisp.terminal marks the task while its app runs
+/// (`ext["wisp.terminal"].run.running`), and clears it when the app is stopped or exits by itself.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tasks_running_app_is_marked_on_its_row_until_it_stops_or_exits() {
+    if cfg!(windows) {
+        return;
+    }
+    let dir = temp("serve-run-mark");
+    let (serve, port) = start_with(&dir, &[("SHELL", "/bin/sh")]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let (_, task) = run_task(&api, &dir, "claude").await;
+    let id = task["id"].as_str().unwrap().to_owned();
+    let running = |s: &Value| s.pointer("/ext/wisp.terminal/run/running").and_then(Value::as_bool);
+    let wait = |want: bool| {
+        let api = api.clone();
+        let id = id.clone();
+        async move {
+            let until = Instant::now() + Duration::from_secs(15);
+            loop {
+                let s = api.cmd("runtime.get", json!({ "id": id })).await;
+                if running(&s) == Some(want) || Instant::now() > until {
+                    return s;
+                }
+                tokio::time::sleep(Duration::from_millis(150)).await;
+            }
+        }
+    };
+    // a long-running app: marked; Stop clears it
+    let started = api.cmd("terminal.run.start", json!({ "id": id, "command": "sleep 30", "cols": 80, "rows": 24 })).await;
+    assert_eq!(started["started"], true, "{started}");
+    assert_eq!(running(&wait(true).await), Some(true));
+    api.cmd("terminal.close", json!({ "kind": "run", "id": id })).await;
+    assert_eq!(running(&wait(false).await), Some(false));
+    // one that exits by itself (after a beat, then at once): cleared without anyone stopping it, never left marked
+    api.cmd("terminal.run.start", json!({ "id": id, "command": "sleep 1", "cols": 80, "rows": 24 })).await;
+    assert_eq!(running(&wait(true).await), Some(true));
+    assert_eq!(running(&wait(false).await), Some(false), "an app that exited isn't running");
+    api.cmd("terminal.run.start", json!({ "id": id, "command": "true", "cols": 80, "rows": 24 })).await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert_eq!(running(&api.cmd("runtime.get", json!({ "id": id })).await), Some(false), "an app that exits at once isn't left marked");
+    drop(serve);
+}
