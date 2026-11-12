@@ -183,10 +183,17 @@ impl Plugin for RouterPlugin {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();
             let home = ctx.service::<Paths>().ok().map(|p| p.home().to_owned());
             opening.open(store, home).await?;
-            // the view row exists from the start: Settings → Auto never waits on a row nobody wrote
-            let here = agents(&ctx, &ctx.root_call()).await;
+            // the view row exists from the start: Settings → Auto never waits on a row nobody wrote. Written now
+            // without the harness list, which asks each harness's CLI (version, models): boot never waits on a
+            // harness (a slow or hung CLI kept wisp from listening at all, #756); the list follows when it's known
             let ps = projects(&ctx, &ctx.root_call()).await;
-            opening.published(view(&opening, &here, ps, now(&ctx))).await;
+            opening.published(view(&opening, &[], ps, now(&ctx))).await;
+            let (c2, st2) = (ctx.clone(), opening.clone());
+            ctx.spawn(async move {
+                let here = agents(&c2, &c2.root_call()).await;
+                let ps = projects(&c2, &c2.root_call()).await;
+                st2.published(view(&st2, &here, ps, now(&c2))).await;
+            });
             Ok(())
         });
         on!(s, st, View, |st, ctx, call, _a| {
