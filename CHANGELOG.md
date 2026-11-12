@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Panes on Home.** Pin an app from My Stuff on Home (its ⋯ → Pin on home, or Add on one of Make a pane's starters): it shows in a tile under Needs you, side by side when there are several, and on a phone as a row that opens it full screen. It asks before it uses wisp (Allow…), and every task it wants to start or follow up waits for your click.
+- **A crew member's jobs for other tasks sit under them** in the phone's Crew section, as list cards (3 at most, then "2 more · open Ada"), and leave the list until they need you.
+- **Move and link on the Org page.** Drag a card to put it where you want (kept on every device), or drag from its handle onto another member to make them a delegate; Reset layout puts the chart back.
+- **Folder suggestions where you type a path.** Settings → Plugins (with Folder…, which in the desktop app opens the system's folder dialog) and Projects (with Browse… in the desktop app): type `~/co` and pick, or press Tab to go into a folder.
+
 - **Comments you sent show as cards.** A follow-up that carried comments on a task's changes shows each one in the transcript (file:line, the quoted line, your note) above what you typed, instead of the raw `<comments>` text.
 - **Machine load says how busy the CPU is.** Settings → Usage → Machine load's *Now* reads "71% memory free · CPU at 50% of its cores · 0 runs of 8 going", as v1 did.
 - **Turn every plugin off**, from the note under Install a plugin in Settings → Plugins.
@@ -106,6 +111,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 
 ### Fixed
+
+- Installing a plugin from `~/code/my-plugin` (as the box suggests) works: `~` is your home folder. The same for a project added as `~/…`.
+- The backdrop behind a dialog is as light in dark mode as in light mode, as before.
 
 - **Settings on a phone match v1.** Usage's four tiles stay in one row; Auto shows its intro, which harnesses it may use as chips with their logos, and what it learned in v1's words; Worktrees' rows, Keep and Remove buttons and filter are v1's size; Machines puts the grid address on its own line when Sign in and add it doesn't fit beside it; Connectors keeps Not now · Review on the right; Plugins' suggestions and Notifications' channel example are spaced and set as v1's. Buttons draw v1's 16 px icons, and ghost buttons are v1's weight and padding.
 - The *Ask before a repo’s hooks and setup run* setting's name fits on a phone instead of being cut off.

@@ -1118,3 +1118,49 @@ pick a folder through the desktop app's native picker where there is one?
 Checks: typecheck, `npm run check` (0 errors), kit css-rules 12/12, every test file of the 13 touched packages one at
 a time, `now-line.test.ts`, wisp-machine `the_snapshot_and_load_rows_are_published…`, clippy -D warnings on
 wisp-machine. Seen in playwright at 1440/900/390, light and dark.
+
+## Round 27 (2026-11-12)
+
+**Decisions done.** (a) Folder… in Settings → Plugins is a folder picker: the desktop app's own dialog (Platform
+`pickFolder`, additive, through the Tauri `pick_folder` command), in a browser the box with the server's suggestions:
+`runtime.folders` (v1 `GET /fs?q=`, read-only, answers in the form typed, 12 sorted, no hidden; a relative path gets
+none where v1 listed the server's own folder) and the kit `PathField` (↑↓, Tab goes into one, Enter/click picks, a git URL
+asks nothing). Projects has the same field and Browse… in the app. `plugins.install` and a project's path now expand `~`
+(the box's own example was refused). (b) Privacy 390 in allowed.md §5 under ADR-0012, masked at 390 only: parity's rules
+take an optional widths column now (`<view> <part> <kind> [widths]`). (c) Install stays (it installs at once, off):
+§5 with an owner rule on the box at 900/1440; Folder… and "plugin" for "spell" recorded there too (Spells 390: 3 known).
+(d) The mock: the sweep of every reference view at 1440 found no other view with 0 parts off and empty data; what
+stands out is a focus-state difference on `launcher#0` (border colour) across ~15 home/task views, for the lead.
+
+**Phone Crew job cards.** ShellApi `taskCards` (additive: the list lends its card; shell-list provides its `TaskRow`
+while it shows). The stacked list leaves a member's jobs for other tasks out (`underMemberOf`: delegated, mention, event;
+member on the crew; not For later) until they need you; the Crew section nests them (crew's `memberJobs`, 3, "N more ·
+open Ada"), rows keyed so a job never rebuilds its member's row. Side by side they stay in the list (the rail's hover card
+isn't mounted yet). Tests: shell-list `crew.test.ts`, kit `org.test.tsx`.
+
+**Panes on Home.** `plugins/stuff/ui/src/HomePanes.tsx` on `shell.home:cards` after Spare allowance: tiles (≥300px, 420
+tall) side by side, rows opening a page stacked; each app launched (`stuff.launch`) into the kit `AppFrame` behind the CSP
+wrapper (`paneFrameCsp`), off this computer a line saying where it runs. Its calls go through `panes/host.ts` (v1
+paneCall: allowed scopes, args capped, 6 writes a minute, `stuff.grant` before a write, one card at a time, re-checked
+after the card); reads in light shapes from the runtime rows (`panes/rows.ts`). Pins (`pins.tsx`): the `stuff.panes`
+setting, Pin on home / Unpin in My Stuff, starters pin on Add, the Allow card (never while the task it's for runs in Full
+auto). A pane's task always starts on Edits. Kit `HomePanes`, `PaneView`, `PaneRow`, `PaneOff`. Tests: `pane-host.test.ts`
+(4), `pins.test.ts`. Not done: panes beside tasks (the side panel's tab), tile resizing grips.
+
+**Org drag.** Kit `OrgView` `layout`/`onMove`/`onLink` (v1 placeFree, tested): a card dragged (5px) follows the pointer
+and is saved (`crew.set_layout`, shown at once, put back if refused), touch once selected; a link drawn from a card's
+handle onto another; Reset layout with Undo; v1's hint. Seen in Chrome: moved, linked, the arrow drawn.
+
+**Not done: Preview's element picker.** v1's needs a proxy on the app's port that injects `/__wisp/pick.js` into its
+HTML (decompressing, rewriting, passing WebSocket upgrades): a Rust piece with its own ADR-worthy shape. Next.
+
+**settings.cloud hang.** Not reproduced (alone, after machines, four runs: 11 s each). Parity now has a per-view watchdog
+(`PARITY_VIEW_TIMEOUT`, 240 s): a view that never returns is reported as timed out at its step instead of hanging the batch.
+
+**v1-features.** 149 → 143 partial: A/M/L/⇧F were built and the rows stale (checked against `task-keys.test.ts`); Home
+panes, starters and Org drag built this round. F-task-8 stays partial (a new question bringing an archived task back).
+
+Checks: typecheck, `npm run check` (0 errors), css-rules 12/12, every test file of the 11 touched UI packages one at a
+time, the Rust tests above, clippy -D warnings on wisp-runtime, -runtime-api, -plugins. Seen in Chrome/playwright: panes
+1440 light/dark and 390 (row, page, Back), the Allow card, the phone Crew section light/dark, Org move and link, the
+Folder… suggestions 1440 light and 390 dark.

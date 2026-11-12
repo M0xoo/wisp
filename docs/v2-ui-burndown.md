@@ -226,3 +226,13 @@ Settings panes, parts off (light unless named).
 
 1440 light after: every Settings pane 0 (spells 1: the Install/Review label); home, palette, task, stuff, crew.org
 0. Dark Settings pixels 3.4 % → 0.9 % (the scrim).
+
+## 2026-11-12 (round 27)
+
+| View | Before | After | Why |
+|---|---|---|---|
+| settings.privacy (390) | 4 | 0 | ADR-0012's single-line title, masked at 390 only (allowed.md §5, parity's widths column) |
+| settings.spells (1440/900) | 1 | 0 | Install, not Review (§5) |
+| settings.spells (390) | 4 | 4 | Folder… and "plugin" are longer words (§5, not masked), and a sub-pixel |
+| crew.org (1440) | 0 parts, 1.4 % px | 0 parts, 0.8 % px | v1's hint back with Org drag |
+| home, palette, task, stuff (1440); home, crew (390) | — | unchanged | the round's list, Home and Org changes moved nothing |

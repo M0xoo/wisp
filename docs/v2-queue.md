@@ -1,9 +1,19 @@
 # v2 build queue (code first, verify later)
 
-**Round 26 (done):** the comments envelope renders as cards (`packages/shell/src/frame/comment-text.ts`); Settings
-at 390, 900 and dark are 0 parts off but Privacy 390 (v1 wraps its title; ADR-0012) and Spells' File… (a question
-in docs/v2-round-7.md). Next: phone Crew nested job cards (needs a shell task-card contract addition), pinned panes
-on Home, Org drag, Preview's element picker, then docs/v1-features.md partial rows.
+**Fix first: #756 CI red on f45efe67 (2026-11-12).**
+1. `crates/wisp/tests/serve_budget.rs:34` `unattended_work_past_the_stop_line_is_held_until_the_window_resets`: the
+   user's own codex run at 90 % now comes back `error` with "past your 90% line … confirmLimit" (the usage-limit flow,
+   Settings → Usage → Ask near the limit). Decide by v1: if v1 asks before the user's own run past the ask line, the
+   test sends `confirmLimit: true` for "mine"; if v1 doesn't ask at that point (the ask line default / off), the flow
+   is wrong. Fix the root cause, not the assert.
+2. `tauri windows` build: `desktop/scripts/package.mjs:42` reads `pkg.files`, which v2's root package.json dropped
+   (TypeError reading 'map'). macOS `tauri` passes. Make the Windows desktop build package the v2 binary the way the
+   macOS one does (no `files` dependency), so both use one v2 path.
+
+**Round 27 (done):** the owner's four decisions; phone Crew job cards (ShellApi `taskCards`); panes on Home with the
+bridge host; Org drag and link; folder suggestions (`runtime.folders`, kit `PathField`). Next: Preview's element picker
+(a proxy that injects the pick script: Rust), panes beside tasks, the rail's hover card (then side by side can leave
+delegated jobs out too), the `launcher#0` focus-state difference across home/task views, then v1-features partial rows.
 
 **Lead's parity pass after round 23 (2026-11-12, `/tmp/qa-lead/parity`, 1440+390 browser):** the kit-wide CSS
 changes broke no metrics (home, palette, task, task.composer: 0 parts off at 1440). Left: (1) crew and task.transcript
