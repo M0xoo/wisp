@@ -1,9 +1,22 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 03aeb5f8 (2026-11-12).** (1) `crates/wisp/tests/serve_grid.rs:307`
+`a_computer_and_a_box_through_the_grid`: a box's credential (`authorization: Box ada x`) sent to a computer's host now
+gets 401, the test wants 403 (a_box_never_gets_a_laptop_token). Decide which is right (a known box credential at the
+wrong place = 403; a malformed one = 401?) and make code and test agree with the ADR; first run of the pr suite since
+clippy was fixed, so this may be older than round 33. (2) DESK2-05 passes on macOS now but still fails on Windows
+(smoke, desktop, migrate): Quit on Windows doesn't stop `wisp serve` (no SIGTERM there: the stdin pipe or a Job Object
+must end it; check the shell closes the pipe on Quit, and that the server's stdin reader sees EOF on Windows).
+
 **Fix first: #756 CI on d4ad3fe1 (2026-11-12).** `tauri windows` migrate: **DESK2-01** "setup.exe /S installs the app: a
 bundled Node is still there: v1 packaging". Installing v2 over a v1 install must remove v1's bundled Node and its
 other leftovers (the installer's upgrade step, NSIS), keeping the user's data in ~/.wisp. (DESK2-05 and hardKill were
 fixed in round 33; clippy items_after_test_module in term.rs too.)
+
+**Round 34 (done):** the trigger form's runner picker, vs in New task and Compare's Plan row (wisp.budget now traces
+shares to turns), Watch opening by itself; v1-features F-task-36, F-comp-4, F-task-31, F-comp-35 built, F-page-35/23
+corrected. Next: F-page-11 (unsent comments to Ship), the feed folding a compare into one task, then the remaining
+partial (130) and missing (19) rows, most-used first.
 
 **Round 33 (done):** DESK2-05 (Quit hung on a kernel lock-order deadlock: fixed, test) and `hardKill`'s "not found";
 v1's trigger form to parity; Compare runs (F-comp-30) and Watch (F-page-32) with their menu entries. Next: the

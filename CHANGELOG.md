@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **vs in New task.** The + beside the harness runs the same task on another harness too (up to four side by side); each extra run sits behind a "vs" that removes it. They land as one compare, ready for Compare runs.
+- **Compare's Plan row.** What each run took of its plan's window, and what overlapping runs on one account took together. wisp now traces each window's move to the turns that ran while it moved.
+- **The Watch tab opens by itself** when the agent opens a page while you're looking at its task.
+- **The trigger form's Harness is the runner picker** New task uses: pick a harness and its model, or Use launcher default.
+- **No output for 12 min.** A run that has gone quiet says so in its working panel, and keeps counting until something happens.
+- **↑ brings back what you sent** in New task and in a reply (the last 50, kept across reloads); **Shift+Tab** cycles Plan, Edits and Full auto.
+- **A simpler first New task.** Until your first task the box is the prompt, the mode, the harness and Send; More options shows the rest.
+
 - **Compare runs.** `wisp --compare codex,opencode "…"` runs the same ask on each harness as one group; a run's menu then has Compare runs: the numbers side by side (time, cost, tokens, cache, steps, files, tests, questions asked), a plain sentence against run A, each run's answer, and Keep this (the other runs are archived and their worktrees deleted, after you confirm).
 - **Watch beside a task.** When an agent calls `wisp_watch`, its page (a progress page it draws, or the app it's running) shows in a Watch tab beside the task and updates as it works, with how to run the thing yourself under it. Watch is in the task's menus too.
 - **v1's trigger form is back.** Automations from ⌘K (Recipes, Triggers) opens as v1's dialog, and New trigger has the kind tiles, Send to, Project, When with its presets and what it understood, the GitHub, webhook and Slack fields, Run (a prompt or a recipe), Mode and Harness.

@@ -1407,3 +1407,30 @@ Checks: typecheck, `npm run check` (0 errors), vitest `trigger-form`, `compare`,
 `wisp-kernel --test kernel_contrib_lock`; clippy -D warnings on runtime(+core, api), mcp-api, worktrees, kernel, wisp;
 parity automations.trigger-new at 1440/900/390/320 light and dark; Compare and Watch seen in Chrome (1440, 390, dark).
 
+## Round 34 (2026-11-12)
+
+**Leftovers that were v1 features.**
+- *Trigger form's Harness:* `AutoRunner` (v1 .au-runner/.runner-btn) opens New task's own picker, now exported from
+  `@wisp/shell` (`RunnerPicker`, with `efforts={false}`: a trigger has no thinking level); `model` saved with `agent`.
+  Parity `automations.trigger-new`: metrics pass at 1440, 900 and 390 (the 390 runner button was the last part off).
+- *vs in New task:* the kit's vs + now adds runs (`nextRun`: the next harness nobody runs, then the lead again; four at
+  most), each behind a "vs ×" with its own harness menu (kit `LauncherCompare`, v1 launcher.css values). Send creates
+  the lead first (run A), then each run, all with `group` → `ext["wisp.runtime"].group` (the row's `groupId` at once).
+- *Plan row:* `planShares` (v1 compare-metrics.js) in `compare.ts`, fed by turns' `ext["wisp.budget"].plan`. wisp.budget
+  computed each turn's share of a window's move but nothing began turns in its ledger, and the shares were dropped:
+  `before:run` notes the account, `turn.started` begins it, `turn.ended` ends it, `record` writes the shares with
+  `runtime.turn.setExt` (new permission `runtime:turn.setExt`; newest 500 turns kept in memory to add to).
+- *Watch opens by itself:* `Watch.opened` (the seq of the last open) on the row's marker; `opensWatch` decides (a new
+  open, not stacked, not over Changes or Shell); `WatchOpen.tsx` on `shell.task:foot`.
+
+**v1-features rows (most-used first).** Built: F-task-36 (No output for 12 min, `no-output.ts`; v2 sends a call's result
+as its own `tool_output` step, so an open subagent call is one with no output step yet), F-comp-4 (Shift+Tab),
+F-task-31 (↑ history, `shell.sent` store), F-comp-35 (the first-run launcher). Stale rows corrected: F-page-35
+(`/terminal` was built), F-page-23 (Changes' line comments were built). Partial 130, missing 19. Not done: F-page-11
+(Ship's unsent-comments line reads `unsentComments`, which nothing sets: the comments live in shell-task's client store).
+
+Checks: typecheck, `npm run check` (0 errors); vitest `compare` (4), `first-run`, `no-output`, `prompt-keys` (2),
+`row-menu`, `trigger-form` (2), `watch-open`, `watch-doc`; cargo `wisp-budget-core --test turn_shares`, `wisp-budget
+--lib` (7), `wisp-runtime-core --lib watch` (3), `wisp-runtime --test watch`; clippy -D warnings on budget(+core),
+runtime(+core); Chrome: vs runs → three rows → Compare runs; ↑ after a reload; Shift+Tab; the trigger form's picker.
+
