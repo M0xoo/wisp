@@ -5,4 +5,8 @@ import type { ToolKind } from "./ToolKind";
 /**
  * One step of a turn's activity: a row of the append-only event log (`kind` is the event kind).
  */
-export type Activity = { "kind": "text", text: string, } | { "kind": "thinking", text?: string, } | { "kind": "tool", tool: ToolKind, label: string, file?: string, detail?: string, callId?: string, output?: string, } | { "kind": "tool_output", callId: string, text: string, } | { "kind": "tool_error", name: string, text: string, } | { "kind": "blocked", tool: string, detail: string, rule?: string, } | { "kind": "notice", text: string, tone?: Tone, };
+export type Activity = { "kind": "text", text: string, } | { "kind": "thinking", text?: string, } | { "kind": "tool", tool: ToolKind, label: string, file?: string, detail?: string, callId?: string, output?: string, 
+/**
+ * its whole title, when `label` had to be cut (v1 #780): an opened step shows it. Additive (2026-11-12).
+ */
+title?: string, } | { "kind": "tool_output", callId: string, text: string, } | { "kind": "tool_error", name: string, text: string, } | { "kind": "blocked", tool: string, detail: string, rule?: string, } | { "kind": "notice", text: string, tone?: Tone, };

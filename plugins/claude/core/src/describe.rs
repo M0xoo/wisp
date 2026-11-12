@@ -7,7 +7,7 @@ use wisp_harness_kit::js::{self, or, str, string, truthy};
 use wisp_harness_kit::protocol::crew_tool_label;
 use wisp_harness_kit::{
     Change, Edit, HarnessEvent, IoStep, Out, Re, RunPaths, Tool, ToolKind, clip, clip_value,
-    describe_command, rel, rel_value,
+    rel, rel_value,
 };
 
 static GITHUB: Re = Re::new(r"^https://github\.com/");
@@ -167,12 +167,10 @@ pub fn describe_tool(name: &str, input: &Value, paths: &RunPaths) -> Tool {
         "NotebookEdit" => on_file(ToolKind::Edit, "Editing notebook", file_of(input, paths)),
         "Bash" => {
             let cmd = &input["command"];
-            let label = if truthy(&input["description"]) {
-                clip_value(&input["description"], 80)
-            } else {
-                describe_command(&str(cmd), paths)
-            };
+            let said = truthy(&input["description"]).then(|| str(&input["description"]));
+            let (label, title) = wisp_harness_kit::run_label(&str(cmd), paths, said.as_deref());
             let mut t = Tool::new(ToolKind::Run, label);
+            t.title = title; // the whole one, when the label was cut (v1 #780)
             // v1 passed `input.command` as it came; JSON drops it when missing.
             t.detail = match cmd {
                 Value::Null => None,

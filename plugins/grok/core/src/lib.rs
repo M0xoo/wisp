@@ -6,7 +6,6 @@
 use std::collections::{BTreeMap, HashMap};
 
 use serde_json::{Map, Value, json};
-use wisp_harness_kit::commands::describe_command_value;
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::paths::resolve;
 use wisp_harness_kit::protocol::{ASK_TIMEOUT_MS, crew_tool_label, exit_text, wisp_tool_label};
@@ -122,8 +121,10 @@ pub fn describe_tool(name: &str, i: &Value, paths: &RunPaths) -> Tool {
         "search_replace" => t(ToolKind::Edit, format!("Editing {f}")).file(f),
         "write" => t(ToolKind::Edit, format!("Writing {f}")).file(f),
         "run_terminal_command" | "run_terminal_cmd" => {
-            let label = if truthy(&i["description"]) { clip_value(&i["description"], 80) } else { describe_command_value(&i["command"], paths) };
+            let said = if truthy(&i["description"]) { Some(js::string(&i["description"])) } else { None };
+            let (label, title) = wisp_harness_kit::run_label(&js::str(&i["command"]), paths, said.as_deref());
             let mut x = t(ToolKind::Run, label);
+            x.title = title; // the whole one, when the label was cut (v1 #780)
             if !i["command"].is_null() {
                 x.detail = Some(js::string(&i["command"]));
             }

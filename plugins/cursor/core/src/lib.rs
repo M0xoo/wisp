@@ -3,7 +3,6 @@
 //! run has no ask tool: the protocol asks for a question block instead.
 
 use serde_json::{Map, Value};
-use wisp_harness_kit::commands::describe_command_value;
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::protocol::exit_text;
 use wisp_harness_kit::{Change, Edit, Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, json_line, rel_value};
@@ -67,8 +66,10 @@ pub fn describe_tool(name: &str, a: &Value, paths: &RunPaths) -> Tool {
         "editToolCall" => t(ToolKind::Edit, format!("Editing {f}")).file(f),
         "deleteToolCall" => t(ToolKind::Edit, format!("Deleting {f}")).file(f),
         "shellToolCall" => {
-            let label = if truthy(&a["description"]) { clip_value(&a["description"], 80) } else { describe_command_value(&a["command"], paths) };
+            let said = if truthy(&a["description"]) { Some(js::string(&a["description"])) } else { None };
+            let (label, title) = wisp_harness_kit::run_label(&js::str(&a["command"]), paths, said.as_deref());
             let mut x = t(ToolKind::Run, label);
+            x.title = title; // the whole one, when the label was cut (v1 #780)
             if !a["command"].is_null() {
                 x.detail = Some(js::string(&a["command"]));
             }

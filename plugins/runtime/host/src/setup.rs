@@ -259,7 +259,7 @@ mod tests {
     use wisp_runtime_api::model::ToolKind;
 
     fn tool(kind: ToolKind, label: &str) -> Step {
-        Step { seq: 0, t: 0, activity: Activity::Tool { tool: kind, label: label.into(), file: None, detail: None, call_id: None, output: None } }
+        Step { seq: 0, t: 0, activity: Activity::Tool { tool: kind, label: label.into(), file: None, detail: None, call_id: None, output: None, title: None } }
     }
 
     #[test]

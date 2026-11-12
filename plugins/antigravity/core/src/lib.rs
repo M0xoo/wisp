@@ -9,7 +9,6 @@
 use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value, json};
-use wisp_harness_kit::commands::describe_command_value;
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::protocol::exit_text;
 use wisp_harness_kit::{Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, json_line, rel_value};
@@ -75,7 +74,9 @@ pub fn describe_tool(name: &str, p: &Value, paths: &RunPaths) -> Tool {
     let n = name.to_lowercase();
     let t = |k: ToolKind, l: String| Tool::new(k, l);
     if n == "run_command" {
-        let mut x = t(ToolKind::Run, describe_command_value(&p["CommandLine"], paths));
+        let (label, title) = wisp_harness_kit::run_label(&js::str(&p["CommandLine"]), paths, None);
+        let mut x = t(ToolKind::Run, label);
+        x.title = title; // the whole one, when the label was cut (v1 #780)
         if !p["CommandLine"].is_null() {
             x.detail = Some(js::string(&p["CommandLine"]));
         }

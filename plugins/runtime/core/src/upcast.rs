@@ -42,6 +42,7 @@ pub fn from_v0(item: &Value) -> Option<Activity> {
                 detail: s(item, "detail"),
                 call_id: s(item, "call"),
                 output: s(item, "output"),
+                title: s(item, "title"),
             },
             // wisp's own lines (Auto's check, a repair, a hand-over, a side's refusal)
             None => Activity::Notice {
@@ -85,6 +86,7 @@ pub fn to_v0(a: &Activity) -> Value {
             detail,
             call_id,
             output,
+            title,
         } => {
             let k = serde_json::to_value(tool)
                 .ok()
@@ -92,6 +94,7 @@ pub fn to_v0(a: &Activity) -> Value {
                 .unwrap_or_default();
             put("kind", Some(&k));
             put("label", Some(label));
+            put("title", title.as_deref());
             put("file", file.as_deref());
             put("detail", detail.as_deref());
             put("call", call_id.as_deref());

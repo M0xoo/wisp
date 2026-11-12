@@ -67,6 +67,8 @@ pub struct ClaudeParser {
     /// background tasks still running (task_id, description), in order: while any are, the CLI
     /// stays up after its result
     background: Vec<(String, String)>,
+    /// the task_ids of those that are subagents (task_type local_agent), not shells (v1 #775)
+    agent_tasks: Vec<String>,
     turn: TurnState,
 }
 
@@ -86,6 +88,7 @@ impl ClaudeParser {
             early: None,
             pending: HashMap::new(),
             background: Vec::new(),
+            agent_tasks: Vec::new(),
             turn: TurnState::default(),
         }
     }
@@ -93,6 +96,7 @@ impl ClaudeParser {
     fn set_background(&mut self, next: Vec<(String, String)>, out: &mut Vec<Out>) {
         let same = next.len() == self.background.len()
             && next.iter().zip(&self.background).all(|(a, b)| a.0 == b.0);
+        self.agent_tasks.retain(|id| next.iter().any(|(k, _)| k == id));
         self.background = next;
         if !same {
             out.push(ev(HarnessEvent::Background {
@@ -274,10 +278,15 @@ impl ClaudeParser {
         // background_tasks_changed carries the full list; task_started/task_notification are the
         // per-task edges, kept for CLI versions that only send those (edge case 4).
         if sub == "background_tasks_changed" && msg::value(msg.tasks).is_array() {
-            let next = js::arr(&msg::value(msg.tasks))
-                .iter()
-                .map(|t| (str(&t["task_id"]), describe(&t["description"])))
-                .collect();
+            let all = msg::value(msg.tasks);
+            let tasks = js::arr(&all);
+            for t in tasks {
+                let id = str(&t["task_id"]);
+                if str(&t["task_type"]) == "local_agent" && !self.agent_tasks.contains(&id) {
+                    self.agent_tasks.push(id);
+                }
+            }
+            let next = tasks.iter().map(|t| (str(&t["task_id"]), describe(&t["description"]))).collect();
             self.set_background(next, out);
         } else if sub == "task_started"
             && truthy(&msg::value(msg.is_backgrounded))
@@ -287,6 +296,9 @@ impl ClaudeParser {
                 str(&msg::value(msg.task_id)),
                 describe(&msg::value(msg.description)),
             );
+            if str(&msg::value(msg.task_type)) == "local_agent" && !self.agent_tasks.contains(&id) {
+                self.agent_tasks.push(id.clone());
+            }
             let mut next = self.background.clone();
             match next.iter_mut().find(|(k, _)| *k == id) {
                 Some(slot) => slot.1 = d,
@@ -397,6 +409,8 @@ impl ClaudeParser {
         }
         self.refused = false;
         e.background = Some(self.background.len() as u64); // > 0: another turn and result follow
+        // of those, subagents: their reports follow (only when some are: the recorded runs, from before v1 #775, have none)
+        e.background_agents = (!self.agent_tasks.is_empty()).then_some(self.agent_tasks.len() as u64);
         out.push(ev(HarnessEvent::Result(e)));
     }
 }

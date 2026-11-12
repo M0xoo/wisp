@@ -141,6 +141,10 @@ pub enum Activity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         output: Option<String>,
+        /// its whole title, when `label` had to be cut (v1 #780): an opened step shows it. Additive (2026-11-12).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        title: Option<String>,
     },
     ToolOutput {
         #[serde(rename = "callId")]

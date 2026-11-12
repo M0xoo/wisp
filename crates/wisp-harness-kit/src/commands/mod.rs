@@ -18,11 +18,45 @@ use self::argv::{Ctx, Desc, basename, operands, short};
 use self::shell::{parse_stage, segments, strip_heredocs};
 use crate::js;
 use crate::paths::RunPaths;
-use crate::text::{clip, lower};
+use crate::text::lower;
+use std::cell::Cell;
 
 /// A stage with no command at all (`while` alone): v1 threw on it, and the whole line fell back.
 #[derive(Debug, Clone, Copy)]
 struct Empty;
+
+thread_local! {
+    /// While set, nothing is clipped: `describe_command` builds a step's whole title (what an opened step shows),
+    /// not the short label the row and the ticker use (v1 commands.js `whole`, #780). Pure: no I/O, one thread's state.
+    static WHOLE: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Whether a whole title is being built (nothing shortened).
+pub(crate) fn whole() -> bool {
+    WHOLE.with(Cell::get)
+}
+
+/// The kit's `clip`, or the text whole (its whitespace collapsed) while a whole title is being built.
+pub(crate) fn clip(s: &str, n: usize) -> String {
+    if WHOLE.with(Cell::get) { s.split_whitespace().collect::<Vec<_>>().join(" ") } else { crate::text::clip(s, n) }
+}
+
+/// A run step's label, and its whole title when the label had to be cut (v1 `runLabel`, #780): `description` is the
+/// agent's own words for it (clipped at 80 as v1), else the command described.
+pub fn run_label(command: &str, paths: &RunPaths, description: Option<&str>) -> (String, Option<String>) {
+    let said = description.map(str::trim).filter(|d| !d.is_empty());
+    let label = said.map_or_else(|| describe_command(command, paths), |d| crate::text::clip(d, 80));
+    let title = if let Some(d) = said {
+        d.split_whitespace().collect::<Vec<_>>().join(" ")
+    } else {
+        WHOLE.with(|w| w.set(true));
+        let t = describe_command(command, paths);
+        WHOLE.with(|w| w.set(false));
+        t
+    };
+    let cut = (title != label).then_some(title);
+    (label, cut)
+}
 
 /// What `command` does, in words, for the live ticker (v1 `describeCommand(command, cwd)`).
 pub fn describe_command(command: &str, paths: &RunPaths) -> String {

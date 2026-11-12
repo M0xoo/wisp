@@ -67,6 +67,7 @@ impl HarnessParser for Lines {
                     auth_failed: false,
                     stop_reason: None,
                     background: None,
+                    background_agents: None,
                 });
             }
             _ => {}

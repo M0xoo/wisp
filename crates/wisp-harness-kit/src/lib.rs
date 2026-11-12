@@ -18,7 +18,7 @@ pub mod re;
 pub mod text;
 pub mod tracker;
 
-pub use commands::describe_command;
+pub use commands::{describe_command, run_label};
 pub use drive::{Disk, DiskFuture, Driver};
 pub use event::{
     BillingKind, Change, Edit, HarnessEvent, LimitWindow, Limits, Stats, Tool, ToolKind, TurnResult,

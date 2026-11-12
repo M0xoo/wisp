@@ -21,6 +21,12 @@ confirmLimit?: boolean,
  */
 hold?: boolean, 
 /**
+ * a terminal task (v1 services/tui.js, Settings → General → Terminal sessions): the harness's own CLI in a
+ * terminal in wisp, started on the prompt, instead of wisp's headless run; follow-ups are typed into it and
+ * its turns are read back from the CLI's own session. Additive (2026-11-11).
+ */
+terminal?: boolean, 
+/**
  * namespaced extras the caller's plugin stores on the new task (`ext[callerPluginId]`)
  */
 ext?: { [key in string]: JsonValue }, 

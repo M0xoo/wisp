@@ -3,7 +3,7 @@
 
 use crate::js;
 use crate::paths::{RunPaths, rel};
-use crate::text::clip;
+use super::clip;
 
 /// One stage's sentence. `weak` ones (`cd x`, `echo ---`) only count when nothing better was found;
 /// `unknown` ones are the raw command echoed back, which the caller may replace with its fallback.
@@ -189,7 +189,7 @@ pub(super) fn short(p: &str, paths: &RunPaths) -> String {
     } else {
         rel(p, paths)
     };
-    if js::len16(&s) <= 48 {
+    if js::len16(&s) <= 48 || super::whole() {
         return s;
     }
     let parts: Vec<&str> = s.split(['\\', '/']).filter(|x| !x.is_empty()).collect();

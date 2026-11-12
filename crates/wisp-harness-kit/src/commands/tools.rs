@@ -7,7 +7,7 @@ use super::argv::{Ctx, Desc, Known, basename, operands, say, short, strip_flags}
 use super::vcs::{describe_gh, describe_git};
 use crate::paths::RunPaths;
 use crate::re::Re;
-use crate::text::clip;
+use super::clip;
 
 static AT_VERSION: Re = Re::new(r"@[^/]*$");
 static SCRIPT_PATH: Re = Re::new(r"^\.{0,2}/|\.(sh|js|mjs|cjs|ts|py|rb)$");

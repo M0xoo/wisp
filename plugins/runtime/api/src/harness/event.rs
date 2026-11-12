@@ -103,6 +103,9 @@ pub enum HarnessEvent {
         /// what it returned, if it reports calls once run
         #[serde(default, skip_serializing_if = "Option::is_none")]
         output: Option<String>,
+        /// its whole title, when `label` had to be cut (v1 #780): an opened step shows it. Additive (2026-11-12).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
     },
     ToolOutput {
         id: String,
@@ -198,6 +201,10 @@ pub enum HarnessEvent {
         /// background tasks left running (> 0: another result follows)
         #[serde(default, skip_serializing_if = "Option::is_none")]
         background: Option<u64>,
+        /// how many of those are subagents: their reports come back into this run, so the turn isn't done (v1 #775).
+        /// Additive (2026-11-12).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        background_agents: Option<u64>,
     },
 }
 

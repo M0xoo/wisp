@@ -4,7 +4,7 @@
 
 use serde_json::{Map, Value};
 use wisp_harness_kit::protocol::{crew_tool_label, exit_text};
-use wisp_harness_kit::{Exit, HarnessEvent, IoStep, LineParser, Out, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, describe_command, flatten, js, json_line, rel};
+use wisp_harness_kit::{Exit, HarnessEvent, IoStep, LineParser, Out, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, flatten, js, json_line, rel};
 
 use crate::shell::unwrap_shell;
 use crate::usage::turn_usage;
@@ -54,8 +54,9 @@ impl CodexParser {
         let mut ev = |e: HarnessEvent| out.push(e.into());
         match (phase, ty) {
             ("started", "command_execution") => {
-                let label = describe_command(&unwrap_shell(&item["command"]), &self.o.paths);
+                let (label, title) = wisp_harness_kit::run_label(&unwrap_shell(&item["command"]), &self.o.paths, None);
                 let mut t = Tool::new(ToolKind::Run, label).id(id());
+                t.title = title; // the whole one, when the label was cut (v1 #780)
                 t.detail = Some(js::str(&item["command"]));
                 ev(HarnessEvent::Tool(t));
             }

@@ -1,7 +1,6 @@
 //! v1 copilot.js `describeTool`, `describeMcp`, `blockedOf`, `modelIds`, `modelLabel`.
 
 use serde_json::{Value, json};
-use wisp_harness_kit::commands::describe_command_value;
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::protocol::{crew_tool_label, wisp_tool_label};
 use wisp_harness_kit::{HarnessEvent, Re, RunPaths, Tool, ToolKind, clip, clip_value, rel_value};
@@ -22,8 +21,10 @@ pub fn describe_tool(name: &str, a: &Value, paths: &RunPaths) -> Tool {
         "create" => t(ToolKind::Edit, format!("Writing {f}")).file(f),
         "edit" => t(ToolKind::Edit, format!("Editing {f}")).file(f),
         "bash" | "powershell" => {
-            let label = if truthy(&a["description"]) { clip_value(&a["description"], 80) } else { describe_command_value(&a["command"], paths) };
+            let said = if truthy(&a["description"]) { Some(js::string(&a["description"])) } else { None };
+            let (label, title) = wisp_harness_kit::run_label(&js::str(&a["command"]), paths, said.as_deref());
             let mut x = t(ToolKind::Run, label);
+            x.title = title; // the whole one, when the label was cut (v1 #780)
             if !a["command"].is_null() {
                 x.detail = Some(js::string(&a["command"]));
             }

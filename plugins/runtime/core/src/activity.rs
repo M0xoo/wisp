@@ -143,9 +143,11 @@ pub fn step_of(ev: &HarnessEvent) -> Option<Activity> {
             detail,
             id,
             output,
+            title,
         } => Activity::Tool {
             tool: *kind,
             label: label.clone(),
+            title: title.clone(),
             file: file.clone(),
             detail: detail.clone(),
             call_id: id.clone(),
@@ -184,6 +186,7 @@ pub fn waiting_step(tasks: &[String]) -> Activity {
         detail: None,
         call_id: None,
         output: None,
+        title: None,
     }
 }
 
@@ -279,9 +282,16 @@ pub fn apply(
             stats,
             auth_failed,
             background,
+            background_agents,
             stop_reason,
             ..
         } => {
+            // Its subagents are still at work: whatever it said, it isn't done; their reports come back into this run
+            // and the answer after them ends the turn (v1 #775: a goal is checked on that one, not this).
+            if background_agents.unwrap_or(0) > 0 && !*is_error && !*stopped {
+                head.interim = Some((text.clone(), stats.clone()));
+                return Effect::Waiting(waiting_step(&head.background));
+            }
             // It ended its turn in plain text with background tasks still running ("I'll report once it's
             // done"): the CLI wakes it when they finish. A full presentation is a finished task that left
             // something up (a dev server).

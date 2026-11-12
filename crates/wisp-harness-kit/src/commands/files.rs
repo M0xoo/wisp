@@ -5,7 +5,7 @@
 use super::argv::{Ctx, Desc, Known, count_arg, operands, say, short, shown, silent, value_of};
 use crate::paths::RunPaths;
 use crate::re::Re;
-use crate::text::clip;
+use super::clip;
 
 static TAIL_FOLLOW: Re = Re::new(r"^-[a-zA-Z]*[fF]");
 static TAR_CREATE: Re = Re::new(r"^(-?[a-z]*c|zip)");

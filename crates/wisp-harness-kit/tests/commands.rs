@@ -128,3 +128,31 @@ fn bench_describe_command() {
         rate
     );
 }
+
+/// v1 #780: a run step's label is cut for the row and the ticker; when it was, the whole title comes with it, and an
+/// opened step shows that one. Nothing cut, no title.
+#[test]
+fn a_run_steps_whole_title_comes_with_its_label_when_the_label_was_cut() {
+    let paths = RunPaths::same("/w");
+    // short enough: the label alone
+    let (label, title) = wisp_harness_kit::run_label("npm test", &paths, None);
+    assert_eq!(label, describe_command("npm test", &paths));
+    assert_eq!(title, None);
+    // a long command the describer had to cut: the label ends in an ellipsis, the title is whole
+    let long = format!("grep -rn \"{}\" src", "a-very-long-pattern-".repeat(4));
+    let (label, title) = wisp_harness_kit::run_label(&long, &paths, None);
+    assert_eq!(label, describe_command(&long, &paths));
+    let whole = title.unwrap();
+    assert!(whole.len() > label.len() && whole.contains(&"a-very-long-pattern-".repeat(4)), "{whole}");
+    // the agent's own words: clipped at 80 for the label, whole (one line) in the title
+    let said = format!("Run the {} suite", "integration ".repeat(10));
+    let (label, title) = wisp_harness_kit::run_label("npm test", &paths, Some(&said));
+    assert!(label.ends_with('…') && label.chars().count() <= 80, "{label}");
+    assert_eq!(title.unwrap(), said.split_whitespace().collect::<Vec<_>>().join(" "));
+    // and the describer's own cuts are back after it: a whole title never leaks into the next label
+    assert_eq!(describe_command(&long, &paths), label_again(&long, &paths));
+}
+
+fn label_again(c: &str, paths: &RunPaths) -> String {
+    wisp_harness_kit::run_label(c, paths, None).0
+}

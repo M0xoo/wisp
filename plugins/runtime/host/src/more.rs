@@ -74,7 +74,7 @@ fn push(m: &mut serde_json::Map<String, Value>, k: &str, v: Value) {
 }
 
 fn tool_row(tool: ToolKind, label: String) -> Activity {
-    Activity::Tool { tool, label, file: None, detail: None, call_id: None, output: None }
+    Activity::Tool { tool, label, file: None, detail: None, call_id: None, output: None, title: None }
 }
 
 /// A live approval's answer (v1 `approvalDecision`): a button, a yes/no typed out, or anything

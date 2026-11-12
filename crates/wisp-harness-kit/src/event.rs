@@ -38,6 +38,9 @@ pub struct Tool {
     /// what it returned, for harnesses that report calls once run
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
+    /// its whole title, when `label` had to be cut (v1 #780): an opened step shows it. Additive (2026-11-12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }
 
 impl Tool {
@@ -49,6 +52,7 @@ impl Tool {
             detail: None,
             id: None,
             output: None,
+            title: None,
         }
     }
     #[must_use]
@@ -170,6 +174,9 @@ pub struct TurnResult {
     /// background tasks left running (> 0: another result follows)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<u64>,
+    /// how many of those are subagents (their reports come back into this run). Additive (2026-11-12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_agents: Option<u64>,
 }
 
 impl TurnResult {

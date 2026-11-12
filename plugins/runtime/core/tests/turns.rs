@@ -593,3 +593,20 @@ fn a_full_auto_runs_refusals_are_not_kept_to_allow_the_others_are() {
     assert_eq!(allowable(Mode::Edits, &refused), refused.as_slice());
     assert_eq!(allowable(Mode::Plan, &refused), refused.as_slice());
 }
+
+/// v1 #775: subagents still at work mean it isn't done, whatever it said (a full presentation too): the turn waits for
+/// their reports and ends on the answer after them. A goal is checked on that one.
+#[test]
+fn a_result_while_its_subagents_still_work_keeps_the_turn_open_even_with_a_presentation() {
+    let mut h = Head::default();
+    apply(&mut h, json!({"type":"background","tasks":["Review the diff"]}));
+    let full = "```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Done\"}]}\n```";
+    let e = apply(&mut h, json!({"type":"result","text":full,"isError":false,"background":1,"backgroundAgents":1}));
+    assert!(matches!(e, Effect::Waiting(Activity::Tool { tool: ToolKind::Background, .. })), "{e:?}");
+    // their report came back: the answer after it ends the turn
+    let e = apply(&mut h, json!({"type":"result","text":"reviewed: nothing found","isError":false,"background":0}));
+    assert!(matches!(e, Effect::Finish { ref text, .. } if text == "reviewed: nothing found"));
+    // an error or a stop ends it at once, subagents or not
+    let e = apply(&mut Head::default(), json!({"type":"result","text":"boom","isError":true,"background":1,"backgroundAgents":1}));
+    assert!(matches!(e, Effect::Finish { is_error: true, .. }));
+}

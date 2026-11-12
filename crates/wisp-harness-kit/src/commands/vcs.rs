@@ -6,7 +6,7 @@ use super::argv::{Desc, operands, shown, value_of};
 use super::files::describe_grep;
 use crate::paths::RunPaths;
 use crate::re::Re;
-use crate::text::clip;
+use super::clip;
 
 static SCHEME: Re = Re::new(r"^https?://(www\.)?");
 static DOT_GIT: Re = Re::new(r"\.git$");

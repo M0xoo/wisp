@@ -2,7 +2,7 @@
 //! the hostname and the port, with the URL parser's refusals (an empty or malformed host) kept, since
 //! v1 then fell back to the raw text.
 
-use crate::text::clip;
+use super::clip;
 
 /// Code points a domain may not hold (WHATWG "forbidden domain code point").
 fn forbidden(c: char) -> bool {
