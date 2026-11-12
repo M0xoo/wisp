@@ -313,6 +313,9 @@ body.split.pane-wide .it-bar > .it-props > .pill.overlap .i { width: 13px; heigh
 body.split #feed .it-head .pill.overlap .ov-l { display: none; }
 .ov-more { flex: none; margin: 0; color: var(--ink-2); white-space: nowrap; } /* on the row, before Open */
 .ov-more:hover { color: var(--ink); }
+/* Dismiss: last on the row, a 24px square like Open beside it */
+.ov-x { flex: none; width: 24px; height: 24px; border-radius: 7px; margin-left: -4px; }
+.ov-x .i { width: 12px; height: 12px; }
 .ov-modal { width: min(560px, calc(100vw - 32px)); }
 .ov-modal .hint { margin: -6px 0 12px; }
 .ov-list { display: flex; flex-direction: column; gap: 2px; max-height: min(60vh, 520px); overflow: auto; }

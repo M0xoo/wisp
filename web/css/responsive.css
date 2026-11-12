@@ -210,6 +210,7 @@ body.wisp-mobile #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44p
   .org-pick::before { inset: -14px; }
 }
 body.wisp-mobile .ov-row .ghost.xs { height: 44px; }
+body.wisp-mobile .ov-x { width: 44px; height: 44px; margin-block: -10px; }
 /* 44px to the thumb, the same room in the layout: the negative margin gives back what the height adds */
 body.wisp-mobile :is(.ask .more-btn, .ov-more) { min-height: 44px; margin-block: -12.5px; } /* 19px links */
 body.wisp-mobile .gb-go { min-height: 44px; margin-block: -10px; } /* a 24px button */

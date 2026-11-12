@@ -278,6 +278,7 @@ export const PARTS = {
   // Another open task changes the same files: the pill, and the warning above the follow-up box.
   'card.overlap': '#feed .it-side .pill.overlap',
   'card.overlapNote': '#feed .overlap-strip',
+  'card.overlapClose': '#feed .overlap-strip .ov-x', // its × (closed until something changes)
   'card.model': '#feed .it-side .model-logo',
   'card.machine': '#feed .it-side .q-machine',
   'card.run': '#feed .it-run', // the row's third line: harness, model and machine
