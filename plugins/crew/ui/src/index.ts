@@ -17,6 +17,8 @@ export default definePluginUi({
   extensions: [
     // the phone's Crew section at the top of the list (v1 #secCrew); it shows only in the stacked layout
     defineExtension({ id: 'wisp.crew.list', attachTo: { id: 'shell.list:crew' }, component: lazy(() => import('./CrewListTop.tsx')) }),
+    // a face's card beside the rail (v1 .cl-card): its jobs, each a click away
+    defineExtension({ id: 'wisp.crew.railCard', attachTo: { id: 'shell.rail:card' }, component: lazy(() => import('./RailCard.tsx')) }),
     defineExtension({ id: 'wisp.crew.page', attachTo: { id: 'shell.screen:crew' }, component: lazy(() => import('./CrewPage.tsx')) }),
     // under a turn: the members asked on it and their answers, with Reply (v1 btw.js crew entries)
     defineExtension({ id: 'wisp.crew.answers', attachTo: { id: 'shell.turn:foot' }, component: lazy(() => import('./Answers.tsx')) }),

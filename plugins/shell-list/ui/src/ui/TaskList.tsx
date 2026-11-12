@@ -61,8 +61,10 @@ function ListBody(): JSX.Element {
   const toggled = createMemo(() => new Set(view().toggled));
   // the crew's section (on the phone, where there's no rail): a plugin fills shell.list:crew
   const crew = hasExtensions('shell.list:crew');
-  // with the section there, a member's jobs for other tasks sit under the member, not in the sections (v1 crew.js)
-  createEffect(() => env.model.setNest(!env.split() && crew()));
+  // a member's jobs for other tasks sit under the member, not in the sections (v1 crew.js): in the phone's Crew section,
+  // or side by side in the face's card beside the rail
+  const railCard = hasExtensions('shell.rail:card');
+  createEffect(() => env.model.setNest(env.split() ? railCard() : crew()));
   const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split(), crew: !env.split() && crew() }));
   const plugins = useSignal(env.shell.extensions('shell.row:menu'));
   const menu = createMemo<MenuEntry[]>(() => menuFor(env, plugins()));

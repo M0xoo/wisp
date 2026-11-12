@@ -258,5 +258,10 @@
   "wisp.crew.org.resetTitle": "Put everyone back in tiers, the way the chart lays itself out",
   "wisp.crew.org.resetDone": "Back to the automatic layout",
   "wisp.crew.org.undo": "Undo",
-  "wisp.crew.org.handle": "Drag onto another member to make them {name}’s delegate"
+  "wisp.crew.org.handle": "Drag onto another member to make them {name}’s delegate",
+  "wisp.crew.card.open": "Open {name}’s thread",
+  "wisp.crew.card.next": "Next check-in {when}",
+  "wisp.crew.card.nothing": "Nothing going on",
+  "wisp.crew.card.all": "All {count} in the thread",
+  "wisp.crew.card.gone": "Gone"
 }
