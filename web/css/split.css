@@ -509,6 +509,12 @@ body.split.pane-wide .it-props > .q-proj, body.split.pane-wide .it-props > .q-ma
 body.split .it-props > .plan-used { display: none; }
 body.split.pane-wide .it-props > .plan-used { flex: 1 0 100%; order: 3; display: flex; align-items: flex-start; gap: 9px; color: var(--ink-2); }
 body.split.pane-wide .it-props > .plan-used > .i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--faint); }
+/* buttons (budget.js usageMenu); the context's line leads with a ring that fills to --ctx */
+body.split.pane-wide .it-props > .plan-used { text-align: left; font-size: 12.5px; line-height: 1.45; border-radius: 6px; }
+body.split.pane-wide .it-props > .plan-used:hover, body.split.pane-wide .it-props > .plan-used[aria-expanded="true"] { color: var(--ink); }
+body.split.pane-wide .it-props > .plan-used:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.plan-used > .pu-ring { flex: none; width: 13px; height: 13px; margin-top: 2px; border-radius: 50%; background: conic-gradient(var(--faint) var(--ctx), var(--line) 0); -webkit-mask: radial-gradient(circle, transparent 3.5px, #000 4px); mask: radial-gradient(circle, transparent 3.5px, #000 4px); }
+.plan-used > .pu-ring.hi { background: conic-gradient(var(--warn) var(--ctx), var(--line) 0); }
 body.split.pane-wide .it-props > .q-proj::before { content: ''; position: absolute; left: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--pc); }
 body.split.pane-wide .it-bar > .it-meta { flex: none; flex-direction: column; align-items: stretch; gap: 8px; margin-top: -6px; overflow: visible; font-size: 12.5px; }
 body.split.pane-wide .it-meta .m { display: flex; align-items: center; gap: 0; max-width: 100%; min-width: 0; }

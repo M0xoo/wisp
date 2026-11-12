@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - **Drag projects into your own order.** Drag a project chip in the top bar or New task's *in* row, a row of the searchable project list (+N, with nothing typed), or a row of Projects (Manage projects) to put it where you want it. The order is one: it shows the same everywhere projects are listed, including the command palette and a crew member's *Works in*. A project added afterwards goes first. A project's right-click menu has **Sort by recent use** to go back. On a phone, hold a chip before dragging it. Spells can turn dragging off per place (`movable` on `topbar.projects`, `launcher.projects`, `project.list`, `project.rows`).
+- **A task's usage, its subagents' included, and how full its context is.** A task's details show its share of the plan with its subagents' runs added (*6% of weekly · 21% of 5-hour*; a subagent on another harness or account keeps its own), and a line under it for the context (*84% context*, with a ring that turns amber past 80%; Claude Code reports the model's window). Click either for all of it: tokens read, from the cache and written, the plan's windows, the context against the window, the CLI's own subagents by type and wisp's by name (a click opens one). A harness that reports no windows shows its tokens instead. Wide details column only, like the plan share before it.
 
 ### Changed
 

@@ -11,15 +11,17 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { icon } from '../core/dom.js';
+import { el, icon } from '../core/dom.js';
 import { fmtDate, SHORT_TIME, whenLabel } from '../core/format.js';
 import { S } from '../core/state.js';
 import { tryApi } from '../ui/toast.js';
+import { popover } from '../ui/popover.js';
+import { contextShare, contextTip, contextWords, planParts, taskUsage } from '../task-usage.js';
 import { noticeWords } from '../window-notice.js';
 import { harnessLogo } from './runners.js';
 import { holdLine } from '../limit-hold.js';
 import { bankedSoon, bankedWords } from '../banked.js';
-import { COMPARE_DAYS, COMPARE_MIN, compareParts, compareWords, insteadWords, modelWords, tokenWords } from '../receipt.js';
+import { COMPARE_DAYS, COMPARE_MIN, compareParts, compareWords, insteadWords, modelWords, tokenWords, windowName } from '../receipt.js';
 
 const REPORTS = new Set(['claude', 'codex']); // harnesses whose CLI says how much is gone
 export const STOP_AT = ['off', '50', '75', '90']; // Automations stop at (server/budget.js STOP_AT)
@@ -244,25 +246,71 @@ export function budgetHtml(agents) {
   return can.length ? `<p class="bg-empty">Shows each account’s usage windows after its next ${can.map((a) => esc(a.name)).join(' or ')} run.</p>` : '';
 }
 
-// A window by its id, in words for a sentence: "weekly", "5-hour", "30-day".
-const WIN_WORDS = { five_hour: '5-hour', seven_day: 'weekly', seven_day_opus: 'weekly Opus', seven_day_sonnet: 'weekly Sonnet' };
-function windowWords(id) {
-  if (WIN_WORDS[id]) return WIN_WORDS[id];
-  const m = /^w(\d+)m$/.exec(id);
-  const mins = m ? Number(m[1]) : 0;
-  return !mins ? 'usage' : mins >= 1440 ? `${Math.round(mins / 1440)}-day` : `${Math.round(mins / 60)}-hour`;
-}
-const RANK = ['seven_day', 'seven_day_opus', 'seven_day_sonnet', 'five_hour'];
-
-// The task's share of its plan, for its details: "4% of weekly · 18% of 5-hour", longest first.
-// '' when wisp traced none of it (a harness that doesn't report, or nothing measured yet).
+// The task's usage, for its details (web/js/task-usage.js), a line each: its share of the plan's
+// windows, its wisp subagents' included, longest first (with none traced, its tokens), then how full
+// its context is, with a ring that fills (amber past 80%). Each opens the whole of it (usageMenu).
+// '' when wisp measured nothing (a harness that doesn't report, nothing run yet).
+export const subsOf = (s) => s.subUsage || []; // its wisp subagents' (server/runner.js subUsageOf)
 export function planLine(s) {
-  const p = s.plan && Object.entries(s.plan).filter(([, x]) => x > 0);
-  if (!p?.length) return '';
-  const rank = (id) => (RANK.includes(id) ? RANK.indexOf(id) : -1); // unknown lengths (30-day) lead
-  const text = p
-    .sort((a, b) => rank(a[0]) - rank(b[0]))
-    .map(([id, x]) => `${pct(x)} of ${windowWords(id)}`)
-    .join(' · ');
-  return `<span class="plan-used" title="${esc('How much of its plan’s usage windows this task used, as wisp traced it from what the CLI reports. Settings → Usage shows where the rest went')}">${icon('stats')}<span>${esc(text)}</span></span>`;
+  const plan = planParts(s, subsOf(s));
+  const c = s.context;
+  const share = contextShare(c);
+  const btn = (cls, lead, text, tip) => `<button type="button" class="${cls}" data-a="usage" aria-haspopup="dialog" title="${esc(`${tip}. Click for all of its usage`)}">${lead}<span>${esc(text)}</span></button>`;
+  return (
+    (plan.length ? btn('plan-used', icon('stats'), plan.join(' · '), 'This task’s share of its plan, its subagents’ included, as wisp traced it from what the CLI reports') : '') +
+    (c ? btn('plan-used ctx-used', `<span class="pu-ring${share >= 0.8 ? ' hi' : ''}" style="--ctx:${Math.round((share ?? 0) * 100)}%" aria-hidden="true"></span>`, contextWords(c), contextTip(c)) : '')
+  );
+}
+
+// The whole of it, under the line: tokens (read, cached, written), the plan's windows with the
+// subagents' part, the context, the CLI's subagents by type and wisp's by name (a click opens one).
+// Everything is from what's on the page already, so it opens at once.
+let closeUsage = null; // the open one: its line's second click closes it
+export function usageMenu(btn, id) {
+  if (closeUsage) return closeUsage();
+  const s = S.sessions.get(id);
+  if (!s || !btn) return;
+  const u = taskUsage(S.full.get(id), s, subsOf(s));
+  const row = (k, v, tip = '') => `<div class="pu-row"${tip ? ` title="${esc(tip)}"` : ''}><span>${esc(k)}</span><b>${esc(v)}</b></div>`;
+  const plan = u.plan.map((p) => row(`Of ${windowName(p.window)}`, pct(p.used), p.used > p.own ? `${pct(p.own)} by the task, ${pct(p.used - p.own)} by its subagents` : ''));
+  const c = u.context;
+  const share = contextShare(c);
+  const ctx = c
+    ? `<div class="pu-row" title="${esc(contextTip(c))}"><span>In use</span><b>${esc(!c.tokens ? 'Compacted' : c.window ? `${tokenWords(c.tokens)} of ${tokenWords(c.window)}` : tokenWords(c.tokens))}</b></div>${share != null ? `<div class="pu-bar${share >= 0.8 ? ' hi' : ''}" role="meter" aria-label="Context" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}"><i style="width:${(share * 100).toFixed(1)}%"></i></div>` : ''}`
+    : '';
+  const own = u.own;
+  const tokens = [
+    row(u.subTokens ? 'Tokens, subagents in' : 'Tokens', tokenWords(u.tokens), `${u.tokens.toLocaleString('en-US')} tokens read and written${u.subTokens ? `, ${u.subTokens.toLocaleString('en-US')} of them by its subagents` : ''}`),
+    own.read ? row('Read', tokenWords(own.read), own.cache != null ? `${pct(own.cache)} of it from the cache` : '') : '',
+    own.cache != null && own.read ? row('From the cache', pct(own.cache)) : '',
+    own.output ? row('Written', tokenWords(own.output)) : '',
+    u.turns ? row('Turns', String(u.turns)) : '',
+  ];
+  const agents = u.agents.map((x) => row(`${x.calls} ${x.type} agent${x.calls === 1 ? '' : 's'}${x.model ? ` · ${modelWords(x.model)}` : ''}`, x.output ? `${tokenWords(x.output)} out` : '—', 'Ran inside the task’s turns: their tokens are in the task’s'));
+  const subs = u.subs.map((x) => `<button type="button" class="pu-row pu-sub" data-session="${esc(x.id)}" title="${esc(`Open “${x.title}”${x.apart ? '. Its share is of another plan’s windows, so the task’s line leaves it out' : ''}`)}"><span>${esc(x.name)}</span><b>${esc([x.tokens ? tokenWords(x.tokens) : '', x.plan[0] ? `${pct(x.plan[0].used)} of ${windowName(x.plan[0].window)}` : ''].filter(Boolean).join(' · ') || '—')}</b></button>`);
+  const sec = (title, rows) => (rows.filter(Boolean).length ? `<div class="pu-sec"><h5>${esc(title)}</h5>${rows.join('')}</div>` : '');
+  const r = btn.getBoundingClientRect();
+  const menu = el(`<div class="menu plan-menu" role="dialog" aria-label="Task usage" style="top:${r.bottom + 6}px;left:${r.left}px">
+      ${sec('This task', tokens)}${sec('Plan', plan)}${sec('Context', [ctx])}${sec('Subagents in its turns', agents)}${sec('Subagents', subs)}
+      <button type="button" class="pu-more" data-a="usage-settings">${icon('stats')}<span>All usage in Settings</span></button>
+    </div>`);
+  menu.onclick = (e) => {
+    const sub = e.target.closest('[data-session]');
+    if (sub) {
+      close();
+      import('./feed.js').then((m) => m.reveal(sub.dataset.session));
+      return;
+    }
+    if (e.target.closest('[data-a="usage-settings"]')) {
+      close();
+      import('./settings.js').then((m) => m.openSettings({ pane: 'usage' }));
+    }
+  };
+  const close = popover(menu, { anchor: btn, onClose: () => { closeUsage = null; btn.setAttribute('aria-expanded', 'false'); } });
+  closeUsage = close;
+  btn.setAttribute('aria-expanded', 'true');
+  // Kept in the window: under the line, or above it when there's no room below.
+  const h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 8 - menu.offsetWidth))}px`;
+  if (r.bottom + 6 + h > innerHeight - 8) menu.style.top = `${Math.max(8, r.top - 6 - h)}px`;
 }

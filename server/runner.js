@@ -29,6 +29,7 @@ import { infraError } from './router.js';
 import { KEYS as KEY_LOGINS, signedOutBy } from './agent-login.js';
 import { refusalOf } from './refusal.js';
 import { haltOf } from '../web/js/core/format.js';
+import { contextOf, tokensOf } from '../web/js/task-usage.js';
 import { vendorOf } from '../web/js/vendors.js';
 import { goalNote, goalView } from './goal.js';
 import { compactOffer, compactUntil } from '../web/js/cold-cache.js';
@@ -248,6 +249,49 @@ function compactSummary(s) {
   return offer ? { compactOffer: { ...offer, until: compactUntil(s) } } : {};
 }
 
+// The task view's usage: { tokens, context, subUsage } with what's measured, or null. Its wisp
+// subagents aren't in the list, so a lead carries theirs (web/js/task-usage.js adds them up).
+function usageOf(s, store) {
+  const own = ownUsage(s);
+  const subs = subUsageOf(s, store, own.plans);
+  if (!own.tokens && !own.context && !subs.length) return null;
+  return { ...(own.tokens > 0 && { tokens: own.tokens }), ...(own.context && { context: own.context }), ...(subs.length && { subUsage: subs }) };
+}
+// One task's own numbers, made again only when its turns move (a finished turn's never do): views
+// are rebuilt for every task on each subagent save. plans: the agent/account pairs its plan share is on.
+const usageKept = new WeakMap();
+function ownUsage(s) {
+  const turns = s.turns || [];
+  const last = turns.at(-1);
+  // A share lands with the CLI's next report, on whichever turn it was for: count them all.
+  const key = `${turns.length}:${last?.status}:${last?.endedAt}:${turns.reduce((a, t) => a + (t.plan?.length || 0), 0)}`;
+  const kept = usageKept.get(s);
+  if (kept?.key === key) return kept.u;
+  const { read, output } = tokensOf(turns);
+  const plans = new Set(turns.flatMap((t) => (t.plan || []).map((p) => `${p.agent} ${p.account}`)));
+  const u = { tokens: read + output, context: contextOf(turns), plan: planOf(s), plans };
+  usageKept.set(s, { key, u });
+  return u;
+}
+// A lead's wisp subagents: what each took. samePlan false: its share is of another plan's windows
+// (another harness or account), so the lead's line doesn't add it to its own.
+function subUsageOf(s, store, plans) {
+  if (s.parentId || !store?.get) return [];
+  const ids = new Set([...Object.values(s.children || {}), ...(s.turns || []).flatMap((t) => (t.delegations || []).map((d) => d.sessionId))]);
+  const out = [];
+  for (const id of ids) {
+    const c = id && store.get(id);
+    if (c?.parentId !== s.id) continue;
+    const u = ownUsage(c);
+    if (!u.tokens && !u.plan) continue;
+    // Before the lead has a share of its own, its plan is the one it runs on.
+    const lead = plans.size ? plans : new Set([`${s.agent} ${s.account || 'default'}`]);
+    const samePlan = [...u.plans].every((k) => lead.has(k));
+    out.push({ id: c.id, name: c.member || c.title || 'Subagent', title: c.title || '', agent: c.agent, tokens: u.tokens, ...(u.plan && { plan: u.plan }), ...(!samePlan && { samePlan: false }) });
+  }
+  return out;
+}
+
 export function summarize(s, store) {
   const project = store?.projectFor(s.cwd);
   const last = s.turns.at(-1);
@@ -276,7 +320,8 @@ export function summarize(s, store) {
     ...(s.account && { account: s.account }), // which of the harness's accounts it runs on (server/accounts.js)
     ...(s.subagentModel !== undefined && { subagentModel: s.subagentModel }), // its own, over the setting ('' is the task's model)
     ...(s.skills && { skills: s.skills }),
-    ...(planOf(s) && { plan: planOf(s) }), // its share of each kind of usage window (server/budget.js)
+    ...(ownUsage(s).plan && { plan: ownUsage(s).plan }), // its share of each kind of usage window (server/budget.js)
+    ...(usageOf(s, store) || {}), // tokens: all its turns took; context: how full it is now (web/js/task-usage.js)
     state: s.state,
     unread: s.unread,
     archived: !!s.archived,

@@ -160,6 +160,20 @@ export function modelsOf(modelUsage, prev) {
   return list.length ? list : undefined;
 }
 
+// The context window of the main thread's model, from modelUsage (each model says its own), or 0.
+// The init's model id can carry a suffix modelUsage leaves off ("claude-opus-5-5[1m]"); with no match,
+// the largest window of the models that read most is the safest reading.
+export function contextWindowOf(modelUsage, model = '') {
+  if (!modelUsage || typeof modelUsage !== 'object') return 0;
+  const ok = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
+  const base = String(model).replace(/\[.*\]$/, '');
+  const hit = modelUsage[model] || modelUsage[base];
+  if (ok(hit?.contextWindow)) return hit.contextWindow;
+  const read = (u) => n0(u?.inputTokens) + n0(u?.cacheReadInputTokens) + n0(u?.cacheCreationInputTokens);
+  const top = Object.values(modelUsage).sort((a, b) => read(b) - read(a))[0];
+  return ok(top?.contextWindow);
+}
+
 // On --resume the CLI starts from the conversation's saved counters: total_cost_usd and modelUsage
 // hold its earlier runs too, while usage is this run's alone. It can also start from zero (another
 // account's login folder), so prior (the last turn's stats.totals) counts only when the counters
@@ -450,6 +464,7 @@ export default {
     const subagents = subagentTally();
     let lastModels = null; // the last result's modelUsage (it adds up over the process)
     let counted; // the counters this process started from, once its first result says (see restoredFrom)
+    let mainModel = ''; // the main thread's model (system init): its contextWindow is the task's
     let unsplit = false; // the next result's modelUsage can't be told from the conversation's
     // This turn's last main-thread message the API ended with stop_reason "refusal" (server/refusal.js).
     // Per turn, not per process: a refusal the CLI retried past (refusal_retry) can still end in
@@ -532,6 +547,7 @@ export default {
         // What the CLI was this turn (stats.cli, web/js/what-changed.js).
         if (msg.claude_code_version) onEvent({ type: 'cli', version: String(msg.claude_code_version) });
         subagents.init(msg.tools);
+        if (msg.model) mainModel = String(msg.model);
       } else if (msg.type === 'system') {
         if (msg.subtype === 'compact_boundary') [contextTokens, compacted, boundary, unshrunk] = [0, true, msg.compact_metadata || {}, null];
         if (msg.subtype === 'status' && msg.compact_result) unshrunk = msg.compact_result === 'success' ? null : { error: String(msg.compact_error || msg.error || '').trim() };
@@ -581,6 +597,9 @@ export default {
         else if (!ev.isError && (local || (unshrunk && !ev.text.trim()))) notCompacted(ev, unshrunk?.error);
         if (contextTokens || compacted) ev.stats.contextTokens = contextTokens;
         if (cacheTtlMs) ev.stats.cacheTtlMs = cacheTtlMs;
+        // How much the main thread's model can hold (the details' context meter, web/js/task-usage.js).
+        const win = contextWindowOf(msg.modelUsage, mainModel);
+        if (win) ev.stats.contextWindow = win;
         [contextTokens, cacheTtlMs, compacted, boundary, unshrunk] = [0, 0, false, null, null]; // one process can report several results
         // modelUsage adds up over the process: this result's part is what's new since the last.
         const models = unsplit ? undefined : modelsOf(msg.modelUsage, lastModels);

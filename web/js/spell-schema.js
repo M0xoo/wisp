@@ -378,8 +378,13 @@ export const PARTS = {
   'split.mini': 'body.split #feed .item.open .it-mini > .im-row',
   // The account a task runs on (a harness with more than one): its initial on the harness logo.
   'details.account': 'body.split #feed .item.open .it-props .model-logo .acc-i',
-  // The open task's share of its plan's usage windows (4% of weekly · 18% of 5-hour).
+  // The open task's usage, its subagents' included: its share of its plan's windows (6% of weekly ·
+  // 21% of 5-hour) and how full its context is (62% context), lines that open all of it.
   'details.plan': 'body.split #feed .item.open .it-props > .plan-used',
+  // …the context's line alone, with its ring…
+  'details.context': 'body.split #feed .item.open .it-props > .ctx-used',
+  // …and what the click opens: tokens, the plan's windows, the context and each subagent.
+  'details.usage': '.menu.plan-menu',
   // A turn that hit its account's usage limit: the card under its hero (Wait until…, Continue on
   // another account, Hand to another harness, Get extra usage).
   // A turn its harness turned down (server/refusal.js): the card under its hero (Hand to <another
