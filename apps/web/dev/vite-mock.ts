@@ -16,6 +16,7 @@ import type { ClientMessage } from '@wisp/protocol';
 import { encodeFrame, heartbeat } from '@wisp/sync';
 import { createMockPeer, type MockPeer, type MockTimers } from './mock-peer.ts';
 import { v1Captured, type V1Seed } from './seed.ts';
+import { resetGit } from './mock-git.ts';
 
 function body(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,6 +54,7 @@ function middleware(box: { peer: MockPeer; fresh: () => MockPeer }) {
     const peer = box.peer;
     if (url.pathname === '/__mock/reset') {
       box.peer = box.fresh();
+      resetGit();
       return void res.writeHead(204).end();
     }
     if (url.pathname === '/api/events' && req.method === 'GET') return events(peer, req, res, url);
