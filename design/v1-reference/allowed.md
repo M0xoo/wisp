@@ -60,6 +60,19 @@ shift every later index. Everything outside the part still has to match.
 
 - **One project selector instead of the chips** (the owner, 2026-11-12, commit 10d8f30f): the sidebar's project chips
   are one selector with a ⌘P switcher (search, ↑↓ Enter, colour dots, need-you counts, ⌘0–⌘9).
+- **Take over is Open in <harness>** (the owner, 2026-11-09, ADR-0033 "Name"): the task's details say "Open in Claude
+  Code" where v1 said "Take over" (`details.openIn`).
+
+## 6. Known, not allowed: the list rows' glyph phase (the coder, round 25, 2026-11-12)
+
+Recorded, not masked: parity still counts these regions. On home, palette and task at 1440 the left list's 2nd and
+4th rows (the status pill's text, the harness · computer line, the dot) differ in regions a little over 8×8. Measured
+live against v1 (origin/main, its QA seed restored): every box and every text node's rect in those rows is v1's to
+1/64 px (rows 78.515625 px, the run line at 325.03125, the pill at 304.84375), the computed font, smoothing, kerning
+and letter-spacing are the same, and with `overscroll-behavior: auto` everywhere v2's layer tree is v1's (#document and
+the main column only). The glyphs still land a pixel apart on rows whose top falls near a whole pixel. Not found yet:
+the next step is a Chrome paint trace of one row on each side. Fixed on the way: v1's 1.55 line heights in the rows
+(20.140625 / 19.375 px), the section heading's chevron margin and count weight, the palette's inline keys and 7 px dots.
 
 ## Rules (read by `qa/parity.mjs`)
 
@@ -84,4 +97,5 @@ One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is �
 *   panel.head         fold
 *   topbar             fold
 *   topbar.projects    owner
+task*  details.openIn  owner
 ```

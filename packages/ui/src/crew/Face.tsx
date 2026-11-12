@@ -15,7 +15,7 @@ export interface FaceProps extends KitProps {
   readonly color?: string;
   readonly mood?: SpiritMood;
   /** xs 20 · sm 24 · md 32 · lg 44 · xl 64 */
-  readonly size?: FaceSize;
+  readonly size?: FaceSize | 'card' | 'row';
   readonly dot?: 'asks' | 'unread';
   /** paused: dimmed */
   readonly dim?: boolean;

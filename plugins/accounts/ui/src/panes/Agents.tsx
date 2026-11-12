@@ -190,7 +190,7 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
             <Pill tone="good" icon="check" variant="plain">
               {t('accounts.login.signedIn')}
             </Pill>
-            <Button size="sm" variant="ghost" onClick={() => quiet(c.run(logout, args))}>
+            <Button size="xs" variant="ghost" onClick={() => quiet(c.run(logout, args))}>
               {t('accounts.login.signOut')}
             </Button>
           </Inline>

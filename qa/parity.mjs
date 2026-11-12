@@ -243,7 +243,7 @@ export function readAllowed(file) {
     .map((l) => {
       const [view, part, kind] = l.split(/\s+/);
       if (!['wrap', 'pending', 'fold', 'owner'].includes(kind)) throw new Error(`allowed.md: unknown kind "${kind}" in "${l}"`);
-      return { view: glob(view), part: glob(part), kind };
+      return { view: glob(view), part: glob(part), name: part, kind };
     });
 }
 
@@ -274,6 +274,8 @@ const EXTRA = {
   '#secCrew .cr-add': '[data-part="crew.add"]',
   // v1's Spells pane is v2's Plugins (ADR-0031: changes to wisp itself are plugins)
   'button[role="tab"][data-pane="spells"]': 'button[role="tab"][data-pane="plugins"]',
+  // the phone list's Crew section: a member's row, not the dashed Add one (v2's empty row has no part)
+  '#secCrew .cr-row:not(.cr-empty)': '[data-part="crew.row"]',
 };
 
 // A v1 selector, in terms of the PARTS contract v2 renders (data-part). Rows are found by their title.
@@ -287,6 +289,9 @@ export function translator(seed) {
         const bare = vis ? piece.slice(0, -8) : piece;
         if (bySel.has(bare)) return `[data-part="${bySel.get(bare)}"]${vis}`;
         if (EXTRA[bare]) return `${EXTRA[bare]}${vis}`;
+        // an item of an open menu (v1 .menu [data-a]: on a phone, the task's Transcript under More)
+        const mi = bare.match(/^\.menu \[data-a="([\w-]+)"\]$/);
+        if (mi) return `[data-kit="menu-item"][data-value="${mi[1]}"]${vis}`;
         const m = bare.match(/^#feed \.item\[data-id="(\w+)"\] \.it-head$/);
         if (m) return row(m[1]);
         // the open task's actions (v1 .item.open .it-actions [data-a=…]): v2's task bar carries the same data-a
@@ -579,6 +584,11 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
         // it aren't compared; the generic parts (x.button…) are counted again on both sides without them, so one
         // decided difference doesn't shift every later index.
         const owned = { ref: refParts.filter((r) => ownerRule(r.part)).map((r) => r.box), v2: got.filter((g) => ownerRule(g.part)).map((g) => g.box) };
+        // a part only v2 has (no v1 PARTS name: the owner renamed what v1 called something else), found by its data-part
+        for (const r of rules.filter((x) => x.kind === 'owner' && !x.name.includes('*'))) {
+          const extra = await p.evaluate((n) => [...document.querySelectorAll(`[data-part~="${n}"]`)].map((e) => { const b = e.getBoundingClientRect(); return [b.x, b.y, b.width, b.height]; }).filter((b) => b[2] > 0), r.name);
+          owned.v2.push(...extra);
+        }
         if (owned.ref.length || owned.v2.length) {
           masks.push(...owned.ref, ...owned.v2);
           const within = (b, boxes) => boxes.some(([x, y, bw, bh]) => b[0] + b[2] / 2 >= x && b[0] + b[2] / 2 <= x + bw && b[1] + b[3] / 2 >= y && b[1] + b[3] / 2 <= y + bh);
@@ -589,9 +599,9 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
               .sort((a, b) => (a.part === b.part ? a.i - b.i : 0))
               .map((x) => (x.part.startsWith('x.') ? { ...x, i: (n[x.part] = (n[x.part] ?? -1) + 1) } : x));
           };
-          refParts = recount(refParts, owned.ref);
+          refParts = recount(refParts, [...owned.ref, ...owned.v2]);
           gotBy.clear();
-          for (const g of recount(got, owned.v2)) gotBy.set(`${g.part}#${g.i}`, g);
+          for (const g of recount(got, [...owned.v2, ...owned.ref])) gotBy.set(`${g.part}#${g.i}`, g);
         }
         const inside = (b) => exempt.some(([x, y, ew, eh]) => b[0] + b[2] / 2 >= x && b[0] + b[2] / 2 <= x + ew && b[1] + b[3] / 2 >= y && b[1] + b[3] / 2 <= y + eh);
         const mdiffs = [];

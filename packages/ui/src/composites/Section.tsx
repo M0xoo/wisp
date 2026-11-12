@@ -70,6 +70,7 @@ export function SettingsRow(props: SettingsRowProps): JSX.Element {
       data-kit="settings-row"
       data-part={part()}
       data-wide={props.wideControl ? '' : undefined}
+      data-layout={props.wideControl ? undefined : 'wrap'}
       data-tile={props.tile ? '' : undefined}
       data-bare={props.control === undefined ? '' : undefined}
       data-big={props.big ? '' : undefined}

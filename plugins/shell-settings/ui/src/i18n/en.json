@@ -12,7 +12,7 @@
   "shell-settings.group.computers": "Computers",
   "shell-settings.group.advanced": "Advanced",
   "shell-settings.pane.general": "General",
-  "shell-settings.pane.general.lede": "Where files open, where tasks open in their harness, and how tasks start.",
+  "shell-settings.pane.general.lede": "Where files open, where tasks open, and how tasks start.",
   "shell-settings.editor": "Open files in",
   "shell-settings.editor.hint": "File links in cards and diffs",
   "shell-settings.editor.vscode": "VS Code",

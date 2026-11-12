@@ -28,7 +28,7 @@
   [data-kit='pal-kbd'] { margin-left: auto; display: flex; gap: 3px; flex: none; }
   [data-kit='pal-empty'] { padding: 34px 12px; text-align: center; color: var(--muted); font-size: 13px; }
   [data-kit='pal-foot'] { flex: none; display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--surface-2); font-size: 11.5px; color: var(--faint); }
-  [data-kit='pal-foot'] [data-kit='kbd'] { margin-right: 3px; }
+  [data-kit='pal-foot'] [data-kit='kbd'] { display: inline; margin-right: 3px; } /* v1 kbd is inline: the line keeps the foot's height */
   /* v1 responsive.css: on a phone it drops from the top, 8px in from every edge, its list as tall as there's room */
   @media (max-width: 720px) {
     [data-kit='dialog-positioner'][data-place='top'] { padding: max(8px, env(safe-area-inset-top)) 8px 8px; }

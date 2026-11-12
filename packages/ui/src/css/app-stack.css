@@ -11,6 +11,8 @@
   /* a page over the list (v1 body.stack-page): the list keeps its place off to the left, so going back
      shows it as it was (its scroll, nothing rebuilt); it's inert while hidden */
   [data-kit='stage'][data-layout='stack'][data-page='main'] > [data-kit='topbar'] { display: none; }
+  /* no view switch on a phone: three tracks, so no empty fourth adds a gap at the end (v1: search 4px from the avatar) */
+  [data-kit='stage'][data-layout='stack'] > [data-kit='topbar'] { grid-template-columns: minmax(0, 1fr) auto auto; }
   [data-kit='stage'][data-layout='stack'][data-page='main'] > [data-kit='feed-wrap'] { display: none; }
   [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] > [data-kit='feed-wrap'] { display: flex; grid-row: 1 / -1; transform: translateX(-100%); }
   [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='split-top'],

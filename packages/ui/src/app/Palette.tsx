@@ -87,7 +87,7 @@ export function PaletteSheet(props: PaletteSheetProps): JSX.Element {
                 >
                   <span data-kit="pal-lead">
                     <Show when={r.dot} fallback={<Icon name={r.icon ?? 'arrow'} size="sm" />}>
-                      {(c) => <Dot size="md" color={c()} />}
+                      {(c) => <Dot size="project" color={c()} />}
                     </Show>
                   </span>
                   <span data-kit="pal-label">

@@ -215,6 +215,8 @@ export const COMMANDS: Record<string, CommandFn> = {
   'terminal.run.info': () => ({ ops: [], result: { open: false, port: 41234, dir: '~/code/wisp-repo', guess: 'npm run dev' } }),
   'terminal.run.start': () => ({ ops: [], result: { ok: true, started: true, port: 41234, dir: '~/code/wisp-repo' } }),
   'terminal.close': () => ({ ops: [], result: { ok: true } }),
+  'terminal.app.open': () => ({ ops: [], result: { ok: true } }),
+  'terminal.shell.info': () => ({ ops: [], result: { supported: true, open: false, app: true, name: 'zsh' } }),
   'crew.stats': () => ({ ops: [], result: [] }),
   // Settings → Machines → This computer over SSH, as v1's reference showed it (names the same length, not the same)
   'machines.reachable': () => ({

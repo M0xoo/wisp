@@ -474,6 +474,8 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
   topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
   topics.set('plugin:wisp.worktrees:worktrees', WORKTREE_ROWS);
+  // usage stats off by the environment, as on v1's QA box (DO_NOT_TRACK)
+  topics.set('plugin:wisp.telemetry:state', [{ e: 'telemetry.state', id: 'this', v: { on: false, setting: true, blocked: true } }]);
   topics.set(
     'crew',
     CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c })),
@@ -625,6 +627,8 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
   topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
   topics.set('plugin:wisp.worktrees:worktrees', WORKTREE_ROWS);
+  // usage stats off by the environment, as on v1's QA box (DO_NOT_TRACK)
+  topics.set('plugin:wisp.telemetry:state', [{ e: 'telemetry.state', id: 'this', v: { on: false, setting: true, blocked: true } }]);
   topics.set(
     'crew',
     v1.crew.map((c) => ({ e: 'crew_member', id: c.id, v: c })),

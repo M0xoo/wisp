@@ -328,6 +328,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     },
     {
       id: 'openIn',
+      // the owner's rename of v1's Take over (ADR-0033); parity knows it by this part (allowed.md §5)
+      part: 'details.openIn',
       deskOnly: true,
       key: 'T',
       icon: 'terminal',

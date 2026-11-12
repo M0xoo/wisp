@@ -11,7 +11,7 @@ export interface DotProps extends KitProps {
   /** pulse: something is live (stilled under reduced motion) */
   readonly live?: boolean;
   readonly label?: string;
-  readonly size?: 'sm' | 'md';
+  readonly size?: 'sm' | 'md' | 'project';
 }
 
 export function Dot(props: DotProps): JSX.Element {

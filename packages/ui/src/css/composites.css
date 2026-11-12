@@ -19,8 +19,8 @@
   [data-kit='list-row'][data-layout='feed']:focus-visible { box-shadow: inset 0 0 0 var(--size-ring) var(--accent); }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='dot'] { grid-column: 1; grid-row: 1; align-self: center; width: 7px; height: 7px; color: var(--ink); }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='icon'][data-part~='list.row.mark'] { grid-column: 1; grid-row: 1; align-self: center; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-title'] { grid-column: 2 / -1; grid-row: 1; min-width: 0; font-size: 13px; line-height: 20px; padding-right: 36px; font-weight: var(--fw-medium); color: var(--ink-2); border-radius: 5px; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'] { grid-column: 2; grid-row: 2; min-width: 0; line-height: 1.56; color: var(--faint); } /* 19.5px on v1's 12.5px */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-title'] { grid-column: 2 / -1; grid-row: 1; min-width: 0; font-size: 13px; line-height: 1.55; padding-right: 36px; font-weight: var(--fw-medium); color: var(--ink-2); border-radius: 5px; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'] { grid-column: 2; grid-row: 2; min-width: 0; line-height: 1.55; color: var(--faint); } /* v1's 19.375px: the rows below stay on v1's sub-pixel grid */
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'][data-tone='accent-ink'] { color: var(--accent-ink); }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'][data-tone='warn'] { color: var(--warn); font-weight: var(--fw-medium); }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'] > [data-kit='icon'] { display: inline-block; margin-right: 4px; vertical-align: -2px; }
@@ -55,7 +55,7 @@
   [data-kit='list-row'][data-layout='feed'][data-quick='2'] > [data-kit='icon-button'] { right: 68px; }
   [data-kit='list-row'][data-layout='feed'][data-quick='2'] > [data-kit='icon-button'] ~ [data-kit='icon-button'] { right: 40px; }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] > [data-kit='icon'] { width: 14px; height: 14px; }
-  [data-kit='list-row'][data-layout='feed']:hover > [data-kit='icon-button'], [data-kit='list-row'][data-layout='feed']:focus-visible > [data-kit='icon-button'], [data-kit='list-row'][data-layout='feed'][data-selected] > [data-kit='icon-button'] { opacity: 1; }
+  [data-kit='list-row'][data-layout='feed']:hover > [data-kit='icon-button'], [data-kit='list-row'][data-layout='feed']:focus-visible > [data-kit='icon-button'], [data-kit='list-row'][data-layout='feed'][data-selected] > [data-kit='icon-button'], [data-kit='list-row'][data-layout='feed'][data-current] > [data-kit='icon-button'] { opacity: 1; } /* v1 .item.focused: the row the keys are on */
   [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'][data-tone='good']:hover { color: var(--good); }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='gap'] { display: none; }
   @media (hover: none) { [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] { opacity: 1; } }
@@ -67,6 +67,8 @@
   [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed']:hover, [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-current], [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-selected] { background: none; }
   /* 2px between two task rows, none after a heading (v1 .f-list gap); a virtual row is flow-root, so it's measured */
   [data-kit='virtual-row'][data-gap] { padding-top: 2px; }
+  /* a section that follows another's rows (v1 .f-group's 14px margin below it) */
+  [data-kit='virtual-row'][data-gap='section'] { padding-top: 14px; }
   [data-kit='list-row'][data-interactive]:hover { background: var(--bg-2); }
   [data-kit='list-row'][data-current] { background: var(--bg-2); }
   [data-kit='list-row'][data-selected] { background: var(--accent-soft); }
@@ -204,6 +206,16 @@
     min-height: var(--size-action-tile); padding: 9px 14px;
   }
   /* v1 .sx-row + .sx-row: the line sits on top of the next row */
+  /* a grid on a wide pane (its Wrap layout only takes over in a narrow one, below) */
+  [data-kit='settings-row'][data-layout='wrap'] { display: grid; }
+  /* v1 .sx-row in a narrow pane: a control that doesn't fit beside its text (the text would get under 200px) goes
+     underneath it, start-aligned; the text keeps its line */
+  @container settings (max-width: 520px) {
+    [data-kit='settings-row'][data-layout='wrap'] { display: flex; gap: 8px 16px; padding: 11px 14px; }
+    [data-kit='settings-row'][data-layout='wrap'] > [data-kit='settings-row-text'] { flex: 1 1 12.5rem; }
+    [data-kit='settings-row'][data-layout='wrap'] > [data-kit='settings-row-control'] { max-width: 100%; }
+    [data-kit='settings-row'][data-layout='wrap'][data-tile] > [data-kit='settings-row-tile'] { flex: none; }
+  }
   [data-kit='settings-row'] + [data-kit='settings-row'] { border-top: var(--size-hairline) solid var(--line); }
   [data-kit='settings-row'][data-bare] { grid-template-columns: minmax(0, 1fr); }
   [data-kit='settings-row'][data-tile] { grid-template-columns: auto minmax(0, 1fr) auto; }

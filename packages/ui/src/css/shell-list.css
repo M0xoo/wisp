@@ -7,13 +7,14 @@
     color: var(--muted); text-align: start; transition: background var(--dur-fast), color var(--dur-fast);
   }
   [data-kit='fold-head']:hover { color: var(--ink); background: var(--bg-2); }
-  [data-kit='fold-head'] > [data-kit='icon'] { flex: none; transition: transform var(--dur-fast) var(--ease); }
+  [data-kit='fold-head'] > [data-kit='icon'] { flex: none; margin-right: -1px; /* v1 .sec-toggle .i */ transition: transform var(--dur-fast) var(--ease); }
   [data-kit='fold-head'][data-open] > [data-kit='icon'] { transform: rotate(90deg); }
   [data-kit='fold-head-title'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  [data-kit='fold-head-count'] { flex: none; font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  [data-kit='fold-head-count'] { flex: none; font-size: var(--fs-xs); font-weight: inherit; /* v1 h4 .n: the heading's 500 */ color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
   [data-kit='fold-head-badge'] { flex: none; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--accent-ink); white-space: nowrap; }
 
   [data-kit='dot'] { flex: none; display: inline-block; width: var(--size-dot); height: var(--size-dot); border-radius: 50%; background: var(--k-tone); }
+  [data-kit='dot'][data-size='project'] { width: 7px; height: 7px; } /* v1 .p-dot: a project's dot in ⌘K and menus */
   [data-kit='dot'][data-size='md'] { width: var(--size-dot-lg); height: var(--size-dot-lg); }
   [data-kit='dot'][data-live] { animation: kit-pulse 1.6s ease-in-out infinite; }
 

@@ -1,5 +1,4 @@
-// Switch and Checkbox on Zag: a real (hidden) input for forms, the right roles and keyboard.
-import * as zagSwitch from '@zag-js/switch';
+// Switch (v1's button role=switch) and Checkbox (on Zag: a real hidden input for forms, the right roles and keyboard).
 import * as checkbox from '@zag-js/checkbox';
 import { normalizeProps, useMachine } from '@zag-js/solid';
 import { createMemo, createUniqueId, Show, type JSX } from 'solid-js';
@@ -20,34 +19,42 @@ export interface SwitchProps extends ToggleBase {
   readonly onChange: (checked: boolean) => void;
 }
 
-/** An on/off setting that applies at once (Settings rows). */
+/** An on/off setting that applies at once (Settings rows). v1's element: a `<button role="switch">` (Space and Enter
+ * toggle it, it takes focus like any button), so a page reads and counts it as v1's did; a hidden input carries it in a
+ * form when it has a `name`. */
 export function Switch(props: SwitchProps): JSX.Element {
-  const id = props.id ?? createUniqueId();
-  const service = useMachine(zagSwitch.machine, () => ({
-    id,
-    checked: props.checked,
-    onCheckedChange: (d: zagSwitch.CheckedChangeDetails) => props.onChange(d.checked),
-    ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
-    ...(props.name === undefined ? {} : { name: props.name }),
-    ...(props.value === undefined ? {} : { value: props.value }),
-    ...(props['aria-label'] === undefined ? {} : { label: props['aria-label'] }),
-  }));
-  const api = createMemo(() => zagSwitch.connect(service, normalizeProps));
   const part = (): PartName => props.part ?? 'ui.switch';
-  return (
-    <label {...api().getRootProps()} data-kit="switch" data-part={part()}>
-      <input {...api().getHiddenInputProps()} aria-label={props.label ? undefined : props['aria-label']} />
-      <span {...api().getControlProps()} data-kit="switch-control" data-part={sub(part(), 'control')}>
-        <span {...api().getThumbProps()} data-kit="switch-thumb" />
+  const state = (): string => (props.checked ? 'checked' : 'unchecked');
+  // the button is the track (v1 .switch: 34 × 20), its knob inside; a label sits beside it, outside the button
+  const track = (): JSX.Element => (
+    <button
+      type="button"
+      id={props.id}
+      role="switch"
+      aria-checked={props.checked}
+      aria-label={props.label ? undefined : props['aria-label']}
+      disabled={props.disabled === true}
+      data-kit="switch"
+      data-part={part()}
+      data-state={state()}
+      data-disabled={props.disabled ? '' : undefined}
+      onClick={() => props.onChange(!props.checked)}
+    >
+      <Show when={props.name}>{(n) => <input type="hidden" name={n()} value={props.checked ? (props.value ?? 'on') : ''} />}</Show>
+      <span data-kit="switch-control" data-part={sub(part(), 'control')} data-state={state()}>
+        <span data-kit="switch-thumb" data-state={state()} />
       </span>
-      <Show when={props.label}>
-        {(label) => (
-          <span {...api().getLabelProps()} data-kit="toggle-label">
-            {label()}
-          </span>
-        )}
-      </Show>
-    </label>
+    </button>
+  );
+  return (
+    <Show when={props.label} fallback={track()}>
+      {(label) => (
+        <label data-kit="switch-field">
+          {track()}
+          <span data-kit="toggle-label">{label()}</span>
+        </label>
+      )}
+    </Show>
   );
 }
 

@@ -9,6 +9,8 @@
   }
   /* never wider than its box: a long label ends in … (design/layout.md: control text doesn't wrap, it truncates) */
   [data-kit='button'] { padding: var(--space-0) var(--space-5); max-width: 100%; }
+  /* v1 .icon-btn has no weight of its own */
+  [data-kit='icon-button'] { font-weight: var(--fw-regular); }
   [data-kit='button-content'] { display: inline-flex; align-items: center; gap: var(--space-3); min-width: 0; }
   /* v1 .primary: its icon 8px from the label (.ghost keeps 6px) */
   [data-kit='button'][data-variant='primary'] > [data-kit='button-content'] { gap: var(--space-4); }

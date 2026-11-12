@@ -73,7 +73,7 @@ function ListBody(): JSX.Element {
             grow
             aria-label={t('shell-list.list.label')}
             part={'list.rows feed' as `${string}.${string}`}
-            gapBefore={(i) => isTaskItem(items()[i]) && isTaskItem(items()[i - 1])}
+            gapBefore={(i) => (isTaskItem(items()[i]) && isTaskItem(items()[i - 1]) ? true : (items()[i]?.t === 'slot' && i > 0 && isTaskItem(items()[i - 1])) || (i > 0 && items()[i - 1]?.t === 'slot') ? 'section' : false)}
             // each section a box from its heading to its last row (v1 #secNeeds, …): parity measures it, spells style it
             groups={sectionGroups(items())}
           >

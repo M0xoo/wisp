@@ -96,7 +96,7 @@ function Card(props: { readonly c: OrgCard; readonly p: OrgViewProps }): JSX.Ele
       }}
     >
       <div data-kit="org-face">
-        <Face avatar={props.c.avatar} name={props.c.name} {...(props.c.color !== undefined && { color: props.c.color })} size="md" />
+        <Face avatar={props.c.avatar} name={props.c.name} {...(props.c.color !== undefined && { color: props.c.color })} size="card" part="crew.avatar" />
         <span data-kit="org-who">
           <b>{props.c.name}</b>
           <small>{props.c.role}</small>
@@ -407,7 +407,7 @@ export function CrewListSection(props: {
             <For each={props.rows}>
               {(m) => (
                 <div data-kit="cr-row" data-part="crew.row" data-paused={flag(m.paused)} role="button" tabindex="0" title={props.openLabel(m.name)} onClick={() => props.onOpen(m.id)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), props.onOpen(m.id))}>
-                  <Face avatar={m.avatar} name={m.name} {...(m.color !== undefined && { color: m.color })} size="md" part="crew.avatar" />
+                  <Face avatar={m.avatar} name={m.name} {...(m.color !== undefined && { color: m.color })} size="row" part="crew.avatar" />
                   <span data-kit="cr-main">
                     <span data-kit="cr-top">
                       <b data-kit="cr-name">{m.name}</b>
