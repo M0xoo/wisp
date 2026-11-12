@@ -1,6 +1,6 @@
 // The `hero` block (v1 R.hero): what happened, in one line under a status pill, and a sentence or
 // two of summary. The title is content (it wraps, balanced); the pill is control text.
-import { Show, type JSX } from 'solid-js';
+import { For, Show, type JSX } from 'solid-js';
 import type { Tone } from '@wisp/tokens';
 import { Pill } from '../content/Pill.tsx';
 import { useBlockT, useBlocks } from './context.tsx';
@@ -29,6 +29,7 @@ export function HeroBlock(props: BlockProps): JSX.Element {
           <Pill part="block.hero.status" tone={TONE[status()]} dot>
             {t(LABEL[status()])}
           </Pill>
+          <For each={ctx.heroMeta ?? []}>{(m) => <span data-kit="cb-hero-meta">{m}</span>}</For>
         </div>
       </Show>
       <Show when={!echo()}>

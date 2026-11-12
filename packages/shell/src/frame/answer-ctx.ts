@@ -16,6 +16,9 @@ export interface AnswerHost {
   readonly latest: () => boolean;
   /** the task's title (a hero repeating it says nothing) */
   readonly title?: () => string;
+  /** the transcript shows: the hero says its state and meta again (v1: not the trail then) */
+  readonly transcript?: () => boolean;
+  readonly meta?: () => readonly string[];
   readonly reply: (text: string) => void;
   readonly draft: (text: string) => void;
   readonly openChanges: () => void;
@@ -32,7 +35,12 @@ export function answerContext(h: AnswerHost): BlockContext {
     get latest() {
       return h.latest();
     },
-    inTask: true,
+    get inTask() {
+      return !h.transcript?.();
+    },
+    get heroMeta() {
+      return h.transcript?.() ? (h.meta?.() ?? []) : [];
+    },
     get taskTitle() {
       return h.title?.() ?? '';
     },

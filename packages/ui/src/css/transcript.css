@@ -81,7 +81,7 @@
   [data-kit='timeline-msg'] { flex-wrap: nowrap; align-items: flex-start; gap: var(--space-5); padding: var(--space-3) 0; }
   [data-kit='timeline-dot'] {
     position: relative; z-index: var(--z-raised); flex: none; width: var(--size-avatar-sm); height: var(--size-avatar-sm); margin-top: var(--space-1);
-    background: radial-gradient(circle, var(--ink-2) 0 var(--space-2), var(--surface) calc(var(--space-2) + var(--size-hairline)));
+    background: radial-gradient(circle, var(--accent) 0 var(--space-2), var(--surface) calc(var(--space-2) + var(--size-hairline)));
     border-radius: var(--radius-pill);
   }
   [data-kit='timeline-msg-body'] { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }

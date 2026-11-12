@@ -23,6 +23,7 @@ import { usePromptMenu } from './prompt-menu.ts';
 import { useAttachments } from './attach.ts';
 import { harnessOf } from './harness.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
+import { TurnTranscript } from './TurnTranscript.tsx';
 import { runPick, type Runner } from './runner.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
 
@@ -257,7 +258,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     }
   };
   const actions = (s: SessionRow): TaskAction[] => [
-    { id: 'transcript', deskOnly: true, key: 'V', icon: 'transcript', label: t('shell.task.transcript'), title: t('shell.task.transcriptTitle'), act: { onClick: () => setStepsOpen(!stepsOpen()) } },
+    { id: 'transcript', deskOnly: true, key: 'V', icon: 'transcript', label: t('shell.task.transcript'), title: t('shell.task.transcriptTitle'), on: stepsOpen(), act: { onClick: () => setStepsOpen(!stepsOpen()) } },
     {
       id: 'rerun',
       deskOnly: true,
@@ -399,6 +400,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                             {...(hero?.title && { hero: { title: hero.title, summary: hero.summary ?? '' } })}
                             {...(blocks.length > 0 && {
                               answer: (
+                                <>
+                                  {/* v1 transcript.js renderTranscript: with Transcript on, the turn's timeline comes before its answer */}
+                                  <Show when={stepsOpen()}>
+                                    <TurnTranscript steps={[...steps(), ...((b as { presentation?: { notes?: string } }).presentation?.notes ? [{ kind: 'text', label: String((b as { presentation?: { notes?: string } }).presentation?.notes) }] : [])]} changes={changes} here={here} status={turn.status ?? ''} t={t} />
+                                  </Show>
                                 <Answer
                                   blocks={blocks}
                                   ctx={answerContext({
@@ -407,17 +413,24 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                     turnId: turn.id,
                                     latest: () => turn.id === turns().at(-1)?.id,
                                     title: () => s().title,
+                                    transcript: stepsOpen,
+                                    meta: () => [
+                                      ...(b.endedAt && b.endedAt > turn.started_at ? [duration(b.endedAt - turn.started_at)] : []),
+                                      ...(b.stats?.costUsd ? [`$${b.stats.costUsd.toFixed(2)}`] : []),
+                                      ...(changes.length ? [t(changes.length === 1 ? 'shell.task.touched.one' : 'shell.task.touched.other', { n: changes.length })] : []),
+                                    ],
                                     reply,
                                     draft,
                                     openChanges: () => side('changes'),
                                     apps: () => ((b as { ext?: Record<string, unknown> }).ext?.['wisp.apps'] ?? {}) as Record<string, unknown>,
                                   })}
                                 />
+                                </>
                               ),
                             })}
                             {...(turn.status === 'running' && { live: s().summary.live || t('shell.task.starting') })}
                             actsTitle={t('shell.task.activity')}
-                            acts={[
+                            acts={stepsOpen() ? [] : [
                               { icon: 'read', text: String(count('read')), title: t('shell.task.read', { n: count('read') }) },
                               { icon: 'pen', text: String(count('edit')), title: t('shell.task.edited', { n: count('edit') }) },
                               { icon: 'terminal', text: String(count('run')), title: t('shell.task.ran', { n: count('run') }) },
@@ -431,7 +444,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                               files: { label: t('shell.task.files', { n: figures.files }), plus: `+${figures.plus}`, minus: `−${figures.minus}`, act: { onClick: () => side('changes') } },
                             })}
                             activity={{
-                              open: stepsOpen(),
+                              open: false,
                               onToggle: () => setStepsOpen(!stepsOpen()),
                               items: steps().map((a) => ({
                                 icon: ACT_ICON[a.kind] ?? 'tool',

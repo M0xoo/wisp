@@ -19,6 +19,8 @@
      no state row (own: the title 4px under the turn's top), and no title when it only repeats the task's (echo) */
   [data-kit='cb-hero'] { position: relative; padding: 2px 0 6px; }
   [data-kit='cb-hero-top'] { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-width: 0; }
+  [data-kit='cb-hero-meta'] { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  [data-kit='cb-hero-meta'] + [data-kit='cb-hero-meta']::before { content: '·'; margin-right: 12px; color: var(--faint); }
   [data-kit='cb-hero-title'] { margin: 12px 0 6px; font: 600 26px / 1.2 var(--display); letter-spacing: -0.025em; text-wrap: balance; }
   [data-kit='cb-hero']:not(:has(> [data-kit='cb-hero-top'])) > [data-kit='cb-hero-title'] { margin-top: 4px; }
   [data-kit='cb-hero-summary'] { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); max-width: 70ch; text-wrap: pretty; }

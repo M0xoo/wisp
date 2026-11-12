@@ -103,6 +103,8 @@ export interface BlockContext {
   readonly inTask?: boolean;
   /** the task's title there (a hero's title that only repeats it is left out) */
   readonly taskTitle?: string;
+  /** beside a hero's state (v1 R.hero meta: how long, what it cost, files touched), shown with the transcript */
+  readonly heroMeta?: readonly string[];
   /** the block's own copy, translated; default English (./strings.ts) */
   readonly t?: (key: BlockString, vars?: Readonly<Record<string, string | number>>) => string;
 }

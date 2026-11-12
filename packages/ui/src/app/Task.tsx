@@ -107,6 +107,8 @@ export interface TaskAction {
   /** desktop only: on a phone it sits in More */
   readonly deskOnly?: boolean;
   readonly act?: Act;
+  /** what it shows is open (v1 .ghost.tx-toggle.on: the Transcript action while the transcript shows). Additive. */
+  readonly on?: boolean;
 }
 
 export interface TaskDetailsProps {
@@ -166,7 +168,7 @@ export function TaskDetails(props: TaskDetailsProps): JSX.Element {
             <WithAct
               act={a.act}
               render={(trigger) => (
-                <button type="button" {...trigger()} data-kit="ghost-xs" data-a={a.id} data-part={a.part} data-tone={a.tone} data-key={a.key} data-desk={flag(a.deskOnly)} title={a.title}>
+                <button type="button" {...trigger()} data-kit="ghost-xs" data-a={a.id} data-part={a.part} data-tone={a.tone} data-key={a.key} data-desk={flag(a.deskOnly)} data-on={flag(a.on)} aria-pressed={a.on === undefined ? undefined : a.on} title={a.title}>
                   <ActIcon act={a.act}>
                     <Icon name={a.icon} />
                   </ActIcon>

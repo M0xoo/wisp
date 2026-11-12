@@ -7,6 +7,20 @@ import { Answer, BLOCK_TYPES, asBlock, type BlockProps } from '../src/index.ts';
 const V1_TYPES = ['hero', 'markdown', 'steps', 'stats', 'files', 'tree', 'diff', 'code', 'compare', 'tests', 'commits', 'graph', 'checklist', 'callout', 'terminal', 'flow', 'chart', 'image', 'video', 'preview', 'map', 'doc', 'task', 'stuff', 'question', 'blocked', 'actions', 'next', 'app'];
 
 describe('Answer', () => {
+  // v1 blocks.js R.hero: in a task's page the latest answer's state is the task bar's (own) and a title that only
+  // repeats the task's is left out (echo); with the transcript open the state row comes back with its meta
+  test('a_heros_state_row_is_left_out_on_a_tasks_latest_answer_and_back_with_the_transcript', () => {
+    const hero = { type: 'hero', title: 'Fake claude finished', summary: 'No question asked.', status: 'done' };
+    const own = mount(() => <Answer blocks={[hero]} ctx={{ inTask: true, latest: true, taskTitle: 'Fix the login bug' }} />);
+    expect(own.querySelector('[data-part="block.hero.status"]')).toBeNull();
+    expect(own.querySelector('[data-part="block.hero.title"]')?.textContent).toBe('Fake claude finished');
+    const echo = mount(() => <Answer blocks={[hero]} ctx={{ inTask: true, latest: true, taskTitle: 'Fake claude finished' }} />);
+    expect(echo.querySelector('[data-part="block.hero.title"]')).toBeNull();
+    const tx = mount(() => <Answer blocks={[hero]} ctx={{ inTask: false, latest: true, heroMeta: ['369ms', '$0.01', '1 file touched'] }} />);
+    expect(tx.querySelector('[data-part="block.hero.status"]')).not.toBeNull();
+    expect([...tx.querySelectorAll('[data-kit="cb-hero-meta"]')].map((m) => m.textContent)).toEqual(['369ms', '$0.01', '1 file touched']);
+  });
+
   test('the kit has a renderer for every block type v1 draws', () => {
     expect([...BLOCK_TYPES].sort()).toEqual([...V1_TYPES].sort());
   });
