@@ -13,6 +13,12 @@
    on Windows. Make the QA quit the way a user does on Windows (close the window: v1 quits there) and make sure that
    path exits the process.
 
+**Round 39 (done):** Run on another computer as v1 (find or clone the repo there, join its projects, same subfolder;
+a second computer in the mock); 11 rows: answer pictures load, viewer, Copy, Show in folder, kept shots; 👍/👎 and
+Send feedback; un-archive on reply; Compare runs keep their title; /btw; no team cap; wisp blocks switch. Next: partial
+(104) and missing (17) rows, most-used first (F-page-41 `.env` Reveal, F-auto-5 times in the reply box, F-task-27 a
+second folder).
+
 **Round 38 (done):** 13 rows: queue and held queue, start-later from New task, paste-a-task mention, Rerun… dialog
 (and its broken path), kept place, Run on, thinking slider, topic search. Next: partial (113) and missing (18) rows,
 most-used first.

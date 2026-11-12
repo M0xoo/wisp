@@ -1541,3 +1541,33 @@ Partial 113, missing 18.
 Checks: typecheck, `npm run check` (0 errors); 21 vitest files each alone (shell 11, ui 2, shell-composer 2, later,
 shell-list 2, apps/web mock-peer), client `client.test.ts` (7).
 
+
+## Round 39 (2026-11-12)
+
+**Run on another computer, as v1 (places.js).** v1 maps the task's folder to that computer's checkout of the same repo:
+the origin is read here, the other wisp looks in its projects, then the usual folders (two levels, 60 at most), else
+clones the origin, adds the checkout to its projects, and the task runs in the same subfolder. v2 sent the local path
+as it was. Now: `git.origin` and `git.checkout` (git host `place.rs`, the clone through the existing clone path),
+`resources.export` / `resources.apply` for that computer's projects, and the shell's `placeOn` before New task's and
+Rerun…'s launch on another computer; no origin gives v1's message. The mock has a second computer (`?seed=computers` /
+`MOCK_COMPUTERS=1`: Studio at `/api/peer/studio`, a `wisp` project with an origin here); seen in Chrome.
+
+11 v1-features rows built (each with a named test; seen in Chrome unless said):
+- **Answer pictures (F-page-37, 38, 39, 40).** They never loaded in v2: nothing gave `ctx.media` and no route served a
+  task's file. Now `GET /api/sessions/:id/file` (runtime `media.rs`; which file may go is the core's sans-IO
+  `media_file`: inside the folder or the exact path a block named, a picture's or video's extension; Range for video),
+  `ctx.media` through this wisp or `/api/peer/<machine>`, the kit's full-screen viewer through the answer's media,
+  Copy image / Download / Show in folder (`runtime.reveal`, also a doc block's file), and v1's keepImages (copies into
+  `~/.wisp/shots/<task>/` at turn end, deleted with the task). The image/video blocks had no CSS either (`media.css`).
+- **Feedback (F-page-42, F-page-43).** telemetry's core had parse/event/outbox but no command: `telemetry.feedback`
+  (uiOnly) keeps thumbs on the turn, tells Auto, sends with the outbox. Thumbs and the line after 👎 on every finished
+  turn's trail; the Send feedback dialog, Home's Tell us, ⌘K, `/feedback` and `/bug`.
+- **Task (F-task-8, F-task-15).** A follow-up un-archives at once (optimistic; the server already did on run).
+  Compare runs no longer take a name from one run's answer (v1 `!session.groupId`; the test fails without the fix).
+- **Composer and settings (F-comp-28 /btw, F-comp-34 no team cap, F-page-7 wisp blocks switch).**
+Partial 104, missing 17 (by `| partial |`; 114 / 18 before).
+
+Not done: F-page-44 and F-comp-46 need a layout-level check (no unit surface); F-page-41's `.env` Reveal is its own
+feature (v1 env-mask.js + changes.js Reveal per file).
+
+Checks: see the hand-off (typecheck, `npm run check`, each new test alone, clippy on the touched crates).

@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Run on another computer sets the project up there**, as before: that computer finds its own checkout of the repo (or clones it from the origin), adds it to its projects, and the task runs in the same subfolder. A folder with no git remote says so.
+- **Pictures and videos in answers show again**, served from the task's own computer. Click one for a full-screen viewer that goes through the answer's other pictures and videos with ← / →; hover for **Copy image**, **Download** and **Show in folder**. A screenshot the agent saved in /tmp is kept in `~/.wisp/shots`, so it still shows after a restart.
+- **👍 / 👎 on each finished turn**, with an optional line on what went wrong after 👎, and **Send feedback** (⌘K, *Tell us* at the foot of home, `/feedback …` or `/bug …` in any prompt box). It goes to the wisp team with the harness and model, never your prompt or code; offline, it waits and goes later.
+- **`/btw …` in the reply box** asks the agent a side question while it works; the answer shows under the turns, and × dismisses it.
+
 - **Queue follow-ups again.** While a task works, the reply bar's Queue switch makes follow-ups wait behind the run; the queue shows over the box, where you can drag to reorder, edit, combine, Send now or cancel. A Stop keeps them, held.
 - **Start later from New task.** Pick a time on the clock, or start the prompt with one ("in 5 min …", "tomorrow at 9 …", "remind me … in 1 hour"); `/draft …` keeps it in Drafts, `/after <task> …` starts it once that task is done.
 - **Rerun… lets you change it first**: the prompt, mode, harness and model, and which computer it runs on.
@@ -150,6 +155,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 
 ### Fixed
+
+- **A new question brings an archived task back** to the list at once.
+- **Compare runs keep the prompt's title**; one run's answer no longer renames the task.
 
 - **Rerun from a task's menu made a new task again**: it had stopped working against a real wisp.
 - **What you're typing survives a reload or an update**, in New task and in a reply. Text shared to wisp lands in New task again.
