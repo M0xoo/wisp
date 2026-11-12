@@ -293,6 +293,10 @@ fn main() {
         api.prevent_close();
         macos::leave_fullscreen_and_hide(window);
       }
+      // Windows and Linux: closing the window is quitting (DESK2-05). Straight to the exit path (RunEvent::Exit stops
+      // the server), whatever else the app still holds.
+      #[cfg(not(target_os = "macos"))]
+      WindowEvent::CloseRequested { .. } => window.app_handle().exit(0),
       WindowEvent::Focused(on) => {
         if let Some(w) = window.app_handle().get_webview_window(window.label()) {
           tell_focus(&w, *on);

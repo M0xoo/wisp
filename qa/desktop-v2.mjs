@@ -161,8 +161,9 @@ await check('DESK2-05', 'quit, it stops the server and the port closes', async (
   const h = await until(health, { timeout: 90_000, what: 'the second start' });
   server = h.pid;
   askQuit(run.proc.pid);
-  await Promise.race([run.exited, sleep(15_000)]);
-  await until(async () => !alive(server) && !(await listening()), { timeout: 15_000, what: 'the server to stop' });
+  // which side failed, if it does: a shell that never quit (it never reached its exit path) or a server that outlived it
+  const quit = await Promise.race([run.exited.then(() => true), sleep(15_000).then(() => false)]);
+  await until(async () => !alive(server) && !(await listening()), { timeout: 15_000, what: quit ? 'the server to stop (the shell quit)' : 'the server to stop (the shell never quit)' });
 });
 // nothing left behind for the next job on this runner
 for (const pid of [run.proc.pid, server]) if (pid && alive(pid)) hardKill(pid);

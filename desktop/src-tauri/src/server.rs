@@ -1,6 +1,8 @@
 // The child that runs wisp's server: the same `wisp` binary as Homebrew and npm (ADR-0013), as `wisp serve`
 // with `web/` beside it. It holds the read end of a pipe on its stdin (WISP_EXIT_WITH_STDIN): when this process
-// goes, however it goes, that pipe closes and the server shuts down.
+// goes, however it goes, that pipe closes and the server shuts down. On Windows the server is also in a Job Object
+// that kills it when this process's last handle to the job goes (DESK2-05): Windows has no SIGTERM, and a quit that
+// never reached our exit path must not leave the server listening.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
@@ -21,6 +23,9 @@ pub struct Server {
   child: Arc<Mutex<Option<Child>>>,
   stdin: Mutex<Option<ChildStdin>>,
   stopping: Arc<AtomicBool>,
+  /// Windows: the job the server is in (killed with it when this process ends); held, never used again
+  #[cfg(windows)]
+  job: Mutex<Option<job::Job>>,
 }
 
 // Any HTTP answer counts: a wisp from the CLI, or ours once it's up.
@@ -54,6 +59,10 @@ impl Server {
     #[cfg(windows)]
     std::os::windows::process::CommandExt::creation_flags(&mut cmd, 0x0800_0000); // CREATE_NO_WINDOW
     let mut child = cmd.spawn()?;
+    #[cfg(windows)]
+    {
+      *self.job.lock().unwrap() = job::Job::kill_on_close(&child);
+    }
     *self.stdin.lock().unwrap() = child.stdin.take();
     let lines = child.stdout.take().expect("piped stdout");
     *self.child.lock().unwrap() = Some(child);
@@ -126,3 +135,47 @@ fn relay(lines: impl Read, app: AppHandle) {
     }
   }
 }
+
+/// A Job Object with KILL_ON_JOB_CLOSE: its processes end when its last handle closes, which is when this process
+/// ends, however it ends (a quit, a crash, Task Manager). Best effort: without it the stdin pipe still stops the server.
+#[cfg(windows)]
+mod job {
+  use std::os::windows::io::AsRawHandle;
+  use std::process::Child;
+  use windows::Win32::Foundation::{CloseHandle, HANDLE};
+  use windows::Win32::System::JobObjects::{
+    AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+  };
+
+  pub struct Job(HANDLE);
+
+  // a kernel handle: any thread may hold it
+  unsafe impl Send for Job {}
+
+  impl Job {
+    pub fn kill_on_close(child: &Child) -> Option<Self> {
+      // SAFETY: plain Win32 calls on a job we create and a process handle the Child owns while we use it.
+      unsafe {
+        let job = CreateJobObjectW(None, None).ok()?;
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        let set = SetInformationJobObject(job, JobObjectExtendedLimitInformation, std::ptr::from_ref(&info).cast(), u32::try_from(std::mem::size_of_val(&info)).unwrap_or(0));
+        if set.is_err() || AssignProcessToJobObject(job, HANDLE(child.as_raw_handle())).is_err() {
+          let _ = CloseHandle(job);
+          return None;
+        }
+        Some(Self(job))
+      }
+    }
+  }
+
+  impl Drop for Job {
+    fn drop(&mut self) {
+      // SAFETY: our own handle, closed once
+      unsafe {
+        let _ = CloseHandle(self.0);
+      }
+    }
+  }
+}
+

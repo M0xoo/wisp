@@ -36,7 +36,7 @@ webkit2gtk = { version = "=2.0.2", features = ["v2_40"] } # the response decisio
 # Pinned to what wry uses: src/windows.rs talks to the same WebView2.
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
-windows = "0.62"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 [profile.release]
 codegen-units = 1
