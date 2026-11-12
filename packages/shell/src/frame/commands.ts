@@ -93,6 +93,15 @@ export const autoPreview = defineCommand<{ peer: string; prompt: string; attachm
   dedupe: (a) => JSON.stringify([a.peer, a.prompt, a.attachments, a.goal, a.team]),
 });
 
+/** More → Copy resume command (v1 GET /sessions/:id/takeover): the line that resumes the task's conversation. */
+export const resumeCommand = defineCommand<{ id: string }, { command: string }>({
+  id: 'runtime.resumeCommand',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id) }),
+  optimistic: 'none',
+  pending: 'Copy resume command',
+});
+
 /** Auto's rules as they are (`router.view`): Never pick reads the list it adds to. */
 export const autoRules = defineCommand<{ peer: string }, { settings?: { blocked?: string[] } }>({
   id: 'router.view',

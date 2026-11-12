@@ -18,6 +18,8 @@ import { goalGate } from './goal-gate.ts';
 import { readComments } from './comment-text.ts';
 import { useNow } from '../clock.ts';
 import { stopQuestion, type StopQuestion } from './stop-question.ts';
+import { editorUrl } from '../editor.ts';
+import { resumeCommand } from './commands.ts';
 import { archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
 import { answerContext, blockedOf } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
@@ -279,42 +281,76 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     config: x.config,
     session: () => menuRow() as { id: string; agent: string },
   });
-  const extras = (): MenuEntry[] =>
-    rowMenu()
-      .filter((x) => x.plugin !== 'shell' && x.def.bar && !x.def.bar.rowOnly && (x.def.if?.(extProps(x) as never) ?? true))
-      .map((x) => ({
-        value: `x:${x.id}`,
-        label: x.def.bar?.text?.(extProps(x) as never) ?? t(x.def.bar?.label ?? x.id),
-        icon: (x.def.bar?.icon ?? 'dots') as IconName,
-        ...(x.def.bar?.keys && { keys: x.def.bar.keys }),
-      }));
-  const more = (): MenuEntry[] => [
-    { value: 'transcript', label: t('shell.task.transcript'), icon: 'transcript', keys: 'V' },
-    { value: 'rerun', label: t('shell.task.rerun'), icon: 'rerun', keys: '⇧R' },
-    { value: 'openIn', label: t('shell.task.openIn', { harness: harnessName() }), icon: 'terminal', keys: 'T' },
-    { kind: 'separator' },
-    { value: 'fork', label: t('shell.task.fork'), icon: 'fork' },
-    ...(compactOffer() ? [{ value: 'compact', label: t('shell.cold.compact'), icon: 'minus' as const, hint: compactOffer()?.note ?? '' }] : []),
+  // v1 actions.js moreMenu, in its order: on a phone (its bar folded) Transcript, Rerun, Open in first; then Rename,
+  // Copy task ID, Copy resume command, Open project in editor, Fork…, Compact, Lean runs, what plugins attach to a
+  // task's menu (Side discussion, Share, Changes and Shell where the bar doesn't have them, Run app, Save as recipe,
+  // Add to crew, Set goal), Save for later, Keep worktree, Restore to before latest turn, Archive, Delete task
+  const barFolded = (): boolean => nav().layout === 'stack';
+  const busyNow = (): boolean => row()?.state === 'running' || row()?.state === 'waiting';
+  const lastTurn = (): (TurnBody & { id: string }) | undefined => {
+    const x = turns().at(-1);
+    return x ? ({ ...(x.body as TurnBody), id: x.id } as TurnBody & { id: string }) : undefined;
+  };
+  const canRollback = (): boolean => {
+    const l = lastTurn();
+    return row()?.agent !== 'wisp' && !busyNow() && !!l && (!!(l.changes ?? l.ext?.['wisp.runtime']?.changes)?.length || !!l.checkpoint?.commit);
+  };
+  const forLaterNow = (): boolean => row()?.summary['forLater'] === true;
+  const canSaveForLater = (): boolean => !row()?.archived && (row()?.state === 'review' || row()?.state === 'done');
+  const extEntry = (x: ReturnType<typeof rowMenu>[number]): MenuEntry => ({
+    value: `x:${x.id}`,
+    label: x.def.bar?.text?.(extProps(x) as never) ?? t(x.def.bar?.label ?? x.id),
+    icon: (x.def.bar?.icon ?? 'dots') as IconName,
+    ...(x.def.bar?.keys && { keys: x.def.bar.keys }),
+  });
+  // the shell's Rerun is above (folded) or on the page; its Changes and Shell only where the bar doesn't have them
+  const moreExts = (): ReturnType<typeof rowMenu> =>
+    rowMenu().filter(
+      (x) =>
+        x.def.bar && !x.def.bar.rowOnly && x.id !== 'shell.row.rerun' && !(barFolded() && (x.id === 'shell.row.changes' || x.id === 'shell.row.shell')) && (x.def.if?.(extProps(x) as never) ?? true),
+    );
+  const more = (): MenuEntry[] => {
+    const exts = moreExts();
+    const early = exts.filter((x) => x.order <= 20 && x.def.bar?.place !== 'end'); // Fork…
+    const mid = exts.filter((x) => x.order > 20 && x.def.bar?.place !== 'end');
+    const end = exts.filter((x) => x.def.bar?.place === 'end'); // Keep worktree
+    const out: MenuEntry[] = [];
+    if (barFolded()) {
+      out.push({ value: 'transcript', label: t('shell.task.transcript'), icon: 'transcript', keys: 'V' });
+      if (!row()?.summary['sideOf'])
+        out.push(
+          { value: 'rerun', label: t('shell.task.rerun'), icon: 'rerun', keys: '⇧R' },
+          { value: 'openIn', label: t('shell.task.openIn', { harness: harnessName() }), icon: 'terminal', keys: 'T' },
+        );
+      out.push({ kind: 'separator' });
+    }
+    out.push({ value: 'rename', label: t('shell.more.rename'), icon: 'pen', keys: 'M' }, { value: 'copy-id', label: t('shell.more.copyId'), icon: 'copy' });
+    if ((row()?.body as { resumeId?: string } | undefined)?.resumeId) out.push({ value: 'copy-resume', label: t('shell.more.copyResume'), icon: 'copy' });
+    if (!shell.platform.mobile) out.push({ value: 'editor', label: t('shell.more.editor'), icon: 'folder' });
+    out.push(...early.map(extEntry));
+    if (compactOffer()) out.push({ value: 'compact', label: t('shell.cold.compact'), icon: 'minus', hint: compactOffer()?.note ?? '' });
     // v1's task menu: Lean runs for this task, or as Settings says (Claude Code only)
-    ...(row()?.agent === 'claude'
-      ? [
-          {
-            kind: 'group' as const,
-            id: 'lean',
-            label: t('shell.task.lean'),
-            items: (['follow', 'on', 'off'] as const).map((v) => ({
-              value: `lean:${v}`,
-              label: t(`shell.task.lean.${v}`),
-              checked: ((row()?.body as { lean?: string } | undefined)?.lean ?? 'follow') === v,
-            })),
-          },
-        ]
-      : []),
-    ...extras(),
-    { value: 'copy', label: t('shell.task.copyLink'), icon: 'copy' },
-    { value: 'archive', label: t('shell.task.archive'), icon: 'archive' },
-    { value: 'delete', label: t('shell.task.delete'), icon: 'trash', danger: true },
-  ];
+    if (row()?.agent === 'claude')
+      out.push({
+        kind: 'group',
+        id: 'lean',
+        label: t('shell.task.lean'),
+        items: (['follow', 'on', 'off'] as const).map((v) => ({
+          value: `lean:${v}`,
+          label: t(`shell.task.lean.${v}`),
+          checked: ((row()?.body as { lean?: string } | undefined)?.lean ?? 'follow') === v,
+        })),
+      });
+    out.push(...mid.map(extEntry));
+    if (forLaterNow()) out.push({ value: 'later', label: t('shell.more.unlater'), icon: 'bookmark', keys: 'L' });
+    else if (canSaveForLater()) out.push({ value: 'later', label: t('shell.more.later'), icon: 'bookmark', keys: 'L' });
+    out.push(...end.map(extEntry));
+    if (canRollback()) out.push({ value: 'rollback', label: t('shell.more.rollback'), icon: 'replay' });
+    if (row()?.archived) out.push({ value: 'unarchive', label: t('shell.more.unarchive'), icon: 'archive', keys: 'A' });
+    else if (!busyNow()) out.push({ value: 'archive', label: t('shell.task.archive'), icon: 'archive', keys: 'A' });
+    out.push({ value: 'delete', label: t('shell.more.delete'), icon: 'trash', danger: true, keys: '⌫' });
+    return out;
+  };
   const onMore = (v: string): void => {
     if (v === 'transcript') setStepsOpen(!stepsOpen());
     else if (v === 'rerun') copy(rerun);
@@ -334,6 +370,27 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       void run(remove, { id: key }).catch(() => undefined);
       shell.navigate({ t: 'delete', id: key as never });
       next();
+    } else if (v === 'rename') document.querySelector<HTMLElement>('[data-part="split.title"]')?.click();
+    else if (v === 'copy-id') void shell.platform.copy(bare).then((ok) => ok && shell.toast.show(t('shell.more.copiedId')));
+    else if (v === 'copy-resume')
+      void run(resumeCommand, { id: key })
+        .then((r) => shell.platform.copy(r.command))
+        .then((ok) => ok && shell.toast.show(t('shell.more.copiedResume')))
+        .catch(() => undefined);
+    else if (v === 'editor') {
+      const dir = String(row()?.summary['cwd'] ?? (row()?.body as { cwd?: string } | undefined)?.cwd ?? '');
+      const url = editorUrl(String(shell.client.entities.peek<{ value?: unknown }>('setting', entityKey(peer, 'settings.editor'))?.value ?? ''), dir);
+      if (url) shell.platform.openExternal(url);
+      else if (dir) void shell.platform.copy(dir).then((ok) => ok && shell.toast.show(t('shell.more.copiedPath', { path: dir })));
+    } else if (v === 'later') void run(forLater, { id: key, forLater: !forLaterNow() }).catch(() => undefined);
+    else if (v === 'unarchive') void run(archive, { id: key, archived: false }).catch(() => undefined);
+    else if (v === 'rollback') {
+      const l = lastTurn();
+      if (l)
+        void run(restore, { id: key, turn: l.id }).then(
+          () => shell.toast.success(t('shell.task.restored')),
+          () => undefined,
+        );
     } else if (v.startsWith('x:')) {
       const x = rowMenu().find((e) => `x:${e.id}` === v);
       if (x) x.def.bar?.select?.(extProps(x) as never);

@@ -647,7 +647,7 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
       updated_at: updatedAt,
       rev: 1,
       summary: { ...summary, forLater: false, worktree: full.worktree ?? null, overlaps: shared.get(s.id) ?? [] },
-      body: { cwd: s.cwd, dirs: [], queue_held: false, tags: [], ext: {} },
+      body: { cwd: s.cwd, dirs: [], queue_held: false, tags: [], ext: {}, ...(full.turns?.length && { resumeId: `fake-${s.id}` }) }, // the fake claude named a conversation (v1's agentSessionId)
     };
     list.push({ e: 'session', id, v });
     const own: Row[] = [{ e: 'session', id, v }];

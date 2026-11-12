@@ -98,7 +98,7 @@ export function ProjectsSheet(props: ProjectsSheetProps): JSX.Element {
       <p data-kit="pj-hint">
         <Index each={props.hint}>{(h) => (typeof h() === 'string' ? (h() as string) : <code>{(h() as { code: string }).code}</code>)}</Index>
       </p>
-      <div data-kit="pj-list" data-part="projects.list">
+      <div data-kit="pj-list" data-part="projects.list project.rows">
         <Show when={props.rows.length > 0} fallback={<p data-kit="pj-none">{props.empty}</p>}>
           <For each={props.rows}>
             {(r) => (

@@ -3,6 +3,7 @@
 // shell's state through useShell(). apps/web creates the shell and renders it.
 
 export * from './contract.ts';
+export { editorUrl } from './editor.ts';
 export { definePluginUi, defineExtension, defineView, defineSettingsPane, defineBlock, definePalette, defineShortcut, namespaceOf, viewIntent } from './define.ts';
 export { createShell, type Shell, type ShellOptions, type ShellWindow } from './shell.tsx';
 export { ShellProvider, useShell, useT } from './context.tsx';

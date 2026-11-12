@@ -4,7 +4,7 @@
   [data-kit='positioner'] { z-index: var(--z-overlay-menu); }
   [data-kit='menu'] {
     min-width: min(var(--size-menu-min), calc(100vw - var(--space-7))); max-width: min(var(--size-menu-max), calc(100vw - var(--space-7)));
-    max-height: min(var(--size-popover), 60vh); overflow-y: auto; padding: var(--space-2);
+    max-height: calc(100vh - 1rem); overflow-y: auto; padding: var(--space-2); /* v1 .menu: as tall as it is, placed to fit */
     border-radius: var(--radius-xl); background: var(--surface); border: var(--size-hairline) solid var(--line);
     box-shadow: var(--shadow-2); outline: 0;
   }

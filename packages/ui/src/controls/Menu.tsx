@@ -71,7 +71,7 @@ function useMenu(props: MenuBaseProps & { readonly placement?: Placement }, at?:
     ...(props.open === undefined ? {} : { open: props.open }),
     onOpenChange: (d: menu.OpenChangeDetails) => props.onOpenChange?.(d.open),
     // at the pointer (a right-click): v1 clampToViewport, opened beside it and slid up or in to fit, never flipped
-    positioning: at === 'pointer' ? { placement: 'bottom-start' as const, gutter: 0, flip: false, overlap: true, overflowPadding: 8 } : { placement: props.placement ?? 'bottom-start', gutter: 4 },
+    positioning: at === 'pointer' ? { placement: 'bottom-start' as const, gutter: 0, flip: false, overlap: true, overflowPadding: 8 } : { placement: props.placement ?? 'bottom-start', gutter: 4, overlap: true, overflowPadding: 8 },
   }));
   return createMemo(() => menu.connect(service, normalizeProps));
 }

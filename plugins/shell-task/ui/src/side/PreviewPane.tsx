@@ -235,7 +235,13 @@ export function PreviewPane(): JSX.Element {
       frameSrc={frameSrc()}
       pick={
         frameSrc()
-          ? { label: t('shell-task.preview.pick'), title: pickable() ? t('shell-task.preview.pickTitle') : t('shell-task.preview.pickWait'), on: picking(), ready: pickable(), onClick: () => pick(!picking()) }
+          ? {
+              label: t('shell-task.preview.pick'),
+              title: pickable() ? t('shell-task.preview.pickTitle') : t('shell-task.preview.pickWait'),
+              on: picking(),
+              ready: pickable(),
+              onClick: () => pick(!picking()),
+            }
           : undefined
       }
       onFrame={(el) => (frame = el)}

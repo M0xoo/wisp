@@ -11,7 +11,13 @@ import { defineCommand } from '@wisp/client';
 import { appRunning, runRequest } from './side/run-request.ts';
 
 /** Stop app (v1 stopRun): wisp.terminal closes the task's run */
-const stopRun = defineCommand<{ key: string; id: string }, { ok: boolean }>({ id: 'terminal.close', owner: (a) => a.key as never, wire: (a) => ({ kind: 'run', id: a.id }), optimistic: 'none', pending: 'Stop app' });
+const stopRun = defineCommand<{ key: string; id: string }, { ok: boolean }>({
+  id: 'terminal.close',
+  owner: (a) => a.key as never,
+  wire: (a) => ({ kind: 'run', id: a.id }),
+  optimistic: 'none',
+  pending: 'Stop app',
+});
 
 export { CATALOGUE };
 export type * from './types.ts';
