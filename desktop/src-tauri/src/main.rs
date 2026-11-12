@@ -297,6 +297,9 @@ fn main() {
       // the server), whatever else the app still holds.
       #[cfg(not(target_os = "macos"))]
       WindowEvent::CloseRequested { .. } => window.app_handle().exit(0),
+      // a window that went without asking (the OS ended it): the app has no other, so it goes too
+      #[cfg(not(target_os = "macos"))]
+      WindowEvent::Destroyed if window.label() == "main" => window.app_handle().exit(0),
       WindowEvent::Focused(on) => {
         if let Some(w) = window.app_handle().get_webview_window(window.label()) {
           tell_focus(&w, *on);

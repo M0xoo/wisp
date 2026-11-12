@@ -106,8 +106,14 @@ const signal = (pid, f) => {
   }
 };
 const hardKill = (pid) => signal(pid, () => (win ? execFileSync('taskkill', ['/F', '/PID', String(pid)], { stdio: 'ignore' }) : process.kill(pid, 'SIGKILL')));
-// asks the shell to quit: its window's close on Windows, a TERM elsewhere
-const askQuit = (pid) => signal(pid, () => (win ? execFileSync('taskkill', ['/PID', String(pid)], { stdio: 'ignore' }) : process.kill(pid, 'SIGTERM')));
+// Windows: what the title bar's close does (WM_CLOSE to the app's own window, once it's shown); v1 quits there.
+// `taskkill /PID` without /F posts WM_CLOSE to every top-level window the process has, tao's hidden one included,
+// and the app's window may never hear it: the QA's quit never reached the shell (#756 CI, DESK2-05).
+const CLOSE_WINDOW = (pid) =>
+  `$p = Get-Process -Id ${pid}; for ($i = 0; $i -lt 150 -and $p.MainWindowHandle -eq 0; $i++) { Start-Sleep -Milliseconds 200; $p.Refresh() }; if ($p.MainWindowHandle -eq 0) { Write-Error 'no window to close'; exit 2 }; if (-not $p.CloseMainWindow()) { exit 3 }`;
+const closeWindow = (pid) => execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', CLOSE_WINDOW(pid)], { stdio: 'inherit', timeout: 60_000 });
+// asks the shell to quit as a user does: its window's close on Windows, a TERM (the menu's Quit path) elsewhere
+const askQuit = (pid) => signal(pid, () => (win ? closeWindow(pid) : process.kill(pid, 'SIGTERM')));
 
 console.log(`\n  desktop v2 · ${process.platform} · port ${PORT}\n`);
 ok(!(await listening()), `port ${PORT} is taken: set QA_DESKTOP_PORT`);
@@ -157,7 +163,7 @@ await check('DESK2-04', 'killed hard, the shell takes the server with it (its st
   await until(async () => !alive(server) && !(await listening()), { timeout: 15_000, what: 'the server to stop' });
 });
 run = launch();
-await check('DESK2-05', 'quit, it stops the server and the port closes', async () => {
+await check('DESK2-05', win ? 'the window closed, the app quits: the server stops and the port closes' : 'quit, it stops the server and the port closes', async () => {
   const h = await until(health, { timeout: 90_000, what: 'the second start' });
   server = h.pid;
   askQuit(run.proc.pid);
