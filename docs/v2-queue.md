@@ -1,5 +1,22 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 9912daf5 (2026-11-12).** DESK2-01 passes now. Left:
+1. **wisp's git reads race the user's commits (real bug, flaky test).** `serve_code.rs:33` on node 22: the test's
+   `git commit -qam` failed with `.git/index.lock: File exists` because wisp ran git in the same repo at that moment.
+   Every read-only git call wisp makes (status, diff, watcher refresh) must run with `GIT_OPTIONAL_LOCKS=0` (v1 did) so
+   it never takes index.lock; a named test that commits while wisp refreshes in a loop.
+2. **Flaky serve_kinds** on node 24 (node 22 passed the same code): `a_webhook_trigger_starts_its_task_only_with_its_secret`
+   (serve_kinds.rs:315 unwrap on None), `a_pipeline_moves_on_at_a_limit_and_picks_the_best_of_n` (common/mod.rs:159 wait
+   timed out), `a_trigger_and_a_pipeline_start_tasks_and_an_app_lands_on_the_shelf`. Find the race (a read before the
+   write it waits for, a fixed sleep, a shared fake); fix it, never retry.
+3. **DESK2-05 on Windows: "the shell never quit".** The Job Object fix is in, but the app doesn't quit on the QA's Quit
+   on Windows. Make the QA quit the way a user does on Windows (close the window: v1 quits there) and make sure that
+   path exits the process.
+
+**Round 38 (done):** 13 rows: queue and held queue, start-later from New task, paste-a-task mention, Rerun… dialog
+(and its broken path), kept place, Run on, thinking slider, topic search. Next: partial (113) and missing (18) rows,
+most-used first.
+
 **Round 37 (done):** window close checked against v1 (unchanged on macOS; quit elsewhere, as v1), F-task-32 drafts,
 F-task-38 and F-task-4 verified with tests. Next: a queued follow-up in the mock for F-comp-24, then partial (126) and
 missing (18) rows, most-used first.

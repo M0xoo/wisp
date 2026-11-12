@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Queue follow-ups again.** While a task works, the reply bar's Queue switch makes follow-ups wait behind the run; the queue shows over the box, where you can drag to reorder, edit, combine, Send now or cancel. A Stop keeps them, held.
+- **Start later from New task.** Pick a time on the clock, or start the prompt with one ("in 5 min …", "tomorrow at 9 …", "remind me … in 1 hour"); `/draft …` keeps it in Drafts, `/after <task> …` starts it once that task is done.
+- **Rerun… lets you change it first**: the prompt, mode, harness and model, and which computer it runs on.
+- **Run on** in New task picks which computer a task runs on, and the harness picker shows that computer's harnesses.
+- **Thinking is a slider again** in the harness picker, from Default to the harness's top level.
+- **A task reopens where you left it**, after switching tasks or reloading.
+- **Paste a task ID** into a prompt and it becomes a mention of that task. ⌘K also finds tasks by the topics agents tagged them with.
+
 - **⌘K finds past work by its words.** Type three letters or more and tasks whose prompts or answers hold them show too, with the words found.
 - **A compare is one card in the list.** Its runs sit under one head that counts what finished, with **vs Compare** to see them side by side.
 - **Ship and Merge say when comments aren't sent yet.** Comments you wrote in Changes and haven't sent are counted before you ship or merge.
@@ -143,6 +151,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Rerun from a task's menu made a new task again**: it had stopped working against a real wisp.
 - **What you're typing survives a reload or an update**, in New task and in a reply. Text shared to wisp lands in New task again.
 - **Quitting the Windows app stops wisp's server.** Closing the window quits, and the server can no longer outlive the app.
 - **Updating the Windows app from v1 removes v1's leftovers.** Its bundled Node and old server files are deleted on install; your tasks and settings in `~/.wisp` stay.

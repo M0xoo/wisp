@@ -1516,3 +1516,28 @@ Partial 126, missing 18.
 
 Checks: typecheck, `npm run check` (0 errors), vitest drafts, prompt-keys (2), first-run, fold-head.
 
+## Round 38 (2026-11-12)
+
+13 v1-features rows built, batched by area (each with a named test, each seen in Chrome unless said):
+- **Queue (F-comp-24, F-comp-25).** The mock queues (`runtime.followUp` `queue`, the five `runtime.queue.*`) and a Stop
+  holds a non-empty queue. The reply box had no way to queue: v1's Queue switch is back in its bar (Settings
+  `runtime.followUp`), and a queued reply goes in the queue at once (`followUp` `queue` → `queuedOps`), not as a turn.
+  The queue itself never showed: shell-composer's env defined its store as `wisp.shell-composer.sent` (refused: a
+  store id starts with the client's `shell-composer.`), after declaring its settings, so every later try threw
+  "declared twice" inside the slot's error boundary (only devtools heard it). Two root fixes: the store id, and
+  `client.plugin(id)` hands back one client per plugin while its scope lives (it made a fresh client, and a fresh
+  scope, on every call). QueueFoot also reads the slot's lent row. Harness names in "after Claude Code finishes".
+- **Later from New task (F-comp-19, F-comp-20, F-comp-22).** wisp.later's `later.launch` prompt source (`launch.ts`):
+  the clock's time (`LaunchPick.at`, additive), a leading time or "remind me … in", `/draft`, `/after <task>`, each a
+  `later.plan`; the mock answers `later.plan`; shell-list's row for an /after plan says what it waits for.
+- **Task menu (F-task-40, F-task-43, F-task-44, F-task-17).** Paste a task id → its mention. Rerun… is v1's dialog over
+  `runtime.spec` → `runtime.create` + `lineage.rerunOf`; the old path sent copy args to `runtime.rerun` (a turn retry),
+  so Rerun didn't work against a real wisp. Each task keeps its place (`place.ts`), across switches and reloads.
+- **Launcher (F-comp-9, F-comp-10, F-comp-2, F-task-21).** Run on lists the computers and launches there (the picker
+  asks that computer); the picker's Thinking is v1's slider (kit `ThinkingSlider`); ⌘K matches tasks' topics.
+  F-comp-10's two-computer menu is only unit-tested (one peer in the mock).
+Partial 113, missing 18.
+
+Checks: typecheck, `npm run check` (0 errors); 21 vitest files each alone (shell 11, ui 2, shell-composer 2, later,
+shell-list 2, apps/web mock-peer), client `client.test.ts` (7).
+
