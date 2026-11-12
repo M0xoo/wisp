@@ -82,7 +82,8 @@ export function httpTransport(o: HttpTransportOptions): Transport {
     async request(r, signal) {
       const res = await fetchFn(`${o.base}/api${r.path}`, {
         method: r.method,
-        headers: { ...(r.contentType && { 'content-type': r.contentType }), ...o.headers?.() },
+        // the transport's own headers last: a request can't replace its credentials
+        headers: { ...r.headers, ...(r.contentType && { 'content-type': r.contentType }), ...o.headers?.() },
         ...(r.body !== undefined && { body: r.body }),
         signal,
       });

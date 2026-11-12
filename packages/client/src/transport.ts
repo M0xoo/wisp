@@ -32,6 +32,8 @@ export interface RawRequest {
   readonly path: string;
   readonly body?: Blob | ArrayBuffer | string;
   readonly contentType?: string;
+  /** extra request headers (`idempotency-key`, an untrusted UI's `x-wisp-plugin`, ADR-0048). Additive (2026-11-12). */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface RawResponse {

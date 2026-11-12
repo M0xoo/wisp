@@ -36,7 +36,11 @@ export function PrPane(): JSX.Element {
   const [list, { refetch }] = createResource(
     () => (known() ? task.key : undefined),
     // a task ship doesn't track (no worktree, never shipped) has no PR: v1's "This task has no pull request."
-    () => c.run(details, args()).then((l) => (setAt(Date.now()), l), () => [] as PrPanel[]),
+    () =>
+      c.run(details, args()).then(
+        (l) => (setAt(Date.now()), l),
+        () => [] as PrPanel[],
+      ),
   );
   const [picked, setPicked] = createSignal(0);
   const [open, setOpen] = createSignal<ReadonlySet<string>>(new Set());
@@ -47,7 +51,11 @@ export function PrPane(): JSX.Element {
     const l = list() ?? [];
     return l[Math.min(picked(), l.length - 1)];
   });
-  const quiet = (p: Promise<unknown>): void => void p.then(() => refetch(), () => {});
+  const quiet = (p: Promise<unknown>): void =>
+    void p.then(
+      () => refetch(),
+      () => {},
+    );
   const fixing = (): boolean => ['fixing', 'pushing'].includes(raw().body?.conflictFix?.step ?? '');
   const canAsk = (): boolean => raw().agent !== 'wisp' && raw().status !== 'running';
 
@@ -60,7 +68,13 @@ export function PrPane(): JSX.Element {
     <Stack gap="1" part="side.pr.note" as="li">
       <Inline gap="2" justify="between">
         {who(n)}
-        <Show when={n.at}>{(a) => <Text size="xs" tone="muted">{timeLabel(a(), Date.now(), t)}</Text>}</Show>
+        <Show when={n.at}>
+          {(a) => (
+            <Text size="xs" tone="muted">
+              {timeLabel(a(), Date.now(), t)}
+            </Text>
+          )}
+        </Show>
       </Inline>
       <Text size="sm" tone="muted">
         {gist(n.body)}
@@ -100,7 +114,14 @@ export function PrPane(): JSX.Element {
                     {p().title || t('shell-task.pr.untitled', { n: p().number })}
                   </Link>
                   <Text size="sm" tone="muted" truncate part="side.pr.meta">
-                    {[`#${p().number}`, t(p().draft && p().state === 'OPEN' ? 'shell-task.pr.stateDraft' : (STATE[p().state] ?? 'shell-task.pr.open')), p().branch ? `${p().branch} → ${p().base ?? ''}` : '', p().author ? t('shell-task.pr.by', { name: p().author ?? '' }) : ''].filter(Boolean).join(' · ')}
+                    {[
+                      `#${p().number}`,
+                      t(p().draft && p().state === 'OPEN' ? 'shell-task.pr.stateDraft' : (STATE[p().state] ?? 'shell-task.pr.open')),
+                      p().branch ? `${p().branch} → ${p().base ?? ''}` : '',
+                      p().author ? t('shell-task.pr.by', { name: p().author ?? '' }) : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </Text>
                 </Stack>
                 <Banner
@@ -110,7 +131,12 @@ export function PrPane(): JSX.Element {
                   {...((v().act === 'merge' && (list() ?? []).length === 1) || v().act === 'fix'
                     ? {
                         action: (
-                          <Button size="sm" variant={v().primary ? 'primary' : 'ghost'} icon={v().act === 'merge' ? 'check' : 'merge'} onClick={() => quiet(c.run(v().act === 'fix' ? fixConflicts : merge, args()))}>
+                          <Button
+                            size="sm"
+                            variant={v().primary ? 'primary' : 'ghost'}
+                            icon={v().act === 'merge' ? 'check' : 'merge'}
+                            onClick={() => quiet(c.run(v().act === 'fix' ? fixConflicts : merge, args()))}
+                          >
                             {t(v().act === 'fix' ? 'shell-task.pr.fix' : 'shell-task.pr.merge')}
                           </Button>
                         ),
@@ -121,7 +147,14 @@ export function PrPane(): JSX.Element {
                 <Show when={p().checkList}>
                   <Stack gap="2" part="side.pr.checks">
                     <Heading level={4}>{t('shell-task.pr.checks')}</Heading>
-                    <Show when={(p().checkList ?? []).length > 0} fallback={<Text size="sm" tone="muted">{t('shell-task.pr.noChecks')}</Text>}>
+                    <Show
+                      when={(p().checkList ?? []).length > 0}
+                      fallback={
+                        <Text size="sm" tone="muted">
+                          {t('shell-task.pr.noChecks')}
+                        </Text>
+                      }
+                    >
                       <CheckList label={t('shell-task.pr.checks')}>
                         <For each={[...g().bad, ...(g().okOpen || open().has('passed') ? g().ok : [])]}>
                           {(k) => (
@@ -129,14 +162,24 @@ export function PrPane(): JSX.Element {
                               name={k.name}
                               state={k.state === 'skip' ? 'skipped' : (k.state as 'pass' | 'fail' | 'pending')}
                               duration={k.state === 'pending' ? t('shell-task.pr.running') : k.state === 'skip' ? t('shell-task.pr.skipped') : dur(k.ms)}
-                              {...(k.url && { actions: <IconButton icon="external" size="xs" label={t('shell-task.pr.logs', { name: k.name })} onClick={() => window.open(k.url, '_blank', 'noopener')} /> })}
+                              {...(k.url && {
+                                actions: <IconButton icon="external" size="xs" label={t('shell-task.pr.logs', { name: k.name })} onClick={() => window.open(k.url, '_blank', 'noopener')} />,
+                              })}
                             />
                           )}
                         </For>
                       </CheckList>
                       <Show when={g().ok.length > 0 && !g().okOpen}>
-                        <Button size="xs" variant="ghost" icon={open().has('passed') ? 'chevron' : 'check'} part="side.pr.fold" onClick={() => (open().has('passed') ? fold('passed') : unfold('passed'))}>
-                          {open().has('passed') ? t('shell-task.pr.foldPassed', { count: g().ok.length }) : [g().passed && t('shell-task.pr.passed', { count: g().passed }), g().skipped && t('shell-task.pr.skippedN', { count: g().skipped })].filter(Boolean).join(' · ')}
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          icon={open().has('passed') ? 'chevron' : 'check'}
+                          part="side.pr.fold"
+                          onClick={() => (open().has('passed') ? fold('passed') : unfold('passed'))}
+                        >
+                          {open().has('passed')
+                            ? t('shell-task.pr.foldPassed', { count: g().ok.length })
+                            : [g().passed && t('shell-task.pr.passed', { count: g().passed }), g().skipped && t('shell-task.pr.skippedN', { count: g().skipped })].filter(Boolean).join(' · ')}
                         </Button>
                       </Show>
                     </Show>

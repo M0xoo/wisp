@@ -154,7 +154,11 @@ export function ShellPane(props: { readonly kind: Kind }): JSX.Element {
         </Stack>
         <Inline gap="2" justify="between" part="side.shell.foot">
           <Text size="sm" tone="muted" truncate>
-            {ended() !== undefined ? (ended() ? t('shell-task.shell.endedCode', { code: ended() ?? 0 }) : t('shell-task.shell.ended')) : name()}
+            {ended() !== undefined
+              ? ended()
+                ? t(tui ? 'shell-task.term.endedCode' : 'shell-task.shell.endedCode', { code: ended() ?? 0 })
+                : t(tui ? 'shell-task.term.ended' : 'shell-task.shell.ended')
+              : name()}
           </Text>
           <Show
             when={ended() !== undefined}

@@ -1,6 +1,6 @@
 // The task header's status pill (frame/rows-view.ts statusOf).
 import { describe, expect, it, test } from 'vitest';
-import { statusOf } from '../src/frame/rows-view.ts';
+import { nextNeedsYou, statusOf } from '../src/frame/rows-view.ts';
 import type { SessionRow } from '../src/rows.ts';
 
 const t = (key: string): string => key;
@@ -26,4 +26,21 @@ describe('turn figures', () => {
     expect(folded([1, 2, 3, 4, 5, 6], false)).toEqual({ hidden: 3, shown: [4, 5, 6] });
     expect(folded([1, 2, 3, 4, 5, 6], true).hidden).toBe(0);
   });
+});
+
+test('leaving_a_task_opens_the_next_that_needs_you_else_new_task', () => {
+  const row = (id: string, state: string, at: number, more: Record<string, unknown> = {}) =>
+    ({ id, title: id, state, agent: 'claude', archived: false, unread: false, created_at: 0, updated_at: at, summary: {}, ...more }) as never;
+  const rows = [
+    row('local:a', 'review', 10),
+    row('local:b', 'review', 30),
+    row('local:c', 'running', 50),
+    row('local:d', 'review', 40, { archived: true }),
+    row('local:e', 'waiting', 20, { parent_id: 'local:b' }),
+    row('local:f', 'done', 60),
+  ];
+  expect(nextNeedsYou(rows, 'local:b')).toBe('local:a'); // the newest left in Needs you, not the one just done
+  expect(nextNeedsYou(rows, 'b')).toBe('local:a'); // a bare id is the same task
+  expect(nextNeedsYou(rows, 'local:x')).toBe('local:b');
+  expect(nextNeedsYou([row('local:a', 'review', 1)], 'local:a')).toBeUndefined(); // nothing else: New task
 });

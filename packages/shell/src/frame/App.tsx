@@ -10,7 +10,7 @@ import { useShell } from '../context.tsx';
 import { Area, ClientsProvider, type Clients } from '../slot.tsx';
 import { MainPane, SidePane } from './Panes.tsx';
 import { Overlays } from './Overlays.tsx';
-import { Head, Rail, SidebarList } from './Sidebar.tsx';
+import { Head, Rail, SidebarList, SidebarTop } from './Sidebar.tsx';
 import { crewTint, type TintMember } from './crew-tint.ts';
 import { flatRow } from './rows-view.ts';
 
@@ -49,6 +49,7 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
         : undefined;
     return crewTint(picked, settings().find((r) => r.key === 'crew.tint')?.value);
   });
+  const homeOn = (): boolean => nav().main.kind === 'home' && (nav().layout === 'split' || launcher());
   const onNew = (): void => {
     setLauncher(true);
     shell.navigate({ t: 'home' });
@@ -61,7 +62,12 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
         page={page()}
         rail={<Rail />}
         head={<Head filter={filter} setFilter={setFilter} />}
-        list={<Area input="shell.sidebar:list" fallback={<SidebarList onNew={onNew} homeOn={nav().main.kind === 'home' && (nav().layout === 'split' || launcher())} filter={filter} />} />}
+        list={
+          <>
+            <SidebarTop onNew={onNew} homeOn={homeOn()} />
+            <Area input="shell.sidebar:list" fallback={<SidebarList onNew={onNew} homeOn={homeOn()} filter={filter} />} />
+          </>
+        }
         main={<MainPane onBack={() => setLauncher(false)} />}
         // a plain prop, not a spread: a reactive spread rebuilds every prop (the task page too) when the side opens
         side={nav().side.kind !== 'none' ? <SidePane /> : undefined}

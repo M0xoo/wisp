@@ -64,7 +64,7 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
     if (pane === 'term') shell.navigate({ t: 'openSide', side: { kind: 'view', id: TERM_VIEW as never } });
   };
   // a terminal task's CLI comes first
-  const panes = (): readonly SidePane[] => (isTui(task.task()) ? ['term', ...PANES] : PANES);
+  const panes = (): readonly SidePane[] => (isTui(task.task()) || props.pane === 'term' ? ['term', ...PANES] : PANES);
   return (
     <Stack gap="4" part="side.panel" grow>
       <Inline gap="2" align="center" part="side.head">

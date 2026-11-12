@@ -5,6 +5,8 @@
   "shell-task.side.shell": "Shell",
   "shell-task.side.term": "Terminal",
   "shell-task.term.end": "End terminal",
+  "shell-task.term.ended": "Terminal ended",
+  "shell-task.term.endedCode": "Terminal ended (exit {code})",
   "shell-task.side.close": "Close the panel",
   "shell-task.side.changes.title": "Changes",
   "shell-task.side.changes.count.one": "1 file · +{add} −{del}",

@@ -62,7 +62,16 @@ function ListBody(): JSX.Element {
       <Slot input="shell.list:top" layout="stack" />
       <Show when={items().length > 0} fallback={<EmptyState icon="spark" compact title={emptyTitle()} part="list.empty" />}>
         <ContextMenu items={menu()} onSelect={(v) => pick(env, v, plugins())} part="list.menu">
-          <VirtualList ref={(el) => (box.el = el)} items={items()} key={itemKey} estimate={ROW_ESTIMATE} overscan={8} grow aria-label={t('shell-list.list.label')} part="list.rows">
+          <VirtualList
+            ref={(el) => (box.el = el)}
+            items={items()}
+            key={itemKey}
+            estimate={ROW_ESTIMATE}
+            overscan={8}
+            grow
+            aria-label={t('shell-list.list.label')}
+            part={'list.rows feed' as `${string}.${string}`}
+          >
             {(item) => <ItemView item={item()} />}
           </VirtualList>
         </ContextMenu>

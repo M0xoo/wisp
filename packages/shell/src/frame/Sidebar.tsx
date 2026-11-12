@@ -121,6 +121,22 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
   );
 }
 
+/** v1 .split-top: New task and My Stuff, over whichever list fills `shell.sidebar:list` (the frame's own, or
+ *  shell-list's): it's the frame's, so a list plugin never takes New task away (at 600 px it was the only way in). */
+export function SidebarTop(props: { readonly onNew: () => void; readonly homeOn: boolean }): JSX.Element {
+  const shell = useShell();
+  return (
+    <SplitTop
+      newLabel={shell.t('shell.side.new')}
+      newTitle={shell.t('shell.side.newTitle')}
+      stuffLabel={shell.t('shell.side.stuff')}
+      on={props.homeOn}
+      onNew={props.onNew}
+      onStuff={() => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null as Json })}
+    />
+  );
+}
+
 export function SidebarList(props: { readonly onNew: () => void; readonly homeOn: boolean; readonly filter: () => string }): JSX.Element {
   const shell = useShell();
   const sessions = useSessions();
@@ -160,14 +176,6 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
   };
   return (
     <>
-      <SplitTop
-        newLabel={shell.t('shell.side.new')}
-        newTitle={shell.t('shell.side.newTitle')}
-        stuffLabel={shell.t('shell.side.stuff')}
-        on={props.homeOn}
-        onNew={props.onNew}
-        onStuff={() => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null as Json })}
-      />
       <Feed>
         <For each={SECTIONS.filter((id) => (bySection().get(id)?.length ?? 0) > 0)}>
           {(id) => (

@@ -4,8 +4,9 @@
 // more come from Settings (the device's `shell.peers`).
 
 import '@wisp/ui/styles';
-import { browserHistory, createClient, httpTransport, indexedDBPersist, peerId, untracked, uuidv7, type PeerConfig } from '@wisp/client';
-import { commandErrorToast, createShell, detectPlatform } from '@wisp/shell';
+import { createSignal } from 'solid-js';
+import { browserHistory, createClient, defineCommand, effect, httpTransport, indexedDBPersist, peerId, untracked, uuidv7, type PeerConfig, type PeerId } from '@wisp/client';
+import { commandErrorToast, createShell, detectPlatform, remoteUiDefs, type RemoteUi } from '@wisp/shell';
 import { createToaster } from '@wisp/ui';
 import { shellSettingsUi } from '@wisp-plugin/shell-settings-ui';
 import { startNotifier } from '@wisp-plugin/shell-home-ui';
@@ -52,6 +53,25 @@ for (const { path, def } of pluginUis()) {
   }
 }
 
+// ADR-0048: what your untrusted plugins show (their UI modules run in a sandboxed frame, drawn with the kit); read
+// once the home peer is there
+const pluginsUi = defineCommand<{ peer: PeerId }, RemoteUi[]>({ id: 'plugins.ui', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'none: read at start' });
+function loadRemoteUis(): void {
+  void shell.client
+    .plugin('shell')
+    .run(pluginsUi, { peer: home })
+    .then((list) => {
+      for (const def of remoteUiDefs(Array.isArray(list) ? list : [])) {
+        try {
+          shell.register(def);
+        } catch (err) {
+          client.devtools.record({ kind: 'warn', message: `${def.id}: ${String(err)}` });
+        }
+      }
+    })
+    .catch(() => undefined);
+}
+
 // A task finishing or asking: a toast, and a system notification when wisp isn't in front (v1 notify.js)
 const homeClient = shell.pluginClient('wisp.shell-home');
 if (homeClient) startNotifier({ client: homeClient, platform, toast: toaster, nav: shell.nav, focused: () => document.hasFocus() });
@@ -59,13 +79,20 @@ if (homeClient) startNotifier({ client: homeClient, platform, toast: toaster, na
 // Settings: the frame (an overlay view) and its own panes, given what only the shell has (ADR-0003: inputs, no
 // private API): every plugin's panes, each with its plugin's client, and the translator. It has no default
 // definition, so the glob above skips it: registered here, after the others, so their panes are there.
+// the panes as a Solid signal fed by the registry: a pane registered later (an untrusted plugin's, ADR-0048) shows too
+type PaneEntry = { pane: ReturnType<ReturnType<typeof shell.settingsPanes>>[number]; client: NonNullable<ReturnType<typeof shell.pluginClient>> };
+const [paneEntries, setPaneEntries] = createSignal<readonly PaneEntry[]>([]);
+effect(() => {
+  setPaneEntries(
+    shell.settingsPanes()().flatMap((pane) => {
+      const c = shell.pluginClient(pane.plugin);
+      return c ? [{ pane, client: c }] : [];
+    }),
+  );
+});
 shell.register(
   shellSettingsUi({
-    panes: () =>
-      shell.settingsPanes()().flatMap((pane) => {
-        const c = shell.pluginClient(pane.plugin);
-        return c ? [{ pane, client: c }] : [];
-      }),
+    panes: paneEntries,
     t: (key, vars) => client.i18n.t(key, vars),
   }),
 );
@@ -87,8 +114,37 @@ function extraPeers(): PeerConfig[] {
 // start() reads IndexedDB (rows, cursors, drafts, the last place) and adds the peers; their hellos go
 // out on the next task. The shell renders right then: what's on disk paints before any peer answers,
 // and every view's subscription finds its peer already added (a watch on an unknown peer is dropped).
+/** The machines this wisp keeps (another computer, a sandbox: wisp.machines' `machines_peer` rows) as peers of the
+ * app, reached through this wisp (`/api/peer/<machine>`, its own link and token): their tasks show and open as ours.
+ * One that goes is let go. */
+function followMachines(): void {
+  const added = new Map<string, PeerId>();
+  const rows = client.entities.list<{ id: string; body?: { peer?: string | null; name?: string } }>('machines_peer');
+  effect(() => {
+    const now = new Map<string, { peer: PeerId; name: string }>();
+    for (const r of rows()) {
+      const remote = r.body?.peer;
+      const machine = String(r.id).slice(String(r.id).indexOf(':') + 1);
+      // the machine's own id names it here (two boxes may both call themselves "this computer")
+      if (remote && machine !== home) now.set(machine, { peer: peerId(machine), name: r.body?.name ?? machine });
+    }
+    for (const [machine, peer] of added) {
+      if (now.get(machine)?.peer === peer) continue;
+      client.removePeer(peer);
+      added.delete(machine);
+    }
+    for (const [machine, p] of now) {
+      if (added.has(machine)) continue;
+      client.addPeer({ peer: p.peer, name: p.name, transport: httpTransport({ base: `/api/peer/${encodeURIComponent(machine)}` }) });
+      added.set(machine, p.peer);
+    }
+  });
+}
+
 void client.start([{ peer: home, name: 'wisp', transport: httpTransport({ base: '' }) }]).then(() => {
   for (const p of extraPeers()) client.addPeer(p);
+  followMachines();
+  loadRemoteUis();
   const root = document.getElementById('app');
   if (root) shell.render(root);
   performance.mark('wisp:painted');

@@ -105,3 +105,66 @@ async fn a_terminal_task_runs_in_the_harnesss_own_cli_and_a_follow_up_resumes_it
     assert!(api.cmd("terminal.get", json!({ "kind": "takeover", "id": id })).await.is_object());
     drop(serve);
 }
+
+/// Terminal tasks on a harness that names no conversation by wisp's id (Codex): its own CLI opens on the prompt
+/// (`codex … <prompt>`), the task waits for the conversation the CLI keeps (found by its folder and time when it
+/// ends), and the terminal's end leaves it for review.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_terminal_task_runs_on_codex_too_through_its_own_resume_command() {
+    if cfg!(windows) {
+        return;
+    }
+    let dir = temp("serve-terminal-codex");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let made = api.cmd("runtime.create", json!({ "prompt": "/terminal tidy the readme", "cwd": dir.join("proj"), "agent": "codex" })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    assert!(made["turnId"].is_null(), "no headless turn: {made}");
+    let info = api.cmd("terminal.get", json!({ "kind": "takeover", "id": id })).await;
+    assert_eq!(info["tui"], true, "{info}");
+    let task = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert!(task["resumeId"].is_null(), "Codex names its own conversation: {task}");
+    assert!(task["ext"]["wisp.runtime"]["terminal"]["openedAt"].as_i64().is_some_and(|t| t > 0), "{task}");
+    api.cmd("terminal.close", json!({ "kind": "takeover", "id": id })).await;
+    let at = Instant::now();
+    loop {
+        let t = api.cmd("runtime.get", json!({ "id": id })).await;
+        if t["state"] == "review" {
+            break;
+        }
+        assert!(at.elapsed() < Duration::from_secs(20), "it never ended: {t}");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    drop(serve);
+}
+
+/// Take over (v1 proxy.js; T, *Open in Claude Code*): a task wisp ran opens in its harness's own CLI in a terminal in
+/// wisp, its conversation resumed (`--resume <id>`) and told to answer in plain text from now on; it isn't a terminal
+/// task, and one that never kept a conversation has nothing to take over.
+#[tokio::test(flavor = "multi_thread")]
+async fn take_over_resumes_a_tasks_conversation_in_its_own_cli_inside_wisp() {
+    if cfg!(windows) {
+        return;
+    }
+    let dir = temp("serve-takeover");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let (_, task) = run_task(&api, &dir, "claude").await;
+    let id = task["id"].as_str().unwrap().to_owned();
+    let resume = task["resumeId"].as_str().unwrap_or_default().to_owned();
+    assert!(!resume.is_empty(), "the run kept a conversation: {task}");
+    let opened = api.cmd("runtime.terminal", json!({ "id": id, "cols": 80, "rows": 24 })).await;
+    assert_eq!((opened["kind"].as_str(), opened["tui"].as_bool()), (Some("takeover"), Some(false)), "{opened}");
+    let mut stream = api.http.get(format!("http://127.0.0.1:{port}/api/sessions/{id}/term")).send().await.unwrap();
+    assert_eq!(stream.headers()["content-type"], "text/event-stream");
+    let first = tokio::time::timeout(Duration::from_secs(5), stream.chunk()).await.ok().and_then(Result::ok).flatten();
+    assert!(first.is_some(), "a page sees it");
+    let again = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert!(again["ext"]["wisp.runtime"]["terminal"].is_null(), "not a terminal task: {again}");
+    api.cmd("terminal.close", json!({ "kind": "takeover", "id": id })).await;
+    // a terminal task that never kept a conversation: a new one; a plain task without one: nothing to take over
+    let made = api.cmd("runtime.create", json!({ "prompt": "say hi", "cwd": dir.join("proj"), "agent": "claude", "hold": true })).await;
+    let none = api.try_cmd("runtime.terminal", json!({ "id": made["id"] })).await;
+    assert!(none.to_string().contains("no conversation to take over"), "{none}");
+    drop(serve);
+}

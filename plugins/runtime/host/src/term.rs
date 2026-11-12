@@ -19,6 +19,8 @@ use crate::runtime::Runtime;
 
 /// Told to the agent on top of its own system prompt, where the CLI takes one.
 pub const TUI_NOTE: &str = "You are running inside wisp, in a terminal the user is watching: they read your replies here and answer you directly. Work as in any interactive session; answer in plain text.";
+/// A take over: the run's instructions asked for a `wisp` block only wisp's page reads (v1 services/tui.js).
+pub const TAKEOVER_NOTE: &str = "The user took this session over from wisp and reads your replies in a terminal now. From here on, answer them directly in plain text, with no `wisp` block, whatever earlier instructions said.";
 /// `/terminal <prompt>`: that one task starts in its terminal.
 pub const SLASH: &str = "/terminal";
 /// A CLI that takes no first prompt has it pasted once its screen settles.
@@ -61,6 +63,13 @@ fn uuid() -> String {
     format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..])
 }
 
+/// The conversation a CLI kept for a terminal task that it doesn't let wisp name: the newest in its folder that
+/// was still going after the terminal opened (a minute's slack for clocks), else none.
+pub fn conversation_since(list: &[wisp_runtime_api::harness::sessions::OutsideSession], cwd: &str, opened_at: i64) -> Option<String> {
+    let norm = |p: &str| p.trim_end_matches('/').trim_start_matches("/private").to_owned();
+    list.iter().filter(|s| norm(&s.cwd) == norm(cwd) && s.updated_at >= opened_at - 60_000).max_by_key(|s| s.updated_at).map(|s| s.id.clone())
+}
+
 /// Typed into a CLI: bracketed, so a newline in it doesn't send it early.
 pub fn pasted(text: &str) -> String {
     format!("\x1b[200~{text}\x1b[201~\r")
@@ -80,7 +89,7 @@ impl Runtime {
     pub async fn terminal_argv(self: &Arc<Self>, id: &str, follow: Option<&str>) -> Result<Opened> {
         let _guard = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
-        let t = term_of(&s).cloned().ok_or_else(|| RuntimeError::Invalid(format!("{id} isn't a terminal task")))?;
+        let Some(t) = term_of(&s).cloned() else { return self.take_over(&s) };
         let h = self.harness(&s.agent)?;
         let info = h.info();
         let opened = t["opened"] == true;
@@ -95,18 +104,40 @@ impl Runtime {
             s.resume_id = Some(sid);
         }
         if let Some(own) = s.ext.get_mut("wisp.runtime").and_then(Value::as_object_mut) {
-            own.insert("terminal".into(), json!({ "prompt": first, "opened": true, "live": true }));
+            // when it opened: a CLI that names no conversation by wisp's id is found by it when it ends
+            let at = if opened { t["openedAt"].as_i64().unwrap_or(0) } else { self.now() };
+            own.insert("terminal".into(), json!({ "prompt": first, "opened": true, "live": true, "openedAt": at }));
         }
         s.updated_at = self.now();
         self.persist(&mut s, Vec::new()).await?;
         Ok(Opened { argv: cmd.argv, cwd: s.cwd.clone(), typed })
     }
 
+    /// Take over (v1 proxy.js, *Open in <harness>*, T): a task wisp ran, its conversation resumed in the harness's
+    /// own CLI in a terminal in wisp, told to answer in plain text from here on. A task that never kept one has none.
+    fn take_over(&self, s: &Session) -> Result<Opened> {
+        let resume = s.resume_id.clone().filter(|r| !r.is_empty()).ok_or_else(|| RuntimeError::Conflict(format!("{} has no conversation to take over yet", s.title)))?;
+        let h = self.harness(&s.agent)?;
+        let trusted = s.ext.get("wisp.worktrees").and_then(|w| w.get("cwd")).is_some();
+        let o = ResumeOptions { resume_id: Some(resume), model: s.model.clone(), effort: s.effort.clone(), cwd: s.cwd.clone(), trusted, prompt: None, session_id: None, mode: Some(s.mode), system_prompt: Some(TAKEOVER_NOTE.into()), dirs: s.dirs.clone() };
+        let cmd = h.resume_command(&o).ok_or_else(|| RuntimeError::Invalid(format!("{} can't be taken over in a terminal", s.agent)))?;
+        // a task with no folder of its own (a crew job's answer): its CLI resumes from your home folder
+        let cwd = if s.cwd.is_empty() { std::env::var("HOME").unwrap_or_else(|_| "/".into()) } else { s.cwd.clone() };
+        Ok(Opened { argv: cmd.argv, cwd, typed: None })
+    }
+
     /// The terminal ended: the turns the CLI kept come back as the task's, and it's for review.
-    pub async fn terminal_ended(self: &Arc<Self>, id: &str, read: Option<wisp_runtime_api::spec::AdoptArgs>) -> Result<()> {
+    /// `found`: the conversation the CLI kept, found by its folder and time (one that names none by wisp's id).
+    pub async fn terminal_ended(self: &Arc<Self>, id: &str, found: Option<String>, read: Option<wisp_runtime_api::spec::AdoptArgs>) -> Result<()> {
         let mut s = self.repo.session(id).await?;
         if term_of(&s).is_none() {
             return Ok(());
+        }
+        if s.resume_id.is_none()
+            && let Some(f) = found
+        {
+            s.resume_id = Some(f);
+            self.persist(&mut s, Vec::new()).await?;
         }
         if let (Some(a), Some(r)) = (read, s.resume_id.clone()) {
             self.readopt(&r, &a).await?;
@@ -127,7 +158,8 @@ type Slot = crate::plugin::Slot;
 /// Opens task `id`'s terminal (and pastes its prompt once it settles, for a CLI that takes none).
 pub async fn open(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call, rt: &Arc<Runtime>, id: &str, follow: Option<&str>, size: (Option<f64>, Option<f64>)) -> KResult<Value> {
     let o = rt.terminal_argv(id, follow).await.map_err(WireError::from)?;
-    let mut args = json!({ "kind": "takeover", "id": id, "argv": o.argv, "cwd": o.cwd, "tui": true });
+    let tui = rt.repo.session(id).await.is_ok_and(|s| term_of(&s).is_some());
+    let mut args = json!({ "kind": "takeover", "id": id, "argv": o.argv, "cwd": o.cwd, "tui": tui });
     if let (Some(c), Some(r)) = size {
         args["cols"] = json!(c);
         args["rows"] = json!(r);
@@ -195,16 +227,22 @@ pub fn setup(s: &mut Setup, slot: &Slot) {
             if term_of(&sess).is_none() {
                 return;
             }
-            let mut read = None;
-            if let Some(r) = sess.resume_id.as_deref() {
-                for h in ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().filter(|h| h.harness() == sess.agent) {
-                    if let Some((outside, turns)) = h.read(r).await {
-                        read = Some(crate::specs::adopted(&outside, &turns));
-                        break;
-                    }
+            let (mut read, mut found) = (None, None);
+            let opened_at = term_of(&sess).and_then(|t| t["openedAt"].as_i64()).unwrap_or(0);
+            for h in ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().filter(|h| h.harness() == sess.agent) {
+                // a CLI that names no conversation by wisp's id (Codex, opencode, Cursor, …): the one it kept here since
+                let id = match sess.resume_id.clone() {
+                    Some(r) => Some(r),
+                    None => conversation_since(&h.list(&sess.cwd).await, &sess.cwd, opened_at),
+                };
+                let Some(id) = id else { continue };
+                if let Some((outside, turns)) = h.read(&id).await {
+                    read = Some(crate::specs::adopted(&outside, &turns));
                 }
+                found = Some(id);
+                break;
             }
-            let _ = rt.terminal_ended(&e.id, read).await;
+            let _ = rt.terminal_ended(&e.id, found, read).await;
         }
     });
 }
@@ -223,6 +261,16 @@ mod tests {
         // it never kept a conversation (it ended at a question at start-up): a new one, on both prompts
         assert_eq!(plan(true, None, true, "fix it", Some("go"), &id).2.as_deref(), Some("fix it\n\ngo"));
         assert_eq!(pasted("a\nb"), "\x1b[200~a\nb\x1b[201~\r");
+    }
+
+    #[test]
+    fn a_cli_that_names_no_conversation_is_found_by_its_folder_and_time() {
+        use wisp_runtime_api::harness::sessions::OutsideSession;
+        let s = |id: &str, cwd: &str, at: i64| OutsideSession { harness: "codex".into(), id: id.into(), cwd: cwd.into(), updated_at: at, ..OutsideSession::default() };
+        let list = [s("old", "/w", 1_000), s("other", "/x", 900_000), s("mine", "/private/w/", 800_000), s("earlier", "/w", 500_000)];
+        assert_eq!(conversation_since(&list, "/w", 700_000).as_deref(), Some("mine"));
+        assert_eq!(conversation_since(&list, "/w", 2_000_000), None, "nothing since it opened");
+        assert_eq!(conversation_since(&[], "/w", 0), None);
     }
 
     #[test]

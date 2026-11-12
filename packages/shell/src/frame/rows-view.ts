@@ -183,3 +183,13 @@ export function movedOrder(current: readonly ProjectView[], id: string, to: stri
   ids.splice(i < 0 ? ids.length : i, 0, id);
   return ids;
 }
+
+/** v1 #… (feed.js next): after Mark done, archive or delete, the task that needs you next (the newest in Needs you,
+ *  not archived, not a subagent's, not the one just left), else none (New task). */
+export function nextNeedsYou(rows: readonly SessionRow[], leaving: string): string | undefined {
+  const bare = (id: string): string => id.slice(id.indexOf(':') + 1);
+  const left = bare(leaving);
+  return rows
+    .filter((s) => bare(s.id) !== left && !s.archived && !s.parent_id && sectionOf(s) === 'needs')
+    .reduce<SessionRow | undefined>((best, s) => (!best || s.updated_at > best.updated_at ? s : best), undefined)?.id;
+}

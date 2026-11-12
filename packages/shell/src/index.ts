@@ -17,3 +17,4 @@ export { detectPlatform, nullPlatform, browserPlatform, desktopPlatform, android
 export type * from './platform/types.ts';
 export { routeOf, routeTip, type RouteSeen } from './frame/auto.ts';
 export { PROJECT_ORDER, movedOrder, projectList, projectOf, type ProjectView } from './frame/rows-view.ts';
+export { remoteUiDefs, RemoteView, clean as cleanDescriptor, frameDoc, SANDBOX as REMOTE_SANDBOX, CSP as REMOTE_CSP, type RemoteUi } from './remote/index.ts';

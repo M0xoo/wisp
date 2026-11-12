@@ -5,14 +5,14 @@
 // Mark done, a follow-up, Rerun and Fork show their result before the peer answers; Ship it and a
 // restore show their control working; the panes and menus open in the same frame.
 
-import { For, Show, createMemo, createResource, createSignal, onCleanup, type JSX } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal, onCleanup, untrack, type JSX } from 'solid-js';
 import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
 import { Answer, Button, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
-import { changeFigures, duration, folded, longTime, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
+import { changeFigures, duration, folded, longTime, nextNeedsYou, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { coldHint, compactItem } from './cold.ts';
 import { goalGate } from './goal-gate.ts';
 import { useNow } from '../clock.ts';
@@ -187,6 +187,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     input?.focus();
   };
   const side = (kind: 'changes' | 'shell'): void => shell.navigate({ t: 'toggleSide', side: { kind, id: key as never } });
+  // Take over (T, Open in <harness>): the task's conversation in its harness's own CLI, in shell-task's Terminal tab
+  const takeOver = (): void => shell.navigate({ t: 'openSide', side: { kind: 'view', id: 'shell-task.term' as never } });
   /** a new task from this one (Rerun, Fork): its row and page show at once */
   const copy = (cmd: typeof rerun, agent?: string): void => {
     const newId = entityKey(peer, uuidv7());
@@ -195,9 +197,15 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   };
   // Ship it is wisp.ship's dialog (an overlay view, `ship.dialog`); without that plugin, navigation drops it
   const ship = (): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'ship.dialog' as never, params: { key } } });
+  // v1: leaving a task (done, archived, deleted) opens the next that needs you, else New task
+  const next = (): void => {
+    const id = nextNeedsYou(untrack(sessions), key);
+    if (id) shell.navigate({ t: 'openTask', id: (id.includes(':') ? id : entityKey(peer, id)) as never });
+  };
   const markDone = (): void => {
     void run(setState, { id: key, state: 'done' }).catch(() => undefined);
     shell.navigate({ t: 'markDone', id: key as never });
+    next();
   };
   // "Open in Claude Code" (v1's Take over; owner, 2026-11-10)
   const harnessName = (): string => harnessOf(harnesses(), row()?.agent ?? '').name;
@@ -230,7 +238,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const onMore = (v: string): void => {
     if (v === 'transcript') setStepsOpen(!stepsOpen());
     else if (v === 'rerun') copy(rerun);
-    else if (v === 'openIn' || v === 'shell') side('shell');
+    else if (v === 'openIn') takeOver();
+    else if (v === 'shell') side('shell');
     else if (v === 'fork') copy(fork);
     else if (v === 'compact') void run(compactNow, { id: key }).catch(() => undefined);
     else if (v.startsWith('lean:')) {
@@ -240,9 +249,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     else if (v === 'archive') {
       void run(archive, { id: key, archived: true }).catch(() => undefined);
       shell.navigate({ t: 'archive', id: key as never });
+      next();
     } else if (v === 'delete') {
       void run(remove, { id: key }).catch(() => undefined);
       shell.navigate({ t: 'delete', id: key as never });
+      next();
     }
   };
   const actions = (s: SessionRow): TaskAction[] => [
@@ -277,7 +288,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     const did = ((): boolean => {
       if (act === 'transcript') setStepsOpen(!stepsOpen());
       else if (act === 'rerun' || act === 'fork' || act === 'archive' || act === 'delete') onMore(act);
-      else if (act === 'openIn' || act === 'shell') side('shell');
+      else if (act === 'openIn') takeOver();
+      else if (act === 'shell') side('shell');
       else if (act === 'changes' || act === 'panel') {
         if (act === 'panel' && nav().side.kind !== 'none') shell.navigate({ t: 'closeSide' });
         else side('changes');
