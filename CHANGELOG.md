@@ -103,6 +103,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A doc block's Read all stays under your finger on a phone.** Pressing it shrank the button and dropped its centring, so it jumped right by half its width as you tapped.
 - On a phone, a setting's controls that don't fit beside its text go under it (Agents: Add key, Signed in · Sign out no longer crowd the row).
 - Switches in Settings are buttons again, so keyboard and screen readers treat them as v1 did.
 
