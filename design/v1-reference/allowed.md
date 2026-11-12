@@ -74,6 +74,8 @@ shift every later index. Everything outside the part still has to match.
   a folder picker: the desktop app's own dialog, in a browser the box with the server's folder suggestions. Its
   label is longer, and the foot's "Turn every plugin off" says plugin (ADR-0031). Not masked: at 390
   `settings.spells` keeps those two buttons' widths (and a sub-pixel the box above leaves) as its known parts off.
+- **Pin and Mark read in a task's menu** (the owner, 2026-11-12, round 30): v2 keeps them, after every one of v1's
+  entries (v1's taskMenu had neither), so the row menu is two items longer than v1's: masked in task.right-click.
 
 ## 6. Known, not allowed: the list rows' glyph phase (the coder, round 25, 2026-11-12)
 
@@ -113,4 +115,6 @@ task*  details.openIn  owner
 settings.privacy  settings.projectAsk  owner  390
 settings.privacy  settings.maskEnvFiles  owner  390
 settings.spells  x.input  owner  900,1440
+task.right-click  list.menu  owner
+task.right-click  list.menu.*  owner
 ```

@@ -67,7 +67,7 @@
       "selected": "task.composer-goal"
     }
   },
-  "file": "<view>/<width>-<theme>-<state>.png; <view>/metrics.json: widths[\"<width>-<theme>\"].states[state].parts[] = {part, i, box:[x,y,w,h], s:{pad, mar, gap, fs, lh, fw, ff, col, bg, bw, bc, rad, \u2026}}",
+  "file": "<view>/<width>-<theme>-<state>.png; <view>/metrics.json: widths[\"<width>-<theme>\"].states[state].parts[] = {part, i, box:[x,y,w,h], s:{pad, mar, gap, fs, lh, fw, ff, col, bg, bw, bc, rad, …}}",
   "views": {
     "automations.trigger-new": {
       "shots": 8,
@@ -654,6 +654,22 @@
       "widths": "all",
       "themes": "all",
       "reason": "crew.org re-captured with the seed restored first"
+    },
+    {
+      "started": "2026-11-12T14:10:44.843Z",
+      "finished": "2026-11-12T14:15:26.629Z",
+      "views": [
+        "automations.trigger-new",
+        "me-menu",
+        "projects",
+        "task.right-click"
+      ],
+      "modes": [
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 (3435a2b9) dropped the launcher Try it two ways button after these four were captured; re-captured from seed.json so launcher.tryTwo is gone (the owner, round 31)"
     }
   ]
 }
