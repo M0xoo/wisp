@@ -18,8 +18,11 @@
 //!   box goes on from that answer and checks Discord's signature itself. A ping (the Portal's check) and an
 //!   autocomplete keystroke go live, to a box already up.
 //!
-//! Not here yet: the grid checking Discord's signature itself (with the box's public key and its linked people, so
-//! a stranger's `/wisp` wakes nothing), mail's provider webhook (`mail.rs`).
+//! - **Discord is checked at the edge:** its Ed25519 signature, by the application's public key the box set
+//!   (`/api/channels/key`), before anything is held, answered or woken. No key, unsigned or forged: 401.
+//!
+//! Not here yet: linked people at the edge (a linked stranger's `/wisp` still wakes the box, which refuses it with a
+//! 403 and a strike), mail's provider webhook (`mail.rs`).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -56,6 +59,32 @@ pub struct ChannelDef {
 
 fn kind_of(j: &Value) -> Option<i64> {
     j.get("type").and_then(Value::as_i64)
+}
+
+/// Discord's signature: Ed25519 over the timestamp and the body, by the application's public key (hex). No key, no
+/// signature, or one that doesn't match: false.
+pub fn discord_signed(public_key: &str, timestamp: &str, body: &[u8], signature: &str) -> bool {
+    use ed25519_dalek::{Signature, Verifier as _, VerifyingKey};
+    fn hex<const N: usize>(s: &str) -> Option<[u8; N]> {
+        let s = s.trim().as_bytes();
+        if s.len() != N * 2 {
+            return None;
+        }
+        let mut out = [0u8; N];
+        for (i, pair) in s.chunks(2).enumerate() {
+            let d = |c: u8| (c as char).to_digit(16);
+            out[i] = u8::try_from(d(pair[0])? * 16 + d(pair[1])?).ok()?;
+        }
+        Some(out)
+    }
+    if timestamp.is_empty() {
+        return false;
+    }
+    let (Some(key), Some(sig)) = (hex::<32>(public_key), hex::<64>(signature)) else { return false };
+    let Ok(key) = VerifyingKey::from_bytes(&key) else { return false };
+    let mut msg = timestamp.as_bytes().to_vec();
+    msg.extend_from_slice(body);
+    key.verify(&msg, &Signature::from_bytes(&sig)).is_ok()
 }
 
 /// Discord: "thinking" for `/wisp` (5), "seen" for a press (6). The box goes on from that answer.
@@ -245,6 +274,25 @@ impl Inbox {
         self.db.with(|c| c.query_row("SELECT count(*), coalesce(sum(size), 0) FROM channel_inbox WHERE user_id = ?1 AND done_at IS NULL", [user_id], |r| Ok((r.get(0)?, r.get(1)?))))
     }
 
+    /// The key a channel's requests are checked with at the edge (Discord's application public key, hex), set by
+    /// the box; empty: none (its requests are refused, and wake nothing).
+    pub fn set_key(&self, user: &UserRow, ch: &str, key: &str) -> Result<()> {
+        if ch != "discord" {
+            return Err(bad("Only Discord's requests are checked with a key here.", 400));
+        }
+        let key = key.trim().to_lowercase();
+        if !key.is_empty() && (key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit())) {
+            return Err(bad("That isn't a Discord public key (64 hex characters).", 400));
+        }
+        self.url_for(user, ch)?;
+        self.db.with(|c| c.execute("UPDATE channel_urls SET channel_key = ?1 WHERE user_id = ?2 AND channel = ?3", params![Some(key).filter(|k| !k.is_empty()), user.id, ch]))?;
+        Ok(())
+    }
+
+    fn key_of(&self, user_id: &str, ch: &str) -> Result<Option<String>> {
+        Ok(self.db.with(|c| c.query_row("SELECT channel_key FROM channel_urls WHERE user_id = ?1 AND channel = ?2", params![user_id, ch], |r| r.get::<_, Option<String>>(0)).optional())?.flatten())
+    }
+
     /// Keep what came. `body`: None when it was over `BODY_MAX`. → the sender's answer beyond the 200, if any.
     pub async fn accept(&self, user: &UserRow, ch: &str, headers: &[(String, String)], body: Option<&[u8]>) -> Result<Answer> {
         let def = channel(ch).ok_or_else(|| bad("No such channel here.", 404))?;
@@ -252,6 +300,15 @@ impl Inbox {
             self.count(&user.id, ch)?;
             return Ok(None);
         };
+        // Discord: checked here, before anything is held, answered or woken (a forged one costs nothing)
+        if ch == "discord" {
+            let h = |k: &str| headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(k)).map_or("", |(_, v)| v.as_str());
+            let key = self.key_of(&user.id, ch)?.unwrap_or_default();
+            if !discord_signed(&key, h("x-signature-timestamp"), body, h("x-signature-ed25519")) {
+                tracing::info!(channel = ch, "grid: inbox refused an unsigned or forged interaction");
+                return Ok(Some((401, json!({ "error": "Bad signature." }))));
+            }
+        }
         let kept: Vec<(String, String)> = def.headers.iter().filter_map(|h| headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(h)).map(|(_, v)| ((*h).to_owned(), v.clone()))).collect();
         let j: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
         if (def.live)(&j) {

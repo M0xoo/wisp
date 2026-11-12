@@ -140,6 +140,9 @@ pub const MIGRATIONS: &[&str] = &[
      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, role TEXT NOT NULL,
      created_at INTEGER NOT NULL, PRIMARY KEY (team_id, user_id));
    CREATE INDEX team_members_user ON team_members(user_id);",
+    // Discord's interactions reach a box through the grid, which checks their Ed25519 signature before it holds or
+    // wakes anything: the application's public key (public, set by the box: `/api/channels/key`).
+    r"ALTER TABLE channel_urls ADD COLUMN channel_key TEXT;",
 ];
 
 /// Every table the migrations make (and `meta`), for tests and `wisp grid backup` checks.

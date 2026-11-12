@@ -148,9 +148,15 @@ impl BoxApi for KBox {
         }
         Ok(v["messageId"].as_str().map(str::to_owned))
     }
-    /// v2's grid checks no channel key at its edge yet (Discord's interactions on a box): nothing to tell it
-    async fn set_channel_key(&self, _b: &BoxGrid, _c: &str, _k: &str, _l: &[String]) -> Result<bool> {
-        Ok(false)
+    /// The key the grid's edge checks this channel's requests with (Discord's public key; empty: none, so its calls
+    /// stop there and wake nothing). false: this grid holds no channels.
+    async fn set_channel_key(&self, b: &BoxGrid, c: &str, k: &str, _l: &[String]) -> Result<bool> {
+        let (status, v) = self.call(b, "POST", "/api/channels/key", Some(serde_json::json!({ "channel": c, "key": k })), 15_000).await?;
+        match status {
+            200 => Ok(true),
+            404 => Ok(false),
+            _ => Err(WireError::unavailable(v["error"].as_str().map_or_else(|| format!("the grid said {status}"), str::to_owned))),
+        }
     }
 }
 

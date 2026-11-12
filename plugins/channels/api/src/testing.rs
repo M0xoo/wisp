@@ -209,7 +209,7 @@ impl BoxApi for NoBox {
         Ok(Some(format!("<r{}@wisp>", m.len())))
     }
     async fn set_channel_key(&self, _b: &BoxGrid, _channel: &str, _key: &str, _linked: &[String]) -> Result<bool> {
-        Ok(false)
+        Ok(self.0.is_some())
     }
 }
 

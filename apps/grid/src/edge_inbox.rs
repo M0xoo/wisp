@@ -5,6 +5,8 @@
 //!   or none, is 404; the inbox switched off is 404 too.
 //! - `GET /api/channels/url?channel=` and `POST /api/channels/rotate {channel}`: the box's own URL, from the box
 //!   (`Box <handle> <secret>`) or its owner.
+//! - `POST /api/channels/key {channel, key}`: the key the edge checks a channel's requests with (Discord's public
+//!   key), from the box; empty clears it.
 
 use std::sync::Arc;
 
@@ -67,6 +69,11 @@ impl Grid {
                     return self.mail_address(&user, true);
                 }
                 Ok(json(200, &self.inbox.rotate(&user, &ch(b.get("channel")))?))
+            }
+            ("POST", "key") => {
+                let b = parse_body(h, bytes)?;
+                self.inbox.set_key(&user, &ch(b.get("channel")), b.get("key").and_then(Value::as_str).unwrap_or_default())?;
+                Ok(json(200, &json!({ "ok": true })))
             }
             _ => Ok(json(404, &json!({ "error": "not found" }))),
         }

@@ -48,6 +48,12 @@ impl Discord {
     pub(crate) async fn over_http(&self) {
         let grid = self.hub.grid();
         let Some(b) = grid.grid() else { return };
+        // the grid checks every interaction's signature with this key before it holds or wakes anything
+        match grid.set_channel_key(&b, NAME, s(&self.cfg(), "publicKey").trim(), &[]).await {
+            Ok(true) => {}
+            Ok(false) => return self.mark_down(NO_HUB),
+            Err(e) => return self.mark_down(&e.message),
+        }
         let found = match grid.channel_url(&b, NAME, None, false).await {
             Ok(Some(f)) => f,
             Ok(None) => return self.mark_down(NO_HUB),

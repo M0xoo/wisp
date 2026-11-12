@@ -332,7 +332,7 @@ impl Grid {
             (_, ["api", "shares", ..] | ["api", "gallery"] | ["s", ..]) | ("GET", ["gallery"]) => self.shares_route(&method, &parts, q, &head.headers, &bytes, &who),
             (_, ["api", "sandboxes", ..]) => self.sandboxes_route(&method, &parts, &head.headers, &bytes, &who).await,
             (_, ["api", "teams", ..]) => self.teams_route(&method, &parts, &head.headers, &bytes, &who),
-            (_, ["api", "channels", which @ ("url" | "rotate")]) => self.channels_route(&method, which, q, &head.headers, &bytes, &who),
+            (_, ["api", "channels", which @ ("url" | "rotate" | "key")]) => self.channels_route(&method, which, q, &head.headers, &bytes, &who),
             (_, ["api", "channels", which @ ("route" | "reply")]) => self.route_api(&method, which, &head.headers, &bytes, &who).await,
             ("POST", ["_route", tok]) => self.route_in(&head.headers, tok, &bytes),
             ("POST", ["_mail", provider]) => self.mail_in(provider, &bytes).await,

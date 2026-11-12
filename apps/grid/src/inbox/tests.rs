@@ -173,20 +173,83 @@ fn a_held_message_past_its_hour_is_gone_and_counted() {
     assert_eq!(w.inbox.url_for(&w.user, "telegram").unwrap()["dropped"], 1);
 }
 
+fn discord_key() -> (ed25519_dalek::SigningKey, String) {
+    let k = ed25519_dalek::SigningKey::from_bytes(&[9u8; 32]);
+    let public = k.verifying_key().to_bytes().iter().fold(String::new(), |mut o, b| {
+        use std::fmt::Write as _;
+        let _ = write!(o, "{b:02x}");
+        o
+    });
+    (k, public)
+}
+
+fn discord_signed_headers(k: &ed25519_dalek::SigningKey, body: &[u8]) -> Vec<(String, String)> {
+    use ed25519_dalek::Signer as _;
+    let mut msg = b"1700000000".to_vec();
+    msg.extend_from_slice(body);
+    let sig = k.sign(&msg).to_bytes().iter().fold(String::new(), |mut o, b| {
+        use std::fmt::Write as _;
+        let _ = write!(o, "{b:02x}");
+        o
+    });
+    vec![("X-Signature-Ed25519".to_owned(), sig), ("X-Signature-Timestamp".to_owned(), "1700000000".to_owned())]
+}
+
 /// Discord wants an answer in three seconds and a box may be asleep: `/wisp` and a press are held and answered at
 /// once ("thinking", "seen"); a ping and a keystroke go live to a box that's up; anything else isn't held.
 #[tokio::test]
 async fn discords_slash_and_press_are_answered_at_once_and_held_and_a_keystroke_goes_live() {
     let w = world(vec![200], Opts::default());
+    let (k, public) = discord_key();
+    w.inbox.set_key(&w.user, "discord", &public).unwrap();
     let ix = |t: i64, id: &str| json!({ "type": t, "id": id }).to_string().into_bytes();
-    let heads = vec![("x-signature-ed25519".to_owned(), "ab".to_owned()), ("x-signature-timestamp".to_owned(), "1".to_owned())];
-    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(2, "11"))).await.unwrap(), Some((200, json!({ "type": 5 }))));
-    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(3, "12"))).await.unwrap(), Some((200, json!({ "type": 6 }))));
-    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(4, "13"))).await.unwrap().unwrap().0, 503, "a keystroke never wakes a box");
-    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(9, "14"))).await.unwrap(), None);
+    let send = async |b: Vec<u8>| w.inbox.accept(&w.user, "discord", &discord_signed_headers(&k, &b), Some(&b)).await.unwrap();
+    assert_eq!(send(ix(2, "11")).await, Some((200, json!({ "type": 5 }))));
+    assert_eq!(send(ix(3, "12")).await, Some((200, json!({ "type": 6 }))));
+    assert_eq!(send(ix(4, "13")).await.unwrap().0, 503, "a keystroke never wakes a box");
+    assert_eq!(send(ix(9, "14")).await, None);
     assert_eq!(w.inbox.waiting().unwrap(), vec!["u1".to_owned()]);
     assert_eq!(w.inbox.drain(&w.user).await.unwrap(), None);
     let got = w.the_box.got.lock().unwrap().clone();
     assert_eq!(got.len(), 2, "the slash and the press, not the rest");
-    assert_eq!(got[0].headers.len(), 2, "with the signature the box checks");
+    assert_eq!(got[0].headers.len(), 2, "with the signature the box checks too");
+}
+
+/// Security first: the grid checks Discord's Ed25519 signature itself, with the key the box set, before it holds,
+/// answers or wakes anything. Unsigned, forged, signed by another key, or no key set: 401, and nothing is woken.
+#[tokio::test]
+async fn the_grid_refuses_an_unsigned_or_forged_discord_interaction_and_wakes_nothing() {
+    let w = world(vec![200], Opts::default());
+    let (k, public) = discord_key();
+    let body = json!({ "type": 2, "id": "21" }).to_string().into_bytes();
+    // no key set yet: nothing it can check against, so nothing goes in
+    let r = w.inbox.accept(&w.user, "discord", &discord_signed_headers(&k, &body), Some(&body)).await.unwrap();
+    assert_eq!(r.map(|a| a.0), Some(401));
+    w.inbox.set_key(&w.user, "discord", &public).unwrap();
+    assert!(w.inbox.set_key(&w.user, "discord", "not-a-key").is_err());
+    assert!(w.inbox.set_key(&w.user, "telegram", &public).is_err(), "only Discord's are checked with a key");
+    let unsigned = w.inbox.accept(&w.user, "discord", &[], Some(&body)).await.unwrap();
+    let mut forged_h = discord_signed_headers(&k, &body);
+    forged_h[1].1 = "1700000001".into();
+    let forged = w.inbox.accept(&w.user, "discord", &forged_h, Some(&body)).await.unwrap();
+    let other = ed25519_dalek::SigningKey::from_bytes(&[8u8; 32]);
+    let stranger = w.inbox.accept(&w.user, "discord", &discord_signed_headers(&other, &body), Some(&body)).await.unwrap();
+    let tampered = json!({ "type": 2, "id": "22" }).to_string().into_bytes();
+    let swapped = w.inbox.accept(&w.user, "discord", &discord_signed_headers(&k, &body), Some(&tampered)).await.unwrap();
+    // a ping (the Portal's check) is refused the same way, not passed to a box
+    *w.boxes.up.lock().unwrap() = true;
+    let ping = json!({ "type": 1, "id": "23" }).to_string().into_bytes();
+    let bad_ping = w.inbox.accept(&w.user, "discord", &discord_signed_headers(&other, &ping), Some(&ping)).await.unwrap();
+    *w.boxes.up.lock().unwrap() = false;
+    for (what, a) in [("unsigned", unsigned), ("forged", forged), ("another key", stranger), ("another body", swapped), ("a ping", bad_ping)] {
+        assert_eq!(a.map(|a| a.0), Some(401), "{what}");
+    }
+    assert_eq!(w.inbox.waiting().unwrap(), Vec::<String>::new(), "nothing held");
+    assert_eq!(w.inbox.drain(&w.user).await.unwrap(), None);
+    assert_eq!(w.boxes.starts.load(Ordering::SeqCst), 0, "nothing woken");
+    assert_eq!(w.the_box.got.lock().unwrap().len(), 0, "nothing delivered, live or held");
+    // the real one goes in
+    let ok = w.inbox.accept(&w.user, "discord", &discord_signed_headers(&k, &body), Some(&body)).await.unwrap();
+    assert_eq!(ok, Some((200, json!({ "type": 5 }))));
+    assert_eq!(w.inbox.waiting().unwrap(), vec!["u1".to_owned()]);
 }
