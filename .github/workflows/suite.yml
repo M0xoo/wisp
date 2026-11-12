@@ -19,12 +19,16 @@ on:
         description: Runs of the whole suite per job; more than one surfaces flaky tests
         type: number
         default: 1
+      timeout:
+        description: Minutes a job may take; a repeat needs a run's worth each (~11 min on Windows and macOS)
+        type: number
+        default: 30
 
 jobs:
   test:
     name: test (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.timeout }}
     strategy:
       fail-fast: false
       matrix:
