@@ -149,5 +149,7 @@
   "shell-task.side.openApp": "Open in terminal app",
   "shell-task.preview.pick": "Pick",
   "shell-task.preview.pickTitle": "Pick element: click one in the page to describe it in the reply box",
-  "shell-task.preview.pickWait": "Pick element (once the page has loaded)"
+  "shell-task.preview.pickWait": "Pick element (once the page has loaded)",
+  "shell-task.side.runApp": "Run app",
+  "shell-task.side.stopApp": "Stop app"
 }

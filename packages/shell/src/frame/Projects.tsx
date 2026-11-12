@@ -3,10 +3,9 @@
 // remove; and the git repos found on this computer, one click to add. Every write is a resource op on wisp.runtime's
 // `project` kind, shown at once and rolled back with a toast if refused.
 
-import { createMemo, createResource, createSignal, For, Show, type JSX } from 'solid-js';
+import { createMemo, createResource, createSignal, type JSX } from 'solid-js';
 import { defineCommand, entityKey, type PeerId, type PluginClient } from '@wisp/client';
-import { Button, Card, Dot, Grid, Icon, IconButton, Inline, Input, ListRow, Menu, PathField, Stack, Text, reorderable, useSignal } from '@wisp/ui';
-import type { ProjectColor } from '@wisp/tokens';
+import { PathField, ProjectsSheet, reorderable, useSignal } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { usePluginClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
@@ -144,10 +143,29 @@ export default function Projects(_p: { readonly client: PluginClient; readonly p
     if (!draft().trim() || to === p.id) return;
     void shell.client.commands.run(renameProject, { peer: home, from: p.id, to, spec: specOf(p.id) }).catch(() => undefined);
   };
+  // the row's name, edited in place (v1 .pname): Enter or leaving it keeps it, Escape puts it back
+  const renameTo = (id: string, name: string): void => {
+    const p = list().find((x) => x.id === id);
+    if (!p) return;
+    setDraft(name);
+    saveName(p);
+  };
+  // v1 tilde(): your home as `~`
+  const tilde = (path: string): string => path.replace(/^\/(?:Users|home)\/[^/]+/, '~').replace(/^[A-Za-z]:\\Users\\[^\\]+/, '~');
+  // v1's hint: `wisp add` set as code
+  const hint = (): (string | { code: string })[] => {
+    const [before, after] = t('shell.projects.hint').split('wisp add');
+    return after === undefined ? [before ?? ''] : [before ?? '', { code: 'wisp add' }, after];
+  };
+  const openMachines = (): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane: 'machines' } } });
   return (
-    <Stack gap="4" part="projects.dialog">
-      <Inline gap="2" part="projects.add">
+    <ProjectsSheet
+      places={[{ id: '', label: t('shell.card.thisComputer'), icon: 'folder', on: true }]}
+      onPlace={() => undefined}
+      addMachine={{ label: t('shell.projects.machine'), title: t('shell.projects.machineTitle'), onClick: openMachines }}
+      field={
         <PathField
+          size="lg"
           value={source()}
           onInput={setSource}
           suggest={(q) => shell.client.commands.run(folders, { peer: home, q })}
@@ -160,101 +178,35 @@ export default function Projects(_p: { readonly client: PluginClient; readonly p
           placeholder={t('shell.projects.placeholder')}
           aria-label={t('shell.projects.add')}
         />
-        <Show when={shell.platform.pickFolder}>
-          {(pick) => (
-            <Button variant="ghost" icon="folder" part="projects.browse" onClick={() => void pick()().then((dir) => dir && add(dir))}>
-              {t('shell.projects.browse')}
-            </Button>
-          )}
-        </Show>
-        <Button variant="primary" loading={adding()} disabled={!source().trim()} onClick={submit}>
-          {t('shell.projects.add')}
-        </Button>
-      </Inline>
-      <Text size="sm" tone="muted">
-        {t('shell.projects.hint')}
-      </Text>
-      <Stack gap="0" part="projects.list">
-        <For each={list()}>
-          {(p) => (
-            <ListRow
-              part="projects.row"
-              reorder={reorderable('projects', p.id, ids, reorder)}
-              lead={<Dot color={`pc-${COLORS.includes(p.color as never) ? p.color : 'slate'}` as ProjectColor} />}
-              title={p.name}
-              sub={
-                <Show when={editing() === p.id} fallback={p.path}>
-                  <Input
-                    size="sm"
-                    value={draft()}
-                    onInput={setDraft}
-                    autofocus
-                    aria-label={t('shell.projects.rename')}
-                    onBlur={() => saveName(p)}
-                    onKeyDown={(e) => (e.key === 'Enter' ? (e.preventDefault(), saveName(p)) : e.key === 'Escape' && (e.preventDefault(), setEditing(undefined)))}
-                  />
-                </Show>
-              }
-              pills={
-                <Text size="sm" tone="muted">
-                  {t((counts().get(p.id) ?? 0) === 1 ? 'shell.projects.task' : 'shell.projects.tasks', { count: counts().get(p.id) ?? 0 })}
-                </Text>
-              }
-              actions={
-                <Inline gap="1">
-                  <Menu
-                    items={[
-                      { value: 'rename', label: t('shell.projects.rename'), icon: 'pen' },
-                      { kind: 'separator' as const },
-                      ...COLORS.map((c) => ({ value: `color:${c}`, label: t(`shell.projects.color.${c}`), ...(p.color === c && { checked: true }) })),
-                    ]}
-                    onSelect={(v) => (v === 'rename' ? rename(p) : recolor(p, v.slice(6)))}
-                    trigger={{ icon: 'dots', 'aria-label': t('shell.projects.more', { name: p.name }), size: 'sm' }}
-                    placement="bottom-end"
-                    part="projects.row.more"
-                  />
-                  <IconButton
-                    icon="trash"
-                    size="sm"
-                    variant="ghost"
-                    label={t('shell.projects.remove', { name: p.name })}
-                    onClick={() => void shell.client.commands.run(dropProject, { peer: home, name: p.id }).catch(() => undefined)}
-                  />
-                </Inline>
-              }
-            />
-          )}
-        </For>
-      </Stack>
-      <Show when={(found() ?? []).length > 0}>
-        <Stack gap="2" part="projects.found">
-          <Inline gap="1">
-            <Text weight="semibold">{t('shell.projects.found')}</Text>
-            <Text size="sm" tone="muted">
-              {t('shell.projects.foundHint')}
-            </Text>
-          </Inline>
-          <Grid min="pick-max" gap="2">
-            <For each={found()}>
-              {(f) => (
-                <Card interactive pad="4" onClick={() => add(f.path)} part="projects.found.repo" aria-label={t('shell.projects.addFound', { name: f.name })}>
-                  <Inline gap="2" align="start">
-                    <Icon name="plus" size="sm" tone="accent" />
-                    <Stack gap="0">
-                      <Text weight="semibold" truncate>
-                        {f.name}
-                      </Text>
-                      <Text size="sm" tone="muted" truncate>
-                        {whereIs(f.path)}
-                      </Text>
-                    </Stack>
-                  </Inline>
-                </Card>
-              )}
-            </For>
-          </Grid>
-        </Stack>
-      </Show>
-    </Stack>
+      }
+      browse={shell.platform.pickFolder ? { label: t('shell.projects.browse'), onClick: () => void shell.platform.pickFolder?.().then((dir) => dir && add(dir)) } : undefined}
+      add={{ label: IS_URL.test(source().trim()) ? t('shell.projects.clone') : t('shell.projects.add'), onClick: submit, busy: adding() }}
+      hint={hint()}
+      rows={list().map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: tilde(p.path),
+        count: t((counts().get(p.id) ?? 0) === 1 ? 'shell.projects.task' : 'shell.projects.tasks', { count: counts().get(p.id) ?? 0 }),
+        color: COLORS.includes(p.color as never) ? (p.color as string) : 'slate',
+        reorder: reorderable('projects', p.id, ids, reorder),
+      }))}
+      empty={t('shell.projects.none')}
+      nameLabel={t('shell.projects.name')}
+      colourLabel={t('shell.projects.colour')}
+      colours={COLORS.map((c) => ({ value: c, label: t(`shell.projects.color.${c}`) }))}
+      onColour={(id, c) => {
+        const p = list().find((x) => x.id === id);
+        if (p) recolor(p, c);
+      }}
+      onRename={renameTo}
+      removeLabel={(name) => t('shell.projects.remove', { name })}
+      onRemove={(id) => void shell.client.commands.run(dropProject, { peer: home, name: id }).catch(() => undefined)}
+      found={{
+        heading: t('shell.projects.found'),
+        sub: t('shell.projects.foundHint'),
+        items: (found() ?? []).map((f) => ({ path: f.path, name: f.name, where: whereIs(f.path), label: t('shell.projects.addFound', { name: f.name }) })),
+        onAdd: (path) => add(path),
+      }}
+    />
   );
 }

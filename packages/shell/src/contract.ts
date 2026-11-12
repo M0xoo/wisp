@@ -128,6 +128,16 @@ export interface ExtensionDef<C = Record<string, unknown>> {
     priority: number | 'pin';
     /** added: what choosing it from the bar's More menu does (default: nothing) */
     select?: (p: ExtensionProps<C>) => void;
+    /** added 2026-11-12 (additive): its key, shown beside it in a menu ('⇧R') */
+    keys?: string;
+    /** added 2026-11-12 (additive): its words for this task, when they depend on it ("Push to PR #12", "Stop keeping
+     *  worktree"); `label` otherwise */
+    text?: (p: ExtensionProps<C>) => string;
+    /** added 2026-11-12 (additive): in a task's row menu, 'end' puts it after the list's own Save for later (v1's Keep
+     *  worktree); before the list's triage items otherwise */
+    place?: 'end';
+    /** added 2026-11-12 (additive): in the row's menu only, not the open task's More (its bar has it: Ship it) */
+    rowOnly?: boolean;
   };
   config?: { parse(v: unknown): C; default: C };
   if?: (p: ExtensionProps<C>) => boolean;

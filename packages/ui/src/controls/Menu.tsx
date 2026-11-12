@@ -49,9 +49,7 @@ interface TriggerLook {
 }
 
 /** What the menu's own button looks like: a label (and maybe an icon), or an icon with a name. */
-export type MenuTrigger =
-  | (TriggerLook & { readonly label: string; readonly icon?: IconName })
-  | (TriggerLook & { readonly icon: IconName; readonly 'aria-label': string; readonly label?: undefined });
+export type MenuTrigger = (TriggerLook & { readonly label: string; readonly icon?: IconName }) | (TriggerLook & { readonly icon: IconName; readonly 'aria-label': string; readonly label?: undefined });
 
 interface MenuBaseProps extends KitProps {
   readonly items: readonly MenuEntry[];
@@ -65,14 +63,15 @@ export interface MenuProps extends MenuBaseProps {
   readonly placement?: Placement;
 }
 
-function useMenu(props: MenuBaseProps & { readonly placement?: Placement }): () => menu.Api {
+function useMenu(props: MenuBaseProps & { readonly placement?: Placement }, at?: 'pointer'): () => menu.Api {
   const id = createUniqueId();
   const service = useMachine(menu.machine, () => ({
     id,
     onSelect: (d: menu.SelectionDetails) => props.onSelect(d.value),
     ...(props.open === undefined ? {} : { open: props.open }),
     onOpenChange: (d: menu.OpenChangeDetails) => props.onOpenChange?.(d.open),
-    positioning: { placement: props.placement ?? 'bottom-start', gutter: 4 },
+    // at the pointer (a right-click): v1 clampToViewport, opened beside it and slid up or in to fit, never flipped
+    positioning: at === 'pointer' ? { placement: 'bottom-start' as const, gutter: 0, flip: false, overlap: true, overflowPadding: 8 } : { placement: props.placement ?? 'bottom-start', gutter: 4 },
   }));
   return createMemo(() => menu.connect(service, normalizeProps));
 }
@@ -88,7 +87,9 @@ function Item(props: { readonly api: menu.Api; readonly item: MenuItem; readonly
     >
       <Show when={props.item.icon}>{(name) => <Icon name={name()} size="md" />}</Show>
       <span data-kit="menu-item-text">
-        <span data-kit="menu-item-label" data-text="control">{props.item.label}</span>
+        <span data-kit="menu-item-label" data-text="control">
+          {props.item.label}
+        </span>
         <Show when={props.item.hint}>{(hint) => <span data-kit="menu-item-hint">{hint()}</span>}</Show>
       </span>
       <Show when={props.item.checked}>
@@ -100,11 +101,11 @@ function Item(props: { readonly api: menu.Api; readonly item: MenuItem; readonly
 }
 
 /** The floating list both menus share. */
-function MenuContent(props: { readonly api: menu.Api; readonly items: readonly MenuEntry[]; readonly part: PartName }): JSX.Element {
+function MenuContent(props: { readonly api: menu.Api; readonly items: readonly MenuEntry[]; readonly part: PartName; readonly at?: 'pointer' }): JSX.Element {
   return (
     <Portal>
       <div {...props.api.getPositionerProps()} data-kit="positioner">
-        <div {...props.api.getContentProps()} data-kit="menu" data-part={props.part}>
+        <div {...props.api.getContentProps()} data-kit="menu" data-part={props.part} data-at={props.at}>
           <For each={props.items}>
             {(entry) => (
               <Switch fallback={<Item api={props.api} item={entry as MenuItem} part={props.part} />}>
@@ -150,7 +151,13 @@ export function Menu(props: MenuProps): JSX.Element {
       >
         <span data-kit="button-content">
           <Show when={t().icon}>{(name) => <Icon name={name()} size={t().label ? 'md' : 'base'} />}</Show>
-          <Show when={t().label}>{(label) => <span data-kit="button-label" data-text="control">{label()}</span>}</Show>
+          <Show when={t().label}>
+            {(label) => (
+              <span data-kit="button-label" data-text="control">
+                {label()}
+              </span>
+            )}
+          </Show>
         </span>
       </button>
       <MenuContent api={api()} items={props.items} part={part()} />
@@ -162,14 +169,14 @@ export interface ContextMenuProps extends MenuBaseProps, WithChildren {}
 
 /** Right-click (or long-press) on its children opens the menu at the pointer. */
 export function ContextMenu(props: ContextMenuProps): JSX.Element {
-  const api = useMenu(props);
+  const api = useMenu(props, 'pointer');
   const part = (): PartName => props.part ?? 'ui.context-menu';
   return (
     <>
       <div {...api().getContextTriggerProps()} data-kit="context-area" data-part={sub(part(), 'area')}>
         {props.children}
       </div>
-      <MenuContent api={api()} items={props.items} part={part()} />
+      <MenuContent api={api()} items={props.items} part={part()} at="pointer" />
     </>
   );
 }

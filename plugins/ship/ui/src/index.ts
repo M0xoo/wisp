@@ -5,7 +5,9 @@ import { defineExtension, definePluginUi, defineView } from '@wisp/shell';
 import { catalogue } from './i18n.ts';
 import { parseShipParams } from './ShipDialog.tsx';
 import { SHIP_VIEW } from './use.ts';
-import { prOf } from './model/pr.ts';
+import { prOf, shipLabel, shippable } from './model/pr.ts';
+import { guessShip } from './model/ship.ts';
+import { t } from './i18n.ts';
 import type { ShipSession } from './types.ts';
 
 export default definePluginUi({
@@ -21,6 +23,26 @@ export default definePluginUi({
       if: (p) => {
         const s = p.session?.() as ShipSession | undefined;
         return !!s?.shipping || prOf(s) !== undefined;
+      },
+    }),
+    // Ship it… in a task's row menu (v1 taskMenu: shippable, its words by the PRs it has), S
+    defineExtension({
+      id: 'wisp.ship.rowShip',
+      attachTo: { id: 'shell.row:menu' },
+      component: () => null,
+      order: 50,
+      if: (p) => shippable(p.session?.() as ShipSession | undefined),
+      bar: {
+        icon: 'send',
+        label: 'wisp.ship.action.ship',
+        priority: 50,
+        keys: 'S',
+        rowOnly: true, // the open task's bar has Ship it
+        text: (p) => shipLabel(t, p.session?.() as ShipSession),
+        select: (p) => {
+          const s = p.session?.() as ShipSession | undefined;
+          if (s) p.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: SHIP_VIEW as never, params: { key: s.id, guess: guessShip(s) } as never } });
+        },
       },
     }),
     // the PR row over the open task: its line and what to do next (Merge, Fix conflicts)

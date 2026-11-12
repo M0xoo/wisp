@@ -27,7 +27,7 @@
   /* Dialog: a card over a dim scrim (v1's .overlay / .modal). */
   [data-kit='backdrop'] { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--shadow-scrim); animation: kit-fade var(--dur-slow) var(--ease); }
   [data-kit='dialog-positioner'] {
-    position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: center; padding: 1.25rem; /* v1 .overlay: 20px all round */
+    position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 1.25rem; /* v1 .overlay: 20px all round; one column the window wide, so a card's min(…, 100%) holds */
     overflow-y: auto; overscroll-behavior: contain;
   }
   [data-kit='dialog'], [data-kit='sheet'] {

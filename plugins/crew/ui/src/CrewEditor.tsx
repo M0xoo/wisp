@@ -4,11 +4,20 @@
 // reports, ADR-0043), then the project, harness, mode and how many at once, and First check-in now. Save shows at
 // once (crew.update or crew.create) and rolls back with the shell's toast if refused.
 import { createEffect, createMemo, createSignal, type JSX } from 'solid-js';
-import { uuidv7, type PluginClient } from '@wisp/client';
+import { defineCommand, uuidv7, type PluginClient } from '@wisp/client';
 import { projectList, useShell } from '@wisp/shell';
 import { CrewEditorForm, isSpirit, parseSpirit, rollSpirit, useSignal, type CrewEditorBarItem, type CrewEditorChip } from '@wisp/ui';
 import { CREW_COLORS } from './types.ts';
-import { createMember, updateMember } from './commands.ts';
+import { adoptTask, createMember, updateMember } from './commands.ts';
+
+/** the task's first turn: its prompt starts the brief (v1 crewEditor({ task })) */
+const firstTurn = defineCommand<{ key: string; id: string }, readonly { prompt?: string }[]>({
+  id: 'runtime.turns',
+  owner: (a) => a.key,
+  wire: (a) => ({ id: a.id, before: 1, limit: 1 }),
+  optimistic: 'none',
+  pending: 'the task’s first prompt',
+});
 import { crewData } from './data.ts';
 import { EVENTS, TEMPLATES, addWake, draftOf, fromTemplate, patchOf, problemOf, toggleOn, type Draft } from './editor.ts';
 import { t, type Key } from './i18n.ts';
@@ -26,7 +35,7 @@ const EVENT_ICON = { finished: 'bolt', done: 'done', ci: 'warn' } as const;
 const HANDOFF = 'crew.reported';
 
 // size-ok: one form whose rows share its draft
-export default function CrewEditor(props: { readonly client: PluginClient; readonly params: { id?: string } }): JSX.Element {
+export default function CrewEditor(props: { readonly client: PluginClient; readonly params: { id?: string; task?: string } }): JSX.Element {
   const c = props.client;
   const shell = useShell();
   const say = t as (k: string, v?: Readonly<Record<string, string | number>>) => string;
@@ -37,6 +46,9 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
   // read through `members()` so what depends on it follows the rows as they arrive
   const member = (): (Member & { key: string }) | undefined => (members(), props.params.id ? (data.byId(props.params.id) as (Member & { key: string }) | undefined) : undefined);
   const editing = (): boolean => props.params.id !== undefined;
+  // Add to crew… on a task (v1 crewEditor({ task })): the member's first job is that task; no templates, no check-in
+  const task = props.params.task;
+  const bare = (k: string): string => k.slice(k.indexOf(':') + 1);
   // the member as it was when the form filled: its row may arrive after the dialog opens (a reload on it)
   let before = draftOf(member());
   let touched = false;
@@ -46,7 +58,12 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
     const on = shell.projectFilter?.value();
     return all.find((p) => p.id === on)?.path ?? (all.length === 1 ? (all[0]?.path ?? '') : '');
   };
-  const [d, setD] = createSignal<Draft>(editing() ? before : { ...before, avatar: rollSpirit(String(Math.random())), cwd: here() });
+  const [d, setD] = createSignal<Draft>(editing() ? before : { ...before, avatar: rollSpirit(String(Math.random())), cwd: task ? '' : here() });
+  if (task)
+    void c
+      .run(firstTurn, { key: task, id: bare(task) })
+      .then((turns) => !touched && !d().brief && setD({ ...d(), brief: turns[0]?.prompt ?? '' }))
+      .catch(() => undefined);
   createEffect(() => {
     const m = member();
     if (!m || touched) return;
@@ -55,7 +72,7 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
   });
   const [problem, setProblem] = createSignal<string | undefined>(undefined);
   const [picked, setPicked] = createSignal<string | undefined>(undefined);
-  const [checkin, setCheckin] = createSignal(!editing());
+  const [checkin, setCheckin] = createSignal(!editing() && !task);
   // Custom…: a schedule typed in words, kept open once picked (v1)
   const [typing, setTyping] = createSignal(!CADENCES.some(([v]) => v === d().cron));
   const [said, setSaid] = createSignal(cronWords(d().cron) ?? d().cron);
@@ -83,7 +100,8 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
       if (Object.keys(patch).length > 0) void c.run(updateMember, { key: m.key as never, id: m.id, ...patch }).catch(() => undefined);
     } else {
       const v = { ...d(), name: d().name.trim(), role: d().role.trim(), brief: d().brief.trim() };
-      void c.run(createMember, { peer: c.home, id: uuidv7(), member: v as unknown as Member, ...(checkin() && { checkin: true }) }).catch(() => undefined);
+      if (task) void c.run(adoptTask, { peer: c.home, sessionId: bare(task), member: v as unknown as Member }).catch(() => undefined);
+      else void c.run(createMember, { peer: c.home, id: uuidv7(), member: v as unknown as Member, ...(checkin() && { checkin: true }) }).catch(() => undefined);
     }
     close();
   };
@@ -173,14 +191,18 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
   return (
     <CrewEditorForm
       start={
-        editing()
+        editing() || task
           ? undefined
           : {
               label: t('wisp.crew.editor.start'),
               templates: TEMPLATES.map((tp) => ({ key: tp.key, label: tplText(tp.key).role, avatar: tp.avatar })),
               picked: picked(),
               onPick: pick,
-              import: { label: t('wisp.crew.editor.import'), title: t('wisp.crew.editor.importTitle'), onClick: () => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.import as never, params: {} } }) },
+              import: {
+                label: t('wisp.crew.editor.import'),
+                title: t('wisp.crew.editor.importTitle'),
+                onClick: () => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.import as never, params: {} } }),
+              },
             }
       }
       face={{ avatar: d().avatar, name: d().name || 'wisp', title: t('wisp.crew.editor.face'), onRoll: () => set({ avatar: rollSpirit(String(Math.random())) }) }}
@@ -239,7 +261,7 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
         more: t('wisp.crew.editor.more'),
         onStep: (by) => set({ parallel: Math.min(5, Math.max(1, d().parallel + by)) }),
       }}
-      checkin={editing() ? undefined : { label: t('wisp.crew.editor.checkin'), on: checkin(), onToggle: setCheckin }}
+      checkin={editing() || task ? undefined : { label: t('wisp.crew.editor.checkin'), on: checkin(), onToggle: setCheckin }}
       cancel={{ label: t('wisp.crew.page.cancel'), onClick: close }}
       submit={{ label: editing() ? t('wisp.crew.page.save') : t('wisp.crew.editor.addButton'), onClick: save }}
     />

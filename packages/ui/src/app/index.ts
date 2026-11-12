@@ -44,3 +44,4 @@ export { CommentCard, CommentTray, type CommentCardProps, type CommentTrayProps 
 export { SpareCards, type SpareCard, type SpareCardsProps } from './Spare.tsx';
 export { RailCardBody, headingForCard, stepRow, type RailCardBodyProps, type RailCardRow } from './RailCard.tsx';
 export { AutoPop, type AutoPopProps, type AutoPopRow } from './AutoPop.tsx';
+export { ProjectsSheet, type ProjectsSheetProps, type ProjectsRow, type ProjectsPlace } from './ProjectsSheet.tsx';

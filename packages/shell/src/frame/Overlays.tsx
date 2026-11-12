@@ -1,5 +1,5 @@
 // The overlay stack from navigation (plan §4.6.4): each overlay is a registered view drawn in a kit
-// Dialog (a Sheet from the bottom on phones). Closing one, by its X, a click outside or Esc, is the
+// Dialog, a card on phones too, as v1's modals were; a viewer fills a phone, and a `sheet` comes up from the bottom. Closing one, by its X, a click outside or Esc, is the
 // closeOverlay intent for its id, so the URL, Back and an Open on a toast all agree (#573). Keyed by
 // id: reopening the same overlay never rebuilds it while it stays up.
 
@@ -23,8 +23,9 @@ function OverlayView(props: { readonly overlay: Overlay }): JSX.Element {
   const body = (): JSX.Element => (def ? <Dynamic component={def.component} client={client} params={params()} /> : <EmptyState icon="info" title={shell.t('shell.view.missing')} compact />);
   // a text field inside takes the focus first (the palette's search), else the kit's default
   const initialFocus = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-part~="shell.overlay"] input, [data-part~="shell.overlay"] textarea');
-  // a view placed at the top (⌘K) stays a card on phones too, dropping from the top out of the keyboard's way (v1)
-  const sheet = (): boolean => def?.place !== 'top' && (nav().layout === 'stack' || props.overlay.kind === 'sheet');
+  // v1's modals stay cards on a phone (a 20px inset, scrolled inside); a viewer (Settings) takes the phone's whole
+  // screen as before, and what's opened as a sheet comes up from the bottom; never a view placed at the top (⌘K)
+  const sheet = (): boolean => def?.place !== 'top' && (props.overlay.kind === 'sheet' || (props.overlay.kind === 'viewer' && nav().layout === 'stack'));
   return (
     <Show
       when={sheet()}

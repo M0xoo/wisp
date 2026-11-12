@@ -263,5 +263,8 @@
   "wisp.crew.card.next": "Next check-in {when}",
   "wisp.crew.card.nothing": "Nothing going on",
   "wisp.crew.card.all": "All {count} in the thread",
-  "wisp.crew.card.gone": "Gone"
+  "wisp.crew.card.gone": "Gone",
+  "wisp.crew.editor.addTask": "Add this task to your crew",
+  "wisp.crew.row.add": "Add to crew…",
+  "wisp.crew.row.open": "Open {name}"
 }

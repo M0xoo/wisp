@@ -260,6 +260,34 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   };
   // "Open in Claude Code" (v1's Take over; owner, 2026-11-10)
   const harnessName = (): string => harnessOf(harnesses(), row()?.agent ?? '').name;
+  // v1 moreMenu: what a task's right-click menu offers is here too: the entries other plugins attach to
+  // `shell.row:menu` (Side discussion, Share, Ship it, Run app, Save as recipe, Add to crew, Set goal, Keep worktree);
+  // the shell's own (Rerun, Fork, Changes, Shell) are on this page already
+  const rowMenu = useSignal(shell.extensions('shell.row:menu'));
+  const camel = (k: string): string => k.replace(/_([a-z])/g, (_m, c: string) => c.toUpperCase());
+  const menuRow = (): Record<string, unknown> => {
+    const r = (row() ?? {}) as unknown as Record<string, unknown>;
+    const top = Object.fromEntries(
+      Object.entries(r)
+        .filter(([k]) => k !== 'body' && k !== 'summary')
+        .map(([k, v]) => [camel(k), v]),
+    );
+    return { ...((r['body'] as object | undefined) ?? {}), ...top, ...((r['summary'] as object | undefined) ?? {}), id: key };
+  };
+  const extProps = (x: typeof rowMenu extends () => readonly (infer E)[] ? E : never) => ({
+    client: clients.client(x.plugin),
+    config: x.config,
+    session: () => menuRow() as { id: string; agent: string },
+  });
+  const extras = (): MenuEntry[] =>
+    rowMenu()
+      .filter((x) => x.plugin !== 'shell' && x.def.bar && !x.def.bar.rowOnly && (x.def.if?.(extProps(x) as never) ?? true))
+      .map((x) => ({
+        value: `x:${x.id}`,
+        label: x.def.bar?.text?.(extProps(x) as never) ?? t(x.def.bar?.label ?? x.id),
+        icon: (x.def.bar?.icon ?? 'dots') as IconName,
+        ...(x.def.bar?.keys && { keys: x.def.bar.keys }),
+      }));
   const more = (): MenuEntry[] => [
     { value: 'transcript', label: t('shell.task.transcript'), icon: 'transcript', keys: 'V' },
     { value: 'rerun', label: t('shell.task.rerun'), icon: 'rerun', keys: '⇧R' },
@@ -282,6 +310,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
           },
         ]
       : []),
+    ...extras(),
     { value: 'copy', label: t('shell.task.copyLink'), icon: 'copy' },
     { value: 'archive', label: t('shell.task.archive'), icon: 'archive' },
     { value: 'delete', label: t('shell.task.delete'), icon: 'trash', danger: true },
@@ -305,6 +334,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
       void run(remove, { id: key }).catch(() => undefined);
       shell.navigate({ t: 'delete', id: key as never });
       next();
+    } else if (v.startsWith('x:')) {
+      const x = rowMenu().find((e) => `x:${e.id}` === v);
+      if (x) x.def.bar?.select?.(extProps(x) as never);
     }
   };
   const actions = (s: SessionRow): TaskAction[] => [
@@ -472,7 +504,13 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         <>
                           <TurnView
                             prompt={sent.rest}
-                            askNotes={sent.notes.map((c) => ({ n: c.n, on: c.kind === 'text' && c.quote ? `“${c.quote.replace(/\s+/g, ' ')}”` : c.label, removed: c.removed, removedLabel: t('shell.task.commentRemoved'), say: c.note }))}
+                            askNotes={sent.notes.map((c) => ({
+                              n: c.n,
+                              on: c.kind === 'text' && c.quote ? `“${c.quote.replace(/\s+/g, ' ')}”` : c.label,
+                              removed: c.removed,
+                              removedLabel: t('shell.task.commentRemoved'),
+                              say: c.note,
+                            }))}
                             harness={h().name}
                             {...(h().logo && { logo: h().logo })}
                             time={clock(turn.started_at)}

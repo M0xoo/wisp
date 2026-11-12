@@ -8,6 +8,15 @@ import { askCrew } from './commands.ts';
 import { parseEditor } from './editor.ts';
 import { t } from './i18n.ts';
 import { VIEW } from './views.ts';
+import { crewData } from './data.ts';
+
+interface RowLike {
+  readonly id: string;
+  readonly agent?: string;
+  readonly parentId?: string;
+  readonly pending?: boolean;
+  readonly crew?: { readonly id: string };
+}
 import { definePluginUi } from './define.ts';
 import { catalogue } from './i18n.ts';
 
@@ -15,6 +24,33 @@ export default definePluginUi({
   id: 'wisp.crew',
   // a member's page: the main pane when a face on the rail is picked (v1 crew.js buildView)
   extensions: [
+    // a task's row menu (v1 actions.js crewItem): a member's job opens them; a task of yours can become a member's
+    defineExtension({
+      id: 'wisp.crew.rowCrew',
+      attachTo: { id: 'shell.row:menu' },
+      component: () => null,
+      order: 100,
+      if: (p) => {
+        const s = p.session?.() as RowLike | undefined;
+        return !!s && (!!s.crew?.id || !(s.parentId || s.agent === 'wisp' || s.pending));
+      },
+      bar: {
+        icon: 'crew',
+        label: 'wisp.crew.row.add',
+        priority: 100,
+        text: (p) => {
+          const s = p.session?.() as RowLike | undefined;
+          const m = s?.crew?.id ? crewData(p.client).byId(s.crew.id) : undefined;
+          return m ? (t as (k: string, v?: Readonly<Record<string, string>>) => string)('wisp.crew.row.open', { name: m.name }) : t('wisp.crew.row.add');
+        },
+        select: (p) => {
+          const s = p.session?.() as RowLike | undefined;
+          if (!s) return;
+          if (s.crew?.id) return p.client.navigate({ t: 'openCrew', id: s.crew.id as never });
+          p.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.editor as never, params: { task: s.id } } });
+        },
+      },
+    }),
     // the phone's Crew section at the top of the list (v1 #secCrew); it shows only in the stacked layout
     defineExtension({ id: 'wisp.crew.list', attachTo: { id: 'shell.list:crew' }, component: lazy(() => import('./CrewListTop.tsx')) }),
     // a face's card beside the rail (v1 .cl-card): its jobs, each a click away
@@ -55,7 +91,7 @@ export default definePluginUi({
       overlay: 'dialog',
       size: 'v1',
       parse: parseEditor,
-      title: (p) => t(p.id ? 'wisp.crew.editor.edit' : 'wisp.crew.editor.add'),
+      title: (p) => t(p.id ? 'wisp.crew.editor.edit' : p.task ? 'wisp.crew.editor.addTask' : 'wisp.crew.editor.add'),
       component: lazy(() => import('./CrewEditor.tsx')),
     }),
   ],

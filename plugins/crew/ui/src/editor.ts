@@ -87,9 +87,11 @@ export function addWake(list: readonly Wake[], on: string, member?: string): Wak
 }
 
 /** The editor's params: `{ id }` to edit a member, nothing to add one. */
-export const parseEditor = (p: unknown): { id?: string } => {
-  const id = (p as { id?: unknown } | null)?.id;
-  return typeof id === 'string' && id ? { id } : {};
+/** the editor's params: a member to edit (`id`), or a task to make a member's first job (`task`, its entity key:
+ *  v1 Add to crew…) */
+export const parseEditor = (p: unknown): { id?: string; task?: string } => {
+  const o = p as { id?: unknown; task?: unknown } | null;
+  return { ...(typeof o?.id === 'string' && o.id && { id: o.id }), ...(typeof o?.task === 'string' && o.task.includes(':') && { task: o.task }) };
 };
 
 /** v1 crew-templates.js: ready-made members (a spirit, a schedule, and a name, role and brief from the catalogue:

@@ -12,17 +12,8 @@ import { CarryChips, LinkRow, WhoPicker, WorkOption } from './DialogParts.tsx';
 import { suggestPasskey } from './link.ts';
 import type { ShareableTask, Shared, SharePreview } from './types.ts';
 
-export const SHARE_VIEW = 'stuff.share' as ExtensionId;
-
-export interface ShareParams {
-  readonly session: EntityKey;
-}
-
-export const parseShareParams = (p: unknown): ShareParams => {
-  const s = (p as { session?: unknown } | null)?.session;
-  if (typeof s !== 'string' || !s.includes(':')) throw new Error('share: params.session is an entity key');
-  return { session: s as EntityKey };
-};
+export { SHARE_VIEW, parseShareParams, type ShareParams } from './params.ts';
+import { SHARE_VIEW, type ShareParams } from './params.ts';
 
 interface Note {
   readonly text: string;
@@ -95,7 +86,15 @@ export default function ShareDialog(props: { client: PluginClient; params: Share
       icon: 'share',
       priority: 'pin',
       render: () => (
-        <Button part="share.go" variant="primary" size="sm" icon="share" loading={busy()} disabled={!ready() || (who() === 'pass' && !passkey().trim() && !shared()?.locked)} onClick={() => void share()}>
+        <Button
+          part="share.go"
+          variant="primary"
+          size="sm"
+          icon="share"
+          loading={busy()}
+          disabled={!ready() || (who() === 'pass' && !passkey().trim() && !shared()?.locked)}
+          onClick={() => void share()}
+        >
           {shared() ? t('stuff.share.update') : t('stuff.share.share')}
         </Button>
       ),
@@ -103,7 +102,14 @@ export default function ShareDialog(props: { client: PluginClient; params: Share
   ];
 
   return (
-    <Dialog part="share.dialog" title={t('stuff.share.title')} open onOpenChange={(o) => !o && close()} size="sm" footer={<Toolbar part="share.foot" aria-label={t('stuff.share.actions')} justify="end" items={items()} />}>
+    <Dialog
+      part="share.dialog"
+      title={t('stuff.share.title')}
+      open
+      onOpenChange={(o) => !o && close()}
+      size="sm"
+      footer={<Toolbar part="share.foot" aria-label={t('stuff.share.actions')} justify="end" items={items()} />}
+    >
       <Stack gap="5">
         <Text part="share.task" weight="medium" truncate title={task()?.title ?? ''}>
           {task()?.title ?? ''}

@@ -15,7 +15,7 @@
   "shell-list.projects.all": "All projects",
   "shell-list.menu.open": "Open",
   "shell-list.menu.rename": "Rename",
-  "shell-list.menu.copy-id": "Copy ID",
+  "shell-list.menu.copy-id": "Copy task ID",
   "shell-list.menu.save": "Save for later",
   "shell-list.menu.unsave": "Unsave",
   "shell-list.menu.archive": "Archive",

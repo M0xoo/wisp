@@ -10,6 +10,7 @@ import type { ExtensionProps, ResolvedExtension } from '@wisp/shell/contract';
 import { copyId, setUnread, toggleArchived, toggleDone, toggleForLater, togglePin } from '../actions.ts';
 import { flatten, itemKey, type Item } from '../model/flat.ts';
 import { rowMenu } from '../model/menu.ts';
+import { flatSession } from '../model/wire.ts';
 import { useShell } from '../shell.ts';
 import { KIND, type Session } from '../types.ts';
 import { buildEnv } from './build-env.ts';
@@ -85,7 +86,13 @@ function ListBody(): JSX.Element {
             grow
             aria-label={t('shell-list.list.label')}
             part={'list.rows feed' as `${string}.${string}`}
-            gapBefore={(i) => (isTaskItem(items()[i]) && isTaskItem(items()[i - 1]) ? true : (items()[i]?.t === 'slot' && i > 0 && isTaskItem(items()[i - 1])) || (i > 0 && items()[i - 1]?.t === 'slot') ? 'section' : false)}
+            gapBefore={(i) =>
+              isTaskItem(items()[i]) && isTaskItem(items()[i - 1])
+                ? true
+                : (items()[i]?.t === 'slot' && i > 0 && isTaskItem(items()[i - 1])) || (i > 0 && items()[i - 1]?.t === 'slot')
+                  ? 'section'
+                  : false
+            }
             // each section a box from its heading to its last row (v1 #secNeeds, …): parity measures it, spells style it
             groups={sectionGroups(items())}
           >
@@ -165,11 +172,15 @@ function menuFor(env: ListEnv, plugins: readonly ResolvedExtension[]): MenuEntry
   const key = env.menuFor();
   const s = key === undefined ? undefined : sessionOf(env, key);
   if (!key || !s) return [];
-  const session = (): { id: string; agent: string } => ({ ...s, id: key });
-  const extra = plugins
-    .filter((x) => x.def.bar && (x.def.if?.({ client: env.client, config: x.config, session }) ?? true))
-    .map((x) => ({ value: `x:${x.id}`, label: env.shell.t(x.def.bar?.label ?? x.id), icon: (x.def.bar?.icon ?? 'dots') as IconName }));
-  return rowMenu({ s, t: env.shell.t, plugins: extra, keys: env.keys });
+  // as the list reads it: summary and body flat (branch, toShip, pr…), its key in `id`
+  const session = (): { id: string; agent: string } => ({ ...flatSession(s), id: key });
+  const shown = plugins.filter((x) => x.def.bar && (x.def.if?.({ client: env.client, config: x.config, session }) ?? true));
+  const entry = (x: ResolvedExtension): MenuEntry => {
+    const bar = x.def.bar;
+    const p = { client: env.client, config: x.config, session };
+    return { value: `x:${x.id}`, label: bar?.text?.(p as never) ?? env.shell.t(bar?.label ?? x.id), icon: (bar?.icon ?? 'dots') as IconName, ...(env.keys && bar?.keys ? { keys: bar.keys } : {}) };
+  };
+  return rowMenu({ s, t: env.shell.t, plugins: shown.filter((x) => x.def.bar?.place !== 'end').map(entry), end: shown.filter((x) => x.def.bar?.place === 'end').map(entry), keys: env.keys });
 }
 
 /** A choice in the row menu. */
@@ -199,7 +210,7 @@ function pick(env: ListEnv, value: string, plugins: readonly ResolvedExtension[]
       return env.askDelete(key);
     default: {
       const x = plugins.find((p) => `x:${p.id}` === value);
-      x?.def.bar?.select?.({ client: env.client, config: x.config, session: () => ({ ...s, id: key }) });
+      x?.def.bar?.select?.({ client: env.client, config: x.config, session: () => ({ ...flatSession(s), id: key }) });
     }
   }
 }

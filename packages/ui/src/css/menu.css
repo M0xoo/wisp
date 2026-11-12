@@ -9,6 +9,8 @@
     box-shadow: var(--shadow-2); outline: 0;
   }
   [data-kit='menu'][data-state='open'] { animation: kit-pop var(--dur-slow) var(--ease); }
+  /* a right-click's menu (v1 .menu.task): as tall as it is, up to the window, slid to fit rather than scrolled */
+  [data-kit='menu'][data-at='pointer'] { max-height: calc(100vh - 1rem); }
   [data-kit='menu-item'] {
     display: flex; align-items: center; gap: var(--space-5); width: 100%; min-height: var(--size-control-md);
     padding: var(--space-3) var(--space-5); border-radius: var(--radius-md); font-size: var(--fs-md);

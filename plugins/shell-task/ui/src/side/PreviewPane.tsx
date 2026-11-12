@@ -3,9 +3,10 @@
 // here. Its output streams from `/sessions/:id/run`; the first local address it prints is where the frame points
 // (else its PORT once it has printed anything). Run, Restart and Stop change the pane at once and come back with
 // the error if the computer refuses.
-import { createSignal, onCleanup, onMount, type JSX } from 'solid-js';
-import { defineCommand, ownerOf, type EntityKey } from '@wisp/client';
-import { RunPreview, Screen, Terminal } from '@wisp/ui';
+import { createEffect, createSignal, onCleanup, onMount, type JSX } from 'solid-js';
+import { defineCommand, ownerOf, readonly, type EntityKey } from '@wisp/client';
+import { runRequest } from './run-request.ts';
+import { RunPreview, Screen, Terminal, useSignal } from '@wisp/ui';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
 import { pickedText, withPicked } from './pick.ts';
@@ -163,9 +164,12 @@ export function PreviewPane(): JSX.Element {
       }
     })();
   };
+  // known once run.info answered: then Run app from the menu can start it here (v1 runApp)
+  const [known, setKnown] = createSignal(false);
   onMount(() => {
     c.run(info, { key: task.key, id }).then(
       (i) => {
+        setKnown(true);
         setPort(i.port);
         setProxy(i.proxy);
         if (i.guess) {
@@ -181,6 +185,12 @@ export function PreviewPane(): JSX.Element {
     );
   });
   onCleanup(() => es?.abort());
+  const asked = useSignal(readonly(runRequest));
+  createEffect(() => {
+    if (asked() !== id || !known()) return;
+    runRequest(undefined);
+    if (state() === 'idle' && command().trim()) run(); // running, or it failed: the pane shows that (v1)
+  });
   const run = (restart = false): void => {
     const cmd = command().trim();
     if (!cmd) return;

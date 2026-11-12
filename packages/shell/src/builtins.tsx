@@ -12,6 +12,7 @@ import { THEMES } from './theme.ts';
 import { SESSION, type SessionRow } from './rows.ts';
 import { archive, markRead, remove, setState } from './frame/commands.ts';
 import { TASK_KEY, type TaskKey } from './frame/task-keys.ts';
+import { rowMenuItems } from './frame/row-menu.ts';
 import { PROJECT_ACTIONS, PROJECT_SOURCE, projectItems, projectShortcuts, projectsNow } from './frame/project-switch.ts';
 import { flatRow, projectOf, shortAgo, statusOf } from './frame/rows-view.ts';
 
@@ -68,7 +69,13 @@ function appItems(ctx: ShellContext): PaletteItem[] {
     keywords: 'theme appearance light dark mode system colors night',
     run: () => void ctx.theme.set(pref),
   });
-  const themes = ([['system', 'shell.cmd.theme.system', 'laptop'], ['light', 'shell.cmd.theme.light', 'sun'], ['dark', 'shell.cmd.theme.dark', 'moon']] as const).filter(([p]) => p !== ctx.theme.pref());
+  const themes = (
+    [
+      ['system', 'shell.cmd.theme.system', 'laptop'],
+      ['light', 'shell.cmd.theme.light', 'sun'],
+      ['dark', 'shell.cmd.theme.dark', 'moon'],
+    ] as const
+  ).filter(([p]) => p !== ctx.theme.pref());
   return [
     { id: 'shell.sidebar', group: g, label: ctx.t('shell.cmd.sidebar'), icon: 'split', kbd: '[', keywords: 'sidebar collapse expand toggle focus full width', run: () => ctx.sidebar.toggle() },
     { id: 'shell.shortcuts', group: g, label: ctx.t('shell.cmd.shortcuts'), icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: () => ctx.navigate(overlay('shell.shortcuts')) },
@@ -125,7 +132,9 @@ interface CrewMember {
 /** Crew: each member (role · when they run), Org once there is a crew, Add a crew member… (v1). */
 function crewItems(ctx: ShellContext): PaletteItem[] {
   const g = 'shell.palette.group.crew';
-  const crew = ctx.client.entities.list<unknown>('crew_member')().map((r) => flatRow<CrewMember>(r));
+  const crew = ctx.client.entities
+    .list<unknown>('crew_member')()
+    .map((r) => flatRow<CrewMember>(r));
   const out: PaletteItem[] = crew.map((m) => ({
     id: `crew:${m.id}`,
     group: g,
@@ -136,8 +145,23 @@ function crewItems(ctx: ShellContext): PaletteItem[] {
     run: () => ctx.navigate({ t: 'openCrew', id: m.id as never }),
   }));
   if (crew.length > 0)
-    out.push({ id: 'crew:org', group: g, label: ctx.t('shell.crew.org'), sub: ctx.t('shell.crew.orgSub'), icon: 'org', keywords: 'crew org chart delegates team hierarchy', run: () => ctx.navigate({ t: 'openView', id: 'crew.org' as never, params: null as Json }) });
-  out.push({ id: 'crew:add', group: g, label: ctx.t('shell.crew.addMember'), icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar', run: () => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'crew.editor' as never, params: {} } }) });
+    out.push({
+      id: 'crew:org',
+      group: g,
+      label: ctx.t('shell.crew.org'),
+      sub: ctx.t('shell.crew.orgSub'),
+      icon: 'org',
+      keywords: 'crew org chart delegates team hierarchy',
+      run: () => ctx.navigate({ t: 'openView', id: 'crew.org' as never, params: null as Json }),
+    });
+  out.push({
+    id: 'crew:add',
+    group: g,
+    label: ctx.t('shell.crew.addMember'),
+    icon: 'plus',
+    keywords: 'crew agent assistant new persistent schedule avatar',
+    run: () => ctx.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'crew.editor' as never, params: {} } }),
+  });
   return out;
 }
 
@@ -272,12 +296,22 @@ function shortcuts(ctx: ShellContext): ShortcutDef[] {
 export function shellUi(ctx: ShellContext): PluginUiDef {
   return {
     id: 'shell',
-    extensions: [],
+    // its entries in a task's row menu (v1 taskMenu), attached like any plugin's
+    extensions: rowMenuItems(ctx),
     views: [
-      defineView({ kind: 'shell.palette', slot: 'overlay', overlay: 'dialog', bare: true, place: 'top', parse: paletteParams, component: Palette, title: (p) => ((p as { title?: string } | null)?.title ?? ctx.t('shell.palette.title')) }),
+      defineView({
+        kind: 'shell.palette',
+        slot: 'overlay',
+        overlay: 'dialog',
+        bare: true,
+        place: 'top',
+        parse: paletteParams,
+        component: Palette,
+        title: (p) => (p as { title?: string } | null)?.title ?? ctx.t('shell.palette.title'),
+      }),
       defineView({ kind: 'shell.shortcuts', slot: 'overlay', overlay: 'dialog', parse: none, component: Shortcuts, title: () => ctx.t('shell.shortcuts.title') }),
       // add, order, rename and remove projects (v1 features/projects.js); every "Add a project" opens it
-      defineView({ kind: 'shell.projects', slot: 'overlay', overlay: 'dialog', parse: none, component: lazy(() => import('./frame/Projects.tsx')), title: () => ctx.t('shell.projects.title') }),
+      defineView({ kind: 'shell.projects', slot: 'overlay', overlay: 'dialog', part: 'projects.modal', parse: none, component: lazy(() => import('./frame/Projects.tsx')), title: () => ctx.t('shell.projects.title') }),
       defineView({ kind: 'shell.devtools', slot: 'overlay', overlay: 'viewer', parse: none, component: Inspector, title: () => ctx.t('shell.diag.title') }),
     ],
     settings: [
@@ -288,7 +322,13 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
       // v1's order: tasks, crew, Actions (its head, then what plugins add at 60, then its tail), projects last
       { id: 'shell.tasks', order: 10, items: () => taskItems(ctx) },
       { id: 'shell.crew', order: 20, items: () => crewItems(ctx) },
-      { id: 'shell.new', order: 29, items: () => [{ id: 'shell.new', group: 'shell.palette.group.actions', label: ctx.t('shell.cmd.new'), icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: () => launcher(ctx) }] },
+      {
+        id: 'shell.new',
+        order: 29,
+        items: () => [
+          { id: 'shell.new', group: 'shell.palette.group.actions', label: ctx.t('shell.cmd.new'), icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: () => launcher(ctx) },
+        ],
+      },
       { id: PROJECT_ACTIONS, order: 30, items: () => actionHead(ctx) },
       { id: 'shell.app', order: 90, items: () => appItems(ctx) },
       { id: PROJECT_SOURCE, order: 200, items: () => projectItems(ctx) },

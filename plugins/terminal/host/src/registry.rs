@@ -137,6 +137,10 @@ impl Registry {
             // ended on its own (a take over's CLI quit): whoever owns the task hears it
             if let Some(state) = ended {
                 ectx.emit(&ectx.root_call(), &wisp_terminal_api::Changed { kind: key.0, id: key.1.clone(), state, code: Some(code), gone: false });
+                // the app exited by itself: its row says Run app again
+                if key.0 == TermKind::Run {
+                    crate::mark_run(&ectx, &ectx.root_call(), &key.1, false).await;
+                }
             }
         });
         info

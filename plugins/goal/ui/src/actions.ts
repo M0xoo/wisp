@@ -12,11 +12,11 @@ import type { RunHint, SessionRow } from './types.ts';
 
 export const VIEW = {
   /** overlay: Set goal… / Edit goal…; params { task } */
-  edit: 'wisp.goal.edit',
+  edit: 'goal.edit',
   /** overlay: each judge's vote and the rounds before; params { task } */
-  checks: 'wisp.goal.checks',
+  checks: 'goal.checks',
   /** overlay: one check, read like a task (v1 goal-run.js); params RunHint */
-  run: 'wisp.goal.run',
+  run: 'goal.run',
 } as const;
 
 export const ACTION_LABEL: Readonly<Record<GoalAction, Key>> = {

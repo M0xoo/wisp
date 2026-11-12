@@ -10,6 +10,7 @@
   },
   "permissions": [
     "runtime:get",
+    "runtime:setExt",
     "telemetry:track"
   ],
   "activation": [

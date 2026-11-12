@@ -54,6 +54,15 @@ export const createMember = defineCommand<{ peer: PeerId; id: string; member: Me
   optimistic: (_base, a) => [{ e: KIND.member, id: `${a.peer}:${a.id}` as EntityKey, op: 'upsert', v: a.member }],
 });
 
+/** Add to crew… on a task (v1 POST /sessions/:id/crew): a new member whose first job is that task. */
+export const adoptTask = defineCommand<{ peer: PeerId; sessionId: string; member: Member }, Member>({
+  id: 'crew.adopt',
+  owner: (a) => a.peer,
+  wire: (a) => ({ ...a.member, sessionId: a.sessionId }),
+  optimistic: 'none',
+  pending: 'Add to crew',
+});
+
 /** Remove from crew: its jobs stay as tasks; what it remembers goes. */
 export const removeMember = defineCommand<{ key: EntityKey; id: string }>({
   id: 'crew.remove',
@@ -158,4 +167,10 @@ export const askCrew = defineCommand<{ task: EntityKey; id: string; question: st
 export type OrgLayout = Record<string, { x: number; y: number }>;
 export const getLayout = defineCommand<{ peer: PeerId }, OrgLayout>({ id: 'crew.layout', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the Org layout' });
 /** Save it (v1 PUT /crew-layout); {} puts everyone back in tiers. The page shows it at once and puts it back if refused. */
-export const setLayout = defineCommand<{ peer: PeerId; layout: OrgLayout }, OrgLayout>({ id: 'crew.set_layout', owner: (a) => a.peer, wire: (a) => ({ layout: a.layout }), optimistic: 'none', pending: 'the Org layout' });
+export const setLayout = defineCommand<{ peer: PeerId; layout: OrgLayout }, OrgLayout>({
+  id: 'crew.set_layout',
+  owner: (a) => a.peer,
+  wire: (a) => ({ layout: a.layout }),
+  optimistic: 'none',
+  pending: 'the Org layout',
+});

@@ -115,6 +115,14 @@ fn plan_here(platform: &str, found: &[String], a: &c::OpenAppArgs, terminal: &st
 }
 
 /// Runs the task's app in its folder on a PTY, `PORT` set (v1 POST /sessions/:id/run).
+/// Whether the task's app is running, on its row (`ext["wisp.terminal"].run`): the row menu's Run app / Stop app (v1
+/// panel.js runLabel) reads it. Best effort: a task that's gone has no row to mark.
+pub(crate) async fn mark_run(ctx: &Ctx, call: &wisp_kernel::Call, id: &str, running: bool) {
+    let port = wisp_terminal_core::run::port_for(id);
+    let value = json!({ "run": { "running": running, "port": port } });
+    let _ = ctx.run_json(call, "runtime.setExt", json!({ "id": id, "plugin": "wisp.terminal", "value": value })).await;
+}
+
 async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Arc<Registry>, a: &c::RunStartArgs) -> Result<wisp_terminal_api::RunStarted> {
     let port = wisp_terminal_core::run::port_for(&a.id);
     if a.command.trim().is_empty() {
@@ -134,6 +142,8 @@ async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Arc<Registry>, a: &c
     let mut argv = wisp_terminal_core::folder::shell_argv(std::env::var("SHELL").ok().as_deref());
     argv.truncate(1);
     argv.extend(["-lc".to_owned(), wisp_terminal_core::run::script(&a.command, port)]);
+    // marked before it starts: an app that exits at once clears it after, never before (no stale "running")
+    mark_run(ctx, call, &a.id, true).await;
     r.open(ctx, &c::OpenArgs { kind: TermKind::Run, id: a.id.clone(), argv, cwd: dir.clone(), cols: a.cols, rows: a.rows, tui: false });
     // Preview's proxy (ADR-0049): to the port the app prints, else its PORT; weak, so the registry isn't kept by it
     let weak = Arc::downgrade(r);
@@ -273,6 +283,7 @@ impl Plugin for TerminalPlugin {
             let ok = r.close(a.kind, &a.id).await;
             if a.kind == TermKind::Run {
                 r.proxies.stop(&a.id); // the app stopped: so does its proxy
+                mark_run(&ctx, &call, &a.id, false).await;
             }
             if ok {
                 // hung up: forgotten, and whoever owns the task hears it ended
