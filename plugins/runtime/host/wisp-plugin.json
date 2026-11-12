@@ -254,6 +254,10 @@
         "readOnly": true
       },
       {
+        "id": "runtime.agent.watch",
+        "title": "An agent keeps a page beside its task (wisp_watch)"
+      },
+      {
         "id": "runtime.agent.session",
         "title": "An agent reads a task (wisp_session)",
         "readOnly": true

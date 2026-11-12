@@ -260,6 +260,14 @@ pub fn setup(s: &mut Setup, slot: &Slot) {
     });
 }
 
+/// One word for a POSIX shell: as it is when it's plain, else in single quotes.
+pub(crate) fn sh_quote(w: &str) -> String {
+    if !w.is_empty() && w.chars().all(|c| c.is_ascii_alphanumeric() || "_./:=@%+,-".contains(c)) {
+        return w.to_owned();
+    }
+    format!("'{}'", w.replace('\'', "'\\''"))
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -309,12 +317,3 @@ mod tests {
         assert_eq!(slash("/terminals x"), None);
     }
 }
-
-/// One word for a POSIX shell: as it is when it's plain, else in single quotes.
-pub(crate) fn sh_quote(w: &str) -> String {
-    if !w.is_empty() && w.chars().all(|c| c.is_ascii_alphanumeric() || "_./:=@%+,-".contains(c)) {
-        return w.to_owned();
-    }
-    format!("'{}'", w.replace('\'', "'\\''"))
-}
-

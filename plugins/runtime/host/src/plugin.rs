@@ -301,6 +301,8 @@ fn commands(s: &mut Setup, slot: &Slot) {
     for_agents(s, slot);
     more(s, slot, harness_kind, project_kind);
     crate::term::setup(s, slot);
+    crate::group::setup(s);
+    crate::watch::setup(s, slot);
 }
 
 /// What agents read of the user's tasks (`wisp_sessions`, `wisp_session`), with their usage events.

@@ -11,5 +11,6 @@ pub mod queue;
 pub mod limit;
 pub mod refused;
 pub mod summary;
+pub mod watch;
 pub mod upcast;
 pub mod usage;

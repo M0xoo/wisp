@@ -10,7 +10,7 @@
 pub const LATER_SCHEDULE: &str = "later.agent.schedule"; // POST /internal/later
 pub const TAG: &str = "runtime.agent.tag"; // POST /internal/tags
 pub const PR: &str = "ship.agent.pr"; // POST /internal/prs
-pub const WATCH: &str = "watch.agent.apply"; // POST /internal/watch
+pub const WATCH: &str = "runtime.agent.watch"; // POST /internal/watch (owned by wisp.runtime: the watch is the task's)
 pub const STUFF_SAVE: &str = "stuff.agent.save"; // POST /internal/stuff
 pub const STUFF_LIST: &str = "stuff.agent.list"; // GET /internal/stuff/:id
 pub const BLOCKS: &str = "runtime.agent.blocks"; // v1 protocol.js blockDocs(types), answered in the child

@@ -365,6 +365,14 @@ pub struct AgentSessionArgs {
     pub turn: Option<u32>,
 }
 
+/// `wisp_watch`'s call (the MCP tool's input) on the agent's task: `action` and what it needs.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AgentWatchArgs {
+    pub session: String,
+    #[serde(flatten)]
+    pub body: serde_json::Map<String, Value>,
+}
+
 /// What an agent tool reads back: `text`, or `error`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]

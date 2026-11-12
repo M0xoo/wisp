@@ -69,8 +69,11 @@ async fn launch(c: &Client, p: &Parsed, args: &[String], cwd: &str) -> Result<()
     let prompt = args.join(" ");
     let mut made = Vec::new();
     if let Some(runs) = &f.compare {
+        // one group for the runs: the task's More then offers Compare runs (v1 compare.js, F-comp-30)
+        let group = format!("g-{}", crate::services::hex(&rand::random::<[u8; 8]>()));
         for r in runs {
             let mut a = sc::launch_args(f, &prompt, cwd);
+            a["ext"] = json!({ "wisp.runtime": { "group": group } });
             a["agent"] = json!(r.agent);
             if let Some(m) = &r.model {
                 a["model"] = json!(m);

@@ -7,6 +7,7 @@
 mod reads;
 mod drive;
 mod found;
+mod group;
 pub mod error;
 mod finish;
 pub mod host;
@@ -24,6 +25,7 @@ mod setup;
 mod side;
 mod specs;
 mod term;
+mod watch;
 pub mod runtime;
 pub mod schema;
 pub mod sys;

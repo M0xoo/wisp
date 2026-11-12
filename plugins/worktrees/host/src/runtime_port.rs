@@ -70,7 +70,8 @@ impl Port for RuntimePort {
                     trees,
                     kids: Vec::new(),
                     parent_id: s.parent_id.as_ref().map(|p| p.0.clone()),
-                    group_id: None,
+                    // the runs of one compare (runtime's slot, wisp --compare): cleaning one up offers its done siblings
+                    group_id: full.ext.get("wisp.runtime").and_then(|o| o.get("group")).and_then(Value::as_str).filter(|g| !g.is_empty()).map(str::to_owned),
                 });
             }
             out

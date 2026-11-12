@@ -183,6 +183,16 @@ impl Command for AgentSessions {
     type Out = AgentText;
 }
 
+/// `wisp_watch` (F-page-32): the page an agent keeps beside its own task while it works. Additive (2026-11-12).
+#[derive(Debug)]
+pub struct AgentWatch;
+impl Command for AgentWatch {
+    const ID: &'static str = "runtime.agent.watch";
+    const TASK_ARGS: &'static [&'static str] = &["session"];
+    type Args = AgentWatchArgs;
+    type Out = AgentText;
+}
+
 /// `wisp_session`: one task in words, readable like `AgentSessions`.
 #[derive(Debug)]
 pub struct AgentSession;

@@ -44,6 +44,13 @@ pub const MIGRATIONS: &[Migration] = &[
     ),
     // ADR-0029: what each task had (skills, MCP servers and their tools, permissions), recorded at its first run
     Migration::sql(3, "CREATE TABLE runtime_setup (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
+    // F-page-32: a task's watch (wisp_watch), by session id: its state and caption apart from its page's HTML, so
+    // a state sent every few seconds never carries the page again
+    Migration::sql(
+        4,
+        "CREATE TABLE runtime_watch (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+         CREATE TABLE runtime_watch_page (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
+    ),
 ];
 
 fn session_of(r: &Row, key: &str) -> String {
@@ -192,10 +199,34 @@ pub const SETUP: EntityDef = EntityDef {
     topics: setup_topics,
 };
 
+/// A task's watch (v1 session.watch, without its page): on the task's topic, as its turns are.
+pub const WATCH: EntityDef = EntityDef {
+    kind: "watch",
+    table: "runtime_watch",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: setup_topics,
+};
+
+/// A watch's page (`{ html }`), written only when the page itself changed.
+pub const WATCH_PAGE: EntityDef = EntityDef {
+    kind: "watch_page",
+    table: "runtime_watch_page",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: setup_topics,
+};
+
 /// Runs the migrations and registers the kinds and the search index. At start, before any command.
 pub fn install(store: &wisp_store::Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
-    for def in [SESSION, TURN, EVENT, QUEUE_ITEM, PROFILE, FORMULA, SETUP] {
+    for def in [SESSION, TURN, EVENT, QUEUE_ITEM, PROFILE, FORMULA, SETUP, WATCH, WATCH_PAGE] {
         store.define_entity(def)?;
     }
     store.define_search("session", &["title"])?;

@@ -185,6 +185,11 @@ impl Runtime {
 
     /// Writes the task (and the turns given), rebuilds its list row, emits `session.changed`.
     pub(crate) async fn persist(&self, s: &mut Session, turns: Vec<Turn>) -> Result<Arc<Summary>> {
+        self.persist_with(s, turns, |_| Ok(())).await
+    }
+
+    /// `persist`, with more rows of runtime's own written in the same transaction (a task's watch page).
+    pub(crate) async fn persist_with(&self, s: &mut Session, turns: Vec<Turn>, extra: impl FnOnce(&mut wisp_store::Writer<'_>) -> wisp_store::Result<()> + Send + 'static) -> Result<Arc<Summary>> {
         s.rev += 1;
         let summary = Arc::new(self.summary_of(s, turns.last()).await?);
         let (row, sum, ts) = (s.clone(), summary.clone(), turns);
@@ -198,7 +203,7 @@ impl Runtime {
                     repo::save_turn(w, t)
                         .map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 }
-                Ok(())
+                extra(w)
             })
             .await?;
         self.lock_list().insert(s.id.0.clone(), summary.clone());
