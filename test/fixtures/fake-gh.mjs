@@ -31,7 +31,10 @@ const newest = () => {
 // between read nothing ("Unexpected end of JSON input").
 const writes = (argv[0] === 'pr' && ['create', 'ready', 'merge'].includes(argv[1])) || (argv[0] === 'gist' && argv[1] === 'create');
 const lock = `${file}.lock`;
-const unlock = () => fs.rmSync(lock, { recursive: true, force: true });
+// On Windows a lock another gh is stat-ing (the stale check below) is only marked for deletion:
+// until that handle closes, removing it again or making it anew is refused with EPERM (Windows
+// CI, runs 43109836654 and 43114650220). Both wait for it, like a lock still held.
+const unlock = () => fs.rmSync(lock, { recursive: true, force: true, maxRetries: 20, retryDelay: 5 });
 if (fs.existsSync(path.dirname(file))) {
   const nap = new Int32Array(new SharedArrayBuffer(4));
   for (;;) {
@@ -39,7 +42,7 @@ if (fs.existsSync(path.dirname(file))) {
       fs.mkdirSync(lock);
       break;
     } catch (err) {
-      if (err.code !== 'EEXIST') throw err;
+      if (err.code !== 'EEXIST' && !(err.code === 'EPERM' && process.platform === 'win32')) throw err;
       // A gh killed while it held the lock (a test's timeout) never takes it away.
       try {
         if (Date.now() - fs.statSync(lock).mtimeMs > 10_000) unlock();

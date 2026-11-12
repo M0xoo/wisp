@@ -664,6 +664,9 @@ test('cron: fields, ranges, steps, day-of-week/month OR rule, next run', () => {
 test('triggers: a schedule fires once per matching minute; CI and issue watchers fire for new items only', async () => {
   const repo = makeRepo();
   const t = srv.triggers;
+  // This test ticks by hand. The server's own 20 s tick, landing in between, polled a new watcher
+  // first and held it busy, so ours skipped it and it wasn't seeded yet (macOS CI, run 43099164258).
+  t.stop();
   const sched = await api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: '30 9 * * *', prompt: 'Morning triage', agent: 'claude' } });
   assert.ok(sched.nextAt > Date.now());
   await assert.rejects(api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: 'nope', prompt: 'x' } }), /Couldn’t read “nope” as a schedule/);
@@ -723,7 +726,7 @@ test('triggers: a schedule fires once per matching minute; CI and issue watchers
   const it = srv.store.config.triggers.find((x) => x.id === iss.id);
   await t.tick();
   assert.equal(it.runs, 0);
-  assert.equal(it.seeded, true);
+  assert.equal(it.seeded, true, `not seeded: busy=${t.busy.has(it.id)}, error: ${it.lastError}`);
   setGh({ issues: [{ number: 2, title: 'Crash on {title}', body: 'Steps: {number}', url: 'u2', labels: ['wisp'], author: { login: 'octo' } }, ...ghState().issues] });
   it.lastPolledAt = 0;
   await t.tick();
