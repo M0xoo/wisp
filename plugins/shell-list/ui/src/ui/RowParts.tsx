@@ -25,15 +25,15 @@ export function Mark(props: { readonly s: SessionRow; readonly view: RowView; re
         {(o) => <Icon name={o().icon} size="md" tone="muted" label={say(env.shell.t, o().title, env.now())} part="list.row.mark" />}
       </Match>
       <Match when={(() => { const x = m(); return x.kind === 'agent' ? x : undefined; })()}>
-        {/* v1 feed.js .it-dot: one dot before the title, the accent while unread, grey once read; it pulses while the run works */}
+        {/* v1 feed.css .q-dot: the task's project colour (slate without a project), warn while it asks you; it pulses
+            while the run works or waits. Unread is the title's (600, ink: ListRow strong), never the dot's. */}
         {(a) => (
-          <Dot
-            size="md"
-            tone={props.view.unread ? 'accent' : 'neutral'}
-            live={a().live}
-            {...(props.view.unread ? { label: env.shell.t('shell-list.row.unread') } : {})}
-            part={'list.row.mark card.dot' as `${string}.${string}`}
-          />
+          <Show
+            when={props.s.state === 'waiting'}
+            fallback={<Dot size="md" color={colorToken(props.s.project ? props.s.color : undefined)} live={a().live} part={'list.row.mark card.dot' as `${string}.${string}`} />}
+          >
+            <Dot size="md" tone="warn" live part={'list.row.mark card.dot' as `${string}.${string}`} />
+          </Show>
         )}
       </Match>
     </Switch>

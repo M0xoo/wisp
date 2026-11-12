@@ -35,7 +35,7 @@
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] { position: absolute; grid-area: auto; top: 7px; right: 40px; padding-inline-start: 0; gap: 4px; }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] > [data-kit='icon-button'] { margin: 0; border-width: 0; border-radius: 7px; background: var(--bg-2); font-size: 14px; font-weight: 400; line-height: 1.55; color: var(--faint); }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] > [data-kit='icon-button'][data-tone='good']:hover { color: var(--good); }
-  [data-kit='list-row'][data-layout='feed'] [data-kit='dot'] { width: 7px; height: 7px; }
+  [data-kit='list-row'][data-layout='feed'] [data-kit='dot'] { width: 7px; height: 7px; color: var(--ink); }
   /* the item round it (v1 #feed .item): a 1px border, transparent at rest; hover and open fill the item, focus (the
      keyboard's row) outlines it; 2px between items (.f-list gap), the virtual row's own padding so it's measured */
   [data-kit='feed-item'] { border: 1px solid transparent; border-radius: var(--radius); }

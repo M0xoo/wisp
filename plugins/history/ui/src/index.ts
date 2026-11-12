@@ -1,14 +1,19 @@
-// @wisp-plugin/history-ui: wisp.history's UI (ADR-0033): the Repo tab over the list and its view. Each loads on
-// first show.
+// @wisp-plugin/history-ui: wisp.history's UI (ADR-0033): the Repo view, reached from ⌘K and from the project chips'
+// + menu (it was a Tasks · Repo tab row over the list, which put the list 24 px lower than v1's). Loads on first show.
 import { lazy } from 'solid-js';
-import { defineExtension, definePluginUi, defineView } from '@wisp/shell';
+import { definePalette, definePluginUi, defineView } from '@wisp/shell';
 import { catalogue, t } from './i18n.ts';
 import { REPO_VIEW } from './views.ts';
 
 export default definePluginUi({
   id: 'wisp.history',
   catalogue,
-  extensions: [defineExtension({ id: 'history.tabs', attachTo: { id: 'shell.list:top' }, component: lazy(() => import('./RepoTabs.tsx')) })],
+  palette: [
+    definePalette({
+      id: 'history.palette',
+      items: (ctx) => [{ id: 'history.repo', group: 'shell.palette.go', label: t('history.tab.repo'), icon: 'branch', keywords: 'history git commits agents committed', run: () => ctx.client.navigate({ t: 'openView', id: REPO_VIEW as never, params: {} }) }],
+    }),
+  ],
   views: [
     defineView<{ project?: string }>({
       kind: REPO_VIEW,
