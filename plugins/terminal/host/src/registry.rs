@@ -26,6 +26,9 @@ type Key = (TermKind, String);
 pub struct Registry {
     proc: Proc,
     map: Arc<Mutex<HashMap<Key, Term>>>,
+    /// Preview's proxies (ADR-0049), under the plugin's scope: switched off, they stop
+    pub proxies: crate::proxy::Proxies,
+    pub scope: wisp_kernel::CancellationToken,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -43,8 +46,8 @@ fn broadcast(t: &mut Term, frame: &[u8]) {
 }
 
 impl Registry {
-    pub fn new(proc: Proc) -> Self {
-        Self { proc, map: Arc::new(Mutex::new(HashMap::new())) }
+    pub fn new(proc: Proc, scope: wisp_kernel::CancellationToken) -> Self {
+        Self { proc, map: Arc::new(Mutex::new(HashMap::new())), proxies: crate::proxy::Proxies::default(), scope }
     }
 
     pub fn info(&self, kind: TermKind, id: &str) -> Option<TermInfo> {
@@ -53,6 +56,13 @@ impl Registry {
 
     pub fn live(&self, kind: TermKind, id: &str) -> bool {
         self.info(kind, id).is_some_and(|i| i.state.live())
+    }
+
+    /// The port the run's own output says the app listens on (v1 runs.js `r.url`), from its kept screen.
+    pub fn local_port(&self, kind: TermKind, id: &str) -> Option<u16> {
+        let mut m = lock(&self.map);
+        let t = m.get_mut(&(kind, id.to_owned()))?;
+        wisp_terminal_core::pick::local_port_in(t.replay.read())
     }
 
     /// Starts one, or answers the one that runs. A program that can't start is an answer (`failed`).

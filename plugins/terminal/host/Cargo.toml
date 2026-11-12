@@ -17,6 +17,13 @@ serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+flate2.workspace = true
+brotli.workspace = true
 
 [lints]
 workspace = true

@@ -2,11 +2,12 @@
 // the pane. Changes: every file the work changed since it left its base, committed or not, from git
 // (`git.changes`, the worktree's base, else HEAD); a folder that isn't a repo shows the turns' own edits. PR
 // (PrPane.tsx, `ship.details`) and Shell (ShellPane.tsx, wisp.terminal).
-import { Match, Show, Switch, createResource, type JSX } from 'solid-js';
-import { defineCommand, entityKey, type EntityKey } from '@wisp/client';
-import { Box, IconButton, Icon, Inline, Menu, Stack, Tabs, Text, useSignal } from '@wisp/ui';
+import { Match, Show, Switch, createEffect, createMemo, createResource, type JSX } from 'solid-js';
+import { Dynamic } from 'solid-js/web';
+import { computed, defineCommand, readonly, entityKey, type EntityKey } from '@wisp/client';
+import { Box, IconButton, type IconName, Icon, Inline, Menu, Stack, Tabs, Text, useSignal } from '@wisp/ui';
 import { editorUrl } from '../editor.ts';
-import { TERM_VIEW, isTui, type SidePane } from '../open-task.ts';
+import { TAB_VIEW, TERM_VIEW, isTui, pickedTab, tabKey, type SidePane } from '../open-task.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
 import { PrPane } from './PrPane.tsx';
@@ -79,9 +80,23 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
   const open = (pane: string): void => {
     if (pane === 'changes' || pane === 'pr' || pane === 'shell' || pane === 'preview') shell.navigate({ t: 'openSide', side: { kind: pane, id: task.key as never } });
     if (pane === 'term') shell.navigate({ t: 'openSide', side: { kind: 'view', id: TERM_VIEW as never } });
+    if (extra().some((x) => x.key === pane)) {
+      pickedTab(pane);
+      shell.navigate({ t: 'openSide', side: { kind: 'view', id: TAB_VIEW as never } });
+    }
   };
   // a terminal task's CLI comes first
   const panes = (): readonly SidePane[] => (isTui(task.task()) || props.pane === 'term' ? ['term', ...PANES] : PANES);
+  // other plugins' tabs, after the panel's own (v1 panel.js: an app from My Stuff pinned to tasks, "pane:<id>")
+  // (a client computed: what the tabs read are the client's signals, the pins setting and the items)
+  const defs = shell.sideTabs?.();
+  const extra = useSignal(computed(() => (defs?.() ?? []).flatMap((d) => d.tabs({ client: d.client, task: task.key }).map((x) => ({ ...x, key: tabKey(d.plugin, d.id, x.value), def: d })))));
+  const picked = useSignal(readonly(pickedTab));
+  const shown = createMemo(() => (props.pane === 'tab' ? extra().find((x) => x.key === picked()) : undefined));
+  // its tab gone (unpinned while open, or a reload forgot which): Changes, as v1 (panel.js tabOf)
+  createEffect(() => {
+    if (props.pane === 'tab' && !shown()) shell.navigate({ t: 'openSide', side: { kind: 'changes', id: task.key as never } });
+  });
   return (
     <Stack gap="0" part={'side.panel panel' as `${string}.${string}`} grow>
       <Inline gap="2" align="center" part="side.head">
@@ -89,9 +104,12 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
           part="panel.tabs"
           variant="pill"
           aria-label={t('shell-task.side.label')}
-          value={props.pane}
+          value={shown()?.key ?? props.pane}
           onChange={open}
-          items={panes().map((p) => ({ value: p, label: t(`shell-task.side.${p}`), icon: p === 'changes' ? 'file' : p === 'pr' ? 'merge' : p === 'preview' ? 'web' : 'terminal' }))}
+          items={[
+            ...panes().map((p) => ({ value: p, label: t(`shell-task.side.${p}`), icon: (p === 'changes' ? 'file' : p === 'pr' ? 'merge' : p === 'preview' ? 'web' : 'terminal') as IconName })),
+            ...extra().map((x) => ({ value: x.key, label: x.label, icon: 'app' as const, ...(x.title !== undefined && { title: x.title }) })),
+          ]}
         />
         <Box grow />
         <IconButton icon="x" label={t('shell-task.side.close')} onClick={() => shell.navigate({ t: 'closeSide' })} />
@@ -130,7 +148,7 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
         )}
       </Show>
       {/* Changes runs edge to edge (v1 #sidePanel .cx); PR and Shell keep the body's padding */}
-      <Stack gap="0" grow part={(props.pane === 'changes' && !props.file) || props.pane === 'preview' ? 'side.body side.flush' : 'side.body'}>
+      <Stack gap="0" grow part={(props.pane === 'changes' && !props.file) || props.pane === 'preview' || props.pane === 'tab' ? 'side.body side.flush' : 'side.body'}>
         <Switch>
           <Match when={props.pane === 'changes' && props.file}>{(f) => <FilePane path={f()} />}</Match>
           <Match when={props.pane === 'changes'}>
@@ -148,6 +166,7 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
           <Match when={props.pane === 'term'}>
             <ShellPane kind="takeover" />
           </Match>
+          <Match when={shown()}>{(x) => <Dynamic component={x().def.component} client={x().def.client} task={task.key} value={x().value} />}</Match>
         </Switch>
       </Stack>
     </Stack>

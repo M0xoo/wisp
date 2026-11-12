@@ -28,6 +28,7 @@ pub mod plan;
 pub mod quote;
 pub mod replay;
 pub mod route;
+pub mod pick;
 pub mod run;
 pub mod size;
 pub mod sse;

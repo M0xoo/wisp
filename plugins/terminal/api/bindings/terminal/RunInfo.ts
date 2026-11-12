@@ -8,4 +8,8 @@ export type RunInfo = { open: boolean, port: number, dir: string,
 /**
  * `.wisp/worktree.json`'s run, else package.json's dev or start script
  */
-guess?: string, };
+guess?: string, 
+/**
+ * Preview's proxy for it (the app framable, with the element picker), when it runs (ADR-0049). Additive.
+ */
+proxy?: number, };

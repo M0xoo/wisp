@@ -8,11 +8,12 @@ import { defineCommand, ownerOf, type EntityKey } from '@wisp/client';
 import { RunPreview, Screen, Terminal } from '@wisp/ui';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
+import { pickedText, withPicked } from './pick.ts';
 
 const bare = (k: string): string => k.slice(k.indexOf(':') + 1);
-type Info = { open: boolean; port: number; dir: string; guess?: string };
+type Info = { open: boolean; port: number; dir: string; guess?: string; proxy?: number };
 const info = defineCommand<{ key: EntityKey; id: string }, Info>({ id: 'terminal.run.info', owner: (a) => a.key, wire: (a) => ({ id: a.id }), optimistic: 'none', pending: 'the Preview pane' });
-const start = defineCommand<{ key: EntityKey; id: string; command: string; cols: number; rows: number; restart?: boolean }, { ok: boolean; started: boolean; port: number }>({
+const start = defineCommand<{ key: EntityKey; id: string; command: string; cols: number; rows: number; restart?: boolean }, { ok: boolean; started: boolean; port: number; proxy?: number }>({
   id: 'terminal.run.start',
   owner: (a) => a.key,
   wire: (a) => ({ id: a.id, command: a.command, cols: a.cols, rows: a.rows, ...(a.restart && { restart: true }) }),
@@ -62,6 +63,69 @@ export function PreviewPane(): JSX.Element {
   const [logs, setLogs] = createSignal(false);
   const [ended, setEnded] = createSignal<string | undefined>();
   const [port, setPort] = createSignal(0);
+  // Pick element (v1 run.js): through Preview's proxy only (ADR-0049), once the page's script says it's ready
+  const [proxy, setProxy] = createSignal<number | undefined>();
+  const [pickable, setPickable] = createSignal(false);
+  const [picking, setPicking] = createSignal(false);
+  let frame: HTMLIFrameElement | undefined;
+  // the proxy's localhost is this computer's: off it (a wisp Grid, another machine) the frame shows the app's own
+  // address and Pick isn't offered (v1 `far`, ADR-0049)
+  const here = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(new URL(document.URL).hostname);
+  const frameSrc = (): string | undefined => {
+    const u = url();
+    const p = proxy();
+    if (!u || !p || !here) return undefined;
+    try {
+      const at = new URL(u);
+      return `http://localhost:${p}${at.pathname}${at.search}${at.hash}`;
+    } catch {
+      return undefined;
+    }
+  };
+  const accent = (): string => {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    return /^#[0-9a-f]{6}$/i.test(v) ? v : '#3b82f6';
+  };
+  const pick = (on: boolean): void => {
+    if (!frame) return;
+    setPicking(on);
+    frame.contentWindow?.postMessage({ wisp: 'pick', type: on ? 'on' : 'off', color: accent() }, '*');
+    if (on) frame.focus();
+  };
+  const onMessage = (e: MessageEvent): void => {
+    const d = e.data as { wisp?: unknown; type?: unknown } | null;
+    if (!frame || e.source !== frame.contentWindow || d?.wisp !== 'pick') return;
+    if (d.type === 'ready') setPickable(true);
+    if (d.type === 'off' && picking()) {
+      setPicking(false);
+      document.querySelector<HTMLElement>('[data-part~="panel.preview.pick"]')?.focus(); // Escape in the page: back to what started it
+    }
+    const text = pickedText(picking(), d);
+    if (text) {
+      setPicking(false);
+      // under what's in the reply box, the caret on a line of its own; nothing sends it but you
+      const box = shell.prompts?.get('reply');
+      if (box) {
+        box.set(withPicked(box.text(), text));
+        box.focus();
+      }
+    }
+  };
+  // Escape while picking ends it, with the focus on wisp's side of the frame
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' && picking()) {
+      e.stopPropagation();
+      pick(false);
+    }
+  };
+  onMount(() => {
+    window.addEventListener('message', onMessage);
+    window.addEventListener('keydown', onKey, true);
+  });
+  onCleanup(() => {
+    window.removeEventListener('message', onMessage);
+    window.removeEventListener('keydown', onKey, true);
+  });
 
   const watch = (): void => {
     es?.abort();
@@ -103,6 +167,7 @@ export function PreviewPane(): JSX.Element {
     c.run(info, { key: task.key, id }).then(
       (i) => {
         setPort(i.port);
+        setProxy(i.proxy);
         if (i.guess) {
           setCommand(i.guess);
           setSaid(t('shell-task.preview.guessed'));
@@ -128,6 +193,7 @@ export function PreviewPane(): JSX.Element {
     c.run(start, { key: task.key, id, command: cmd, cols: 100, rows: 24, ...(restart && { restart: true }) }).then(
       (r) => {
         setPort(r.port);
+        setProxy(r.proxy);
         watch();
       },
       (e: unknown) => {
@@ -156,6 +222,19 @@ export function PreviewPane(): JSX.Element {
       }}
       onRun={() => run(state() === 'ended')}
       url={url()}
+      frameSrc={frameSrc()}
+      pick={
+        frameSrc()
+          ? { label: t('shell-task.preview.pick'), title: pickable() ? t('shell-task.preview.pickTitle') : t('shell-task.preview.pickWait'), on: picking(), ready: pickable(), onClick: () => pick(!picking()) }
+          : undefined
+      }
+      onFrame={(el) => (frame = el)}
+      onFrameLoad={() => {
+        // a new page in the frame (a link, a reload): its script says hello again
+        setPickable(false);
+        setPicking(false);
+        frame?.contentWindow?.postMessage({ wisp: 'pick', type: 'hello' }, '*');
+      }}
       showLogs={logs()}
       onLogs={() => setLogs(!logs())}
       onRestart={() => run(true)}

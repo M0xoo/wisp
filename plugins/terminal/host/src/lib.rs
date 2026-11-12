@@ -6,6 +6,7 @@
 //! late sees the screen) and streamed to every page that watches it as v1's event stream; numbered
 //! keys from a page go in in order.
 
+mod proxy;
 mod registry;
 
 use std::sync::{Arc, OnceLock};
@@ -62,7 +63,9 @@ async fn run_info(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, id: &str) -
         }
     }
     let guess = wisp_terminal_core::run::guess(wt.as_deref(), pkg.as_deref(), &|f| locks.contains(&f));
-    Ok(wisp_terminal_api::RunInfo { open: r.live(TermKind::Run, id), port: wisp_terminal_core::run::port_for(id), dir, guess })
+    let open = r.live(TermKind::Run, id);
+    let proxy = (open && r.proxies.running(id)).then(|| wisp_terminal_core::pick::proxy_port_for(id));
+    Ok(wisp_terminal_api::RunInfo { open, port: wisp_terminal_core::run::port_for(id), dir, guess, proxy })
 }
 
 /// Opens `argv` (a login shell when empty) in `cwd` in the terminal app Settings names (v1 POST /sessions/:id/open-shell,
@@ -112,7 +115,7 @@ fn plan_here(platform: &str, found: &[String], a: &c::OpenAppArgs, terminal: &st
 }
 
 /// Runs the task's app in its folder on a PTY, `PORT` set (v1 POST /sessions/:id/run).
-async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, a: &c::RunStartArgs) -> Result<wisp_terminal_api::RunStarted> {
+async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Arc<Registry>, a: &c::RunStartArgs) -> Result<wisp_terminal_api::RunStarted> {
     let port = wisp_terminal_core::run::port_for(&a.id);
     if a.command.trim().is_empty() {
         return Err(WireError::invalid("Say what runs the app (npm run dev, …)."));
@@ -121,7 +124,8 @@ async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, a: &c::Run
         return Err(WireError::invalid("Preview runs the app under a POSIX shell: it needs macOS or Linux on the computer the task runs on."));
     }
     if r.live(TermKind::Run, &a.id) && !a.restart {
-        return Ok(wisp_terminal_api::RunStarted { ok: true, started: false, port, dir: String::new() });
+        let proxy = r.proxies.running(&a.id).then(|| wisp_terminal_core::pick::proxy_port_for(&a.id));
+        return Ok(wisp_terminal_api::RunStarted { ok: true, started: false, port, dir: String::new(), proxy });
     }
     if a.restart {
         r.close(TermKind::Run, &a.id).await;
@@ -131,7 +135,12 @@ async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, a: &c::Run
     argv.truncate(1);
     argv.extend(["-lc".to_owned(), wisp_terminal_core::run::script(&a.command, port)]);
     r.open(ctx, &c::OpenArgs { kind: TermKind::Run, id: a.id.clone(), argv, cwd: dir.clone(), cols: a.cols, rows: a.rows, tui: false });
-    Ok(wisp_terminal_api::RunStarted { ok: true, started: true, port, dir })
+    // Preview's proxy (ADR-0049): to the port the app prints, else its PORT; weak, so the registry isn't kept by it
+    let weak = Arc::downgrade(r);
+    let id = a.id.clone();
+    let target: proxy::Target = Arc::new(move || weak.upgrade().and_then(|r| r.local_port(TermKind::Run, &id)).unwrap_or(port));
+    let proxy = r.proxies.start(&a.id, target, &r.scope).await.then(|| wisp_terminal_core::pick::proxy_port_for(&a.id));
+    Ok(wisp_terminal_api::RunStarted { ok: true, started: true, port, dir, proxy })
 }
 
 fn routes(s: &mut Setup, slot: &Slot) {
@@ -262,6 +271,9 @@ impl Plugin for TerminalPlugin {
         on!(s, slot, c::Get, |r, ctx, call, a| Ok(r.info(a.kind, &a.id)));
         on!(s, slot, c::Close, |r, ctx, call, a| {
             let ok = r.close(a.kind, &a.id).await;
+            if a.kind == TermKind::Run {
+                r.proxies.stop(&a.id); // the app stopped: so does its proxy
+            }
             if ok {
                 // hung up: forgotten, and whoever owns the task hears it ended
                 ctx.emit(&call, &wisp_terminal_api::Changed { kind: a.kind, id: a.id.clone(), state: wisp_terminal_api::TermState::Ended, code: None, gone: true });
@@ -288,7 +300,7 @@ impl Plugin for TerminalPlugin {
         let start = slot;
         s.on_start(move |ctx| async move {
             let proc = ctx.service::<Proc>()?.as_ref().clone();
-            let _ = start.set(Arc::new(Registry::new(proc)));
+            let _ = start.set(Arc::new(Registry::new(proc, ctx.scope().clone())));
             Ok(())
         });
         Ok(())

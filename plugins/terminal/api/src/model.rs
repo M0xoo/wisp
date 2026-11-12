@@ -122,6 +122,10 @@ pub struct RunInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub guess: Option<String>,
+    /// Preview's proxy for it (the app framable, with the element picker), when it runs (ADR-0049). Additive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub proxy: Option<u16>,
 }
 
 /// Run's answer: started (or already running), on which port, in which folder.
@@ -132,6 +136,10 @@ pub struct RunStarted {
     pub started: bool,
     pub port: u16,
     pub dir: String,
+    /// Preview's proxy, when it could start (ADR-0049); without it the panel shows the app itself, without Pick. Additive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub proxy: Option<u16>,
 }
 
 /// v1 POST /sessions/:id/shell's answer.

@@ -4,7 +4,7 @@ import { lazy } from 'solid-js';
 
 const TaskSide = lazy(() => import('./TaskSide.tsx'));
 import { defineExtension, definePluginUi, defineView } from './define.ts';
-import { TERM_VIEW } from './open-task.ts';
+import { TAB_VIEW, TERM_VIEW } from './open-task.ts';
 import { commentStore, waiting, withComments } from './comments.ts';
 import { CATALOGUE } from './i18n/index.ts';
 
@@ -55,5 +55,7 @@ export default definePluginUi({
       },
     },
   ],
-  views: [defineView({ kind: TERM_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.term'] ?? '', component: TaskSide as never })],
+  views: [defineView({ kind: TERM_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.term'] ?? '', component: TaskSide as never }),
+    defineView({ kind: TAB_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.label'] ?? '', component: TaskSide as never }),
+  ],
 });

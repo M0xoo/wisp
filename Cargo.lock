@@ -5760,6 +5760,13 @@ dependencies = [
 name = "wisp-terminal"
 version = "2.0.0"
 dependencies = [
+ "brotli",
+ "bytes",
+ "flate2",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
