@@ -281,6 +281,9 @@ const EXTRA = {
   '#secCrew .cr-row:not(.cr-empty)': '[data-part="crew.row"]',
 };
 
+/** A seeded task's title (what v2's row shows). */
+const rowTitle = (seed, id) => seed.list.find?.((s) => s.id === id)?.title ?? seed.sessions[id]?.title ?? id;
+
 // A v1 selector, in terms of the PARTS contract v2 renders (data-part). Rows are found by their title.
 export function translator(seed) {
   const title = (id) => seed.list.find?.((s) => s.id === id)?.title ?? seed.sessions[id]?.title ?? id;
@@ -321,6 +324,29 @@ const v2Page = (p, tr) =>
 // prompt keeping the caret). v2's equivalent is the shell's keyboard selection: set the same way,
 // straight on the app's state (the dev build's window.__wispShell), not by moving focus.
 const V2_FOCUS = { home: ':nth-match([data-part="card"], 2)' };
+// Views whose v1 opener has no one-selector counterpart in v2 (v1 views.mjs's opener runs otherwise). Each opens the same
+// thing v1's did, the way a user does in v2; what's then compared is the same.
+const V2_OPENERS = {
+  // v1 .l-bar .issue-btn / [data-issue]: New task's Issue button
+  'home.issues': async (p, home) => {
+    await home(p);
+    await p.locator('[data-part~="launcher.issue"]').first().click({ force: true });
+    await p.waitForTimeout(800);
+  },
+  // v1 #manageProjects: the + beside the project chips, then Manage projects
+  projects: async (p) => {
+    await p.locator('[data-kit="p-chip"][data-add]').first().click({ force: true });
+    await p.waitForTimeout(300);
+    await p.locator('[data-kit="menu-item"][data-value="manage"]').first().click({ force: true });
+    await p.waitForTimeout(450);
+  },
+  // v1 #feed .item[data-id] .it-head, right-clicked: the row in the list (Home's Needs you names the same task)
+  'task.right-click': async (p, _home, title) => {
+    await p.locator(`[data-part~="card.head"]:has-text(${JSON.stringify(title)})`).first().click({ button: 'right' });
+    await p.waitForTimeout(400);
+  },
+};
+
 const V2_FOCUS_RUN = {
   home: (p) =>
     p.evaluate(() => {
@@ -707,7 +733,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const limit = Number(process.env.PARITY_VIEW_TIMEOUT) || 240_000;
       let timer;
       const r = await Promise.race([
-        checkView(browser, v2.url, name, (p) => openers[name](v2Page(p, tr)), ref, allowed, only, outDir),
+        checkView(browser, v2.url, name, (p) => (V2_OPENERS[name] ? V2_OPENERS[name](p, (x) => openers.home(v2Page(x, tr)), rowTitle(seed, seed.seeded.tasks[1])) : openers[name](v2Page(p, tr))), ref, allowed, only, outDir),
         new Promise((done) => {
           timer = setTimeout(() => done({ view: name, shots: 1, pixelPass: 0, metricPass: 0, pass: 0, reachable: false, note: `timed out after ${limit / 1000} s at ${stepOf.get(name) ?? 'the start'}`, worst: [`timed out at ${stepOf.get(name) ?? 'the start'}`], metrics: {}, shotsBy: {} }), limit);
         }),

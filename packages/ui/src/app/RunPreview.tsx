@@ -31,6 +31,13 @@ export interface RunPreviewProps extends KitProps {
   readonly onRun: () => void;
   /** live: where it listens, once it said so */
   readonly url?: string | undefined;
+  /** where the frame loads it, when not `url` itself (Preview's proxy, ADR-0049) */
+  readonly frameSrc?: string | undefined;
+  /** Pick element (v1 .rn-pick): only through the proxy; off until the page's script says it's ready */
+  readonly pick?: { readonly label: string; readonly title: string; readonly on: boolean; readonly ready: boolean; readonly onClick: () => void } | undefined;
+  /** the frame, for the owner's messages with the page's picker; and each load of it */
+  readonly onFrame?: ((el: HTMLIFrameElement) => void) | undefined;
+  readonly onFrameLoad?: (() => void) | undefined;
   readonly showLogs: boolean;
   readonly onLogs: () => void;
   readonly onRestart: () => void;
@@ -94,6 +101,14 @@ export function RunPreview(props: RunPreviewProps): JSX.Element {
         <div data-kit="rn-bar" role="group" aria-label={props.labels.frame}>
           <i data-kit="rn-dot" data-on={flag(props.url !== undefined)} />
           <span data-kit="rn-state">{props.url ?? props.labels.starting}</span>
+          <Show when={props.pick}>
+            {(p) => (
+              <button type="button" data-kit="rn-act" data-part="panel.preview.pick" aria-pressed={p().on} disabled={!p().ready} title={p().title} onClick={() => p().onClick()}>
+                <Icon name="target" size="sm" />
+                <span>{p().label}</span>
+              </button>
+            )}
+          </Show>
           <button type="button" data-kit="rn-act" aria-pressed={props.showLogs} title={props.labels.logs} onClick={() => props.onLogs()}>
             <Icon name="terminal" size="sm" />
             <span>{props.labels.logs}</span>
@@ -111,7 +126,9 @@ export function RunPreview(props: RunPreviewProps): JSX.Element {
           </Show>
         </div>
         <div data-kit="rn-body">
-          <Show when={props.url}>{(u) => <iframe data-kit="rn-frame" src={u()} title={props.labels.frame} />}</Show>
+          <Show when={props.url}>
+            {(u) => <iframe data-kit="rn-frame" src={props.frameSrc ?? u()} title={props.labels.frame} ref={(el) => props.onFrame?.(el)} onLoad={() => props.onFrameLoad?.()} />}
+          </Show>
           <div data-kit="rn-log" data-full={flag(props.url === undefined)} hidden={props.url !== undefined && !props.showLogs}>
             {props.logs}
           </div>

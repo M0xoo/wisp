@@ -14,7 +14,7 @@ const tasks: TaskRow[] = [
   { id: 't2', title: 'Sending…', state: 'running', agent: 'claude', pending: true } as TaskRow,
 ];
 
-function deps(o: { allowed: string[]; changed?: boolean; grant?: Grant; answer?: boolean; pinned?: boolean }): PaneHostDeps & { cards: PaneCard[]; sent: string[] } {
+function deps(o: { allowed: string[]; changed?: boolean; grant?: Grant; answer?: boolean; pinned?: boolean; mode?: string }): PaneHostDeps & { cards: PaneCard[]; sent: string[] } {
   const cards: PaneCard[] = [];
   const sent: string[] = [];
   let now = 1_000_000;
@@ -29,7 +29,8 @@ function deps(o: { allowed: string[]; changed?: boolean; grant?: Grant; answer?:
     crew: () => [{ id: 'ada', name: 'Ada', role: 'Reviewer', busy: true }],
     usage: () => Promise.resolve([]),
     project: (n) => (n === 'web' ? { name: 'web', path: '/w/web' } : undefined),
-    defaults: () => ({ agent: 'claude', mode: 'auto' }),
+    defaults: () => Promise.resolve({ agent: 'claude', mode: o.mode ?? 'auto' }),
+    told: (text) => sent.push(`told:${text}`),
     harnessName: (a) => (a === 'claude' ? 'Claude Code' : (a ?? '')),
     launch: (b) => (sent.push(`launch:${String(b['prompt'])}:${String(b['cwd'] ?? 'scratch')}:${String(b['mode'])}`), Promise.resolve({ id: 't9', title: 'New', state: 'running', agent: 'claude' })),
     followUp: (id, text) => (sent.push(`follow:${id}:${text}`), Promise.resolve()),
@@ -61,11 +62,26 @@ test('a pane write goes only after your click, on your defaults, six a minute, a
   const out = (await h.call('tasks.launch', [{ prompt: 'Add a test', project: 'web' }])) as Record<string, unknown>;
   expect(out['id']).toBe('t9');
   expect(d.cards[0]?.head).toBe('Board wants to start a task');
+  // v1's card: the project, the harness and the mode it will run on, Full auto spelled out and flagged
   expect(d.cards[0]?.rows).toEqual([
     ['Project', 'web'],
     ['Harness', 'Claude Code'],
+    ['Mode', 'Full auto: no permission prompts', true],
   ]);
-  expect(d.sent).toEqual(['launch:Add a test:/w/web:auto']); // the mode is yours, never the pane's
+  // your saved defaults, as v1 (its default mode is Full auto), then v1's toast
+  expect(d.sent).toEqual(['launch:Add a test:/w/web:auto', 'told:Board started New']);
+  const plan = deps({ allowed: ['tasks:write'], mode: 'plan' });
+  await paneHost(plan).call('tasks.launch', ['Look around']);
+  expect(plan.cards[0]?.rows[2]).toEqual(['Mode', 'Plan', false]);
+  expect(plan.sent[0]).toBe('launch:Look around:scratch:plan');
+  // a follow-up's card: the task, its harness, its mode and its state (v1)
+  await h.call('tasks.followUp', ['t1', 'go on']);
+  expect(d.cards[1]?.rows).toEqual([
+    ['Task', 'Fix login with sk-ant-abcdefghijklmnopqrstuvwxyz'],
+    ['Harness', 'Claude Code'],
+    ['Mode', 'Full auto: no permission prompts', true],
+    ['State', 'Review'],
+  ]);
   await expect(h.call('tasks.launch', [{ prompt: 'x', project: 'nope' }])).rejects.toThrow('No project nope.');
   await expect(h.call('tasks.launch', [{}])).rejects.toThrow('needs a prompt');
 
@@ -96,8 +112,17 @@ test('a pane reads the runtime rows as tasks: bare ids, the project holding the 
   expect(taskOfRow({ ...row, body: { ext: { 'wisp.stuff': { kind: 'pane' } } } }, project)?.kind).toBe('pane');
 });
 
-test('a task a pane starts goes out on Edits whatever mode it carries_never_full_auto', async () => {
+test('a task a pane starts goes out as the host built it, on your saved defaults_v1_launch_defaults', async () => {
   const { launchTask } = await import('../src/commands.ts');
   const wire = (launchTask as unknown as { wire: (a: unknown) => Record<string, unknown> }).wire;
-  expect(wire({ peer: 'local', body: { prompt: 'x', mode: 'auto', agent: 'claude' } })).toEqual({ prompt: 'x', mode: 'edits', agent: 'claude' });
+  const body = { prompt: 'x', mode: 'auto', agent: 'claude' };
+  expect(wire({ peer: 'local', body })).toEqual(body); // nothing added, nothing taken away
+});
+
+test('a pane starts tasks on what New task would: the default profile, else the first harness and Full auto_v1_launch_defaults', async () => {
+  const { defaultsFrom } = await import('../src/panes/grant.ts');
+  const saved = [{ name: 'reviewer', spec: { harness: 'codex', mode: 'plan' } }, { name: 'default', spec: { harness: 'codex', mode: 'edits', model: 'gpt-5.5', effort: '' } }];
+  expect(defaultsFrom(saved, true, 'claude')).toEqual({ agent: 'codex', mode: 'edits', model: 'gpt-5.5' });
+  expect(defaultsFrom([], undefined, 'claude')).toEqual({ agent: 'claude', mode: 'auto' });
+  expect(defaultsFrom(undefined, false, undefined)).toEqual({ mode: 'auto', worktree: 'off' });
 });

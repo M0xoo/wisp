@@ -11,7 +11,8 @@ import type { CrewRow, Grant, Item, TaskRow } from '../types.ts';
 /** The confirm card a write waits on (v1 pane-card.js): its head, its rows (label, value), the words it sends. */
 export interface PaneCard {
   readonly head: string;
-  readonly rows: readonly (readonly [string, string])[];
+  /** label, value, and whether it's the one to read twice (Full auto: v1 modeRow) */
+  readonly rows: readonly (readonly [string, string, boolean?])[];
   readonly prompt: string;
 }
 
@@ -29,7 +30,10 @@ export interface PaneHostDeps {
   usage(): Promise<unknown>;
   /** a project by name or id: its folder */
   project(name: string): { name: string; path: string } | undefined;
-  defaults(): LaunchDefaults;
+  /** your saved defaults (the `default` agent profile), as New task uses them: v1 launchDefaults */
+  defaults(): Promise<LaunchDefaults>;
+  /** what a page says after a launch: "Board started Fix the login" (v1's toast) */
+  told(text: string): void;
   harnessName(agent: string | undefined): string;
   launch(body: Record<string, unknown>): Promise<TaskRow | undefined>;
   followUp(id: string, text: string): Promise<void>;
@@ -69,6 +73,12 @@ export function paneHost(d: PaneHostDeps): PaneHost {
     await grantNow(method);
   };
   const listed = (): TaskRow[] => listedTasks(d.tasks());
+  // v1 modeRow: the mode by name, Full auto spelled out and flagged
+  const modeRow = (mode: string | undefined): readonly [string, string, boolean] => {
+    const m = mode === 'plan' || mode === 'edits' ? mode : 'auto';
+    return [d.t('stuff.pane.card.mode'), m === 'auto' ? d.t('stuff.pane.card.fullAuto') : d.t(`stuff.pane.card.mode.${m}`), m === 'auto'];
+  };
+  const stateWords = (s: TaskRow): string => (s.archived ? d.t('stuff.pane.card.archived') : s.state && ['running', 'waiting', 'review', 'done'].includes(s.state) ? d.t(`stuff.pane.card.state.${s.state}`) : (s.state ?? ''));
   const light = (s: TaskRow): Record<string, unknown> | null => lightTask(s, { harness: d.harnessName(s.agent) });
   const task = (id: string): TaskRow => {
     const s = listed().find((x) => x.id === id);
@@ -105,17 +115,15 @@ export function paneHost(d: PaneHostDeps): PaneHost {
           const a = args[0] as LaunchArgs;
           const p = a.project ? d.project(a.project) : undefined;
           if (a.project && !p) throw new Error(d.t('stuff.pane.noProject', { name: a.project }));
-          // your defaults pick the harness and the mode: a pane can't pick Full auto for itself
-          const body = launchBody(d.defaults(), a.prompt, p ?? null);
+          // your defaults decide the harness and the mode, as New task's: a pane can't pick them for itself
+          const body = launchBody(await d.defaults(), a.prompt, p ?? null);
           await confirmed(method, {
             head: d.t('stuff.pane.card.launch', { name: title }),
-            rows: [
-              [d.t('stuff.pane.card.project'), p?.name ?? d.t('stuff.pane.card.noProject')],
-              [d.t('stuff.pane.card.harness'), d.harnessName(body['agent'] as string | undefined)],
-            ],
+            rows: [[d.t('stuff.pane.card.project'), p?.name ?? d.t('stuff.pane.card.noProject')], [d.t('stuff.pane.card.harness'), d.harnessName(body['agent'] as string | undefined)], modeRow(body['mode'] as string | undefined)],
             prompt: String(body['prompt'] ?? ''),
           });
           const out = await d.launch(body);
+          d.told(d.t('stuff.pane.started', { name: title, task: out?.title || d.t('stuff.pane.aTask') }));
           return out ? light(out) : { queued: true };
         }
         case 'tasks.followUp': {
@@ -123,10 +131,7 @@ export function paneHost(d: PaneHostDeps): PaneHost {
           const s = task(id);
           await confirmed(method, {
             head: d.t('stuff.pane.card.followUp', { name: title }),
-            rows: [
-              [d.t('stuff.pane.card.task'), s.title || d.t('stuff.pane.card.untitled')],
-              [d.t('stuff.pane.card.harness'), d.harnessName(s.agent)],
-            ],
+            rows: [[d.t('stuff.pane.card.task'), s.title || d.t('stuff.pane.card.untitled')], [d.t('stuff.pane.card.harness'), d.harnessName(s.agent)], modeRow(s.mode), [d.t('stuff.pane.card.state'), stateWords(s)]],
             prompt: text,
           });
           task(id); // it may have gone while the card was up

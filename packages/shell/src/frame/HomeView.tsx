@@ -99,8 +99,12 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   // a plugin may fill this prompt (Start from an issue): set it, the caret at its end
   const box = { text: () => text(), set: (v: string) => (setText(v), menu.typed(v)), focus: () => (input?.focus(), input?.setSelectionRange(input.value.length, input.value.length)) };
   if (shell.prompts) onCleanup(shell.prompts.provide('launcher', box));
-  // v1 puts the caret in the prompt a beat after Home shows
-  queueMicrotask(() => input?.focus());
+  // v1 puts the caret in the prompt a beat after Home shows; never taken from what holds it already (a menu or a
+  // dialog opened while Home was still loading kept its focus in v1, whose Home was there from the start)
+  queueMicrotask(() => {
+    const at = document.activeElement;
+    if (!at || at === document.body) input?.focus();
+  });
   const project = createMemo(() => (where() === 'none' ? undefined : (projects().find((p) => p.id === where()) ?? projects()[0])));
   const worktree = createMemo(() => settings().find((r) => r.key === 'defaults.worktree')?.value !== false);
   const needs = createMemo(() =>

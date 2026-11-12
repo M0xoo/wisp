@@ -247,8 +247,10 @@ export const COMMANDS: Record<string, CommandFn> = {
     },
   }),
   // a pinned pane: the app served here (the mock's own page), what it may use, and Allow (answered as asked)
+  // your saved launch defaults (agent profiles): none saved here, so New task's own defaults apply
+  'resources.export': () => ({ ops: [], result: [] }),
   'stuff.launch': () => ({ ops: [], result: { port: 4593, url: `${globalThis.location?.origin ?? 'http://localhost:4593'}/__mock/app` } }),
-  'stuff.grant': () => ({ ops: [], result: { allowed: [], changed: false } }),
+  'stuff.grant': () => ({ ops: [], result: { allowed: ['tasks:read', 'tasks:write'], changed: false } }),
   'stuff.allow': (a) => ({ ops: [], result: { id: str(obj(a), 'id'), allowed: obj(a)['uses'] } }),
   'stuff.addStarter': (a) => ({ ops: [], result: { id: `st-${String(obj(a)['id'])}`, kind: 'app', title: String(obj(a)['id']) } }),
   // a member's fields (the editor, Org's links): patched on the crew topic, as the crew host does

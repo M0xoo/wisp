@@ -46,6 +46,23 @@ export interface LaunchDefaults {
   worktree?: string;
 }
 
+/** v1 launchDefaults: what New task starts on, from the `default` agent profile (resources.export's rows) and the
+ *  worktree setting; no harness saved: the first one here; no mode saved: Full auto (v1 DEFAULT_MODE). */
+export function defaultsFrom(profiles: unknown, worktree: unknown, firstHarness: string | undefined): LaunchDefaults {
+  const rows = (Array.isArray(profiles) ? profiles : []) as { name?: unknown; spec?: Record<string, unknown> }[];
+  const spec = rows.find((r) => r.name === 'default')?.spec ?? {};
+  const str = (k: string): string | undefined => (typeof spec[k] === 'string' && spec[k] ? (spec[k] as string) : undefined);
+  const out: { -readonly [K in keyof LaunchDefaults]: LaunchDefaults[K] } = { mode: str('mode') ?? 'auto' };
+  const agent = str('harness') ?? firstHarness;
+  if (agent) out.agent = agent;
+  if (worktree === false) out.worktree = 'off';
+  for (const k of ['model', 'effort', 'account'] as const) {
+    const v = str(k);
+    if (v) out[k] = v;
+  }
+  return out;
+}
+
 /** The task a pane starts: as New task sends it, on your defaults (never the server's Full auto fallback). */
 export function launchBody(d: LaunchDefaults, prompt: string, project: { path: string } | null): Record<string, unknown> {
   return { prompt, ...(project ? { cwd: project.path } : { scratch: true }), agent: d.agent, mode: d.mode, model: d.model, effort: d.effort, account: d.account || undefined, worktree: d.worktree === 'off' ? false : undefined };
@@ -99,4 +116,9 @@ export function panesAt<T extends Pick<Item, 'id' | 'kind' | 'name' | 'title' | 
 export function withPin<T extends Pick<Item, 'id' | 'kind' | 'name' | 'title' | 'pending'>>(setting: unknown, it: T, where: PaneWhere, on: boolean, items: readonly T[]): string {
   const rest = parsePanes(setting).filter((p) => !(p.where === where && appFor(p, items)?.id === it.id));
   return panesString(on ? [...rest, { app: it.id, where }] : rest);
+}
+
+/** The tabs beside a task (v1 panel.js "pane:<id>"): the apps pinned `@task`, in pin order, each "Name: pinned from My Stuff". */
+export function taskTabs<T extends Pick<Item, 'id' | 'kind' | 'name' | 'title' | 'pending'>>(setting: unknown, items: readonly T[], t: (k: string, v: Readonly<Record<string, string>>) => string): { value: string; label: string; title: string }[] {
+  return panesAt(setting, 'task', items).map((it) => ({ value: it.id, label: it.title, title: t('stuff.pane.tabTitle', { name: it.title }) }));
 }

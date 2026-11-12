@@ -10,6 +10,7 @@ import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 import { Spirit } from '../crew/Spirit.tsx';
 import { WithAct, type Act } from './act.tsx';
+import { useRailCard } from './RailCard.tsx';
 
 export type StagePage = 'list' | 'main';
 
@@ -95,6 +96,9 @@ export interface CrewRailProps {
   readonly onMember?: (id: string) => void;
   readonly onOrg?: () => void;
   readonly onAdd?: () => void;
+  /** added 2026-11-12: a face's card (v1 .cl-card): what's in it for a member, and its name for a screen reader */
+  readonly card?: ((id: string) => JSX.Element) | undefined;
+  readonly cardLabel?: ((id: string) => string) | undefined;
 }
 
 /** `pressed`: a toggle (Org: aria-pressed, no pip) rather than where you are (All: aria-current and its pip). */
@@ -122,8 +126,19 @@ function RailBtn(props: { readonly icon: IconName; readonly label: string; reado
 
 /** v1 #crewRail: All, the members' faces, then Org and + at the foot. */
 export function CrewRail(props: CrewRailProps): JSX.Element {
+  let rail: HTMLElement | undefined;
+  const card = useRailCard(() => rail);
+  const on = (): boolean => props.card !== undefined;
   return (
-    <nav data-kit="cl-rail" data-part="crew.rail" aria-label={props.label} data-drag="">
+    <nav
+      ref={(el) => (rail = el)}
+      data-kit="cl-rail"
+      data-part="crew.rail"
+      aria-label={props.label}
+      data-drag=""
+      onPointerMove={(e) => on() && card.onRailMove(e)}
+      onFocusOut={(e) => on() && !rail?.contains(e.relatedTarget as Node | null) && card.onRailBlur()}
+    >
       <RailBtn icon="feed" label={props.allLabel} part="crew.rail.all" kind="all" on={props.allOn} onClick={() => props.onAll?.()} />
       <div data-kit="cl-faces">
         <For each={props.members}>
@@ -132,11 +147,19 @@ export function CrewRail(props: CrewRailProps): JSX.Element {
               type="button"
               data-kit="cl-face"
               data-part="crew.rail.face"
+              data-id={m.id}
               data-on={flag(props.pickedId === m.id)}
               aria-current={props.pickedId === m.id ? 'page' : undefined}
               aria-label={m.name}
-              title={m.name}
-              onClick={() => props.onMember?.(m.id)}
+              title={on() ? undefined : m.name}
+              onClick={() => {
+                card.hide();
+                props.onMember?.(m.id);
+              }}
+              onPointerEnter={(e) => on() && card.onFaceEnter(m.id, e)}
+              onPointerLeave={(e) => on() && card.onFaceLeave(e)}
+              onFocus={(e) => on() && card.onFaceFocus(m.id, e)}
+              onKeyDown={(e) => on() && card.onFaceKey(m.id, e)}
             >
               <i data-kit="cl-pip" data-part="crew.rail.pick" />
               <span data-kit="cl-av">
@@ -148,6 +171,7 @@ export function CrewRail(props: CrewRailProps): JSX.Element {
           )}
         </For>
       </div>
+      <Show when={props.card}>{(content) => <card.Card label={(id) => props.cardLabel?.(id) ?? id} content={content()} />}</Show>
       <div data-kit="cl-foot">
         <RailBtn icon="org" label={props.orgLabel} part="crew.org" kind="org" pressed={props.orgOn === true} onClick={() => props.onOrg?.()} />
         <RailBtn icon="plus" label={props.addLabel} part="crew.add" kind="add" onClick={() => props.onAdd?.()} />

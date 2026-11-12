@@ -35,10 +35,11 @@ export {
   type TurnViewProps,
 } from './Task.tsx';
 export { WithAct, ActIcon, type Act } from './act.tsx';
-export { HomePanes, PaneOff, PaneRow, PaneRows, PaneView, type HomePanesProps, type PaneRowProps, type PaneViewProps } from './Panes.tsx';
+export { HomePanes, PaneCard, PaneOff, PaneRow, PaneRows, PaneView, type HomePanesProps, type PaneCardProps, type PaneRowProps, type PaneSeg, type PaneViewProps } from './Panes.tsx';
 export { ChangesList, firstLine, hunkKey, hunkRuns, rowKey, type ChangeFile, type ChangeRow, type ChangesLabels, type ChangesListProps, type StageState } from './Changes.tsx';
 export { PaletteSheet, paletteRowId, type PaletteRow, type PaletteSheetProps } from './Palette.tsx';
 export { StuffFrame, type StuffFrameProps } from './StuffFrame.tsx';
 export { RunPreview, type RunPreviewLabels, type RunPreviewProps } from './RunPreview.tsx';
 export { CommentCard, CommentTray, type CommentCardProps, type CommentTrayProps } from './Comments.tsx';
 export { SpareCards, type SpareCard, type SpareCardsProps } from './Spare.tsx';
+export { RailCardBody, headingForCard, stepRow, type RailCardBodyProps, type RailCardRow } from './RailCard.tsx';

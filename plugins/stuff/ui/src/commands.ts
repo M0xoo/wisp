@@ -144,13 +144,21 @@ export const publishTargets = defineCommand<{ readonly peer: PeerId }, { host: s
 
 // --- what a pinned pane's calls do, after your click on its card (panes/host.ts) ---
 
-/** tasks.launch: a task as New task sends it (launchBody), on Edits: a pane never starts Full auto. */
-export const launchTask = defineCommand<{ readonly peer: PeerId; readonly body: Record<string, unknown> }, { id: string }>({
+/** tasks.launch: a task as New task sends it (launchBody, on your saved defaults, as v1). */
+export const launchTask = defineCommand<{ readonly peer: PeerId; readonly body: Record<string, unknown> }, { id: string; title?: string }>({
   id: 'runtime.create',
   owner: (a) => a.peer,
-  wire: (a) => ({ ...a.body, mode: 'edits' }),
+  wire: (a) => a.body,
   optimistic: 'none',
   pending: 'the task a pane starts',
+});
+/** Your saved launch defaults: the agent profiles (resources), `default` among them. */
+export const savedProfiles = defineCommand<{ readonly peer: PeerId }, unknown>({
+  id: 'resources.export',
+  owner: (a) => a.peer,
+  wire: () => ({ kinds: ['agent'] }),
+  optimistic: 'none',
+  pending: 'your saved defaults',
 });
 /** tasks.followUp */
 export const followJob = defineCommand<{ readonly key: EntityKey; readonly sessionId: string; readonly text: string }>({

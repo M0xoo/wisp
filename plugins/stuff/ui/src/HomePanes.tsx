@@ -8,7 +8,8 @@ import { computed, type EntityKey, type PluginClient } from '@wisp/client';
 import type { ExtensionProps } from '@wisp/shell/contract';
 import { projectList, projectOf, useShell } from '@wisp/shell';
 import { AppFrame, HomePanes as HomePanesView, PaneOff, PaneRow, PaneView, useSignal, type AppFrameController } from '@wisp/ui';
-import { followJob, grantOf, launchApp, launchTask, markDone, planWindows } from './commands.ts';
+import { followJob, grantOf, launchApp, launchTask, markDone, planWindows, savedProfiles } from './commands.ts';
+import { defaultsFrom, type LaunchDefaults } from './panes/grant.ts';
 import { useEntries, type Entry } from './items.ts';
 import { contextEvent, answer, failure, paneFrameCsp, readFrameMessage, tasksEvent } from './panes/bridge.ts';
 import { paneNeed } from './panes/grant.ts';
@@ -17,7 +18,7 @@ import { lightAccounts, type BudgetAgent } from './panes/usage.ts';
 import { taskOfRow, type SessionLike } from './panes/rows.ts';
 import { PaneCards, pinsOf } from './pins.tsx';
 import { stuffState } from './state.ts';
-import type { CrewRow, TaskRow } from './types.ts';
+import type { CrewRow, PaneWhere, TaskRow } from './types.ts';
 
 const LOOPBACK = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/;
 
@@ -60,7 +61,7 @@ export default function HomePanes(props: ExtensionProps): JSX.Element {
         <For each={ids()}>
           {(id) => (
             <Show when={(!stacked() || made().has(id) || page() === id) && entryOf(id)}>
-              {(e) => <Pane client={c} entry={e()} tasks={tasks} open={stacked() && page() === id} onBack={stacked() ? () => setPage(undefined) : undefined} />}
+              {(e) => <Pane client={c} where="home" entry={e()} tasks={tasks} open={stacked() && page() === id} onBack={stacked() ? () => setPage(undefined) : undefined} />}
             </Show>
           )}
         </For>
@@ -76,7 +77,7 @@ const needWords = (e: Entry, say: (k: string) => string): string | undefined => 
 };
 
 /** The runtime's task rows, as a pane's calls read them. */
-function useTasks(c: PluginClient): () => readonly TaskRow[] {
+export function useTasks(c: PluginClient): () => readonly TaskRow[] {
   const rows = c.entities.list<SessionLike>('session');
   const projects = c.entities.list<unknown>('project');
   const list = computed(() => {
@@ -88,7 +89,16 @@ function useTasks(c: PluginClient): () => readonly TaskRow[] {
   return useSignal(list);
 }
 
-function Pane(props: { readonly client: PluginClient; readonly entry: Entry; readonly tasks: () => readonly TaskRow[]; readonly open: boolean; readonly onBack: (() => void) | undefined }): JSX.Element {
+/** One pinned app: on Home, or beside a task (`task`: its id, which the pane hears as wisp.context). */
+export function Pane(props: {
+  readonly client: PluginClient;
+  readonly where: PaneWhere;
+  readonly task?: string;
+  readonly entry: Entry;
+  readonly tasks: () => readonly TaskRow[];
+  readonly open: boolean;
+  readonly onBack: (() => void) | undefined;
+}): JSX.Element {
   const c = props.client;
   const shell = useShell();
   const say = (k: string, v?: Readonly<Record<string, string | number>>): string => c.t(k, v);
@@ -111,8 +121,9 @@ function Pane(props: { readonly client: PluginClient; readonly entry: Entry; rea
   };
   let frame: AppFrameController | undefined;
   const post = (m: unknown): void => frame?.post(m);
-  const context = (): void => post(contextEvent({ where: 'home', task: null, theme: theme() === 'dark' ? 'dark' : 'light' }));
-  createEffect(on(theme, context, { defer: true }));
+  const context = (): void => post(contextEvent({ where: props.where, task: props.where === 'task' ? (props.task ?? null) : null, theme: theme() === 'dark' ? 'dark' : 'light' }));
+  createEffect(on([theme, () => props.task], context, { defer: true }));
+  const taskRow = (): TaskRow | null => (props.task ? (props.tasks().find((s) => s.id === props.task) ?? null) : null);
   // wisp.on('tasks'): what changed, at most every 300 ms
   const [watching, setWatching] = createSignal(false);
   // the push's timer, in this pane's own scope: unpinning (or leaving Home) frees it
@@ -121,10 +132,12 @@ function Pane(props: { readonly client: PluginClient; readonly entry: Entry; rea
   let soon: (() => void) | undefined;
   const host = paneHost({
     item: it,
-    pinned: () => pins.pinned(it(), 'home', [it()]),
+    pinned: () => pins.pinned(it(), props.where, [it()]),
     grant: () => c.run(grantOf, { key: key(), id: it().id }),
+    // v1 paneCard: with a dialog of yours open, the pane can ask again later (opening over it would replace it)
     card: (card) =>
-      new Promise((done) => {
+      new Promise((done, refuse) => {
+        if (document.querySelector('[data-kit="dialog"]')) return refuse(new Error(say('stuff.pane.dialogOpen')));
         const st = stuffState(c);
         st.setModal({ kind: 'card', head: card.head, rows: card.rows, prompt: card.prompt, done: (yes) => (st.setModal(undefined), done(yes)) });
       }),
@@ -135,10 +148,11 @@ function Pane(props: { readonly client: PluginClient; readonly entry: Entry; rea
       const p = projectList(c.entities.list<unknown>('project')(), undefined).find((x) => x.name === name || x.id === name);
       return p ? { name: p.name, path: p.path } : undefined;
     },
-    // Edits whatever Home shows: a pane never starts Full auto (launchTask)
-    defaults: () => ({ mode: 'edits' }),
+    // your saved defaults (the `default` agent profile), as New task sends them; no mode saved: Full auto (v1 DEFAULT_MODE)
+    defaults: () => savedDefaults(c, shell.harnesses()()),
+    told: (text) => void shell.toast.show(text),
     harnessName: (a) => shell.harnesses()().find((h) => h.id === a)?.name ?? a ?? '',
-    launch: (body) => c.run(launchTask, { peer: c.home, body }).then((r) => props.tasks().find((s) => s.id === r.id) ?? ({ id: r.id, title: String(body['prompt'] ?? ''), state: 'running' } as TaskRow)),
+    launch: (body) => c.run(launchTask, { peer: c.home, body }).then((r) => props.tasks().find((s) => s.id === r.id) ?? ({ id: r.id, title: r.title ?? String(body['prompt'] ?? ''), state: 'running' } as TaskRow)),
     followUp: (id, text) => c.run(followJob, { key: `${c.home}:${id}` as EntityKey, sessionId: id, text }).then(() => undefined),
     done: (id) => c.run(markDone, { key: `${c.home}:${id}` as EntityKey, id }).then(() => undefined),
     watch: () => setWatching(true),
@@ -167,13 +181,13 @@ function Pane(props: { readonly client: PluginClient; readonly entry: Entry; rea
   };
   return (
     <PaneView
-      part="split.panes.pane"
+      part={props.where === 'home' ? 'split.panes.pane' : 'panel.pane'}
       name={it().title}
       need={need()}
       open={props.open}
-      allow={need() ? { label: say('stuff.pane.allow'), onClick: () => void pins.allow(key(), it()) } : undefined}
+      allow={need() ? { label: say('stuff.pane.allow'), onClick: () => void pins.allow(key(), it(), taskRow()) } : undefined}
       reload={{ label: say('stuff.pane.reload'), onClick: () => (frame ? frame.reload() : void refetch()) }}
-      unpin={{ label: say('stuff.pane.unpin'), onClick: () => void pins.unpin(it(), 'home', [it()]) }}
+      unpin={{ label: say('stuff.pane.unpin'), onClick: () => void pins.unpin(it(), props.where, [it()]) }}
       back={props.onBack ? { label: say('stuff.pane.back'), onClick: props.onBack } : undefined}
     >
       <Show when={!launched.error} fallback={<PaneOff tone="warn" text={launched.error instanceof Error ? launched.error.message : say('stuff.pane.notStarted')} />}>
@@ -215,4 +229,11 @@ async function usageNow(c: PluginClient, harnesses: readonly { id: string; name:
     });
   }
   return lightAccounts(agents, Date.now());
+}
+
+/** Your saved launch defaults (v1 launchDefaults), read from the agent profiles and the worktree setting. */
+async function savedDefaults(c: PluginClient, harnesses: readonly { id: string }[]): Promise<LaunchDefaults> {
+  const list = await c.run(savedProfiles, { peer: c.home }).catch(() => []);
+  const worktree = c.entities.peek<{ value?: unknown }>('setting', `${c.home}:defaults.worktree` as never)?.value;
+  return defaultsFrom(list, worktree, harnesses[0]?.id);
 }

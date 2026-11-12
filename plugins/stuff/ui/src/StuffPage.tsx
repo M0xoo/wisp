@@ -17,7 +17,7 @@ import { cardMeta, groupItems, kindChips, shownItems, when, type KindFilter } fr
 import { TOPIC } from './types.ts';
 
 /** The actions this page carries out; the rest (pins, edit) live where they're done. */
-const HERE: ReadonlySet<ActionId> = new Set(['open', 'pin-home', 'unpin-home', 'stop', 'publish', 'pubcopy', 'pubopen', 'update', 'unpublish', 'copy', 'download', 'star', 'task', 'folder', 'remove']);
+const HERE: ReadonlySet<ActionId> = new Set(['open', 'pin-task', 'unpin-task', 'pin-home', 'unpin-home', 'stop', 'publish', 'pubcopy', 'pubopen', 'update', 'unpublish', 'copy', 'download', 'star', 'task', 'folder', 'remove']);
 
 /** a link without its scheme, as v1 shows it */
 const bare = (url: string): string => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -126,6 +126,11 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
         return quiet(pins.pin(key, e.it, 'home', entries().map((x) => x.it)));
       case 'unpin-home':
         return quiet(pins.unpin(e.it, 'home', entries().map((x) => x.it)));
+      // Pin beside tasks: a tab in the panel beside every task (v1 panel.js)
+      case 'pin-task':
+        return quiet(pins.pin(key, e.it, 'task', entries().map((x) => x.it)));
+      case 'unpin-task':
+        return quiet(pins.unpin(e.it, 'task', entries().map((x) => x.it)));
       default:
     }
   };
@@ -142,7 +147,7 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
 
   const card = (e: Entry): JSX.Element => {
     const k = kindOf(e.it.kind);
-    const actions = () => itemActions(e.it, { ...(st.publishTo()[0] && { publishTo: st.publishTo()[0] }), pinnedTask: false, pinnedHome: pins.pinned(e.it, 'home', entries().map((x) => x.it)), task: !!e.it.from?.session, mobile: false }).filter((a) => HERE.has(a.id));
+    const actions = () => itemActions(e.it, { ...(st.publishTo()[0] && { publishTo: st.publishTo()[0] }), pinnedTask: pins.pinned(e.it, 'task', entries().map((x) => x.it)), pinnedHome: pins.pinned(e.it, 'home', entries().map((x) => x.it)), task: !!e.it.from?.session, mobile: false }).filter((a) => HERE.has(a.id));
     return (
       <Card part="stuff.card" as="li" interactive onClick={() => run(e, 'open')}>
         <Stack gap="2">

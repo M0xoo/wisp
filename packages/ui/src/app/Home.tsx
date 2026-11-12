@@ -1,8 +1,9 @@
 // Home as v1 draws it (web/css/split.css .split-home, launcher.css, composer.css, auto.css, tips):
 // the greeting, the prompt box (where it runs, the prompt, its toolbar, Recipes), what needs you,
 // then the tips. On a phone it's its own page with a back button in its head.
-import { For, Match, Show, Switch, createSignal, type JSX } from 'solid-js';
+import { For, Index, Match, Show, Switch, createSignal, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
+import { useOpenWithin } from '../core/open-within.ts';
 import { reorderable, type OnReorder } from '../core/reorder.ts';
 import { Icon } from '../content/Icon.tsx';
 import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
@@ -194,9 +195,11 @@ export function Launcher(props: LauncherProps): JSX.Element {
     input?.focus();
     setNudge(true); // until the next key or the caret leaves
   };
+  // a menu of its bar open (they live in a portal): it looks as it does with the caret in it (v1 :has(.open))
+  const within = useOpenWithin();
   return (
     <div data-kit="sh-launch">
-      <section data-kit="launcher" data-part="launcher" data-nudge={flag(nudge())} data-drop={flag(over())} {...dropHandlers(() => props.onFiles, setOver)}>
+      <section data-kit="launcher" data-part="launcher" ref={within.ref} data-open={flag(within.open())} data-nudge={flag(nudge())} data-drop={flag(over())} {...dropHandlers(() => props.onFiles, setOver)}>
         <div data-kit="l-projects" data-part="launcher.projects">
           <span data-kit="l-in">{props.inLabel}</span>
           <span data-kit="lp-group">
@@ -242,7 +245,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
           </div>
         </Show>
         <div data-kit="l-bar">
-          <For each={props.lead}>{(t) => <Tool t={t} />}</For>
+          <Index each={props.lead}>{(t) => <Tool t={t()} />}</Index>
           <WithAct
             act={props.mode.act}
             render={(trigger) => (
@@ -291,9 +294,9 @@ export function Launcher(props: LauncherProps): JSX.Element {
               )}
             />
           </div>
-          <For each={props.mid}>{(t) => <Tool t={t} />}</For>
+          <Index each={props.mid}>{(t) => <Tool t={t()} />}</Index>
           <span data-kit="grow" />
-          <For each={props.tail}>{(t) => <Tool t={t} />}</For>
+          <Index each={props.tail}>{(t) => <Tool t={t()} />}</Index>
           <button type="button" {...actAttrs(props.sendAct)} data-kit="send" data-part="launcher.send" title={props.sendLabel} aria-label={props.sendLabel} onClick={send}>
             <ActIcon act={props.sendAct}>
               <Icon name="enter" />

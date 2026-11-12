@@ -1,6 +1,6 @@
 // The panes setting (panes/grant.ts, v1 pane-bridge.js parsePanes/appFor and panes.js pinApp): "<app>@home,<app>@task".
 import { expect, test } from 'vitest';
-import { panesAt, panesProblem, withPin } from '../src/panes/grant.ts';
+import { panesAt, panesProblem, taskTabs, withPin } from '../src/panes/grant.ts';
 import type { Item } from '../src/types.ts';
 
 const app = (id: string, title: string, o: Partial<Item> = {}): Item => ({ id, kind: 'app', name: `${id}.html`, title, size: 0, at: 0, by: 'you', ...o }) as Item;
@@ -19,4 +19,15 @@ test('pinning on home adds the app once, keeps the others in their order, and Un
   expect(withPin('a2@task,Board@home,a2@home', first, 'home', false, items)).toBe('a2@task,a2@home'); // by title too
   expect(panesProblem(withPin('', first, 'home', true, items))).toBe('');
   expect(panesProblem('x@nowhere')).toContain('should be <app id or name>@task or @home');
+});
+
+test('the apps pinned beside tasks are a tab each beside the task, in pin order, home pins left out_v1_panel_pane_tabs', () => {
+  const say = (k: string, v: Readonly<Record<string, string>>): string => `${k}:${v['name'] ?? ''}`;
+  expect(taskTabs('a2@task,a1@home,board@task,d1@task,gone@task', items, say)).toEqual([
+    { value: 'a2', label: 'PR notes', title: 'stuff.pane.tabTitle:PR notes' },
+    { value: 'a1', label: 'Board', title: 'stuff.pane.tabTitle:Board' },
+  ]);
+  // unpinned beside tasks: its tab goes (the panel then opens Changes, as v1's tabOf)
+  expect(taskTabs(withPin('a2@task,a1@task', items[1] as Item, 'task', false, items), items, say).map((x) => x.value)).toEqual(['a1']);
+  expect(taskTabs('', items, say)).toEqual([]);
 });

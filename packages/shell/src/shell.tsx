@@ -67,6 +67,13 @@ export function createShell(o: ShellOptions): Shell {
 
   const registry = createRegistry(warn);
   const clients = new Map<string, PluginClient>([['shell', self]]);
+  // each plugin's tabs beside a task, with the client its tabs and body run as
+  const sideTabs = computed(() =>
+    registry.sideTabs().flatMap((d) => {
+      const pc = clients.get(d.plugin);
+      return pc ? [{ ...d, client: pc }] : [];
+    }),
+  );
   const theme = createTheme({
     pref: settings.get('shell.theme'),
     lockedBy: settings.lockedBy('shell.theme'),
@@ -144,6 +151,7 @@ export function createShell(o: ShellOptions): Shell {
     settingsPanes: () => registry.settingsPanes,
     harnesses: () => registry.harnesses,
     promptSources: () => registry.prompt,
+    sideTabs: () => sideTabs,
     block: (type) => registry.block(type),
     view: (kind) => registry.view(kind),
   };

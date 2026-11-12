@@ -179,6 +179,7 @@ export const SHELL_STRINGS = {
   'shell.rail.all': 'All tasks',
   'shell.rail.org': 'Org: who on your crew hands work to whom',
   'shell.rail.add': 'Add a crew member',
+  'shell.rail.cardLabel': '{name}’s tasks',
 
   'shell.home.hello': 'What should wisp do next?',
   'shell.home.back': 'Back to tasks',

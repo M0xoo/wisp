@@ -3,18 +3,32 @@
 // so with Undo; an app that asks to use wisp gets the Allow card first, from your click, never by itself, and never
 // while the task it's for, or the task that made it, runs in Full auto. The cards (Allow, and a pane's write waiting
 // on your click) render here, wherever pins are made.
-import { For, Show, type JSX } from 'solid-js';
+import { createEffect, For, on, Show, untrack, type JSX } from 'solid-js';
 import { entityKey, setSetting, type EntityKey, type PluginClient, type SettingRow } from '@wisp/client';
 import { useShell } from '@wisp/shell';
-import { Button, Dialog, Inline, Stack, Text, useSignal } from '@wisp/ui';
+import { Button, Dialog, Inline, PaneCard, Stack, Text, useSignal, type PaneSeg } from '@wisp/ui';
 import { allowPane } from './commands.ts';
-import { PANE_USES, isUse } from './panes/bridge.ts';
+import { PANE_USES, hasInvisible, isUse, showInvisible } from './panes/bridge.ts';
 import { missingOf, panesAt, runsFullAuto, withPin } from './panes/grant.ts';
 import { stuffState } from './state.ts';
 import type { Item, PaneWhere, TaskRow } from './types.ts';
 
 /** wisp.stuff's setting (its manifest): "<app>@home,<app>@task" */
 export const PANES_KEY = 'stuff.panes';
+
+/** v1 pane-card.js SEND_DELAY_MS: a click or key the pane timed for the moment the card opens can't land on Send */
+export const SEND_DELAY_MS = 600;
+
+/** A pane's text cut where a character doesn't print: each such one a chip of its code (`<U+202E>`). */
+export const segs = (text: string): PaneSeg[] => {
+  const out: PaneSeg[] = [];
+  for (const ch of text) {
+    if (hasInvisible(ch)) out.push({ text: showInvisible(ch), hidden: true });
+    else if (out.length && !out[out.length - 1]?.hidden) out[out.length - 1] = { text: (out[out.length - 1]?.text ?? '') + ch };
+    else out.push({ text: ch });
+  }
+  return out;
+};
 
 type Say = (k: string, v?: Readonly<Record<string, string | number>>) => string;
 
@@ -98,6 +112,18 @@ export function PaneCards(props: { readonly client: PluginClient }): JSX.Element
   const st = stuffState(props.client);
   const say: Say = (k, v) => props.client.t(k, v);
   const modal = useSignal(st.modal);
+  // v1 pane-card.js: a dialog you open over a waiting card (⌘K) replaces it: that's a Cancel, so the pane's call
+  // doesn't wait for ever and no other card is held up
+  const nav = useSignal(useShell().nav);
+  createEffect(
+    on(
+      () => nav().overlays.length,
+      (n, before) => {
+        const m = untrack(modal);
+        if (before !== undefined && n > before && m?.kind === 'card') m.done(false);
+      },
+    ),
+  );
   return (
     <Show when={modal()}>
       {(m) => {
@@ -138,40 +164,24 @@ export function PaneCards(props: { readonly client: PluginClient }): JSX.Element
               </Stack>
             </Dialog>
           );
+        // v1 pane-card.js: what a pane wrote, marked where a character doesn't print; Send waits a moment, Cancel has the focus
+        const n = [...x.prompt].length;
+        const hidden = [...x.prompt].filter(hasInvisible).length;
         return (
-          <Dialog
-            open
-            role="alertdialog"
-            size="sm"
-            title={x.head}
+          <PaneCard
             part="stuff.card"
-            closeOnOutside={false}
-            onOpenChange={(o) => !o && x.done(false)}
-            footer={
-              <Inline gap="4">
-                <Button variant="ghost" onClick={() => x.done(false)}>
-                  {say('stuff.pane.cancel')}
-                </Button>
-                <Button variant="primary" onClick={() => x.done(true)}>
-                  {say('stuff.pane.send')}
-                </Button>
-              </Inline>
-            }
-          >
-            <Stack gap="3">
-              <For each={x.rows}>
-                {(r) => (
-                  <Inline gap="2">
-                    <Text size="sm" tone="muted">
-                      {r[0]}
-                    </Text>
-                    <Text size="sm">{r[1]}</Text>
-                  </Inline>
-                )}
-              </For>
-              <Text size="sm">{x.prompt}</Text>
-            </Stack>
-          </Dialog>
+            head={segs(x.head)}
+            from={say('stuff.pane.card.from')}
+            rows={x.rows.map((r) => ({ label: r[0], value: segs(r[1]), ...(r[2] && { warn: true }) }))}
+            promptLabel={say('stuff.pane.card.prompt')}
+            hiddenCount={hidden ? say('stuff.pane.card.invisible', { count: hidden }) : undefined}
+            length={say('stuff.pane.card.chars', { count: n })}
+            prompt={segs(x.prompt)}
+            cancel={say('stuff.pane.cancel')}
+            send={say('stuff.pane.send')}
+            armMs={SEND_DELAY_MS}
+            onAnswer={(yes) => x.done(yes)}
+          />
         );
       }}
     </Show>

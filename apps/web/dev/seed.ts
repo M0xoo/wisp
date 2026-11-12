@@ -483,7 +483,7 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },
     { e: 'setting', id: 'defaults.agent', v: { key: 'defaults.agent', value: 'claude', locked_by: null } },
     // the token dashboard pinned on Home (wisp.stuff's panes setting)
-    { e: 'setting', id: 'stuff.panes', v: { key: 'stuff.panes', value: 'st2@home', locked_by: null } },
+    { e: 'setting', id: 'stuff.panes', v: { key: 'stuff.panes', value: 'st2@home,st2@task', locked_by: null } },
     ...TERMINALS,
   ]);
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
@@ -504,11 +504,11 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
   );
   topics.set(
     'stuff',
-    // wisp.stuff's rows (its UI reads `stuff.item`): name, when, who kept it; the dashboard asks to read tasks
+    // wisp.stuff's rows (its UI reads `stuff.item`): name, when, who kept it; the dashboard may read and start tasks
     STUFF.map((s, i) => ({
       e: 'stuff.item',
       id: s.id,
-      v: { ...s, name: s.path.slice(s.path.lastIndexOf('/') + 1), at: o.now - (i + 1) * 5 * HOUR, by: 'you', ...(s.kind === 'app' && { uses: ['tasks:read'], rev: 1 }) },
+      v: { ...s, name: s.path.slice(s.path.lastIndexOf('/') + 1), at: o.now - (i + 1) * 5 * HOUR, by: 'you', ...(s.kind === 'app' && { uses: ['tasks:read', 'tasks:write'], allowed: ['tasks:read', 'tasks:write'], rev: 1 }) },
     })),
   );
   return {

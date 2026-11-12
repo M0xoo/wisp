@@ -2,10 +2,12 @@
 // tiles in columns at least 300px wide (as many as fit, at most one each), 420px tall; stacked, a quiet row per pane
 // that opens it as a page filling Home. A pane is a bar (its name, what it still asks for, Allow…, Reload, Unpin, and
 // Back on its page) over its stage, where the owner puts the app's frame or a line saying why there's none.
-import { For, Show, type JSX } from 'solid-js';
+import { createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { useTimeout } from '../blocks/rich-scope.ts';
 import { flag, sub, type KitProps, type PartName, type WithChildren } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
 import { Button, IconButton } from '../controls/Button.tsx';
+import { Dialog } from '../controls/Dialog.tsx';
 
 export interface HomePanesProps extends KitProps, WithChildren {
   readonly heading: string;
@@ -130,4 +132,115 @@ export function PaneOff(props: { readonly text: string; readonly tone?: 'info' |
 /** Every pane's row, for HomePanes' `rows`. */
 export function PaneRows<T>(props: { readonly each: readonly T[]; readonly children: (item: T) => JSX.Element }): JSX.Element {
   return <For each={props.each}>{(x) => props.children(x)}</For>;
+}
+
+/** Text a pane wrote, cut where a character doesn't print: those show as a chip (`<U+202E>`) no typed text can pass for. */
+export interface PaneSeg {
+  readonly text: string;
+  readonly hidden?: boolean;
+}
+
+export interface PaneCardProps extends KitProps {
+  readonly head: readonly PaneSeg[];
+  /** "A pane wrote this, not you. Nothing happens until you press Send." */
+  readonly from: string;
+  /** label, value, and whether it's the one to read twice (Full auto) */
+  readonly rows: readonly { readonly label: string; readonly value: readonly PaneSeg[]; readonly warn?: boolean }[];
+  readonly promptLabel: string;
+  /** "2 invisible", if any */
+  readonly hiddenCount?: string | undefined;
+  /** "120 characters" */
+  readonly length: string;
+  readonly prompt: readonly PaneSeg[];
+  readonly cancel: string;
+  readonly send: string;
+  /** Send stays off this long: a click or key the pane timed for the moment it opens can't land on it */
+  readonly armMs: number;
+  readonly onAnswer: (yes: boolean) => void;
+}
+
+const Segs = (props: { readonly segs: readonly PaneSeg[] }): JSX.Element => (
+  <For each={props.segs}>{(x) => (x.hidden ? <span data-kit="pc-inv">{x.text}</span> : x.text)}</For>
+);
+
+/** The card a pane's write waits on (v1 pane-card.js): only your click on Send sends; Cancel holds the focus. */
+export function PaneCard(props: PaneCardProps): JSX.Element {
+  const [armed, setArmed] = createSignal(false);
+  let cancel: HTMLElement | undefined;
+  let done = false;
+  const answer = (yes: boolean): void => {
+    if (done) return;
+    done = true;
+    props.onAnswer(yes);
+  };
+  const arm = useTimeout();
+  onMount(() => arm.start(props.armMs, () => setArmed(true)));
+  onCleanup(() => answer(false)); // gone without an answer (another dialog took its place): Cancel
+  return (
+    <Dialog
+      open
+      role="alertdialog"
+      size="v1"
+      title={props.head.map((x) => x.text).join('')}
+      part={props.part ?? 'pane.card'}
+      closeOnOutside={false}
+      initialFocus={() => cancel?.querySelector<HTMLElement>('button') ?? null}
+      onOpenChange={(o) => !o && answer(false)}
+      footer={
+        <div data-kit="pc-acts">
+          <span data-kit="pc-cancel" ref={(el) => (cancel = el)}>
+            <Button size="sm" variant="secondary" onClick={() => answer(false)}>
+              {props.cancel}
+            </Button>
+          </span>
+          <Button size="sm" variant="primary" disabled={!armed()} onClick={() => answer(true)}>
+            {props.send}
+          </Button>
+        </div>
+      }
+    >
+      <div data-kit="pane-card">
+        <div data-kit="pc-top">
+          <p data-kit="pc-from">
+            <Icon name="app" size="sm" />
+            <span>{props.from}</span>
+          </p>
+          <dl data-kit="pc-rows">
+            <For each={props.rows}>
+              {(r) => (
+                <div data-kit="pc-row" data-warn={flag(r.warn)}>
+                  <dt>{r.label}</dt>
+                  <dd>
+                    <Show when={r.warn}>
+                      <Icon name="warn" size="sm" />
+                    </Show>
+                    <span>
+                      <Segs segs={r.value} />
+                    </span>
+                  </dd>
+                </div>
+              )}
+            </For>
+          </dl>
+        </div>
+        <div data-kit="pc-label">
+          <span>{props.promptLabel}</span>
+          <span data-kit="pc-len">
+            <Show when={props.hiddenCount}>
+              {(h) => (
+                <>
+                  <span data-kit="pc-hid">{h()}</span>
+                  {' · '}
+                </>
+              )}
+            </Show>
+            {props.length}
+          </span>
+        </div>
+        <pre data-kit="pc-prompt" tabIndex={0} aria-label={props.promptLabel}>
+          <Segs segs={props.prompt} />
+        </pre>
+      </div>
+    </Dialog>
+  );
 }

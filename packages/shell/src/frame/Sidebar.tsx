@@ -17,7 +17,7 @@ import { rowSlots, useHeadSlots } from './slots.tsx';
 import { harnessOf } from './harness.ts';
 import { SECTIONS, crewOf, flatRow, goalOf, longTime, overlapOf, projectOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
 import { useProjects } from './projects.ts';
-import { usePluginClient } from '../slot.tsx';
+import { Slot, useExtensions, usePluginClient } from '../slot.tsx';
 
 interface CrewRow {
   readonly id: string;
@@ -42,6 +42,7 @@ export function Rail(): JSX.Element {
       .map((c) => ({ id: c.id, name: c.name, avatar: c.avatar ?? '', color: c.color ?? 'violet' })),
   );
   const nav = useSignal(shell.nav);
+  const cardExt = useExtensions('shell.rail:card');
   return (
     <CrewRail
       label={shell.t('shell.rail.label')}
@@ -60,6 +61,11 @@ export function Rail(): JSX.Element {
       onOrg={() => shell.navigate({ t: 'openView', id: 'crew.org' as never, params: null as Json })}
       // wisp.crew's editor (an overlay view; without that plugin, navigation drops it)
       onAdd={() => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'crew.editor' as never, params: {} } })}
+      // a face's card (v1 .cl-card), filled by whoever answers shell.rail:card (wisp.crew); none: no card
+      {...(cardExt().length > 0 && {
+        card: (id: string) => <Slot input="shell.rail:card" id={id} layout="contents" />,
+        cardLabel: (id: string) => shell.t('shell.rail.cardLabel', { name: members().find((m) => m.id === id)?.name ?? '' }),
+      })}
     />
   );
 }

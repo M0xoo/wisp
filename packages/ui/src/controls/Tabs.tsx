@@ -14,6 +14,8 @@ export interface TabItem {
   /** A count beside the label (tabular, so it doesn't wiggle). */
   readonly count?: number;
   readonly disabled?: boolean;
+  /** its tooltip */
+  readonly title?: string;
   /** The panel. Omit it to use the tabs as a segmented switch above content you render yourself. */
   readonly content?: JSX.Element;
 }
@@ -54,7 +56,7 @@ export function Tabs(props: TabsProps): JSX.Element {
       <div {...api().getListProps()} aria-label={props['aria-label']} data-kit="tab-list" data-part={sub(part(), 'list')} data-fill={flag(props.fill)} data-fieldset={flag(props.fieldset)}>
         <For each={props.items}>
           {(item) => (
-            <button {...api().getTriggerProps({ value: item.value, disabled: item.disabled })} data-kit="tab" data-part={sub(part(), 'tab')} data-value={item.value} data-icon={flag(item.icon !== undefined)}>
+            <button {...api().getTriggerProps({ value: item.value, disabled: item.disabled })} data-kit="tab" data-part={sub(part(), 'tab')} data-value={item.value} data-icon={flag(item.icon !== undefined)} title={item.title}>
               <Show when={item.icon}>{(name) => <Icon name={name()} size="md" />}</Show>
               <span data-kit="tab-label" data-text="control">
                 {item.label}

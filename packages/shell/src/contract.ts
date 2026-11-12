@@ -39,6 +39,9 @@ export const INPUTS = {
   'shell.home:cards': 'home.cards',
   // added 2026-11-12 (additive): what goes between Needs you and Working (the crew's section on the phone, v1 #secCrew)
   'shell.list:crew': 'section.crew',
+  // added 2026-11-12 (additive): what a crew face's card beside the rail says (v1 .cl-card: who it is, the tasks it's on);
+  // its extension gets the member's `id`. Without one, a face has no card.
+  'shell.rail:card': 'crew.card',
   'shell.list:working': 'section.working',
   'shell.list:scheduled': 'section.scheduled',
   'shell.list:scheduledRow': 'scheduled.row',
@@ -193,6 +196,26 @@ export interface PluginUiDef {
   /** added 2026-11-08 (additive): the coding agents it runs, as the screens name and mark them (a
    * harness plugin's UI: plugins/claude/ui). The shell knows none of them itself (ADR-0003). */
   harnesses?: HarnessUiDef[];
+  /** added 2026-11-12 (additive): tabs it adds to the panel beside a task (v1 panel.js: My Stuff's panes pinned to tasks) */
+  sideTabs?: SideTabDef[];
+}
+
+/** Tabs a plugin adds to the panel beside a task, after the panel's own (Changes, PR, Shell, Preview). */
+export interface SideTabDef {
+  id: string;
+  /** among plugins' tabs, lower first */
+  order?: number;
+  /** its tabs beside the task `task` (an entity key), read reactively: a pin added or removed shows at once */
+  tabs(ctx: { client: PluginClient; task: string }): readonly SideTabItem[];
+  /** what its tab `value` shows, in the panel's body, edge to edge */
+  component: Component<{ client: PluginClient; task: string; value: string }>;
+}
+
+export interface SideTabItem {
+  value: string;
+  label: string;
+  /** its tooltip (v1: "Name: pinned from My Stuff") */
+  title?: string;
 }
 
 /** A coding agent as the screens show it: its name, its mark, and whether it's the one a new task
@@ -400,6 +423,8 @@ export interface ShellContext {
   harnesses(): () => readonly HarnessUiDef[];
   /** added 2026-11-11 (additive): every plugin's prompt sources (the @ and / menus) */
   promptSources(): () => readonly PromptSourceDef[];
+  /** added 2026-11-12 (additive): every plugin's tabs beside a task, each with its plugin's client */
+  sideTabs?(): () => readonly (SideTabDef & { readonly plugin: string; readonly client: PluginClient })[];
   block(type: string): BlockRendererDef | undefined;
   view(kind: string): ViewDef | undefined;
 }
