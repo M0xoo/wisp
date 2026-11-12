@@ -496,3 +496,20 @@ async fn a_task_added_to_the_crew_becomes_the_new_members_first_job() {
     drop(serve);
 }
 
+
+/// More → Copy resume command (v1 GET /sessions/:id/takeover): the line that resumes the task's conversation in its
+/// harness's CLI from its folder; a task with no conversation yet has none.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tasks_resume_command_resumes_its_conversation_from_its_folder() {
+    let dir = temp("serve-resume");
+    let (serve, port) = start(&dir);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let (_, task) = run_task(&api, &dir, "claude").await;
+    let id = task["id"].as_str().unwrap().to_owned();
+    let resume = task["resumeId"].as_str().or_else(|| task["resume_id"].as_str()).unwrap_or_else(|| panic!("the fake claude named a conversation: {task}")).to_owned();
+    let line = api.cmd("runtime.resumeCommand", json!({ "id": id })).await;
+    let cmd = line["command"].as_str().unwrap_or_else(|| panic!("a command: {line}"));
+    assert!(cmd.starts_with("cd ") && cmd.contains(" && ") && cmd.contains("claude") && cmd.contains(&resume), "{cmd}");
+    assert!(!cmd.contains("inside wisp"), "no in-wisp note: {cmd}");
+    drop(serve);
+}

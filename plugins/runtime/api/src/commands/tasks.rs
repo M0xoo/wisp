@@ -93,6 +93,14 @@ pub struct IdArgs {
     pub id: SessionId,
 }
 
+/// `runtime.resumeCommand` (v1 GET /sessions/:id/takeover, More → Copy resume command): the line that resumes the
+/// task's conversation in its harness's own CLI, from its folder, to paste in a terminal of your own.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct ResumeLine {
+    pub command: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "runtime/")]

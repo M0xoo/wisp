@@ -115,6 +115,11 @@
         "readOnly": true
       },
       {
+        "id": "runtime.resumeCommand",
+        "title": "The command that resumes a task's conversation in a terminal",
+        "readOnly": true
+      },
+      {
         "id": "runtime.list",
         "title": "The task list",
         "readOnly": true

@@ -91,6 +91,7 @@ command!(ForLater = "runtime.forLater": ForLaterArgs => Ack);
 command!(QueueOrder = "runtime.queue.order": QueueOrderArgs => Ack);
 command!(QueueCancel = "runtime.queue.cancel": QueueItemArgs => Ack);
 command!(Get = "runtime.get": IdArgs => Session, read_only);
+command!(ResumeCommand = "runtime.resumeCommand": IdArgs => ResumeLine, read_only);
 command!(List = "runtime.list": ListArgs => Vec<Summary>, read_only);
 command!(Turns = "runtime.turns": TurnsArgs => Vec<Turn>, read_only);
 command!(ActivityOf = "runtime.activity": ActivityArgs => ActivityPage, read_only);

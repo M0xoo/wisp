@@ -504,6 +504,7 @@ fn edits(s: &mut Setup, slot: &Slot) {
 
 fn reads(s: &mut Setup, slot: &Slot) {
     cmd!(s, slot, c::Get, |r, call, a| r.get(a.id.as_str()).await);
+    cmd!(s, slot, c::ResumeCommand, |r, call, a| r.resume_line(a.id.as_str()).await.map(|command| c::ResumeLine { command }));
     cmd!(s, slot, c::List, |r, call, a| Ok(r
         .list(&a)
         .iter()

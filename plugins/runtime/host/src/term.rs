@@ -126,6 +126,19 @@ impl Runtime {
         Ok(Opened { argv: cmd.argv, cwd, typed: None })
     }
 
+    /// Copy resume command (v1 More): `cd <its folder> && <the harness's resume argv>`, quoted for a POSIX shell. The
+    /// same conversation Take over opens, without the note that tells the CLI it's inside wisp.
+    pub async fn resume_line(&self, id: &str) -> Result<String> {
+        let s = self.repo.session(id).await?;
+        let resume = s.resume_id.clone().filter(|r| !r.is_empty()).ok_or_else(|| RuntimeError::Conflict(format!("{} has no conversation to resume yet", s.title)))?;
+        let h = self.harness(&s.agent)?;
+        let trusted = s.ext.get("wisp.worktrees").and_then(|w| w.get("cwd")).is_some();
+        let o = ResumeOptions { resume_id: Some(resume), model: s.model.clone(), effort: s.effort.clone(), cwd: s.cwd.clone(), trusted, prompt: None, session_id: None, mode: Some(s.mode), system_prompt: None, dirs: s.dirs.clone() };
+        let cmd = h.resume_command(&o).ok_or_else(|| RuntimeError::Invalid(format!("{} can't resume in a terminal", s.agent)))?;
+        let line = cmd.argv.iter().map(|a| sh_quote(a)).collect::<Vec<_>>().join(" ");
+        Ok(if s.cwd.is_empty() { line } else { format!("cd {} && {line}", sh_quote(&s.cwd)) })
+    }
+
     /// The terminal ended: the turns the CLI kept come back as the task's, and it's for review.
     /// `found`: the conversation the CLI kept, found by its folder and time (one that names none by wisp's id).
     pub async fn terminal_ended(self: &Arc<Self>, id: &str, found: Option<String>, read: Option<wisp_runtime_api::spec::AdoptArgs>) -> Result<()> {
@@ -249,6 +262,16 @@ pub fn setup(s: &mut Setup, slot: &Slot) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_resume_line_quotes_only_what_a_shell_would_split() {
+        assert_eq!(super::sh_quote("claude"), "claude");
+        assert_eq!(super::sh_quote("--resume"), "--resume");
+        assert_eq!(super::sh_quote("/Users/me/my app"), "'/Users/me/my app'");
+        assert_eq!(super::sh_quote("it's"), "'it'\\''s'");
+        assert_eq!(super::sh_quote(""), "''");
+        assert_eq!(super::sh_quote("model_reasoning_effort=\"high\""), "'model_reasoning_effort=\"high\"'");
+    }
     use super::*;
 
     #[test]
@@ -286,3 +309,12 @@ mod tests {
         assert_eq!(slash("/terminals x"), None);
     }
 }
+
+/// One word for a POSIX shell: as it is when it's plain, else in single quotes.
+pub(crate) fn sh_quote(w: &str) -> String {
+    if !w.is_empty() && w.chars().all(|c| c.is_ascii_alphanumeric() || "_./:=@%+,-".contains(c)) {
+        return w.to_owned();
+    }
+    format!("'{}'", w.replace('\'', "'\\''"))
+}
+
