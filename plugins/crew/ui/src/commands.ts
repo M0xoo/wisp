@@ -153,3 +153,9 @@ export const askCrew = defineCommand<{ task: EntityKey; id: string; question: st
   optimistic: 'none',
   pending: 'the reply box, cleared at once; the answer card shows under the turn',
 });
+
+/** The Org chart's layout (v1 GET /crew-layout): where you put each member, x from the chart's middle. */
+export type OrgLayout = Record<string, { x: number; y: number }>;
+export const getLayout = defineCommand<{ peer: PeerId }, OrgLayout>({ id: 'crew.layout', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the Org layout' });
+/** Save it (v1 PUT /crew-layout); {} puts everyone back in tiers. The page shows it at once and puts it back if refused. */
+export const setLayout = defineCommand<{ peer: PeerId; layout: OrgLayout }, OrgLayout>({ id: 'crew.set_layout', owner: (a) => a.peer, wire: (a) => ({ layout: a.layout }), optimistic: 'none', pending: 'the Org layout' });

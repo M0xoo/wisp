@@ -4,11 +4,11 @@
 // ✓ takes it off. The column beside it says how it works, or, for the selected member, who it hands work to and gets
 // work from, each with a ×. Every change is one optimistic crew.update of the member's team (rolled back with a
 // toast if refused).
-import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
+import { createMemo, createResource, createSignal, For, Show, type JSX } from 'solid-js';
 import type { EntityKey, PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
 import { Icon, OrgMe, OrgPerson, OrgSection, OrgView, useSignal, type OrgCard, type OrgEdge } from '@wisp/ui';
-import { updateMember } from './commands.ts';
+import { getLayout, setLayout, updateMember, type OrgLayout } from './commands.ts';
 import { crewData } from './data.ts';
 import { t, type Key } from './i18n.ts';
 import { cadenceText } from './model.ts';
@@ -68,10 +68,28 @@ export default function OrgPage(props: { readonly client: PluginClient }): JSX.E
     return { name: h?.name ?? id, logo: h?.logo };
   };
 
+  // Where you put each member (v1 org.js layout): the server's, shown at once when you move one, put back if refused.
+  // Moving needs a mouse, or on touch the card selected first; with no spots the tiers lay themselves out.
+  const [saved, { mutate }] = createResource(() => c.run(getLayout, { peer: c.home }).catch((): OrgLayout => ({})));
+  const layout = (): OrgLayout => saved() ?? {};
+  const placed = (): boolean => list().some((m) => layout()[m.id]);
+  const saveLayout = (next: OrgLayout, before: OrgLayout = layout()): void => {
+    mutate(next);
+    c.run(setLayout, { peer: c.home, layout: next }).then(
+      (out) => saved() === next && mutate(out),
+      () => saved() === next && mutate(before),
+    );
+  };
+  const resetLayout = (): void => {
+    const before = layout();
+    saveLayout({}, before);
+    shell.toast.show(t('wisp.crew.org.resetDone'), { action: { label: t('wisp.crew.org.undo'), onClick: () => saveLayout(before, {}) } });
+  };
+  const touch = shell.platform.mobile;
   const hint = (): { text: string; on: boolean } | undefined => {
     const m = selected();
     if (m) return { text: say('wisp.crew.org.choosing', { name: m.name }), on: true };
-    return list().length ? { text: t('wisp.crew.org.hint'), on: false } : undefined;
+    return list().length ? { text: t(touch ? 'wisp.crew.org.hintTouch' : 'wisp.crew.org.hintDrag'), on: false } : undefined;
   };
 
   const side = (): JSX.Element => (
@@ -142,7 +160,10 @@ export default function OrgPage(props: { readonly client: PluginClient }): JSX.E
       title={t('wisp.crew.org.title')}
       role={t('wisp.crew.org.role')}
       count={count()}
-      actions={[{ id: 'add', icon: 'plus', label: t('wisp.crew.org.add'), title: t('wisp.crew.org.addTitle'), onClick: () => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.editor as never, params: {} } }) }]}
+      actions={[
+        ...(placed() ? [{ id: 'tidy', icon: 'rerun' as const, label: t('wisp.crew.org.reset'), title: t('wisp.crew.org.resetTitle'), onClick: resetLayout }] : []),
+        { id: 'add', icon: 'plus', label: t('wisp.crew.org.add'), title: t('wisp.crew.org.addTitle'), onClick: () => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.editor as never, params: {} } }) },
+      ]}
       close={{ label: t('wisp.crew.org.close'), onClick: () => c.navigate({ t: 'home' }) }}
       hint={hint()}
       tiers={tiers(list(), g()).map((tier) => tier.map(card))}
@@ -160,6 +181,10 @@ export default function OrgPage(props: { readonly client: PluginClient }): JSX.E
         else link(s, id);
       }}
       side={side()}
+      layout={layout()}
+      onMove={(next) => saveLayout(next)}
+      onLink={link}
+      handleLabel={(name) => say('wisp.crew.org.handle', { name })}
     />
   );
 }

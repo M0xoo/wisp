@@ -8,7 +8,7 @@ import { PROJECT_ORDER, projectList, projectOf, type ProjectView } from '@wisp/s
 import { reordered } from '@wisp/ui';
 import { createPlacement } from './model/placement.ts';
 import { flatSession, LATER_TOPIC, listPlan } from './model/wire.ts';
-import { ALL, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
+import { ALL, isForLater, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
 import { KIND, type Agent, type MachineRef, type Plan, type Project, type Row, type Session, type SessionRow } from './types.ts';
 
 export interface ViewState {
@@ -38,8 +38,19 @@ export interface ListModel {
   /** a crew member picked on the rail: the list holds only its jobs (v1 crew.js inPick); undefined: all */
   setCrew(id: string | undefined): void;
   readonly crew: Readable<string | undefined>;
+  /** the Crew section nests its members' jobs under them (the stacked list): those jobs leave the sections */
+  setNest(on: boolean): void;
   toggleSection(id: SectionId): void;
 }
+
+/** A crew job done for another task (delegated, an @mention, a check on it): it lives under its member, not in the
+ * list (v1 crew.js FOR_TASK / underMember; wisp.crew's rules/feed.ts holds the same). Check-ins and jobs you sent are
+ * tasks like any other. Saved for later stays in that section. */
+const FOR_TASK: ReadonlySet<string> = new Set(['delegated', 'mention', 'event']);
+export const underMemberOf =
+  (members: ReadonlySet<string>) =>
+  (s: SessionRow): boolean =>
+    !!s.crew && FOR_TASK.has(s.crew.job ?? '') && members.has(s.crew.id) && !isForLater(s);
 
 const isSection = (v: unknown): v is SectionId => typeof v === 'string' && (SECTION_IDS as readonly string[]).includes(v);
 
@@ -133,8 +144,19 @@ function createModel(client: PluginClient): ListModel {
   const filtered = createPlacement();
   const unfiltered = createPlacement();
   const crew = signal<string | undefined>(undefined);
-  const filterOf = (v: DeepReadonly<ViewState>, who: string | undefined): Filter => ({ project: v.filter, ...(who !== undefined && { crew: who }) });
-  const sections = computed(() => filtered({ keys: keys(), rows: rows(), plans: plans(), filter: filterOf(view.value(), crew()), filterKey: `${view.value().filter}|${crew() ?? ''}` }));
+  // the Crew section's members, when it nests their jobs (the stacked list)
+  const nest = signal(false);
+  const memberRows = client.entities.list<{ id: string }>('crew_member');
+  const nested = computed(() => (nest() ? [...new Set(memberRows().map((m) => m.id))].sort() : undefined));
+  const filterOf = (v: DeepReadonly<ViewState>, who: string | undefined, under: readonly string[] | undefined): Filter => ({
+    project: v.filter,
+    ...(who !== undefined && { crew: who }),
+    ...(under && { underMember: underMemberOf(new Set(under)) }),
+  });
+  const sections = computed(() => {
+    const under = nested();
+    return filtered({ keys: keys(), rows: rows(), plans: plans(), filter: filterOf(view.value(), crew(), under), filterKey: `${view.value().filter}|${crew() ?? ''}|${under?.join(',') ?? '-'}` });
+  });
   const everything = computed(() => unfiltered({ keys: keys(), rows: rows(), plans: plans(), filter: ALL, filterKey: 'all' }));
   const needsCount = computed(() => everything().needs.filter((e) => (e.kind === 'task' ? needsYou(e.s) : e.kind === 'group' && e.runs.some((r) => needsYou(r.s)))).length);
   const agentList = client.entities.list<Agent>(KIND.agent);
@@ -166,6 +188,7 @@ function createModel(client: PluginClient): ListModel {
     },
     crew,
     setCrew: (id) => crew(id),
+    setNest: (on) => nest(on),
     setFilter: (project) => view.set((v) => ({ filter: project, toggled: [...v.toggled] })),
     toggleSection: (id) => view.set((v) => ({ filter: v.filter, toggled: v.toggled.includes(id) ? v.toggled.filter((x) => x !== id) : [...v.toggled, id] })),
   };

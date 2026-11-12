@@ -1,10 +1,13 @@
 // The phone's Crew section at the top of the list (v1 #secCrew): with no rail, the crew is reached here. A folding
-// Crew heading with Org and +, a row per member opening their thread, a dashed row to add the first one.
-import { createMemo, createSignal, Show, type JSX } from 'solid-js';
+// Crew heading with Org and +, a row per member opening their thread, a dashed row to add the first one. Under a member,
+// its jobs for other tasks (delegated, @mentions, checks) as the list's own cards, the most urgent first, 3 at most
+// (v1 crew.js paintCrew / memberJobs): the list lends its card (ShellApi.taskCards) and leaves those jobs out.
+import { createMemo, createSignal, For, Show, type JSX } from 'solid-js';
 import type { ExtensionProps } from '@wisp/shell/contract';
 import { useShell } from '@wisp/shell';
 import { CrewListSection, useSignal, type CrewListRow } from '@wisp/ui';
-import { crewData } from './data.ts';
+import { crewData, emptyState } from './data.ts';
+import { memberJobs, NeedsTracker } from './rules/feed.ts';
 import { t } from './i18n.ts';
 import { cadenceText } from './model.ts';
 import type { Member } from './types.ts';
@@ -17,6 +20,29 @@ export default function CrewListTop(props: ExtensionProps): JSX.Element {
   const say = t as (k: string, v?: Readonly<Record<string, string | number>>) => string;
   const members = useSignal(crewData(c).members);
   const [folded, setFolded] = createSignal(false);
+  // a member's jobs under it: v1's rules (rules/feed.ts) with this page's open task and the list's project
+  const data = crewData(c);
+  const states = useSignal(data.states);
+  const card = useSignal(shell.taskCards?.render ?? (() => undefined));
+  const projectFilter = useSignal(shell.projectFilter?.value ?? (() => 'all'));
+  const needs = new NeedsTracker();
+  // no open set: the list leaves a job out exactly when it doesn't need you (shell-list sections.ts), so the two agree
+  // and a job is always in one of them (v1's sticky Needs you for an open report would drop it from both here)
+  const none: ReadonlySet<string> = new Set();
+  const jobsOf = createMemo(() => {
+    const ids = new Set((members() as readonly { id: string }[]).map((m) => m.id));
+    const ctx = { filter: projectFilter(), pick: null, open: none, has: (id: string) => ids.has(id), needs, crewOpen: null, pinned: none };
+    return new Map((members() as readonly (Member & { paused?: boolean })[]).map((m) => [m.id, memberJobs(m, states().get(m.id) ?? emptyState(!!m.paused), ctx)]));
+  });
+  const Jobs = (p: { readonly id: string }): JSX.Element => (
+    <For each={jobsOf().get(p.id)?.list ?? []}>
+      {(s) => (
+        <Show when={data.sessionKey(s.id)}>
+          {(k) => card()?.(k())}
+        </Show>
+      )}
+    </For>
+  );
   const orgOn = (): boolean => nav().main.kind === 'view' && String((nav().main as { id?: unknown }).id) === VIEW.org;
   const rows = createMemo((): CrewListRow[] =>
     (members() as unknown as readonly (Member & { key: string })[]).map((m) => ({
@@ -27,6 +53,11 @@ export default function CrewListTop(props: ExtensionProps): JSX.Element {
       color: m.color,
       sub: m.paused ? t('wisp.crew.org.paused') : cadenceText(m, say as never),
       paused: m.paused,
+      jobs: card() ? <Jobs id={m.id} /> : undefined,
+      more: () => {
+        const n = jobsOf().get(m.id)?.more ?? 0;
+        return n > 0 ? say('wisp.crew.list.more', { count: n, name: m.name }) : undefined;
+      },
     })),
   );
   return (

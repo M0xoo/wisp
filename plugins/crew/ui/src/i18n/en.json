@@ -210,7 +210,6 @@
   "wisp.crew.org.add": "Add member",
   "wisp.crew.org.addTitle": "Add a crew member",
   "wisp.crew.org.close": "Close: back to New task (Esc)",
-  "wisp.crew.org.hint": "Arrows go from a member to their delegates. Select one to change who they hand work to.",
   "wisp.crew.org.choosing": "Choosing {name}’s delegates: + adds a member, ✓ takes them off",
   "wisp.crew.org.notConnected": "Not connected",
   "wisp.crew.org.member": "Crew member",
@@ -251,5 +250,13 @@
   "wisp.crew.list.orgTitle": "Org: who on your crew hands work to whom",
   "wisp.crew.list.emptyTitle": "Add someone to your crew",
   "wisp.crew.list.emptySub": "A named agent that checks in, reports, and answers to @name",
-  "wisp.crew.list.open": "{name}: open (or type @{name} in any prompt)"
+  "wisp.crew.list.open": "{name}: open (or type @{name} in any prompt)",
+  "wisp.crew.list.more": "{count} more · open {name}",
+  "wisp.crew.org.hintDrag": "Arrows go from a member to their delegates. Select one to change who they hand work to. Drag a card to move it, or from its handle onto another to link them.",
+  "wisp.crew.org.hintTouch": "Arrows go from a member to their delegates. Select one to change who they hand work to, then drag it to move it.",
+  "wisp.crew.org.reset": "Reset layout",
+  "wisp.crew.org.resetTitle": "Put everyone back in tiers, the way the chart lays itself out",
+  "wisp.crew.org.resetDone": "Back to the automatic layout",
+  "wisp.crew.org.undo": "Undo",
+  "wisp.crew.org.handle": "Drag onto another member to make them {name}’s delegate"
 }

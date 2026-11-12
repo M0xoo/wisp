@@ -17,3 +17,18 @@ test('a_picked_crew_members_list_holds_only_their_jobs_read_from_the_rows_crew_n
   expect(ids({ project: 'all', crew: 'nobody' })).toEqual([]);
   expect(ids({ project: 'all' })).toEqual(['a', 'b', 'c']);
 });
+
+const job = (id: string, crew: string, kind: string, state: string, unread = false): SessionRow =>
+  flatSession({ id, title: id, state, agent: 'claude', unread, created_at: 1, updated_at: 2, body: { cwd: '/p', ext: { 'wisp.crew': { id: crew, job: kind } } }, summary: { status: state, preview: '' } } as unknown as SessionRow);
+
+test('with the phone Crew section there, a members jobs for other tasks leave the list until they need you_v1_under_member', async () => {
+  const { underMemberOf } = await import('../src/state.ts');
+  const rows = [job('d', 'ada', 'delegated', 'running'), job('m', 'ada', 'mention', 'review', true), job('c', 'ada', 'checkin', 'running'), job('g', 'gone', 'delegated', 'running'), job('e', 'ada', 'event', 'done')];
+  const keyed = rows.map((s) => ({ key: `p:${s.id}`, s }));
+  const ids = (f: Parameters<typeof sections>[1]): string[] => Object.values(sections(keyed as never, f)).flat().map((e) => (e as { s?: SessionRow }).s?.id ?? '').filter(Boolean).sort();
+  // nested: the delegated one and the finished event go under Ada; the unread mention needs you (Needs you); a
+  // check-in is a task like any other; a job of a member who left stays in the list
+  expect(ids({ project: 'all', underMember: underMemberOf(new Set(['ada'])) })).toEqual(['c', 'g', 'm']);
+  // no section (side by side): everything stays in the list
+  expect(ids({ project: 'all' })).toEqual(['c', 'd', 'e', 'g', 'm']);
+});

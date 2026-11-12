@@ -3,7 +3,7 @@
 // Server data comes from the entity store through the model's memoised sections; what's open comes
 // from navigation; the rest (whose menu is open, the dialogs) is local to this list.
 
-import { createEffect, createMemo, Match, on, Show, Switch, type JSX } from 'solid-js';
+import { createEffect, createMemo, Match, on, onCleanup, Show, Switch, type JSX } from 'solid-js';
 import { ContextMenu, EmptyState, Stack, VirtualList, useSignal, type IconName, type MenuEntry } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import type { ExtensionProps, ResolvedExtension } from '@wisp/shell/contract';
@@ -25,6 +25,14 @@ export const ROW_ESTIMATE = 58;
 
 export function TaskList(props: ExtensionProps): JSX.Element {
   const env = buildEnv(useShell(), props.client);
+  // the list's card, lent while the list shows: the phone's Crew section nests a member's jobs with it (v1 placeCards)
+  onCleanup(
+    env.shell.taskCards?.provide((key) => (
+      <Env.Provider value={env}>
+        <TaskRow k={key as EntityKey} />
+      </Env.Provider>
+    )) ?? (() => {}),
+  );
   return (
     <Env.Provider value={env}>
       <ListBody />
@@ -53,6 +61,8 @@ function ListBody(): JSX.Element {
   const toggled = createMemo(() => new Set(view().toggled));
   // the crew's section (on the phone, where there's no rail): a plugin fills shell.list:crew
   const crew = hasExtensions('shell.list:crew');
+  // with the section there, a member's jobs for other tasks sit under the member, not in the sections (v1 crew.js)
+  createEffect(() => env.model.setNest(!env.split() && crew()));
   const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split(), crew: !env.split() && crew() }));
   const plugins = useSignal(env.shell.extensions('shell.row:menu'));
   const menu = createMemo<MenuEntry[]>(() => menuFor(env, plugins()));
