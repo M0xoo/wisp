@@ -4,7 +4,7 @@ The owner keeps fixing wisp v1 (`origin/main`) while v2 is built. At every coder
 commits since the last sync (`git log <last>..origin/main`), decides for each what v2 needs, and queues it here and in
 `docs/v2-queue.md`. v2 ports the intent (and the test's scenario), not the JS.
 
-Last synced v1 commit: **f3db6466** (2026-11-12)
+Last synced v1 commit: **a5b1c646** (2026-11-12)
 
 | v1 | What it fixed | v2 action |
 |---|---|---|
@@ -27,3 +27,4 @@ Last synced v1 commit: **f3db6466** (2026-11-12)
 | #778 4dfff478 | phone: a subagent's title is one line, like its lead's | **queue (phone frontend):** subagent rows one line |
 | #779 72ba8003, #780 6dc0cac5 | an opened activity step shows its full title (not the server-cut one) | **queue:** the step keeps its full title in the event row; the UI shows it whole when opened |
 | #781 f3db6466 | Stop asks first, for an agent and a subagent alike | **queue (UI):** Stop confirms first, for tasks and subagents; named test |
+| #782 a5b1c646 | phone: Read all stays put when pressed | **queue (phone frontend):** Read all keeps its place |
