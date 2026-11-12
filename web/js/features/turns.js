@@ -275,11 +275,11 @@ export function renderBody(id, { fresh, byHand }) {
     const typing = prev && isLatest && t.signedOut && typingLogin(prev.node);
     if (!prev || (prev.key !== key && !typing)) {
       const toggle = () => {
-        // A stub (the phone fetched only the latest turns): it opens once the whole task is here.
+        // A stub (the page fetched only the latest turns): it opens once that turn is here.
         if (t.stub) {
           n.unfolded.add(t.id);
           node.setAttribute('aria-busy', 'true');
-          return wholeTask(id);
+          return wholeTask(id, t.id);
         }
         n.unfolded.has(t.id) ? n.unfolded.delete(t.id) : n.unfolded.add(t.id);
         renderBody(id, { fresh: false, byHand: true });

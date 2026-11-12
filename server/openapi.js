@@ -293,7 +293,8 @@ export function openapi({ version, port }) {
           summary: 'Full session record: turns, activity, captured edits, presentations',
           parameters: [
             { name: 'lean', in: 'query', schema: { type: 'boolean' }, description: 'Leave out each captured edit’s `beforeFile` (the whole file before it; only rollback needs it)' },
-            { name: 'turns', in: 'query', schema: { type: 'integer' }, description: 'With `lean`: only the latest N turns whole; older ones are stubs (`stub: true`) with their prompt, times, status, mode, account and result title' },
+            { name: 'turns', in: 'query', schema: { type: 'integer' }, description: 'With `lean`: only the latest N turns whole; older ones are stubs (`stub: true`) with their prompt, times, status, mode, account, stats and result title' },
+            { name: 'also', in: 'query', schema: { type: 'string' }, description: 'With `turns`: comma-separated turn ids sent whole too (older turns unfolded on the page)' },
           ],
           responses: { 200: json({ type: 'object' }), 404: err[404] },
         },

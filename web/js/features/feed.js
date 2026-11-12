@@ -836,13 +836,22 @@ export function syncUrl({ start = false } = {}) {
   } else if (h.startsWith('#/s/')) history.replaceState(history.state, '', location.pathname + location.search); // the phone's Back entries keep their state
 }
 
-// The page's copy of a task: lean, and on the phone only its latest turns whole (the rest are
-// stubs a folded row can show) until something needs them all (wholeTask).
-const taskUrl = (id) => `/sessions/${id}?lean=1${MOBILE && !S.nodes.get(id)?.whole ? `&turns=${VISIBLE_TURNS}` : ''}`;
-export function wholeTask(id) {
+// The page's copy of a task: lean, only its latest turns whole (the rest are stubs a folded row
+// can show), plus the turns open by hand (n.unfolded: one unfolded from its stub, or one that
+// slid out of the window while open), until something needs them all (wholeTask with no turn: the
+// Changes view). A big task sent whole was tens of MB with its subagents, again on every refresh
+// while it ran (server/session-view.js).
+const taskUrl = (id) => {
+  const n = S.nodes.get(id);
+  if (n?.whole) return `/sessions/${id}?lean=1`;
+  const also = n?.unfolded?.size ? `&also=${[...n.unfolded].map(encodeURIComponent).join(',')}` : '';
+  return `/sessions/${id}?lean=1&turns=${VISIBLE_TURNS}${also}`;
+};
+// turnId: only that old turn (already in n.unfolded), unfolded from its stub.
+export function wholeTask(id, turnId) {
   const n = S.nodes.get(id);
   if (!n || n.whole) return;
-  n.whole = true;
+  if (!turnId) n.whole = true;
   if (S.open.has(id)) fetchFull(id);
 }
 
