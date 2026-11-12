@@ -99,7 +99,7 @@ test('theme: the theme setting takes system, light or dark, and its icons exist'
 
 test('the overlap pill and warning (another open task changes the same files) are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'card.overlap': { hide: true }, 'card.overlapNote': { style: { borderRadius: '4px' } } } }), []);
-  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.overlap', 'card.overlapNote'] } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.overlap', 'card.overlapNote', 'card.overlapClose'] } }), []);
   const p = problems({ ...base0, parts: { 'card.overlaps': { hide: true } } });
   assert.ok(p.some((x) => /card\.overlaps/.test(x)), p.join('\n'));
 });
