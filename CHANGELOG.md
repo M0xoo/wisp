@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **⌘K finds past work by its words.** Type three letters or more and tasks whose prompts or answers hold them show too, with the words found.
+- **A compare is one card in the list.** Its runs sit under one head that counts what finished, with **vs Compare** to see them side by side.
+- **Ship and Merge say when comments aren't sent yet.** Comments you wrote in Changes and haven't sent are counted before you ship or merge.
+
 - **vs in New task.** The + beside the harness runs the same task on another harness too (up to four side by side); each extra run sits behind a "vs" that removes it. They land as one compare, ready for Compare runs.
 - **Compare's Plan row.** What each run took of its plan's window, and what overlapping runs on one account took together. wisp now traces each window's move to the turns that ran while it moved.
 - **The Watch tab opens by itself** when the agent opens a page while you're looking at its task.
@@ -139,6 +143,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Updating the Windows app from v1 removes v1's leftovers.** Its bundled Node and old server files are deleted on install; your tasks and settings in `~/.wisp` stay.
 - **Quitting the desktop app stops wisp's server again** (on macOS and Windows it could stay up): a plugin switching off while the list was being read could lock the server's plugin registry.
 - Installing a plugin from `~/code/my-plugin` (as the box suggests) works: `~` is your home folder. The same for a project added as `~/…`.
 - The backdrop behind a dialog is as light in dark mode as in light mode, as before.

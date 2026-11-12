@@ -8,7 +8,11 @@ clippy was fixed, so this may be older than round 33. (2) DESK2-05 passes on mac
 (smoke, desktop, migrate): Quit on Windows doesn't stop `wisp serve` (no SIGTERM there: the stdin pipe or a Job Object
 must end it; check the shell closes the pipe on Quit, and that the server's stdin reader sees EOF on Windows).
 
-**Fix first: #756 CI on d4ad3fe1 (2026-11-12).** `tauri windows` migrate: **DESK2-01** "setup.exe /S installs the app: a
+**Round 35 (done):** DESK2-01 (installer pre-install hook clears v1's Node and app; QA checks leftovers and ~/.wisp: CI to
+confirm), the mock's harnesses and first-run seed, F-page-11, the compare card, F-task-20. Next: partial (129) and missing
+(18) rows, most-used first.
+
+**Done in round 35: #756 CI on d4ad3fe1 (2026-11-12).** `tauri windows` migrate: **DESK2-01** "setup.exe /S installs the app: a
 bundled Node is still there: v1 packaging". Installing v2 over a v1 install must remove v1's bundled Node and its
 other leftovers (the installer's upgrade step, NSIS), keeping the user's data in ~/.wisp. (DESK2-05 and hardKill were
 fixed in round 33; clippy items_after_test_module in term.rs too.)

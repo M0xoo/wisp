@@ -1434,3 +1434,35 @@ Checks: typecheck, `npm run check` (0 errors); vitest `compare` (4), `first-run`
 --lib` (7), `wisp-runtime-core --lib watch` (3), `wisp-runtime --test watch`; clippy -D warnings on budget(+core),
 runtime(+core); Chrome: vs runs → three rows → Compare runs; ↑ after a reload; Shift+Tab; the trigger form's picker.
 
+## Round 35 (2026-11-12)
+
+**#756 fix first: DESK2-01.** v1's Tauri build installed into the same folder with its Node (`node\`) and its Node app
+(`resources\app\{bin,server,grid,skills,desktop,web,CHANGELOG.md}`); NSIS writes v2's files over it and never removes
+what v2 stopped shipping. `installer-hooks.nsh` `NSIS_HOOK_PREINSTALL`: when `node\node.exe` is there, `node\` and
+`resources\app` go before v2's files are written (only the install folder; ~/.wisp and %APPDATA% untouched). The
+Electron-copy cleanup also ran on that Node (`node.exe remove-electron.mjs`): it's now a hidden cmd.exe loop.
+`qa/desktop-v2.mjs` DESK2-01 also checks v1's `resources/app/*` are gone and, over an older install, that a file put in
+~/.wisp before the update survives. Not run here (no makensis on this Mac): CI's `tauri windows` migrate job is the check.
+
+**Mock.** `runtime.agents` answers three set-up harnesses (Claude Code, Codex, opencode, with models and levels) and
+four not set up; `POST /__mock/reset?seed=first-run` (or `MOCK_FIRST_RUN=1`) starts with no tasks: the first-run
+launcher shows (attach, mode, harness, More options, Send) and opens full on More. `runtime.search` answers from the
+seed's turns. (Parity task.right-click: same 16 parts off with or without the mock harnesses: round 31's capture state.)
+
+**F-page-11 unsent comments.** Unsent comments are drafts (ADR state rules: client-side), so the api is the shell's
+prompt-source extension point, not a server topic: `PromptSourceDef.waiting(ctx)` (additive; graph impact: 36 UI
+dependents, none implement it), answered by shell-task's comments source; Ship's dialog and Merge's confirm count every
+source's with that source's own client (`unsent.ts`). Never reads shell-task's store.
+
+**Fold a compare into one task.** shell-list already grouped runs by `groupId` (head + run rows); what v1 had and v2
+lacked: the card around them (a `list.compare` box via VirtualList `groups`; the list is its own stacking context so
+the box paints over the sidebar) and the head's *vs Compare* (kit `Button mark="vs"`, in the pills column, which now lets a
+button take clicks over the row's hit area).
+
+**v1-features.** F-task-20 built (⌘K past work: the tasks source's `deep` over `runtime.search`). Partial 129, missing 18.
+
+Checks: typecheck, `npm run check` (0 errors); vitest compare (4), first-run, no-output, prompt-keys (2), past-work,
+row-menu, ship unsent, shell-list flat (3), menu, watch-open, comments, apps/web mock-peer (5); Chrome: first-run
+launcher (1440, 390), compare card (1440 light/dark, 390), vs Compare → dialog, ⌘K "forwarded"; parity home 1440 light
+and dark 0 parts off.
+
