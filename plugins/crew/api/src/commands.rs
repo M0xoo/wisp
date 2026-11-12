@@ -54,6 +54,10 @@ pub struct MemberBody {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub color: Option<String>,
+    /// the list's tint while they're picked (v1 `bg`): '' their glow, 'none', or a crew colour. Additive (2026-11-12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub bg: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub brief: Option<String>,

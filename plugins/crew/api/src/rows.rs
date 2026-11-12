@@ -374,6 +374,9 @@ pub struct Member {
     pub avatar: String,
     #[serde(default)]
     pub color: String,
+    /// the list's tint while they're picked on the rail (v1 `bg`): '' their glow, 'none', or a crew colour. Additive.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub bg: String,
     #[serde(default)]
     pub brief: String,
     #[serde(default)]

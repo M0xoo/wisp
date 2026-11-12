@@ -3,7 +3,11 @@
 /**
  * `POST /sessions/:id/crew`: a task joins the crew as the new member's first job.
  */
-export type AdoptArgs = { sessionId: string, name?: string, role?: string, avatar?: string, color?: string, brief?: string, cwd?: string, machine?: string, sandbox?: string, agent?: string, model?: string, effort?: string, mode?: string, 
+export type AdoptArgs = { sessionId: string, name?: string, role?: string, avatar?: string, color?: string, 
+/**
+ * the list's tint while they're picked (v1 `bg`): '' their glow, 'none', or a crew colour. Additive (2026-11-12).
+ */
+bg?: string, brief?: string, cwd?: string, machine?: string, sandbox?: string, agent?: string, model?: string, effort?: string, mode?: string, 
 /**
  * a cron, or words ("every 30 minutes")
  */

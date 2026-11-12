@@ -177,7 +177,10 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
       title={t('stuff.title')}
       role={t('stuff.role')}
       count={total()}
-      actions={[{ id: 'add', icon: 'plus', label: t('stuff.page.add'), title: t('stuff.page.addTitle'), onClick: () => picker?.click() }]}
+      actions={[
+        { id: 'makePane', icon: 'app', label: t('stuff.make.title'), title: t('stuff.make.headTitle'), onClick: () => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'stuff.make' as never, params: {} } }) },
+        { id: 'add', icon: 'plus', label: t('stuff.page.add'), title: t('stuff.page.addTitle'), onClick: () => picker?.click() },
+      ]}
       close={{ label: t('stuff.page.close'), onClick: () => c.navigate({ t: 'home' }) }}
       search={{ value: q(), placeholder: t('stuff.page.search'), label: t('stuff.page.searchLabel'), onInput: setQ }}
       kinds={

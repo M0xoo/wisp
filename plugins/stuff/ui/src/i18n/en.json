@@ -144,5 +144,17 @@
   "stuff.page.empty.mention1": "Type ",
   "stuff.page.empty.mention2": " in any prompt to hand an agent something you kept.",
   "stuff.page.empty.or": "Drop files here, paste a screenshot, or ",
-  "stuff.page.empty.add": "add files"
+  "stuff.page.empty.add": "add files",
+  "stuff.make.title": "Make a pane",
+  "stuff.make.headTitle": "An app that lives in wisp: an agent builds it, or start from one wisp ships with",
+  "stuff.make.hint": "Say what it should show or do. An agent writes it into My Stuff and pins it. It gets nothing from wisp until you press Allow… on its bar.",
+  "stuff.make.label": "What should the pane do?",
+  "stuff.make.placeholder": "A pane that lists my open PRs by repo…",
+  "stuff.make.starters": "Or start from one of these",
+  "stuff.make.add": "Add",
+  "stuff.make.addOne": "Add {name}",
+  "stuff.make.added": "Added",
+  "stuff.make.runs": "Runs on {harness} in an empty folder of its own: it writes the pane, not your code.",
+  "stuff.make.go": "Make it",
+  "stuff.make.making": "Making it: it pins itself, and reloads as the agent changes it"
 }

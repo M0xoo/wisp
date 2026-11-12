@@ -86,6 +86,8 @@ export interface Member {
   /** a spirit code, an emoji, or '' (rolled from the name) */
   avatar: string;
   color: string;
+  /** the list's tint while they're picked (v1 `bg`): '' their glow, 'none', or a crew colour */
+  bg?: string;
   brief: string;
   cwd: string;
   /** '' = this computer */

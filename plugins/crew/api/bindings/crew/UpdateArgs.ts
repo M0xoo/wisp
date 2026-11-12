@@ -4,7 +4,11 @@ import type { OfferSettle } from "./OfferSettle";
 /**
  * `PATCH /crew/:id`. `queue`: the waiting job ids to keep (the rest are dropped).
  */
-export type UpdateArgs = { id: string, queue?: Array<string>, offers?: Array<OfferSettle>, name?: string, role?: string, avatar?: string, color?: string, brief?: string, cwd?: string, machine?: string, sandbox?: string, agent?: string, model?: string, effort?: string, mode?: string, 
+export type UpdateArgs = { id: string, queue?: Array<string>, offers?: Array<OfferSettle>, name?: string, role?: string, avatar?: string, color?: string, 
+/**
+ * the list's tint while they're picked (v1 `bg`): '' their glow, 'none', or a crew colour. Additive (2026-11-12).
+ */
+bg?: string, brief?: string, cwd?: string, machine?: string, sandbox?: string, agent?: string, model?: string, effort?: string, mode?: string, 
 /**
  * a cron, or words ("every 30 minutes")
  */

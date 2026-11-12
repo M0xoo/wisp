@@ -16,7 +16,11 @@ export type Member = { id: string, name: string, role: string,
 /**
  * a spirit code, an emoji, or '' (rolled from the name)
  */
-avatar: string, color: string, brief: string, cwd: string, 
+avatar: string, color: string, 
+/**
+ * the list's tint while they're picked on the rail (v1 `bg`): '' their glow, 'none', or a crew colour. Additive.
+ */
+bg?: string, brief: string, cwd: string, 
 /**
  * '' = this computer
  */

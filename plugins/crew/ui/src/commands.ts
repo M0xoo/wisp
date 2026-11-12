@@ -14,6 +14,7 @@ export type MemberPatch = Partial<
     | 'role'
     | 'avatar'
     | 'color'
+    | 'bg'
     | 'brief'
     | 'cron'
     | 'on'

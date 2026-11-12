@@ -46,6 +46,16 @@ export interface CrewEditorFormProps {
   readonly job: { readonly label: string; readonly hint: string; readonly value: string; readonly placeholder: string; readonly onInput: (v: string) => void };
   readonly cadence: { readonly label: string; readonly hint: string; readonly chips: readonly CrewEditorChip[]; readonly value: string; readonly onPick: (v: string) => void; readonly custom: { readonly value: string; readonly placeholder: string; readonly read: string; readonly bad: boolean; readonly onInput: (v: string) => void } | undefined };
   readonly events: { readonly label: string; readonly hint: string; readonly chips: readonly CrewEditorChip[]; readonly on: readonly string[]; readonly onToggle: (v: string) => void };
+  /** the task panel's tint while they're picked on the rail (v1 .ce-tint): their glow, none, or a crew colour */
+  readonly tint?: {
+    readonly label: string;
+    readonly hint: string;
+    readonly glow: { readonly color: string; readonly label: string };
+    readonly none: string;
+    readonly colors: readonly string[];
+    readonly value: string;
+    readonly onPick: (v: string) => void;
+  } | undefined;
   readonly bar: readonly CrewEditorBarItem[];
   readonly parallel: { readonly label: string; readonly title: string; readonly value: number; readonly less: string; readonly more: string; readonly onStep: (by: number) => void };
   readonly checkin?: { readonly label: string; readonly on: boolean; readonly onToggle: (on: boolean) => void } | undefined;
@@ -156,6 +166,30 @@ export function CrewEditorForm(props: CrewEditorFormProps): JSX.Element {
             <Chips chips={props.events.chips} on={(v) => props.events.on.includes(v)} onPick={(v) => props.events.onToggle(v)} pressed />
           </div>
         </div>
+        <Show when={props.tint}>
+          {(ti) => (
+            <div data-kit="ce-stack" data-part="crew.editor.tint">
+              <span>
+                {ti().label} <small>{ti().hint}</small>
+              </span>
+              <div data-kit="ce-tints" data-layout="wrap" role="group" aria-label={ti().label}>
+                <button type="button" data-kit="ce-swatch" data-on={flag(ti().value === '')} aria-pressed={ti().value === ''} title={ti().glow.label} aria-label={ti().glow.label} onClick={() => ti().onPick('')}>
+                  <i data-kit="ce-sw" data-color={ti().glow.color} />
+                </button>
+                <button type="button" data-kit="ce-swatch" data-none="" data-on={flag(ti().value === 'none')} aria-pressed={ti().value === 'none'} title={ti().none} aria-label={ti().none} onClick={() => ti().onPick('none')}>
+                  <Icon name="x" size="sm" />
+                </button>
+                <For each={ti().colors}>
+                  {(col) => (
+                    <button type="button" data-kit="ce-swatch" data-on={flag(ti().value === col)} aria-pressed={ti().value === col} title={col} aria-label={col} onClick={() => ti().onPick(col)}>
+                      <i data-kit="ce-sw" data-color={col} />
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          )}
+        </Show>
         <div data-kit="ce-bar" data-layout="wrap" data-part="crew.editor.bar">
           <For each={props.bar}>
             {(b) => (

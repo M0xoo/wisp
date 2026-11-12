@@ -19,7 +19,7 @@ export interface Graph {
 /** Crew delegates only, and only members that exist: a delegate that left is no arrow. */
 export function graph(list: readonly OrgMember[]): Graph {
   const ids = new Set(list.map((m) => m.id));
-  const out = new Map(list.map((m) => [m.id, m.team.flatMap((t) => (t.crew && t.crew !== m.id && ids.has(t.crew) ? [t.crew] : []))]));
+  const out = new Map(list.map((m) => [m.id, (m.team ?? []).flatMap((t) => (t.crew && t.crew !== m.id && ids.has(t.crew) ? [t.crew] : []))]));
   const inc = new Map<string, string[]>(list.map((m) => [m.id, []]));
   for (const [a, bs] of out) for (const b of bs) inc.get(b)?.push(a);
   return { out, inc };

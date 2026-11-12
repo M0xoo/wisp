@@ -4,7 +4,11 @@
  * A member's fields as a create or an edit sends them (v1 `normalizeMember`'s input). Every field is
  * optional: an edit keeps what it leaves out.
  */
-export type MemberBody = { name?: string, role?: string, avatar?: string, color?: string, brief?: string, cwd?: string, machine?: string, sandbox?: string, agent?: string, model?: string, effort?: string, mode?: string, 
+export type MemberBody = { name?: string, role?: string, avatar?: string, color?: string, 
+/**
+ * the list's tint while they're picked (v1 `bg`): '' their glow, 'none', or a crew colour. Additive (2026-11-12).
+ */
+bg?: string, brief?: string, cwd?: string, machine?: string, sandbox?: string, agent?: string, model?: string, effort?: string, mode?: string, 
 /**
  * a cron, or words ("every 30 minutes")
  */

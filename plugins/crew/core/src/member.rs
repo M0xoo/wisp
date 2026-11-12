@@ -145,6 +145,16 @@ fn place(body: &MemberBody, prev: Option<&Member>, c: &Checks) -> Result<(String
 }
 
 /// body → a clean member. `prev`: the member being edited (its memory and bookkeeping carry on).
+/// The task panel's tint (v1 crewEditor `bg`): their glow (''), none, or one of the crew colours; anything else keeps
+/// what they had.
+#[must_use]
+pub fn bg_of(asked: Option<&str>, prev: Option<&str>) -> String {
+    match asked {
+        Some(b) if b.is_empty() || b == "none" || CREW_COLORS.contains(&b) => b.to_owned(),
+        _ => prev.unwrap_or_default().to_owned(),
+    }
+}
+
 pub fn normalize_member(body: &MemberBody, prev: Option<&Member>, c: &Checks, ids: &mut dyn Ids, now: i64) -> Result<Member> {
     let name = squash(&pick(body.name.as_ref(), prev.map(|p| p.name.as_str()), ""));
     if name.is_empty() {
@@ -183,6 +193,7 @@ pub fn normalize_member(body: &MemberBody, prev: Option<&Member>, c: &Checks, id
     m.role = clip(&squash(&pick(body.role.as_ref(), prev.map(|p| p.role.as_str()), "")), 60);
     m.avatar = avatar_of(&pick(body.avatar.as_ref(), prev.map(|p| p.avatar.as_str()), ""));
     m.color = color;
+    m.bg = bg_of(body.bg.as_deref(), prev.map(|p| p.bg.as_str()));
     m.brief = clip(pick(body.brief.as_ref(), prev.map(|p| p.brief.as_str()), "").trim(), BRIEF_MAX);
     m.model = clip(&pick(body.model.as_ref(), prev.map(|p| p.model.as_str()), ""), 120);
     m.effort = if is_effort(&effort) { effort } else { String::new() };

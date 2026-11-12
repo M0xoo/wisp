@@ -16,6 +16,8 @@ export interface Draft {
   readonly avatar: string;
   /** what else starts their jobs (v1 EVENTS: finished, done, ci) */
   readonly on: readonly string[];
+  /** the task panel's tint: '' their glow, 'none', or a crew colour */
+  readonly bg: string;
   readonly brief: string;
   readonly cron: string;
   readonly parallel: number;
@@ -39,6 +41,7 @@ export function draftOf(m: (Partial<Member> & { wakes?: unknown }) | undefined):
     name: m?.name ?? '',
     role: m?.role ?? '',
     avatar: m?.avatar ?? '',
+    bg: m?.bg ?? '',
     on: Array.isArray(m?.on) ? m.on.filter((k) => EVENTS.includes(k)) : [],
     brief: m?.brief ?? '',
     cron: m?.cron ?? '',
@@ -64,7 +67,7 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 /** Save on an existing member: only the fields that changed (crew.update merges). */
 export function patchOf(d: Draft, before: Draft): MemberPatch & { wakes?: readonly Wake[] } {
   const out: Record<string, unknown> = {};
-  for (const k of ['name', 'role', 'avatar', 'on', 'brief', 'cron', 'parallel', 'agent', 'mode', 'cwd', 'wakes'] as const) {
+  for (const k of ['name', 'role', 'avatar', 'bg', 'on', 'brief', 'cron', 'parallel', 'agent', 'mode', 'cwd', 'wakes'] as const) {
     const v = typeof d[k] === 'string' ? (d[k] as string).trim() : d[k];
     if (!same(v, before[k])) out[k] = v;
   }

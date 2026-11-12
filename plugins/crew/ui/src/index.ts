@@ -15,6 +15,8 @@ export default definePluginUi({
   id: 'wisp.crew',
   // a member's page: the main pane when a face on the rail is picked (v1 crew.js buildView)
   extensions: [
+    // the phone's Crew section at the top of the list (v1 #secCrew); it shows only in the stacked layout
+    defineExtension({ id: 'wisp.crew.list', attachTo: { id: 'shell.list:crew' }, component: lazy(() => import('./CrewListTop.tsx')) }),
     defineExtension({ id: 'wisp.crew.page', attachTo: { id: 'shell.screen:crew' }, component: lazy(() => import('./CrewPage.tsx')) }),
     // under a turn: the members asked on it and their answers, with Reply (v1 btw.js crew entries)
     defineExtension({ id: 'wisp.crew.answers', attachTo: { id: 'shell.turn:foot' }, component: lazy(() => import('./Answers.tsx')) }),
@@ -37,6 +39,10 @@ export default definePluginUi({
   ],
   // add or edit a member (v1 crewEditor): the rail's +, a member page's Edit…
   views: [
+    // Import crew members: a shared .crew.json, its JSON or a link (v1 crew-share.js importCrew)
+    defineView({ kind: VIEW.import, slot: 'overlay', overlay: 'dialog', parse: (p) => p, title: () => t('wisp.crew.import.title'), component: lazy(() => import('./ImportCrew.tsx')) }),
+    // Org: who hands work to whom (v1 org.js, F-crew-14), in the main pane
+    defineView({ kind: VIEW.org, slot: 'main', parse: () => null, title: () => t('wisp.crew.org.title'), component: lazy(() => import('./OrgPage.tsx')) }),
     defineView({
       kind: VIEW.editor,
       slot: 'overlay',

@@ -6,7 +6,8 @@
 import { createEffect, createMemo, createSignal, type JSX } from 'solid-js';
 import { uuidv7, type PluginClient } from '@wisp/client';
 import { projectList, useShell } from '@wisp/shell';
-import { CrewEditorForm, rollSpirit, useSignal, type CrewEditorBarItem, type CrewEditorChip } from '@wisp/ui';
+import { CrewEditorForm, isSpirit, parseSpirit, rollSpirit, useSignal, type CrewEditorBarItem, type CrewEditorChip } from '@wisp/ui';
+import { CREW_COLORS } from './types.ts';
 import { createMember, updateMember } from './commands.ts';
 import { crewData } from './data.ts';
 import { EVENTS, TEMPLATES, addWake, draftOf, fromTemplate, patchOf, problemOf, toggleOn, type Draft } from './editor.ts';
@@ -179,6 +180,7 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
               templates: TEMPLATES.map((tp) => ({ key: tp.key, label: tplText(tp.key).role, avatar: tp.avatar })),
               picked: picked(),
               onPick: pick,
+              import: { label: t('wisp.crew.editor.import'), title: t('wisp.crew.editor.importTitle'), onClick: () => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.import as never, params: {} } }) },
             }
       }
       face={{ avatar: d().avatar, name: d().name || 'wisp', title: t('wisp.crew.editor.face'), onRoll: () => set({ avatar: rollSpirit(String(Math.random())) }) }}
@@ -219,6 +221,15 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
           : undefined,
       }}
       events={{ label: t('wisp.crew.editor.events'), hint: t('wisp.crew.editor.eventsHint'), chips: eventChips(), on: onNow(), onToggle: toggleEvent }}
+      tint={{
+        label: t('wisp.crew.editor.tint'),
+        hint: t('wisp.crew.editor.tintHint'),
+        glow: { color: isSpirit(d().avatar) ? parseSpirit(d().avatar).color : 'violet', label: t('wisp.crew.editor.tintGlow') },
+        none: t('wisp.crew.editor.tintNone'),
+        colors: CREW_COLORS,
+        value: d().bg,
+        onPick: (bg) => set({ bg }),
+      }}
       bar={bar()}
       parallel={{
         label: say('wisp.crew.editor.atOnce', { count: d().parallel }),
