@@ -250,7 +250,12 @@ impl Runtime {
         if !gone {
             return Err(RuntimeError::NoTask(id.to_owned()));
         }
-        self.lock_list().remove(id);
+        let row = self.lock_list().remove(id);
+        self.usage.forget(id);
+        // a subagent gone: its lead's usage stops counting it
+        if let Some(lead) = row.and_then(|r| r.parent_id.clone()) {
+            self.refresh_lead(lead);
+        }
         // its kept pictures go with it (v1 store.delete: shots/<id>); a task id never climbs out of the folder
         if let Some(shots) = self.host.shots()
             && !id.is_empty()

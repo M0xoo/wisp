@@ -12,6 +12,7 @@ pub mod limit;
 pub mod media;
 pub mod refused;
 pub mod summary;
+pub mod task_usage;
 pub mod watch;
 pub mod upcast;
 pub mod usage;

@@ -179,6 +179,7 @@ pub fn turn_stats(s: &HarnessStats) -> TurnStats {
         ms: s.duration_ms,
         models,
         context_tokens: whole("contextTokens"),
+        context_window: whole("contextWindow").filter(|n| *n > 0),
         cache_ttl_ms: whole("cacheTtlMs"),
     }
 }

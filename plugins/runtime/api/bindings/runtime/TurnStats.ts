@@ -7,6 +7,10 @@ export type TurnStats = { costUsd?: number, inputTokens?: bigint, outputTokens?:
  */
 contextTokens?: bigint, 
 /**
+ * how much the main thread's model can hold (Claude Code says it); the task's context meter (v1 #785). Additive (2026-11-12).
+ */
+contextWindow?: bigint, 
+/**
  * how long the provider keeps the prompt cache (Claude: 5 min or 1 h); absent: the harness doesn't say
  */
 cacheTtlMs?: bigint, };

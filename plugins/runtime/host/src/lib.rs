@@ -26,6 +26,7 @@ mod setup;
 mod side;
 mod specs;
 mod term;
+mod usage_row;
 mod watch;
 pub mod runtime;
 pub mod schema;

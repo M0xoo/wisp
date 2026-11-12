@@ -395,7 +395,7 @@ impl Runtime {
         Ok(entry)
     }
 
-    async fn put_btw(&self, id: &str, e: &BtwEntry) -> Result<()> {
+    async fn put_btw(self: &Arc<Self>, id: &str, e: &BtwEntry) -> Result<()> {
         let _g = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
         let v = serde_json::to_value(e).map_err(|x| RuntimeError::Invalid(x.to_string()))?;

@@ -38,6 +38,8 @@ pub struct Runtime {
     /// each task's next activity seq: a turn's drive and wisp's own rows share it
     seqs: Mutex<HashMap<String, u64>>,
     sign_ins: Mutex<HashMap<String, crate::more::SignIn>>,
+    /// each task's turns' usage, folded once per turn (`usage_row.rs`)
+    pub(crate) usage: crate::usage_row::UsageCache,
 }
 
 impl std::fmt::Debug for Runtime {
@@ -66,6 +68,7 @@ impl Runtime {
             answers: Mutex::default(),
             seqs: Mutex::default(),
             sign_ins: Mutex::default(),
+            usage: crate::usage_row::UsageCache::default(),
         })
     }
 
@@ -184,14 +187,16 @@ impl Runtime {
     }
 
     /// Writes the task (and the turns given), rebuilds its list row, emits `session.changed`.
-    pub(crate) async fn persist(&self, s: &mut Session, turns: Vec<Turn>) -> Result<Arc<Summary>> {
+    pub(crate) async fn persist(self: &Arc<Self>, s: &mut Session, turns: Vec<Turn>) -> Result<Arc<Summary>> {
         self.persist_with(s, turns, |_| Ok(())).await
     }
 
     /// `persist`, with more rows of runtime's own written in the same transaction (a task's watch page).
-    pub(crate) async fn persist_with(&self, s: &mut Session, turns: Vec<Turn>, extra: impl FnOnce(&mut wisp_store::Writer<'_>) -> wisp_store::Result<()> + Send + 'static) -> Result<Arc<Summary>> {
+    pub(crate) async fn persist_with(self: &Arc<Self>, s: &mut Session, turns: Vec<Turn>, extra: impl FnOnce(&mut wisp_store::Writer<'_>) -> wisp_store::Result<()> + Send + 'static) -> Result<Arc<Summary>> {
         s.rev += 1;
-        let summary = Arc::new(self.summary_of(s, turns.last()).await?);
+        let mut summary = self.summary_of(s, turns.last()).await?;
+        self.usage_into(s, &turns, &mut summary).await?;
+        let summary = Arc::new(summary);
         let (row, sum, ts) = (s.clone(), summary.clone(), turns);
         self.repo
             .store
@@ -206,9 +211,10 @@ impl Runtime {
                 extra(w)
             })
             .await?;
-        self.lock_list().insert(s.id.0.clone(), summary.clone());
+        let before = self.lock_list().insert(s.id.0.clone(), summary.clone());
         self.host
             .emit(Emitted::Changed(SessionChanged { id: s.id.clone() }));
+        self.lead_follows(before.as_deref(), &summary);
         Ok(summary)
     }
 

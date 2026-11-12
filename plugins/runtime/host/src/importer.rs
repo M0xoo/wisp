@@ -41,7 +41,11 @@ fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), S
         followups: u32::try_from(followups).unwrap_or(u32::MAX),
         ..RowFacts::default()
     };
-    let summary = summarize(&i.session, &facts, std::collections::BTreeMap::new());
+    // its usage on the row from the start (v1 #785); a lead's subagents add theirs on its next write
+    let mut fields = std::collections::BTreeMap::new();
+    let parts: Vec<_> = i.turns.iter().map(|t| wisp_runtime_core::task_usage::turn_usage(&t.turn)).collect();
+    crate::usage_row::put(&mut fields, &wisp_runtime_core::task_usage::own_of(&parts), &[]);
+    let summary = summarize(&i.session, &facts, fields);
     repo::save_session(w, &i.session, &summary).map_err(internal)?;
     let mut seq = 1u64;
     for t in &i.turns {
@@ -83,7 +87,8 @@ impl Runtime {
             handler,
         )
         .await?;
-        // the list cache learns the new rows
+        // the list cache learns the new rows; a re-imported task's turns were rewritten behind `persist`
+        self.usage.clear();
         for s in self.repo.summaries().await? {
             self.lock_list().insert(s.id.0.clone(), Arc::new(s));
         }

@@ -65,6 +65,27 @@ pub fn models_of(model_usage: Option<&Entries>, prev: &Value) -> Option<Vec<Mode
     (!list.is_empty()).then_some(list)
 }
 
+/// The context window of the main thread's model, from modelUsage (each model says its own), or 0 (v1 #785
+/// `contextWindowOf`). The init's model id can carry a suffix modelUsage leaves off (`claude-opus-5-5[1m]`);
+/// with no match, the window of the model that read most is the safest reading.
+pub fn context_window_of(mu: &Entries, model: &str) -> f64 {
+    let ok = |v: &Value| num(v).filter(|x| x.is_finite() && *x > 0.0).unwrap_or(0.0);
+    let base = model.find('[').map_or(model, |i| &model[..i]);
+    let hit = [model, base].into_iter().filter(|m| !m.is_empty()).find_map(|m| mu.0.iter().find(|(k, _)| k == m)).map(|(_, u)| ok(&u["contextWindow"]));
+    if let Some(w) = hit.filter(|w| *w > 0.0) {
+        return w;
+    }
+    let read = |u: &Value| n0(&u["inputTokens"]) + n0(&u["cacheReadInputTokens"]) + n0(&u["cacheCreationInputTokens"]);
+    // the first of the most read, as v1's stable sort kept it
+    let mut top: Option<&Value> = None;
+    for (_, u) in &mu.0 {
+        if top.is_none_or(|t| read(u) > read(t)) {
+            top = Some(u);
+        }
+    }
+    top.map_or(0.0, |u| ok(&u["contextWindow"]))
+}
+
 /// A models list back in modelUsage's shape, for `models_of`'s prev.
 pub fn model_usage_of(list: &[ModelTokens]) -> Value {
     let mut m = Map::new();

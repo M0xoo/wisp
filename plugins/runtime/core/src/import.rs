@@ -169,6 +169,7 @@ fn stats(v: Option<&Value>) -> Option<TurnStats> {
         ms: num("durationMs"),
         models,
         context_tokens: num("contextTokens"),
+        context_window: num("contextWindow").filter(|n| *n > 0),
         cache_ttl_ms: num("cacheTtlMs"),
     })
 }

@@ -20,7 +20,8 @@ use crate::msg::{self, Msg};
 use crate::result::{TurnState, is_final, result_event};
 use crate::subagents::Tally;
 use crate::usage::{
-    Counted, Start, as_counted, cost_since, counted_from, model_usage_of, models_json, models_of,
+    Counted, Start, as_counted, context_window_of, cost_since, counted_from, model_usage_of, models_json,
+    models_of,
 };
 
 /// What a run hands the parser besides its lines.
@@ -69,6 +70,8 @@ pub struct ClaudeParser {
     background: Vec<(String, String)>,
     /// the task_ids of those that are subagents (task_type local_agent), not shells (v1 #775)
     agent_tasks: Vec<String>,
+    /// the main thread's model (system init): the context window is its (v1 #785)
+    main_model: String,
     turn: TurnState,
 }
 
@@ -89,6 +92,7 @@ impl ClaudeParser {
             pending: HashMap::new(),
             background: Vec::new(),
             agent_tasks: Vec::new(),
+            main_model: String::new(),
             turn: TurnState::default(),
         }
     }
@@ -219,6 +223,9 @@ impl ClaudeParser {
         }
         let tools = msg::value(msg.tools);
         self.subagents.init(&tools);
+        if truthy(&msg::value(msg.model)) {
+            self.main_model = js::string(&msg::value(msg.model));
+        }
         // The tools this run had: two accounts of the same harness can differ.
         if let Value::Array(list) = tools {
             out.push(ev(HarnessEvent::Tools { list }));
@@ -382,6 +389,10 @@ impl ClaudeParser {
         let stats = e.stats.get_or_insert_with(Box::default);
         if let Some(m) = &models {
             stats.extra.insert("models".into(), models_json(m));
+        }
+        // How much the main thread's model can hold: the task's context meter (v1 #785).
+        if let Some(win) = msg.model_usage.as_ref().map(|mu| context_window_of(mu, &self.main_model)).filter(|w| *w > 0.0) {
+            stats.extra.insert("contextWindow".into(), js::json_num(win));
         }
         if let Some(rows) = self
             .subagents

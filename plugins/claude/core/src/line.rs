@@ -183,6 +183,8 @@ line_fields! {
     #[serde(rename = "apiKeySource", borrow)] api_key_source: Option<&'a RawValue>,
     #[serde(borrow)] tools: Option<&'a RawValue>,
     #[serde(borrow)] claude_code_version: Option<&'a RawValue>,
+    /// the main thread's model (system init): its modelUsage `contextWindow` is the task's (v1 #785)
+    #[serde(borrow)] model: Option<&'a RawValue>,
     #[serde(borrow)] compact_metadata: Option<&'a RawValue>,
     #[serde(borrow)] compact_result: Option<&'a RawValue>,
     #[serde(borrow)] compact_error: Option<&'a RawValue>,

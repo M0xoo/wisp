@@ -248,6 +248,10 @@ pub struct TurnStats {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub context_tokens: Option<u64>,
+    /// how much the main thread's model can hold (Claude Code says it); the task's context meter (v1 #785). Additive (2026-11-12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub context_window: Option<u64>,
     /// how long the provider keeps the prompt cache (Claude: 5 min or 1 h); absent: the harness doesn't say
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
