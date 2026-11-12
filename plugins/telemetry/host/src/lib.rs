@@ -56,6 +56,8 @@ const META: EntityDef = EntityDef { kind: "telemetry_meta", table: "telemetry_me
 struct State {
     store: Store,
     t: Mutex<Telemetry>,
+    /// feedback no sink took yet (v1 feedback-outbox.json): sent with the next one
+    outbox: Mutex<Vec<Value>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -78,7 +80,8 @@ impl State {
             let t = lock(&self.t);
             (t.install_id.clone(), t.setting_on, state_row(t.setting_on, &t.env))
         };
-        let body = json!({ "installId": id, "telemetry": if on { "on" } else { "off" } });
+        let outbox = lock(&self.outbox).clone();
+        let body = json!({ "installId": id, "telemetry": if on { "on" } else { "off" }, "outbox": outbox });
         let _ = self
             .store
             .write(move |w| {
@@ -134,6 +137,39 @@ impl State {
         }
         n
     }
+}
+
+/// v1 `sendFeedback`: checked, kept on its turn when it's thumbs (and told to Auto), then posted with what waited in
+/// the outbox; what no sink took waits there for the next one.
+async fn feedback(st: &State, ctx: &Ctx, call: &Call, body: &Value) -> Result<Value> {
+    use wisp_telemetry_core::feedback::{self as fb, Context};
+    let a = fb::parse(body).map_err(WireError::invalid)?;
+    let facts = match (&a.session_id, &a.turn_id) {
+        (Some(s), Some(t)) => facts(ctx, call, s, t).await,
+        _ => None,
+    };
+    if let (Some(sid), Some(tid)) = (&a.session_id, &a.turn_id)
+        && fb::sticks_to_turn(&a)
+    {
+        let rating = a.rating.and_then(fb::Rating::as_str);
+        let value = json!({ "feedback": rating.map(|r| json!({ "rating": r, "at": now(ctx) })) });
+        ctx.run_json(call, "runtime.turn.setExt", json!({ "id": sid, "turnId": tid, "plugin": "wisp.telemetry", "value": value })).await?;
+        // Auto learns from it (v1 router.signal): best effort, a task Auto didn't route has nothing to learn
+        let _ = ctx.run_json(call, "router.signal", json!({ "id": sid, "patch": { "feedback": rating } })).await;
+    }
+    let (name, props) = fb::event(&a, &Context { run: facts.as_ref().map(|(r, t)| (r, t)), tour: false, machine: false });
+    let outbox: Vec<Value> = lock(&st.outbox).clone();
+    let batch = lock(&st.t).feedback(name, props, &outbox, now(ctx), wisp_kernel::ids::uuid7());
+    let available = batch.is_some();
+    let mut sent = false;
+    if let Some(batch) = batch {
+        for sink in ctx.contributions(&SINK) {
+            sent |= matches!(tokio::time::timeout(Duration::from_millis(TIMEOUT_MS), sink.send(batch.clone())).await, Ok(true));
+        }
+        *lock(&st.outbox) = if sent { Vec::new() } else { batch };
+        st.save().await;
+    }
+    Ok(json!({ "ok": true, "sent": sent, "available": available }))
 }
 
 /// The facts a turn's events report, read from wisp.runtime (fixed values only, never the prompt).
@@ -212,6 +248,11 @@ impl Plugin for TelemetryPlugin {
             async move { Ok(api::Tracked { queued: state(&slot)?.flush(&ctx) > 0 }) }
         });
         let sl = slot.clone();
+        s.command::<api::Feedback, _, _>(move |ctx, call, body| {
+            let slot = sl.clone();
+            async move { feedback(&*state(&slot)?, &ctx, &call, &body).await }
+        });
+        let sl = slot.clone();
         s.on::<TurnStarted, _, _>(move |ctx, e| {
             let slot = sl.clone();
             async move {
@@ -256,7 +297,8 @@ impl Plugin for TelemetryPlugin {
             let mut t = Telemetry::new(e, common.props(), ScrubOptions { home, root: std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_string_lossy().into_owned())).unwrap_or_default() });
             t.install_id = body["installId"].as_str().map(str::to_owned);
             t.setting_on = wisp_telemetry_core::env::setting_on(body.get("telemetry"));
-            let st = Arc::new(State { store, t: Mutex::new(t) });
+            let outbox = body["outbox"].as_array().cloned().unwrap_or_default();
+            let st = Arc::new(State { store, t: Mutex::new(t), outbox: Mutex::new(outbox) });
             let _ = start.set(st.clone());
             st.save().await; // the Privacy row exists from the start
             // app_started: which harnesses are installed, and their versions (v1 index.js), off the start's way

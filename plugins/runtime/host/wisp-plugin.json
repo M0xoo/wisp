@@ -39,7 +39,7 @@
       "version": "1.0.0"
     }
   },
-  "permissions": ["router:read", "router:write", "stuff:read", "fs:read{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/sessions}", "proc:exec{bin:*}", "proc:spawn{bin:*}", "store:write{owner:runtime}", "telemetry:track", "worktrees:create", "accounts:write", "budget:read", "terminal:open", "terminal:input", "terminal:read", "sandbox:place", "sandbox:bring", "machines:route"],
+  "permissions": ["router:read", "router:write", "stuff:read", "fs:read{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/shots}", "proc:exec{bin:*}", "proc:spawn{bin:*}", "store:write{owner:runtime}", "telemetry:track", "worktrees:create", "accounts:write", "budget:read", "terminal:open", "terminal:input", "terminal:read", "sandbox:place", "sandbox:bring", "machines:route"],
   "server": {
     "builtin": "wisp-runtime"
   },
@@ -206,6 +206,11 @@
       {
         "id": "runtime.btw.drop",
         "title": "Drop a side question"
+      },
+      {
+        "id": "runtime.reveal",
+        "title": "Show an answer's picture or video in its folder",
+        "uiOnly": "opens the file manager on the computer running wisp; an agent already knows the path"
       },
       {
         "id": "runtime.compact",

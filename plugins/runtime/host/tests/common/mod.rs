@@ -122,8 +122,10 @@ impl Harness for Fake {
 /// The answer a turn prints, by its prompt: `slow…` waits to be killed, `fail…` errors, `refuse…` turns it down,
 /// else a hero.
 pub fn script(prompt: &str) -> Vec<Value> {
+    // `shot <path>`: the answer shows that picture too
+    let shot = prompt.strip_prefix("shot ").map(|p| format!(",{{\"type\":\"image\",\"path\":\"{p}\"}}")).unwrap_or_default();
     let hero = format!(
-        "```wisp\n{{\"blocks\":[{{\"type\":\"hero\",\"title\":\"Did it\",\"topic\":\"Topic of {prompt}\",\"summary\":\"done: {prompt}\",\"status\":\"done\"}}]}}\n```"
+        "```wisp\n{{\"blocks\":[{{\"type\":\"hero\",\"title\":\"Did it\",\"topic\":\"Topic of {prompt}\",\"summary\":\"done: {prompt}\",\"status\":\"done\"}}{shot}]}}\n```"
     );
     if prompt.starts_with("fail") {
         return vec![

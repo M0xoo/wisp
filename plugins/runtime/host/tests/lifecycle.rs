@@ -612,3 +612,31 @@ async fn a_run_at_its_usage_limit_gets_its_card_and_waits_for_the_reset_when_set
     let nid = n.rt.create(start("limit hit")).await.unwrap().id.0;
     until("back in Needs you", || async { n.rt.get(&nid).await.unwrap().state == SessionState::Review }).await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_new_question_brings_an_archived_task_back_v1_unarchive_on_reply() {
+    let r = rig().await;
+    let id = r.rt.create(start("fix the login")).await.unwrap().id;
+    until("the turn to end", || async { last_status(&r, id.as_str()).await == Some(TurnStatus::Done) }).await;
+    until("the run to let go", || async { r.rt.get(id.as_str()).await.unwrap().state == SessionState::Review }).await;
+    r.rt.archive(id.as_str(), true).await.unwrap();
+    assert!(r.rt.get(id.as_str()).await.unwrap().archived);
+    r.rt.follow_up(follow(&id, "one more thing", false)).await.unwrap();
+    until("it comes back", || async { !r.rt.get(id.as_str()).await.unwrap().archived }).await;
+    assert!(r.rt.list(&ListArgs { archived: Some(false), ..ListArgs::default() }).iter().any(|s| s.id == id));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_first_answer_names_the_task_after_what_was_asked_but_never_a_compare_run_v1_task_naming() {
+    let r = rig().await;
+    // alone: the hero's topic (what was asked), not its title (what the agent did: "Did it")
+    let one = r.rt.create(start("fix the login")).await.unwrap().id;
+    until("the turn to end", || async { last_status(&r, one.as_str()).await == Some(TurnStatus::Done) }).await;
+    assert_eq!(r.rt.get(one.as_str()).await.unwrap().title, "Topic of fix the login");
+    // one of the runs of one ask (Compare runs): the prompt's title stays
+    let mut ext = wisp_runtime_api::model::Ext::default();
+    ext.insert("wisp.runtime".into(), serde_json::json!({ "group": "g-1" }));
+    let run = r.rt.create(StartArgs { ext, ..start("fix the logout") }).await.unwrap().id;
+    until("the run to end", || async { last_status(&r, run.as_str()).await == Some(TurnStatus::Done) }).await;
+    assert_eq!(r.rt.get(run.as_str()).await.unwrap().title, "fix the logout");
+}

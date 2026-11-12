@@ -14,6 +14,7 @@ pub mod host;
 mod importer;
 mod kinds;
 mod limit;
+mod media;
 mod mentions;
 mod more;
 mod ops;

@@ -9,6 +9,7 @@ pub mod land;
 pub mod prompt;
 pub mod queue;
 pub mod limit;
+pub mod media;
 pub mod refused;
 pub mod summary;
 pub mod watch;

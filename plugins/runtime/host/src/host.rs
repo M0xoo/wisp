@@ -57,6 +57,10 @@ pub trait Host: Send + Sync + 'static {
     fn setting(&self, _key: &str) -> Option<serde_json::Value> {
         None
     }
+    /// Where an answer's pictures are kept (`~/.wisp/shots`, v1 store.shots); none: they aren't copied. Additive.
+    fn shots(&self) -> Option<std::path::PathBuf> {
+        None
+    }
     /// How a task's agent reaches wisp, if the install provides it.
     fn agent_access(&self) -> Option<Arc<dyn wisp_runtime_api::points::AgentAccess>> {
         None
@@ -116,6 +120,8 @@ pub struct Recorder {
     pub answers: std::collections::BTreeMap<String, serde_json::Value>,
     /// the commands it was asked, in order
     pub asked: Mutex<Vec<(String, serde_json::Value)>>,
+    /// where an answer's pictures are kept (`~/.wisp/shots`); none: not copied
+    pub shots: Option<std::path::PathBuf>,
 }
 
 impl std::fmt::Debug for Recorder {
@@ -151,6 +157,9 @@ impl Host for Recorder {
     }
     fn run_parts(&self) -> Vec<Arc<dyn RunPart>> {
         self.parts.clone()
+    }
+    fn shots(&self) -> Option<std::path::PathBuf> {
+        self.shots.clone()
     }
     fn emit(&self, e: Emitted) {
         self.events

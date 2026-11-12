@@ -12,6 +12,8 @@
     "runtime:agents",
     "runtime:get",
     "runtime:turns",
+    "runtime:turn.setExt",
+    "router:signal",
     "store:write{owner:telemetry}"
   ],
   "activation": [
@@ -31,6 +33,11 @@
       {
         "id": "telemetry.flush",
         "title": "Send what is queued now"
+      },
+      {
+        "id": "telemetry.feedback",
+        "title": "Send feedback to the wisp team",
+        "uiOnly": "the user's own rating and words (thumbs on a turn, the feedback dialog, /feedback); an agent doesn't rate its own work"
       }
     ]
   }

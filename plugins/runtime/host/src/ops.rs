@@ -251,6 +251,13 @@ impl Runtime {
             return Err(RuntimeError::NoTask(id.to_owned()));
         }
         self.lock_list().remove(id);
+        // its kept pictures go with it (v1 store.delete: shots/<id>); a task id never climbs out of the folder
+        if let Some(shots) = self.host.shots()
+            && !id.is_empty()
+            && !id.contains(['/', '\\', '.'])
+        {
+            let _ = tokio::fs::remove_dir_all(shots.join(id)).await;
+        }
         self.host.emit(Emitted::Deleted(SessionDeleted {
             id: SessionId::from(id),
         }));

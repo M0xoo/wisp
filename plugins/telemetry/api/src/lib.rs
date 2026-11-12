@@ -99,6 +99,19 @@ impl Command for Flush {
     type Out = Tracked;
 }
 
+/// POST /api/feedback (v1 services/feedback.js): thumbs on a turn (`rating` up, down or null to take it back, with
+/// `sessionId` and `turnId`) and/or a note (`text`, `kind` bug or idea). It goes to the wisp team with how the run was
+/// set up, never the prompt or the result; offline, it waits in the outbox. Answers `{ ok, sent, available }`.
+/// Additive (2026-11-12).
+#[derive(Debug)]
+pub struct Feedback;
+impl Command for Feedback {
+    const ID: &'static str = "telemetry.feedback";
+    const PERMISSION: Option<&'static str> = Some("telemetry:feedback");
+    type Args = Value;
+    type Out = Value;
+}
+
 /// An event as it was queued (scrubbed, common properties and the distinct id in).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryEvent {

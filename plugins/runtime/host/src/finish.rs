@@ -78,10 +78,9 @@ impl Runtime {
             reason: None,
         };
         let blocks = self.host.blocks();
-        let (status, presentation) = land::end_presentation(&ending, |t| {
+        let (status, mut presentation) = land::end_presentation(&ending, |t| {
             wisp_runtime_core::blocks::presentation(t, &blocks)
         });
-        let mut presentation = presentation;
         // a usage limit first (v1 `#atLimit`), then a refusal (v1 `#refused`, never at a limit)
         let ours = s.parent_id.is_none() && !(stopped || stopping);
         let limited = ours && is_error && self.at_limit(&s, &mut turn, &text, &mut presentation).await;
@@ -112,6 +111,7 @@ impl Runtime {
         {
             s.title = t;
         }
+        self.keep_media(&s, turn.id.as_str(), &mut presentation.blocks).await;
         turn.presentation = Some(presentation);
         if head.resume_id.is_some() {
             s.resume_id.clone_from(&head.resume_id);
@@ -310,8 +310,11 @@ impl Runtime {
     }
 }
 
+/// The first answer may name the task: its title is still the prompt's, and it isn't one of Compare's runs (they're
+/// one ask, and one run's answer shouldn't name it: v1 runner.js `!session.groupId`).
 fn title_auto(s: &Session) -> bool {
-    s.ext
+    crate::group::group_of(s).is_none()
+        && s.ext
         .get("wisp.runtime")
         .and_then(|v| v.get("titleAuto"))
         .and_then(serde_json::Value::as_bool)

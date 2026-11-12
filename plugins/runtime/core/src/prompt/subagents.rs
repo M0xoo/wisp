@@ -383,6 +383,17 @@ pub fn delegation_report(
 
 #[cfg(test)]
 mod tests {
+
+    /// v1 (F-comp-34): a team of eight is eight; nothing caps delegates at six.
+    #[test]
+    fn eight_delegates_stay_eight_no_cap_at_six_v1_no_team_cap() {
+        let rows: Vec<serde_json::Value> = (0..8).map(|i| serde_json::json!({ "agent": if i % 2 == 0 { "claude" } else { "codex" } })).collect();
+        let team = normalize_team(&serde_json::Value::Array(rows), &|_| true).unwrap_or_default();
+        assert_eq!(team.len(), 8);
+        let names: std::collections::BTreeSet<&str> = team.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names.len(), 8, "each its own name: {names:?}");
+    }
+
     use super::*;
     use serde_json::json;
 

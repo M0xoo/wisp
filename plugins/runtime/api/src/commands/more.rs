@@ -69,6 +69,15 @@ pub struct BtwDropArgs {
     pub btw_id: String,
 }
 
+/// Show in folder for a picture or video an answer showed (v1 POST /sessions/:id/reveal): `path` as the block named
+/// it. Additive (2026-11-12).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct RevealArgs {
+    pub id: SessionId,
+    pub path: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]
 pub struct DelegateTask {

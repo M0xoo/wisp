@@ -37,6 +37,9 @@ impl Host for CtxHost {
     fn setting(&self, key: &str) -> Option<serde_json::Value> {
         self.ctx.setting(key)
     }
+    fn shots(&self) -> Option<std::path::PathBuf> {
+        self.ctx.service::<wisp_kernel::services::Paths>().ok().map(|p| p.join("shots"))
+    }
     fn net(&self) -> Option<wisp_kernel::services::NetService> {
         wisp_kernel::services::net(&self.ctx).ok()
     }
@@ -358,6 +361,7 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
     cmd!(s, slot, c::ApproveBlocked, |r, call, a| r.approve_blocked(&a.id, a.turn_id.as_ref(), a.allow).await);
     cmd!(s, slot, c::Btw, |r, call, a| r.btw(a).await);
     cmd!(s, slot, c::BtwDrop, |r, call, a| r.btw_drop(a.id.as_str(), &a.btw_id).await.map(|()| c::Ack {}));
+    cmd!(s, slot, c::Reveal, |r, call, a| r.reveal(a.id.as_str(), &a.path).await);
     cmd!(s, slot, c::Compact, |r, call, a| r.compact(&a.id).await);
     cmd!(s, slot, c::Rerun, |r, call, a| r.rerun(a).await);
     fork(s, slot);
@@ -595,6 +599,7 @@ impl Plugin for RuntimePlugin {
     fn setup(&self, s: &mut Setup) -> WireResult<()> {
         let slot: Slot = Arc::default();
         commands(s, &slot);
+        s.route(crate::media::route(&slot));
         // who is under whom, for the kernel's agent-token scope (v1 edge case HTTP #3)
         s.contribute(&wisp_kernel::scope::TASKS, Arc::new(Tree(slot.clone())) as Arc<dyn wisp_kernel::scope::TaskTree>);
         s.on_start(move |ctx| async move {
