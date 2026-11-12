@@ -456,8 +456,33 @@ function sessionTopic(peer: string, i: number, t: Task, now: number): { list: Ro
   return { list: { e: 'session', id: s.id, v: s.v }, own };
 }
 
+function withMedia(topics: Map<Topic, Row[]>): void {
+  for (const rows of topics.values()) {
+    const turn = rows.find((r) => r.e === 'turn' && (r.v as { body?: { presentation?: unknown } }).body?.presentation);
+    if (!turn) continue;
+    const v = turn.v as { body: Record<string, unknown> };
+    v.body = { ...v.body, presentation: { ...PRESENTATION, blocks: [PRESENTATION.blocks[0], ...MEDIA_BLOCKS, ...PRESENTATION.blocks.slice(1)] } };
+    return;
+  }
+}
+
 /** `firstRun`: no tasks yet (New task's first-run launcher, F-comp-35); the rest of the seed as it is. */
-export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean }): Seeded {
+/**
+ * `computers`: a second computer, Studio (its own mock peer at /api/peer/studio), listed on this one's machines, and one
+ * project here (`wisp`, a repo with an origin), to run a task over there (v1 places.js; New task's Run on, Rerun…).
+ */
+export const STUDIO = 'studio';
+export const COMPUTERS_PROJECT = { id: 'local:wisp', name: 'wisp', path: '/Users/me/code/wisp', color: 'violet' };
+
+/** `media`: the first finished task's answer shows two pictures and a video (the viewer, Copy, Show in folder; the
+ *  mock serves each at /api/sessions/<id>/file as a drawn SVG, the video as a missing file). */
+export const MEDIA_BLOCKS = [
+  { type: 'image', path: 'shots/before.png', caption: 'Before: the retry fires after dispose' },
+  { type: 'image', path: '/tmp/after.png', caption: 'After: 200 runs, no failure' },
+  { type: 'video', path: 'shots/run.mp4', caption: 'The run' },
+];
+
+export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean; computers?: boolean; media?: boolean }): Seeded {
   const topics = new Map<Topic, Row[]>();
   const list: Row[] = [];
   (o.firstRun ? [] : TASKS).forEach((t, i) => {
@@ -479,6 +504,7 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
     list.push(s.list);
     topics.set(`session:${s.list.id.slice(s.list.id.indexOf(':') + 1)}`, s.own); // the bare id, as the client subscribes
   }
+  if (o.media) withMedia(topics);
   topics.set('list', list);
   topics.set('config', [
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },
@@ -486,6 +512,7 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
     // the token dashboard pinned on Home (wisp.stuff's panes setting)
     { e: 'setting', id: 'stuff.panes', v: { key: 'stuff.panes', value: 'st2@home,st2@task', locked_by: null } },
     ...TERMINALS,
+    ...(o.computers ? [{ e: 'project', id: COMPUTERS_PROJECT.id, v: COMPUTERS_PROJECT }] : []),
   ]);
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
   topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
@@ -499,10 +526,11 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
     'crew',
     CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c })),
   );
-  topics.set(
-    'machines',
-    MACHINES.map((m) => ({ e: 'machine', id: m.id, v: { ...m, addedAt: o.now - 30 * 24 * HOUR } })),
-  );
+  topics.set('machines', [
+    ...MACHINES.map((m) => ({ e: 'machine', id: m.id, v: { ...m, addedAt: o.now - 30 * 24 * HOUR } })),
+    // Studio as wisp.machines keeps a peer (`machines_peer`): the app adds it as a peer of its own
+    ...(o.computers ? [{ e: 'machines_peer', id: `${o.peer}:${STUDIO}`, v: { id: `${o.peer}:${STUDIO}`, body: { peer: STUDIO, name: 'Studio' } } }] : []),
+  ]);
   topics.set(
     'stuff',
     // wisp.stuff's rows (its UI reads `stuff.item`): name, when, who kept it; the dashboard may read and start tasks

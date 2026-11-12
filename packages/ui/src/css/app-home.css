@@ -871,6 +871,27 @@
   [data-kit='stage'][data-layout='stack'] [data-kit='sh-keys'] {
     display: none;
   }
+  /* split.css .sh-foot, .sh-fb: Tell us, under the keys */
+  [data-kit='sh-foot'] {
+    margin: 6px 0 0;
+    padding: 0 var(--space-4) 0 13px;
+  }
+  [data-kit='sh-fb'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 0;
+    font-size: 12.5px;
+    color: var(--faint);
+    transition: color 0.15s;
+  }
+  [data-kit='sh-fb']:hover {
+    color: var(--ink-2);
+  }
+  [data-kit='sh-fb'] > [data-kit='icon'] {
+    width: 13px;
+    height: 13px;
+  }
 
   /* v1 .sh-spare / .spr-card: notes on plans under what needs you */
   [data-kit='sh-spare'] {

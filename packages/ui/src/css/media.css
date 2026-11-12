@@ -1,0 +1,229 @@
+/* image and video blocks, and the viewer (v1 blocks.css .b-image, .b-video, .img-tools; modals.css .lb). */
+@layer kit {
+  [data-kit='rb-media'] {
+    margin: 0;
+    overflow: hidden;
+  }
+  [data-kit='rb-media-box'] {
+    position: relative;
+  }
+  [data-kit='rb-image'] {
+    display: block;
+    width: 100%;
+    max-height: 520px;
+    object-fit: contain;
+    background: var(--surface-2);
+    cursor: zoom-in;
+  }
+  [data-kit='rb-media'][data-video] [data-kit='rb-media-box'] {
+    background: var(--term-bg);
+  }
+  [data-kit='rb-video'] {
+    display: block;
+    width: 100%;
+    max-height: 520px;
+    background: var(--term-bg);
+  }
+  [data-kit='rb-media-caption'] {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--muted);
+    border-top: var(--size-hairline) solid var(--line);
+  }
+  /* Copy, Download and Show in folder on the picture, top right, on hover, like Slack's; a touch screen has no
+     hover, so they stay there */
+  [data-kit='rb-media-tools'] {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    border: var(--size-hairline) solid var(--line);
+    box-shadow: var(--shadow-1);
+    opacity: 0;
+    transform: translateY(-2px);
+    transition:
+      opacity 0.15s,
+      transform 0.15s;
+    pointer-events: none;
+  }
+  [data-kit='rb-media-box']:hover > [data-kit='rb-media-tools'],
+  [data-kit='rb-media-tools']:focus-within {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  [data-kit='rb-media-btn'] {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    color: var(--muted);
+  }
+  [data-kit='rb-media-btn']:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  [data-kit='rb-media-btn'] > [data-kit='icon'] {
+    width: 15px;
+    height: 15px;
+  }
+  @media (hover: none) {
+    [data-kit='rb-media-tools'] {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+  }
+
+  /* the viewer: full screen, the backdrop dark in both themes */
+  [data-kit='viewer'] {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-overlay);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    user-select: none;
+    outline: none;
+    background: color-mix(in srgb, var(--term-bg) 90%, transparent);
+    animation: kit-fade var(--dur-slow) var(--ease);
+  }
+  [data-kit='viewer-img'],
+  [data-kit='viewer-vid'] {
+    max-width: calc(100vw - 48px);
+    max-height: calc(100dvh - 8rem);
+    border-radius: 8px;
+    box-shadow: var(--shadow-2);
+  }
+  [data-kit='viewer-img'] {
+    cursor: zoom-in;
+    transform-origin: var(--vw-x, 50%) var(--vw-y, 50%);
+    scale: var(--vw-zoom, 1);
+    transition: scale 0.24s var(--ease);
+    -webkit-user-drag: none;
+  }
+  [data-kit='viewer'][data-zoomed] [data-kit='viewer-img'] {
+    cursor: zoom-out;
+  }
+  [data-kit='viewer-vid'] {
+    background: var(--term-bg);
+  }
+  [data-kit='viewer-bar'] {
+    position: absolute;
+    left: 50%;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--term-bg) 86%, transparent);
+    border: var(--size-hairline) solid var(--term-line);
+    backdrop-filter: blur(12px);
+  }
+  [data-kit='viewer-btn'] {
+    display: inline-grid;
+    place-items: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 6px;
+    border-radius: 9px;
+    color: var(--term-soft);
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  [data-kit='viewer-btn']:hover {
+    background: var(--term-line);
+    color: var(--term-ink);
+  }
+  [data-kit='viewer-btn'][data-done] {
+    color: var(--term-good);
+  }
+  [data-kit='viewer-btn'] > [data-kit='icon'] {
+    width: 16px;
+    height: 16px;
+  }
+  [data-kit='viewer-sep'] {
+    width: 1px;
+    height: 20px;
+    margin: 0 4px;
+    background: var(--term-line);
+  }
+  [data-kit='viewer-count'] {
+    min-width: 52px;
+    padding: 0 6px;
+    text-align: center;
+    color: var(--term-soft);
+    font: 500 12.5px/1 var(--sans);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* previous and next: round buttons at the sides, out of the picture's way */
+  [data-kit='viewer-nav'] {
+    position: absolute;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-top: -22px;
+    border-radius: 50%;
+    color: var(--term-ink);
+    background: color-mix(in srgb, var(--term-bg) 72%, transparent);
+    border: var(--size-hairline) solid var(--term-line);
+    backdrop-filter: blur(12px);
+    transition:
+      background 0.15s,
+      color 0.15s,
+      opacity 0.15s;
+  }
+  [data-kit='viewer-nav']:hover {
+    background: color-mix(in srgb, var(--term-bg) 92%, transparent);
+  }
+  [data-kit='viewer-nav']:disabled {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+  [data-kit='viewer-nav'] > [data-kit='icon'] {
+    width: 20px;
+    height: 20px;
+  }
+  [data-kit='viewer-nav'][data-side='prev'] {
+    left: max(16px, env(safe-area-inset-left));
+  }
+  [data-kit='viewer-nav'][data-side='next'] {
+    right: max(16px, env(safe-area-inset-right));
+  }
+  [data-kit='viewer'][data-zoomed] [data-kit='viewer-nav'] {
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* a phone reads a screenshot edge to edge */
+  @media (max-width: 640px) {
+    [data-kit='viewer-img'],
+    [data-kit='viewer-vid'] {
+      max-width: 100vw;
+      max-height: calc(100dvh - 140px);
+      border-radius: 0;
+    }
+    [data-kit='viewer-nav'] {
+      top: auto;
+      margin-top: 0;
+      bottom: calc(max(16px, env(safe-area-inset-bottom)) + 3.875rem);
+      width: 40px;
+      height: 40px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-kit='viewer-img'] {
+      transition: none;
+    }
+  }
+}

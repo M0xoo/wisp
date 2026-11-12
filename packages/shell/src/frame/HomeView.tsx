@@ -10,7 +10,7 @@ import { RunnerPicker } from './RunnerPicker.tsx';
 import { useAttachments } from './attach.ts';
 import { Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, uuidv7, type EntityKey, type Json, type PeerId } from '@wisp/client';
-import { AutoPop, KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
+import { AutoPop, FeedbackLine, KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { Slot, usePluginClient } from '../slot.tsx';
 import { useNow } from '../clock.ts';
@@ -18,11 +18,13 @@ import { SESSION, type SessionRow } from '../rows.ts';
 import { longTime, sectionOf, shortAgo, statusOf } from './rows-view.ts';
 import { autoBlocked, autoPreview, autoRules, create, setSetting, type Attachment } from './commands.ts';
 import { goalGate } from './goal-gate.ts';
+import { feedbackCommand, isFeedback, openFeedback } from './feedback.ts';
 import { autoPick, neverRule, overrideOf, popOf, pct, PREVIEW_DEBOUNCE, shortLabel, usd, type AutoPreview } from './auto.ts';
 import { defaultHarness, harnessOf } from './harness.ts';
 import { MAX_RUNNERS, newGroup, nextRun } from './compare.ts';
 import { firstRunOf, firstRunTools, launcherFull } from './first-run.ts';
 import { whereItems } from './where.ts';
+import { placeOn } from './run-on.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { draftValue, launcherDraft } from './drafts.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
@@ -172,6 +174,12 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const sentList = useSignal(sent.value);
   const onKey = promptKeys({ sent: () => sentList() as readonly string[], value: text, set: (v) => (setText(v), menu.typed(v)), mode: { get: mode, set: setMode } });
   const send = (): void => {
+    // /feedback … or /bug …: to the wisp team, never a task (v1 launcher.js)
+    if (isFeedback(text())) {
+      const typed = text();
+      setText('');
+      return feedbackCommand(shell, typed, { home, restore: () => text() === '' && setText(typed) });
+    }
     const prompt = menu.encode(text().trim());
     if (prompt) sent.set((cur) => remember(cur as readonly string[], prompt));
     // Goal on and Done when empty: ask first, so a task meant to keep going doesn't start as a one-shot (v1 #769)
@@ -226,7 +234,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     const extra = runs();
     const group = extra.length > 0 ? newGroup(crypto.getRandomValues(new Uint8Array(6))) : undefined;
     setRuns([]);
-    const go = (attachments: readonly Attachment[]): void => {
+    const start = (attachments: readonly Attachment[], cwd: string): void => {
       shell.client.commands
         .run(create, {
           peer: target(),
@@ -236,7 +244,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           ...(group && { group }),
           mode: mode(),
           at: Date.now(),
-          ...(p && { cwd: p.path, projectId: p.id, color: p.color }),
+          ...(p && { cwd, projectId: p.id, color: p.color }),
           ...(g && { goal: g }),
           ...(attachments.length > 0 && { attachments }),
           ...(agent() !== 'auto' && model() && { model: model() }),
@@ -255,12 +263,26 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
             mode: mode(),
             at: Date.now(),
             group: group ?? '',
-            ...(p && { cwd: p.path, projectId: p.id, color: p.color }),
+            ...(p && { cwd, projectId: p.id, color: p.color }),
             ...(attachments.length > 0 && { attachments }),
           })
           .catch(() => undefined);
       }
       shell.navigate({ t: 'openTask', id: id as EntityKey as never });
+    };
+    // on another computer: its checkout of the project's repo first, found or cloned there (v1 places.js), said meanwhile
+    const go = (attachments: readonly Attachment[]): void => {
+      const peer = target();
+      if (!p || peer === home) return start(attachments, p?.path ?? '');
+      const where = shell.client.peers.name(peer);
+      shell.toast.show(t('shell.runOn.setting', { name: p.name, where }));
+      placeOn({ cwd: p.path, peer, home, name: p.name, where, run: (cmd, args) => shell.client.commands.run(cmd, args), say: (name, w) => t('shell.runOn.noOrigin', { name, where: w }) }).then(
+        (cwd) => start(attachments, cwd),
+        (err: unknown) => {
+          setText(prompt);
+          shell.toast.error(err instanceof Error ? err.message : t('shell.runOn.failed', { where }));
+        },
+      );
     };
     if (files().length === 0) go([]);
     else void att.take().then(go);
@@ -542,6 +564,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           { keys: ['['], label: t('shell.keys.hide') },
         ]}
       />
+      <FeedbackLine label={t('shell.feedback.line')} onClick={() => openFeedback(shell)} />
     </SplitHome>
   );
 }

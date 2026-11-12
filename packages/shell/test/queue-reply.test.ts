@@ -30,3 +30,34 @@ test('a queued reply goes in the queue at once, not as a new turn, and the peer 
   expect(optimistic(reader, { id: 'p:s1', text: 'x', turnId: 'p:t3', idx: 1, at: 3 }).map((o) => o.e)).toEqual(['session', 'turn']);
   expect(optimistic(reader, { id: 'p:s1', text: 'x', turnId: 'p:t3', idx: 1, at: 3, queue: true }).map((o) => o.e)).toEqual(['session']);
 });
+
+test('/btw asks on the side and shows answering at once; × drops it_v1_btw', async () => {
+  const { btw, btwDrop, btwOf, btwQuestion } = await import('../src/frame/commands.ts');
+  expect(btwQuestion('/btw did you update the docs?')).toBe('did you update the docs?');
+  expect(btwQuestion('/BTW  why?')).toBe('why?');
+  expect(btwQuestion('btw not a command')).toBeUndefined();
+  expect(btwQuestion('/btwx no')).toBeUndefined();
+  const row = { id: 'p:s1', body: { ext: { 'wisp.runtime': { titleAuto: true } } } } as never;
+  const reader = { peek: () => row } as never;
+  const asked = (btw.optimistic as (b: unknown, a: unknown) => { ops: { value: { 'wisp.runtime': { btw: unknown[]; titleAuto: boolean } } }[] }[])(reader, {
+    id: 'p:s1',
+    question: 'why?',
+    tmp: 'b1',
+    at: 5,
+  });
+  const slot = asked[0]?.ops[0]?.value['wisp.runtime'];
+  expect(slot).toEqual({ titleAuto: true, btw: [{ id: 'b1', question: 'why?', at: 5, pending: true }] });
+  expect(btw.wire({ id: 'p:s1', question: 'why?', tmp: 'b1', at: 5 })).toEqual({ id: 's1', question: 'why?' });
+  const withOne = { id: 'p:s1', body: { ext: { 'wisp.runtime': { btw: [{ id: 'b1', question: 'q', at: 1 }] } } } } as never;
+  expect(btwOf(withOne)).toHaveLength(1);
+  const dropped = (btwDrop.optimistic as (b: unknown, a: unknown) => { ops: { value: { 'wisp.runtime': { btw: unknown[] } } }[] }[])({ peek: () => withOne } as never, { id: 'p:s1', btwId: 'b1' });
+  expect(dropped[0]?.ops[0]?.value['wisp.runtime'].btw).toEqual([]);
+});
+
+test('a new question to an archived task brings it back to the list at once_v1_unarchive_on_reply', () => {
+  const reader = { peek: () => ({ id: 'p:s1', state: 'review', archived: true }) } as never;
+  const optimistic = followUp.optimistic as (b: unknown, a: unknown) => { e: string; ops?: { path: string; value: unknown }[] }[];
+  const ops = optimistic(reader, { id: 'p:s1', text: 'one more thing', turnId: 'p:t9', idx: 3, at: 9 })[0]?.ops ?? [];
+  expect(ops).toContainEqual({ op: 'replace', path: '/archived', value: false });
+  expect(ops).toContainEqual({ op: 'replace', path: '/state', value: 'running' });
+});

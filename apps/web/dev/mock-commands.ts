@@ -315,6 +315,48 @@ export const COMMANDS: Record<string, CommandFn> = {
       },
     };
   },
+  // /btw (v1 btw.js): the question shows answering, the answer lands a moment later; × drops it
+  'runtime.btw': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'id');
+    const entry = { id: `b${ctx.now().toString(36)}`, question: str(x, 'question'), at: ctx.now(), pending: true };
+    const list = (): Args[] => ((obj(obj(obj(ctx.row('list', 'session', id))['body'])['ext'])['wisp.runtime'] as Args | undefined)?.['btw'] as Args[] | undefined) ?? [];
+    const put = (l: Args[]): EntityOp[] => {
+      const ext = obj(obj(obj(ctx.row('list', 'session', id))['body'])['ext']);
+      return sessionPatch(ctx, id, [{ op: 'add', path: '/body/ext', value: { ...ext, 'wisp.runtime': { ...obj(ext['wisp.runtime']), btw: l } } }]);
+    };
+    ctx.later(1500, () =>
+      put(list().map((b) => (b['id'] === entry.id ? { ...b, pending: false, answer: 'Yes: **docs/sync.md** says the timer belongs to the stream now, and the README links it.' } : b))),
+    );
+    return { ops: put([...list(), entry]), result: entry };
+  },
+  // 👍 / 👎 on a turn (v1 feedback.js): kept on the turn; the line after 👎 only goes out
+  'telemetry.feedback': (a, ctx) => {
+    const x = obj(a);
+    const sid = typeof x['sessionId'] === 'string' ? x['sessionId'] : '';
+    const tid = typeof x['turnId'] === 'string' ? x['turnId'] : '';
+    const ops: EntityOp[] = [];
+    if (sid && tid && 'rating' in x && !x['text']) {
+      const topic = `session:${sid}` as Topic;
+      const row = ctx.rows(topic).find((r) => r.e === 'turn' && (r.id === tid || r.id.endsWith(`:${tid}`)));
+      if (row) {
+        const ext = obj(obj(obj(row.v)['body'])['ext']);
+        const feedback = x['rating'] === 'up' || x['rating'] === 'down' ? { rating: x['rating'], at: ctx.now() } : null;
+        ops.push({ topic, e: 'turn', id: row.id, op: 'patch', ops: [{ op: 'add', path: '/body/ext', value: { ...ext, 'wisp.telemetry': { feedback } } }] });
+      }
+    }
+    return { ops, result: { ok: true, sent: true, available: true } };
+  },
+  // Show in folder: the mock has no file manager; it names the file it would open on
+  'runtime.reveal': (a) => ({ ops: [], result: { ok: true, path: str(obj(a), 'path') } }),
+  'runtime.btw.drop': (a, ctx) => {
+    const x = obj(a);
+    const id = str(x, 'id');
+    const ext = obj(obj(obj(ctx.row('list', 'session', id))['body'])['ext']);
+    const own = obj(ext['wisp.runtime']);
+    const l = (Array.isArray(own['btw']) ? (own['btw'] as Args[]) : []).filter((b) => b['id'] !== str(x, 'btwId'));
+    return { ops: sessionPatch(ctx, id, [{ op: 'add', path: '/body/ext', value: { ...ext, 'wisp.runtime': { ...own, btw: l } } }]) };
+  },
   'runtime.create': (a, ctx) => {
     const x = obj(a);
     const prompt = typeof x['prompt'] === 'string' ? x['prompt'] : str(x, 'text');
@@ -456,7 +498,44 @@ export const COMMANDS: Record<string, CommandFn> = {
   }),
   // a pinned pane: the app served here (the mock's own page), what it may use, and Allow (answered as asked)
   // your saved launch defaults (agent profiles): none saved here, so New task's own defaults apply
-  'resources.export': () => ({ ops: [], result: [] }),
+  // a computer's projects (`resources.export`, kind project): what Run on checks for a checkout first
+  'resources.export': (_a, ctx) => ({
+    ops: [],
+    result: {
+      projects: ctx
+        .rows('config')
+        .filter((r) => r.e === 'project')
+        .map((r) => ({ name: String(obj(r.v)['name'] ?? ''), path: String(obj(r.v)['path'] ?? '') })),
+    },
+  }),
+  // a project added on this computer (`resources.apply`, kind project): a Run on checkout joins its projects
+  'resources.apply': (a, ctx) => {
+    const list = Array.isArray(obj(a)['resources']) ? (obj(a)['resources'] as Args[]) : [];
+    const ops: EntityOp[] = list
+      .filter((r) => r['kind'] === 'project')
+      .map((r) => {
+        const name = String(r['name'] ?? '');
+        const path = String(obj(r['spec'])['path'] ?? '');
+        return { topic: 'config' as Topic, e: 'project', id: `${ctx.peer}:${name}`, op: 'upsert', v: { id: `${ctx.peer}:${name}`, name, path, color: 'violet' } };
+      });
+    return { ops, result: { applied: ops.length } };
+  },
+  // a folder's repo (git.origin): the project's folder is a checkout of wisp's repo; anything else isn't a repo
+  'git.origin': (a, ctx) => {
+    const path = str(obj(a), 'path');
+    const p = ctx
+      .rows('config')
+      .map((r) => obj(r.v))
+      .find((v) => typeof v['path'] === 'string' && v['path'] !== '' && (path === v['path'] || path.startsWith(`${String(v['path'])}/`)));
+    return { ops: [], result: p ? { origin: 'git@github.com:WispAgents/wisp.git', root: String(p['path']) } : { origin: '', root: '' } };
+  },
+  // this computer's checkout of a repo (git.checkout): a known folder with that repo, else a clone where clones go
+  'git.checkout': (a, ctx) => {
+    const x = obj(a);
+    const known = Array.isArray(x['known']) ? (x['known'] as string[]) : [];
+    const name = (str(x, 'url').split('/').pop() ?? 'repo').replace(/\.git$/, '');
+    return { ops: [], result: known[0] ? { dir: known[0], existed: true } : { dir: `/Users/${ctx.peer}/code/${name}`, existed: false } };
+  },
   'stuff.launch': () => ({ ops: [], result: { port: 4593, url: `${globalThis.location?.origin ?? 'http://localhost:4593'}/__mock/app` } }),
   'stuff.grant': () => ({ ops: [], result: { allowed: ['tasks:read', 'tasks:write'], changed: false } }),
   'stuff.allow': (a) => ({ ops: [], result: { id: str(obj(a), 'id'), allowed: obj(a)['uses'] } }),

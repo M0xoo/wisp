@@ -172,6 +172,8 @@ function startedOps(a: { id: string; text: string; turnId: string; idx: number; 
       ops: [
         { op: 'replace', path: '/state', value: 'running' },
         { op: 'replace', path: '/summary/live', value: 'Starting…' },
+        // a new question brings an archived task back (v1 F-task-8; the server does the same when the run starts)
+        { op: 'replace', path: '/archived', value: false },
       ],
     },
     {
@@ -304,6 +306,36 @@ export const exec = defineCommand<{ id: string; command: string }, { code: numbe
   optimistic: 'none',
   pending: 'the block’s Run button',
 });
+/** 👍 / 👎 on a turn, or the line after 👎 (v1 feedback.js rateTurn, whyForm): to the wisp team through the task's
+ *  own wisp, which keeps the rating on the turn (`ext["wisp.telemetry"].feedback`). The thumb lights at once; a
+ *  refusal puts it back. `turnKey` is the turn row's key. */
+export const rateTurn = defineCommand<{ id: string; turnKey: string; rating: 'up' | 'down' | null; text?: string; at: number }, unknown>({
+  id: 'telemetry.feedback',
+  owner: (a) => a.id,
+  wire: (a) => ({ rating: a.rating, sessionId: bare(a.id), turnId: bare(a.turnKey), source: 'turn', ...(a.text && { text: a.text }) }),
+  optimistic: (base, a) => {
+    if (a.text) return [];
+    const row = base.peek<{ body?: { ext?: Record<string, unknown> } }>('turn', a.turnKey as EntityKey);
+    const ext = row?.body?.ext ?? {};
+    const own = (ext['wisp.telemetry'] ?? {}) as Record<string, unknown>;
+    const feedback = a.rating ? { rating: a.rating, at: a.at } : null;
+    return [{ e: 'turn', id: a.turnKey as EntityKey, op: 'patch', ops: [{ op: 'add', path: '/body/ext', value: { ...ext, 'wisp.telemetry': { ...own, feedback } } }] }];
+  },
+});
+/** A turn's rating, as its wisp keeps it. */
+export function ratingOf(body: unknown): 'up' | 'down' | undefined {
+  const f = ((body as { ext?: Record<string, unknown> } | undefined)?.ext?.['wisp.telemetry'] as { feedback?: { rating?: unknown } | null } | undefined)?.feedback;
+  return f?.rating === 'up' || f?.rating === 'down' ? f.rating : undefined;
+}
+/** Show in folder for an answer's picture, video or doc (v1 POST /sessions/:id/reveal): the file manager opens on the
+ *  task's computer; the answer names the file it opened on. */
+export const reveal = defineCommand<{ id: string; path: string }, { ok: boolean; path: string }>({
+  id: 'runtime.reveal',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), path: a.path }),
+  optimistic: 'none',
+  pending: 'the Show in folder button',
+});
 /** A `blocked` block's Allow & retry / Deny. */
 export const approveBlocked = defineCommand<{ id: string; turnId: string; allow: boolean }, unknown>({
   id: 'runtime.approveBlocked',
@@ -351,4 +383,52 @@ export const specOf = defineCommand<{ id: string }, { prompt: string; steps?: st
   wire: (a) => ({ id: bare(a.id) }),
   optimistic: 'none',
   pending: 'Rerun',
+});
+
+/** "/btw did you …": the side question, or undefined (v1 btw.js btwQuestion; runtime's prompt/btw.rs). */
+export const btwQuestion = (text: string): string | undefined => (/^\/btw(?:\s+|$)/i.test(text.trim()) ? text.trim().replace(/^\/btw\s*/i, '') : undefined);
+
+/** A task's /btw entries (`ext["wisp.runtime"].btw`, BtwEntry). */
+export interface BtwRow {
+  readonly id: string;
+  readonly question: string;
+  readonly answer?: string;
+  readonly at: number;
+  readonly pending?: boolean;
+  readonly error?: string;
+}
+export const btwOf = (row: SessionRow | undefined): readonly BtwRow[] => {
+  const ext = (row?.body as { ext?: { 'wisp.runtime'?: { btw?: unknown } } } | undefined)?.ext?.['wisp.runtime']?.btw;
+  return Array.isArray(ext) ? (ext as BtwRow[]) : [];
+};
+const withBtw = (row: SessionRow | undefined, list: readonly BtwRow[]): LocalOp[] => {
+  if (!row?.body) return [];
+  const ext = ((row.body as { ext?: Record<string, unknown> }).ext ?? {}) as Record<string, unknown>;
+  const own = (ext['wisp.runtime'] ?? {}) as Record<string, unknown>;
+  return [{ e: SESSION, id: row.id as EntityKey, op: 'patch', ops: [{ op: 'add', path: '/body/ext', value: { ...ext, 'wisp.runtime': { ...own, btw: list } } as never }] }];
+};
+
+/** /btw: answered on the side, the run carries on (v1 btw.js); it shows at once, answering. */
+export const btw = defineCommand<{ id: string; question: string; tmp: string; at: number }, BtwRow>({
+  id: 'runtime.btw',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), question: a.question }),
+  optimistic: (base, a) => {
+    const row = base.peek<SessionRow>(SESSION, a.id as EntityKey) as SessionRow | undefined;
+    return withBtw(row, [...btwOf(row), { id: a.tmp, question: a.question, at: a.at, pending: true }]);
+  },
+});
+
+/** × on a /btw: gone at once (one still answering is cancelled). */
+export const btwDrop = defineCommand<{ id: string; btwId: string }>({
+  id: 'runtime.btw.drop',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), btwId: a.btwId }),
+  optimistic: (base, a) => {
+    const row = base.peek<SessionRow>(SESSION, a.id as EntityKey) as SessionRow | undefined;
+    return withBtw(
+      row,
+      btwOf(row).filter((b) => b.id !== a.btwId),
+    );
+  },
 });

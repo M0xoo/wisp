@@ -5,8 +5,9 @@ import type { EntityKey } from '@wisp/client';
 import { entityKey, ownerOf } from '@wisp/client';
 import { useSignal, type BlockContext, type StuffRef, type TaskRef } from '@wisp/ui';
 import type { ShellContext } from '../contract.ts';
+import { usePluginClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
-import { appState, approveBlocked, exec } from './commands.ts';
+import { appState, approveBlocked, exec, reveal } from './commands.ts';
 
 export interface AnswerHost {
   readonly shell: ShellContext;
@@ -29,10 +30,22 @@ export interface AnswerHost {
   readonly apps: () => Readonly<Record<string, unknown>>;
 }
 
+/** A picture or video an answer named → a URL the page loads (v1 ctx.fileUrl): a link stays; a file comes from the
+ *  task's own computer, this wisp's or another through it (`/api/peer/<machine>`). */
+export function mediaUrl(home: string, key: string, path: string): string | undefined {
+  if (!path) return undefined;
+  if (/^(https?:|data:|blob:)/.test(path)) return path;
+  const peer = key.slice(0, key.indexOf(':'));
+  const base = peer && peer !== home ? `/api/peer/${encodeURIComponent(peer)}` : '';
+  return `${base}/api/sessions/${encodeURIComponent(key.slice(key.indexOf(':') + 1))}/file?path=${encodeURIComponent(path)}`;
+}
+
 export function answerContext(h: AnswerHost): BlockContext {
   const { shell, key } = h;
   const run = shell.client.commands.run;
   const peer = ownerOf(key);
+  // called while a view sets up (TaskView, Compare): the shell's own client says which wisp is this one
+  const home = usePluginClient('shell').home;
   const keyOf = (id: string): EntityKey => (id.includes(':') ? (id as EntityKey) : entityKey(peer, id));
   return {
     get latest() {
@@ -66,6 +79,15 @@ export function answerContext(h: AnswerHost): BlockContext {
     openTask: (id) => shell.navigate({ t: 'openTask', id: keyOf(id) as never }),
     openUrl: (url) => shell.platform.openExternal(url),
     openFile: () => h.openChanges(),
+    media: (p) => mediaUrl(home, key, p),
+    // Show in folder: only on a computer (a phone has no folder to open, v1 MOBILE)
+    ...(shell.platform.kind !== 'android' && {
+      revealFile: (path: string) =>
+        void run(reveal, { id: key, path }).then(
+          (r) => !r.ok && shell.toast.error(shell.t('shell.reveal.failed', { path: r.path })),
+          (e: unknown) => shell.toast.error(e instanceof Error ? e.message : String(e)),
+        ),
+    }),
     appState: {
       get: (block) => h.apps()[block],
       set: (block, state) => void run(appState, { id: key, turnId: h.turnId, block, state }).catch(() => undefined),

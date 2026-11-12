@@ -40,6 +40,10 @@ export interface MockPeerOptions {
   epoch?: string;
   /** no tasks yet: the first-run launcher (MOCK_FIRST_RUN=1, or POST /__mock/reset?seed=first-run) */
   firstRun?: boolean;
+  /** a second computer, Studio, and a project here (MOCK_COMPUTERS=1, or POST /__mock/reset?seed=computers) */
+  computers?: boolean;
+  /** an answer with pictures and a video (POST /__mock/reset?seed=media) */
+  media?: boolean;
   /** v1's reference data (design/v1-reference/seed.json): replayed instead of the hand-written seed */
   v1?: V1Seed;
 }
@@ -79,7 +83,9 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
   const timers = o.timers ?? realTimers;
   const peer = o.peer ?? 'local';
   const epoch = o.epoch ?? `mock-${timers.now().toString(36)}`;
-  const data: Seeded = o.v1 ? fromV1(o.v1, peer) : seed({ peer, now: timers.now(), extra: o.sessions ?? 0, ...(o.firstRun && { firstRun: true }) });
+  const data: Seeded = o.v1
+    ? fromV1(o.v1, peer)
+    : seed({ peer, now: timers.now(), extra: o.sessions ?? 0, ...(o.firstRun && { firstRun: true }), ...(o.computers && { computers: true }), ...(o.media && { media: true }) });
   const store = new Map<Topic, Map<string, Row>>();
   const conns = new Map<string, Conn>();
   const handlers = new Map<string, CommandFn>(Object.entries(COMMANDS));

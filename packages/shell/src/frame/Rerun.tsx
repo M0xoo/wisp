@@ -9,6 +9,7 @@ import { create, specOf } from './commands.ts';
 import { harnessOf } from './harness.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { rerunArgs, startEdits, type RerunEdits } from './rerun.ts';
+import { placeOn } from './run-on.ts';
 
 export default function Rerun(props: { readonly params: { readonly id: string; readonly agent?: string } }): JSX.Element {
   const shell = useShell();
@@ -31,9 +32,21 @@ export default function Rerun(props: { readonly params: { readonly id: string; r
     const x = e();
     if (!s || !x?.prompt.trim()) return;
     const id = entityKey(x.peer as PeerId, uuidv7());
-    void shell.client.commands.run(create, rerunArgs(s as never, x, { of: key, id, at: Date.now() }) as never).catch(() => undefined);
-    shell.navigate({ t: 'closeOverlay', id: 'shell.rerun' as never });
-    shell.navigate({ t: 'openTask', id: id as never });
+    const begin = (cwd: string | undefined): void => {
+      void shell.client.commands.run(create, rerunArgs({ ...(s as never as object), ...(cwd !== undefined && { cwd }) } as never, x, { of: key, id, at: Date.now() }) as never).catch(() => undefined);
+      shell.navigate({ t: 'closeOverlay', id: 'shell.rerun' as never });
+      shell.navigate({ t: 'openTask', id: id as never });
+    };
+    const cwd = (s as { cwd?: string }).cwd ?? '';
+    if (x.peer === peer || !cwd) return begin(undefined);
+    // on another computer: its checkout of the repo (v1 places.js), as New task's Run on does
+    const where = shell.client.peers.name(x.peer as PeerId);
+    const name = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
+    shell.toast.show(t('shell.runOn.setting', { name, where }));
+    placeOn({ cwd, peer: x.peer, home: peer, name, where, run: (cmd, args) => shell.client.commands.run(cmd, args), say: (n, w) => t('shell.runOn.noOrigin', { name: n, where: w }) }).then(
+      begin,
+      (err: unknown) => shell.toast.error(err instanceof Error ? err.message : t('shell.runOn.failed', { where })),
+    );
   };
   return (
     <Show when={e()} fallback={<Text tone="muted">{t('shell.rerun.loading')}</Text>}>

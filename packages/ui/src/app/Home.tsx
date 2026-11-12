@@ -523,6 +523,18 @@ export function Tips(props: {
   );
 }
 
+/** v1 .sh-foot .sh-fb: bugs and ideas for the wisp team, a quiet line at the foot of home. */
+export function FeedbackLine(props: { readonly label: string; readonly onClick: () => void }): JSX.Element {
+  return (
+    <p data-kit="sh-foot">
+      <button type="button" data-kit="sh-fb" data-part="home.feedback" onClick={() => props.onClick()}>
+        <Icon name="bug" />
+        {props.label}
+      </button>
+    </p>
+  );
+}
+
 /** v1 .sh-keys: the list's keys, in a line under the tips (not on a phone). */
 export function KeysHint(props: { readonly items: readonly { readonly keys: readonly string[]; readonly label: string }[] }): JSX.Element {
   return (

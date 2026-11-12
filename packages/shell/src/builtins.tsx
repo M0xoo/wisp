@@ -13,6 +13,7 @@ import { SESSION, type SessionRow } from './rows.ts';
 import { archive, markRead, remove, searchTasks, setState } from './frame/commands.ts';
 import { TASK_KEY, type TaskKey } from './frame/task-keys.ts';
 import { parseCompare } from './frame/compare.ts';
+import { openFeedback, parseFeedback } from './frame/feedback.ts';
 import { rowMenuItems } from './frame/row-menu.ts';
 import { PROJECT_ACTIONS, PROJECT_SOURCE, projectItems, projectShortcuts, projectsNow } from './frame/project-switch.ts';
 import { flatRow, projectOf, shortAgo, statusOf } from './frame/rows-view.ts';
@@ -88,6 +89,14 @@ function appItems(ctx: ShellContext): PaletteItem[] {
       icon: 'bug',
       keywords: 'devtools debug inspector log state report',
       run: () => ctx.navigate(overlay('shell.devtools')),
+    },
+    {
+      id: 'shell.feedback',
+      group: g,
+      label: ctx.t('shell.cmd.feedback'),
+      icon: 'thumb-up',
+      keywords: 'feedback bug report broken crash idea suggestion thumbs contact team',
+      run: () => openFeedback(ctx),
     },
     { id: 'shell.home', group: g, label: ctx.t('shell.cmd.home'), icon: 'back', keywords: 'new task launcher start', run: () => ctx.navigate({ t: 'home' }) },
   ];
@@ -362,6 +371,16 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
         parse: (p) => ({ id: String((p as { id?: unknown } | null)?.id ?? ''), ...(typeof (p as { agent?: unknown } | null)?.agent === 'string' && { agent: (p as { agent: string }).agent }) }),
         component: lazy(() => import('./frame/Rerun.tsx')),
         title: () => ctx.t('shell.rerun.title'),
+      }),
+      // Send feedback (v1 feedback.js openFeedback): ⌘K, Home's foot, `/feedback` with no words
+      defineView({
+        kind: 'shell.feedback',
+        slot: 'overlay',
+        overlay: 'dialog',
+        part: 'feedback.modal',
+        parse: parseFeedback,
+        component: lazy(() => import('./frame/Feedback.tsx')),
+        title: () => ctx.t('shell.feedback.title'),
       }),
       defineView({
         kind: 'shell.compare',

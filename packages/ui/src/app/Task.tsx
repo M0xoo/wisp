@@ -237,6 +237,10 @@ export interface TurnViewProps {
   readonly live?: string;
   /** still running: v1's working panel (status, last steps, Stop), in place of the live line. Additive (2026-11-12). */
   readonly working?: JSX.Element;
+  /** 👍 / 👎 at the trail's end (a RateButtons). Additive (2026-11-12). */
+  readonly rate?: JSX.Element;
+  /** under the trail bar: what a trail button opened (after 👎, the WhyForm). Additive (2026-11-12). */
+  readonly trailBody?: JSX.Element;
 }
 
 /** v1 .turn: the ask, the answer's brief, and the trail under it. */
@@ -385,8 +389,12 @@ export function TurnView(props: TurnViewProps): JSX.Element {
                 />
               )}
             </For>
+            {props.rate}
           </span>
         </div>
+        <Show when={props.trailBody}>
+          <div data-kit="trail-body">{props.trailBody}</div>
+        </Show>
       </div>
     </article>
   );

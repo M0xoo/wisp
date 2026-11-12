@@ -7,14 +7,34 @@
 
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, untrack, type JSX } from 'solid-js';
 import { entityKey, ownerOf, uuidv7, type EntityKey, type Json } from '@wisp/client';
-import { Answer, Button, Dialog, Inline, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, WorkingPanel, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
+import {
+  Answer,
+  BtwList,
+  Button,
+  Dialog,
+  Inline,
+  OverlapNote,
+  RateButtons,
+  ReplyBox,
+  TaskBody,
+  TaskDetails,
+  TaskHead,
+  TurnView,
+  WhyForm,
+  WorkingPanel,
+  useSignal,
+  type IconName,
+  type MenuEntry,
+  type TaskAction,
+} from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
-import { Slot, useClients } from '../slot.tsx';
+import { Slot, useClients, usePluginClient } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
 import { changeFigures, duration, folded, longTime, nextNeedsYou, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { coldHint, compactItem } from './cold.ts';
 import { goalGate } from './goal-gate.ts';
+import { feedbackCommand, isFeedback } from './feedback.ts';
 import { readComments } from './comment-text.ts';
 import { useNow } from '../clock.ts';
 import { stopQuestion, type StopQuestion } from './stop-question.ts';
@@ -24,7 +44,31 @@ import { draftValue, replyDraft } from './drafts.ts';
 import { keep, placeOf, placesStore, scrollFor, type Place } from './place.ts';
 import { editorUrl } from '../editor.ts';
 import { resumeCommand } from './commands.ts';
-import { setSetting, archive, stopRun, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
+import {
+  rateTurn,
+  ratingOf,
+  btw,
+  btwDrop,
+  btwOf,
+  btwQuestion,
+  setSetting,
+  archive,
+  stopRun,
+  coldOf,
+  compactNow,
+  followUp,
+  forLater,
+  setLean,
+  type Attachment,
+  fork,
+  remove,
+  rename,
+  rerun,
+  restore,
+  setGoal,
+  setMode,
+  setState,
+} from './commands.ts';
 import { answerContext, blockedOf } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
@@ -193,6 +237,13 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   // what's open in the page: the steps, the notes, a command in flight, the reply's extras
   const [stepsOpen, setStepsOpen] = createSignal(false);
   const [notesOpen, setNotesOpen] = createSignal(false);
+  // 👍 / 👎 on a turn (v1 feedback.js): after 👎, one optional line under that turn's trail
+  const [whyFor, setWhyFor] = createSignal<string | undefined>();
+  const rate = (turnId: string, rating: 'up' | 'down' | null, text?: string): void => {
+    setWhyFor(rating === 'down' && !text ? turnId : undefined);
+    if (text) shell.toast.success(t('shell.rate.thanks'));
+    void run(rateTurn, { id: key, turnKey: entityKey(peer, turnId), rating, at: Date.now(), ...(text && { text }) }).catch(() => undefined);
+  };
   const [restoring, setRestoring] = createSignal(false);
   const [picking, setPicking] = createSignal(false);
   // older turns fold away (v1 transcript.js): Show earlier opens them for this view
@@ -240,7 +291,21 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const queueOn = (): boolean => followSetting()?.value === 'queue';
   const working = (): boolean => row()?.state === 'running' || row()?.state === 'waiting';
   const queues = (): boolean => working() && queueOn();
+  const shellHome = usePluginClient('shell').home;
   const send = (): void => {
+    // /feedback … or /bug …: to the wisp team about this task's run, never a follow-up (v1 composer.js)
+    if (isFeedback(text())) {
+      const typed = text();
+      setText('');
+      return feedbackCommand(shell, typed, { home: shellHome, sessionId: key, restore: () => text() === '' && setText(typed) });
+    }
+    // /btw: a side question, answered beside the run (v1 btw.js), never a follow-up
+    const q = btwQuestion(text());
+    if (q) {
+      setText('');
+      void run(btw, { id: key, question: q, tmp: uuidv7(), at: Date.now() }).catch(() => setText(`/btw ${q}`));
+      return;
+    }
     const v = menu.encode(text().trim());
     if (v) sent.set((cur) => remember(cur as readonly string[], v));
     // the Done when line open and empty: nothing goes, the line takes the focus (v1 #769 replyGoalEmpty)
@@ -631,6 +696,20 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         <>
                           <TurnView
                             id={turn.id}
+                            rate={<RateButtons rating={ratingOf(b)} labels={{ up: t('shell.rate.up'), down: t('shell.rate.down') }} onRate={(next) => rate(turn.id, next)} />}
+                            {...(whyFor() === turn.id && {
+                              trailBody: (
+                                <WhyForm
+                                  labels={{ placeholder: t('shell.rate.why'), note: t('shell.rate.whyNote'), skip: t('shell.rate.skip'), send: t('shell.rate.send') }}
+                                  onSend={(text) => rate(turn.id, 'down', text)}
+                                  onSkip={() => {
+                                    setWhyFor(undefined);
+                                    shell.toast.success(t('shell.rate.thanks'));
+                                  }}
+                                  onClose={() => setWhyFor(undefined)}
+                                />
+                              ),
+                            })}
                             prompt={sent.rest}
                             askNotes={sent.notes.map((c) => ({
                               n: c.n,
@@ -793,6 +872,20 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       );
                     }}
                   </For>
+                  {/* the /btw side questions asked on it (v1 btw.js), after its turns: answered on the side, the run carries on */}
+                  <BtwList
+                    items={btwOf(row()).map((b) => ({
+                      id: b.id,
+                      question: b.question,
+                      ...(b.answer !== undefined && { answer: b.answer }),
+                      ...(b.pending && { pending: true }),
+                      error: b.error,
+                      tip: t('shell.btw.tip', { at: clock(b.at) }),
+                    }))}
+                    waiting={t('shell.btw.waiting', { name: harnessOf(harnesses(), s().agent).name })}
+                    dismiss={(pending) => t(pending ? 'shell.btw.cancel' : 'shell.btw.dismiss')}
+                    onDismiss={(btwId) => void run(btwDrop, { id: key, btwId }).catch(() => undefined)}
+                  />
                 </>
               }
               dock={

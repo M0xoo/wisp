@@ -20,6 +20,7 @@ export {
 export { GoalPill, OverlapPill, RowPill, TaskCard, type CardStatus, type TaskCardProps } from './Card.tsx';
 export {
   KeysHint,
+  FeedbackLine,
   Launcher,
   NextList,
   SplitHome,
@@ -59,5 +60,7 @@ export { SpareCards, type SpareCard, type SpareCardsProps } from './Spare.tsx';
 export { RailCardBody, headingForCard, stepRow, type RailCardBodyProps, type RailCardRow } from './RailCard.tsx';
 export { AutoPop, type AutoPopProps, type AutoPopRow } from './AutoPop.tsx';
 export { ProjectsSheet, type ProjectsSheetProps, type ProjectsRow, type ProjectsPlace } from './ProjectsSheet.tsx';
+export { BtwList, type BtwItem } from './Btw.tsx';
+export { RateButtons, WhyForm, type Rating, type RateProps, type WhyFormProps } from './Rate.tsx';
 export { CompareRuns, type CompareRunsProps, type CompareRowView, type CompareRunView, type CompareCellView } from './Compare.tsx';
 export { AutomationsBody, AutoRunner, AutoList, TriggerKinds, AutoRow, AutoPresets, AutoNote, AutoFoot, type AutomationsTab, type AutoItem, type TriggerKind, type Rich } from './Automations.tsx';
