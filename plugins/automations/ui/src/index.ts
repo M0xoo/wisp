@@ -42,6 +42,7 @@ const ui: PluginUiDef = {
         icon: 'bolt',
         label: 'automations.recipe.menu',
         priority: 90,
+        section: 'keep',
         select: (p) => {
           const s = p.session?.() as { id: string; title?: string; mode?: string; agent?: string; model?: string; effort?: string } | undefined;
           if (!s) return;

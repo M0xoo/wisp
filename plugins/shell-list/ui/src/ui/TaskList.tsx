@@ -4,12 +4,13 @@
 // from navigation; the rest (whose menu is open, the dialogs) is local to this list.
 
 import { createEffect, createMemo, Match, on, onCleanup, Show, Switch, type JSX } from 'solid-js';
-import { ContextMenu, EmptyState, Stack, VirtualList, useSignal, type IconName, type MenuEntry } from '@wisp/ui';
+import { ContextMenu, EmptyState, Stack, VirtualList, useSignal, type MenuEntry } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import type { ExtensionProps, ResolvedExtension } from '@wisp/shell/contract';
 import { copyId, setUnread, toggleArchived, toggleDone, toggleForLater, togglePin } from '../actions.ts';
 import { flatten, itemKey, type Item } from '../model/flat.ts';
 import { rowMenu } from '../model/menu.ts';
+import { menuEntryOf } from '@wisp/shell';
 import { flatSession } from '../model/wire.ts';
 import { useShell } from '../shell.ts';
 import { KIND, type Session } from '../types.ts';
@@ -182,12 +183,7 @@ function menuFor(env: ListEnv, plugins: readonly ResolvedExtension[]): MenuEntry
   // as the list reads it: summary and body flat (branch, toShip, pr…), its key in `id`
   const session = (): { id: string; agent: string } => ({ ...flatSession(s), id: key });
   const shown = plugins.filter((x) => x.def.bar && (x.def.if?.({ client: env.client, config: x.config, session }) ?? true));
-  const entry = (x: ResolvedExtension): MenuEntry => {
-    const bar = x.def.bar;
-    const p = { client: env.client, config: x.config, session };
-    return { value: `x:${x.id}`, label: bar?.text?.(p as never) ?? env.shell.t(bar?.label ?? x.id), icon: (bar?.icon ?? 'dots') as IconName, ...(env.keys && bar?.keys ? { keys: bar.keys } : {}) };
-  };
-  return rowMenu({ s, t: env.shell.t, plugins: shown.filter((x) => x.def.bar?.place !== 'end').map(entry), end: shown.filter((x) => x.def.bar?.place === 'end').map(entry), keys: env.keys });
+  return rowMenu({ s, t: env.shell.t, plugins: shown.map((x) => menuEntryOf(x, { client: env.client, config: x.config, session }, env.shell.t, env.keys)), keys: env.keys });
 }
 
 /** A choice in the row menu. */

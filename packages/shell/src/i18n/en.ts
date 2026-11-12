@@ -282,6 +282,11 @@ export const SHELL_STRINGS = {
   'shell.task.transcriptTitle': 'Full transcript: every message and step (V)',
   'shell.task.rerun': 'Rerun…',
   'shell.more.rename': 'Rename',
+  // a task's menu's submenus (v1 #786)
+  'shell.menu.view': 'View',
+  'shell.menu.goal': 'Goal',
+  'shell.menu.copy': 'Copy',
+  'shell.menu.files': 'Files',
   'shell.more.copyId': 'Copy task ID',
   'shell.more.copiedId': 'Copied the task ID',
   'shell.more.copyResume': 'Copy resume command',

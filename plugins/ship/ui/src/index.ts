@@ -37,6 +37,7 @@ export default definePluginUi({
         icon: 'send',
         label: 'wisp.ship.action.ship',
         priority: 50,
+        section: 'waiting',
         keys: 'S',
         rowOnly: true, // the open task's bar has Ship it
         text: (p) => shipLabel(t, p.session?.() as ShipSession),
@@ -57,6 +58,7 @@ export default definePluginUi({
         icon: 'check',
         label: 'wisp.ship.menu.merge',
         priority: 52,
+        section: 'waiting',
         text: (p) => {
           const open = openPrs(p.session?.() as ShipSession | undefined);
           return open.length > 1 ? t('wisp.ship.menu.mergeMany', { count: open.length }) : t('wisp.ship.menu.merge', { n: open[0]?.pr.number ?? 0 });
@@ -73,12 +75,13 @@ export default definePluginUi({
       id: 'wisp.ship.rowReview',
       attachTo: { id: 'shell.row:menu' },
       component: () => null,
-      order: 54,
+      order: 75, // v1 #786 View ›: Changes, Shell, Review PR, Run app, Watch
       if: (p) => prsOf(p.session?.() as ShipSession | undefined).length > 0,
       bar: {
         icon: 'merge',
         label: 'wisp.ship.menu.review',
-        priority: 54,
+        priority: 75,
+        sub: 'view',
         keys: 'P',
         text: (p) => {
           const prs = prsOf(p.session?.() as ShipSession | undefined);

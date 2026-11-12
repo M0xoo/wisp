@@ -28,6 +28,14 @@
   [data-kit='menu-item'] > [data-kit='kbd'] { margin-left: auto; }
   [data-kit='menu-separator'] { height: var(--size-hairline); margin: var(--space-2) var(--space-3); background: var(--line); }
   [data-kit='menu-group-label'] { padding: var(--space-5) var(--space-5) var(--space-2); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--faint); }
+  /* a submenu (v1 #786 .mi-sub, .mi-back): a chevron at the row's end; drilled in, its items under a Back row
+     that names them, the menu as wide as it was */
+  [data-kit='menu'][data-drilled] { min-width: var(--menu-w); }
+  [data-kit='menu-item'][data-sub] > [data-kit='icon']:last-child { margin-left: auto; color: var(--faint); }
+  [data-kit='menu-item'][data-back] {
+    margin-bottom: var(--space-2); padding-bottom: var(--space-4); border-bottom: var(--size-hairline) solid var(--line);
+    border-radius: var(--radius-md) var(--radius-md) 0 0; font-weight: var(--fw-medium); color: var(--ink);
+  }
   [data-kit='context-area'] { display: contents; }
   @media (pointer: coarse) {
     [data-kit='menu-item'] { min-height: var(--size-touch); }

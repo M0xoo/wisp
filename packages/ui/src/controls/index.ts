@@ -10,6 +10,8 @@ export {
   type MenuItem,
   type MenuGroup,
   type MenuSeparator,
+  type MenuSubmenu,
+  menuSections,
   type MenuTrigger,
   type Placement,
 } from './Menu.tsx';

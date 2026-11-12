@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
+import { createSignal } from 'solid-js';
 import { mount, part, tick } from './helpers.tsx';
-import { ContextMenu, Menu, type MenuEntry } from '../src/controls/Menu.tsx';
+import { ContextMenu, Menu, menuSections, type MenuEntry } from '../src/controls/Menu.tsx';
 
 const items: MenuEntry[] = [
   { value: 'rerun', label: 'Rerun…', icon: 'rerun' },
@@ -79,4 +80,151 @@ describe('ContextMenu', () => {
     await tick(20);
     expect(part('row.menu')?.getAttribute('data-state')).toBe('open');
   });
+});
+
+// v1 #786 (web/js/ui/submenu.js): a submenu drills in, its items under a Back row; → opens it, ← and Escape step back
+const nested: MenuEntry[] = [
+  { value: 'rename', label: 'Rename', icon: 'pen' },
+  {
+    kind: 'submenu',
+    value: 'sub:copy',
+    label: 'Copy',
+    icon: 'copy',
+    items: [
+      { value: 'copy-id', label: 'Copy task ID' },
+      { value: 'copy-resume', label: 'Copy resume command' },
+    ],
+  },
+  { value: 'delete', label: 'Delete task', danger: true },
+];
+const lit = (): string | null | undefined => document.querySelector('[data-part="task.more"] [data-highlighted]')?.getAttribute('data-value');
+const shown = (): (string | null)[] => [...document.querySelectorAll('[data-part="task.more"] [data-kit="menu-item"]')].map((e) => e.getAttribute('data-value') ?? e.textContent);
+
+function openNested(onSelect = vi.fn()): { content: HTMLElement | null; onSelect: typeof onSelect } {
+  mount(() => <Menu items={nested} onSelect={onSelect} trigger={{ icon: 'dots', 'aria-label': 'More' }} part="task.more" />);
+  const trigger = part('task.more.trigger');
+  trigger?.focus();
+  key(trigger, 'ArrowDown');
+  return { content: part('task.more'), onSelect };
+}
+
+describe('Menu submenus', () => {
+  test('a submenu row drills in on click: its items under a Back row, the menu stays open_v1_786_submenu_drill', async () => {
+    const { onSelect } = openNested();
+    await tick(20);
+    expect(shown()).toEqual(['rename', 'sub:copy', 'delete']);
+    expect(part('task.more.sub')?.getAttribute('aria-haspopup')).toBe('menu');
+    part('task.more.sub')?.click();
+    await tick(20);
+    expect(part('task.more')?.getAttribute('data-state')).toBe('open');
+    expect(part('task.more')?.hasAttribute('data-drilled')).toBe(true);
+    expect(part('task.more.back')?.textContent).toBe('Copy');
+    expect(shown()).toEqual(['menu:back', 'copy-id', 'copy-resume']);
+    expect(onSelect).not.toHaveBeenCalled();
+    document.querySelector<HTMLElement>('[data-value="copy-resume"]')?.click();
+    await tick(20);
+    expect(onSelect).toHaveBeenCalledWith('copy-resume');
+    expect(part('task.more')?.getAttribute('data-state')).toBe('closed');
+  });
+
+  test('→ opens the lit submenu with its first item lit; ← steps back to its row_v1_786_submenu_arrows', async () => {
+    const { content } = openNested();
+    await tick(20);
+    key(content, 'ArrowDown');
+    await tick(10);
+    expect(lit()).toBe('sub:copy');
+    key(content, 'ArrowRight');
+    await tick(20);
+    expect(part('task.more.back')).not.toBeNull();
+    expect(lit()).toBe('copy-id');
+    key(content, 'ArrowLeft');
+    await tick(20);
+    expect(part('task.more.back')).toBeNull();
+    expect(lit()).toBe('sub:copy');
+    expect(part('task.more')?.getAttribute('data-state')).toBe('open');
+  });
+
+  test('Escape in a submenu steps back; a second Escape closes the menu_v1_786_submenu_escape', async () => {
+    const { content } = openNested();
+    await tick(20);
+    key(content, 'ArrowDown');
+    await tick(10);
+    key(content, 'Enter');
+    await tick(20);
+    expect(part('task.more.back')).not.toBeNull();
+    key(part('task.more'), 'Escape');
+    await tick(20);
+    expect(part('task.more.back')).toBeNull();
+    expect(part('task.more')?.getAttribute('data-state')).toBe('open');
+    key(part('task.more'), 'Escape');
+    await tick(20);
+    expect(part('task.more')?.getAttribute('data-state')).toBe('closed');
+  });
+
+  test('Back returns to the menu; reopening starts at the top level_v1_786_submenu_back', async () => {
+    openNested();
+    await tick(20);
+    part('task.more.sub')?.click();
+    await tick(20);
+    part('task.more.back')?.click();
+    await tick(20);
+    expect(shown()).toEqual(['rename', 'sub:copy', 'delete']);
+    part('task.more.sub')?.click();
+    await tick(20);
+    key(part('task.more'), 'Escape');
+    key(part('task.more'), 'Escape');
+    await tick(20);
+    const t = part('task.more.trigger');
+    t?.focus();
+    key(t, 'ArrowDown');
+    await tick(20);
+    expect(shown()).toEqual(['rename', 'sub:copy', 'delete']);
+  });
+});
+
+test('a right-click on another row while drilled in opens the menu at its top level_v1_786_submenu_reanchor', async () => {
+  mount(() => (
+    <ContextMenu items={nested} onSelect={() => {}} part="row.menu">
+      <p data-part="row.a">a</p>
+      <p data-part="row.b">b</p>
+    </ContextMenu>
+  ));
+  const right = (el: Element | null): void => void el?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
+  right(part('row.a'));
+  await tick(20);
+  part('row.menu.sub')?.click();
+  await tick(20);
+  expect(part('row.menu.back')).not.toBeNull();
+  right(part('row.b'));
+  await tick(20);
+  expect(part('row.menu')?.getAttribute('data-state')).toBe('open');
+  expect(part('row.menu.back')).toBeNull();
+  expect(part('row.menu')?.hasAttribute('data-drilled')).toBe(false);
+});
+
+test('a submenu that folds away while open leaves the top level, and one Escape closes_v1_786_submenu_gone', async () => {
+  const [items, setItems] = createSignal<MenuEntry[]>(nested);
+  mount(() => <Menu items={items()} onSelect={() => {}} trigger={{ icon: 'dots', 'aria-label': 'More' }} part="task.more" />);
+  const trigger = part('task.more.trigger');
+  trigger?.focus();
+  key(trigger, 'ArrowDown');
+  await tick(20);
+  part('task.more.sub')?.click();
+  await tick(20);
+  expect(part('task.more.back')).not.toBeNull();
+  // Copy › drops to one item: menuSections shows it inline, no submenu any more
+  setItems([nested[0] as MenuEntry, { value: 'copy-id', label: 'Copy task ID' }, nested[2] as MenuEntry]);
+  await tick(20);
+  expect(part('task.more.back')).toBeNull();
+  expect(part('task.more')?.hasAttribute('data-drilled')).toBe(false);
+  key(part('task.more'), 'Escape');
+  await tick(20);
+  expect(part('task.more')?.getAttribute('data-state')).toBe('closed');
+});
+
+test('menuSections: a line between groups, empty groups dropped, a submenu of one inline_v1_786_sections', () => {
+  const sub = (value: string, items: string[]): MenuEntry => ({ kind: 'submenu', value, label: value, items: items.map((v) => ({ value: v, label: v })) });
+  const m = menuSections([[{ value: 'a', label: 'a' }, false], [], [null, sub('s:one', ['only']), sub('s:none', [])], [sub('s:two', ['x', 'y'])]]);
+  expect(m.map((e) => ('value' in e ? e.value : e.kind))).toEqual(['a', 'separator', 'only', 'separator', 's:two']);
+  expect(menuSections([[sub('s:none', [])], []])).toEqual([]);
 });

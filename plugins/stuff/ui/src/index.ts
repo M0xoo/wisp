@@ -53,6 +53,7 @@ const ui: PluginUiDef = {
         icon: 'share',
         label: 'stuff.share.menu',
         priority: 40,
+        section: 'task',
         select: (p) => p.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'stuff.share' as never, params: { session: String((p.session?.() as ShareRow | undefined)?.id ?? '') } } }),
       },
     }),

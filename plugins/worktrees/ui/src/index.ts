@@ -34,7 +34,7 @@ const ui: PluginUiDef = {
         icon: 'pin',
         label: 'worktrees.keep',
         priority: 120,
-        place: 'end',
+        sub: 'files', // v1 #786: Files › (Open project in editor, Keep worktree, Restore)
         text: (p) => (kept(p.client, p.session?.() as RowLike | undefined) ? catalogue['worktrees.unkeep'] : catalogue['worktrees.keep']) ?? '',
         select: (p) => {
           const s = p.session?.() as RowLike | undefined;

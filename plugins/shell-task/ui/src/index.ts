@@ -44,6 +44,7 @@ export default definePluginUi({
         icon: 'play',
         label: 'shell-task.side.runApp',
         priority: 80,
+        sub: 'view',
         text: (p) => CATALOGUE[appRunning(p.session?.() as never) ? 'shell-task.side.stopApp' : 'shell-task.side.runApp'] ?? '',
         select: (p) => {
           const s = p.session?.() as { id?: string; ext?: Readonly<Record<string, unknown>> } | undefined;
@@ -67,6 +68,7 @@ export default definePluginUi({
         icon: 'eye',
         label: 'shell-task.side.watch',
         priority: 84,
+        sub: 'view',
         select: (p) => {
           const key = String((p.session?.() as { id?: string } | undefined)?.id ?? '');
           if (!key) return;

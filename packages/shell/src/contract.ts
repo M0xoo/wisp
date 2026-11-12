@@ -116,6 +116,13 @@ export interface ExtensionProps<C = Record<string, unknown>> {
   pickAgent?: (agent: string) => void;
 }
 
+/** A task's menu in sections, from the task itself to Delete (v1 #786, design/ux.md → Task menus): what the bar
+ *  does (Open, Rerun…), the task itself (Rename, Fork…, Share…), what's waiting on it (Ship it, Merge PR), where to
+ *  look (View ›, Goal ›, crew), what to keep (Copy ›, Save as recipe…, Files ›), where it sits (Mark done, Save for
+ *  later, Archive, then the rest). */
+export type TaskMenuSection = 'open' | 'task' | 'waiting' | 'look' | 'keep' | 'place';
+export type TaskMenuSub = 'view' | 'goal' | 'copy' | 'files';
+
 export interface ExtensionDef<C = Record<string, unknown>> {
   id: string; // owner-prefixed: 'claude.model-picker'
   attachTo: { id: InputId | (string & {}); input?: string };
@@ -138,6 +145,11 @@ export interface ExtensionDef<C = Record<string, unknown>> {
     place?: 'end';
     /** added 2026-11-12 (additive): in the row's menu only, not the open task's More (its bar has it: Ship it) */
     rowOnly?: boolean;
+    /** added 2026-11-12 (additive, v1 #786): the section of a task's menu it sits in (default 'place', after Archive) */
+    section?: TaskMenuSection;
+    /** added 2026-11-12 (additive, v1 #786): the submenu it folds into; it sets the section (View and Goal: 'look';
+     *  Copy and Files: 'keep') */
+    sub?: TaskMenuSub;
   };
   config?: { parse(v: unknown): C; default: C };
   if?: (p: ExtensionProps<C>) => boolean;

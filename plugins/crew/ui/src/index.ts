@@ -38,6 +38,7 @@ export default definePluginUi({
         icon: 'crew',
         label: 'wisp.crew.row.add',
         priority: 100,
+        section: 'look',
         text: (p) => {
           const s = p.session?.() as RowLike | undefined;
           const m = s?.crew?.id ? crewData(p.client).byId(s.crew.id) : undefined;

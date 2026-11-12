@@ -15,3 +15,25 @@ test('fork and side discussion only on a task of yours, as v1_v1_forkable_sideab
   expect(forkable({ ...mine, machine: { id: 'box' } })).toBe(true);
   expect(forkable(undefined)).toBe(false);
 });
+
+test('the shell row entries sit in v1 #786 groups; Copy resume needs a resume id, the editor a desktop_v1_786_row_entries', async () => {
+  const { rowMenuItems } = await import('../src/frame/row-menu.ts');
+  const at = (mobile: boolean) => Object.fromEntries(rowMenuItems({ platform: { mobile } } as never).map((d) => [d.id, d]));
+  const xs = at(false);
+  const place = (id: string): string | undefined => xs[id]?.bar?.sub ?? xs[id]?.bar?.section;
+  expect(['shell.row.rerun', 'shell.row.fork', 'shell.row.side', 'shell.row.changes', 'shell.row.shell', 'shell.row.compare', 'shell.row.copyResume', 'shell.row.editor'].map(place)).toEqual([
+    'open',
+    'task',
+    'task',
+    'view',
+    'view',
+    'view',
+    'copy',
+    'files',
+  ]);
+  const p = (s: object) => ({ session: () => ({ id: 'local:s1', agent: 'claude', ...s }) }) as never;
+  expect(xs['shell.row.copyResume']?.if?.(p({}))).toBe(false);
+  expect(xs['shell.row.copyResume']?.if?.(p({ resumeId: 'abc' }))).toBe(true);
+  expect(xs['shell.row.editor']?.if?.(p({}))).toBe(true);
+  expect(at(true)['shell.row.editor']?.if?.(p({}))).toBe(false);
+});

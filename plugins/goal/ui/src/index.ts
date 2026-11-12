@@ -37,6 +37,7 @@ const rowItem = (a: GoalAction, order: number, id: string) =>
       icon: ACTION_ICON[a],
       label: actionLabel(a, undefined),
       priority: order,
+      sub: 'goal',
       text: (p) => t(actionLabel(a, rowOf(p))),
       select: (p) => {
         const s = rowOf(p);

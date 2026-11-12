@@ -1,43 +1,74 @@
-// A task's row menu (model/menu.ts, v1 actions.js taskMenu): the list's own entries in v1's order and words, the
-// ones plugins attach to `shell.row:menu` after Copy task ID, `place: 'end'` ones after Save for later, no separators;
-// v2's own Pin and Mark read after every v1 entry (the owner, round 30).
+// A task's row menu (model/menu.ts, v1 #786 actions.js taskMenuHtml): the list's own entries in v1's sections, the
+// ones plugins attach to `shell.row:menu` placed by their section / submenu (View ›, Goal ›, Copy ›, Files ›), a line
+// between sections, Delete alone; v2's own Pin and Mark read after every v1 entry (the owner, round 30).
 import { expect, test } from 'vitest';
+import type { TaskMenuEntry } from '@wisp/shell';
 import type { MenuEntry } from '@wisp/ui';
 import { rowMenu } from '../src/model/menu.ts';
 import type { SessionRow } from '../src/types.ts';
 
-const t = (k: string): string => k.replace('shell-list.menu.', '');
+const t = (k: string): string => k.replace('shell-list.menu.', '').replace('shell.menu.', '');
 const row = (o: Partial<SessionRow> = {}): SessionRow => ({ id: 's1', title: 'Write docs', agent: 'claude', state: 'review', createdAt: 0, updatedAt: 0, ...o }) as SessionRow;
-const values = (m: readonly MenuEntry[]): string[] => m.map((e) => ('value' in e ? String(e.value) : `(${e.kind})`));
+const values = (m: readonly MenuEntry[]): string[] =>
+  m.map((e) => (e.kind === 'separator' ? '|' : e.kind === 'submenu' ? `${e.label}[${e.items.map((x) => ('value' in x ? x.value : x.kind)).join(',')}]` : 'value' in e ? e.value : e.kind));
+const x = (v: string, at: Omit<TaskMenuEntry, 'entry'>): TaskMenuEntry => ({ entry: { value: `x:${v}`, label: v }, ...at });
 
-test('plugin entries sit between Copy task ID and the triage, Keep worktree after Save for later, no separators_v1_task_menu', () => {
-  const plugins: MenuEntry[] = ['rerun', 'fork', 'side', 'share', 'ship', 'changes', 'shell', 'run', 'recipe', 'crew', 'goal'].map((v) => ({ value: `x:${v}`, label: v }));
-  const end: MenuEntry[] = [{ value: 'x:keep', label: 'Keep worktree' }];
-  const m = rowMenu({ s: row(), t, plugins, end, keys: true });
-  expect(values(m)).toEqual([
+// what the built-ins attach, with their bar.section / bar.sub and order (row-menu.ts, ship, goal, crew, worktrees…)
+const plugins: TaskMenuEntry[] = [
+  x('rerun', { section: 'open', order: 10 }),
+  x('fork', { section: 'task', order: 20 }),
+  x('side', { section: 'task', order: 30 }),
+  x('share', { section: 'task', order: 40 }),
+  x('ship', { section: 'waiting', order: 50 }),
+  x('merge', { section: 'waiting', order: 52 }),
+  x('changes', { sub: 'view', order: 60 }),
+  x('shell', { sub: 'view', order: 70 }),
+  x('review', { sub: 'view', order: 75 }),
+  x('run', { sub: 'view', order: 80 }),
+  x('recipe', { section: 'keep', order: 90 }),
+  x('crew', { section: 'look', order: 100 }),
+  x('goal-set', { sub: 'goal', order: 110 }),
+  x('goal-checks', { sub: 'goal', order: 111 }),
+  x('keep', { sub: 'files', order: 120 }),
+];
+
+test('v1 #786: sections, View/Goal/Copy/Files submenus, Delete alone, Pin and Mark read last_v1_786_row_menu_groups', () => {
+  expect(values(rowMenu({ s: row(), t, plugins, keys: true }))).toEqual([
     'open',
-    'rename',
-    'copy-id',
     'x:rerun',
+    '|',
+    'rename',
     'x:fork',
     'x:side',
     'x:share',
+    '|',
     'x:ship',
-    'x:changes',
-    'x:shell',
-    'x:run',
-    'x:recipe',
+    'x:merge',
+    '|',
+    'view[x:changes,x:shell,x:review,x:run]',
+    'goal[x:goal-set,x:goal-checks]',
     'x:crew',
-    'x:goal',
-    'later',
+    '|',
+    'copy-id',
+    'x:recipe',
     'x:keep',
+    '|',
     'done',
+    'later',
     'archive',
+    '|',
     'delete',
+    '|',
     'pin',
     'read',
   ]);
-  expect(m.some((e) => 'kind' in e && e.kind === 'separator')).toBe(false);
-  // a busy task: no Mark done, no Archive (v1)
-  expect(values(rowMenu({ s: row({ state: 'running' }), t, plugins: [], keys: true }))).toEqual(['open', 'rename', 'copy-id', 'delete', 'pin']);
+});
+
+test('a busy task: no Mark done, no Archive, no Mark read; one-item submenus stay inline_v1_786_row_menu_busy', () => {
+  expect(values(rowMenu({ s: row({ state: 'running' }), t, plugins: [], keys: true }))).toEqual(['open', '|', 'rename', '|', 'copy-id', '|', 'delete', '|', 'pin']);
+});
+
+test('no key hints on touch screens_v1_786_row_menu_keys', () => {
+  const m = rowMenu({ s: row(), t, plugins: [], keys: false });
+  expect(m.some((e) => 'keys' in e && e.keys)).toBe(false);
 });
