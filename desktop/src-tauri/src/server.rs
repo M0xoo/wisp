@@ -1,5 +1,6 @@
-// The Node child that runs wisp's server (desktop/entry.mjs). It holds the read end of a pipe on its
-// stdin: when this process goes, however it goes, that pipe closes and the server shuts down.
+// The child that runs wisp's server: the same `wisp` binary as Homebrew and npm (ADR-0013), as `wisp serve`
+// with `web/` beside it. It holds the read end of a pipe on its stdin (WISP_EXIT_WITH_STDIN): when this process
+// goes, however it goes, that pipe closes and the server shuts down.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
@@ -35,12 +36,13 @@ pub fn answers(port: u16, path: &str) -> bool {
 }
 
 impl Server {
-  pub fn start(&self, app: &AppHandle, node: &Path, root: &Path, data: &Path, port: u16) -> std::io::Result<()> {
-    let mut cmd = Command::new(node);
+  pub fn start(&self, app: &AppHandle, wisp: &Path, data: &Path, port: u16) -> std::io::Result<()> {
+    let mut cmd = Command::new(wisp);
     cmd
-      .arg(root.join("desktop/entry.mjs"))
-      .current_dir(root)
+      .arg("serve")
+      .current_dir(wisp.parent().unwrap_or(data))
       .env("WISP_PORT", port.to_string())
+      .env("WISP_EXIT_WITH_STDIN", "1")
       .env("WISP_DESKTOP", "tauri")
       .env("WISP_DESKTOP_DATA", data)
       .stdin(Stdio::piped())
@@ -108,7 +110,7 @@ impl Server {
   }
 }
 
-// The server's log goes on to our stdout. `wisp:shell` lines are for us (dev mode, entry.mjs).
+// The server's log goes on to our stdout. `wisp:shell` lines are for us (a dev server may ask to reload).
 fn relay(lines: impl Read, app: AppHandle) {
   for line in BufReader::new(lines).lines().map_while(Result::ok) {
     match line.strip_prefix("wisp:shell ") {

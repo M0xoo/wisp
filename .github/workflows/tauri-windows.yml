@@ -42,6 +42,7 @@ jobs:
             desktop/src-tauri/target
           key: tauri-windows-qa-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-${{ github.sha }}
           restore-keys: tauri-windows-qa-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
       - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc --features qa
       - uses: actions/upload-artifact@v4
         with:

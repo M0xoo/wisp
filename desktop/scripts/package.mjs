@@ -5,7 +5,10 @@
 //
 //   node desktop/scripts/package.mjs [--target <triple>] [--out dist/tauri] [--features qa] [--skip-build]
 //
-// Needs Rust. TAURI_CLI picks the CLI ("cargo tauri" here if you have it), MAC_SIGN_IDENTITY a
+// Needs Rust and the workspace's npm install (the web build). The app holds the `wisp` binary Homebrew and npm ship
+// (ADR-0013) with the web build beside it, nothing else: the shell runs `wisp serve` (src-tauri/src/server.rs).
+// WISP_BIN and WISP_WEB_DIR take a binary and a web build made elsewhere instead of building them here.
+// TAURI_CLI picks the CLI ("cargo tauri" here if you have it), MAC_SIGN_IDENTITY a
 // Developer ID (ad hoc otherwise, as in release.yml: Apple silicon runs nothing unsigned). Mac only:
 // dmg and zip. Windows only: the installer. Linux only: the AppImage and the .deb, each built on its
 // own arch (Tauri doesn't cross-compile WebKitGTK).
@@ -15,7 +18,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { NODE_VERSION, TARGETS, fetchNode, hostTarget } from './fetch-node.mjs';
+import { TARGETS, hostTarget } from './fetch-node.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SHELL = path.join(ROOT, 'desktop/src-tauri');
@@ -37,10 +40,10 @@ export const artefacts = (triple) => {
   return [`wisp-windows-${arch}-setup.exe`];
 };
 
-// What goes in the app: what npm ships, plus the Node side of the shell.
-export function appFiles(pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))) {
-  return [...new Set(['package.json', ...pkg.files.map((f) => f.replace(/\/$/, '')), 'desktop/entry.mjs', 'desktop/shell-path.js', 'desktop/remove-electron.mjs'])];
-}
+// What goes in the app: the binary, and the web build where `wisp serve` looks for it (web/ beside the binary,
+// crates/wisp/src/serve.rs web_dir).
+export const binName = (triple) => (isWindows(triple) ? 'wisp.exe' : 'wisp');
+export const appFiles = (triple) => [binName(triple), 'web'];
 
 // A separate config, never tauri.conf.json: tauri-build fails on resources that aren't there, and
 // cargo check, dev:tauri and qa/desktop-tauri.mjs have no stage/.
@@ -54,7 +57,7 @@ export function overlay(triple) {
   return {
     bundle: {
       targets: mac ? ['app'] : linux ? ['appimage', 'deb'] : ['nsis'],
-      resources: { 'stage/app/': mac ? 'app/' : 'resources/app/', 'stage/node/': 'node/' },
+      resources: { 'stage/app/': mac ? 'app/' : 'resources/app/' },
       // %LOCALAPPDATA%, so the updater can replace it without admin rights.
       ...(mac || linux ? {} : { windows: { nsis: { installMode: 'currentUser', installerHooks: 'installer-hooks.nsh' } } }),
       // The menu entry and the package's section, as Electron's Linux builds had them.
@@ -63,11 +66,26 @@ export function overlay(triple) {
   };
 }
 
-export function stage(root = ROOT, dest = path.join(STAGE, 'app')) {
+const cargoTarget = () => process.env.CARGO_TARGET_DIR || path.join(ROOT, 'target');
+
+// The release binary for the target and the web build, unless WISP_BIN / WISP_WEB_DIR name ready ones.
+export function buildWisp(triple) {
+  if (!process.env.WISP_BIN) execFileSync('cargo', ['build', '--release', '--locked', '-p', 'wisp', '--target', triple], { cwd: ROOT, stdio: 'inherit' });
+  if (!process.env.WISP_WEB_DIR) execFileSync('npm', ['run', 'build', '--workspace', '@wisp/web'], { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
+}
+
+export function stage(
+  triple,
+  { bin = process.env.WISP_BIN || path.join(cargoTarget(), triple, 'release', binName(triple)), web = process.env.WISP_WEB_DIR || path.join(ROOT, 'apps/web/dist') } = {},
+  dest = path.join(STAGE, 'app'),
+) {
+  if (!fs.existsSync(bin)) throw new Error(`no wisp binary at ${bin}: cargo build --release -p wisp --target ${triple}, or set WISP_BIN`);
+  if (!fs.existsSync(path.join(web, 'index.html'))) throw new Error(`no web build in ${web}: npm run build --workspace @wisp/web, or set WISP_WEB_DIR`);
   fs.rmSync(dest, { recursive: true, force: true });
-  for (const f of appFiles(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')))) {
-    fs.cpSync(path.join(root, f), path.join(dest, f), { recursive: true, filter: (s) => !/[\\/](node_modules|\.DS_Store)$/.test(s) });
-  }
+  fs.mkdirSync(dest, { recursive: true });
+  fs.copyFileSync(bin, path.join(dest, binName(triple)));
+  fs.chmodSync(path.join(dest, binName(triple)), 0o755);
+  fs.cpSync(web, path.join(dest, 'web'), { recursive: true, filter: (f) => !/[\\/]\.DS_Store$/.test(f) });
   return dest;
 }
 
@@ -80,8 +98,8 @@ function tauri(triple, config, features) {
 const bundleDir = (triple) => path.join(process.env.CARGO_TARGET_DIR || path.join(SHELL, 'target'), triple, 'release', 'bundle');
 const run = (cmd, ...args) => execFileSync(cmd, args, { stdio: 'inherit' });
 
-// Node first, then the bundle around it: a signature seals what's inside. Tauri signs only its own
-// binary and leaves Node with the Node project's signature, so the app's entitlements wouldn't reach it.
+// The server binary first, then the bundle around it: a signature seals what's inside. Tauri signs only its own
+// binary, so the hardened runtime and the app's entitlements wouldn't reach `wisp` otherwise.
 export function signArgs(file, identity = '-', entitlements = ENTITLEMENTS) {
   return ['--force', '--options', 'runtime', '--timestamp=none', '--entitlements', entitlements, '--sign', identity, file];
 }
@@ -89,11 +107,11 @@ export function signArgs(file, identity = '-', entitlements = ENTITLEMENTS) {
 function packMac(triple, out) {
   const app = path.join(bundleDir(triple), 'macos', 'wisp.app');
   const identity = process.env.MAC_SIGN_IDENTITY || '-';
-  run('codesign', ...signArgs(path.join(app, 'Contents/Resources/node/bin/node'), identity));
+  run('codesign', ...signArgs(path.join(app, 'Contents/Resources/app/wisp'), identity));
   run('codesign', ...signArgs(app, identity));
   run('codesign', '--verify', '--strict', '--verbose=1', app);
   const [dmg, zip] = artefacts(triple).map((f) => path.join(out, f));
-  // ditto: keeps Node's executable bit, and wisp.app at the top of the zip.
+  // ditto: keeps wisp's executable bit, and wisp.app at the top of the zip.
   fs.rmSync(zip, { force: true });
   run('ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', app, zip);
   const room = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-dmg-'));
@@ -110,9 +128,9 @@ function packWindows(triple, out) {
   fs.copyFileSync(path.join(dir, built), path.join(out, artefacts(triple)[0]));
 }
 
-// The same build without Node or wisp's files: wisp.app on a Mac, the bare binary elsewhere (Windows
-// has WebView2, the resources were the installer's files). A wisp from npm runs it on its own Node
-// and files. On a Mac the bundle's signature sealed what's gone, so it's signed again.
+// The same build without wisp's files: wisp.app on a Mac, the bare binary elsewhere (Windows has WebView2, the
+// resources were the installer's files). A wisp from npm runs it with its own binary (WISP_BIN). On a Mac the
+// bundle's signature sealed what's gone, so it's signed again.
 const tarBin = () => (process.platform === 'win32' ? path.join(process.env.SystemRoot, 'System32/tar.exe') : 'tar');
 export function packShell(triple, out) {
   const room = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-shell-'));
@@ -121,7 +139,7 @@ export function packShell(triple, out) {
     if (isMac(triple)) {
       inside = 'wisp.app';
       run('ditto', path.join(bundleDir(triple), 'macos', 'wisp.app'), path.join(room, inside));
-      for (const dir of ['app', 'node']) fs.rmSync(path.join(room, inside, 'Contents/Resources', dir), { recursive: true, force: true });
+      for (const dir of ['app']) fs.rmSync(path.join(room, inside, 'Contents/Resources', dir), { recursive: true, force: true });
       run('codesign', ...signArgs(path.join(room, inside), process.env.MAC_SIGN_IDENTITY || '-'));
       run('codesign', '--verify', '--strict', '--verbose=1', path.join(room, inside));
     } else {
@@ -143,7 +161,10 @@ export function packShell(triple, out) {
 // Tauri's own names carry the version and its arch words (amd64, aarch64): ours carry neither.
 function packLinux(triple, out) {
   const [image, deb] = artefacts(triple);
-  for (const [kind, ext, name] of [['appimage', '.AppImage', image], ['deb', '.deb', deb]]) {
+  for (const [kind, ext, name] of [
+    ['appimage', '.AppImage', image],
+    ['deb', '.deb', deb],
+  ]) {
     const dir = path.join(bundleDir(triple), kind);
     const built = fs.readdirSync(dir).find((f) => f.endsWith(ext));
     if (!built) throw new Error(`no ${ext} in ${dir}`);
@@ -162,14 +183,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (!TARGETS[triple]) throw new Error(`no Tauri packaging for ${triple}`);
   fs.mkdirSync(out, { recursive: true });
   if (!process.argv.includes('--skip-build')) {
-    stage();
-    await fetchNode(triple, path.join(STAGE, 'node'));
+    buildWisp(triple);
+    stage(triple);
     const config = path.join(STAGE, 'tauri.conf.json');
     fs.writeFileSync(config, JSON.stringify(overlay(triple), null, 2));
     tauri(triple, config, arg('--features'));
   }
   (isMac(triple) ? packMac : isLinux(triple) ? packLinux : packWindows)(triple, out);
   if (!isLinux(triple)) packShell(triple, out);
-  for (const f of artefacts(triple)) console.log(`${f}  ${fs.statSync(path.join(out, f)).size} bytes  (Node ${NODE_VERSION})`);
+  for (const f of artefacts(triple)) console.log(`${f}  ${fs.statSync(path.join(out, f)).size} bytes`);
   if (!isLinux(triple)) console.log(`${shellArtefact(triple)}  ${fs.statSync(path.join(out, shellArtefact(triple))).size} bytes  (the shell alone)`);
 }

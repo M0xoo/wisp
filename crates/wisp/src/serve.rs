@@ -1,6 +1,7 @@
 //! Running wisp here: the kernel with this build's plugin group and services, then the edge on
 //! 127.0.0.1:<port> (`WISP_HOST` in a grid container), until Ctrl-C or SIGTERM. Env read once here:
-//!   `WISP_HOME`, `WISP_PORT`, `WISP_HOST`, `WISP_WEB_DIR`, `WISP_BOX` (a grid box: the `box` set, `BoxPlugins`),
+//!   `WISP_HOME`, `WISP_PORT`, `WISP_HOST`, `WISP_WEB_DIR`, `WISP_EXIT_WITH_STDIN` (the desktop app's child),
+//!   `WISP_BOX` (a grid box: the `box` set, `BoxPlugins`),
 //!   `WISP_TRUSTED_PROXY_SECRET`, `WISP_PUBLIC_URL`, `WISP_PREVIEW_URL`.
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
@@ -165,7 +166,17 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     Ok(Running { server, kernel, started, store, feed })
 }
 
-/// Until Ctrl-C or SIGTERM, then a clean stop (server.json removed if it is ours).
+/// With `WISP_EXIT_WITH_STDIN` set (the desktop app's child): done once stdin closes. Only the app holds the pipe,
+/// so when it quits, crashes or is killed -9 the server stops too and never outlives it (v1 desktop/entry.mjs).
+async fn stdin_closed() {
+    if std::env::var_os("WISP_EXIT_WITH_STDIN").is_none() {
+        return std::future::pending().await;
+    }
+    let _ = tokio::task::spawn_blocking(|| std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink())).await;
+}
+
+/// Until Ctrl-C, SIGTERM or (the desktop app's child) stdin closing, then a clean stop (server.json removed if it
+/// is ours).
 pub async fn until_signal(r: Running) {
     #[cfg(unix)]
     {
@@ -174,10 +185,14 @@ pub async fn until_signal(r: Running) {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {}
             () = async { match term.as_mut() { Some(t) => { t.recv().await; } None => std::future::pending().await } } => {}
+            () = stdin_closed() => {}
         }
     }
     #[cfg(not(unix))]
-    let _ = tokio::signal::ctrl_c().await;
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        () = stdin_closed() => {}
+    }
     r.server.shutdown().await;
     // every plugin off, in reverse order: their scopes end their tasks and children
     let ids: Vec<String> = r.kernel.status().into_iter().filter(|s| s.state == "active").map(|s| s.id).collect();

@@ -50,6 +50,7 @@ jobs:
       - name: Stamp the nightly version
         if: inputs.version != ''
         run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
       - run: node desktop/scripts/package.mjs --target aarch64-apple-darwin
       - run: node desktop/scripts/package.mjs --target x86_64-apple-darwin
       - uses: actions/upload-artifact@v4
@@ -92,6 +93,7 @@ jobs:
       - name: Stamp the nightly version
         if: inputs.version != ''
         run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
       - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc
       - run: node desktop/scripts/package.mjs --target aarch64-pc-windows-msvc
       - uses: actions/upload-artifact@v4
@@ -136,6 +138,7 @@ jobs:
       - name: Stamp the nightly version
         if: inputs.version != ''
         run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
       - run: node desktop/scripts/package.mjs --target ${{ matrix.triple }}
       - uses: actions/upload-artifact@v4
         with:

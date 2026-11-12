@@ -1,5 +1,5 @@
-// wisp's desktop app on Tauri. The window loads the same page the browser mode serves. Tauri has
-// no Node, so the unchanged server runs as a child on a real Node binary (desktop/entry.mjs, src/server.rs). Logic lives there, not here.
+// wisp's desktop app on Tauri. The window loads the same page the browser mode serves, from the same `wisp` binary
+// Homebrew and npm ship (ADR-0013), run as a child (`wisp serve`, src/server.rs). Logic lives there, not here.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -200,13 +200,12 @@ fn fail(app: &AppHandle, text: String) {
 fn boot(app: AppHandle, port: u16) {
   if !server::answers(port, "/api/config") {
     // Not a wisp to attach to, so ours: quitting must leave a CLI wisp running (DESK-14).
-    let root = match root(&app) {
-      Some(root) => root,
-      None => return fail(&app, "wisp's files aren't in this app.".into()),
+    let Some(bin) = wisp(&app) else {
+      return fail(&app, "wisp's files aren't in this app.".into());
     };
     let data = app.path().app_data_dir().unwrap_or_default();
-    if let Err(err) = app.state::<Server>().start(&app, &node(&app), &root, &data, port) {
-      return fail(&app, format!("Couldn't start Node: {err}"));
+    if let Err(err) = app.state::<Server>().start(&app, &bin, &data, port) {
+      return fail(&app, format!("Couldn't start wisp: {err}"));
     }
     if !app.state::<Server>().wait_healthy(port) {
       return fail(&app, format!("wisp's server didn't answer on port {port}."));
@@ -224,28 +223,21 @@ fn boot(app: AppHandle, port: u16) {
 
 // Tauri refuses resource_dir() on macOS when the app's path holds a symlink (a linked Applications
 // folder, /tmp). The real path is as good: all this reads is the bundle the running binary is in.
-// On Windows it's canonicalized, so \\?\C:\…: Node 22 can't run a script from such a path.
+// On Windows it's canonicalized, so \\?\C:\…: a verbatim path the server (and git under it) chokes on.
 fn resources(app: &AppHandle) -> Option<PathBuf> {
   let beside = || std::env::current_exe().ok()?.canonicalize().ok()?.parent()?.join("../Resources").canonicalize().ok();
   let dir = app.path().resource_dir().ok().or_else(beside)?;
   Some(dir.to_str().and_then(|p| p.strip_prefix(r"\\?\")).filter(|p| !p.starts_with("UNC")).map_or_else(|| dir.clone(), PathBuf::from))
 }
 
-// WISP_* are for running from a checkout. A built app has both under its resources (the same
-// Contents/Resources/app the updater looks for, server/update.js PACKAGED). On Windows the resource
-// folder is the exe's, so there it's resources\app (desktop/scripts/package.mjs). On Linux it's
-// /usr/lib/wisp, in the AppImage too, so resources/app there as well: PACKAGED wants that name.
-fn root(app: &AppHandle) -> Option<PathBuf> {
-  let entry = |p: &PathBuf| p.join("desktop/entry.mjs").exists();
-  let packaged = resources(app).map(|r| r.join(if cfg!(target_os = "macos") { "app" } else { "resources/app" }));
-  let checkout = cfg!(debug_assertions).then(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
-  std::env::var_os("WISP_ROOT").map(PathBuf::from).into_iter().chain(packaged).chain(checkout).find(entry)
-}
-
-fn node(app: &AppHandle) -> PathBuf {
-  let name = if cfg!(windows) { "node/node.exe" } else { "node/bin/node" };
-  let bundled = resources(app).map(|r| r.join(name)).filter(|p| p.exists());
-  std::env::var_os("WISP_NODE").map(PathBuf::from).or(bundled).unwrap_or_else(|| "node".into())
+// The `wisp` binary: WISP_BIN when running from a checkout (or a debug build's own target dir). A built app has it
+// under its resources with `web/` beside it (desktop/scripts/package.mjs): Contents/Resources/app on macOS; on
+// Windows the resource folder is the exe's, so resources\app; on Linux /usr/lib/wisp, so resources/app as well.
+fn wisp(app: &AppHandle) -> Option<PathBuf> {
+  let name = if cfg!(windows) { "wisp.exe" } else { "wisp" };
+  let packaged = resources(app).map(|r| r.join(if cfg!(target_os = "macos") { "app" } else { "resources/app" }).join(name));
+  let checkout = cfg!(debug_assertions).then(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug").join(name));
+  std::env::var_os("WISP_BIN").map(PathBuf::from).into_iter().chain(packaged).chain(checkout).find(|p| p.is_file())
 }
 
 #[tauri::command]
