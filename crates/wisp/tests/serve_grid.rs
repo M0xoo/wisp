@@ -302,9 +302,12 @@ async fn a_computer_and_a_box_through_the_grid() {
     a.cmd("settings.set", json!({ "key": "grid-client.previews", "value": true })).await;
     let r = web.get(&url).bearer_auth(&token).send().await.unwrap();
     assert_eq!((r.status().as_u16(), r.text().await.unwrap()), (200, "hello".to_owned()));
-    // a_box_never_gets_a_laptop_token (the grid's side): a box's credential reaches no computer
+    // a_box_never_gets_a_laptop_token (the grid's side): a Box credential whose secret isn't the running box's proves
+    // nobody, so it gets no further than Sign in first (401); a verified box is refused by the trust table (403:
+    // apps/grid/tests/box_reach.rs). Either way it reaches no computer.
     let r = web.get(format!("http://studio--ada.wisp.localhost:{}/api/health", g.port)).header("authorization", "Box ada x").send().await.unwrap();
-    assert_eq!(r.status(), 403);
+    assert_eq!(r.status(), 401);
+    assert!(r.text().await.unwrap().contains("Sign in first"));
     let r = web.get(format!("http://studio--ada.wisp.localhost:{}/api/health", g.port)).bearer_auth(&token).send().await.unwrap();
     assert_eq!(r.status(), 200);
 
