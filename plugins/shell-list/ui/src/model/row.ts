@@ -57,6 +57,10 @@ export interface RowView {
   readonly sub?: SubView;
   readonly run?: RunView;
   readonly pills: readonly PillView[];
+  /** v1 goal.js goalPill(): its round and the last check's progress, after the state */
+  readonly goal?: { readonly n: number; readonly progress: number; readonly paused: boolean; readonly title: Txt };
+  /** v1 overlaps.js overlapPill(): how many other tasks touch the same files */
+  readonly overlap?: { readonly n: number; readonly clash: boolean; readonly title: Txt };
   readonly ram: string;
   readonly time: TimeView;
   readonly unread: boolean;
@@ -158,6 +162,16 @@ function prPill(s: SessionRow): PillView | undefined {
   return { id: 'pr', label: tx('shell-list.pill.pr', { n: pr.number }), tone, icon: 'merge', variant: 'outline', title: tx(`shell-list.pr.${state}`, { n: pr.number }) };
 }
 
+/** The goal's ring and round, and the overlap mark (v1 feed.js: after the state pill). */
+function goalAndOverlap(s: SessionRow): Pick<RowView, 'goal' | 'overlap'> {
+  const out: { goal?: RowView['goal']; overlap?: RowView['overlap'] } = {};
+  const g = s.goal;
+  if (g?.text) out.goal = { n: g.round ?? 0, progress: g.checks?.[g.checks.length - 1]?.progress ?? 0, paused: g.status === 'paused', title: tx('shell-list.goal.tip', { text: g.text, why: g.last?.why ?? '' }) };
+  const o = s.overlaps ?? [];
+  if (o.length > 0) out.overlap = { n: o.length, clash: o.some((x) => (x.conflicts?.length ?? 0) > 0), title: tx('shell-list.overlap.tip', { n: o.length, titles: o.map((x) => x.title ?? x.id).join(', ') }) };
+  return out as Pick<RowView, 'goal' | 'overlap'>;
+}
+
 /** What a row says about its task between the title and the time, in v1's order. */
 export function pillsOf(s: SessionRow): PillView[] {
   const out: PillView[] = [];
@@ -210,6 +224,7 @@ export function rowView(s: SessionRow, c: RowContext): RowView {
     ...(sub ? { sub } : {}),
     ...(run ? { run } : {}),
     pills: pillsOf(s),
+    ...goalAndOverlap(s),
     ram: resText(s),
     time: timeOf(s),
     unread: !!s.unread && !busy(s),

@@ -32,3 +32,71 @@ held by another vite from this worktree on 2026-11-12).
 2. The task page's openers: `task.transcript` and `task.changes` (v1 `[data-a=…]` actions → the v2 parts).
 3. The crew opener at 600.
 4. The palette's sheet (77 % px).
+
+## 2026-11-12 (round 20): home and the list
+
+`home` (48 shots, all widths, themes, states): 0 pass, but 1440-light-rest went from 1.8 % px / 106 of 168 parts off
+to **0.9 % px / 40 of 168**; 600 px is 0.0 % px, 23 of 117 parts off.
+
+**Fixed (the list, measured as v1's #feed)**
+- The 24 px: wisp.history's Tasks · Repo tab row sat over the list. Repo moved to ⌘K and the project + menu (*Repo
+  history*); nothing is drawn over the list.
+- v1's names on shell-list's row, so it is measured: the item `card` (kit `FeedItem`, v1's 1px transparent border),
+  its head `card.head` (v1-parts.json), `card.dot`, `card.title`, `card.sub`, `card.side`, `card.status`,
+  `card.goal`, `card.overlap`, `card.time`, `card.run`, `card.quickDone`, `card.quickLater`; the section heading
+  `section.heading` (an `h4` with the button role, as v1's). Kit: `ListRow` `also` (extra part names) and `strong`.
+- The kit's feed row is v1 split.css's `.it-head` number for number: a 10px dot column, 10px/1px gaps, 9px 12px
+  padding, the title across to the time (13px, 20px line, 36px right), the sub 19.5px faint, the run line 11.5px/17px
+  faint, the time absolute in the corner (top 9, right 12, ≥ 26px; an absolute grid item with a placement sits in
+  its grid area, so the placement is cleared), the quick actions floating (top 7, right 40 / 68, 24px, 4px apart,
+  bg-2, faint). Title 500 ink-2, 600 ink while it wants you. Hover and open fill the item, keyboard focus outlines it.
+- No `<button>` inside a feed row (v1 had none: parity counts buttons in order): the row's hit is a `div` with the
+  button role, the quick actions are kit `RowButton`s.
+- v1's state words: Finished, Report, Partial, At limit ("Done" is the list a task goes to when you mark it done).
+  v1's goal pill (ring and round) and overlap pill (merge mark, ×n) on rows; kit `GoalPill`, `OverlapPill`, `RowPill`.
+- The list is as tall as its rows (v1 #feed) and shrinks to scroll; no scrollbar gutter; 2px between items, as
+  padding between consecutive items so the virtual list measures it.
+- A row with nothing to say on its third line has none (wisp's own Welcome task).
+- The section heading is v1's sec-toggle: 28px, 10.5px in, 4px under it, 11px medium.
+
+**Left, each needs the owner (not fixed here)**
+1. The dot's colour: v1 colours it by the task's project (`--pc`), the rebuilt row (81f8eb96) by unread (accent) /
+   read (grey). Kept as rebuilt; parity reports it on every row (`card.dot … bg`).
+2. The project selector (10d8f30f) replaces v1's chips: one button where v1 had two, so every later `x.button`
+   compares to the wrong one. Needs an allowed.md rule or a re-captured reference.
+3. `launcher.tryTwo`: v1 dropped *Try it two ways* itself (#771, 3435a2b9) after the references were captured;
+   `launcher.team` sits 32px left for the same reason. The references need a re-capture (`qa/v1-reference.mjs`).
+4. `section.needs`: v1's section is a container; shell-list's list is one virtual list (headings and rows as
+   siblings), so there is no section box to measure.
+5. 390 / 320 px: the composer's bar folds (ADR-0012) where v1 didn't fold the same items; per-shot detail in
+   qa/out/parity/home/.
+
+`task` (72 shots): **24 pass** (600 and 390 px: 12/12 each, light and dark, browser and desktop, every state); 1440
+from 4.7 % px to 0.7 % px (only the list's owner-level items above remain: dot colour, section box, selector);
+320 px 1.2 % px, 0 parts off.
+
+**Fixed (the task page)**
+- *The transcript was empty in every task shot*: the mock (apps/web/dev/seed.ts, `fromV1`) named a task's topic by
+  the peer-prefixed id, the client subscribes by the bare id (as the server names it). Every task view's parity was
+  measuring a page with no turns.
+- v1's hero in a task (R.hero `own` / `echo`): the latest answer has no state row (the task bar says it) and no title
+  that only repeats the task's; `BlockContext.inTask` / `taskTitle` (additive). The hero's v1 CSS (`cb-hero` had
+  none): 26px/1.2 title, 12/6 margins (4 on top when own), 14px/1.6 summary; 22px under 720px.
+- The row's run line is v1's (harness, model, computer): the project and the branch it also showed (from 0cfaa100)
+  truncated all four; they're on the task page.
+- The open row's title is 500 ink-2 unless unread or waiting (v1 `.item.open:not(.unread)`), and ends before the
+  quick actions while they show (64 / 92px).
+
+`task.transcript`: reachable now (the mock's topic fix); 1440 2.7 % px, 30 of 153 parts off. **Next:** v2 shows the
+steps as a plain list after the answer; v1's Transcript (transcript.js) is a view of its own: a head ("Transcript ·
+1 message · 4 steps"), the steps on a timeline (icons, a line, +/− on an edit, chevrons on what folds), the agent's
+message and the end, then the hero with its state row and meta ("Finished · 369ms · $0.01 · 1 file touched"), the
+receipt without the act counts, and the Transcript action pressed. That is F-task-34 (the kit's Transcript).
+
+`task.changes`: reachable now; 1440 11.1 % px, 80 of 178 parts off. **Next:** with Changes open v1's main pane is
+508px wide (the side panel beside it); v2's stays 708px.
+
+Mock: `runtime.agents` and `plugins.ui` answer (empty) in apps/web/dev/mock-commands.ts, so task shots no longer
+carry a "the mock peer has no runtime.agents" toast.
+
+**Still to run this round:** palette, crew (its opener at 600), settings panes, stuff.

@@ -3,7 +3,7 @@
 // (fixed columns, gaps for the actions it lacks). On the phone app it swipes (design/mobile.md).
 
 import { createMemo, Show, type JSX } from 'solid-js';
-import { ListRow, Stack, Swipe, useSignal, type SwipeDir, type SwipeSide } from '@wisp/ui';
+import { FeedItem, ListRow, Stack, Swipe, useSignal, type SwipeDir, type SwipeSide } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import { deleteTask, toggleArchived, toggleDone, toggleForLater } from '../actions.ts';
 import { agentName, rowView } from '../model/row.ts';
@@ -11,7 +11,7 @@ import { actionFor, type SwipeKind } from '../model/swipe.ts';
 import type { SessionRow } from '../types.ts';
 import { useEnv } from './env.ts';
 import { Actions, Mark, Pills, RunLine, SubLine, TimeCell } from './RowParts.tsx';
-import { Slot } from './Slot.tsx';
+import { Slot, hasExtensions } from './Slot.tsx';
 
 export interface SwipeConfig {
   readonly left: SwipeKind;
@@ -38,11 +38,15 @@ export function TaskRow(props: TaskRowProps): JSX.Element {
   );
 }
 
+/** v1's PARTS for the task row's pieces (web/js/spell-schema.js: card, card.dot, card.title, …). */
+const V1_ROW = { title: 'card.title', sub: 'card.sub', pills: 'card.side', time: 'card.time', foot: 'card.run' } as const;
+
 function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly nested: 'run' | 'sub' | undefined; readonly swipe: SwipeConfig }): JSX.Element {
   const env = useEnv();
   const t = env.shell.t;
   const open = (): boolean => env.open() === props.k;
   const view = createMemo(() => rowView(props.s, env.rowCtx(props.k)));
+  const bottom = hasExtensions('shell.row:bottom');
   const name = (): string => agentName(props.s.agent, env.agents());
   const session = (): { id: string; agent: string } => ({ ...props.s, id: props.k, agent: props.s.agent });
   const side = (kind: SwipeKind): SwipeSide | undefined => {
@@ -59,15 +63,21 @@ function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly n
   const list = (): JSX.Element => (
     <ListRow
       layout="feed"
-      part={props.nested ? `list.row.${props.nested}` : 'list.row'}
+      // v1's own name for a task row's head (v1-parts.json: card.head ↔ #feed .it-head): restyles and qa/parity.mjs find it
+      part={props.nested ? `list.row.${props.nested}` : 'card.head'}
+      // v1's names too, so qa/parity.mjs measures the row against #feed .item (a nested run is v1's own row)
+      also={props.nested ? undefined : V1_ROW}
       title={props.s.title || t('shell-list.row.untitled')}
       lead={<Mark s={props.s} view={view()} name={name()} />}
       sub={<SubLine sub={view().sub} />}
+      // the third line only when it says something (v1: no run line on wisp's own Welcome task)
       foot={
-        <Stack gap="0">
-          <RunLine run={view().run} s={props.s} />
-          <Slot input="shell.row:bottom" session={session} />
-        </Stack>
+        view().run || bottom() ? (
+          <Stack gap="0">
+            <RunLine run={view().run} s={props.s} />
+            <Slot input="shell.row:bottom" session={session} />
+          </Stack>
+        ) : undefined
       }
       pills={
         <>
@@ -80,6 +90,7 @@ function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly n
       current={open()}
       selected={env.selected() === props.k && !open()}
       quiet={view().quiet}
+      strong={view().unread || props.s.state === 'waiting'}
       onOpen={() => env.openTask(props.k)}
       onContextMenu={() => {
         if (props.nested !== 'sub') env.setMenuFor(props.k);
@@ -87,9 +98,9 @@ function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly n
     />
   );
   return (
-    <Show when={env.swipes && !props.nested} fallback={list()}>
+    <Show when={env.swipes && !props.nested} fallback={props.nested ? list() : <FeedItem part={'card' as `${string}.${string}`} id={props.k}>{list()}</FeedItem>}>
       <Swipe left={side(props.swipe.left)} right={side(props.swipe.right)} onSwipe={swiped} onArm={(on) => env.shell.platform.haptic(on ? 'select' : 'tap')} part="list.swipe">
-        {list()}
+        <FeedItem part={'card' as `${string}.${string}`} id={props.k}>{list()}</FeedItem>
       </Swipe>
     </Show>
   );

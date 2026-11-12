@@ -406,6 +406,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                     key,
                                     turnId: turn.id,
                                     latest: () => turn.id === turns().at(-1)?.id,
+                                    title: () => s().title,
                                     reply,
                                     draft,
                                     openChanges: () => side('changes'),

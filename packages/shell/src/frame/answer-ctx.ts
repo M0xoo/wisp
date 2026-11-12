@@ -14,6 +14,8 @@ export interface AnswerHost {
   readonly turnId: string;
   /** this answer is the task's latest (read live: a new turn makes the older answers inert) */
   readonly latest: () => boolean;
+  /** the task's title (a hero repeating it says nothing) */
+  readonly title?: () => string;
   readonly reply: (text: string) => void;
   readonly draft: (text: string) => void;
   readonly openChanges: () => void;
@@ -29,6 +31,10 @@ export function answerContext(h: AnswerHost): BlockContext {
   return {
     get latest() {
       return h.latest();
+    },
+    inTask: true,
+    get taskTitle() {
+      return h.title?.() ?? '';
     },
     reply: h.reply,
     draft: h.draft,

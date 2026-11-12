@@ -115,6 +115,9 @@ export const COMMANDS: Record<string, CommandFn> = {
   },
   // Rerun and Fork: a new task from this one (the client names it, so its row and page show at once)
   'runtime.rerun': (a, ctx) => copyTask(obj(a), ctx, 'rerun'),
+  // read-only answers the app asks for at start and on a task page: nothing to show in the mock
+  'runtime.agents': () => ({ ops: [], result: [] }),
+  'plugins.ui': () => ({ ops: [], result: [] }),
   'runtime.fork': (a, ctx) => copyTask(obj(a), ctx, 'fork'),
   'runtime.setMode': (a, ctx) => {
     const x = obj(a);

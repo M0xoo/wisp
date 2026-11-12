@@ -3,7 +3,7 @@
 @layer kit {
   [data-kit='virtual-list'] {
     display: block; min-width: 0; min-height: 0; height: var(--k-vl-h, auto);
-    overflow-x: hidden; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable;
+    overflow-x: hidden; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: auto; /* v1 reserved no gutter: rows keep their full width */
   }
   [data-kit='virtual-list'][data-grow] { flex: 1 1 0; height: auto; }
   /* flow-root: a row's margins stay inside it, so its measured height is the space it takes. */

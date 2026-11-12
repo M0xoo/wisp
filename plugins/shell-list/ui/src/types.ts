@@ -102,7 +102,8 @@ export interface Session {
   crew?: { id: string; job?: string };
   sideOf?: { id: string; title: string };
   machine?: MachineRef;
-  goal?: { status: string };
+  goal?: { status: string; text?: string; round?: number; checks?: { progress?: number }[]; last?: { why?: string } };
+  overlaps?: { id: string; title?: string; files: string[]; conflicts?: string[] }[];
   team?: { name: string; agent: string; busy?: boolean }[];
 }
 

@@ -98,7 +98,7 @@ export function SectionHead(props: { readonly id: SectionId; readonly count: num
   const fresh = (): number => (props.id === 'forLater' ? freshForLater(props.entries) : 0);
   return (
     <FoldHead
-      part={`list.section.${props.id}`}
+      part={`list.section.${props.id} section.heading`}
       title={t(`shell-list.section.${props.id}`)}
       count={props.count}
       open={props.open}

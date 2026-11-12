@@ -98,6 +98,11 @@ export interface BlockContext {
   readonly reveal?: boolean;
   /** this answer is the task's latest: `next`/`question`/`actions` are live only there */
   readonly latest?: boolean;
+  /** shown in a task's own page (v1 ctx.trail): its head says the title, its bar the latest turn's state, so a hero
+   *  doesn't say them twice. Additive (2026-11-12). */
+  readonly inTask?: boolean;
+  /** the task's title there (a hero's title that only repeats it is left out) */
+  readonly taskTitle?: string;
   /** the block's own copy, translated; default English (./strings.ts) */
   readonly t?: (key: BlockString, vars?: Readonly<Record<string, string | number>>) => string;
 }

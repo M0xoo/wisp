@@ -3,7 +3,7 @@
 // overlap pills beside it, and the harness and machine on a third line. Save for later and Mark done
 // show over the end of the title on hover and keyboard focus; the time never moves.
 import { Show, type JSX } from 'solid-js';
-import { flag } from '../core/props.ts';
+import { flag, type PartName } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
 
 export type CardStatus = 'done' | 'info' | 'warn' | 'bad' | 'live';
@@ -54,6 +54,40 @@ function Ring(props: { readonly progress: number }): JSX.Element {
   );
 }
 
+/** v1 feed.css .pill in a feed row (split.css #feed .it-side .pill): the state's dot and word, 19px, no fill. */
+export function RowPill(props: { readonly tone?: CardStatus | 'neutral'; readonly label: string; readonly title?: string; readonly part?: PartName; readonly dot?: boolean }): JSX.Element {
+  return (
+    <span data-kit="it-pill" data-part={props.part ?? 'card.status'} data-tone={props.tone} title={props.title}>
+      <Show when={props.dot !== false}>
+        <i />
+      </Show>
+      {props.label}
+    </span>
+  );
+}
+
+/** v1 goal.js goalPill(): the ring filling with the last check's progress, and the round. */
+export function GoalPill(props: { readonly n: number; readonly progress: number; readonly title: string; readonly paused: boolean; readonly part?: PartName }): JSX.Element {
+  return (
+    <span data-kit="it-pill" data-part={props.part ?? 'card.goal'} data-goal={props.paused ? 'paused' : 'on'} title={props.title}>
+      <Ring progress={props.progress} />
+      <span data-kit="gp-n">{props.n}</span>
+    </span>
+  );
+}
+
+/** v1 overlaps.js overlapPill() in the sidebar: the merge mark and how many other tasks touch the same files. */
+export function OverlapPill(props: { readonly n: number; readonly title: string; readonly part?: PartName }): JSX.Element {
+  return (
+    <span data-kit="it-pill" data-part={props.part ?? 'card.overlap'} data-overlap="" title={props.title}>
+      <Icon name="merge" />
+      <Show when={props.n > 1}>
+        <span data-kit="ov-n">×{props.n}</span>
+      </Show>
+    </span>
+  );
+}
+
 export function TaskCard(props: TaskCardProps): JSX.Element {
   const key = (e: KeyboardEvent): void => {
     if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
@@ -95,20 +129,10 @@ export function TaskCard(props: TaskCardProps): JSX.Element {
             )}
           </Show>
           <Show when={props.goal}>
-            {(g) => (
-              <span data-kit="it-pill" data-part="card.goal" data-goal={g().paused ? 'paused' : 'on'} title={g().title}>
-                <Ring progress={g().progress} />
-                <span data-kit="gp-n">{g().n}</span>
-              </span>
-            )}
+            {(g) => <GoalPill n={g().n} progress={g().progress} title={g().title} paused={g().paused} />}
           </Show>
           <Show when={props.overlap}>
-            {(o) => (
-              <span data-kit="it-pill" data-part="card.overlap" data-overlap="" title={o().title}>
-                <Icon name="merge" />
-                <span data-kit="ov-n">×{o().n}</span>
-              </span>
-            )}
+            {(o) => <OverlapPill n={o().n} title={o().title} />}
           </Show>
           {props.slots?.head}
           <span data-kit="q-time" data-part="card.time" title={props.timeTitle}>{props.time}</span>

@@ -52,14 +52,14 @@
   "shell-list.plan.task": "Scheduled task",
   "shell-list.plan.reminder": "Reminder",
   "shell-list.plan.draft": "Draft",
-  "shell-list.status.done": "Done",
-  "shell-list.status.partial": "Partly done",
+  "shell-list.status.done": "Finished",
+  "shell-list.status.partial": "Partial",
   "shell-list.status.blocked": "Blocked",
   "shell-list.status.failed": "Failed",
-  "shell-list.status.limit": "Hit a limit",
+  "shell-list.status.limit": "At limit",
   "shell-list.status.refused": "Refused",
   "shell-list.status.signedOut": "Signed out",
-  "shell-list.status.info": "Answered",
+  "shell-list.status.info": "Report",
   "shell-list.status.held": "Held",
   "shell-list.pr.open": "PR #{n}",
   "shell-list.pr.draft": "Draft PR #{n}",
@@ -106,5 +106,7 @@
   "shell-list.quick.save": "Save for later",
   "shell-list.quick.unsave": "Unsave",
   "shell-list.empty.crew": "No tasks for {name} yet.",
-  "shell-list.run.sandbox": "Sandbox"
+  "shell-list.run.sandbox": "Sandbox",
+  "shell-list.goal.tip": "Done when: {text}\n{why}",
+  "shell-list.overlap.tip": "Touches the same files as {n}: {titles}"
 }

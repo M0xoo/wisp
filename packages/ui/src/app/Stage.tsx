@@ -342,9 +342,9 @@ export interface FeedSectionProps {
 }
 
 /** v1 #feed .item: one task's row in a feed, its 1px border (transparent at rest) around the row's head. */
-export function FeedItem(props: { readonly part?: PartName; readonly children?: JSX.Element }): JSX.Element {
+export function FeedItem(props: { readonly part?: PartName; readonly id?: string; readonly children?: JSX.Element }): JSX.Element {
   return (
-    <div data-kit="feed-item" data-part={props.part ?? 'ui.feed-item'}>
+    <div data-kit="feed-item" data-part={props.part ?? 'ui.feed-item'} data-id={props.id}>
       {props.children}
     </div>
   );

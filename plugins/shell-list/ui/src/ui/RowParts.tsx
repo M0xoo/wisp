@@ -5,7 +5,7 @@
 
 import { routeOf, routeTip, type HarnessUiDef, type RouteSeen } from '@wisp/shell';
 import { For, Match, Show, Switch, type JSX } from 'solid-js';
-import { Dot, Gap, Icon, IconButton, Inline, Pill, RowLogo, Text, Time, futureLabel, timeTitle, useSignal } from '@wisp/ui';
+import { Dot, Gap, GoalPill, Icon, Inline, OverlapPill, Pill, RowButton, RowLogo, RowPill, Text, Time, futureLabel, timeTitle, useSignal } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import { colorToken, type SessionRow } from '../types.ts';
 import type { PillView, RowView, RunView, SubView } from '../model/row.ts';
@@ -32,7 +32,7 @@ export function Mark(props: { readonly s: SessionRow; readonly view: RowView; re
             tone={props.view.unread ? 'accent' : 'neutral'}
             live={a().live}
             {...(props.view.unread ? { label: env.shell.t('shell-list.row.unread') } : {})}
-            part="list.row.mark"
+            part={'list.row.mark card.dot' as `${string}.${string}`}
           />
         )}
       </Match>
@@ -81,35 +81,26 @@ export function RunLine(props: { readonly run: RunView | undefined; readonly s: 
           </Inline>
         )}
       </Show>
-      <Show when={props.s.project}>
-        {(name) => (
-          <Inline gap="1" align="center" part="list.row.project">
-            <Dot color={colorToken(props.s.color)} />
-            <Text size="xs" tone="muted" truncate>{name()}</Text>
-          </Inline>
-        )}
-      </Show>
-      <Show when={props.s.branch}>
-        {(b) => (
-          <Inline gap="1" align="center" part="list.row.branch">
-            <Icon name="branch" size="xs" tone="faint" />
-            <Text size="xs" tone="faint" mono truncate title={b()}>{b()}</Text>
-          </Inline>
-        )}
-      </Show>
+      {/* v1 feed.js runLine(): the harness, its model and the computer, nothing else (the project and the branch are
+          the task page's details; split.css hides .q-proj in the sidebar) */}
     </Inline>
   );
 }
 
+/** The state as v1's sidebar draws it (split.css #feed .it-side .pill: 19px, no fill, its dot). */
+const ROW_TONE: Readonly<Record<string, 'info' | 'warn' | 'bad' | 'neutral' | undefined>> = { good: undefined, accent: 'info', info: 'info', warn: 'warn', bad: 'bad', neutral: 'neutral' };
+
 function OnePill(props: { readonly p: PillView }): JSX.Element {
   const env = useEnv();
   const label = (): string => say(env.shell.t, props.p.label, env.now());
+  if (props.p.id === 'status' && !props.p.icon)
+    return <RowPill tone={ROW_TONE[props.p.tone] ?? 'neutral'} label={label()} part={'list.pill.status card.status' as `${string}.${string}`} {...(props.p.title ? { title: say(env.shell.t, props.p.title, env.now()) } : {})} />;
   return (
     <Pill
       tone={props.p.tone}
       variant={props.p.variant ?? 'plain'}
       size="sm"
-      part={`list.pill.${props.p.id}`}
+      part={(V1_PILL[props.p.id] ? `list.pill.${props.p.id} ${V1_PILL[props.p.id]}` : `list.pill.${props.p.id}`) as `${string}.${string}`}
       {...(props.p.dot ? { dot: true } : {})}
       {...(props.p.live ? { live: true } : {})}
       {...(props.p.icon ? { icon: props.p.icon } : {})}
@@ -124,7 +115,10 @@ export function Pills(props: { readonly view: RowView }): JSX.Element {
   const env = useEnv();
   return (
     <>
-      <For each={props.view.pills}>{(p) => <OnePill p={p} />}</For>
+      <For each={props.view.pills.filter((p) => p.id === 'status')}>{(p) => <OnePill p={p} />}</For>
+      <Show when={props.view.goal}>{(g) => <GoalPill n={g().n} progress={g().progress} paused={g().paused} title={say(env.shell.t, g().title, env.now())} part={'list.pill.goal card.goal' as `${string}.${string}`} />}</Show>
+      <Show when={props.view.overlap}>{(o) => <OverlapPill n={o().n} title={say(env.shell.t, o().title, env.now())} part={'list.pill.overlap card.overlap' as `${string}.${string}`} />}</Show>
+      <For each={props.view.pills.filter((p) => p.id !== 'status')}>{(p) => <OnePill p={p} />}</For>
       <Show when={props.view.ram}>
         {(ram) => (
           <Text size="xs" tone="muted" numeric nowrap title={env.shell.t('shell-list.row.ram-tip', { size: ram() })} part="list.row.ram">
@@ -153,6 +147,9 @@ export function TimeCell(props: { readonly view: RowView }): JSX.Element {
 
 /** Save for later and Mark done, each in a fixed slot: a row without one keeps its space. More is the row's
  *  context menu (right-click, long-press), as v1 had it: two quick buttons, about 40px held (owner, 2026-11-10). */
+/** v1's PARTS for a row's pills (#feed .it-side .pill.st-*, .pill.pr), so qa/parity.mjs measures them. */
+const V1_PILL: Readonly<Record<string, string>> = { status: 'card.status', pr: 'card.pr' };
+
 export function Actions(props: { readonly k: EntityKey; readonly view: RowView; readonly hover?: JSX.Element }): JSX.Element {
   const env = useEnv();
   const t = env.shell.t;
@@ -160,9 +157,9 @@ export function Actions(props: { readonly k: EntityKey; readonly view: RowView; 
     <>
       {props.hover}
       <Show when={props.view.quickLater !== 'gap'} fallback={<Gap size="sm" />}>
-        <IconButton
+        <RowButton
           icon="bookmark"
-          size="sm"
+          part={'list.row.later card.quickLater' as `${string}.${string}`}
           pressed={props.view.quickLater === 'unsave'}
           label={t(props.view.quickLater === 'unsave' ? 'shell-list.quick.unsave' : 'shell-list.quick.save')}
           onClick={() => toggleForLater(env.actions, props.k)}
@@ -170,7 +167,7 @@ export function Actions(props: { readonly k: EntityKey; readonly view: RowView; 
       </Show>
       <Show when={props.view.quickDone !== 'none'}>
         <Show when={props.view.quickDone === 'show'} fallback={<Gap size="sm" />}>
-          <IconButton icon="done" size="sm" tone="good" label={t('shell-list.quick.done')} onClick={() => toggleDone(env.actions, props.k)} />
+          <RowButton icon="done" tone="good" part={'list.row.done card.quickDone' as `${string}.${string}`} label={t('shell-list.quick.done')} onClick={() => toggleDone(env.actions, props.k)} />
         </Show>
       </Show>
     </>

@@ -20,8 +20,10 @@ export interface FoldHeadProps extends KitProps {
 export function FoldHead(props: FoldHeadProps): JSX.Element {
   const part = (): PartName => props.part ?? 'ui.fold-head';
   return (
-    <button
-      type="button"
+    // v1 split.css .f-group > h4.sec-toggle: a heading that is the button (role, focus, Enter and Space)
+    <h4
+      role="button"
+      tabIndex={0}
       id={props.id}
       data-kit="fold-head"
       data-part={part()}
@@ -29,11 +31,16 @@ export function FoldHead(props: FoldHeadProps): JSX.Element {
       aria-expanded={props.open}
       aria-controls={props.controls}
       onClick={() => props.onToggle()}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        props.onToggle();
+      }}
     >
       <Icon name="chevron" size="sm" />
       <span data-kit="fold-head-title" data-text="control" data-part={sub(part(), 'title')}>{props.title}</span>
       <Show when={props.count}>{(n) => <span data-kit="fold-head-count" data-text="control" data-part={sub(part(), 'count')}>{n()}</span>}</Show>
       <Show when={props.badge}>{(b) => <span data-kit="fold-head-badge" data-text="control" data-part={sub(part(), 'badge')}>{b()}</span>}</Show>
-    </button>
+    </h4>
   );
 }

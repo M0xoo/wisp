@@ -292,7 +292,8 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
     });
     const last = turns[turns.length - 1];
     if (last) own.push({ e: 'event', id, v: (last.activity ?? []).map((a, i) => ({ session_id: id, seq: i + 1, turn_id: `${id}:${last.id}`, t: a.t, kind: a.kind, body: { ...a } })) });
-    topics.set(`session:${id}`, own);
+    // the server names a task's topic by its bare id (as the client subscribes: `session:<id>`), whatever its rows' keys
+    topics.set(`session:${s.id}`, own);
   }
   topics.set('list', list);
   topics.set('config', [

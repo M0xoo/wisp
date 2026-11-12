@@ -856,3 +856,20 @@ above whichever list fills the area (seen in Chrome at 600). Home is reachable: 
 (Port 4590 was held by a vite from this worktree that isn't mine; the runs use `QA_PARITY_PORT=4592`.)
 F-task-11 built: Mark done, archive and delete open the next task that needs you (`nextNeedsYou`), else Home; test
 `leaving_a_task_opens_the_next_that_needs_you_else_new_task`; Chrome.
+
+## Round 20 (2026-11-12): parity first
+
+**Parity, home and the list.** See `docs/v2-ui-burndown.md` (round 20): home 1440 from 106 to 40 of 168 parts off
+(1.8 % → 0.9 % px), 600 px 0.0 % px. The list is measured as v1's #feed; the kit's feed row takes v1's numbers; no
+buttons inside a feed row; v1's state words, goal and overlap pills; Repo moved off the list (⌘K, the project +
+menu). Left for the owner: the dot's colour, the project selector's button count, the stale tryTwo reference, the
+section container.
+**Parity, task.** The mock named a task's topic by the peer-prefixed id, so every task shot measured a page with no
+turns (apps/web/dev/seed.ts). With it fixed and v1's hero (no state row / repeated title on the latest answer in a
+task; its CSS, 22px under 720px), `task` passes 24 of 72 shots (600 and 390 px, all states); 1440 0.7 % px. The row's
+run line is v1's (harness, model, computer). task.transcript and task.changes are reachable; the transcript view
+(F-task-34) and the Changes panel's width are next. Checks: `npm run check` 0 errors, typecheck clean; tests kit
+composites + no-styling (19), shell remote + rows-view (6), shell-list wire (1).
+
+**Not started this round:** stage/commit/revert in Changes (F-page-21/22), the v1 sync ports #775 #776 #777
+#779/#780 #781, the untrusted UI's side view and toolbar button.

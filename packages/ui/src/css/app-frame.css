@@ -179,7 +179,9 @@
   [data-kit='split-stuff'] > [data-kit='icon'] { width: 17px; height: 17px; }
 
   /* split.css body.split .feed, .f-group, .f-group h4.sec-toggle, .f-list */
-  [data-kit='feed'] { margin-top: var(--space-4); }
+  [data-kit='feed'], [data-part~='feed'] { margin-top: var(--space-4); }
+  /* v1 #feed is as tall as its rows; a longer list still shrinks to the sidebar and scrolls (virtualised) */
+  [data-kit='virtual-list'][data-part~='feed'] { flex: 0 1 auto; }
   [data-kit='f-group'] { margin-bottom: 14px; }
   [data-kit='f-group'][data-collapsed] { margin-bottom: var(--space-1); }
   [data-kit='sec-toggle'] {

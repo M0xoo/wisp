@@ -15,6 +15,18 @@
   [data-kit='cb-link-mono']:hover:not(:disabled) { text-decoration: underline; }
   [data-kit='cb-link-mono']:disabled { color: var(--muted); cursor: default; }
 
+  /* hero (v1 blocks.css .b-hero): the state's row, the title, the summary. In a task's page the latest answer has
+     no state row (own: the title 4px under the turn's top), and no title when it only repeats the task's (echo) */
+  [data-kit='cb-hero'] { position: relative; padding: 2px 0 6px; }
+  [data-kit='cb-hero-top'] { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-width: 0; }
+  [data-kit='cb-hero-title'] { margin: 12px 0 6px; font: 600 26px / 1.2 var(--display); letter-spacing: -0.025em; text-wrap: balance; }
+  [data-kit='cb-hero']:not(:has(> [data-kit='cb-hero-top'])) > [data-kit='cb-hero-title'] { margin-top: 4px; }
+  [data-kit='cb-hero-summary'] { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); max-width: 70ch; text-wrap: pretty; }
+  /* v1 responsive.css (max-width: 720px) */
+  @media (max-width: 720px) { [data-kit='cb-hero-title'] { font-size: 22px; } }
+  [data-kit='cb-hero']:not(:has(> [data-kit='cb-hero-title'])) > [data-kit='cb-hero-summary'] { margin-top: 10px; }
+  [data-kit='cb-hero']:not(:has(> [data-kit='cb-hero-top'])):not(:has(> [data-kit='cb-hero-title'])) > [data-kit='cb-hero-summary'] { margin-top: 2px; }
+
   /* compare (v1 .b-compare) */
   [data-kit='cb-compare'] { display: grid; grid-template-columns: 1fr 34px 1fr; align-items: stretch; container-type: inline-size; }
   [data-kit='cb-compare-side'] { min-width: 0; padding: var(--space-7) calc(var(--space-7) + var(--space-1)); border-radius: var(--radius); border: var(--size-hairline) solid var(--line); background: var(--surface); }
