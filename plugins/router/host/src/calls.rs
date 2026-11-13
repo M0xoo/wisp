@@ -78,6 +78,15 @@ pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> R
     ctx.run::<r::SetExt>(call, r::SetExtArgs { id: id.into(), plugin: "wisp.router".into(), value }).await.map(|_| ())
 }
 
+/// Merges `patch`'s keys into the task's `wisp.router` slot (`runtime.setExt` replaces the slot: the route stays).
+pub(crate) async fn merge_ext(ctx: &Ctx, call: &Call, id: &str, patch: Value) -> Result<()> {
+    let mut slot = task(ctx, call, id).await?.ext_of("wisp.router").as_object().cloned().unwrap_or_default();
+    if let Value::Object(p) = patch {
+        slot.extend(p);
+    }
+    set_ext(ctx, call, id, Value::Object(slot)).await
+}
+
 fn some(s: &str) -> Option<String> {
     (!s.is_empty()).then(|| s.to_owned())
 }

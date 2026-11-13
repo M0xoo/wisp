@@ -198,10 +198,11 @@ impl Plugin for RouterPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        crate::pipeline::register_pipeline(s);
+        let st = Arc::new(State::new());
+        let read = st.clone();
+        crate::pipeline::register_pipeline(s, Arc::new(move || lock(&read.settings).clone()));
         let k: Arc<dyn wisp_resources_api::ResourceKind> = Arc::new(kind::RouterKind { ctx: s.ctx() });
         s.contribute(&wisp_resources_api::RESOURCE_KIND, k);
-        let st = Arc::new(State::new());
         let svc: Arc<dyn wisp_router_api::service::RouterApi> = Arc::new(service::Svc { st: st.clone(), ctx: s.ctx() });
         s.provide::<wisp_router_api::service::RouterService>(svc);
         service::learn(s, &st);

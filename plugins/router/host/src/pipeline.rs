@@ -9,7 +9,12 @@
 //! - **bestOf** N: after the first turn, N−1 more runs of the same ask side by side, then the **judge**
 //!   (an agent profile or harness; else the task's) picks the best (`ext["wisp.router"].bestOf`);
 //! - **review** starts a task by that agent profile reviewing what the run did (never for a review).
+//!
+//! A task Auto routed (`ext["wisp.router"].route`) with no pipeline of its own follows Settings → Auto (v1
+//! pipeline.js `autoSettings`): *Hand over when the run errors* is `onError: escalate` (its first run only, so
+//! never after you stepped in), *Best of two* with the Best goal is `bestOf: 2`.
 
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use schemars::JsonSchema;
@@ -17,9 +22,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use wisp_kernel::{BoxFuture, Call, Ctx, Result, Setup};
 use wisp_resources_api::{KindInfo, Op, RESOURCE_KIND, Resource, ResourceKind, StoredKind, schema_of};
+use wisp_router_api::Settings;
 use wisp_runtime_api::commands::RunPick;
 use wisp_runtime_api::events::TurnEnded;
-use wisp_runtime_api::model::{SessionState, TurnStatus};
+use wisp_runtime_api::model::{Session, SessionState, Turn, TurnStatus};
+use wisp_runtime_api::points::{SUMMARY, SummaryField};
 use wisp_runtime_api::spec::TaskSpec;
 
 use crate::calls;
@@ -47,8 +54,41 @@ pub struct PipelineSpec {
 
 /// Who a pipeline's own follow-ups and tasks are by: never acted on again (no loop).
 pub const BY: &str = "pipeline";
+/// The name Settings → Auto's pipeline goes by (a task Auto routed with none of its own).
+const AUTO: &str = "auto";
 
 type Cache = Arc<Mutex<Vec<(String, PipelineSpec)>>>;
+/// Settings → Auto as they are now (the router's state owns them).
+pub type AutoSettings = Arc<dyn Fn() -> Settings + Send + Sync>;
+
+/// The pipeline Settings → Auto gives a task Auto routed with the goal `goal`.
+pub fn auto_pipeline(s: &Settings, goal: &str) -> PipelineSpec {
+    // at a limit Auto always moves on, whatever the hand-over setting says (v1 pipeline.js #moveOn)
+    PipelineSpec {
+        on_error: if s.escalate { "escalate".into() } else { String::new() },
+        at_limit: "next".into(),
+        best_of: (s.best2 && goal == "best").then_some(2),
+        ..PipelineSpec::default()
+    }
+}
+
+/// What Settings → Auto's pipeline does after a turn: [`next`], but a hand-over (again at high) only for the task's
+/// first run, never once you stepped in (v1 pipeline.js `#canEscalate`).
+pub fn auto_next(p: &PipelineSpec, t: Ended<'_>) -> Option<Next> {
+    next(p, t).filter(|n| t.first || !matches!(n, Next::Again(_)))
+}
+
+/// Whether Settings → Auto could act on a turn that ended so (the listener skips the rest without a call).
+fn auto_may_act(s: &Settings, status: TurnStatus) -> bool {
+    status == TurnStatus::Error || (s.best2 && status == TurnStatus::Done)
+}
+
+/// A run that stopped because its harness is signed out: the turn's card asks you to sign in, and another try
+/// would fail the same way (v1 pipeline.js `turn.signedOut`).
+fn signed_out(error: Option<&str>) -> bool {
+    let e = error.unwrap_or_default().to_ascii_lowercase();
+    ["not logged in", "please log in", "sign in", "/login", "authentication"].iter().any(|w| e.contains(w))
+}
 
 /// What a pipeline does after a turn.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +136,9 @@ pub fn next(p: &PipelineSpec, t: Ended<'_>) -> Option<Next> {
     if status == TurnStatus::Done && t.first && p.best_of.is_some_and(|n| n >= 2) {
         return Some(Next::BestOf(p.best_of.unwrap_or(2), p.judge.clone()));
     }
+    if status == TurnStatus::Error && signed_out(t.error) {
+        return None;
+    }
     match status {
         TurnStatus::Error if p.on_error == "retry" => Some(Next::Again(false)),
         TurnStatus::Error if p.on_error == "escalate" => Some(Next::Again(true)),
@@ -110,20 +153,32 @@ fn pick(cache: &Cache, profile: &str) -> Option<(String, PipelineSpec)> {
     [profile, "default"].iter().filter(|n| !n.is_empty()).find_map(|n| all.iter().find(|(m, _)| m == n).cloned())
 }
 
-async fn after(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
+/// A task's own pipeline, else Settings → Auto's when Auto routed it.
+async fn pipeline_of(ctx: &Ctx, cache: &Cache, auto: &AutoSettings, spec: &TaskSpec, id: &str) -> Option<(String, PipelineSpec)> {
+    if let Some(p) = pick(cache, &spec.agent) {
+        return Some(p);
+    }
+    let task = calls::task(ctx, &ctx.root_call(), id).await.ok()?;
+    let route = task.ext_of(wisp_router_api::PLUGIN_ID).get("route")?;
+    let goal = route.get("goal").and_then(serde_json::Value::as_str).unwrap_or("balanced");
+    Some((AUTO.to_owned(), auto_pipeline(&auto(), goal)))
+}
+
+async fn after(ctx: &Ctx, cache: &Cache, auto: &AutoSettings, e: &TurnEnded) {
     let call = ctx.root_call();
     let id = e.session_id.as_str();
     let spec = match calls::spec(ctx, &call, id).await {
         Ok(s) => s,
         Err(err) => return tracing::warn!(error = %err.message, "pipeline: runtime.spec"),
     };
-    let Some((name, p)) = pick(cache, &spec.agent) else { return };
+    let Some((name, p)) = pipeline_of(ctx, cache, auto, &spec, id).await else { return };
     let turns = calls::turns(ctx, &call, id).await;
     let this = turns.iter().find(|t| t.id == e.turn_id);
     let by = this.and_then(|t| t.by.as_deref()).unwrap_or_default();
     let from = spec.lineage.triggered_by.as_deref().unwrap_or_default();
     let ended = Ended { status: e.status, by, from, error: e.error_text.as_deref(), first: this.is_some_and(|t| t.idx == 0) };
-    let out = match next(&p, ended) {
+    let step = if name == AUTO { auto_next(&p, ended) } else { next(&p, ended) };
+    let out = match step {
         None => return,
         Some(Next::Switch) => switch(ctx, id, &e.agent).await,
         Some(Next::BestOf(n, judge)) => best_of(ctx, &name, id, &spec, n, &judge).await,
@@ -198,7 +253,26 @@ async fn best_of(ctx: &Ctx, name: &str, id: &str, spec: &TaskSpec, n: u32, judge
     };
     let best = runs.get(winner(&said, runs.len()) - 1).cloned().unwrap_or_default();
     let why: String = said.lines().find(|l| !l.trim().is_empty()).unwrap_or_default().chars().take(300).collect();
-    calls::set_ext(ctx, &call, id, json!({ "bestOf": { "runs": runs, "winner": best, "why": why } })).await
+    calls::merge_ext(ctx, &call, id, json!({ "bestOf": { "runs": runs, "winner": best, "why": why } })).await?;
+    // the better run is marked (v1 feed.js autoPill: Pick, with the judge's why)
+    calls::merge_ext(ctx, &call, &best, json!({ "pick": { "winner": true, "why": why } })).await
+}
+
+/// The row of the run the judge picked carries `autoPick` (its why): the list's Pick pill.
+struct PickField;
+
+impl SummaryField for PickField {
+    #[allow(clippy::unnecessary_literal_bound)] // the trait's signature
+    fn plugin(&self) -> &str {
+        "wisp.router"
+    }
+    fn fields(&self, session: &Session, _last: Option<&Turn>, out: &mut BTreeMap<String, serde_json::Value>) {
+        let pick = session.ext_of("wisp.router").get("pick");
+        if pick.and_then(|p| p.get("winner")).and_then(serde_json::Value::as_bool) == Some(true) {
+            let why = pick.and_then(|p| p.get("why")).and_then(serde_json::Value::as_str).unwrap_or_default();
+            out.insert("autoPick".into(), json!({ "why": why }));
+        }
+    }
 }
 
 struct PipelineKind {
@@ -233,17 +307,20 @@ impl ResourceKind for PipelineKind {
     }
 }
 
-pub fn register_pipeline(s: &mut Setup) {
+pub fn register_pipeline(s: &mut Setup, auto: AutoSettings) {
     let inner =
         Arc::new(StoredKind::new(KindInfo::new("pipeline", "pipelines", "wisp.router", schema_of::<PipelineSpec>()).order(32), s.ctx()));
     let cache: Cache = Arc::default();
     let k: Arc<dyn ResourceKind> = Arc::new(PipelineKind { inner: inner.clone(), cache: cache.clone() });
     s.contribute(&RESOURCE_KIND, k);
+    let f: Arc<dyn SummaryField> = Arc::new(PickField);
+    s.contribute(&SUMMARY, f);
     let c2 = cache.clone();
     s.on::<TurnEnded, _, _>(move |ctx, e| {
-        let (cache, e, ctx2) = (c2.clone(), e.clone(), ctx.clone());
-        if !cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_empty() {
-            ctx.spawn(async move { after(&ctx2, &cache, &e).await });
+        let (cache, e, ctx2, auto) = (c2.clone(), e.clone(), ctx.clone(), auto.clone());
+        let named = !cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_empty();
+        if named || auto_may_act(&auto(), e.status) {
+            ctx.spawn(async move { after(&ctx2, &cache, &auto, &e).await });
         }
         async {}
     });
@@ -280,5 +357,39 @@ mod tests {
         assert_eq!(next(&lim, Ended { first: true, ..t(TurnStatus::Done, "you", "") }), Some(Next::BestOf(3, "reviewer".into())));
         assert_eq!(next(&lim, t(TurnStatus::Done, "you", "")), Some(Next::Review("reviewer".into())), "later turns: the review");
         assert_eq!((winner("Run 2 did it best", 3), winner("none", 3), winner("9", 3)), (2, 1, 1));
+    }
+
+    /// F-comp-7: an Auto run that errors goes again at high effort, once, on its first run only; F-comp-8: Best of
+    /// two runs a Best task twice and the judge marks the better (v1 pipeline.js autoSettings).
+    #[test]
+    fn auto_settings_escalate_a_failed_first_run_at_high_and_best_of_two_runs_best_twice_v1_auto_pipeline() {
+        let on = Settings { escalate: true, best2: true, ..Settings::default() };
+        let p = auto_pipeline(&on, "balanced");
+        assert_eq!((p.on_error.as_str(), p.best_of), ("escalate", None), "best of two is for the Best goal only");
+        let first = Ended { status: TurnStatus::Error, by: "you", from: "", error: None, first: true };
+        assert_eq!(next(&p, first), Some(Next::Again(true)), "again at high effort");
+        assert_eq!(next(&p, Ended { by: BY, ..first }), None, "its own retry isn't retried: it hands over to you");
+        assert_eq!(auto_next(&p, first), Some(Next::Again(true)));
+        assert_eq!(auto_next(&p, Ended { first: false, ..first }), None, "a follow-up of yours that errors isn't handed over");
+        let best = auto_pipeline(&on, "best");
+        assert_eq!(next(&best, Ended { status: TurnStatus::Done, ..first }), Some(Next::BestOf(2, String::new())));
+        assert_eq!(next(&p, Ended { error: Some("Not logged in · Please run /login"), ..first }), None, "signed out: the sign-in card");
+        let lim = Ended { error: Some("You've hit your usage limit"), ..first };
+        let off = Settings { escalate: false, best2: false, ..Settings::default() };
+        let p_off = auto_pipeline(&off, "best");
+        assert_eq!((next(&p_off, first), next(&p_off, lim)), (None, Some(Next::Switch)), "off: no hand-over, but a limit still moves on");
+        assert!(auto_may_act(&off, TurnStatus::Error) && !auto_may_act(&off, TurnStatus::Done));
+        assert!(!auto_may_act(&Settings { best2: false, ..on.clone() }, TurnStatus::Done), "a done turn only matters for best of two");
+        // the judge's pick is marked on its row; the other run's row isn't
+        let mut won = Session::default();
+        won.ext.insert(
+            "wisp.router".into(),
+            json!({ "route": { "goal": "best" }, "pick": { "winner": true, "why": "Run 2 kept the tests" } }),
+        );
+        let mut out = BTreeMap::new();
+        PickField.fields(&Session::default(), None, &mut out);
+        assert!(out.is_empty());
+        PickField.fields(&won, None, &mut out);
+        assert_eq!(out.get("autoPick"), Some(&json!({ "why": "Run 2 kept the tests" })));
     }
 }
