@@ -17,7 +17,7 @@
     flex: none; width: 13px; height: 13px; margin-top: 2px; border-radius: 50%;
     background: conic-gradient(var(--faint) var(--ctx), var(--line) 0);
     /* v1's 3.5px hole, 4px edge in the 13px ring: as shares of its 6.5px radius */
-    -webkit-mask: radial-gradient(circle closest-side, transparent 53.85%, #000 61.54%); mask: radial-gradient(circle closest-side, transparent 53.85%, #000 61.54%);
+    -webkit-mask: radial-gradient(circle closest-side, transparent 53.85%, var(--ink) 61.54%); mask: radial-gradient(circle closest-side, transparent 53.85%, var(--ink) 61.54%);
   }
   [data-kit='pu-ring'][data-hi] { background: conic-gradient(var(--warn) var(--ctx), var(--line) 0); }
 

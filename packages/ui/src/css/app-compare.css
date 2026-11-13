@@ -250,7 +250,7 @@
       padding-right: 8px;
     }
     [data-kit='cmp-table'] td[data-row='files'] {
-      white-space: normal;
+      text-wrap-mode: wrap;
     }
     [data-kit='cmp'][data-n='4'] > [data-kit='cmp-scroll'] {
       overflow-x: auto;
