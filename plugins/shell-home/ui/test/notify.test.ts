@@ -19,4 +19,16 @@ describe('notify', () => {
     expect(noticeFor(asking, asking!, { siblings: [], t })).toBeNull();
     expect(noticeFor(done, done!, { siblings: [], t })).toBeNull();
   });
+
+  it('a_crew_members_finished_job_says_who_reported_read_from_the_rows_crew_note', () => {
+    const job = (state: string) => ({ ...row(state), body: { ext: { 'wisp.crew': { id: 'm1', job: 'task' } } } });
+    const running = flatRow(job('running'));
+    const done = flatRow(job('review'));
+    expect(done?.crew).toEqual({ id: 'm1' });
+    const n = noticeFor(running, done!, { siblings: [], t, member: (id) => (id === 'm1' ? 'Ada' : undefined) });
+    expect(n?.head).toBe('shell-home.notify.member{"name":"Ada","title":"Fix login"}');
+    expect(n?.title).toBe('Ada: Fix login');
+    // a member who left: the job reads as any task's
+    expect(noticeFor(running, done!, { siblings: [], t, member: () => undefined })?.head).toContain('shell-home.notify.ready');
+  });
 });

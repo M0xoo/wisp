@@ -34,14 +34,15 @@ function goalVerb(r: TaskRow, t: T): string | undefined {
  * The notice a change deserves, or null. It fires on the edge: a run that ended (running → not)
  * or a question that appeared. A task run in several places says so once, when its last run ends.
  */
-export function noticeFor(prev: TaskRow | undefined, next: TaskRow, o: { siblings: readonly TaskRow[]; t: T }): Notice | null {
+export function noticeFor(prev: TaskRow | undefined, next: TaskRow, o: { siblings: readonly TaskRow[]; t: T; member?: (id: string) => string | undefined }): Notice | null {
   const { t } = o;
   if (next.archived) return null;
   const asks = asking(next) && !(prev && asking(prev));
   const finished = prev?.state === 'running' && next.state !== 'running' && !asking(next);
   if (!asks && !finished) return null;
-  if (next.crew) {
-    const name = next.crew.name ?? '';
+  // a member's job: their name says who's reporting (v1 notify.js); one that left reads as any task
+  const name = next.crew ? (next.crew.name ?? (next.crew.id ? o.member?.(next.crew.id) : undefined)) : undefined;
+  if (next.crew && name) {
     const head = asks ? t('shell-home.notify.memberAsks', { name, title: next.title }) : t('shell-home.notify.member', { name, title: next.title });
     return { tag: next.id, head, title: `${name}: ${next.title}`, body: (asks ? next.question : next.preview) ?? '', asks };
   }
@@ -57,6 +58,9 @@ export function noticeFor(prev: TaskRow | undefined, next: TaskRow, o: { sibling
   return { tag: next.id, head, title: titleOf(next), body, asks };
 }
 
+/** A key's id: `<peer>:<id>` → `<id>` (an id alone stays). */
+const bareId = (k: string): string => k.slice(k.indexOf(':') + 1);
+
 const titleOf = (r: TaskRow): string => (r.project ? `${r.project}: ${r.title}` : r.title);
 
 /** A session row as the store keeps it (`body` and `summary` json columns) read flat, as the list reads it:
@@ -69,6 +73,9 @@ export function flatRow(raw: unknown): TaskRow | undefined {
   const out: Record<string, unknown> = { ...part('body') };
   for (const [k, v] of Object.entries(top)) if (k !== 'body' && k !== 'summary') out[k.replace(/_([a-z])/g, (_m, c: string) => c.toUpperCase())] = v;
   Object.assign(out, part('summary'));
+  // a crew member's job: the crew's note in `ext` (CrewExt), read as `crew` (the list reads it the same way)
+  const job = (out['ext'] as Record<string, unknown> | undefined)?.['wisp.crew'] as { id?: unknown } | undefined;
+  if (job && typeof job.id === 'string' && out['crew'] === undefined) out['crew'] = { id: job.id };
   if (out['question'] === '') delete out['question'];
   if (out['approval'] === false) delete out['approval'];
   return out as unknown as TaskRow;
@@ -89,12 +96,19 @@ export function startNotifier(d: NotifierDeps): () => void {
   const t: T = (k, v) => client.t(k, v);
   const rows = new Map<EntityKey, { prev: TaskRow | undefined; stop: () => void }>();
   const target = (key: EntityKey): Target => ({ to: 'main', main: { kind: 'task', id: key as string as SessionId } });
-  const viewing = (key: EntityKey): boolean => {
-    const main = d.nav?.().main;
-    return main?.kind === 'task' && main.id === (key as string) && d.focused();
+  // a crew member's name, from the crew's rows (`{id, name, body}`)
+  const member = (id: string): string | undefined => {
+    const r = untracked(() => (client.entities.list<{ id: string; name?: string; body?: { name?: string } }>('crew_member')() as readonly { id: string; name?: string; body?: { name?: string } }[]).find((x) => x.id === id));
+    return r?.body?.name ?? r?.name;
   };
-  const tell = (key: EntityKey, n: Notice): void => {
-    if (viewing(key)) return;
+  const viewing = (key: EntityKey, row: TaskRow): boolean => {
+    const main = d.nav?.().main;
+    if (!d.focused()) return false;
+    // the task itself is open, or (a member's job) their thread is (v1: not while it's in view)
+    return (main?.kind === 'task' && main.id === (key as string)) || (!!row.crew?.id && main?.kind === 'crew' && bareId(String(main.id)) === row.crew.id);
+  };
+  const tell = (key: EntityKey, n: Notice, row: TaskRow): void => {
+    if (viewing(key, row)) return;
     d.toast?.show(n.head, { action: { label: t('shell-home.notify.open'), onClick: () => client.navigate({ t: 'openFromToast', target: target(key) }) } });
     if (!d.focused()) void d.platform.notify({ title: n.title, body: n.body, tag: n.tag, target: target(key) });
   };
@@ -108,8 +122,8 @@ export function startNotifier(d: NotifierDeps): () => void {
       const prev = cell.prev;
       cell.prev = next;
       if (!next || prev === next) return;
-      const n = noticeFor(prev, next, { siblings: next.groupId ? siblings() : [], t });
-      if (n) untracked(() => tell(key, n)); // what is open is read, not followed
+      const n = noticeFor(prev, next, { siblings: next.groupId ? siblings() : [], t, member });
+      if (n) untracked(() => tell(key, n, next)); // what is open is read, not followed
     });
     rows.set(key, cell);
   };

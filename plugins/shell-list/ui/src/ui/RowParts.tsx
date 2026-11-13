@@ -5,10 +5,11 @@
 
 import { routeOf, routeTip, type HarnessUiDef, type RouteSeen } from '@wisp/shell';
 import { For, Match, Show, Switch, type JSX } from 'solid-js';
-import { Dot, Gap, GoalPill, Icon, OverlapPill, Pill, RowButton, RowLogo, RowPill, RowRun, Text, Time, futureLabel, timeTitle, useSignal } from '@wisp/ui';
+import { Dot, Face, Gap, GoalPill, Icon, OverlapPill, Pill, RowButton, RowLogo, RowPill, RowRun, Text, Time, futureLabel, timeTitle, useSignal } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import { colorToken, type SessionRow } from '../types.ts';
 import type { PillView, RowView, RunView, SubView } from '../model/row.ts';
+import { crewFaceOf, type CrewFace, type MemberRow } from '../model/crew-face.ts';
 import { toggleDone, toggleForLater } from '../actions.ts';
 import { kitT, say } from './say.ts';
 import { useEnv } from './env.ts';
@@ -16,8 +17,24 @@ import { useEnv } from './env.ts';
 export function Mark(props: { readonly s: SessionRow; readonly view: RowView; readonly name: string }): JSX.Element {
   const env = useEnv();
   const m = (): RowView['mark'] => props.view.mark;
+  const members = useSignal(env.client.entities.list<MemberRow>('crew_member'));
+  // a crew job shows its member's face where other rows have their project dot (v1 crew.js crewDot), in Needs you too
+  const member = (): CrewFace | undefined => crewFaceOf(members() as readonly MemberRow[], props.s);
   return (
     <Switch>
+      <Match when={m().kind === 'agent' ? member() : undefined}>
+        {(f) => (
+          <Face
+            avatar={f().avatar}
+            name={f().name}
+            {...(f().color !== undefined && { color: f().color as string })}
+            size="xs"
+            mood={f().mood}
+            label={f().name}
+            part={'list.row.mark crew.dot' as `${string}.${string}`}
+          />
+        )}
+      </Match>
       <Match when={m().kind === 'bell'}>
         <Icon name="bell" size="md" tone="muted" label={env.shell.t('shell-list.mark.reminder')} part="list.row.mark" />
       </Match>

@@ -32,3 +32,14 @@ test('with the phone Crew section there, a members jobs for other tasks leave th
   // no section (side by side): everything stays in the list
   expect(ids({ project: 'all' })).toEqual(['c', 'd', 'e', 'g', 'm']);
 });
+
+test('a_crew_jobs_row_shows_its_members_face_read_from_the_crew_member_row_with_the_jobs_mood', async () => {
+  const { crewFaceOf } = await import('../src/model/crew-face.ts');
+  const rows = [{ id: 'm1', name: 'Ada', updated_at: 1, body: { name: 'Ada', avatar: 'flame.teal.visor.smile.antenna', color: 'teal' } }, { id: 'm2', name: 'Bob', avatar: '🦊' }];
+  // asking you (Needs you): the face asks
+  expect(crewFaceOf(rows, { crew: { id: 'm1' }, state: 'waiting' })).toEqual({ name: 'Ada', avatar: 'flame.teal.visor.smile.antenna', color: 'teal', mood: 'asks' });
+  expect(crewFaceOf(rows, { crew: { id: 'm2' }, state: 'running' })).toEqual({ name: 'Bob', avatar: '🦊', mood: 'live' });
+  // a task of yours, or a member who left: the project dot stays
+  expect(crewFaceOf(rows, { state: 'waiting' })).toBeUndefined();
+  expect(crewFaceOf(rows, { crew: { id: 'gone' }, state: 'done' })).toBeUndefined();
+});

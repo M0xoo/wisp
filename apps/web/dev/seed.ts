@@ -370,7 +370,31 @@ const CREW = [
   { id: 'crew:ada', name: 'Ada', role: 'Reviewer', agent: 'claude', color: 'violet', skills: ['review', 'tests'], status: 'idle', jobs: 12 },
   { id: 'crew:linus', name: 'Linus', role: 'Release manager', agent: 'codex', color: 'teal', skills: ['ship', 'changelog'], status: 'working', jobs: 31 },
   { id: 'crew:grace', name: 'Grace', role: 'On call', agent: 'claude', color: 'amber', skills: ['logs', 'grid'], status: 'idle', jobs: 4 },
+  // two more, so the phone's Crew section folds the quiet ones into a row of faces (F-crew-16)
+  { id: 'crew:hopper', name: 'Hopper', role: 'Docs writer', agent: 'claude', color: 'rose', skills: ['docs'], status: 'idle', jobs: 2 },
+  { id: 'crew:turing', name: 'Turing', role: 'Bench watcher', agent: 'codex', color: 'sky', skills: ['bench'], status: 'idle', jobs: 1, paused: true },
 ];
+
+// Ada's kit and what her delegated job proposed for it (F-crew-10, F-crew-19): the member page's Skills and
+// instructions, and the offer under that job in her thread
+const ADA_KIT = {
+  kit: [
+    { id: 'k0agents01', kind: 'rules', name: 'AGENTS.md', body: '- Run the tests before you report.\n- Never push to main.', on: true },
+    { id: 'k0review01', kind: 'skill', name: 'review-sync', description: 'Reviewing a change to the sync protocol against docs/sync.md.', body: '1. Read docs/sync.md.\n2. Diff the change.', on: true },
+    { id: 'k0flaky001', kind: 'skill', name: 'flaky-tests', description: 'A test that fails only some of the time.', body: '1. Run it 50 times.', on: false },
+  ],
+  notebook: 'The reconnect test is flaky on macOS.',
+  offers: [
+    {
+      id: 'o0ada0001',
+      state: 'open',
+      files: [
+        { kind: 'skill', name: 'reconnect-check', description: 'Checking a reconnect fix: cursors, resume, the outbox.', body: '1. Kill the socket mid-patch.\n2. Check the cursor resumes.' },
+        { kind: 'rules', name: 'AGENTS.md', body: '- Run the tests before you report.\n- Read docs/sync.md before any sync change.' },
+      ],
+    },
+  ],
+};
 
 const MACHINES = [
   {
@@ -565,7 +589,7 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
   topics.set('plugin:wisp.telemetry:state', [{ e: 'telemetry.state', id: 'this', v: { on: false, setting: true, blocked: true } }]);
   topics.set(
     'crew',
-    CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c })),
+    CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c.id === 'crew:ada' ? { ...c, ...ADA_KIT, offers: ADA_KIT.offers.map((x) => ({ ...x, job: `${o.peer}:s0000`, at: o.now - 2 * MIN })) } : c })),
   );
   topics.set('machines', [
     ...MACHINES.map((m) => ({ e: 'machine', id: m.id, v: { ...m, addedAt: o.now - 30 * 24 * HOUR } })),

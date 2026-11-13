@@ -520,7 +520,29 @@ export const COMMANDS: Record<string, CommandFn> = {
   'terminal.close': () => ({ ops: [], result: { ok: true } }),
   'terminal.app.open': () => ({ ops: [], result: { ok: true } }),
   'terminal.shell.info': () => ({ ops: [], result: { supported: true, open: false, app: true, name: 'zsh' } }),
-  'crew.stats': () => ({ ops: [], result: [] }),
+  // a member's track record (F-crew-13): Ada's jobs, the tokens they used, where they went
+  'crew.stats': (a) => ({
+    ops: [],
+    result: [
+      { id: 'crew:ada', jobs: 14, done: 12, failed: 1, quiet: 3, before: 9, cost: 4.2, tokens: 84_000, days: Number(obj(a)['days'] ?? 30), byKind: { checkin: { runs: 60, tokens: 60_000, quiet: 3 }, delegated: { runs: 4, tokens: 24_000, quiet: 0 } }, top: [{ id: 's0000', title: 'Review the reconnect fix against the sync spec', job: 'delegated', tokens: 21_000 }] },
+      { id: 'crew:linus', jobs: 31, done: 30, failed: 0, quiet: 0, tokens: 120_000 },
+      { id: 'crew:grace', jobs: 4, done: 4, failed: 0, quiet: 2 },
+    ],
+  }),
+  // Skills and instructions on this computer (F-crew-10's From this computer…)
+  'crew.kit': () => ({
+    ops: [],
+    result: [
+      { name: 'release-notes', description: 'Writing release notes or a CHANGELOG entry.', path: '~/.claude/skills/release-notes', from: 'home', body: '1. Read the commits since the last tag.' },
+      { name: 'review-sync', description: 'Reviewing a change to the sync protocol against docs/sync.md.', path: '~/.claude/skills/review-sync', from: 'home', body: '1. Read docs/sync.md.\n2. Diff the change.' },
+      { name: 'AGENTS.md', description: "this project's instructions", path: '~/code/wisp/AGENTS.md', from: 'project', body: '# AGENTS.md\n\nRules.' },
+    ],
+  }),
+  // Share… (F-crew-12): the bundle, with the host's note
+  'crew.export': (a) => {
+    const ids = (obj(a)['ids'] as string[] | undefined) ?? [];
+    return { ops: [], result: { bundle: { wispCrew: 1, members: ids.map((id) => ({ key: id.replace(/^crew:/, ''), name: id })) }, notes: obj(a)['notebook'] ? ['Their notebook goes along: read it first.'] : [], file: `${(ids[0] ?? 'crew').replace(/^crew:/, '')}.crew.json` } };
+  },
   // Settings → Machines → This computer over SSH, as v1's reference showed it (names the same length, not the same)
   'machines.reachable': () => ({
     ops: [],
@@ -594,6 +616,15 @@ export const COMMANDS: Record<string, CommandFn> = {
   'crew.update': (a, ctx) => {
     const { id, ...patch } = obj(a);
     if (typeof id !== 'string' || ctx.row('crew', 'crew_member', id) === undefined) refuse('not_found', `no crew member ${String(id)}`);
+    // offers come as settles ({id, state, names}): kept on the offer they settle, as crew core offers::settle does
+    const row = ctx.row('crew', 'crew_member', id as string) as { offers?: { id: string }[] } | undefined;
+    if (Array.isArray(patch['offers'])) {
+      const list = patch['offers'] as { id: string; state: string; names: string[] }[];
+      patch['offers'] = (row?.offers ?? []).map((o) => {
+        const s = list.find((x) => x.id === o.id);
+        return s ? { ...o, state: s.state, names: s.names } : o;
+      });
+    }
     const ops: PatchOp[] = Object.entries(patch).map(([k, v]) => ({ op: 'add', path: `/${k}`, value: v }));
     return { ops: [{ topic: 'crew', e: 'crew_member', id: id as string, op: 'patch', ops }], result: { ...(ctx.row('crew', 'crew_member', id as string) as object), ...patch } };
   },
