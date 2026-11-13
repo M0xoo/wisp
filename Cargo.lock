@@ -5124,9 +5124,12 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-kernel",
+ "wisp-machines-api",
  "wisp-mcp-api",
  "wisp-mcp-core",
  "wisp-resources-api",
+ "wisp-runtime-api",
+ "wisp-telemetry-api",
 ]
 
 [[package]]

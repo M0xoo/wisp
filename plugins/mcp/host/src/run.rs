@@ -3,7 +3,8 @@
 //! `wisp-mcp-core`.
 
 use serde_json::{Map, Value, json};
-use wisp_kernel::{Call, Ctx};
+use wisp_kernel::{Call, Command, Ctx};
+use wisp_runtime_api::commands as rt;
 use wisp_mcp_core::{AgentAction, Outcome, Step, Who, agent_action, owner_text, user, words};
 
 use crate::{Sessions, extras_for, who as who_of};
@@ -54,12 +55,14 @@ pub async fn rpc(ctx: &Ctx, call: &Call, sessions: &Sessions, text: &str, cwd: O
 /// A tool call's catalogue event (`wisp_mcp_core::telemetry`), with the caller's harness.
 async fn track(ctx: &Ctx, call: &Call, w: &Who, event: &str, mut props: Value) {
     if let Who::Agent { session, .. } = w {
-        let agent = owner(ctx, call, "runtime.get", json!({ "id": session })).await.ok().and_then(|s| s.get("agent").cloned());
+        let agent = typed::<rt::Get>(ctx, call, get(session)).await.ok().and_then(|s| s.get("agent").cloned());
         if let (Some(o), Some(a)) = (props.as_object_mut(), agent) {
             o.insert("agent".into(), a);
         }
     }
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": event, "props": props })).await;
+    if let Ok(a) = args_of::<wisp_telemetry_api::Track>(json!({ "event": event, "props": props })) {
+        let _ = ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), a).await;
+    }
 }
 
 /// The `tools` spec for this session's run (its agent profile's, else its mode's), when one is declared.
@@ -67,7 +70,7 @@ async fn narrowed(ctx: &Ctx, call: &Call, sessions: &Sessions, session: &str) ->
     if sessions.1.is_empty() {
         return None;
     }
-    let s = ctx.run_json(call, "runtime.get", json!({ "id": session })).await.ok()?;
+    let s = typed::<rt::Get>(ctx, call, get(session)).await.ok()?;
     let profile = s.pointer("/ext/wisp.runtime/spec/agent").and_then(Value::as_str).unwrap_or_default();
     sessions.1.for_run(profile, s.get("mode").and_then(Value::as_str).unwrap_or_default())
 }
@@ -78,7 +81,7 @@ async fn merge_flags(ctx: &Ctx, call: &Call, session: &str, info: &mut wisp_mcp_
     if flags.is_empty() {
         return;
     }
-    let ext = ctx.run_json(call, "runtime.get", json!({ "id": session })).await.ok().and_then(|s| s.get("ext").cloned()).unwrap_or(Value::Null);
+    let ext = typed::<rt::Get>(ctx, call, get(session)).await.ok().and_then(|s| s.get("ext").cloned()).unwrap_or(Value::Null);
     for f in flags {
         let more = f.flags(session, &ext);
         info.read_only |= more.read_only;
@@ -87,8 +90,29 @@ async fn merge_flags(ctx: &Ctx, call: &Call, session: &str, info: &mut wisp_mcp_
     }
 }
 
+/// A command chosen at runtime by name (an owner tool from the table, a connector, `crew.*`): by name, with JSON.
 async fn owner(ctx: &Ctx, call: &Call, cmd: &str, args: Value) -> Result<Value, String> {
     ctx.run_json(call, cmd, args).await.map_err(|e| e.message)
+}
+
+/// Typed command `C`, its answer as the JSON the tool words read (what `run_json` would have answered).
+async fn typed<C: Command>(ctx: &Ctx, call: &Call, args: C::Args) -> Result<Value, String> {
+    let out = ctx.run::<C>(call, args).await.map_err(|e| e.message)?;
+    serde_json::to_value(out).map_err(|e| e.to_string())
+}
+
+/// `C`'s args from what a tool call carried, refused in the words its handler would use (`<id>: <why>`).
+fn args_of<C: Command>(v: Value) -> Result<C::Args, String> {
+    serde_json::from_value(v).map_err(|e| format!("{}: {e}", C::ID))
+}
+
+/// `C` with args from a tool call's JSON (`args_of`), then `typed`.
+async fn typed_json<C: Command>(ctx: &Ctx, call: &Call, v: Value) -> Result<Value, String> {
+    typed::<C>(ctx, call, args_of::<C>(v)?).await
+}
+
+fn get(id: &str) -> rt::IdArgs {
+    rt::IdArgs { id: id.into() }
 }
 
 fn text_of(r: Result<Value, String>) -> Outcome {
@@ -115,7 +139,7 @@ async fn wait_answer(ctx: &Ctx, call: &Call, ask_id: &str, wait_ms: i64) -> Opti
     let clock = ctx.clock().ok()?;
     let until = clock.now_ms() + wait_ms;
     loop {
-        let p = owner(ctx, call, "runtime.pollAnswer", json!({ "askId": ask_id })).await.ok()?;
+        let p = typed::<rt::PollAnswerOf>(ctx, call, rt::PollAnswerArgs { ask_id: ask_id.to_owned() }).await.ok()?;
         match p.get("state").and_then(Value::as_str) {
             Some("answered") => return p.get("answer").and_then(Value::as_str).map(str::to_owned),
             Some("pending") if clock.now_ms() < until => clock.sleep(POLL_MS).await,
@@ -129,7 +153,7 @@ async fn agent_tool(ctx: &Ctx, call: &Call, session: &str, a: AgentAction) -> Ou
         AgentAction::Owner { command, args } => text_of(owner(ctx, call, command, args).await),
         AgentAction::Ask { question, context, options } => {
             let q = context.map_or(question.clone(), |c| format!("{question}\n\n{c}"));
-            match owner(ctx, call, "runtime.ask", json!({ "id": session, "question": q, "options": options })).await {
+            match typed::<rt::Ask>(ctx, call, rt::AskArgs { id: session.into(), question: q, options, details: None }).await {
                 Ok(v) => {
                     let id = v.get("askId").and_then(Value::as_str).unwrap_or_default().to_owned();
                     Outcome::Text(words::ask_answer(wait_answer(ctx, call, &id, ASK_WAIT_MS).await.as_deref()))
@@ -139,30 +163,30 @@ async fn agent_tool(ctx: &Ctx, call: &Call, session: &str, a: AgentAction) -> Ou
         }
         AgentAction::Approve { args, input } => {
             let a = json!({ "id": session, "tool": args.get("tool"), "input": input, "toolUseId": args.get("tool_use_id") });
-            match owner(ctx, call, "runtime.approval", a).await {
+            match typed_json::<rt::Approval>(ctx, call, a).await {
                 Ok(v) => Outcome::Text(v.to_string()),
                 Err(e) => Outcome::Failed(e),
             }
         }
         AgentAction::Delegate { args, wait } => {
             let tasks = args.get("tasks").cloned().unwrap_or(Value::Null);
-            match owner(ctx, call, "runtime.delegate", json!({ "id": session, "tasks": tasks })).await {
+            match typed_json::<rt::Delegate>(ctx, call, json!({ "id": session, "tasks": tasks })).await {
                 Ok(v) if !wait => Outcome::Text(format!("Started: {v}")),
                 Ok(v) => {
                     let ids: Vec<String> = v.as_array().into_iter().flatten().filter_map(|d| d.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned)).collect();
-                    text_of(owner(ctx, call, "runtime.results", json!({ "id": session, "ids": ids, "wait": 600 })).await.map(|r| json!({ "text": r.to_string() })))
+                    text_of(typed_json::<rt::Results>(ctx, call, json!({ "id": session, "ids": ids, "wait": 600 })).await.map(|r| json!({ "text": r.to_string() })))
                 }
                 Err(e) => Outcome::Failed(e),
             }
         }
         AgentAction::Results { args, wait } => {
             let ids = args.get("ids").cloned().unwrap_or_else(|| json!([]));
-            let r = owner(ctx, call, "runtime.results", json!({ "id": session, "ids": ids, "wait": if wait { 600 } else { 0 } })).await;
+            let r = typed_json::<rt::Results>(ctx, call, json!({ "id": session, "ids": ids, "wait": if wait { 600 } else { 0 } })).await;
             text_of(r.map(|v| json!({ "text": v.to_string() })))
         }
         AgentAction::Launch { args, wait, wait_ms } => {
             let start = json!({ "prompt": args.get("prompt"), "cwd": args.get("cwd"), "agent": args.get("agent"), "model": args.get("model"), "mode": args.get("mode"), "by": "agent" });
-            match owner(ctx, call, "runtime.create", start).await {
+            match typed_json::<rt::Create>(ctx, call, start).await {
                 Ok(c) if wait => {
                     let id = c.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
                     Outcome::Text(task_wait(ctx, call, &id, wait_ms).await)
@@ -182,10 +206,10 @@ async fn task_wait(ctx: &Ctx, call: &Call, id: &str, wait_ms: i64) -> String {
     let Ok(clock) = ctx.clock() else { return String::new() };
     let until = clock.now_ms() + wait_ms;
     loop {
-        let s = owner(ctx, call, "runtime.get", json!({ "id": id })).await.unwrap_or(Value::Null);
+        let s = typed::<rt::Get>(ctx, call, get(id)).await.unwrap_or(Value::Null);
         let settled = s.get("state").and_then(Value::as_str) != Some("running");
         if settled || clock.now_ms() >= until {
-            let t = owner(ctx, call, "runtime.turns", json!({ "id": id, "limit": 1 })).await.unwrap_or(Value::Null);
+            let t = typed::<rt::Turns>(ctx, call, rt::TurnsArgs { id: id.into(), before: None, limit: Some(1), masked: None }).await.unwrap_or(Value::Null);
             let text = t.as_array().and_then(|l| l.last()).and_then(|x| x.get("text")).and_then(Value::as_str).unwrap_or_default().to_owned();
             return words::task_report(settled, None, &text);
         }
@@ -211,11 +235,11 @@ fn markdown(p: &Value) -> String {
 }
 
 async fn describe(ctx: &Ctx, call: &Call, id: &str, extra: &str) -> Outcome {
-    let s = match owner(ctx, call, "runtime.get", json!({ "id": id })).await {
+    let s = match typed::<rt::Get>(ctx, call, get(id)).await {
         Ok(s) => s,
         Err(e) => return Outcome::Failed(e),
     };
-    let p = owner(ctx, call, "runtime.presentation", json!({ "id": id })).await.unwrap_or(Value::Null);
+    let p = typed::<rt::PresentationOf>(ctx, call, rt::PresentationArgs { id: id.into(), turn: None }).await.unwrap_or(Value::Null);
     Outcome::Text(user::describe(id, &s, &markdown(&p), extra))
 }
 
@@ -228,20 +252,20 @@ async fn user_tool(ctx: &Ctx, call: &Call, name: &str, a: Map<String, Value>, cw
         "wisp_launch" => {
             let Some(prompt) = s("prompt").filter(|p| !p.trim().is_empty()) else { return Outcome::Failed("prompt is required".into()) };
             let args = json!({ "prompt": prompt, "cwd": s("cwd").or_else(|| cwd.map(str::to_owned)), "agent": s("agent"), "model": s("model"), "effort": s("effort"), "mode": s("mode") });
-            match owner(ctx, call, "runtime.create", args).await {
+            match typed_json::<rt::Create>(ctx, call, args).await {
                 Ok(c) => {
                     let id = c.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
                     if a.get("wait").is_some_and(|w| w.as_bool().unwrap_or(false)) {
                         let _ = task_wait(ctx, call, &id, wait_ms).await;
                         return describe(ctx, call, &id, "").await;
                     }
-                    let got = owner(ctx, call, "runtime.get", json!({ "id": id })).await.unwrap_or(Value::Null);
+                    let got = typed::<rt::Get>(ctx, call, get(&id)).await.unwrap_or(Value::Null);
                     Outcome::Text(user::launched(&got))
                 }
                 Err(e) => Outcome::Failed(e),
             }
         }
-        "wisp_list" => match owner(ctx, call, "runtime.list", json!({})).await {
+        "wisp_list" => match typed::<rt::List>(ctx, call, rt::ListArgs::default()).await {
             Ok(Value::Array(all)) => Outcome::Text(user::list(&all, &a)),
             Ok(_) => Outcome::Text(user::list(&[], &a)),
             Err(e) => Outcome::Failed(e),
@@ -253,18 +277,18 @@ async fn user_tool(ctx: &Ctx, call: &Call, name: &str, a: Map<String, Value>, cw
         }
         "wisp_reply" => {
             let Some(text) = s("text").map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()) else { return Outcome::Failed("text is required".into()) };
-            match owner(ctx, call, "runtime.followUp", json!({ "id": id, "text": text, "queue": a.get("queue"), "mode": s("mode") })).await {
+            match typed_json::<rt::FollowUp>(ctx, call, json!({ "id": id, "text": text, "queue": a.get("queue"), "mode": s("mode") })).await {
                 Ok(r) => Outcome::Text(user::replied(&r).to_owned()),
                 Err(e) => Outcome::Failed(e),
             }
         }
-        "wisp_stop" => match owner(ctx, call, "runtime.stop", json!({ "id": id })).await {
+        "wisp_stop" => match typed::<rt::Stop>(ctx, call, rt::StopArgs { id: id.as_str().into(), clear_queue: false }).await {
             Ok(_) => Outcome::Text(user::stopped(&id)),
             Err(e) => Outcome::Failed(e),
         },
         "wisp_agents" => {
-            let here = owner(ctx, call, "runtime.agents", json!({})).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default();
-            let machines = owner(ctx, call, "machines.list", json!({})).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default();
+            let here = typed::<rt::Agents>(ctx, call, rt::AgentsArgs::default()).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default();
+            let machines = typed::<wisp_machines_api::List>(ctx, call, wisp_machines_api::NoArgs {}).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default();
             Outcome::Text(user::agents(&here, &machines))
         }
         other => text_of(owner(ctx, call, &format!("crew.{}", other.trim_start_matches("wisp_crew_").trim_start_matches("wisp_")), Value::Object(a)).await),

@@ -79,9 +79,9 @@ pub(crate) fn extras_for(ctx: &Ctx, call: &Call) -> (Vec<Extra>, Vec<Arc<wisp_mc
                 // `peer`: the command runs on that machine, through machines.route (ADR-0041)
                 let out = match peer {
                     Some(p) => {
-                        let list = ctx.run_json(&call, "machines.list", serde_json::json!({})).await.unwrap_or_default();
+                        let list = ctx.run::<wisp_machines_api::List>(&call, wisp_machines_api::NoArgs {}).await.ok().and_then(|l| serde_json::to_value(l).ok()).unwrap_or_default();
                         match wisp_mcp_core::generated::find_peer(&list, &p) {
-                            Some(pid) => ctx.run_json(&call, "machines.route", serde_json::json!({ "id": pid, "cmd": id, "args": args, "mid": format!("mcp-{:016x}", rand_mid()) })).await,
+                            Some(pid) => ctx.run::<wisp_machines_api::Route>(&call, wisp_machines_api::RouteArgs { id: Some(pid), cmd: id, args, mid: format!("mcp-{:016x}", rand_mid()) }).await,
                             None => Err(wisp_kernel::WireError::not_found(format!("there's no machine {p} (machines_list shows them)"))),
                         }
                     }
