@@ -28,7 +28,8 @@ jobs:
   suite:
     name: suite (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ inputs.repeat > 1 && 60 || 30 }}
+    # the whole Rust suite runs to the end (no fail-fast) and takes ~35 min on a cold cache
+    timeout-minutes: ${{ inputs.repeat > 1 && 90 || 60 }}
     strategy:
       fail-fast: false
       matrix:

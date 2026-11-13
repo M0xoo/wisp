@@ -28,7 +28,7 @@ jobs:
     if: github.event.action != 'labeled'
     name: affected set (report-only, G14)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
