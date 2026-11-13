@@ -19,6 +19,7 @@ import { popover } from '../ui/popover.js';
 import { contextShare, contextTip, contextWords, planParts, taskUsage } from '../task-usage.js';
 import { noticeWords } from '../window-notice.js';
 import { harnessLogo } from './runners.js';
+import { homeUsage } from '../home-usage.js';
 import { holdLine } from '../limit-hold.js';
 import { bankedSoon, bankedWords } from '../banked.js';
 import { COMPARE_DAYS, COMPARE_MIN, compareParts, compareWords, insteadWords, modelWords, tokenWords, windowName } from '../receipt.js';
@@ -244,6 +245,25 @@ export function budgetHtml(agents) {
   // Nothing reported yet: say where the numbers will come from, once a run tells us.
   const can = agents.filter((a) => REPORTS.has(a.id) && a.available);
   return can.length ? `<p class="bg-empty">Shows each account’s usage windows after its next ${can.map((a) => esc(a.name)).join(' or ')} run.</p>` : '';
+}
+
+// Usage at a glance under home's prompt box (web/js/home-usage.js): one quiet row, a meter per
+// window, the same tones as Settings → Usage. The row opens Settings → Usage. '' with nothing reported.
+export function homeUsageHtml(agents) {
+  const rows = homeUsage(agents);
+  if (!rows.length) return '';
+  const groups = rows.map((r) => {
+    const stop = stopAt(r.agent);
+    const who = `${r.name}${r.accountLabel ? ` (${r.accountLabel})` : ''}`;
+    const wins = r.windows
+      .map((w) => {
+        const p = Math.round(w.used * 100);
+        return `<span class="hu-win ${tone(w, stop)}" title="${esc(`${who}, ${w.label} window: ${p}% used. ${windowLine(w, stop)}`)}"><span class="hu-l">${esc(w.short)}</span><span class="hu-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}" aria-label="${esc(`${who}, ${w.label} window used`)}"><i style="--p:${Math.min(100, p)}%"></i></span><b class="hu-p">${p}%</b></span>`;
+      })
+      .join('');
+    return `<span class="hu-acct"><span class="model-logo" title="${esc(who)}">${harnessLogo(r.agent)}</span>${r.accountLabel ? `<span class="hu-acc">${esc(r.accountLabel)}</span>` : ''}${wins}</span>`;
+  });
+  return `<button type="button" class="hu-row" title="Usage: open Settings → Usage">${groups.join('')}</button>`;
 }
 
 // The task's usage, for its details (web/js/task-usage.js), a line each: its share of the plan's
