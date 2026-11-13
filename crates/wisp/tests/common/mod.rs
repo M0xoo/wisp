@@ -183,3 +183,33 @@ pub async fn run_task(api: &Api, dir: &Path, agent: &str) -> (Value, Value) {
     let task = api.cmd("runtime.get", json!({ "id": id })).await;
     (turns.last().cloned().unwrap_or_default(), task)
 }
+
+/// The complete lines of a fake's `FAKE_RECORD` file (`<name>.jsonl`): only those ending in a
+/// newline. A fake may still be writing its last line; a reader that took it would parse half a record.
+pub fn record_text(path: &Path) -> String {
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    text.rfind('\n').map_or_else(String::new, |end| text[..=end].to_owned())
+}
+
+/// The complete records in a fake's `FAKE_RECORD` file, parsed, in order.
+pub fn records(path: &Path) -> Vec<Value> {
+    record_text(path).lines().map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("a complete record line that isn't JSON ({e}): {l}"))).collect()
+}
+
+/// The argv of one record.
+pub fn argv(record: &Value) -> Vec<String> {
+    record["argv"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect()).unwrap_or_default()
+}
+
+/// Waits until the complete records in `path` satisfy `f`, and returns them.
+pub async fn until_records(path: &Path, what: &str, f: impl Fn(&[Value]) -> bool) -> Vec<Value> {
+    let at = Instant::now();
+    loop {
+        let r = records(path);
+        if f(&r) {
+            return r;
+        }
+        assert!(at.elapsed() < Duration::from_secs(30), "{what}: {}", record_text(path));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}

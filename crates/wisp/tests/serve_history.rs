@@ -88,7 +88,7 @@ async fn track_blame_log_resume_mcp_and_auto_track() {
     let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug TOPIC[Fix add]", "cwd": repo, "agent": "claude", "worktree": false })).await;
     let id = made["id"].as_str().unwrap().to_owned();
     api.until(&id, "the turn ends", |t| t.last().is_some_and(ended)).await;
-    let argv = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap();
+    let argv = common::record_text(&rec.join("claude.jsonl"));
     assert!(argv.contains("wisp-history") && argv.contains("\\\"mcp\\\""), "a run in the repo gets wisp mcp: {}", &argv[..argv.len().min(400)]);
     let (code, out, err) = wisp(&dir, &repo, port, &["track", &id], None);
     assert_eq!(code, 0, "{out}{err}");
@@ -197,7 +197,7 @@ async fn a_claude_code_session_is_adopted_tracked_and_continued() {
     // a follow-up continues the same session in Claude Code
     api.cmd("runtime.followUp", json!({ "id": task, "text": "one more thing" })).await;
     api.until(&task, "the follow-up ends", |t| t.len() == 3 && ended(&t[2])).await;
-    let argv = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap();
+    let argv = common::record_text(&rec.join("claude.jsonl"));
     assert!(argv.contains("--resume") && argv.contains(sid), "it resumed the session there");
 
     // the SessionEnd hook: installed by wisp skill install, adopting per history.adopt
@@ -347,7 +347,7 @@ async fn offers_the_mark_resume_requests_and_injection() {
     assert!(twice["ok"] == false && twice.to_string().contains("approved already"), "{twice}");
 
     // injection_is_off_by_default
-    let argv = || std::fs::read_to_string(rec.join("claude.jsonl")).unwrap_or_default();
+    let argv = || common::record_text(&rec.join("claude.jsonl"));
     assert!(!argv().contains("Earlier tasks on these files"), "off by default");
     // injection_names_the_tasks_on_files_the_prompt_names (the saved task touched math.js)
     std::fs::write(repo.join(".wisp/wisp.yml"), "wisp: 1\nhistory: { track: manual, inject: true }\n").unwrap();

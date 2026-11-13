@@ -88,16 +88,8 @@ async fn capped_agent_sees_only_its_task_events_over_mcp() {
     let _ = std::fs::remove_file(rec.join("claude.jsonl"));
     let made = api.cmd("runtime.create", json!({ "prompt": "second", "cwd": dir.join("proj"), "agent": "claude", "worktree": false })).await;
     let id = made["id"].as_str().unwrap().to_owned();
-    let mut line = String::new();
-    for _ in 0..80 {
-        line = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap_or_default();
-        if line.lines().any(|l| l.contains(&id) || l.contains("--mcp-config")) {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-    let rec_line = line.lines().last().unwrap();
-    let argv: Vec<String> = serde_json::from_str::<Value>(rec_line).unwrap()["argv"].as_array().unwrap().iter().filter_map(|a| a.as_str().map(str::to_owned)).collect();
+    let runs = common::until_records(&rec.join("claude.jsonl"), "the run's record", |r| r.iter().any(|v| common::argv(v).iter().any(|a| a == "--mcp-config"))).await;
+    let argv = common::argv(runs.last().unwrap());
     let cfg: Value = serde_json::from_str(&argv[argv.iter().position(|a| a == "--mcp-config").unwrap() + 1]).unwrap();
     let token = cfg["mcpServers"]["wisp"]["headers"]["x-wisp-token"].as_str().unwrap().to_owned();
     let agent = [("x-wisp-token", token.as_str()), ("x-wisp-session", id.as_str())];

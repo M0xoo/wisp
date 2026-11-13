@@ -140,15 +140,8 @@ async fn the_catalogue_is_wisps_mcp_tools() {
     let made = api.cmd("runtime.create", json!({ "prompt": "hi", "cwd": dir.join("proj"), "agent": "claude" })).await;
     let id = made["id"].as_str().unwrap().to_owned();
     api.until(&id, "running", |t| t.len() == 1 && t[0]["status"] == "running").await;
-    let mut line = String::new();
-    for _ in 0..40 {
-        line = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap_or_default();
-        if !line.is_empty() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-    let argv: Vec<String> = serde_json::from_str::<Value>(line.lines().next().unwrap()).unwrap()["argv"].as_array().unwrap().iter().filter_map(|a| a.as_str().map(str::to_owned)).collect();
+    let runs = common::until_records(&rec.join("claude.jsonl"), "the run's record", |r| !r.is_empty()).await;
+    let argv = common::argv(&runs[0]);
     let cfg: Value = serde_json::from_str(&argv[argv.iter().position(|a| a == "--mcp-config").unwrap() + 1]).unwrap();
     let token = cfg["mcpServers"]["wisp"]["headers"]["x-wisp-token"].as_str().unwrap().to_owned();
     let agent = [("x-wisp-token", token.as_str()), ("x-wisp-session", id.as_str())];

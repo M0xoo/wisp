@@ -29,11 +29,9 @@ fn wisp(dir: &Path, cwd: &Path, port: u16, args: &[&str]) -> (i32, String, Strin
 
 /// Every claude run's argv so far.
 fn runs(rec: &Path) -> Vec<Vec<String>> {
-    std::fs::read_to_string(rec.join("claude.jsonl"))
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
-        .map(|v| v["argv"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect()).unwrap_or_default())
+    common::records(&rec.join("claude.jsonl"))
+        .iter()
+        .map(common::argv)
         .collect()
 }
 
@@ -324,8 +322,8 @@ async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
 fn run_dirs(rec: &Path, prompt: &str) -> Vec<String> {
     let Ok(files) = std::fs::read_dir(rec) else { return Vec::new() };
     files
-        .filter_map(|f| std::fs::read_to_string(f.ok()?.path()).ok())
-        .flat_map(|t| t.lines().filter_map(|l| serde_json::from_str::<Value>(l).ok()).collect::<Vec<_>>())
+        .filter_map(|f| f.ok().map(|f| f.path()))
+        .flat_map(|p| common::records(&p))
         .filter(|v| v["stdin"].as_str().is_some_and(|s| s.contains(prompt)) || v["argv"].as_array().is_some_and(|a| a.iter().any(|x| x.as_str().is_some_and(|x| x.contains(prompt)))))
         .filter_map(|v| v["cwd"].as_str().map(str::to_owned))
         .collect()

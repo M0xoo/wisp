@@ -139,7 +139,8 @@ fn record(name: &str, argv: &[String], prompt: &str) {
         .append(true)
         .open(Path::new(&dir).join(format!("{name}.jsonl")))
     {
-        let _ = writeln!(f, "{line}");
+        // one write per line: `writeln!` may split a long argv line, and a reader would see half of it
+        let _ = f.write_all(format!("{line}\n").as_bytes());
     }
 }
 

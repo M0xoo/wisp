@@ -71,11 +71,9 @@ fn main() {
             .append(true)
             .open(Path::new(&dir).join("gh.jsonl"))
         {
-            let _ = writeln!(
-                f,
-                "{}",
-                json!({ "argv": argv, "cwd": std::env::current_dir().ok() })
-            );
+            // one write per line, so a reader never sees half a record
+            let line = json!({ "argv": argv, "cwd": std::env::current_dir().ok() });
+            let _ = f.write_all(format!("{line}\n").as_bytes());
         }
     }
     let (a, b) = (

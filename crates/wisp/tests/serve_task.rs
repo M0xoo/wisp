@@ -285,7 +285,7 @@ async fn a_crew_check_in_runs_as_a_task_with_the_crew_note() {
     assert_eq!(s["ext"]["wisp.crew"]["id"], member.as_str());
     assert_eq!(s["ext"]["wisp.crew"]["job"], "checkin");
     // the job's system prompt carried who the member is (runtime.prompt@1)
-    let log = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap();
+    let log = common::record_text(&rec.join("claude.jsonl"));
     assert!(log.contains("You are Scout, on the user") && log.contains("Watch CI on main."), "{log}");
     // the member counted its check-in, and the job is on its list
     let got = api.cmd("crew.get", json!({ "id": member })).await;
@@ -352,15 +352,8 @@ async fn the_agent_reaches_wisp_over_mcp_with_its_own_token() {
     let id = made["id"].as_str().unwrap().to_owned();
     api.until(&id, "the turn running", |t| t.len() == 1 && t[0]["status"] == "running").await;
     // what the run was launched with: wisp's MCP server, at this wisp, with a token for this task
-    let mut line = String::new();
-    for _ in 0..40 {
-        line = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap_or_default();
-        if !line.is_empty() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-    let argv: Vec<String> = serde_json::from_str::<Value>(line.lines().next().unwrap()).unwrap()["argv"].as_array().unwrap().iter().filter_map(|a| a.as_str().map(str::to_owned)).collect();
+    let runs = common::until_records(&rec.join("claude.jsonl"), "the run's record", |r| !r.is_empty()).await;
+    let argv = common::argv(&runs[0]);
     let cfg_at = argv.iter().position(|a| a == "--mcp-config").expect("--mcp-config");
     let cfg: Value = serde_json::from_str(&argv[cfg_at + 1]).unwrap();
     let wisp = &cfg["mcpServers"]["wisp"];
@@ -415,8 +408,7 @@ async fn an_agents_token_cannot_touch_another_task() {
     let _ = std::fs::remove_file(rec.join("claude.jsonl"));
     let lead = api.cmd("runtime.create", json!({ "prompt": "L", "cwd": dir.join("proj"), "agent": "claude" })).await["id"].as_str().unwrap().to_owned();
     api.until(&lead, "L ends", |t| t.len() == 1 && ended(&t[0])).await;
-    let line = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap();
-    let argv: Vec<String> = serde_json::from_str::<Value>(line.lines().last().unwrap()).unwrap()["argv"].as_array().unwrap().iter().filter_map(|a| a.as_str().map(str::to_owned)).collect();
+    let argv = common::argv(common::records(&rec.join("claude.jsonl")).last().unwrap());
     let cfg: Value = serde_json::from_str(&argv[argv.iter().position(|a| a == "--mcp-config").unwrap() + 1]).unwrap();
     let token = cfg["mcpServers"]["wisp"]["headers"]["x-wisp-token"].as_str().unwrap().to_owned();
     let as_agent = |name: &'static str, args: Value| {

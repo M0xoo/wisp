@@ -45,7 +45,7 @@ async fn a_second_codex_account_signs_in_and_its_runs_use_its_folder() {
     // a task on that account runs with its folder as CODEX_HOME
     let id = api.cmd("runtime.create", json!({ "prompt": "fix", "cwd": dir.join("proj"), "agent": "codex", "account": "w1" })).await["id"].as_str().unwrap().to_owned();
     api.until(&id, "the turn ends", |t| t.len() == 1 && ended(&t[0])).await;
-    let runs: Vec<Value> = std::fs::read_to_string(rec.join("codex.jsonl")).unwrap().lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    let runs = common::records(&rec.join("codex.jsonl"));
     let home = runs.iter().rev().find(|r| r["argv"][0] == "exec").map(|r| r["codexHome"].clone()).unwrap();
     assert!(home.as_str().unwrap().ends_with("accounts/codex/w1"), "{home}");
     // reorder and remove
