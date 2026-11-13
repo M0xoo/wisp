@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: automations as in v1.** Webhook triggers are HMAC-signed; Linear and task-done triggers; Slack and Linear triggers fire again; a scheduled follow-up can be edited or moved in place and shows under Scheduled in the list.
 - **v2: channel tasks report back where they started.** A task started from Slack, Discord, GitHub, email or Telegram reports in its thread when it finishes or asks, and says once when it waits for your OK in wisp. Telegram works on a sleeping cloud wisp through the grid. "Asks" notifications fire again, and desktop notifications follow the Settings switch.
 - **Pick the account a task runs on.** With two or more accounts for Claude Code or Codex, the harness · model picker has **Account**: Auto (your saved one; one at its limit is skipped when you start a task), then each account. A signed-out one can't be picked. The bar says which (*Codex · Work*).
 - **Plan budget, as v1 showed it.** Settings → Usage shows each account's windows with the line under each bar (when it resets, *at this pace, runs out …*, *Automations wait*), Codex's banked resets, *Past your plan*, **Where the weekly window went** (the tasks that used it, each opens; what ran outside wisp) and, with two accounts, **tokens per turn by account** per model with Copy report. In v2 `turn.ended` carries input, output and cached tokens, and `budget.compare` answers the comparison.
