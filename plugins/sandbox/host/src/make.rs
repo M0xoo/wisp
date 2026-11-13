@@ -56,9 +56,15 @@ pub(crate) async fn make(ctx: &Ctx, call: &Call, owner: &Owner, name: &str) -> R
 }
 
 /// Waits for a sandbox's wisp to answer; its peer id.
+///
+/// As v1's `waitOnline`: a box that is off or in error (its tunnel failed once, a first connect that failed) gets one
+/// fresh connect per wait, so it's usable again the next time it's used, and the machine card shows *connecting*
+/// meanwhile. In error after that try, the wait fails at once with the box's own reason: machines put it in error
+/// because retrying wouldn't help (a lost tunnel it retries itself, with backoff, as *reconnecting*).
 async fn wait_up(ctx: &Ctx, call: &Call, machine: &str) -> Result<String> {
     let clock = ctx.clock()?;
     let until = clock.now_ms() + i64::try_from(UP_MS).unwrap_or(i64::MAX);
+    let mut tried = false;
     loop {
         let m = calls::machine(ctx, call, machine).await?;
         let state = m.state;
@@ -66,8 +72,13 @@ async fn wait_up(ctx: &Ctx, call: &Call, machine: &str) -> Result<String> {
             // the app reaches it as the peer named by this machine's own id (`/api/peer/<id>`)
             return Ok(machine.to_owned());
         }
-        if state == PeerState::Off {
+        if state == PeerState::Error && tried {
+            let why = if m.error.is_empty() { "no answer" } else { m.error.as_str() };
+            return Err(WireError::unavailable(format!("The sandbox didn't start: {why}")));
+        }
+        if state == PeerState::Off || state == PeerState::Error {
             calls::connect(ctx, call, machine).await;
+            tried = true;
         }
         // a new box sleeps until it's used: one real request wakes it (a passive watch never does)
         if state == PeerState::Asleep {
