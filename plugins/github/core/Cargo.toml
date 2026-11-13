@@ -12,7 +12,6 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 wisp-automations-api.workspace = true
-wisp-channels-api.workspace = true
 wisp-kernel.workspace = true
 
 [lints]

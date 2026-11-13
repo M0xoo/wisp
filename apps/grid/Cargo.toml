@@ -50,7 +50,6 @@ thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
 url.workspace = true
 x509-cert.workspace = true
 

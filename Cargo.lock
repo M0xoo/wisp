@@ -4541,10 +4541,7 @@ name = "wisp-discord-core"
 version = "2.0.0"
 dependencies = [
  "ed25519-dalek",
- "serde",
  "serde_json",
- "thiserror 2.0.21",
- "wisp-kernel",
 ]
 
 [[package]]
@@ -4568,11 +4565,7 @@ version = "2.0.0"
 dependencies = [
  "base64 0.22.1",
  "regex",
- "serde",
  "serde_json",
- "thiserror 2.0.21",
- "wisp-channels-api",
- "wisp-kernel",
 ]
 
 [[package]]
@@ -4670,7 +4663,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "wisp-automations-api",
- "wisp-channels-api",
  "wisp-kernel",
 ]
 
@@ -4710,9 +4702,6 @@ version = "2.0.0"
 dependencies = [
  "rand 0.9.5",
  "serde",
- "serde_json",
- "thiserror 2.0.21",
- "wisp-goal-api",
 ]
 
 [[package]]
@@ -4755,7 +4744,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
- "tracing-subscriber",
  "url",
  "wisp-channels-api",
  "wisp-channels-core",
@@ -5193,12 +5181,8 @@ dependencies = [
 name = "wisp-ntfy-core"
 version = "2.0.0"
 dependencies = [
- "base64 0.22.1",
- "hmac",
  "serde",
  "serde_json",
- "sha2",
- "subtle",
  "thiserror 2.0.21",
  "wisp-channels-api",
  "wisp-kernel",
@@ -5259,14 +5243,6 @@ dependencies = [
 [[package]]
 name = "wisp-plugins-core"
 version = "2.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "sha2",
- "wisp-kernel",
- "wisp-plugins-api",
- "wisp-stuff-api",
-]
 
 [[package]]
 name = "wisp-posthog"
@@ -5733,10 +5709,8 @@ dependencies = [
 name = "wisp-telegram-core"
 version = "2.0.0"
 dependencies = [
- "hmac",
  "serde",
  "serde_json",
- "sha2",
  "subtle",
  "thiserror 2.0.21",
  "wisp-channels-api",
