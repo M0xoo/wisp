@@ -8,6 +8,16 @@ use serde_json::Value;
 
 use crate::{Result, WireError};
 
+/// Every top-level key a `wisp-plugin.json` may have, as the checker knows them (an agent's reference for writing
+/// one is made from these, so it never drifts). Additive (2026-11-13).
+pub const KEYS: &[&str] = crate::manifest_check::TOP;
+/// Every `contributes` section the checker knows. Additive (2026-11-13).
+pub const CONTRIBUTES: &[&str] = crate::manifest_check::CONTRIB;
+/// The kinds of `activation` event. Additive (2026-11-13).
+pub const ACTIVATIONS: &[&str] = crate::manifest_check::ACTIVATION_KINDS;
+/// The types a `contributes.settings` entry may have. Additive (2026-11-13).
+pub const SETTING_TYPES: &[&str] = crate::manifest_check::SETTING_TYPES;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Manifest {
