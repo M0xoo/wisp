@@ -4,16 +4,19 @@
 //! decides: met, another round told what's missing, or past the round limit a question to you. Never
 //! for a task's own side runs, and a turn you started yourself after a stall begins the count again.
 
+mod calls;
 mod kinds;
 
 use std::sync::Arc;
 
 use serde_json::{Value, json};
 use wisp_goal_api::{GoalState, PLUGIN};
-use wisp_goal_core::{MAX_ROUNDS, Next, Scheduled, WakeGone, judge_prompt, next, verdict, wake_gone, waits_for_wake};
-use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup};
+use wisp_goal_core::{MAX_ROUNDS, Next, WakeGone, judge_prompt, next, verdict, wake_gone, waits_for_wake};
+use calls::{pick_of, put, quick, scheduled, spec_of, state_of, task_of, turns_of, warn_put};
+use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_runtime_api::commands as rt;
 use wisp_runtime_api::events::TurnEnded;
-use wisp_runtime_api::model::TurnStatus;
+use wisp_runtime_api::model::{Session, TurnStatus};
 
 /// Who the goal's own follow-ups are by.
 const BY: &str = "goal";
@@ -61,13 +64,11 @@ pub fn goal_with(spec: &Value, st: Option<&GoalState>, d: &kinds::GoalSpec) -> O
 /// `goal.set`: the task's goal set, changed (its count starts again) or cleared.
 async fn set(ctx: &Ctx, a: &wisp_goal_api::SetArgs) -> Result<Value> {
     let call = ctx.root_call();
-    let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.id })).await?;
+    let task = task_of(ctx, &call, &a.id).await?;
     let text = a.text.trim();
     let st = if text.is_empty() { GoalState { state: "cleared".into(), ..GoalState::default() } } else { GoalState { text: text.to_owned(), ..GoalState::default() } };
-    ctx.run_json(&call, "runtime.setExt", json!({ "id": a.id, "plugin": PLUGIN, "value": st })).await?;
-    let spec = task.pointer("/ext/wisp.runtime/spec").cloned().unwrap_or_default();
-    let at = task.get("updatedAt").and_then(Value::as_i64).unwrap_or(0);
-    Ok(view_of(&spec, Some(&st), task.get("createdAt").and_then(Value::as_i64).unwrap_or(0), at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
+    put(ctx, &call, &a.id, &st).await?;
+    Ok(view_of(&spec_of(&task), Some(&st), task.created_at, task.updated_at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
 }
 
 /// The new state of a task's goal for pause / resume / drop (pure: the handlers write what this gives).
@@ -91,57 +92,39 @@ pub fn moved(st: Option<&GoalState>, to: &str, why: Option<&str>) -> GoalState {
 /// `goal.pause` / `goal.resume` / `goal.drop`: the goal's state written, the band's view given back.
 async fn move_goal(ctx: &Ctx, a: &wisp_goal_api::TaskArgs, to: &str) -> Result<Value> {
     let call = ctx.root_call();
-    let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.id })).await?;
-    let had: Option<GoalState> = task.pointer("/ext/wisp.goal").and_then(|v| serde_json::from_value(v.clone()).ok());
-    let st = moved(had.as_ref(), to, a.why.as_deref());
-    ctx.run_json(&call, "runtime.setExt", json!({ "id": a.id, "plugin": PLUGIN, "value": st })).await?;
-    let spec = task.pointer("/ext/wisp.runtime/spec").cloned().unwrap_or_default();
-    Ok(view_of(&spec, Some(&st), task.get("createdAt").and_then(Value::as_i64).unwrap_or(0), task.get("updatedAt").and_then(Value::as_i64).unwrap_or(0), &kinds::GoalSpec::default()).unwrap_or(Value::Null))
+    let task = task_of(ctx, &call, &a.id).await?;
+    let st = moved(state_of(&task).as_ref(), to, a.why.as_deref());
+    put(ctx, &call, &a.id, &st).await?;
+    Ok(view_of(&spec_of(&task), Some(&st), task.created_at, task.updated_at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
 }
 
 /// `goal.check`: the last finished turn judged now (in the background; the band shows it as it lands).
 async fn check_now(ctx: &Ctx, defaults: &kinds::Defaults, id: &str) -> Result<Value> {
-    let turns = ctx.run_json(&ctx.root_call(), "runtime.turns", json!({ "id": id })).await?;
-    let last = turns.as_array().and_then(|t| t.iter().rev().find(|t| t.get("status").and_then(Value::as_str) == Some("done")).cloned());
-    let Some(turn) = last.and_then(|t| t.get("id").and_then(Value::as_str).map(str::to_owned)) else {
-        return Err(wisp_kernel::WireError::invalid("No finished turn to check yet."));
+    let turns = turns_of(ctx, &ctx.root_call(), id).await?;
+    let Some(turn) = turns.iter().rev().find(|t| t.status == TurnStatus::Done).map(|t| t.id.as_str().to_owned()) else {
+        return Err(WireError::invalid("No finished turn to check yet."));
     };
     let (c, d, id) = (ctx.clone(), defaults.clone(), id.to_owned());
     ctx.spawn(async move { judge_turn(&c, &d, &id, &turn).await });
     Ok(json!({}))
 }
 
-/// A judge's run: its profile's harness and model, or the harness itself.
-async fn pick_of(ctx: &Ctx, judge: &str) -> Value {
-    let profiles = ctx.run_json(&ctx.root_call(), "runtime.profiles", json!({})).await.unwrap_or_default();
-    let p = profiles.as_array().and_then(|a| a.iter().find(|p| p.get("name").and_then(Value::as_str) == Some(judge)).cloned());
-    match p {
-        Some(p) => json!({ "agent": p.get("harness"), "model": p.get("model"), "effort": p.get("effort") }),
-        None => json!({ "agent": judge }),
-    }
-}
-
-async fn judge(ctx: &Ctx, g: &Goal, task: &Value, answer: &str) -> Vec<wisp_goal_core::Verdict> {
-    let title = task.get("title").and_then(Value::as_str).unwrap_or_default();
-    let cwd = task.get("cwd").and_then(Value::as_str).unwrap_or_default();
+async fn judge(ctx: &Ctx, g: &Goal, task: &Session, answer: &str) -> Vec<wisp_goal_core::Verdict> {
+    let cwd = task.cwd.as_str();
     let mut out = Vec::new();
     // judges in a sandbox: one for this task's judges (made once, reused every round), the task's folder in it
     let place = if g.sandbox {
-        let id = task.get("id").and_then(Value::as_str).unwrap_or_default();
-        match ctx.run_json(&ctx.root_call(), "sandbox.place", json!({ "owner": { "judges": id }, "cwd": (!cwd.is_empty()).then_some(cwd) })).await {
-            Ok(p) => Some((p.get("machine").and_then(Value::as_str).unwrap_or_default().to_owned(), p.get("cwd").and_then(Value::as_str).unwrap_or_default().to_owned())),
+        let a = wisp_sandbox_api::PlaceArgs { owner: json!({ "judges": task.id.as_str() }), cwd: (!cwd.is_empty()).then(|| cwd.to_owned()) };
+        match ctx.run::<wisp_sandbox_api::Place>(&ctx.root_call(), a).await {
+            Ok(p) => Some((p.machine, p.cwd)),
             Err(e) => return g.judges.iter().map(|j| wisp_goal_core::Verdict { judge: j.clone(), met: false, why: format!("{j} couldn't judge in a sandbox: {}", e.message) }).collect(),
         }
     } else {
         None
     };
     for j in &g.judges {
-        let a = json!({ "prompt": judge_prompt(&g.text, title, answer), "cwd": place.as_ref().map_or(cwd, |p| p.1.as_str()), "pick": pick_of(ctx, j).await, "timeoutMs": 300_000 });
-        let asked = match &place {
-            Some((machine, _)) => ctx.run_json(&ctx.root_call(), "machines.route", json!({ "id": machine, "cmd": "runtime.quick", "args": a, "mid": format!("judge-{}", wisp_kernel::ids::uuid7()) })).await,
-            None => ctx.run_json(&ctx.root_call(), "runtime.quick", a).await,
-        };
-        let said = asked.map(|r| r.get("text").and_then(Value::as_str).unwrap_or_default().to_owned());
+        let a = rt::QuickArgs { prompt: judge_prompt(&g.text, &task.title, answer), cwd: place.as_ref().map_or(cwd, |p| p.1.as_str()).to_owned(), pick: Some(pick_of(ctx, j).await), timeout_ms: Some(300_000), json: false };
+        let said = quick(ctx, place.as_ref().map(|p| p.0.as_str()), a).await;
         out.push(match said {
             Ok(text) => verdict(j, &text),
             Err(e) => wisp_goal_core::Verdict { judge: j.clone(), met: false, why: format!("{j} couldn't judge: {}", e.message) },
@@ -150,45 +133,28 @@ async fn judge(ctx: &Ctx, g: &Goal, task: &Value, answer: &str) -> Vec<wisp_goal
     out
 }
 
-/// The task's scheduled entries (`later.list`), as the goal reads them.
-async fn scheduled(ctx: &Ctx, id: &str) -> Vec<Scheduled> {
-    let list = ctx.run_json(&ctx.root_call(), "later.list", json!({ "sessionId": id })).await.unwrap_or_default();
-    list.as_array()
-        .map(|a| {
-            a.iter()
-                .map(|l| Scheduled {
-                    id: l.get("id").and_then(Value::as_str).unwrap_or_default().to_owned(),
-                    by: l.get("by").and_then(Value::as_str).unwrap_or_default().to_owned(),
-                    remind: l.get("remind").and_then(Value::as_bool).unwrap_or(false),
-                    set_at: l.get("setAt").and_then(Value::as_i64).unwrap_or(0),
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 /// The wake-up a goal waited for went without going (`later.dropped`, v1 goal.js wakeGone): cancelled, the round's
 /// report is checked now; otherwise the goal pauses and waits for you.
 async fn wake_dropped(ctx: &Ctx, defaults: &kinds::Defaults, e: &wisp_later_api::Dropped) {
     let call = ctx.root_call();
-    let Ok(task) = ctx.run_json(&call, "runtime.get", json!({ "id": e.session_id })).await else { return };
-    let mut st: GoalState = task.pointer("/ext/wisp.goal").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
+    let Ok(task) = task_of(ctx, &call, &e.session_id).await else { return };
+    let mut st = state_of(&task).unwrap_or_default();
     if st.wake.is_empty() || st.wake != e.entry.id {
         return;
     }
     st.wake.clear();
     match wake_gone(&e.why) {
         WakeGone::CheckNow => {
-            let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": e.session_id, "plugin": PLUGIN, "value": st })).await;
-            let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": e.session_id })).await.unwrap_or_default();
-            if let Some(last) = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("id")).and_then(Value::as_str) {
-                judge_turn(ctx, defaults, &e.session_id, last).await;
+            warn_put(&e.session_id, put(ctx, &call, &e.session_id, &st).await);
+            let turns = turns_of(ctx, &call, &e.session_id).await.unwrap_or_default();
+            if let Some(last) = turns.last() {
+                judge_turn(ctx, defaults, &e.session_id, last.id.as_str()).await;
             }
         }
         WakeGone::Pause => {
             "paused".clone_into(&mut st.state);
             "Its agent’s wake-up didn’t go".clone_into(&mut st.why);
-            let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": e.session_id, "plugin": PLUGIN, "value": st })).await;
+            warn_put(&e.session_id, put(ctx, &call, &e.session_id, &st).await);
         }
     }
 }
@@ -203,32 +169,32 @@ async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
 /// A turn's answer judged against the task's goal: met, another round, or past the limit a question.
 async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, turn_id: &str) {
     let call = ctx.root_call();
-    let Ok(task) = ctx.run_json(&call, "runtime.get", json!({ "id": id })).await else { return };
-    if task.get("parentId").is_some_and(|p| !p.is_null()) {
+    let Ok(task) = task_of(ctx, &call, id).await else { return };
+    if task.parent_id.is_some() {
         return;
     }
-    let spec = task.pointer("/ext/wisp.runtime/spec").cloned().unwrap_or_default();
+    let spec = spec_of(&task);
     let d = defaults.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-    let mut st: GoalState = task.pointer("/ext/wisp.goal").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
+    let mut st = state_of(&task).unwrap_or_default();
     let Some(g) = goal_with(&spec, Some(&st), &d) else { return };
     if matches!(st.state.as_str(), "met" | "paused") {
         return;
     }
     // a turn you started after a stall: a new count
-    let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": id })).await.unwrap_or_default();
-    let last = turns.as_array().and_then(|t| t.iter().find(|t| t.get("id").and_then(Value::as_str) == Some(turn_id)).cloned()).unwrap_or_default();
-    if st.state == "stalled" && last.get("by").and_then(Value::as_str) != Some(BY) {
+    let turns = turns_of(ctx, &call, id).await.unwrap_or_default();
+    let last = turns.iter().find(|t| t.id.as_str() == turn_id);
+    if st.state == "stalled" && last.and_then(|t| t.by.as_deref()) != Some(BY) {
         st.rounds = 0;
     }
     // its agent scheduled its own wake-up this turn: it's waiting, not done; the goal is checked after that turn (v1 #775)
-    let started = last.get("startedAt").or_else(|| last.get("started_at")).and_then(Value::as_i64).unwrap_or(0);
+    let started = last.map_or(0, |t| t.started_at);
     if let Some(wake) = waits_for_wake(&scheduled(ctx, id).await, started) {
         st.wake = wake;
-        let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": PLUGIN, "value": st })).await;
+        warn_put(id, put(ctx, &call, id, &st).await);
         return;
     }
     st.wake.clear();
-    let answer = last.get("text").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let answer = last.and_then(|t| t.text.clone()).unwrap_or_default();
     let verdicts = judge(ctx, &g, &task, &answer).await;
     st.rounds += 1;
     st.verdicts = verdicts.iter().map(|v| json!(v)).collect();
@@ -241,7 +207,7 @@ async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, turn_id: &s
             why.clone_into(&mut st.why);
         }
     }
-    let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": PLUGIN, "value": st })).await;
+    warn_put(id, put(ctx, &call, id, &st).await);
     // the verdict as a durable fact (ADR-0043: `goal.met` and `goal.failed` start triggers and wake crew)
     match &step {
         Next::Met => ctx.emit(&call, &wisp_goal_api::GoalMet { session_id: id.to_owned(), goal: g.text.clone(), rounds: st.rounds }),
@@ -249,9 +215,9 @@ async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, turn_id: &s
         Next::Again(_) => {}
     }
     let out = match step {
-        Next::Met => Ok(Value::Null),
-        Next::Again(text) => ctx.run_json(&call, "runtime.followUp", json!({ "id": id, "text": text, "by": BY })).await,
-        Next::Stall(q) => ctx.run_json(&call, "runtime.ask", json!({ "id": id, "question": q })).await,
+        Next::Met => Ok(()),
+        Next::Again(text) => ctx.run::<rt::FollowUp>(&call, rt::FollowUpArgs { id: id.into(), text, by: Some(BY.into()), ..rt::FollowUpArgs::default() }).await.map(|_| ()),
+        Next::Stall(q) => ctx.run::<rt::Ask>(&call, rt::AskArgs { id: id.into(), question: q, options: Vec::new(), details: None }).await.map(|_| ()),
     };
     if let Err(err) = out {
         tracing::warn!(task = %id, "goal: {}", err.message);
