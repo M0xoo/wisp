@@ -14,6 +14,7 @@ pub mod plan_shares;
 pub mod receipt;
 pub mod shape;
 pub mod state;
+pub mod traced;
 pub mod views;
 pub mod where_went;
 pub mod windows;

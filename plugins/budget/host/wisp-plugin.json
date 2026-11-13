@@ -12,6 +12,7 @@
   "permissions": [
     "runtime:release",
     "runtime:turn.setExt",
+    "runtime:get",
     "accounts:read",
     "store:write{owner:budget}"
   ],
@@ -32,6 +33,11 @@
       {
         "id": "budget.view",
         "title": "An account's usage windows",
+        "readOnly": true
+      },
+      {
+        "id": "budget.compare",
+        "title": "Tokens per turn by account, per model",
         "readOnly": true
       },
       {

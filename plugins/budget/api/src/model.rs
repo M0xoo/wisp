@@ -241,6 +241,10 @@ pub struct AccountView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub banked: Option<Banked>,
+    /// where its longest window went this period (v1 `where`). Additive (2026-11-13).
+    #[serde(default, rename = "where", skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub where_went: Option<crate::usage::WhereView>,
 }
 
 /// A window's closed period (v1 `Budget.periods`). `cut`: it ended before its reset.

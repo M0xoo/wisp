@@ -11,6 +11,7 @@
 pub mod commands;
 pub mod events;
 pub mod model;
+pub mod usage;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -20,6 +21,7 @@ pub use model::{
     AccountView, Banked, BankedCredit, BankedDue, Drain, DrainFailed, LimitWindow, LimitsReport, NoticeKind, OverageKind, OverageView,
     Past, Period, RunSubject, Share, WindowNotice, WindowNow, WindowView,
 };
+pub use usage::{AccountTurns, COMPARE_DAYS, COMPARE_MIN, ModelCompare, TaskUse, WhereView};
 
 // ---------- shared contract (crew, later, goal, automations depend on it) ----------
 

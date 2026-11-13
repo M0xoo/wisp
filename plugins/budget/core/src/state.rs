@@ -131,6 +131,12 @@ pub struct Acc {
     pub banked_sent: BTreeMap<String, i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credits: Option<f64>,
+    /// each window's traced shares by task this period (where it went)
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub traced: BTreeMap<String, crate::traced::Traced>,
+    /// the last 7 days of finished turns' tokens (tokens per turn by account)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub turns: Vec<crate::traced::TurnSample>,
 }
 
 /// `agent@account`, the ledger's and the store's key.

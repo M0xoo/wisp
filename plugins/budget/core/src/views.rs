@@ -144,7 +144,17 @@ impl Budget {
             if windows.is_empty() && notices.is_empty() && overage.is_none() && banked.is_none() {
                 continue;
             }
-            out.push(AccountView { account: account.to_owned(), at: acc.at, windows, drain: drain_of(acc, now), notices, overage, banked });
+            let where_went = crate::traced::where_of(acc, &windows, now);
+            out.push(AccountView {
+                account: account.to_owned(),
+                at: acc.at,
+                windows,
+                drain: drain_of(acc, now),
+                notices,
+                overage,
+                banked,
+                where_went,
+            });
         }
         out
     }

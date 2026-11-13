@@ -41,9 +41,12 @@ export interface Window {
   readonly hitAt?: number | null;
   /** the window's length */
   readonly ms?: number | null;
+  /** it reset before the time it last gave (a banked reset spent) */
+  readonly earlyAt?: number | null;
 }
 
 import type { Drain, Notice } from './drain.ts';
+import type { Banked, Compare, Overage, Where } from './plan.ts';
 
 export interface AccountPlan {
   readonly account: string;
@@ -53,6 +56,12 @@ export interface AccountPlan {
   readonly drain?: Drain | null;
   /** window changes not hidden yet */
   readonly notices?: readonly Notice[];
+  /** Codex's banked resets, as its last read said */
+  readonly banked?: Banked | null;
+  /** runs billed past the plan this week */
+  readonly overage?: Overage | null;
+  /** where its longest window went this period */
+  readonly where?: Where | null;
 }
 
 export const usage = defineCommand<{ peer: PeerId; days?: number }, Usage>({
@@ -63,12 +72,31 @@ export const usage = defineCommand<{ peer: PeerId; days?: number }, Usage>({
   pending: 'the usage line',
 });
 
-export const plans = defineCommand<{ peer: PeerId; agent: string }, AccountPlan[]>({
+export const plans = defineCommand<{ peer: PeerId; agent: string; named?: boolean }, AccountPlan[]>({
   id: 'budget.view',
+  owner: (a) => a.peer,
+  // `named`: Where it went, with the tasks' titles (Settings → Usage only: the picker asks for every harness)
+  wire: (a) => ({ agent: a.agent, ...(a.named && { named: true }) }),
+  optimistic: 'none',
+  pending: 'the plan windows',
+});
+
+/** Tokens per turn by account (budget.compare): models two or more accounts ran 5 turns on, this week. */
+export const compare = defineCommand<{ peer: PeerId; agent: string }, Compare[]>({
+  id: 'budget.compare',
   owner: (a) => a.peer,
   wire: (a) => ({ agent: a.agent }),
   optimistic: 'none',
-  pending: 'the plan windows',
+  pending: 'tokens per turn by account',
+});
+
+/** A harness's accounts and their names (wisp.accounts' `accounts.list`); refused or absent: none. */
+export const accountNames = defineCommand<{ peer: PeerId; agent: string }, { accounts: { id: string; label: string; default?: boolean }[] }>({
+  id: 'accounts.list',
+  owner: (a) => a.peer,
+  wire: (a) => ({ agent: a.agent }),
+  optimistic: 'none',
+  pending: 'the account names',
 });
 
 /** `autoStop`, `autoStopClaude`, `autoStopCodex`: 'off' | '50' | '75' | '90', 'same' for a harness's own. */

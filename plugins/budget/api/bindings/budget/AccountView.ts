@@ -2,10 +2,15 @@
 import type { Banked } from "./Banked";
 import type { Drain } from "./Drain";
 import type { OverageView } from "./OverageView";
+import type { WhereView } from "./WhereView";
 import type { WindowNotice } from "./WindowNotice";
 import type { WindowView } from "./WindowView";
 
 /**
  * One account of a harness, for Settings → Usage and the harness list (v1 `Budget.view`).
  */
-export type AccountView = { account: string, at: number | null, windows: Array<WindowView>, drain?: Drain, notices?: Array<WindowNotice>, overage?: OverageView, banked?: Banked, };
+export type AccountView = { account: string, at: number | null, windows: Array<WindowView>, drain?: Drain, notices?: Array<WindowNotice>, overage?: OverageView, banked?: Banked, 
+/**
+ * where its longest window went this period (v1 `where`). Additive (2026-11-13).
+ */
+where?: WhereView, };

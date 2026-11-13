@@ -174,6 +174,7 @@ impl Budget {
                         used: d * part,
                         resets_at: next.resets_at,
                     };
+                    crate::traced::trace(acc, &w.id, next.resets_at, &e.sid, s.used);
                     out.shares.push((e.sid.clone(), e.tid.clone(), s));
                 }
             }

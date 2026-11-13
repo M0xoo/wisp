@@ -134,7 +134,21 @@ pub struct TurnPlan {
     pub plan: Vec<Share>,
 }
 
-command!(View = "budget.view", PERM_READ, true, AgentArgs => Vec<AccountView>);
+/// `budget.view`'s arguments: `named` (Settings → Usage) adds *Where it went* with the tasks' titles; without it
+/// the view stays cheap (the harness picker asks it for every harness). Additive (2026-11-13).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "budget/")]
+pub struct ViewArgs {
+    pub agent: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub named: bool,
+}
+
+command!(View = "budget.view", PERM_READ, true, ViewArgs => Vec<AccountView>);
+// Tokens per turn by account (v1 `compareAccounts`): numbers only, it never says which account to use.
+command!(Compare = "budget.compare", PERM_READ, true, AgentArgs => Vec<crate::usage::ModelCompare>);
 command!(Hold = "budget.hold", PERM_READ, true, AccountArgs => Option<PlanHold>);
 command!(ResetAt = "budget.resetAt", PERM_READ, true, AccountArgs => Option<i64>);
 command!(Shares = "budget.shares", PERM_READ, true, SessionArgs => Vec<TurnPlan>);

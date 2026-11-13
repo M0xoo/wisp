@@ -88,3 +88,55 @@ async fn a_run_that_would_take_the_window_past_your_line_is_asked_about_and_a_ye
     assert_eq!((t[0]["held"]["by"].as_str(), t[0]["held"]["kind"].as_str()), (Some("wisp.budget"), Some("ask")), "{:?}", t[0]);
     drop(serve);
 }
+
+/// Plan budget past the bars, from real runs (v1 budget.js `where`, `compareAccounts`; F-acct-11, F-acct-14): the
+/// task that ran between two readings is where the window went, by its title; and once two accounts each have five
+/// finished turns on a model, their median turns are compared.
+#[tokio::test(flavor = "multi_thread")]
+async fn where_the_plan_went_and_tokens_per_turn_by_account_come_from_real_runs() {
+    let dir = temp("serve-budget-where");
+    std::fs::create_dir_all(dir.join("codex-home")).unwrap();
+    // the CLI's own login is signed in (the fake reads auth.json), so runs named `default` stay there
+    std::fs::write(dir.join("codex-home").join("auth.json"), "{}").unwrap();
+    let (serve, port) = start(&dir);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let resets = now_ms() + 3 * 24 * 3_600_000;
+    let at = |used: f64| json!({ "agent": "codex", "account": "default", "report": { "windows": [{ "id": "seven_day", "used": used, "resetsAt": resets, "ms": 604_800_000 }], "complete": true } });
+    api.cmd("budget.record", at(0.1)).await;
+    let (turn, task) = run_task(&api, &dir, "codex").await;
+    assert_eq!(turn["status"], "done", "{turn}");
+    api.cmd("budget.record", at(0.3)).await;
+    // the picker's cheap view has no Where it went; Settings → Usage asks for it named
+    assert!(api.cmd("budget.view", json!({ "agent": "codex" })).await[0]["where"].is_null());
+    let v = api.cmd("budget.view", json!({ "agent": "codex", "named": true })).await;
+    let w = &v[0]["where"];
+    assert_eq!(w["window"], "seven_day", "{v}");
+    assert_eq!(w["tasks"][0]["id"], task["id"], "{w}");
+    assert_eq!(w["tasks"][0]["title"], task["title"], "{w}");
+    assert!((w["tasks"][0]["used"].as_f64().unwrap() - 0.2).abs() < 1e-6 && (w["used"].as_f64().unwrap() - 0.3).abs() < 1e-6, "{w}");
+    // a second account, signed in with the CLI's own login; five runs on each
+    api.cmd("accounts.add", json!({ "agent": "codex", "id": "w1", "label": "Work", "kind": "work" })).await;
+    for _ in 0..100 {
+        if api.cmd("accounts.login.status", json!({ "agent": "codex", "account": "w1" })).await["signedIn"] == true {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    // each run names its account: one you start yourself without one may go to either (wisp.accounts' pick)
+    for (i, account) in ["default", "default", "default", "default", "w1", "w1", "w1", "w1", "w1"].into_iter().enumerate() {
+        let id = api
+            .cmd("runtime.create", json!({ "prompt": format!("work {i}"), "cwd": dir.join("proj"), "agent": "codex", "account": account }))
+            .await["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        api.until(&id, "the turn ends", |t| t.last().is_some_and(ended)).await;
+    }
+    let c = api.cmd("budget.compare", json!({ "agent": "codex" })).await;
+    let accounts: Vec<&str> =
+        c[0]["accounts"].as_array().unwrap_or_else(|| panic!("{c}")).iter().map(|x| x["account"].as_str().unwrap()).collect();
+    assert_eq!(accounts.len(), 2, "{c}");
+    assert!(accounts.contains(&"default") && accounts.contains(&"w1"), "{c}");
+    assert!(c[0]["accounts"].as_array().unwrap().iter().all(|x| x["turns"].as_u64() >= Some(5) && x["output"].as_u64() > Some(0)), "{c}");
+    drop(serve);
+}

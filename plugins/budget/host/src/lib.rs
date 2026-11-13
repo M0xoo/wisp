@@ -8,6 +8,7 @@ mod drain;
 mod kinds;
 mod live;
 mod store;
+mod usage;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
@@ -204,6 +205,7 @@ fn on_turns(s: &mut Setup, slot: &Slot) {
         async move {
             if let Ok(st) = state(&slot) {
                 lock(&st.budget).end(e.session_id.as_str(), e.turn_id.as_str(), now(&ctx));
+                usage::note_turn(&ctx, &st, &e);
                 st.ended(&ctx, &e).await;
                 lock(&st.running).remove(e.turn_id.as_str());
                 let learned = ask::learn(&mut lock(&st.runs), &e, now(&ctx));
@@ -241,8 +243,16 @@ fn commands(s: &mut Setup, slot: &Slot) {
         for acc in &mut v {
             drain::shown(acc, drain, notices);
         }
+        if a.named {
+            usage::named(&ctx, &mut v).await;
+        } else {
+            for x in &mut v {
+                x.where_went = None;
+            }
+        }
         Ok(v)
     });
+    on!(s, slot, c::Compare, |st, ctx, a| Ok(lock(&st.budget).compare_accounts(&a.agent, now(&ctx))));
     on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));
     // when the account can run again after a limit (v1 budget.resetAt): the runtime's limit card
     on!(s, slot, c::ResetAt, |st, ctx, a| Ok(lock(&st.budget).reset_at(&a.agent, &account_of(&a.account), now(&ctx))));

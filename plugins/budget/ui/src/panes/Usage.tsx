@@ -9,12 +9,11 @@ import {
   ChoiceSetting,
   IconButton,
   Inline,
-  Meter,
   SelectSetting,
+  PlanList,
   SettingsGroup,
   SettingsNote,
   SettingsRow,
-  Stack,
   Stats,
   SwitchSetting,
   Text,
@@ -24,7 +23,10 @@ import {
   useSignal,
   type SettingSource,
 } from '@wisp/ui';
-import { dismissDrain, dismissNotice, META, plans, setStop, TOPIC, usage, type AccountPlan } from '../commands.ts';
+import { accountNames, compare, dismissDrain, dismissNotice, META, plans, setStop, TOPIC, usage, type AccountPlan } from '../commands.ts';
+import { AccountPlanView, HarnessCompare } from '../PlanRows.tsx';
+import { dayWhen, stopLine } from '../plan.ts';
+import type { Compare } from '../plan.ts';
 import { drainLines, drainReport, noticeWords, pct } from '../drain.ts';
 import { VIEW_USAGE } from '../views.ts';
 import { t } from '../i18n.ts';
@@ -64,8 +66,17 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
   const meta = useSignal(c.entities.row<{ body: Record<string, string> }>(META, entityKey(peer, 'settings')));
   const [line] = createResource(() => c.run(usage, { peer }).catch(() => undefined));
   const [windows, { refetch: again }] = createResource(async () => {
-    const out: { agent: string; name: string; accounts: AccountPlan[] }[] = [];
-    for (const p of PLANNED) out.push({ agent: p.agent, name: p.name, accounts: await c.run(plans, { peer, agent: p.agent }).catch(() => []) });
+    const out: { agent: string; name: string; accounts: AccountPlan[]; names: Map<string, string>; compare: Compare[] }[] = [];
+    for (const p of PLANNED) {
+      const [accounts, names, cmp] = await Promise.all([
+        c.run(plans, { peer, agent: p.agent, named: true }).catch(() => [] as AccountPlan[]),
+        c.run(accountNames, { peer, agent: p.agent }).catch(() => ({ accounts: [] })),
+        c.run(compare, { peer, agent: p.agent }).catch(() => [] as Compare[]),
+      ]);
+      // an account's name when the harness has several (v1 budgetHtml: `many`)
+      const many = names.accounts.length > 1;
+      out.push({ agent: p.agent, name: p.name, accounts, names: new Map(many ? names.accounts.map((a) => [a.id, a.label]) : []), compare: cmp });
+    }
     return out;
   });
   const stop = (key: string, dflt: string) => ({
@@ -97,7 +108,13 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
       () => void again(),
       () => {},
     );
-  const reported = (): boolean => (windows() ?? []).some((w) => w.accounts.some((a) => a.windows.length > 0));
+  const reported = (): boolean => (windows() ?? []).some((w) => w.accounts.some((a) => a.windows.length > 0) || w.compare.length > 0);
+  // the share where automations stop on this harness (v1 stopAt): its own line, else Automations stop at
+  const stopOf = (agent: string): number | null => {
+    const body = meta()?.body ?? {};
+    return stopLine(body[PLANNED.find((p) => p.agent === agent)?.key ?? ''], body['autoStop']);
+  };
+  const nameOf = (h: { names: Map<string, string> }, account: string): string => h.names.get(account) ?? (account && account !== 'default' ? account : '');
   const worked = (): string => {
     const w = line()?.worked;
     return w === null || w === undefined ? '—' : `${w}%`;
@@ -105,14 +122,14 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
   const label = (name: string, account: string, window: string): string => [name, account && account !== 'default' ? account : '', window].filter(Boolean).join(' · ');
   const marks = useSignal(useShell().harnesses());
   const logoOf = (id: string): string | undefined => marks().find((m) => m.id === id)?.logo;
+  const day = (at: number): string => dayWhen(at, Date.now(), when);
   const meters = (): JSX.Element[] =>
-    (windows() ?? []).flatMap((h) =>
-      h.accounts.flatMap((a) =>
-        a.windows.map((w) => (
-          <Meter part="budget.usage.window" label={label(h.name, a.account, w.label)} value={w.used} valueText={pct(w.used)} tone={w.used >= 0.9 ? 'bad' : w.used >= 0.75 ? 'warn' : 'neutral'} />
-        )),
-      ),
-    );
+    (windows() ?? []).flatMap((h) => [
+      ...h.accounts
+        .filter((a) => a.windows.length > 0 || a.banked || a.overage || a.where)
+        .map((a) => <AccountPlanView c={c} name={h.name} logo={logoOf(h.agent)} label={nameOf(h, a.account)} a={a} stop={stopOf(h.agent)} when={when} day={day} />),
+      ...(h.compare.length > 0 ? [<HarnessCompare name={h.name} logo={logoOf(h.agent)} list={h.compare} labelOf={(acc) => nameOf(h, acc) || t('budget.usage.compare.main')} />] : []),
+    ]);
   return (
     <>
       <Stats
@@ -148,9 +165,7 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
             </SettingsNote>
           }
         >
-          <Stack gap="4" part="budget.usage.windows">
-            {meters()}
-          </Stack>
+          <PlanList part="budget.usage.windows">{meters()}</PlanList>
         </Show>
         <For each={windows() ?? []}>
           {(h) => (
