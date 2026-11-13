@@ -60,10 +60,20 @@ async fn source(ctx: &Ctx, call: &Call, id: &str, repo: Option<&str>) -> Result<
             return Ok((d.id().to_owned(), d.title().to_owned(), asked, report, r.to_owned()));
         }
     }
-    let t = ctx.run_json(call, "runtime.get", json!({ "id": id })).await.map_err(|_| WireError::not_found(format!("no task {id} here or in the repo's history")))?;
-    let spec = ctx.run_json(call, "runtime.spec", json!({ "id": id })).await.unwrap_or_default();
-    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-    Ok((s(&t, "id"), s(&t, "title"), s(&spec, "prompt"), String::new(), repo.map_or_else(|| s(&t, "cwd"), str::to_owned)))
+    let t = super::calls::task(ctx, call, id).await.map_err(|_| WireError::not_found(format!("no task {id} here or in the repo's history")))?;
+    let asked = super::calls::spec(ctx, call, id).await.map_or_else(
+        |e| {
+            tracing::warn!(task = id, "history: runtime.spec: {}", e.message);
+            String::new()
+        },
+        |s| s.prompt,
+    );
+    let repo = repo.map_or(t.cwd, str::to_owned);
+    // a resumed task runs in the repo: a task with no folder would run in the server's own
+    if repo.trim().is_empty() {
+        return Err(WireError::invalid(format!("task {id} has no folder: name its repo")));
+    }
+    Ok((t.id.as_str().to_owned(), t.title, asked, String::new(), repo))
 }
 
 async fn request(ctx: &Ctx, call: &Call, a: ResumeRequestArgs) -> Result<ResumeRequest> {
@@ -89,8 +99,7 @@ async fn answer(ctx: &Ctx, call: &Call, a: AnswerArgs) -> Result<ResumeRequest> 
     if a.approve {
         let (_, title, asked, report, repo) = source(ctx, call, &r.task, Some(&r.repo)).await?;
         let prompt = wisp_history_core::resume_prompt(&title, &asked, &report);
-        let made = ctx.run_json(call, "runtime.create", json!({ "prompt": prompt, "title": format!("{title} (resumed)"), "cwd": repo, "lineage": { "forkOf": r.task } })).await?;
-        r.started = made.get("id").and_then(Value::as_str).map(str::to_owned);
+        r.started = Some(super::calls::create_fork(ctx, call, prompt, format!("{title} (resumed)"), repo, r.task.clone()).await?);
         "approved".clone_into(&mut r.state);
     } else {
         "denied".clone_into(&mut r.state);

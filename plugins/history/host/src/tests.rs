@@ -42,7 +42,9 @@ impl Plugin for Runtime {
         let (dir, title) = (self.0.display().to_string(), self.1.clone());
         s.command::<Get, _, _>(move |_c, _call, _a| {
             let (dir, title) = (dir.clone(), title.lock().unwrap().clone());
-            async move { Ok(json!({ "id": "01a1bc12ab34cdef0123456789abcdef", "title": title, "cwd": dir, "agent": "claude", "state": "done" })) }
+            // the real runtime.get's shape (a whole Session), so a wrong-shape read fails here
+            let t = wisp_runtime_api::model::Session { id: "01a1bc12ab34cdef0123456789abcdef".into(), title, cwd: dir, agent: "claude".into(), state: wisp_runtime_api::model::SessionState::Done, ..Default::default() };
+            async move { Ok(serde_json::to_value(t).unwrap()) }
         });
         s.command::<SetExt, _, _>(|_c, _call, _a| async { Ok(json!({})) });
         s.command::<Turns, _, _>(|_c, _call, _a| async { Ok(json!([])) });
@@ -330,4 +332,16 @@ async fn blame_by_line_names_each_lines_task() {
     assert_eq!((lines[1]["text"].clone(), lines[1]["task"].clone()), (json!("TWO"), Value::Null), "by hand: no task");
     let plain = k.call(Caller::user(), "history.blame", json!({ "target": "code.txt", "repo": d.display().to_string() })).await.unwrap();
     assert!(plain.get("byLine").is_none(), "only when asked");
+}
+
+/// A task with no folder has no repo: track and untrack without `repo` refuse it, and never fall back to the
+/// server's own folder (`Path::new("")` would read and remove the server cwd's `.wisp/`).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_task_with_no_folder_is_never_tracked_in_the_servers_folder() {
+    let k = kernel(Path::new(""), &Arc::new(Mutex::new("Fix".into())), true, &Kept::default()).await;
+    for cmd in ["history.track", "history.untrack"] {
+        let e = k.call(Caller::user(), cmd, track()).await.unwrap_err();
+        assert_eq!(e.code, wisp_kernel::Code::Invalid, "{cmd}: {e:?}");
+        assert!(e.message.contains("no folder"), "{cmd}: {e:?}");
+    }
 }

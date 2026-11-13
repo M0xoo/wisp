@@ -8,6 +8,7 @@
 //! resources: data-only (its one table holds resume requests; its settings are the repo's own `.wisp/wisp.yml`
 //! `history:` section, read where they apply)
 
+mod calls;
 mod git;
 mod stores;
 
@@ -20,7 +21,7 @@ use wisp_history_api::{self as api, BLAME, BlameSource, HistoryStore, STORE, Tra
 use wisp_history_core::{Doc, repo};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::Proc;
-use wisp_share_api::Bundle;
+use wisp_runtime_api::model::{Session, SessionState};
 
 #[derive(Debug, Default)]
 pub struct HistoryPlugin;
@@ -34,6 +35,14 @@ async fn root_of(proc: &Proc, cwd: &str) -> PathBuf {
         }
     }
     git::run(proc, "git", start, &["rev-parse", "--show-toplevel"]).await.map_or_else(|| start.to_owned(), |t| PathBuf::from(t.trim()))
+}
+
+/// The repo of a task's folder. A task with no folder has no repo: never the server's own folder.
+async fn root_of_task(proc: &Proc, task: &Session) -> Result<PathBuf> {
+    if task.cwd.trim().is_empty() {
+        return Err(WireError::invalid(format!("task {} has no folder, so no repo: name one (repo)", task.id.as_str())));
+    }
+    Ok(root_of(proc, &task.cwd).await)
 }
 
 /// A `history:` setting of the repo (`.wisp/wisp.yml`).
@@ -98,44 +107,42 @@ async fn listing(root: &Path) -> Vec<String> {
 
 /// A task written into its repo's history: the bundle at `level`, its commits and PR, through its store.
 async fn track(ctx: &Ctx, call: &Call, a: &api::TrackArgs) -> Result<Tracked> {
-    let task = ctx.run_json(call, "runtime.get", json!({ "id": a.id })).await?;
-    let id = task.get("id").and_then(Value::as_str).unwrap_or(&a.id).to_owned();
+    let task = calls::task(ctx, call, &a.id).await?;
+    let id = task.id.as_str().to_owned();
     let p = proc(ctx)?;
     let root = match &a.repo {
         Some(r) => PathBuf::from(r),
-        None => root_of(&p, task.get("cwd").and_then(Value::as_str).unwrap_or_default()).await,
+        None => root_of_task(&p, &task).await?,
     };
-    let level = a.level.clone().unwrap_or_else(|| "full".into());
-    let preview = ctx.run_json(call, "share.preview", json!({ "id": id, "level": level })).await?;
-    let mut b: Bundle = serde_json::from_value(preview["bundle"].clone()).map_err(|e| WireError::internal(e.to_string()))?;
+    let preview = calls::preview(ctx, call, &id, a.level.as_deref().unwrap_or("full")).await?;
+    let mut b = preview.bundle;
     id.clone_into(&mut b.id);
     let blame = blame_for(ctx, &setting(&root, "blame", "git").await)?;
     let commits = blame.grep(root.clone(), format!("{} {}", repo::TRAILER, repo::short(&id))).await;
-    let branch = task.pointer("/ext/wisp.worktrees/branch").and_then(Value::as_str).unwrap_or_default();
+    let branch = task.ext_of("wisp.worktrees").get("branch").and_then(Value::as_str).unwrap_or_default();
     let pr = git::pr_of(&p, &root, &commits, branch).await;
     let store = store_for(ctx, &setting(&root, "transcripts", "files").await)?;
     // tracked again: what it wrote before goes first (one file each, never two)
     let before = wisp_history_core::files_of(&listing(&root).await, &id);
-    let _ = store.remove(root.clone(), before).await;
+    calls::warn("removing the files it wrote before", store.remove(root.clone(), before).await);
     let me = git::run(&p, "git", &root, &["config", "user.name"]).await.unwrap_or_default();
-    let session = task.get("resumeId").and_then(Value::as_str).filter(|s| !s.is_empty()).map(|sid| (task.get("agent").and_then(Value::as_str).unwrap_or_default().to_owned(), sid.to_owned()));
+    let session = task.resume_id.as_deref().filter(|s| !s.is_empty()).map(|sid| (task.agent.clone(), sid.to_owned()));
     let mut files = repo::files_with(&b, &commits, pr.as_deref(), me.trim(), session.as_ref().map(|(h, s)| (h.as_str(), s.as_str())));
     if let Some(native) = native_log(ctx, &task).await {
         files.push((format!("history/{id}.native.jsonl.zst"), native));
     }
     let written = store.write(root.clone(), files).await?;
-    let scrubbed = preview["redactions"].as_array().map_or(0, |r| u32::try_from(r.len()).unwrap_or(u32::MAX));
+    let scrubbed = u32::try_from(preview.redactions.len()).unwrap_or(u32::MAX);
     let out = Tracked { repo: root.display().to_string(), store: store.id().to_owned(), files: written, pr, commits, scrubbed };
-    let _ = ctx.run_json(call, "runtime.setExt", json!({ "id": id, "plugin": api::EXT, "value": { "tracked": { "repo": out.repo, "files": out.files, "store": out.store }, "offer": false } })).await;
+    calls::set_ext(ctx, call, &id, json!({ "tracked": { "repo": out.repo, "files": out.files, "store": out.store }, "offer": false })).await;
     Ok(out)
 }
 
 /// The harness's own session log of a task (Claude Code's `.jsonl`), compressed, so `wisp open` on another
 /// computer can resume it there. None when the harness keeps none or it isn't on this computer.
-async fn native_log(ctx: &Ctx, task: &Value) -> Option<Vec<u8>> {
-    let sid = task.get("resumeId").and_then(Value::as_str).filter(|s| !s.is_empty())?;
-    let agent = task.get("agent").and_then(Value::as_str).unwrap_or_default();
-    let h = ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().find(|h| h.harness() == agent)?;
+async fn native_log(ctx: &Ctx, task: &Session) -> Option<Vec<u8>> {
+    let sid = task.resume_id.as_deref().filter(|s| !s.is_empty())?;
+    let h = ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().find(|h| h.harness() == task.agent)?;
     let raw = h.raw(sid).await?;
     Some(repo::compress(&raw))
 }
@@ -145,8 +152,9 @@ async fn untrack(ctx: &Ctx, call: &Call, a: &api::UntrackArgs) -> Result<api::Go
     let root = if let Some(r) = &a.repo {
         PathBuf::from(r)
     } else {
-        let task = ctx.run_json(call, "runtime.get", json!({ "id": a.id })).await.unwrap_or_default();
-        root_of(&p, task.get("cwd").and_then(Value::as_str).unwrap_or_default()).await
+        // a task that can't be read has no repo here: never the server's own folder
+        let task = calls::task(ctx, call, &a.id).await.map_err(|e| WireError::not_found(format!("{} isn't a task here ({}): name its repo", a.id, e.message)))?;
+        root_of_task(&p, &task).await?
     };
     let all = docs(&root).await;
     let id = wisp_history_core::find(&all, &a.id).map_or_else(|| a.id.clone(), |d| d.id().to_owned());
@@ -178,23 +186,23 @@ mod requests;
 /// `ext["wisp.history"].offer`), `manual` does nothing. Once per turn count.
 async fn on_done(ctx: &Ctx, id: &str) {
     let call = ctx.root_call();
-    let Ok(task) = ctx.run_json(&call, "runtime.get", json!({ "id": id })).await else { return };
-    if task.get("state").and_then(Value::as_str) != Some("done") || task.get("parentId").is_some_and(|p| !p.is_null()) {
+    // a task that went away between the event and now: nothing to save
+    let Ok(task) = calls::task(ctx, &call, id).await else { return };
+    if task.state != SessionState::Done || task.parent_id.is_some() {
         return;
     }
     let Ok(p) = proc(ctx) else { return };
-    let cwd = task.get("cwd").and_then(Value::as_str).unwrap_or_default();
-    let root = root_of(&p, cwd).await;
+    let Ok(root) = root_of_task(&p, &task).await else { return };
     if tokio::fs::metadata(root.join(".wisp/wisp.yml")).await.is_err() {
         return;
     }
-    let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": id })).await.ok().and_then(|t| t.as_array().map(Vec::len)).unwrap_or(0);
-    let seen = task.pointer("/ext/wisp.history/seenTurns").and_then(Value::as_u64);
+    let turns = calls::turn_count(ctx, &call, id).await;
+    let seen = task.ext_of(api::EXT).get("seenTurns").and_then(Value::as_u64);
     if seen == Some(turns as u64) {
         return;
     }
     let mark = |extra: Value| {
-        let mut v = task.pointer("/ext/wisp.history").cloned().filter(Value::is_object).unwrap_or_else(|| json!({}));
+        let mut v = Some(task.ext_of(api::EXT).clone()).filter(Value::is_object).unwrap_or_else(|| json!({}));
         if let (Some(o), Some(e)) = (v.as_object_mut(), extra.as_object()) {
             o.extend(e.clone());
             o.insert("seenTurns".into(), json!(turns));
@@ -206,15 +214,20 @@ async fn on_done(ctx: &Ctx, id: &str) {
             if let Err(e) = track(ctx, &call, &api::TrackArgs { id: id.to_owned(), level: None, repo: Some(root.display().to_string()) }).await {
                 tracing::warn!(task = id, "history: not saved: {}", e.message);
             }
-            let after = ctx.run_json(&call, "runtime.get", json!({ "id": id })).await.unwrap_or_default();
-            let mut v = after.pointer("/ext/wisp.history").cloned().unwrap_or_else(|| json!({}));
-            v["seenTurns"] = json!(turns);
-            let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": api::EXT, "value": v })).await;
+            // what track just wrote, plus the turn count: a refused read would drop `tracked`, so it's skipped
+            match calls::task(ctx, &call, id).await {
+                Ok(after) => {
+                    let mut v = Some(after.ext_of(api::EXT).clone()).filter(Value::is_object).unwrap_or_else(|| json!({}));
+                    v["seenTurns"] = json!(turns);
+                    calls::set_ext(ctx, &call, id, v).await;
+                }
+                Err(e) => tracing::warn!(task = id, "history: runtime.get: {}", e.message),
+            }
         }
         "ask" => {
-            let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": api::EXT, "value": mark(json!({ "offer": true, "repo": root.display().to_string() })) })).await;
+            calls::set_ext(ctx, &call, id, mark(json!({ "offer": true, "repo": root.display().to_string() }))).await;
             if let Ok(n) = wisp_kernel::services::notify(ctx) {
-                n.notice("history.offer", json!({ "task": id, "title": task.get("title"), "repo": root.display().to_string(), "text": "Save it to the repo?" }), None);
+                n.notice("history.offer", json!({ "task": id, "title": task.title, "repo": root.display().to_string(), "text": "Save it to the repo?" }), None);
             }
         }
         _ => {}
@@ -247,7 +260,10 @@ fn hooks(s: &mut Setup) {
     s.intercept::<wisp_runtime_api::hooks::BeforeRun, _, _>(wisp_kernel::InterceptOpts { priority: 70, failure: wisp_kernel::Failure::Open, timeout_ms: 2000 }, move |ctx, _call, c| {
         let (known, roots) = (known.clone(), roots.clone());
         async move {
-            if let Ok(p) = proc(&ctx) {
+            // a run with no folder has no repo (never the server's own folder)
+            if let Ok(p) = proc(&ctx)
+                && !c.cwd.trim().is_empty()
+            {
                 let root = root_of(&p, &c.cwd).await;
                 let on = setting(&root, "inject", "false").await == "true";
                 let all = if on { docs(&root).await } else { Vec::new() };
