@@ -50,8 +50,11 @@ pub async fn bring_in(st: &Arc<State>, ctx: &Ctx, args: api::BringInArgs) -> Wir
     if !out.created.is_empty() {
         // v1 bring-in.js: how many came in (each task here starts fresh: none resumed a harness session)
         let props = serde_json::json!({ "n": out.created.len(), "resumed": 0 });
-        let _ =
-            ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "worktrees_brought_in", "props": props })).await;
+        let a =
+            wisp_telemetry_api::TrackArgs { event: "worktrees_brought_in".into(), props: props.as_object().cloned().unwrap_or_default() };
+        if let Err(err) = ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), a).await {
+            tracing::warn!(error = %err.message, "worktrees: telemetry.track");
+        }
     }
     st.look_for_offers(ctx).await;
     st.refresh(ctx).await;

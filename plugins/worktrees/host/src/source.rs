@@ -8,20 +8,35 @@ use std::time::Duration;
 use serde_json::{Value, json};
 use wisp_kernel::{Call, Ctx, Result, Setup, WireError};
 use wisp_proc::{Env, ExecOpts, Proc};
+use wisp_resources_api::{self as res, Resource};
+use wisp_runtime_api::commands as rt;
+use wisp_runtime_api::model::SessionState;
+use wisp_runtime_api::paths::Folder;
 use wisp_worktrees_api::{self as api, EXT};
 use wisp_worktrees_core::source::{def_pattern, file_list, hash_of, hits, ident, inside, not_editable};
 
 /// The task's folder and its state.
-async fn folder(ctx: &Ctx, call: &Call, id: &str) -> Result<(PathBuf, String)> {
-    let s = ctx.run_json(call, "runtime.get", json!({ "id": id })).await?;
-    let tree = s.pointer(&format!("/ext/{EXT}/path")).and_then(Value::as_str).filter(|p| !p.is_empty());
-    let cwd = s.get("cwd").and_then(Value::as_str).filter(|p| !p.is_empty());
-    let root = tree.or(cwd).ok_or_else(|| WireError::not_found("This task has no folder."))?;
-    let root = PathBuf::from(root);
+async fn folder(ctx: &Ctx, call: &Call, id: &str) -> Result<(PathBuf, SessionState)> {
+    let s = ctx.run::<rt::Get>(call, rt::IdArgs { id: id.into() }).await?;
+    let tree = s.ext_of(EXT).get("path").and_then(Value::as_str);
+    let root = task_root(tree, &s.cwd).ok_or_else(|| WireError::not_found("This task has no folder."))?;
     if !tokio::fs::metadata(&root).await.is_ok_and(|m| m.is_dir()) {
         return Err(WireError::not_found("This task's folder isn't here any more."));
     }
-    Ok((root, s.get("state").and_then(Value::as_str).unwrap_or_default().to_owned()))
+    Ok((root, s.state))
+}
+
+/// Its worktree, else its folder: a full path only. "" or a relative path would read the server's own folder (was
+/// only "" refused, so a relative `cwd` listed and saved the server's files).
+fn task_root(tree: Option<&str>, cwd: &str) -> Option<PathBuf> {
+    Folder::first([tree.unwrap_or_default(), cwd]).map(Folder::into_path)
+}
+
+/// A project of yours by its folder (New task's @): a full path that one of `projects` (their `spec.path`) names.
+fn project_root(path: &str, projects: &[Resource]) -> Option<PathBuf> {
+    let full = Folder::of(path).ok()?;
+    let same = |p: &str| p.trim_end_matches('/') == path.trim_end_matches('/');
+    projects.iter().any(|r| r.spec.get("path").and_then(Value::as_str).is_some_and(same)).then(|| full.into_path())
 }
 
 fn gone() -> WireError {
@@ -41,7 +56,7 @@ pub(crate) fn register(s: &mut Setup) {
     });
     s.command::<api::Save, _, _>(|ctx, call, a| async move {
         let (root, state) = folder(&ctx, &call, &a.id).await?;
-        if state == "running" || state == "waiting" {
+        if matches!(state, SessionState::Running | SessionState::Waiting) {
             return Err(WireError::conflict("The agent is working on this task: wait for it, or stop it, then save."));
         }
         if let Some(why) = not_editable(a.text.as_bytes()) {
@@ -76,14 +91,12 @@ pub(crate) fn register(s: &mut Setup) {
     s.command::<api::Files, _, _>(|ctx, call, a| async move {
         // a project of yours by its folder (New task's @), else the task's folder
         let root = if a.id.is_empty() {
-            let mine = ctx.run_json(&call, "resources.export", json!({ "kinds": ["project"] })).await.unwrap_or_default();
-            let known = mine.as_array().into_iter().flatten().any(|r| {
-                r.pointer("/spec/path").and_then(Value::as_str).is_some_and(|p| p.trim_end_matches('/') == a.path.trim_end_matches('/'))
+            let ask = res::ExportArgs { kinds: vec!["project".into()], include: Vec::new() };
+            let mine = ctx.run::<res::Export>(&call, ask).await.unwrap_or_else(|err| {
+                tracing::warn!(error = %err.message, "worktrees: resources.export");
+                Vec::new()
             });
-            if !known {
-                return Err(WireError::forbidden("Only a project of yours lists its files here."));
-            }
-            PathBuf::from(&a.path)
+            project_root(&a.path, &mine).ok_or_else(|| WireError::forbidden("Only a project of yours lists its files here."))?
         } else {
             folder(&ctx, &call, &a.id).await?.0
         };
@@ -104,4 +117,34 @@ pub(crate) fn register(s: &mut Setup) {
             _ => api::FileList { files: Vec::new(), more: 0, git: false },
         })
     });
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// A task whose folder is "" or relative has none here: never the server's own folder.
+    #[test]
+    fn a_task_with_an_empty_or_relative_folder_reads_none_of_the_servers_files() {
+        assert_eq!(task_root(Some("/wt"), "/repo").unwrap(), PathBuf::from("/wt"));
+        assert_eq!(task_root(None, "/repo").unwrap(), PathBuf::from("/repo"));
+        assert_eq!(task_root(Some(""), "/repo").unwrap(), PathBuf::from("/repo"));
+        assert_eq!(task_root(Some("src"), "/repo").unwrap(), PathBuf::from("/repo"), "a relative worktree: the folder");
+        for (tree, cwd) in [(None, ""), (None, "src"), (Some("."), "."), (Some(""), "  ")] {
+            assert!(task_root(tree, cwd).is_none(), "{tree:?} {cwd:?}");
+        }
+    }
+
+    /// Only a project of yours, by a full path: "" matched a project at "/" (both trim to "") and listed the
+    /// server's folder.
+    #[test]
+    fn files_by_folder_only_for_a_project_of_yours_at_a_full_path() {
+        let projects =
+            [Resource::new("project", "root", json!({ "path": "/" })), Resource::new("project", "app", json!({ "path": "/src/app/" }))];
+        assert_eq!(project_root("/src/app", &projects).unwrap(), PathBuf::from("/src/app"));
+        assert_eq!(project_root("/", &projects).unwrap(), PathBuf::from("/"));
+        assert!(project_root("", &projects).is_none(), "\"\" is the server's folder");
+        assert!(project_root("/elsewhere", &projects).is_none());
+    }
 }
