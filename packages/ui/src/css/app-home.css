@@ -587,10 +587,8 @@
   [data-kit='lr-list'] > [data-kit='lp-chip'] {
     flex: none;
   }
-  /* v1 .lr-list: with recipes the chips wrap beside the label (a Wrap group, design/layout.md) */
-  [data-part='launcher.recipes-wrap'][data-wrap] {
-    flex-wrap: wrap;
-  }
+  /* v1 .lr-list: with recipes the chips wrap beside the label: Home.tsx sets data-layout='wrap' (the kit's
+     Wrap rule, layout.css; design/layout.md §5), and the gap above still wins over --k-gap (later sheet). */
   [data-kit='lp-chip'][data-recipe] {
     background: none;
     color: var(--muted);
@@ -707,7 +705,7 @@
   }
   /* the hint under the recipes wraps on a phone (launcher.css: nowrap from 401 px up) */
   @container launcher (max-width: 400px) {
-    [data-kit='lr-list']:not([data-wrap]) {
+    [data-kit='lr-list']:not([data-layout='wrap']) {
       flex-direction: column;
       align-items: flex-start;
     }

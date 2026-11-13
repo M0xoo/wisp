@@ -400,7 +400,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
         </div>
         <div data-kit="l-foot">
           <div data-kit="l-recipes" data-part="launcher.recipes">
-            <div data-kit="lr-list" data-part="launcher.recipes-wrap" data-wrap={flag((props.recipes.items?.length ?? 0) > 0)}>
+            <div data-kit="lr-list" data-part="launcher.recipes-wrap" data-layout={(props.recipes.items?.length ?? 0) > 0 ? 'wrap' : undefined}>
               <span data-kit="l-in" data-icon="">
                 <Icon name="bolt" />
                 {props.recipes.label}
