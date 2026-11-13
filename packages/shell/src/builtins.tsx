@@ -10,7 +10,8 @@ import type { PaletteItem, PluginUiDef, ShellContext, ShortcutDef } from './cont
 import { defineExtension, defineView } from './define.ts';
 import { THEMES } from './theme.ts';
 import { SESSION, type SessionRow } from './rows.ts';
-import { archive, markRead, remove, searchTasks, setState } from './frame/commands.ts';
+import { archive, markRead, remove, setState } from './frame/commands.ts';
+import { pastWork, tagsOf } from './palette/tasks.ts';
 import { TASK_KEY, type TaskKey } from './frame/task-keys.ts';
 import { parseCompare } from './frame/compare.ts';
 import { openFeedback, parseFeedback } from './frame/feedback.ts';
@@ -103,12 +104,6 @@ function appItems(ctx: ShellContext): PaletteItem[] {
 }
 
 /** Tasks: the title, then project · state · age, led by the project's dot (v1 taskSub), newest first. */
-/** A task's topics (runtime's `tags`, set by wisp_tag), lower case: on the row's body, or the summary. */
-export const tagsOf = (s: SessionRow): string[] => {
-  const raw = (s.body as { tags?: unknown } | undefined)?.tags ?? (s.summary as { tags?: unknown }).tags;
-  return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === 'string' && t !== '').map((t) => t.toLowerCase()) : [];
-};
-
 function taskItems(ctx: ShellContext): PaletteItem[] {
   const g = 'shell.palette.group.tasks';
   const rows = ctx.client.entities.list<SessionRow>(SESSION)();
@@ -137,29 +132,6 @@ function taskItems(ctx: ShellContext): PaletteItem[] {
     });
   }
   return out.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
-}
-
-/**
- * ⌘K past work (v1 F-task-20): three letters or more find words inside prompts and answers (`runtime.search`), each hit
- * a task with the words it matched; archived ones too. What the palette already lists by title stays where it is.
- */
-export async function pastWork(ctx: ShellContext, q: string, signal: AbortSignal): Promise<PaletteItem[]> {
-  const peer = ctx.client.plugin('shell').home;
-  const hits = await ctx.client.commands.run(searchTasks, { peer, q, limit: 20 });
-  if (signal.aborted) return [];
-  const now = ctx.client.scope.timers.now();
-  return hits.map((h) => {
-    const id = h.id.includes(':') ? h.id : `${peer}:${h.id}`;
-    return {
-      id: `task:${id}`,
-      group: 'shell.palette.group.tasks',
-      label: h.title,
-      sub: [h.snippet.replace(/\s+/g, ' ').trim(), shortAgo(h.updatedAt, now)].filter(Boolean).join(' · '),
-      keywords: q,
-      at: h.updatedAt,
-      run: () => ctx.navigate({ t: 'openTask', id: id as never }),
-    };
-  });
 }
 
 interface CrewMember {

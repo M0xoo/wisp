@@ -6,7 +6,7 @@ import { computed, entityKey, setSetting, type Json, type PluginClient, type Set
 import type { ExtensionProps } from '@wisp/shell/contract';
 import { SelectSetting, SettingsGroup, SettingsRow, type SettingSource } from '@wisp/ui';
 import { useLoad } from './data.ts';
-import type { MachineLoad } from './types.ts';
+import { nowLine } from './now-line.ts';
 
 /** A setting of this computer's wisp, as a Settings row reads it (a refused write rolls back with a toast). */
 function fromRow(client: PluginClient, key: string, fallback: string): SettingSource<string> {
@@ -16,18 +16,6 @@ function fromRow(client: PluginClient, key: string, fallback: string): SettingSo
     lockedBy: computed(() => row()?.locked_by ?? undefined),
     set: (value) => void client.run(setSetting, { peer: client.home, key, value }).catch(() => {}),
   };
-}
-
-/** "62% memory free · CPU at 50% of its cores · 2 runs of 4 going", and why automations wait, if they do (v1 paintLoad). */
-export function nowLine(l: MachineLoad | undefined, t: PluginClient['t']): string {
-  if (!l) return t('machine.load.reading');
-  const max = l.limits.maxRuns ?? null;
-  const bits = [
-    l.mem_free_pct === null ? '' : t('machine.load.free', { n: Math.round(l.mem_free_pct) }),
-    l.cpu === undefined || l.cpu === null ? '' : t('machine.load.cpuNow', { n: Math.round(l.cpu) }),
-    max === null ? t('machine.load.runs', { count: l.runs }) : t('machine.load.runsOf', { count: l.runs, max }),
-  ].filter(Boolean);
-  return l.held ? `${bits.join(' · ')}. ${l.held.why}` : bits.join(' · ');
 }
 
 export default function LoadGroup(props: ExtensionProps): JSX.Element {

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { summary } from '../src/panes/Automations.tsx';
+import { summary } from '../src/panes/summary.ts';
 
 test('automations_lines_say_none_yet_or_name_what_there_is_as_v1_did', () => {
   expect(summary([], 'save a prompt you run often')).toBe('None yet · save a prompt you run often');

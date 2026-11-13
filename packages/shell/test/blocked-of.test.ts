@@ -1,6 +1,6 @@
-// What a turn's refusals allow (frame/answer-ctx.ts blockedOf, v1 #777).
+// What a turn's refusals allow (frame/answer-of.ts blockedOf, v1 #777).
 import { expect, test } from 'vitest';
-import { blockedOf } from '../src/frame/answer-ctx.ts';
+import { blockedOf } from '../src/frame/answer-of.ts';
 
 test('allow_and_retry_only_when_the_server_kept_refusals_a_full_auto_turn_says_why', () => {
   expect(blockedOf({ mode: 'edits', ext: { 'wisp.runtime': { blocked: [{ tool: 'Bash', detail: 'rm' }] } } })).toBe('allowable');

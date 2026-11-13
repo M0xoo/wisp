@@ -7,6 +7,7 @@ import { Button, Checkbox, Inline, Input, Stack, Text, TextArea } from '@wisp/ui
 import { t } from './i18n.ts';
 import { cadenceLabel } from './model.ts';
 import { VIEW } from './views.ts';
+import { joining, srcOf, type Picks, type Src } from './import-picks.ts';
 
 interface Proposed {
   readonly key: string;
@@ -21,8 +22,6 @@ interface Answer {
   readonly source?: { readonly owner?: string };
   readonly room?: number;
 }
-type Src = { readonly text: string } | { readonly url: string };
-type Picks = Record<string, { name: string; skip: boolean }>;
 
 const importCrew = defineCommand<{ peer: PeerId; src: Src; dryRun: boolean; choices?: Picks }, Answer>({
   id: 'crew.import',
@@ -31,12 +30,6 @@ const importCrew = defineCommand<{ peer: PeerId; src: Src; dryRun: boolean; choi
   optimistic: 'none',
   pending: 'the import',
 });
-
-/** What the box holds: a link (https or gist:) is fetched by the host, anything else is the bundle's text. */
-export const srcOf = (v: string): Src => (/^(https:\/\/|gist:)/i.test(v.trim()) ? { url: v.trim() } : { text: v });
-
-/** Who joins: the ticked ones, each with the name it gets. */
-export const joining = (picks: Picks): number => Object.values(picks).filter((p) => !p.skip).length;
 
 // size-ok: one dialog, its two steps share the answer
 export default function ImportCrew(props: { readonly client: PluginClient; readonly params: unknown }): JSX.Element {

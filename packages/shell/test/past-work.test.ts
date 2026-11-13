@@ -1,6 +1,6 @@
-// ⌘K past work (src/builtins.tsx pastWork, v1 F-task-20): runtime.search's hits as task items with the words found.
+// ⌘K past work (src/palette/tasks.ts pastWork, v1 F-task-20): runtime.search's hits as task items with the words found.
 import { expect, test } from 'vitest';
-import { pastWork } from '../src/builtins.tsx';
+import { pastWork } from '../src/palette/tasks.ts';
 
 test('three letters or more find tasks by the words inside their prompts and answers_v1_palette_past_work', async () => {
   const sent: unknown[] = [];

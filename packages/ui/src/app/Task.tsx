@@ -6,7 +6,8 @@ import { flag } from '../core/props.ts';
 import { ActIcon, WithAct, type Act } from './act.tsx';
 import { atTail, dockShift, mediaShift, type Grew } from './media-shift.ts';
 import { Icon } from '../content/Icon.tsx';
-import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
+import { PromptSuggestList, dropHandlers } from '../composer/PromptSuggest.tsx';
+import { suggestKeyDown, type PromptSuggest } from '../composer/suggest-keys.ts';
 import type { IconName } from '../content/icons.ts';
 import { TaskUsage, type TaskUsageProps } from './TaskUsage.tsx';
 

@@ -2,36 +2,8 @@
 // after the trigger, over the box (the reply box) or under it (New task), ↑/↓ to move, ↵ or Tab to pick, Esc to close.
 // The host owns the list and what a pick does; the kit draws it and routes the keys.
 import { Show, type JSX } from 'solid-js';
-import { SuggestList, suggestKey, type SuggestItem } from './SuggestList.tsx';
-
-export interface PromptSuggest {
-  readonly id: string;
-  readonly label: string;
-  readonly items: readonly SuggestItem[];
-  readonly active: number;
-  readonly onPick: (value: string) => void;
-  readonly onActive: (index: number) => void;
-  readonly onClose: () => void;
-}
-
-/** A key in the box while the menu is open: true when the menu took it (the box does nothing more). */
-export function suggestKeyDown(s: PromptSuggest | undefined, e: KeyboardEvent): boolean {
-  if (!s || s.items.length === 0) return false;
-  const r = suggestKey(e, s.items.length, s.active);
-  if (!r) return false;
-  e.preventDefault();
-  if (r.t === 'move') s.onActive(r.to);
-  else if (r.t === 'pick') {
-    const it = s.items[s.active];
-    if (it) s.onPick(it.value);
-  } else if (r.t === 'open') {
-    const it = s.items[s.active];
-    if (!it?.onOpen) return false;
-    it.onOpen();
-    s.onClose();
-  } else s.onClose();
-  return true;
-}
+import { SuggestList } from './SuggestList.tsx';
+import type { PromptSuggest } from './suggest-keys.ts';
 
 export function PromptSuggestList(props: { readonly suggest: PromptSuggest | undefined; readonly place: 'above' | 'below' }): JSX.Element {
   return (

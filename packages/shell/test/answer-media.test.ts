@@ -1,6 +1,6 @@
-// An answer's pictures load from the task's own computer (src/frame/answer-ctx.ts mediaUrl, v1 ctx.fileUrl).
+// An answer's pictures load from the task's own computer (src/frame/answer-of.ts mediaUrl, v1 ctx.fileUrl).
 import { expect, test } from 'vitest';
-import { mediaUrl } from '../src/frame/answer-ctx.ts';
+import { mediaUrl } from '../src/frame/answer-of.ts';
 import { reveal } from '../src/frame/commands.ts';
 import { wireOf } from './command.ts';
 

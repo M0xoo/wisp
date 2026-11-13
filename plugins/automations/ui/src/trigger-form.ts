@@ -2,7 +2,7 @@
 // (`resources.apply` kind `trigger`, ADR-0043). DOM-free: the kinds as v1 named them, what each one asks, and the spec
 // a filled form becomes. A kind with no v2 source yet (Task marked done, Linear issue created) shows as v1 had it and
 // says it can't be saved, rather than saving something else.
-import { toCron } from '@wisp/shell';
+import { toCron } from '@wisp/shell/pure';
 
 export interface Kind {
   /** kind, or kind:preset */

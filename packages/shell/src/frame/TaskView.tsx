@@ -69,7 +69,8 @@ import {
   setMode,
   setState,
 } from './commands.ts';
-import { answerContext, blockedOf } from './answer-ctx.ts';
+import { answerContext } from './answer-ctx.ts';
+import { blockedOf } from './answer-of.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
 import { useAttachments } from './attach.ts';

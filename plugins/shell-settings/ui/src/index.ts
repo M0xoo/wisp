@@ -11,11 +11,13 @@
 import { lazy } from 'solid-js';
 import type { Intent } from '@wisp/client';
 import type { PluginUiDef, SettingsPaneDef, ViewDef } from '@wisp/shell';
-import { SettingsView, parseParams, type FrameDeps } from './frame.tsx';
+import { SettingsView, type FrameDeps } from './frame.tsx';
+import { parseParams } from './nav.ts';
 import { catalogue } from './i18n.ts';
 import { VIEW_ID, type SettingsParams } from './types.ts';
 
-export { GROUP_ORDER, groupPanes, pickPane, type FrameDeps, type PaneEntry } from './frame.tsx';
+export { type FrameDeps } from './frame.tsx';
+export { GROUP_ORDER, groupPanes, pickPane, type PaneEntry } from './nav.ts';
 export { VIEW_ID } from './types.ts';
 
 export const PLUGIN_ID = 'wisp.shell-settings';

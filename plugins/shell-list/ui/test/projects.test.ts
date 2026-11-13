@@ -1,7 +1,7 @@
 // Projects reach the list (round 17): a task is in the project that holds its folder (v1 projectFor), so the
 // project filter shows it; the row stays the same object while its project doesn't change (no repaint).
 import { expect, test } from 'vitest';
-import { projectList } from '@wisp/shell';
+import { projectList } from '@wisp/shell/pure';
 import type { SessionRow } from '../src/types.ts';
 import { flatSession } from '../src/model/wire.ts';
 import { sections } from '../src/model/sections.ts';

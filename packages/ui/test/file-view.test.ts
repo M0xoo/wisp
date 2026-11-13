@@ -1,6 +1,6 @@
 // The file view's ✦ and Go to definition: the selected lines, and the name under the caret.
 import { expect, test } from 'vitest';
-import { lineAt, nameAt } from '../src/content/file/FileView.tsx';
+import { lineAt, nameAt } from '../src/content/file/file-text.ts';
 
 test('the_file_view_says_which_lines_are_selected_and_which_name_is_under_the_caret', () => {
   const text = 'one\npub fn squash(s: &str)\nthree';

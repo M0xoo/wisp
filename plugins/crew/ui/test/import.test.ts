@@ -1,6 +1,6 @@
 // Import crew members (ImportCrew.tsx, v1 crew-share.js importCrew).
 import { expect, test } from 'vitest';
-import { joining, srcOf } from '../src/ImportCrew.tsx';
+import { joining, srcOf } from '../src/import-picks.ts';
 
 test('a_link_is_fetched_by_the_host_and_anything_else_is_the_bundles_text_and_only_ticked_members_join', () => {
   expect(srcOf('  gist:3f2a9  ')).toEqual({ url: 'gist:3f2a9' });

@@ -1,6 +1,6 @@
 // ⌘K by topic (src/builtins.tsx tagsOf + palette rank, v1 F-task-21): what agents tagged a task with finds it.
 import { expect, test } from 'vitest';
-import { tagsOf } from '../src/builtins.tsx';
+import { tagsOf } from '../src/palette/tasks.ts';
 import { rank } from '../src/palette/match.ts';
 
 test('a task an agent tagged is found by its topic, as #topic or the word_v1_topic_search', () => {

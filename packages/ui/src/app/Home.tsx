@@ -7,7 +7,8 @@ import { flag } from '../core/props.ts';
 import { useOpenWithin } from '../core/open-within.ts';
 import { reorderable, type OnReorder } from '../core/reorder.ts';
 import { Icon } from '../content/Icon.tsx';
-import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
+import { PromptSuggestList, dropHandlers } from '../composer/PromptSuggest.tsx';
+import { suggestKeyDown, type PromptSuggest } from '../composer/suggest-keys.ts';
 import type { IconName } from '../content/icons.ts';
 import { ActIcon, WithAct, actAttrs, type Act } from './act.tsx';
 

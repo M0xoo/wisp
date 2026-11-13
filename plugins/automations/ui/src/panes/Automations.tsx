@@ -9,6 +9,7 @@ import { fireTrigger, recipes, removeRecipe, runRecipe, testTrigger, triggers, t
 import { TriggerEditor } from './TriggerEditor.tsx';
 import { t } from '../i18n.ts';
 import { fromRow } from '../source.ts';
+import { summary } from './summary.ts';
 
 /** `automations.webhookTriggers`, a bool setting (off by default): a boolean source, 'off' read as off. */
 function webhooks(c: PluginClient): SettingSource<boolean> {
@@ -21,13 +22,6 @@ function webhooks(c: PluginClient): SettingSource<boolean> {
     ...(s.lockedBy && { lockedBy: s.lockedBy }),
     set: (on) => s.set(on),
   };
-}
-
-/** "None yet · save a prompt you run often", or the names (the first three, then how many more). */
-export function summary(names: readonly string[], none: string): string {
-  if (names.length === 0) return `${t('automations.none')} · ${none}`;
-  const shown = names.slice(0, 3).join(', ');
-  return names.length > 3 ? t('automations.summary.more', { names: shown, n: names.length - 3 }) : shown;
 }
 
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);

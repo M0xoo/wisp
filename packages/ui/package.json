@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./kit.css": "./src/css/index.css",
-    "./styles": "./src/shell/styles.ts"
+    "./styles": "./src/shell/styles.ts",
+    "./pure": "./src/pure.ts"
   },
   "dependencies": {
     "@wisp/tokens": "*",

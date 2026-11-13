@@ -2,7 +2,7 @@
 // project the newest task ran in, then every project. The hub resolves it the same way
 // (plugins/channels/core/src/default_project.rs): the picked one, else the last used, else the first.
 
-import { projectOf, type ProjectView } from '@wisp/shell';
+import { projectOf, type ProjectView } from '@wisp/shell/pure';
 import type { SelectOption } from '@wisp/ui';
 
 /** The project the newest task (by when it started) ran in, if any task is in one. */

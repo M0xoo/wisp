@@ -8,6 +8,7 @@ import type { ShellContext } from '../contract.ts';
 import { usePluginClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { appState, approveBlocked, exec, reveal } from './commands.ts';
+import { mediaUrl } from './answer-of.ts';
 
 export interface AnswerHost {
   readonly shell: ShellContext;
@@ -30,16 +31,6 @@ export interface AnswerHost {
   readonly env?: EnvReveal;
   /** what the turn's `app` blocks saved (`ext["wisp.apps"]`) */
   readonly apps: () => Readonly<Record<string, unknown>>;
-}
-
-/** A picture or video an answer named → a URL the page loads (v1 ctx.fileUrl): a link stays; a file comes from the
- *  task's own computer, this wisp's or another through it (`/api/peer/<machine>`). */
-export function mediaUrl(home: string, key: string, path: string): string | undefined {
-  if (!path) return undefined;
-  if (/^(https?:|data:|blob:)/.test(path)) return path;
-  const peer = key.slice(0, key.indexOf(':'));
-  const base = peer && peer !== home ? `/api/peer/${encodeURIComponent(peer)}` : '';
-  return `${base}/api/sessions/${encodeURIComponent(key.slice(key.indexOf(':') + 1))}/file?path=${encodeURIComponent(path)}`;
 }
 
 export function answerContext(h: AnswerHost): BlockContext {
@@ -114,14 +105,4 @@ export function answerContext(h: AnswerHost): BlockContext {
       };
     },
   };
-}
-
-/** What a turn's refusals allow (v1 #777): the server keeps them (`ext['wisp.runtime'].blocked`) only for a run that
- *  wasn't in Full auto; a Full auto run that its harness still refused can't be retried, and a card from before
- *  has nothing to allow. */
-export function blockedOf(turn: unknown): 'allowable' | 'unallowed' | 'none' {
-  const o = (turn ?? {}) as { readonly ext?: Readonly<Record<string, unknown>>; readonly mode?: unknown };
-  const kept = (o.ext?.['wisp.runtime'] as { readonly blocked?: unknown } | undefined)?.blocked;
-  if (Array.isArray(kept) && kept.length > 0) return 'allowable';
-  return o.mode === 'auto' ? 'unallowed' : 'none';
 }

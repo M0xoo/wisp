@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { groupPanes, type PaneEntry } from '../src/frame.tsx';
+import { groupPanes, type PaneEntry } from '../src/nav.ts';
 
 const pane = (id: string, group: string, order = 50): PaneEntry => ({ pane: { id, group, title: `t.${id}`, icon: 'settings', order, component: () => null }, client: {} as never });
 

@@ -6,21 +6,7 @@ import { IconButton } from '../controls/Button.tsx';
 import { For, Show, type JSX } from 'solid-js';
 import { flag, sub, type KitProps, type PartName } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
-import type { IconName } from '../content/icons.ts';
-
-export interface SuggestItem {
-  readonly value: string;
-  readonly label: string;
-  /** A second, quieter part on the same line ("question", the args of a command). */
-  readonly detail?: string;
-  /** One line under the label. */
-  readonly hint?: string;
-  readonly icon?: IconName;
-  /** A second way to take it: an Open button on the row (and ⌘↵ / Ctrl+↵ on the active row), e.g. a file in the
-   * file view while ↵ inserts its mention. */
-  readonly onOpen?: () => void;
-  readonly openLabel?: string;
-}
+import { optionId, type SuggestItem } from './suggest-keys.ts';
 
 export interface SuggestListProps extends KitProps {
   readonly id: string;
@@ -33,23 +19,6 @@ export interface SuggestListProps extends KitProps {
   readonly onActive?: (index: number) => void;
   /** Shown instead of rows when there are none. */
   readonly empty?: string;
-}
-
-export const optionId = (list: string, i: number): string => `${list}-o${i}`;
-
-/** What a key does to an open list: move the active row, pick it, close, or nothing. */
-export function suggestKey(
-  e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'isComposing' | 'altKey' | 'metaKey' | 'ctrlKey'>,
-  count: number,
-  active: number,
-): { readonly t: 'move'; readonly to: number } | { readonly t: 'pick' } | { readonly t: 'open' } | { readonly t: 'close' } | undefined {
-  if (count === 0 || e.isComposing) return e.key === 'Escape' ? { t: 'close' } : undefined;
-  if (e.key === 'ArrowDown') return { t: 'move', to: (active + 1) % count };
-  if (e.key === 'ArrowUp') return { t: 'move', to: (active - 1 + count) % count };
-  if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) return { t: 'pick' };
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) return { t: 'open' };
-  if (e.key === 'Escape') return { t: 'close' };
-  return undefined;
 }
 
 export function SuggestList(props: SuggestListProps): JSX.Element {

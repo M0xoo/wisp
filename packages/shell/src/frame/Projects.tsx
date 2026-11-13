@@ -11,6 +11,7 @@ import { usePluginClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { useProjects } from './projects.ts';
 import { projectOf, type ProjectView } from './rows-view.ts';
+import { nameFor, whereIs } from './project-names.ts';
 
 const COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo', 'slate'] as const;
 const IS_URL = /^(https?:\/\/|git@|ssh:\/\/)/;
@@ -45,25 +46,6 @@ const renameProject = defineCommand<{ peer: string; from: string; to: string; sp
 const folders = defineCommand<{ peer: string; q: string }, string[]>({ id: 'runtime.folders', owner: (a) => a.peer, wire: (a) => ({ q: a.q }), optimistic: 'none', pending: 'the folder suggestions' });
 const discover = defineCommand<{ peer: string }, Found[]>({ id: 'runtime.discover', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'Found on this machine' });
 const clone = defineCommand<{ peer: string; url: string }, { dir: string }>({ id: 'git.clone', owner: (a) => a.peer, wire: (a) => ({ url: a.url }), optimistic: 'none', pending: 'Add' });
-
-/** Where a found repo is, as v1 showed it: its folder's parent, your home as `~` (`/Users/me/code/web` → `~/code`). */
-export function whereIs(path: string): string {
-  const parent = path.replace(/\/+$/, '').replace(/\/[^/]*$/, '') || '/';
-  return parent.replace(/^\/(?:Users|home)\/[^/]+/, '~').replace(/^[A-Za-z]:\\Users\\[^\\]+/, '~');
-}
-
-/** A project's name from its folder or URL: its last part, without `.git`, as a resource name. */
-export function nameFor(source: string, taken: readonly string[]): string {
-  const last = source.trim().replace(/\/+$/, '').split(/[/:]/).pop() ?? '';
-  const base =
-    last
-      .replace(/\.git$/, '')
-      .replace(/[^A-Za-z0-9._-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'project';
-  let name = base;
-  for (let i = 2; taken.includes(name); i++) name = `${base}-${i}`;
-  return name;
-}
 
 export default function Projects(_p: { readonly client: PluginClient; readonly params: unknown }): JSX.Element {
   const shell = useShell();

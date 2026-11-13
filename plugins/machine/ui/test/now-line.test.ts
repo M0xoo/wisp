@@ -1,6 +1,6 @@
 // Settings → Usage → Machine load's Now line (LoadGroup.tsx nowLine, v1 settings.js paintLoad).
 import { expect, test } from 'vitest';
-import { nowLine } from '../src/LoadGroup.tsx';
+import { nowLine } from '../src/now-line.ts';
 import type { MachineLoad } from '../src/types.ts';
 import en from '../src/i18n/en.json' with { type: 'json' };
 

@@ -1,7 +1,6 @@
 // A suggest row with a second way to take it (a file: ↵ inserts its mention, ⌘↵ or its Open button opens it).
 import { expect, test } from 'vitest';
-import { suggestKey } from '../src/composer/SuggestList.tsx';
-import { suggestKeyDown, type PromptSuggest } from '../src/composer/PromptSuggest.tsx';
+import { suggestKey, suggestKeyDown, type PromptSuggest } from '../src/composer/suggest-keys.ts';
 
 const k = (key: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey', boolean>> = {}) => ({
   key,

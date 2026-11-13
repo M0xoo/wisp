@@ -8,6 +8,7 @@ export { timeLabel, timeTitle, futureLabel } from './time-format.ts';
 export { Avatar, initials, type AvatarProps } from './Avatar.tsx';
 export { Skeleton, type SkeletonProps, type SkeletonWidth } from './Skeleton.tsx';
 export { Divider, type DividerProps } from './Divider.tsx';
-export { FileView, langOfPath, lineAt, nameAt, type FileViewProps, type GutterMark } from './file/FileView.tsx';
+export { FileView, type FileViewProps, type GutterMark } from './file/FileView.tsx';
+export { langOfPath, lineAt, nameAt } from './file/file-text.ts';
 export { EnvMask, envName, type EnvMaskProps } from './EnvMask.tsx';
 export { DOTS, envFileNamed, isEnvFile, maskBlock, maskDiffs, maskEdit, maskLine, maskText, namesEnvFile, readsEnvFile } from './env-mask.ts';

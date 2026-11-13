@@ -4,8 +4,8 @@
 // (project filter, folded sections). The shell keeps the recent tasks (⌃Tab) itself.
 
 import { computed, defineCommand, entityKey, signal, type DeepReadonly, type EntityKey, type PeerId, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
-import { PROJECT_ORDER, projectList, projectOf, type ProjectView } from '@wisp/shell';
-import { reordered } from '@wisp/ui';
+import { PROJECT_ORDER, projectList, projectOf, type ProjectView } from '@wisp/shell/pure';
+import { reordered } from '@wisp/ui/pure';
 import { createPlacement } from './model/placement.ts';
 import { flatSession, LATER_TOPIC, listPlan } from './model/wire.ts';
 import { ALL, isForLater, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
