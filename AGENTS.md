@@ -35,6 +35,9 @@ npm run dev                      # the wisp binary + the web bundle with reload
   server, the CLI, the grid and **every plugin's backend** (harness runners included) are Rust crates.
   **TypeScript + Solid only for UI** packages (`packages/{protocol,sync,client,tokens,ui,shell}`,
   `plugins/*/ui`, `apps/web`).
+- **One Rust toolchain:** `rust-toolchain.toml` pins the version (rustup installs it on the first cargo call) and
+  every CI workflow installs that same version, so rustfmt and clippy agree everywhere. Bump it on purpose, in its
+  own PR (the file and `.github/workflows/{suite,tauri,tauri-package,tauri-windows}.yml` together).
 - Rust (plan §9.2): edition 2024; `unsafe` forbidden except `wisp-proc`'s reviewed sys module; clippy
   pedantic with the workspace's short allow list; no `unwrap`/`expect`/`panic` outside tests; one
   `thiserror` enum per crate, mapped to `WireError {code, message, retry}` at the edge; a `tracing` span per

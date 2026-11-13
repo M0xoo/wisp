@@ -58,8 +58,10 @@ jobs:
 
       # The Rust workspace (ADR-0013): rustfmt (rustfmt.toml), clippy pedantic with -D warnings, every
       # crate's tests, and cargo deny (licences, advisories, bans, sources: deny.toml). Builds share one cached target dir.
-      - uses: dtolnay/rust-toolchain@stable
+      # the version pinned in rust-toolchain.toml (bump both together)
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.100.0
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
 

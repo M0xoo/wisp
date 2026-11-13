@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: rustup toolchain install stable --profile minimal && rustup default stable && rustup target add x86_64-apple-darwin
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0 && rustup target add x86_64-apple-darwin
       - uses: actions/cache@v4
         with:
           path: |
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: rustup toolchain install stable --profile minimal && rustup default stable && rustup target add aarch64-pc-windows-msvc
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0 && rustup target add aarch64-pc-windows-msvc
       - uses: actions/cache@v4
         with:
           path: |
@@ -128,7 +128,7 @@ jobs:
       # Build: WebKitGTK and what linuxdeploy wants. The gate: a display, a session bus (the shell's
       # single-instance lock), FUSE for an AppImage, squashfs-tools to make a newer one.
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev file xvfb dbus-x11 libfuse2 squashfs-tools
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0
       - uses: actions/cache@v4
         with:
           path: |
