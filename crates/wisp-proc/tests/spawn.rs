@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use common::{args, read_until, sh, tree_of};
+use common::{args, read_until, sh, tree_up};
 use tokio_util::sync::CancellationToken;
 use wisp_proc::{Env, ExecOpts, ProcError, PtySize, Signal, SpawnOpts, Stream};
 
@@ -144,8 +144,7 @@ async fn cancelling_the_scope_kills_the_tree() {
         .unwrap();
     let (h, mut out) = child.split();
     read_until(&mut out, "ready").await;
-    let members = tree_of(h.pid());
-    assert!(members.len() >= 4, "{members:?}");
+    let members = tree_up(h.pid(), sh::MEMBERS).await;
     scope.cancel();
     let exit = tokio::time::timeout(Duration::from_secs(5), h.exited()).await.unwrap();
     assert!(exit.signal.is_some(), "{exit:?}");
@@ -159,10 +158,32 @@ async fn signal_int_reaches_the_tree_and_kill_reports_zero_survivors() {
     let child = proc.spawn("sh", &args(&["-c", &sh::tree()]), opts).unwrap();
     let (h, mut out) = child.split();
     read_until(&mut out, "ready").await;
-    let members = tree_of(h.pid());
+    let members = tree_up(h.pid(), sh::MEMBERS).await;
     h.signal(Signal::Int, true).unwrap();
     let report = h.kill().await;
     assert_eq!(report.survivors, 0, "{report:?}");
     common::assert_all_gone(&members).await;
+    // `kill` ends when the tree is gone (a zombie counts); the root is reaped by its wait thread just after.
+    tokio::time::timeout(Duration::from_secs(5), h.exited()).await.unwrap();
     assert!(h.signal(Signal::Term, false).is_err(), "a reaped root is never signalled by pid");
+}
+
+/// `live` counts children not yet exited: 0 the moment the exit is known, whether or not the registry's clean-up
+/// task has had a turn (on a loaded machine it runs later; G12's last check read 1). The runtime here is entered
+/// but never driven, so that task never runs; a PTY child's exit comes from its own wait thread.
+#[test]
+fn live_is_zero_as_soon_as_the_exit_is_known() {
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let _in_rt = rt.enter();
+    let proc = wisp_proc::local();
+    let opts = SpawnOpts { pty: Some(PtySize { cols: 80, rows: 24 }), ..SpawnOpts::default() };
+    let (h, _out) = proc.spawn("sh", &args(&["-c", "read line"]), opts).unwrap().split();
+    assert_eq!(proc.live(), 1);
+    h.write(b"go\n".to_vec()).unwrap();
+    let end = std::time::Instant::now() + Duration::from_secs(10);
+    while h.running() {
+        assert!(std::time::Instant::now() < end, "the child never exited");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(proc.live(), 0);
 }

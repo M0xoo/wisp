@@ -12,20 +12,25 @@ mod common;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use common::{args, read_until, still_alive, tree_of};
+use common::{args, read_until, sh, still_alive, tree_up};
 use tokio::sync::Semaphore;
 use wisp_proc::{ExecOpts, Proc, PtySize, SpawnOpts};
 
-/// The marker every G12 process carries, so a final `ps` finds any survivor wisp lost track of.
-const MARK: &str = "4242";
+/// The marker every G12 process carries, so a final `ps` finds any survivor wisp lost track of: `4242.<pid>`
+/// seconds with this test process's pid at a fixed width, so a run beside it (another copy of this binary, a
+/// parallel CI job) never counts as ours.
+fn mark() -> String {
+    format!("4242.{:010}", std::process::id())
+}
 
 fn tree() -> String {
+    let mark = mark();
     [
-        format!("sleep {MARK} &"),
-        format!("(trap '' TERM HUP INT; sleep {MARK}) &"),
-        format!("perl -MPOSIX -e 'POSIX::setsid(); sleep {MARK}' &"),
-        format!("sh -c 'sleep {MARK} & wait' &"),
-        "sleep 0.05; echo ready; wait".to_owned(),
+        format!("sleep {mark} &"),
+        format!("(trap '' TERM HUP INT; sleep {mark}) &"),
+        format!("perl -MPOSIX -e 'POSIX::setsid(); sleep {mark}' &"),
+        format!("sh -c 'sleep {mark} & wait' &"),
+        "echo ready; wait".to_owned(),
     ]
     .join("\n")
 }
@@ -36,7 +41,7 @@ async fn one(proc: Proc, i: usize) -> (usize, usize) {
     let opts = SpawnOpts { pty, grace: Some(Duration::from_millis(50)), ..SpawnOpts::default() };
     let (h, mut out) = proc.spawn("sh", &args(&["-c", &tree()]), opts).unwrap().split();
     read_until(&mut out, "ready").await;
-    let members = tree_of(h.pid());
+    let members = tree_up(h.pid(), sh::MEMBERS).await;
     let report = h.kill().await;
     tokio::time::timeout(Duration::from_secs(5), h.exited()).await.unwrap();
     // An orphan reparented to init is reaped by it a moment later; a live one never goes.
@@ -46,7 +51,6 @@ async fn one(proc: Proc, i: usize) -> (usize, usize) {
         tokio::time::sleep(Duration::from_millis(10)).await;
         left = still_alive(&members);
     }
-    assert!(members.len() >= 6, "run {i}: the tree didn't come up whole: {members:?}");
     (left.len() + report.survivors, members.len())
 }
 
@@ -69,7 +73,8 @@ async fn gate(runs: usize) {
         processes += n;
     }
     let ps = proc.exec("ps", &args(&["-axo", "command="]), ExecOpts::default()).await.unwrap();
-    let marked: Vec<String> = ps.stdout_text().lines().filter(|l| l.contains(&format!("sleep {MARK}"))).map(str::to_owned).collect();
+    let needle = format!("sleep {}", mark());
+    let marked: Vec<String> = ps.stdout_text().lines().filter(|l| l.contains(&needle)).map(str::to_owned).collect();
     let secs = start.elapsed().as_secs_f64();
     eprintln!(
         "G12: {runs} runs ({} on a PTY), {processes} processes killed, {orphans} orphans, {} marked left, {secs:.1} s ({:.1} ms/run)",

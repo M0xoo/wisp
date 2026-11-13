@@ -40,6 +40,20 @@ pub fn tree_of(root: u32) -> BTreeSet<u32> {
     }
 }
 
+/// The whole tree once at least `min` members run (10 s at most). The shell's `ready` only says it forked its
+/// jobs; on a loaded machine their own children (perl's, the inner `sh`'s) start later, so wait on the table.
+pub async fn tree_up(root: u32, min: usize) -> BTreeSet<u32> {
+    let end = Instant::now() + Duration::from_secs(10);
+    loop {
+        let set = tree_of(root);
+        if set.len() >= min {
+            return set;
+        }
+        assert!(Instant::now() < end, "the tree didn't come up whole: {set:?}");
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+}
+
 /// Which of `pids` still run (zombies count as gone: they can't run).
 pub fn still_alive(pids: &BTreeSet<u32>) -> Vec<u32> {
     let table = wisp_proc::processes().unwrap();
@@ -60,6 +74,9 @@ pub async fn assert_all_gone(pids: &BTreeSet<u32>) {
 }
 
 pub mod sh {
+    /// The live members of [`tree`] once it's up: the root, two sleeps, the trap, perl and the inner `sh`.
+    pub const MEMBERS: usize = 6;
+
     /// A tree that resists: two children in the group, one ignoring SIGTERM/SIGHUP/SIGINT (only SIGKILL
     /// ends it), one that left the group (setsid, found through its parent), one a level deeper.
     pub fn tree() -> String {
@@ -68,7 +85,7 @@ pub mod sh {
             "(trap '' TERM HUP INT; sleep 300) &",
             "perl -MPOSIX -e 'POSIX::setsid(); sleep 300' &",
             "sh -c 'sleep 300 & wait' &",
-            "sleep 0.3; echo ready; wait",
+            "echo ready; wait",
         ]
         .join("\n")
     }

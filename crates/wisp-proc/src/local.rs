@@ -150,7 +150,9 @@ impl ProcService for LocalProc {
     }
 
     fn live(&self) -> usize {
-        self.reg.live.lock().unwrap_or_else(PoisonError::into_inner).len()
+        // The registry drops a child in a task that runs after `exited`; on a busy runtime that's later, so
+        // count by the exit itself: once `exited()` resolved, the child is never live.
+        self.reg.live.lock().unwrap_or_else(PoisonError::into_inner).values().filter(|h| h.running()).count()
     }
 
     fn kill_all(&self, grace: Duration) -> BoxFuture<'static, ()> {
