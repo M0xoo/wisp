@@ -13,11 +13,11 @@ use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
 
 /// What v1 gave a question before it gave up waiting (adapters/common.js `ASK_TIMEOUT_MS`).
-pub const ASK_TIMEOUT_MS: i64 = 30 * 60_000;
+pub(crate) const ASK_TIMEOUT_MS: i64 = 30 * 60_000;
 /// The answers a live approval offers (v1 `APPROVAL`). Typed text instead is a "no, do this instead".
-pub const APPROVAL_ALLOW: &str = "Allow";
-pub const APPROVAL_ALWAYS: &str = "Always allow in this task";
-pub const APPROVAL_DENY: &str = "Deny";
+pub(crate) const APPROVAL_ALLOW: &str = "Allow";
+pub(crate) const APPROVAL_ALWAYS: &str = "Always allow in this task";
+pub(crate) const APPROVAL_DENY: &str = "Deny";
 const SIDE_DENIED: &str = "Refused: a side discussion only reads. Ask the main task to do it.";
 
 /// The open question's id, from the task itself (the truth across a restart).

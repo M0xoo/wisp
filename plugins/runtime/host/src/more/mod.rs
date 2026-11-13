@@ -4,6 +4,7 @@
 //! side runs, a signed-out turn's sign-in and rerun, a turn billed past its plan, and the harnesses
 //! as Settings → Agents shows them. One module per surface; this one holds the helpers they share.
 
+mod agents;
 mod ask;
 mod blocked;
 mod btw;

@@ -12,7 +12,7 @@ use crate::error::Result;
 use crate::runtime::Runtime;
 
 /// How long an armed sign-in waits for its login (v1 `SIGN_IN_MS`).
-pub const SIGN_IN_MS: i64 = 15 * 60_000;
+pub(crate) const SIGN_IN_MS: i64 = 15 * 60_000;
 
 /// A turn that failed signed out, waiting for this login to land (v1 `armSignIn`).
 #[derive(Debug, Clone)]

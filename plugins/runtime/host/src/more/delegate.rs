@@ -128,7 +128,7 @@ impl Runtime {
     async fn run_member(self: &Arc<Self>, lead: &Session, m: &Value, slot_name: &str, existing: Option<String>, prompt: &str, capped: Option<&Value>, made: &mut serde_json::Map<String, Value>) -> Result<(String, Option<TurnId>)> {
         let (prompt, capped) = (prompt.to_owned(), capped.cloned());
         let slot_name = slot_name.to_owned();
-    Ok(match existing {
+        Ok(match existing {
             Some(cid) if self.repo.session(&cid).await.is_ok() => {
                 {
                     let _g = self.task_lock(&cid).await;
