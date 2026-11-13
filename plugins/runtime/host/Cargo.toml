@@ -30,6 +30,7 @@ wisp-router-api.workspace = true
 wisp-issues-api.workspace = true
 serde.workspace = true
 blake3.workspace = true
+futures.workspace = true
 schemars.workspace = true
 wisp-resources-api.workspace = true
 serde_json.workspace = true

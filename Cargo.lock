@@ -5424,6 +5424,7 @@ version = "2.0.0"
 dependencies = [
  "base64 0.22.1",
  "blake3",
+ "futures",
  "schemars",
  "serde",
  "serde_json",
