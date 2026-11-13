@@ -64,6 +64,11 @@ pub struct TriggerSpec {
     /// webhook: its secret, as `${secret:NAME}`
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub secret: String,
+    /// webhook: the header that signs each call (`X-Hub-Signature-256`, `Sentry-Hook-Signature`, `Linear-Signature`,
+    /// `X-PagerDuty-Signature`): an HMAC-SHA256 of the body under the secret, hex, with or without `sha256=`/`v1=`.
+    /// With it the secret is never sent, only checked (v1 hooks.js `hmacOk`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub header: String,
     /// chat.message: who may (names or ids; `anyone` for an open channel)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub users: Vec<String>,
@@ -134,8 +139,9 @@ impl TriggerSpec {
     pub fn all_filters(&self) -> BTreeMap<String, Value> {
         let mut f = self.filters.clone();
         // a schedule, a one-off, a webhook or a manual fire names no project: its `project` is only where the
-        // task runs (as a filter it refused every event they send)
-        let own = matches!(self.on.as_str(), "schedule" | "once" | "webhook" | "manual");
+        // task runs (as a filter it refused every event they send); so does a chat message, which comes from a
+        // channel, not a project (v1's Slack trigger ran in its folder)
+        let own = matches!(self.on.as_str(), "schedule" | "once" | "webhook" | "manual" | "chat.message");
         for (k, v) in [("project", &self.project), ("branch", &self.branch), ("label", &self.label)] {
             if !v.is_empty() && !f.contains_key(k) && (!own || k != "project") {
                 f.insert(k.to_owned(), Value::String(v.clone()));

@@ -99,6 +99,41 @@ pub fn webhook_verdict(body_len: usize, want: Option<&str>, given: &str) -> Opti
     }
 }
 
+/// A signed call (a spec with `header`, v1 hooks.js `hmacOk`): the header holds the HMAC-SHA256 of the raw body under
+/// the secret, hex, bare or after `sha256=` (GitHub, Linear, Sentry) or `v1=` (`PagerDuty`, which sends several at once,
+/// comma-separated, while it rotates secrets: any one will do).
+pub fn signed(secret: &str, body: &[u8], got: &str) -> bool {
+    use hmac::Mac as _;
+    let Ok(mut mac) = hmac::Hmac::<sha2::Sha256>::new_from_slice(secret.as_bytes()) else { return false };
+    mac.update(body);
+    let want = mac.finalize().into_bytes().iter().fold(String::with_capacity(64), |mut out, b| {
+        out.push(char::from(b"0123456789abcdef"[usize::from(b >> 4)]));
+        out.push(char::from(b"0123456789abcdef"[usize::from(b & 15)]));
+        out
+    });
+    got.split(',').any(|x| {
+        let x = x.trim();
+        let hex = x.split_once('=').filter(|(p, _)| p.eq_ignore_ascii_case("sha256") || p.eq_ignore_ascii_case("v1")).map_or(x, |(_, h)| h);
+        !hex.is_empty() && same(&hex.to_ascii_lowercase(), &want)
+    })
+}
+
+/// The secret a call gave: signed, the header's signature checked (so `given` is the secret itself when it holds);
+/// unsigned, `x-wisp-secret`, a bearer token or `?secret=`.
+fn given_of(req: &wisp_kernel::http::Request, header: &str, want: Option<&str>) -> String {
+    if !header.is_empty() {
+        return match (want, req.header(header)) {
+            (Some(w), Some(got)) if signed(w, &req.body, got) => w.to_owned(),
+            _ => String::new(),
+        };
+    }
+    req.header("x-wisp-secret")
+        .map(str::to_owned)
+        .or_else(|| req.header("authorization").and_then(|a| a.strip_prefix("Bearer ")).map(str::to_owned))
+        .or_else(|| req.query("secret").map(str::to_owned))
+        .unwrap_or_default()
+}
+
 fn answer(status: u16, body: Value) -> wisp_kernel::http::Response {
     wisp_kernel::http::Response::Json { status, body }
 }
@@ -115,12 +150,12 @@ async fn webhook(ctx: Ctx, engine: Shared, req: wisp_kernel::http::Request) -> R
         Some(t) => secret_of(&ctx, &t.spec.secret).await,
         None => None,
     };
-    let given = req
-        .header("x-wisp-secret")
-        .map(str::to_owned)
-        .or_else(|| req.header("authorization").and_then(|a| a.strip_prefix("Bearer ")).map(str::to_owned))
-        .or_else(|| req.query("secret").map(str::to_owned))
-        .unwrap_or_default();
+    let header = t.as_ref().map(|t| t.spec.header.clone()).unwrap_or_default();
+    if header.is_empty() && req.body.len() <= WEBHOOK_MAX {
+        // the same hashing as a signed trigger's, so how long a call takes doesn't say which names are signed triggers
+        std::hint::black_box(signed("", std::hint::black_box(&req.body), ""));
+    }
+    let given = if req.body.len() > WEBHOOK_MAX { String::new() } else { given_of(&req, &header, want.as_deref()) };
     if let Some(status) = webhook_verdict(req.body.len(), want.as_deref(), &given) {
         let msg = if status == 413 { "the body is over 1 MB" } else { "no such trigger" };
         return Ok(answer(status, json!({ "error": msg })));
@@ -138,10 +173,10 @@ async fn webhook(ctx: Ctx, engine: Shared, req: wisp_kernel::http::Request) -> R
     let ev = TriggerEvent { on: "webhook".into(), key, at: now, payload, summary, ..TriggerEvent::default() };
     let call = ctx.root_call();
     let out = engine.dispatch(&ctx, &call, &ev, Some(&name), now).await;
-    let o = out
-        .into_iter()
-        .next()
-        .map_or_else(|| c::FireOut { result: "nothing".into(), why: "seen before".into(), session: None }, |(_, o)| o);
+    let o = out.into_iter().next().map_or_else(
+        || c::FireOut { result: "nothing".into(), why: "not taken: seen before, or not what it matches".into(), session: None },
+        |(_, o)| o,
+    );
     Ok(answer(202, json!({ "result": o.result, "why": o.why, "id": o.session })))
 }
 
@@ -322,6 +357,23 @@ mod tests {
         assert_eq!(webhook_verdict(10, None, ""), Some(404), "no secret: the same 404 as a wrong one");
         assert_eq!(webhook_verdict(WEBHOOK_MAX, Some("s"), "s"), None, "1 MB exactly is taken");
         assert_eq!(webhook_verdict(WEBHOOK_MAX + 1, Some("s"), "s"), Some(413));
+    }
+
+    #[test]
+    fn a_signed_webhook_takes_github_linear_and_pagerduty_signatures_and_nothing_else_v1_hmac_ok() {
+        // HMAC-SHA256("It's a Secret to Everybody", "Hello, World!") from GitHub's webhook docs
+        let (secret, body) = ("It's a Secret to Everybody", b"Hello, World!");
+        let hex = "757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17";
+        assert!(signed(secret, body, &format!("sha256={hex}")), "GitHub's sha256=");
+        assert!(signed(secret, body, hex), "Linear's bare hex");
+        assert!(signed(secret, body, &hex.to_uppercase()), "hex in capitals");
+        assert!(signed(secret, body, &format!("v1=deadbeef, v1={hex}")), "PagerDuty: any of the ones it sends");
+        assert!(!signed(secret, body, &format!("sha256={}", &hex[..63])), "a prefix isn't the signature");
+        assert!(!signed(secret, b"Hello, World?", &format!("sha256={hex}")), "another body");
+        assert!(!signed("another secret", body, hex));
+        assert!(!signed(secret, body, ""));
+        assert!(!signed(secret, body, "sha256="));
+        assert!(!signed(secret, body, &format!("md5={hex}")), "another scheme isn't read as the hex");
         assert!(same("abc", "abc") && !same("abc", "abd") && !same("abc", "abcd") && !same("", "a"));
         // the route says the same cap, so the edge refuses a bigger body (413) before reading it all
         assert_eq!(WEBHOOK_MAX, 1_048_576);

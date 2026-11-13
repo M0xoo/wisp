@@ -14,9 +14,9 @@ pub fn on_of(kind: &str) -> Option<&'static str> {
         "issues" => "issue.labeled",
         "finished" => "task.finished",
         "done" => "task.done",
-        "webhook" => "webhook",
+        // a Linear one is a webhook too: an issue created, signed with Linear-Signature (v1 hooks.js)
+        "webhook" | "linear" => "webhook",
         "slack" => "chat.message",
-        "linear" => "linear.issue",
         _ => return None,
     })
 }
@@ -63,11 +63,18 @@ pub fn from_v1(t: &TriggerBase) -> Option<(String, TriggerSpec)> {
             s.every = (t.every > 0).then_some(t.every);
         }
         // the secret URL's token isn't carried: the new trigger reads its secret from secrets
-        "webhook" | "linear" => s.secret = format!("${{secret:{name}}}"),
+        "webhook" => {
+            s.secret = format!("${{secret:{name}}}");
+            s.header = t.header.clone().unwrap_or_default();
+        }
+        "linear" => {
+            s.secret = format!("${{secret:{name}}}");
+            linear(&mut s, &t.label);
+        }
         "slack" => {
-            if let Some(c) = &t.channel {
-                s.filters.insert("channel".into(), Value::String(c.clone()));
-            }
+            // v2 hears Slack through wisp.channels, whose messages say `channel: slack`; v1's channel id
+            // (`C0123…`) isn't on them, so as a filter it would never match
+            s.filters.insert("channel".into(), Value::String("slack".into()));
             if let Some(k) = &t.keyword {
                 s.filters.insert("keyword".into(), Value::String(k.clone()));
             }
@@ -80,6 +87,16 @@ pub fn from_v1(t: &TriggerBase) -> Option<(String, TriggerSpec)> {
         s.prompt = format!("{} fired: {{event.summary}}", t.name);
     }
     Some((name, s))
+}
+
+/// v1's Linear kind on a webhook: signed with `Linear-Signature`, an issue created, with `label` among its labels.
+pub fn linear(s: &mut TriggerSpec, label: &str) {
+    s.header = "Linear-Signature".into();
+    s.filters.insert("type".into(), Value::String("Issue".into()));
+    s.filters.insert("action".into(), Value::String("create".into()));
+    if !label.trim().is_empty() {
+        s.filters.insert("data.labels.name".into(), Value::String(label.trim().to_owned()));
+    }
 }
 
 /// A v1 member's `on` (`finished`, `done`, `ci`) as its wakes.
@@ -118,7 +135,7 @@ mod tests {
             ("done", "task.done"),
             ("webhook", "webhook"),
             ("slack", "chat.message"),
-            ("linear", "linear.issue"),
+            ("linear", "webhook"),
         ];
         for (kind, on) in want {
             let (name, s) = from_v1(&row(kind)).unwrap_or_else(|| panic!("{kind}"));
@@ -130,11 +147,18 @@ mod tests {
         assert_eq!(from_v1(&row("ci")).unwrap().1.branch, "main");
         assert_eq!(from_v1(&row("issues")).unwrap().1.label, "bug");
         assert_eq!(from_v1(&row("webhook")).unwrap().1.secret, "${secret:my-webhook}");
+        let signed = TriggerBase { header: Some("X-Hub-Signature-256".into()), ..row("webhook") };
+        assert_eq!(from_v1(&signed).unwrap().1.header, "X-Hub-Signature-256", "a signed v1 webhook stays signed");
+        let lin = from_v1(&row("linear")).unwrap().1;
+        assert_eq!(
+            (lin.header.as_str(), lin.filters["action"].as_str(), lin.filters["data.labels.name"].as_str()),
+            ("Linear-Signature", Some("create"), Some("bug"))
+        );
         let slack = TriggerBase { channel: Some("C1".into()), keyword: Some("deploy".into()), ..row("slack") };
         let (_, s) = from_v1(&slack).unwrap();
         assert_eq!(
             (s.filters["channel"].as_str(), s.users.as_slice()),
-            (Some("C1"), &["anyone".to_owned()][..]),
+            (Some("slack"), &["anyone".to_owned()][..]),
             "an open v1 channel stays open, said out loud"
         );
         assert!(from_v1(&row("telepathy")).is_none());

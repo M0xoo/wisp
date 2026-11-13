@@ -221,11 +221,38 @@ fn takes(key: &str, want: &Value, got: Option<&Value>) -> bool {
 pub fn filters_pass(spec: &TriggerSpec, ev: &TriggerEvent) -> bool {
     spec.all_filters().iter().all(|(k, want)| {
         // a keyword is looked for in the message's text
-        let field = if k == "keyword" { ev.payload.get("text").or_else(|| ev.payload.get("keyword")) } else { ev.payload.get(k) };
+        let field = if k == "keyword" {
+            ev.payload.get("text").or_else(|| ev.payload.get("keyword")).cloned()
+        } else if k.contains('.') {
+            // a flat key with a dot in it (`{"repo.name": …}`) is itself first
+            ev.payload.get(k).cloned().or_else(|| at_path(&ev.payload, k))
+        } else {
+            ev.payload.get(k).cloned()
+        };
         // a project matches the payload's project or its folder
-        let field = if k == "project" { field.or_else(|| ev.payload.get("cwd")) } else { field };
-        takes(k, want, field)
+        let field = if k == "project" { field.or_else(|| ev.payload.get("cwd").cloned()) } else { field };
+        takes(k, want, field.as_ref())
     })
+}
+
+/// A dotted key into the payload (`data.labels.name`); a list on the way is looked through, so the answer is every
+/// value found (a Linear issue's label names). `None` when nothing is there.
+fn at_path(v: &Value, path: &str) -> Option<Value> {
+    let mut here = vec![v];
+    for part in path.split('.') {
+        here = here
+            .into_iter()
+            .flat_map(|x| match x {
+                Value::Array(a) => a.iter().filter_map(|y| y.get(part)).collect::<Vec<_>>(),
+                o => o.get(part).into_iter().collect(),
+            })
+            .collect();
+    }
+    match here.as_slice() {
+        [] => None,
+        [one] if !one.is_array() => Some((*one).clone()),
+        many => Some(Value::Array(many.iter().flat_map(|x| x.as_array().cloned().unwrap_or_else(|| vec![(*x).clone()])).collect())),
+    }
 }
 
 /// `users`: who may start it. `anyone` opens it; else the sender's name or id must be listed.

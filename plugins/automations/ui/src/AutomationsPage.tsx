@@ -176,31 +176,32 @@ function TriggerForm(props: { readonly client: PluginClient; readonly recipes: r
         </AutoRow>
       </Show>
       <Show when={hook()}>
-        <AutoRow label={say('automations.form.url')}>
-          <small>{say('automations.form.urlLater')}</small>
-        </AutoRow>
+        <Show when={kind() !== 'slack'}>
+          <AutoRow label={say('automations.form.url')}>
+            <small>{say('automations.form.urlLater')}</small>
+          </AutoRow>
+        </Show>
         <AutoNote tone="muted">{say(`automations.form.how.${kind()}`)}</AutoNote>
-        <AutoRow label={say(kind() === 'webhook' ? 'automations.form.secret' : 'automations.form.signingSecret')}>
-          <Input
-            mono
-            type="password"
-            value={f().secret}
-            onInput={(v) => set({ secret: v })}
-            autocomplete="new-password"
-            spellcheck={false}
-            placeholder={say(`automations.form.secretPlaceholder.${kind()}`)}
-            aria-label={say('automations.form.secret')}
-          />
-        </AutoRow>
+        <Show when={kind() !== 'slack'}>
+          <AutoRow label={say(kind() === 'webhook' ? 'automations.form.secret' : 'automations.form.signingSecret')}>
+            <Input
+              mono
+              type="password"
+              value={f().secret}
+              onInput={(v) => set({ secret: v })}
+              autocomplete="new-password"
+              spellcheck={false}
+              placeholder={say(`automations.form.secretPlaceholder.${kind()}`)}
+              aria-label={say('automations.form.secret')}
+            />
+          </AutoRow>
+        </Show>
         <Show when={kind() === 'webhook'}>
           <AutoRow label={say('automations.form.header')}>
             <Input mono value={f().header} onInput={(v) => set({ header: v })} spellcheck={false} placeholder="X-Hub-Signature-256" aria-label={say('automations.form.header')} />
           </AutoRow>
         </Show>
         <Show when={kind() === 'slack'}>
-          <AutoRow label={say('automations.form.channel')}>
-            <Input mono value={f().channel} onInput={(v) => set({ channel: v })} spellcheck={false} placeholder="C0123456789" aria-label={say('automations.form.channel')} />
-          </AutoRow>
           <AutoRow label={say('automations.form.people')}>
             <Input mono value={f().users} onInput={(v) => set({ users: v })} spellcheck={false} autocomplete="off" placeholder="U0123ABCDE, U0456FGHIJ" aria-label={say('automations.form.people')} />
           </AutoRow>

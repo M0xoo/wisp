@@ -246,8 +246,10 @@ fn filters_if_and_windows() {
 
 #[test]
 fn a_project_on_a_webhook_or_schedule_trigger_is_where_it_runs_not_a_filter() {
-    for on in ["webhook", "schedule", "once", "manual"] {
-        let s = TriggerSpec { on: on.into(), project: "/w/api".into(), ..spec() };
+    for on in ["webhook", "schedule", "once", "manual", "chat.message"] {
+        // a chat trigger names who may start it (anyone, here)
+        let users = if on == "chat.message" { vec!["anyone".into()] } else { Vec::new() };
+        let s = TriggerSpec { on: on.into(), project: "/w/api".into(), users, ..spec() };
         let e =
             TriggerEvent { on: on.into(), key: format!("{on}:1"), payload: json!({ "ref": "refs/heads/main" }), ..TriggerEvent::default() };
         assert!(matches!(admit("t", &s, &mut State::default(), e, &w(0)), Decision::Start(_)), "{on}");
@@ -315,4 +317,49 @@ fn when_windows_read_days_and_hours() {
     assert!(in_window(&night, fri + 23 * h));
     assert!(in_window(&night, fri + 24 * h + 2 * h), "Saturday 02:00 belongs to Friday night");
     assert!(!in_window(&night, fri + 2 * h), "Friday 02:00 is Thursday's night");
+}
+
+#[test]
+fn a_dotted_match_key_reads_into_the_payload_and_through_lists_v1_linear_label() {
+    // v1 hooks.js linear: an issue created, optionally with a label (any of its labels, by name)
+    let mut f = std::collections::BTreeMap::new();
+    f.insert("type".to_owned(), json!("Issue"));
+    f.insert("action".to_owned(), json!("create"));
+    f.insert("data.labels.name".to_owned(), json!("wisp"));
+    let s = TriggerSpec { on: "webhook".into(), filters: f, ..spec() };
+    let body = |action: &str, labels: serde_json::Value| TriggerEvent {
+        on: "webhook".into(),
+        payload: json!({ "type": "Issue", "action": action, "data": { "title": "Crash on save", "labels": labels } }),
+        ..ev("l")
+    };
+    assert!(filters_pass(&s, &body("create", json!([{ "name": "bug" }, { "name": "wisp" }]))), "one of its labels");
+    assert!(!filters_pass(&s, &body("create", json!([{ "name": "bug" }]))), "not labelled");
+    assert!(!filters_pass(&s, &body("create", json!([]))), "no labels");
+    assert!(!filters_pass(&s, &body("update", json!([{ "name": "wisp" }]))), "an update, not an issue created");
+    let none = TriggerEvent { on: "webhook".into(), payload: json!({ "type": "Issue", "action": "create" }), ..ev("n") };
+    assert!(!filters_pass(&s, &none), "no data at all");
+    let mut flat = std::collections::BTreeMap::new();
+    flat.insert("repo.name".to_owned(), json!("wisp"));
+    let s = TriggerSpec { on: "webhook".into(), filters: flat, ..spec() };
+    let dotted = TriggerEvent { on: "webhook".into(), payload: json!({ "repo.name": "wisp" }), ..ev("d") };
+    assert!(filters_pass(&s, &dotted), "a flat key with a dot in it still matches itself");
+}
+
+#[test]
+fn a_chat_trigger_with_users_starts_nothing_for_someone_not_listed_and_reads_the_keyword_in_the_text() {
+    let mut f = std::collections::BTreeMap::new();
+    f.insert("channel".to_owned(), json!("slack"));
+    f.insert("keyword".to_owned(), json!("deploy"));
+    let s = TriggerSpec { on: "chat.message".into(), users: vec!["U1".into()], filters: f, ..spec() };
+    let msg = |user: &str, text: &str| TriggerEvent {
+        on: "chat.message".into(),
+        payload: json!({ "channel": "slack", "user": user, "text": text, "trusted": true }),
+        ..ev(&format!("{user}{text}"))
+    };
+    assert!(matches!(admit("t", &s, &mut State::default(), msg("U1", "please Deploy main"), &w(0)), Decision::Start(_)));
+    assert!(
+        matches!(admit("t", &s, &mut State::default(), msg("U2", "please deploy main"), &w(0)), Decision::Skipped(_)),
+        "not listed: skipped, with why"
+    );
+    assert_eq!(admit("t", &s, &mut State::default(), msg("U1", "hello"), &w(0)), Decision::Nothing, "no keyword");
 }
