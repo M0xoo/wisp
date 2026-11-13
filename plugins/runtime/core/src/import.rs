@@ -171,6 +171,8 @@ fn stats(v: Option<&Value>) -> Option<TurnStats> {
         context_tokens: num("contextTokens"),
         context_window: num("contextWindow").filter(|n| *n > 0),
         cache_ttl_ms: num("cacheTtlMs"),
+        // before stats.totals, a v1 turn's counts could be the whole conversation's: its subagents' output too
+        subagents: crate::land::subagents_of(o.get("subagents"), o.contains_key("totals")),
     })
 }
 

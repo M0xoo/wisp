@@ -181,7 +181,38 @@ pub fn turn_stats(s: &HarnessStats) -> TurnStats {
         context_tokens: whole("contextTokens"),
         context_window: whole("contextWindow").filter(|n| *n > 0),
         cache_ttl_ms: whole("cacheTtlMs"),
+        subagents: subagents_of(s.extra.get("subagents"), true),
     }
+}
+
+/// A harness's `stats.subagents` (`[{ type, calls, read, output, model }]`), read leniently: a row without a type or a
+/// call is dropped. `split` false: the turn's per-model counts may hold the whole conversation (a v1 turn from before
+/// `stats.totals`), so its subagents' output isn't theirs alone and reads as unknown (v1 `subagentOutput`).
+pub fn subagents_of(v: Option<&Value>, split: bool) -> Vec<wisp_runtime_api::model::SubagentStat> {
+    let whole = |x: Option<&Value>| {
+        x.and_then(Value::as_f64).filter(|x| x.is_finite() && *x > 0.0).map_or(0, |x| {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // finite, > 0: a count
+            let n = x.round() as u64;
+            n
+        })
+    };
+    v.and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(|x| {
+                    let kind = x.get("type").and_then(Value::as_str).filter(|k| !k.is_empty())?;
+                    let calls = u32::try_from(whole(x.get("calls"))).unwrap_or(u32::MAX);
+                    (calls > 0).then(|| wisp_runtime_api::model::SubagentStat {
+                        kind: kind.to_owned(),
+                        calls,
+                        read: whole(x.get("read")),
+                        output: if split { whole(x.get("output")) } else { 0 },
+                        model: x.get("model").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The facts the host gathers once a turn ended.

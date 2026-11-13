@@ -31,6 +31,21 @@ pub struct TurnUsage {
     pub window: u64,
     /// its plan shares: (window, used, "agent account")
     pub plan: Vec<(String, f64, String)>,
+    /// the harness's own subagents that ran inside it (`stats.subagents`)
+    pub agents: Vec<Agents>,
+}
+
+/// The harness's own subagents of one type and model (Claude Code's Agent calls), summed over a task's turns: the
+/// card's "Subagents in its turns" (v1 `inTurnAgents`). Their tokens are already in the task's.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Agents {
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub model: String,
+    pub calls: u64,
+    #[serde(default)]
+    pub output: u64,
 }
 
 /// How full the context is: `window` 0 when the harness doesn't say.
@@ -53,6 +68,9 @@ pub struct Own {
     /// the plans (agent account) its shares are of
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub plan_on: BTreeSet<String>,
+    /// the harness's own subagents by type and model, most output first
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub agents: Vec<Agents>,
 }
 
 /// A lead's wisp subagent: what it took. `same_plan` false: its share is of another plan's windows (another
@@ -139,6 +157,17 @@ pub fn turn_usage(t: &Turn) -> TurnUsage {
         context: t.stats.as_ref().and_then(|s| s.context_tokens),
         window: t.stats.as_ref().and_then(|s| s.context_window).unwrap_or(0),
         plan,
+        agents: t.stats.as_ref().map_or_else(Vec::new, |s| {
+            s.subagents
+                .iter()
+                .map(|x| Agents {
+                    kind: if x.kind.is_empty() { "general".into() } else { x.kind.clone() },
+                    model: x.model.clone(),
+                    calls: u64::from(x.calls),
+                    output: x.output,
+                })
+                .collect()
+        }),
     }
 }
 
@@ -182,7 +211,21 @@ pub fn own_of(turns: &[TurnUsage]) -> Own {
     for x in plan.values_mut() {
         *x = tidy(*x);
     }
-    Own { tokens: turns.iter().map(|t| t.tokens).sum(), context: context_of(turns), plan, plan_on }
+    Own { tokens: turns.iter().map(|t| t.tokens).sum(), context: context_of(turns), plan, plan_on, agents: agents_of(turns) }
+}
+
+/// The harness's own subagents over every turn, by type and model, most output first (ties: more calls, then the
+/// type, so the order never flickers).
+pub fn agents_of(turns: &[TurnUsage]) -> Vec<Agents> {
+    let mut by: BTreeMap<(String, String), Agents> = BTreeMap::new();
+    for x in turns.iter().flat_map(|t| &t.agents) {
+        let e = by.entry((x.kind.clone(), x.model.clone())).or_insert_with(|| Agents { kind: x.kind.clone(), model: x.model.clone(), ..Agents::default() });
+        e.calls += x.calls;
+        e.output += x.output;
+    }
+    let mut out: Vec<Agents> = by.into_values().collect();
+    out.sort_by(|a, b| b.output.cmp(&a.output).then(b.calls.cmp(&a.calls)));
+    out
 }
 
 /// A lead's wisp subagent's line, or None when it took nothing measured. Before the lead has a share of its own,

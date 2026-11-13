@@ -1,6 +1,6 @@
 // A task's usage in its details (frame/task-usage.ts, v1 #785 TRY-16; v1 test/task-usage.test.js's scenarios).
 import { expect, test } from 'vitest';
-import { contextWords, planWords, rowUsage, taskUsage, tokensOf, usageSections } from '../src/frame/task-usage.ts';
+import { contextWords, modelWords, planWords, rowUsage, taskUsage, tokensOf, usageSections } from '../src/frame/task-usage.ts';
 import { SHELL_STRINGS } from '../src/i18n/en.ts';
 
 const cat = SHELL_STRINGS as Readonly<Record<string, string>>;
@@ -41,7 +41,8 @@ test('the_card_says_the_tasks_tokens_the_plan_split_the_context_and_each_subagen
   });
   const models = { 'claude-opus-5-5': { input: 1000, cacheRead: 9000, cacheWrite: 0, output: 500 } };
   const turns = [{ inputTokens: 1000, cacheTokens: 9000, outputTokens: 500, models }, { inputTokens: 500, cacheTokens: 4500, outputTokens: 200, models: { 'claude-opus-5-5': { input: 500, cacheRead: 4500, output: 200 } } }, undefined];
-  const [mine, plan, context, subs] = usageSections(u, turns, t, (id) => opened.push(id));
+  const [mine, plan, context, inTurns, subs] = usageSections(u, turns, t, (id) => opened.push(id));
+  expect(inTurns?.rows).toEqual([]);
   expect(mine?.rows.map((r) => [r.label, r.value])).toEqual([
     ['Tokens, subagents in', '56k'],
     ['Read', '15k'],
@@ -66,4 +67,31 @@ test('a_turns_reads_and_writes_folded_together_give_no_cache_share_v1_785', () =
   expect(tokensOf([])).toEqual({ read: 0, cached: null, output: 0, turns: 0 });
   // per-model counts below the usage total: the usage total is the turn's, and its cache share isn't known
   expect(tokensOf([{ inputTokens: 100, cacheTokens: 900, outputTokens: 50, models: { m: { input: 10, cacheRead: 90, output: 5 } } }]).cached).toBeNull();
+});
+
+test('the_card_lists_claude_codes_own_subagents_by_type_as_v1_785', () => {
+  // the row's `agents`: runtime's fold of each turn's stats.subagents, by type and model, most output first
+  const u = rowUsage({
+    tokens: 15_700,
+    agents: [
+      { type: 'Explore', model: 'claude-haiku-5-5', calls: 3, output: 400 },
+      { type: 'web-fetch', model: 'claude-opus-5-5[1m]', calls: 1, output: 0 },
+      { type: 'Plan', calls: 1, output: 12_000 },
+      { type: '', calls: 2 },
+      { type: 'Bad', calls: 0 },
+    ],
+  });
+  expect(u.agents).toHaveLength(3);
+  const [, , , inTurns] = usageSections(u, [], t, () => undefined);
+  expect(inTurns?.title).toBe('Subagents in its turns');
+  expect(inTurns?.rows.map((r) => [r.label, r.value])).toEqual([
+    ['3 Explore agents · Haiku 5.5', '400 out'],
+    ['1 web-fetch agent · Opus 5.5 (1M)', '—'],
+    ['1 Plan agent', '12k out'],
+  ]);
+  expect(inTurns?.rows[0]?.title).toBe('Ran inside the task’s turns: their tokens are in the task’s');
+  expect(inTurns?.rows[0]?.onOpen).toBeUndefined();
+  expect(modelWords('claude-haiku-4-5-20251001')).toBe('Haiku 4.5');
+  expect(modelWords('sonnet')).toBe('Sonnet');
+  expect(rowUsage({ agents: 'x' }).agents).toBeUndefined();
 });

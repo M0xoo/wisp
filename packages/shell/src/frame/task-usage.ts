@@ -1,7 +1,7 @@
 // A task's usage, for its details column (v1 #785, TRY-16; web/js/task-usage.js): the line with its share of the plan,
 // its wisp subagents' in (with none traced, its tokens), the line with how full its context is, and the card either
-// opens. The server sums the task with its subagents (wisp-runtime host usage_row.rs: the row's `usage`, `subUsage`,
-// `context`); the card's token split is read from the open task's turns. DOM-free.
+// opens (Claude Code's own subagents by type among it). The server sums the task with its subagents (wisp-runtime host
+// usage_row.rs: the row's `usage`, `subUsage`, `context`, `agents`); the card's token split is read from the open task's turns. DOM-free.
 import type { TaskUsageProps, TaskUsageRow, TaskUsageSection } from '@wisp/ui';
 import type { ShellContext } from '../contract.ts';
 import { windowName } from './compare.ts';
@@ -23,8 +23,17 @@ export interface SubUsage {
   /** false: its share is of another plan's windows (another harness or account): the lead's line leaves it out */
   readonly samePlan?: boolean;
 }
+/** The harness's own subagents of one type and model (Claude Code's Agent runs), over the task's turns (runtime's
+ * task_usage `Agents`): their tokens are already in the task's. */
+export interface InTurnAgents {
+  readonly type: string;
+  readonly model?: string;
+  readonly calls: number;
+  readonly output: number;
+}
 /** The row's usage fields (all optional: nothing measured, nothing said). */
 export interface RowUsage {
+  readonly agents?: readonly InTurnAgents[];
   readonly tokens?: number;
   readonly context?: Context;
   readonly plan?: Plan;
@@ -46,6 +55,9 @@ const planOf = (x: unknown): Plan | undefined => (x && typeof x === 'object' && 
 export function rowUsage(f: Readonly<Record<string, unknown>>): RowUsage {
   const c = f['context'] as Partial<Context> | undefined;
   const u = f['usage'] as { tokens?: unknown; plan?: unknown } | undefined;
+  const agents = Array.isArray(f['agents'])
+    ? (f['agents'] as readonly Partial<InTurnAgents>[]).flatMap((a) => (typeof a?.type === 'string' && a.type && n0(a.calls) ? [{ type: a.type, ...(typeof a.model === 'string' && a.model && { model: a.model }), calls: n0(a.calls), output: n0(a.output) }] : []))
+    : [];
   const subs = Array.isArray(f['subUsage']) ? (f['subUsage'] as readonly SubUsage[]).filter((s) => typeof s?.id === 'string') : [];
   const plan = planOf(f['plan']);
   const total = u && typeof u === 'object' ? { tokens: n0(u.tokens), ...(planOf(u.plan) && { plan: planOf(u.plan) as Plan }) } : undefined;
@@ -54,8 +66,20 @@ export function rowUsage(f: Readonly<Record<string, unknown>>): RowUsage {
     ...(c && typeof c === 'object' && typeof c.tokens === 'number' && { context: { tokens: n0(c.tokens), window: n0(c.window) } }),
     ...(plan && { plan }),
     ...(total && { usage: total }),
+    ...(agents.length > 0 && { agents }),
     ...(subs.length > 0 && { subUsage: subs }),
   };
+}
+
+/** "claude-haiku-5-5" → "Haiku 5.5", "claude-opus-5-5[1m]" → "Opus 5.5 (1M)", an alias capitalised (v1 modelWords). */
+export function modelWords(id: string): string {
+  const m = /^claude-(?:(\d+)-(?:(\d)-)?)?(opus|sonnet|haiku|fable)(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?:-\d{8})?(\[1m\])?$/i.exec(id);
+  const cap = (w: string): string => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  if (m?.[3]) {
+    const v = m[4] ? `${m[4]}${m[5] ? `.${m[5]}` : ''}` : m[1] ? `${m[1]}${m[2] ? `.${m[2]}` : ''}` : '';
+    return `${cap(m[3])}${v ? ` ${v}` : ''}${m[6] ? ' (1M)' : ''}`;
+  }
+  return /^(opus|sonnet|haiku|fable)$/i.test(id) ? cap(id) : id;
 }
 
 const DAY = 864e5;
@@ -145,6 +169,10 @@ export function usageSections(u: RowUsage, turns: readonly (TurnStatsLike | unde
   const context: TaskUsageRow[] = c
     ? [{ ...row(t('shell.usage.inUse'), !c.tokens ? t('shell.usage.compacted') : c.window ? t('shell.usage.of', { n: tokenWords(c.tokens), window: tokenWords(c.window) }) : tokenWords(c.tokens), contextTip(c, t)), ...(share !== undefined && { bar: { share, hi: share >= 0.8 } }) }]
     : [];
+  const agents: TaskUsageRow[] = (u.agents ?? []).map((x) => {
+    const words = t(x.calls === 1 ? 'shell.usage.inTurnsOne' : 'shell.usage.inTurnsMany', { n: x.calls, type: x.type });
+    return row(x.model ? t('shell.usage.inTurnsOn', { agents: words, model: modelWords(x.model) }) : words, x.output ? t('shell.usage.out', { n: tokenWords(x.output) }) : t('shell.usage.none'), t('shell.usage.inTurnsTip'));
+  });
   const subRows: TaskUsageRow[] = subs.map((s) => ({
     label: s.name || s.title || t('shell.usage.subagent'),
     value: [n0(s.tokens) ? tokenWords(n0(s.tokens)) : '', ...planList(s.plan).slice(0, 1).map(([w, x]) => t('shell.usage.ofWindow', { pct: pct(x), window: windowName(w) }))].filter(Boolean).join(' · ') || t('shell.usage.none'),
@@ -155,6 +183,7 @@ export function usageSections(u: RowUsage, turns: readonly (TurnStatsLike | unde
     { title: t('shell.usage.thisTask'), rows: tokens },
     { title: t('shell.usage.plan'), rows: plan },
     { title: t('shell.usage.contextTitle'), rows: context },
+    { title: t('shell.usage.inTurns'), rows: agents },
     { title: t('shell.usage.subagents'), rows: subRows },
   ];
 }

@@ -1,4 +1,5 @@
-//! A task's usage on its list row (v1 #785, TRY-16): `tokens`, `context`, `plan` and `planOn` (its own), and on a
+//! A task's usage on its list row (v1 #785, TRY-16): `tokens`, `context`, `plan`, `planOn` and `agents` (its own; `agents`:
+//! the harness's own subagents in its turns, by type), and on a
 //! lead `subUsage` (its wisp subagents) and `usage` (the two summed: what the task's details line says).
 //!
 //! Each task's turns are folded once per turn (wisp-runtime-core `task_usage`), kept here per task, and refolded on a
@@ -33,7 +34,7 @@ impl UsageCache {
     }
 }
 
-const FIELDS: [&str; 6] = ["tokens", "context", "plan", "planOn", "subUsage", "usage"];
+const FIELDS: [&str; 7] = ["tokens", "context", "plan", "planOn", "agents", "subUsage", "usage"];
 
 /// A row's own numbers, as `fields` put them.
 pub(crate) fn own_of_row(r: &Summary) -> Own {
@@ -55,7 +56,7 @@ pub(crate) fn put(out: &mut BTreeMap<String, Value>, own: &Own, subs: &[SubUsage
         out.insert("tokens".into(), own.tokens.into());
     }
     if let Ok(Value::Object(m)) = serde_json::to_value(own) {
-        for k in ["context", "plan", "planOn"] {
+        for k in ["context", "plan", "planOn", "agents"] {
             if let Some(x) = m.get(k) {
                 out.insert(k.into(), x.clone());
             }

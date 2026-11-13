@@ -92,3 +92,35 @@ fn before_the_lead_has_a_share_its_plan_is_the_one_it_runs_on_v1_785() {
     assert!(!on_codex.same_plan);
     assert_eq!(with_subs(&lead, &[on_claude]).plan.get("five_hour"), Some(&0.03));
 }
+
+#[test]
+fn a_turn_keeps_its_cli_subagents_and_the_fold_sums_them_by_type_v1_785() {
+    use wisp_runtime_api::model::SubagentStat;
+    use wisp_runtime_core::task_usage::Agents;
+    // what the Claude parser puts on a result (plugins/claude/core tests/subagent_types.rs) lands on the turn
+    let mut hs = wisp_runtime_api::harness::HarnessStats::default();
+    hs.extra.insert(
+        "subagents".into(),
+        json!([{ "type": "web-fetch", "calls": 2, "read": 2100, "output": 27000, "model": "claude-opus-5-5", "same": true }, { "type": "", "calls": 1 }, { "type": "Plan", "calls": 0 }]),
+    );
+    let st = wisp_runtime_core::land::turn_stats(&hs);
+    assert_eq!(st.subagents, vec![SubagentStat { kind: "web-fetch".into(), calls: 2, read: 2100, output: 27000, model: "claude-opus-5-5".into() }], "a row with no type or no call is dropped");
+    assert_eq!(wisp_runtime_core::land::turn_stats(&wisp_runtime_api::harness::HarnessStats::default()).subagents, vec![]);
+    // a v1 turn from before stats.totals: its output could be the conversation's, so it reads as unknown
+    let before = wisp_runtime_core::land::subagents_of(Some(&json!([{ "type": "Explore", "calls": 1, "output": 300, "read": 40 }])), false);
+    assert_eq!(before[0].output, 0);
+    assert_eq!(before[0].read, 40);
+
+    let sa = |kind: &str, calls, output, model: &str| SubagentStat { kind: kind.into(), calls, read: 1, output, model: model.into() };
+    let t0 = turn(0, TurnStats { output_tokens: Some(500), subagents: vec![sa("Explore", 2, 300, "claude-haiku-5-5"), sa("Plan", 1, 50, "claude-opus-5-5")], ..TurnStats::default() });
+    let t1 = turn(1, TurnStats { output_tokens: Some(200), subagents: vec![sa("Explore", 1, 100, "claude-haiku-5-5"), sa("Explore", 1, 900, "claude-opus-5-5")], ..TurnStats::default() });
+    let running = Turn { idx: 2, status: TurnStatus::Running, ..Turn::default() };
+    let own = own_of(&usages(&[t0, t1, running]));
+    let a = |kind: &str, model: &str, calls, output| Agents { kind: kind.into(), model: model.into(), calls, output };
+    // by type and model, most output first
+    assert_eq!(own.agents, vec![a("Explore", "claude-opus-5-5", 1, 900), a("Explore", "claude-haiku-5-5", 3, 400), a("Plan", "claude-opus-5-5", 1, 50)]);
+    // on the row: `agents`, absent when none ran
+    let v = serde_json::to_value(&own).unwrap();
+    assert_eq!(v["agents"][1], json!({ "type": "Explore", "model": "claude-haiku-5-5", "calls": 3, "output": 400 }));
+    assert!(serde_json::to_value(own_of(&[])).unwrap().get("agents").is_none());
+}

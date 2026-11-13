@@ -261,6 +261,33 @@ pub struct TurnStats {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cache_ttl_ms: Option<u64>,
+    /// the harness's own subagents that ran inside the turn (Claude Code's Agent/Task calls), by type, most output
+    /// first; their tokens are already in the turn's. The task usage card lists them (v1 #785). Additive (2026-11-13).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<SubagentStat>>", optional)]
+    pub subagents: Vec<SubagentStat>,
+}
+
+/// One subagent type's part of a turn (v1 `stats.subagents[]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct SubagentStat {
+    /// its `subagent_type` ("Explore", "general-purpose")
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// how many runs of it
+    pub calls: u32,
+    /// what they read (input, cache reads and writes)
+    #[serde(default)]
+    pub read: u64,
+    /// what they wrote (0: not known apart from the main thread's)
+    #[serde(default)]
+    pub output: u64,
+    /// the model most of it ran on ('' not said)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(as = "Option<String>", optional)]
+    pub model: String,
 }
 
 /// The answer's rendered form: the fenced `wisp` block, parsed and checked. `v` is the parser version
