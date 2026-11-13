@@ -9,6 +9,7 @@ mod answers;
 mod calls;
 mod jobs;
 mod kind;
+mod remote;
 mod store;
 mod transfer;
 mod wakes;
@@ -52,6 +53,10 @@ pub(crate) struct State {
     layout_dirty: std::sync::atomic::AtomicBool,
     /// one writer at a time for the answers kept on a task's turns (read, change, write back)
     pub answering: tokio::sync::Mutex<()>,
+    /// a sandbox's job (`<machine>|<id>`) → the turns of it already reported from here (`crew_job.reported`)
+    pub reported: Mutex<std::collections::HashMap<String, u32>>,
+    /// one sandbox report at a time (its row can change twice before the first is read back)
+    pub reporting: tokio::sync::Mutex<()>,
 }
 
 pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -77,7 +82,7 @@ impl Ids for NewIds {
 
 impl State {
     fn new() -> Self {
-        Self { saved: Mutex::default(), jobs: Mutex::default(), store: std::sync::OnceLock::new(), dirty: Mutex::default(), layout_dirty: false.into(), answering: tokio::sync::Mutex::new(()) }
+        Self { saved: Mutex::default(), jobs: Mutex::default(), store: std::sync::OnceLock::new(), dirty: Mutex::default(), layout_dirty: false.into(), answering: tokio::sync::Mutex::new(()), reported: Mutex::default(), reporting: tokio::sync::Mutex::new(()) }
     }
 
     /// The tables, then v1's crew once, then the cache. At start, before any command.
@@ -89,10 +94,14 @@ impl State {
         let (crew, layout, jobs) = store::load(&store).await.map_err(WireError::from)?;
         *lock(&self.saved) = Saved { crew, crew_layout: layout };
         let mut j = lock(&self.jobs);
-        for (m, s) in jobs {
+        let mut r = lock(&self.reported);
+        for (m, s, n) in jobs {
+            if n > 0 {
+                r.insert(s.clone(), n);
+            }
             j.entry(m).or_default().push(s);
         }
-        drop(j);
+        drop((j, r));
         let _ = self.store.set(store);
         Ok(())
     }
@@ -162,6 +171,16 @@ impl State {
         r.insert("at".into(), serde_json::json!(at));
         if let Err(e) = store.write(move |w| w.upsert(store::JOB.kind, r).map(|_| ())).await {
             tracing::warn!(error = %e, "crew: a job");
+        }
+    }
+
+    /// The turns of a sandbox's job reported from here, kept so none is reported twice.
+    pub async fn set_reported(&self, job: &str, turns: u32) {
+        lock(&self.reported).insert(job.to_owned(), turns);
+        let Some(store) = self.store.get().cloned() else { return };
+        let job = job.to_owned();
+        if let Err(e) = store.write(move |w| store::put_reported(w, &job, turns)).await {
+            tracing::warn!(error = %e, "crew: a sandbox job's report");
         }
     }
 
@@ -237,6 +256,20 @@ fn scheduled(s: &Session) -> bool {
     l.get("later").and_then(serde_json::Value::as_array).is_some_and(|a| !a.is_empty()) || l.get("reminder").is_some_and(|r| !r.is_null())
 }
 
+/// A member's job's turn ended (here, or in a sandbox: `remote.rs`): its answer under the question that asked, and
+/// `crew.reported`. `text`: what the fact said, when the turn has no words of its own.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn report(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call, st: &State, m: &Member, job: &str, last: Option<&wisp_runtime_api::model::Turn>, text: &str, failed: bool) {
+    let mut p = last.and_then(|t| t.presentation.as_ref()).and_then(|p| calls::to_json(p).ok()).unwrap_or_default();
+    let quiet = wisp_crew_core::memory::take_crew_block(&mut p).is_some_and(|d| d.quiet);
+    // asked in another task: the answer goes under the message that asked
+    let said = last.and_then(|t| t.text.clone()).unwrap_or_else(|| text.to_owned());
+    let said = wisp_crew_core::answers::answer_text(&said, &p);
+    answers::answered(ctx, call, st, job, &said, failed).await;
+    let status = if failed { "error" } else { "done" };
+    ctx.emit(call, &wisp_crew_api::events::Reported { crew_id: m.id.clone(), member: m.name.clone(), session_id: job.to_owned(), status: status.into(), quiet, text: text.chars().take(500).collect() });
+}
+
 /// A member's job ended: `crew.reported` (ADR-0043), from the runtime's durable task facts, so a hand-off
 /// survives a restart. `quiet`: the job's crew block said there was nothing to do.
 fn reported(s: &mut Setup, st: &Arc<State>) {
@@ -248,14 +281,7 @@ fn reported(s: &mut Setup, st: &Arc<State>) {
                 let Some(id) = f.crew.clone() else { return Ok(()) };
                 let Ok(m) = st.member(&id) else { return Ok(()) };
                 let turns = calls::turns(&ctx, &call, f.session_id.as_str()).await.unwrap_or_default();
-                let last = turns.last();
-                let mut p = last.and_then(|t| t.presentation.as_ref()).and_then(|p| calls::to_json(p).ok()).unwrap_or_default();
-                let quiet = wisp_crew_core::memory::take_crew_block(&mut p).is_some_and(|d| d.quiet);
-                // asked in another task: the answer goes under the message that asked
-                let text = last.and_then(|t| t.text.clone()).unwrap_or_else(|| f.text.clone());
-                let said = wisp_crew_core::answers::answer_text(&text, &p);
-                answers::answered(&ctx, &call, &st, &f.session_id.0, &said, failed).await;
-                ctx.emit(&call, &wisp_crew_api::events::Reported { crew_id: m.id, member: m.name, session_id: f.session_id.0.clone(), status: if failed { "error".into() } else { "done".into() }, quiet, text: f.text.chars().take(500).collect() });
+                report(&ctx, &call, &st, &m, &f.session_id.0, turns.last(), &f.text, failed).await;
                 Ok(())
             }
         };
@@ -289,6 +315,7 @@ impl Plugin for CrewPlugin {
         jobs::register(s, &st);
         answers::register(s, &st);
         reported(s, &st);
+        remote::register(s, &st);
         wakes::register(s, &st);
         transfer::register(s, &st);
         let tick = st.clone();

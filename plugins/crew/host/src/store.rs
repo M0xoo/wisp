@@ -9,7 +9,7 @@ use std::sync::Arc;
 use serde_json::{Value, json};
 use wisp_crew_api::{Member, TOPIC};
 use wisp_crew_api::commands::{Layout, Point};
-use wisp_store::{Col, EntityDef, ImportFile, ImportOptions, Migration, Query, Row, Store, Writer};
+use wisp_store::{Col, EntityDef, ImportFile, ImportOptions, Migration, PatchOp, Query, Row, Store, Writer};
 
 pub const OWNER: &str = "crew";
 
@@ -21,7 +21,10 @@ pub const MIGRATIONS: &[Migration] = &[Migration::sql(
      CREATE TABLE crew_job (
        session_id TEXT PRIMARY KEY, crew_id TEXT NOT NULL, at INTEGER NOT NULL) STRICT;
      CREATE INDEX crew_job_member ON crew_job (crew_id, at);",
-)];
+),
+// a job in a sandbox (`<machine>|<id>`) is reported from here when its row says a turn ended: the turns already
+// reported, so a restart or a row that changes again (read, retitled) never reports the same turn twice
+Migration::sql(2, "ALTER TABLE crew_job ADD COLUMN reported INTEGER NOT NULL DEFAULT 0;")];
 
 fn topics(_: &Row) -> Vec<String> {
     vec![TOPIC.into()]
@@ -53,7 +56,7 @@ pub const JOB: EntityDef = EntityDef {
     kind: "crew_job",
     table: "crew_job",
     key: "session_id",
-    columns: &[("session_id", Col::Text), ("crew_id", Col::Text), ("at", Col::Int)],
+    columns: &[("session_id", Col::Text), ("crew_id", Col::Text), ("at", Col::Int), ("reported", Col::Int)],
     json_columns: &[],
     parent: None,
     seq: None,
@@ -89,8 +92,11 @@ pub fn put_point(w: &mut Writer<'_>, id: &str, p: Point) -> wisp_store::Result<(
     w.upsert(LAYOUT.kind, r).map(|_| ())
 }
 
+/// A job's row: `(member, task, turns reported from here)`.
+pub type JobRow = (String, String, u32);
+
 /// Everything at start: the members, the layout, each member's jobs (oldest first).
-pub async fn load(store: &Store) -> wisp_store::Result<(Vec<Member>, Layout, Vec<(String, String)>)> {
+pub async fn load(store: &Store) -> wisp_store::Result<(Vec<Member>, Layout, Vec<JobRow>)> {
     store
         .read_async(|r| {
             let crew = r.query(MEMBER.kind, &Query::new().asc("name"))?.into_iter().filter_map(|row| row.get("body").cloned().and_then(|b| serde_json::from_value(b).ok())).collect();
@@ -102,11 +108,19 @@ pub async fn load(store: &Store) -> wisp_store::Result<(Vec<Member>, Layout, Vec
             let jobs = r
                 .query(JOB.kind, &Query::new().asc("at"))?
                 .into_iter()
-                .filter_map(|row| Some((row.get("crew_id")?.as_str()?.to_owned(), row.get("session_id")?.as_str()?.to_owned())))
+                .filter_map(|row| {
+                    let reported = row.get("reported").and_then(Value::as_u64).and_then(|n| u32::try_from(n).ok()).unwrap_or(0);
+                    Some((row.get("crew_id")?.as_str()?.to_owned(), row.get("session_id")?.as_str()?.to_owned(), reported))
+                })
                 .collect();
             Ok((crew, layout, jobs))
         })
         .await
+}
+
+/// The turns of a job reported from here (a sandbox's job).
+pub fn put_reported(w: &mut Writer<'_>, job: &str, turns: u32) -> wisp_store::Result<()> {
+    w.patch(JOB.kind, job, &[PatchOp::Replace { path: "/reported".into(), value: json!(turns) }]).map(|_| ())
 }
 
 /// v1's config.json `crew` and `crewLayout`, into the tables (upserts: safe to run again).

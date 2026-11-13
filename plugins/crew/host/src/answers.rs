@@ -12,7 +12,7 @@ use wisp_crew_core::answers::{answers_of, ask_prompt, find, settle, slot_with, t
 use wisp_kernel::{Call, Ctx, Setup, WireError};
 
 use crate::{State, calls};
-use crate::jobs::{assign, now};
+use crate::jobs::{self, assign, now};
 
 /// A task's turns as `(turn id, its crew slot)`, in order.
 async fn turns_of(ctx: &Ctx, call: &Call, session: &str) -> Result<Vec<(String, Option<Value>)>, WireError> {
@@ -43,13 +43,29 @@ pub(crate) async fn started(ctx: &Ctx, call: &Call, st: &State, r: &ReplyTo, job
 
 /// A job reported: if it answers a message in another task, its answer goes there.
 pub(crate) async fn answered(ctx: &Ctx, call: &Call, st: &State, job: &str, text: &str, failed: bool) {
-    let Ok(s) = calls::task(ctx, call, job).await else { return };
-    let Some(r) = calls::crew_of(&s).get("reply").and_then(|v| serde_json::from_value::<ReplyTo>(v.clone()).ok()) else { return };
+    // a sandbox's job (`<machine>|<id>`) is read there: its `reply` points at the question here
+    let Ok(s) = jobs::job_task(ctx, call, job).await else { return };
+    let Some(mut r) = s.pointer(&format!("/ext/{PLUGIN_ID}/reply")).and_then(|v| serde_json::from_value::<ReplyTo>(v.clone()).ok()) else { return };
     let at = now(ctx);
     let _g = st.answering.lock().await;
+    if job.contains('|') {
+        // a sandbox's job keeps the question it was asked (this wisp can't write its slot over there): it answers the
+        // oldest entry of that task still waiting on it, the question first, then each reply in turn
+        match oldest_waiting(ctx, call, &r.session_id, job).await {
+            Some((turn, entry)) => (r.turn_id, r.entry_id) = (turn, entry),
+            None => return,
+        }
+    }
     if let Err(e) = change(ctx, call, &r.session_id, &r.turn_id, |l| settle(l, &r.entry_id, text, failed, at)).await {
         tracing::warn!(task = %r.session_id, error = %e.message, "a crew answer isn't kept under its question");
     }
+}
+
+/// The entry of `session` that `job` answers next: the oldest still running. `(turn, entry)`.
+async fn oldest_waiting(ctx: &Ctx, call: &Call, session: &str, job: &str) -> Option<(String, String)> {
+    let turns = turns_of(ctx, call, session).await.ok()?;
+    let waiting = turns.iter().flat_map(|(t, slot)| answers_of(slot.as_ref()).into_iter().map(move |a| (t, a)));
+    waiting.filter(|(_, a)| a.status == "running" && a.job.as_deref() == Some(job)).min_by_key(|(_, a)| a.asked_at).map(|(t, a)| (t.clone(), a.id))
 }
 
 /// The entry went wrong before a job could take it: say why on it.
@@ -125,13 +141,16 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
                 .await?;
                 (turn, made.ok_or_else(gone)?, job)
             };
-            // the same job carries on; its next answer lands under this reply
+            // the same job carries on (here, or in its sandbox: `<machine>|<id>`); its next answer lands under this reply
             let carried = async {
-                let s = calls::task(&ctx, &call, &job).await.map_err(|_| WireError::not_found("That job is gone."))?;
-                let mut ext = s.ext.get(PLUGIN_ID).cloned().unwrap_or_else(|| json!({}));
-                ext["reply"] = json!(ReplyTo { session_id: a.session_id.clone(), turn_id: turn.clone(), entry_id: entry.id.clone() });
-                calls::set_ext(&ctx, &call, &job, ext).await?;
-                calls::follow_up(&ctx, &call, &job, text).await
+                let s = jobs::job_task(&ctx, &call, &job).await.map_err(|_| WireError::not_found("That job is gone."))?;
+                // a job here is pointed at the reply; a sandbox's job answers the oldest entry waiting on it (`answered`)
+                if !job.contains('|') {
+                    let mut ext = s.get("ext").and_then(|x| x.get(PLUGIN_ID)).cloned().filter(Value::is_object).unwrap_or_else(|| json!({}));
+                    ext["reply"] = json!(ReplyTo { session_id: a.session_id.clone(), turn_id: turn.clone(), entry_id: entry.id.clone() });
+                    calls::set_ext(&ctx, &call, &job, ext).await?;
+                }
+                jobs::job_follow_up(&ctx, &call, &job, text).await
             };
             match carried.await {
                 Ok(()) => Ok(entry),

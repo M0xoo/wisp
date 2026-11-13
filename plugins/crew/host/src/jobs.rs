@@ -13,7 +13,7 @@ use wisp_crew_core::note::checkin_prompt;
 use wisp_crew_core::run::{job_body, job_run};
 use wisp_crew_core::queue::{Placement, checkin_already, count_checkin, drain_count, place};
 use wisp_crew_core::tick::tick;
-use wisp_kernel::{Call, Ctx, Setup, WireError};
+use wisp_kernel::{Call, Command as _, Ctx, Setup, WireError};
 use wisp_runtime_api::commands as rt;
 
 use crate::{State, calls, lock, wire};
@@ -23,10 +23,32 @@ pub(crate) fn now(ctx: &Ctx) -> i64 {
 }
 
 /// A job's task: here, or on the machine (a sandbox) it runs on (`<machine>|<id>`).
-async fn job_task(ctx: &Ctx, call: &Call, id: &str) -> Result<Value, WireError> {
+pub(crate) async fn job_task(ctx: &Ctx, call: &Call, id: &str) -> Result<Value, WireError> {
     match id.split_once('|') {
         Some((machine, task)) => calls::routed::<rt::Get>(ctx, call, machine, json!({ "id": task })).await,
         None => calls::to_json(&calls::task(ctx, call, id).await?),
+    }
+}
+
+/// A job's turns, here or in its sandbox.
+pub(crate) async fn job_turns(ctx: &Ctx, call: &Call, id: &str) -> Result<Vec<wisp_runtime_api::model::Turn>, WireError> {
+    match id.split_once('|') {
+        Some((machine, task)) => {
+            let v = calls::routed::<rt::Turns>(ctx, call, machine, calls::to_json(&rt::TurnsArgs { id: task.into(), before: None, limit: None, masked: None })?).await?;
+            serde_json::from_value(v).map_err(|e| WireError::internal(format!("{}: {e}", rt::Turns::ID)))
+        }
+        None => calls::turns(ctx, call, id).await,
+    }
+}
+
+/// A crew follow-up to a job, here or in its sandbox (queued behind a running turn).
+pub(crate) async fn job_follow_up(ctx: &Ctx, call: &Call, id: &str, text: String) -> Result<(), WireError> {
+    match id.split_once('|') {
+        Some((machine, task)) => {
+            let a = rt::FollowUpArgs { id: task.into(), text, queue: Some(true), by: Some("crew".into()), ..rt::FollowUpArgs::default() };
+            calls::routed::<rt::FollowUp>(ctx, call, machine, calls::to_json(&a)?).await.map(|_| ())
+        }
+        None => calls::follow_up(ctx, call, id, text).await,
     }
 }
 
@@ -97,13 +119,20 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
         None => calls::to_json(&ctx.run::<rt::Create>(call, calls::args_of::<rt::Create>(args)?).await?)?,
     };
     if let Some(id) = made.get("id").and_then(Value::as_str) {
-        st.add_job(&m.id, id, now(ctx)).await;
+        // the entry names its job before the job is kept: a sandbox's row seen in between finds whom it answers
         if let Some(r) = &w.reply {
             crate::answers::started(ctx, call, st, r, id).await;
         }
+        st.add_job(&m.id, id, now(ctx)).await;
+        if let Some((machine, task)) = id.split_once('|') {
+            crate::remote::check(ctx, st, machine, task).await;
+        }
     }
-    let session = job_task(ctx, call, made.get("id").and_then(Value::as_str).unwrap_or_default()).await.ok();
-    Ok(session.unwrap_or(made))
+    let id = made.get("id").cloned().unwrap_or_default();
+    let mut session = job_task(ctx, call, id.as_str().unwrap_or_default()).await.unwrap_or(made);
+    // a sandbox's job is named as it's kept here (`<machine>|<id>`), not by its id over there
+    session["id"] = id;
+    Ok(session)
 }
 
 /// A job to start or queue.

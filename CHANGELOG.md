@@ -166,6 +166,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A crew member whose jobs run in a sandbox answers under your question, and takes your reply.** Their answer used to stay on the sandbox, and replying said *That job is gone.* Now the answer lands under the message that asked, and a reply carries on the same job in its sandbox, its answer under the reply.
 - **.env values never leave your computer.** Hide .env values (Settings → Privacy) now hides them on the server, as v1 did: what a task shows of a `.env` file (a step that read it, an edit to it, a code or diff block about it, the answer's text) reaches the app, `wisp attach`, other computers, a grid box, MCP tools, the CLI and share links as `KEY=••••`. Reveal asks for that one item and shows it in place; Hide drops it. A share never carries one, even with the setting off. A capped agent can't reveal one. A `.env` file with Windows line endings is masked too (v1 kept its values).
 
 - **A trigger on a finished task fires once per task.** A pipeline's review finishing set the same trigger off a second time when the trigger's own run had already ended, so one finished task could start two follow-up tasks. A review is a step of the task it reviews now, and triggers skip it (the trigger log says why), the same way the pipeline skips trigger-started tasks. A run that ends also no longer overwrites what the trigger recorded meanwhile.

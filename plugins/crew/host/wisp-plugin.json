@@ -17,6 +17,7 @@
     "sandbox:place",
     "sandbox:own",
     "machines:route",
+    "machines:sessions",
     "runtime:followUp",
     "runtime:setExt",
     "runtime:turn.setExt",
