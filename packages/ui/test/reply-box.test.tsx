@@ -80,3 +80,30 @@ test('send keeps the caret in the reply box while the task moves to working_v1_s
   expect(document.activeElement).toBe(ta);
   expect(host.querySelector('[data-kit="reply-box"]')?.hasAttribute('data-awake')).toBe(true);
 });
+
+// F-task-49 (v1 0.42.0 "One click when you leave the follow-up box"): a suggestion above the awake box takes the first
+// click: its own handler runs while the box is still awake (nothing moved), and the box folds after it.
+test('a_suggestion_above_the_open_reply_box_takes_one_click_v1_0_42', () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const seen: boolean[] = [];
+  dispose = render(
+    () => (
+      <>
+        <button type="button" data-kit="next-chip" onClick={() => seen.push(!!document.querySelector('[data-kit="reply-box"][data-awake]'))}>
+          Add a test
+        </button>
+        <ReplyBox placeholder="Follow up" value="" onInput={() => {}} onSend={() => {}} attach="Attach" mode={{ label: 'Auto', title: 'Mode' }} runner={{ title: 'Claude Code' }} team="Team" goal="Goal" later="Later" send="Send" />
+      </>
+    ),
+    host,
+  );
+  const chip = host.querySelector('[data-kit="next-chip"]') as HTMLButtonElement;
+  const box = host.querySelector('[data-kit="reply-box"]') as HTMLElement;
+  (host.querySelector('textarea') as HTMLTextAreaElement).focus();
+  chip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+  chip.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  chip.click();
+  expect(seen).toEqual([true]); // one click, and the box hadn't folded under it
+  expect(box.hasAttribute('data-awake')).toBe(false);
+});

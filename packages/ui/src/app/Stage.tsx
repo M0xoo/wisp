@@ -3,7 +3,7 @@
 // the sidebar button and the project chips; its body: New task and the list), the main pane, and the
 // grip on the sidebar's edge. Split (≥ 900 px) shows them side by side; stack shows one page.
 // Every element carries v1's PARTS name (web/js/spell-schema.js) as its data-part.
-import { For, Show, type JSX } from 'solid-js';
+import { createSignal, For, Show, type JSX } from 'solid-js';
 import { flag, type PartName } from '../core/props.ts';
 import { reorderable, type OnReorder } from '../core/reorder.ts';
 import { Icon } from '../content/Icon.tsx';
@@ -214,6 +214,9 @@ export interface SidebarHeadProps {
   readonly onReorder?: OnReorder;
   readonly onManage?: () => void;
   readonly accountAct?: Act;
+  /** you on the grid, in the avatar (v1 split.js paintMe): your initial (and picture), ringed while the grid is reachable,
+   *  grey when this wisp isn't connected; absent: never signed in, the person glyph */
+  readonly me?: MeFace;
   readonly manageAct?: Act;
   /** what plugins put in the head (v1's spell SLOTS on #topbar): `lead` sits beside the brand, `chips`
    * after the project chips; brand, search, account and view replace the built-in one when given */
@@ -225,6 +228,27 @@ export interface SidebarHeadProps {
     readonly account?: JSX.Element;
     readonly view?: JSX.Element;
   };
+}
+
+export interface MeFace {
+  readonly initial: string;
+  readonly avatar?: string;
+  /** on: the grid answers; off: signed in, not reachable now; out: signed out (the last account, greyed) */
+  readonly state: 'on' | 'off' | 'out';
+}
+
+/** v1 .sf-av: the picture over the initial; a picture that fails to load leaves the initial (no :has(), design/layout.md) */
+function MeAvatar(props: { readonly me: MeFace | undefined }): JSX.Element {
+  const [broken, setBroken] = createSignal<string | undefined>(undefined);
+  return (
+    <Show when={props.me} fallback={<Icon name="user" />}>
+      {(m) => (
+        <Show when={m().avatar && broken() !== m().avatar ? m().avatar : undefined} fallback={<b>{m().initial}</b>}>
+          {(src) => <img src={src()} alt="" referrerpolicy="no-referrer" onError={() => setBroken(src())} />}
+        </Show>
+      )}
+    </Show>
+  );
 }
 
 /** v1's row of project chips (draggable into your order): what the head shows without a switcher. */
@@ -330,8 +354,8 @@ export function SidebarHead(props: SidebarHeadProps): JSX.Element {
             act={props.accountAct ?? { onClick: () => props.onAccount?.() }}
             render={(trigger) => (
               <button type="button" {...trigger()} data-kit="me-btn" data-part="sidebar.foot" title={props.accountLabel} aria-label={props.accountLabel}>
-                <span data-kit="sf-av" data-part="topbar.account">
-                  <Icon name="user" />
+                <span data-kit="sf-av" data-part="topbar.account" data-state={props.me?.state}>
+                  <MeAvatar me={props.me} />
                 </span>
               </button>
             )}

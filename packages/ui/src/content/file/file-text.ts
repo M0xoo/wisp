@@ -26,3 +26,36 @@ export function nameAt(text: string, offset: number): string | undefined {
   const name = text.slice(a, b);
   return name && !/^[0-9]/.test(name) ? name : undefined;
 }
+
+/** The text's metrics, as the editor lays it out: where its first character starts and how big one is (monospace). */
+export interface TextBox {
+  readonly padTop: number;
+  readonly padLeft: number;
+  readonly lineHeight: number;
+  readonly charWidth: number;
+}
+
+/** The line and column (1-based) under a point inside the text box, or undefined off a name (v1 editor.js hoverOn:
+ *  only a word character asks the language server). */
+export function nameCellAt(text: string, x: number, y: number, m: TextBox, tabSize = 2): { readonly line: number; readonly col: number } | undefined {
+  if (m.lineHeight <= 0 || m.charWidth <= 0 || x < m.padLeft) return undefined;
+  const line = Math.floor((y - m.padTop) / m.lineHeight) + 1;
+  const cell = Math.floor((x - m.padLeft) / m.charWidth); // 0-based, on screen
+  const l = text.split('\n')[line - 1];
+  if (line < 1 || !l) return undefined;
+  // a tab takes the cells up to its next stop (the editor's tab-size): the screen cell back to the character
+  let at = 0;
+  let i = 0;
+  for (; i < l.length; i++) {
+    const w = l[i] === '\t' ? tabSize - (at % tabSize) : 1;
+    if (cell < at + w) break;
+    at += w;
+  }
+  if (i >= l.length || !/[\w$]/.test(l[i] ?? '')) return undefined;
+  return { line, col: i + 1 };
+}
+
+/** A hover's words as the tip shows them: the server's markdown fences dropped (v1 editor.js), '' for nothing. */
+export function hoverWords(raw: string | undefined): string {
+  return (raw ?? '').replace(/^```\w*\n?|\n?```$/gm, '').trim();
+}

@@ -46,3 +46,18 @@ test('an /after plan says what it waits for, as v1 did_v1_after_row', async () =
   });
   expect(listPlan({ id: 'p:2', body: { id: 'p:2', kind: 'task', setAt: 5, draft: true, body: { prompt: 'tidy' } } })).not.toHaveProperty('after');
 });
+
+test('done_counts_every_task_and_lists_the_older_ones_past_60_v1_0_24', async () => {
+  // F-task-5 (v1 0.24.0: the heading said 60 and older tasks never showed). v2 keeps every row in one VirtualList (only
+  // the rows on screen are in the DOM), so the count is the real total and scrolling reaches the oldest.
+  const { flatten } = await import('../src/model/flat.ts');
+  const task = (k: string) => ({ kind: 'task' as const, key: k as never, s: {} as never });
+  const none = { needs: [], working: [], scheduled: [], drafts: [], forLater: [], done: [], archived: [] };
+  const done = Array.from({ length: 250 }, (_, i) => task(`d${i}`));
+  const items = flatten({ ...none, done, archived: done.slice(0, 70) }, { toggled: new Set(['done', 'archived']), split: false });
+  expect(items.find((i) => i.t === 'head' && i.id === 'done')).toMatchObject({ count: 250, open: true });
+  expect(items.find((i) => i.t === 'head' && i.id === 'archived')).toMatchObject({ count: 70 });
+  const rows = items.filter((i) => i.t === 'entry' && i.section === 'done');
+  expect(rows).toHaveLength(250);
+  expect(rows.at(-1)).toMatchObject({ entry: { key: 'd249' } });
+});

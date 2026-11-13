@@ -116,6 +116,15 @@ export function folded<T>(turns: readonly T[], open: boolean, keep = 3): { hidde
   return { hidden: turns.length - keep, shown: turns.slice(-keep) };
 }
 
+/** v1 turns.js renderBody: a turn landing while you read never pushes what you read behind Show earlier (F-page-44).
+ *  `from`: the first turn shown when the reader left the end; the window keeps it and grows instead of sliding. */
+export function foldedFrom<T extends { readonly id: string }>(turns: readonly T[], open: boolean, from: string | undefined, keep = 3): { hidden: number; shown: readonly T[] } {
+  const f = folded(turns, open, keep);
+  if (from === undefined || f.hidden === 0) return f;
+  const i = turns.findIndex((t) => t.id === from);
+  return i < 0 || i >= f.hidden ? f : { hidden: i, shown: turns.slice(i) };
+}
+
 /** The crew member a task is a job of (`body.ext["wisp.crew"].id`), or undefined. */
 export function crewOf(s: Pick<SessionRow, 'body'>): string | undefined {
   const c = (s.body?.['ext'] as Readonly<Record<string, unknown>> | undefined)?.['wisp.crew'] as { id?: unknown } | undefined;

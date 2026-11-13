@@ -116,7 +116,8 @@ export function RunLine(props: { readonly run: RunView; readonly s: SessionRow }
       }
       name={name()}
       model={props.run.model}
-      title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, props.run.title, env.now())}
+      // the tip names the harness as its plugin registered it, as the line does
+      title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, { ...props.run.title, vars: { ...props.run.title.vars, agent: name() } }, env.now())}
       where={{ icon: props.run.sandbox ? 'box' : props.run.remote ? 'server' : 'laptop', text: props.run.where }}
     />
   );

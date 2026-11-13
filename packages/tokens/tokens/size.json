@@ -38,6 +38,7 @@
   "menu-min": "220px",
   "menu-max": "360px",
   "tooltip-max": "280px",
+  "hover-max": "240px",
   "popover": "320px",
   "toast": "440px",
   "dialog-sm": "400px",

@@ -37,6 +37,15 @@ const grep = defineCommand<{ key: EntityKey; id: string; def: string }, { path: 
   optimistic: 'none',
   pending: 'Go to definition',
 });
+// wisp.lsp's hover (v1 POST /sessions/:id/lsp {op: hover}): what the name is, from the task's language server; with
+// none installed for the file's language it answers without `hover`, and the tip stays away
+const lspHover = defineCommand<{ key: EntityKey; id: string; path: string; text: string; line: number; col: number }, { hover?: string }>({
+  id: 'lsp.ask',
+  owner: (a) => a.key,
+  wire: (a) => ({ id: a.id, op: 'hover', path: a.path, text: a.text, line: a.line, col: a.col }),
+  optimistic: 'none',
+  pending: 'the hover tip',
+});
 const blame = defineCommand<{ key: EntityKey; repo: string; path: string }, { byLine?: BlameLine[] }>({
   id: 'history.blame',
   owner: (a) => a.key,
@@ -178,6 +187,12 @@ export function FilePane(props: { readonly path: string }): JSX.Element {
             line={place().line}
             onSelectLines={setLines}
             onDefinition={goTo}
+            onHover={(at) =>
+              task.client.run(lspHover, { key: task.key, id: task.id, path: path(), text: text(), ...at }).then(
+                (r) => r.hover,
+                () => undefined,
+              )
+            }
             aria-label={t('shell-task.file.label', { path: path() })}
             part="side.file.view"
           />

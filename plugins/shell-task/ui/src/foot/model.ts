@@ -25,7 +25,8 @@ export function askOf(row: unknown): Ask | undefined {
   const options = Array.isArray(a['options']) ? a['options'].map((o) => (typeof o === 'string' ? o : str((o as { label?: unknown })?.label))).filter(Boolean) : [];
   const question = str(a['question']);
   if (!question) return undefined;
-  const approval = a['kind'] === 'approval' || options.some((o) => o.toLowerCase() === 'allow');
+  // runtime's ask carries `permission` for a live approval (the tool, its detail, what it would do)
+  const approval = !!a['permission'] || a['kind'] === 'approval' || options.some((o) => o.toLowerCase() === 'allow');
   return { id: str(a['id']) || question, question, options, approval };
 }
 

@@ -13,6 +13,7 @@ export {
   type ProjectChip,
   type RailMember,
   type SidebarHeadProps,
+  type MeFace,
   type SplitTopProps,
   type StagePage,
   type StageProps,
@@ -59,6 +60,7 @@ export { StuffFrame, type StuffFrameProps } from './StuffFrame.tsx';
 export { RunPreview, type RunPreviewLabels, type RunPreviewProps } from './RunPreview.tsx';
 export { CommentCard, CommentTray, type CommentCardProps, type CommentTrayProps } from './Comments.tsx';
 export { SpareCards, type SpareCard, type SpareCardsProps } from './Spare.tsx';
+export { HomeUsage, type HomeUsageGroup, type HomeUsageProps, type HomeUsageWindow } from './HomeUsage.tsx';
 export { RailCardBody, headingForCard, stepRow, type RailCardBodyProps, type RailCardRow } from './RailCard.tsx';
 export { AutoPop, type AutoPopProps, type AutoPopRow } from './AutoPop.tsx';
 export { ProjectsSheet, type ProjectsSheetProps, type ProjectsRow, type ProjectsPlace } from './ProjectsSheet.tsx';

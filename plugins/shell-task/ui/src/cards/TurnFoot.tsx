@@ -8,6 +8,7 @@ import { Stack, useSignal } from '@wisp/ui';
 import { useShell } from '../shell.ts';
 import { HaltCard } from './HaltCard.tsx';
 import { HeldCard } from './HeldCard.tsx';
+import { agentsOf, type AgentStats } from './agents.ts';
 import { docOf, haltOf, heldOf, receiptOf, whatChanged, type TurnDoc } from './model.ts';
 import { Receipt } from './Receipt.tsx';
 import { handoffTargets, limitTarget, type AgentLike, type Target } from './vendors.ts';
@@ -96,6 +97,8 @@ export default function TurnFoot(props: ExtensionProps): JSX.Element {
           </Show>
           <Show when={whatChanged(siblings(), d(), nameOf(from()))}>{(line) => <WhatChanged line={line()} t={t} />}</Show>
           <Show when={receiptOf(d(), t)}>{(r) => <Receipt line={r()} />}</Show>
+          {/* where the tokens went: Claude Code's own subagents, by type and model (v1 turns.js agentsHtml) */}
+          <Show when={agentsOf(d().stats as AgentStats | null | undefined, t)}>{(a) => <Receipt line={a()} part="turn.agents" />}</Show>
         </Stack>
       )}
     </Show>

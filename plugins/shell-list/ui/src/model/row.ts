@@ -154,15 +154,6 @@ function statusPill(s: SessionRow): PillView | undefined {
   return { id: 'status', label: tx(`shell-list.status.${k}`), tone: STATUS_TONE[k] ?? 'neutral', dot: true };
 }
 
-function prPill(s: SessionRow): PillView | undefined {
-  if (s.shipping) return { id: 'pr', label: tx('shell-list.pill.shipping'), tone: 'accent', icon: 'send', live: true, dot: true };
-  const pr = s.pr;
-  if (!pr) return undefined;
-  const tone: Tone = pr.state === 'merged' ? 'good' : pr.state === 'closed' ? 'neutral' : pr.conflict || pr.checks === 'fail' ? 'bad' : pr.checks === 'pending' ? 'warn' : 'accent';
-  const state = pr.state === 'open' ? (pr.draft ? 'draft' : pr.conflict ? 'conflict' : pr.checks === 'fail' ? 'failing' : 'open') : pr.state;
-  return { id: 'pr', label: tx('shell-list.pill.pr', { n: pr.number }), tone, icon: 'merge', variant: 'outline', title: tx(`shell-list.pr.${state}`, { n: pr.number }) };
-}
-
 /** The goal's ring and round, and the overlap mark (v1 feed.js: after the state pill). */
 function goalAndOverlap(s: SessionRow): Pick<RowView, 'goal' | 'overlap'> {
   const out: { goal?: RowView['goal']; overlap?: RowView['overlap'] } = {};
@@ -184,8 +175,7 @@ export function pillsOf(s: SessionRow): PillView[] {
   if (s.sideOf) out.push({ id: 'side', label: tx('shell-list.pill.side'), tone: 'neutral', icon: 'discuss', variant: 'outline', title: tx('shell-list.pill.side-tip', { title: s.sideOf.title }) });
   // v1 feed.js autoPill: the run Auto's best of two picked
   if (s.autoPick && !s.pending) out.push({ id: 'autoPick', label: tx('shell-list.pill.pick'), tone: 'accent', icon: 'spark', title: tx('shell-list.pill.pick-tip', { why: s.autoPick.why }) });
-  const pr = prPill(s);
-  if (pr) out.push(pr);
+  // the PR's pill (and Shipping) is wisp.ship's own, on `shell.row:head` (v1 ship.js prPill)
   if (s.pinned) out.push({ id: 'pinned', label: tx('shell-list.pill.pinned'), tone: 'neutral', icon: 'pin', variant: 'outline' });
   return out;
 }

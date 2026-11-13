@@ -31,8 +31,9 @@ import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot, useClients, usePluginClient } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
-import { changeFigures, duration, folded, longTime, nextNeedsYou, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
+import { changeFigures, duration, foldedFrom, longTime, nextNeedsYou, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { coldHint, compactItem } from './cold.ts';
+import { replyPlaceholderKey } from './reply-hint.ts';
 import { goalGate } from './goal-gate.ts';
 import { feedbackCommand, isFeedback } from './feedback.ts';
 import { readComments } from './comment-text.ts';
@@ -198,10 +199,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     // after a reload the kept places are still loading from disk
     void places.ready.then(() => {
       const p = (places.value() as unknown as Readonly<Record<string, Place>> | undefined)?.[key];
-      if (!p) return;
       requestAnimationFrame(() => {
         const el = bodyEl;
-        if (el) el.scrollTop = scrollFor(p, el, turnTops(el));
+        if (el && p) el.scrollTop = scrollFor(p, el, turnTops(el));
+        // placed away from the end (its kept place, or its top): what shows stays as turns land (F-page-44)
+        if (el) keepShown(el);
       });
     });
   });
@@ -268,7 +270,14 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const [picking, setPicking] = createSignal(false);
   // older turns fold away (v1 transcript.js): Show earlier opens them for this view
   const [unfolded, setUnfolded] = createSignal(false);
-  const fold = createMemo(() => folded(turns(), unfolded()));
+  // once the reader has left the end, the first turn shown stays shown as turns land (F-page-44): the window grows
+  // instead of sliding, for as long as the task is open (v1's showAll, set the same way, stayed too)
+  const [keepFrom, setKeepFrom] = createSignal<string | undefined>(undefined);
+  const fold = createMemo(() => foldedFrom(turns(), unfolded(), keepFrom()));
+  const keepShown = (el: HTMLElement): void => {
+    if (keepFrom() === undefined && el.scrollHeight - el.scrollTop - el.clientHeight >= 2) setKeepFrom(fold().shown[0]?.id);
+  };
+  const onBodyScroll = (e: Event): void => keepShown(e.currentTarget as HTMLElement);
   // the older turns came as stubs (v1 #788): opening one asks for only that turn
   const opener = turnOpener({
     scope,
@@ -664,7 +673,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
         return (
           <>
             <TaskBody
-              bodyRef={(el) => (bodyEl = el)}
+              bodyRef={(el) => {
+                bodyEl = el;
+                el.addEventListener('scroll', onBodyScroll, { passive: true });
+                onCleanup(() => el.removeEventListener('scroll', onBodyScroll));
+              }}
               details={
                 <TaskDetails
                   harness={t('shell.task.harness', { name: h().name })}
@@ -956,7 +969,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                   {/* what waits on you, over the reply box (shell-task's question and queue): `shell.task:foot` */}
                   <Slot input="shell.task:foot" layout="stack" id={key} session={() => s() as never} />
                   <ReplyBox
-                    placeholder={t('shell.task.reply', { name: h().name })}
+                    placeholder={t(replyPlaceholderKey(row()), { name: h().name })}
                     value={text()}
                     onInput={(v) => {
                       setText(v);

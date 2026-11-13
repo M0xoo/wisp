@@ -1,7 +1,7 @@
 // The row's third line (F-task-6, v1 feed.js runLine): harness, the model's label, where it ran; the tip names the
 // model ("Default model" when none was picked), the effort as "<x> thinking" and the place as "on <place>".
 import { expect, test } from 'vitest';
-import { runOf, type RowContext } from '../src/model/row.ts';
+import { pillsOf, runOf, type RowContext } from '../src/model/row.ts';
 import type { SessionRow } from '../src/types.ts';
 
 const row = (o: Partial<SessionRow>): SessionRow => ({ id: 's1', title: 'Fix login', agent: 'claude', state: 'review', createdAt: 0, updatedAt: 0, ...o }) as SessionRow;
@@ -22,4 +22,15 @@ test('a_rows_run_line_says_harness_model_label_and_place_with_v1s_tip', () => {
   // no run line for wisp's own rows and reminders
   expect(runOf(row({ agent: 'wisp' }), c)).toBeUndefined();
   expect(runOf(row({ kind: 'reminder' } as Partial<SessionRow>), c)).toBeUndefined();
+});
+
+test('a_crashed_limited_or_refused_rows_pill_says_which_v1_halt', async () => {
+  // F-task-14: the summary's `halt` (runtime core summarize) beats the agent's "Blocked"; a finished verdict keeps its own word
+  const { flatSession } = await import('../src/model/wire.ts');
+  const label = (o: Record<string, unknown>): unknown => pillsOf(flatSession({ id: 's1', state: 'review', summary: { status: 'blocked', ...o } } as never)).find((p) => p.id === 'status')?.label;
+  expect(label({ halt: 'limit' })).toEqual({ key: 'shell-list.status.limit' });
+  expect(label({ halt: 'refused' })).toEqual({ key: 'shell-list.status.refused' });
+  expect(label({ halt: 'failed' })).toEqual({ key: 'shell-list.status.failed' });
+  expect(label({})).toEqual({ key: 'shell-list.status.blocked' });
+  expect(label({ status: 'done', halt: 'failed' })).toEqual({ key: 'shell-list.status.done' });
 });

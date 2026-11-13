@@ -36,3 +36,14 @@ export function dockShift(o: { readonly scrollHeight: number; readonly scrollTop
   if (o.dock < 1 && o.view > -1) return 0;
   return atTail({ scrollHeight: o.scrollHeight - o.dock, scrollTop: o.scrollTop, clientHeight: o.clientHeight - o.view }) ? 'end' : 0;
 }
+
+/** The turns grew since the last frame (a turn landed, the running one's answer or steps came in). Only the tail moves
+ *  the view (v1 turns.js renderBody `follow`, docs/feed.md): there a turn that just landed is shown from its start
+ *  ('land'), anything else growing keeps the end in view ('end'). A reader further up stays on what they read (F-page-44):
+ *  browsers with scroll anchoring already hold it (`anchors`); without (WebKit) the turn under the reading line moved
+ *  from `held.from` to `held.to` (px from the view's top), so that is the shift to undo. Pure. */
+export function turnsShift(o: { readonly tail: boolean; readonly anchors: boolean; readonly landed: boolean; readonly held?: { readonly from: number; readonly to: number } | undefined }): 'land' | 'end' | number {
+  if (o.tail) return o.landed ? 'land' : 'end';
+  if (o.anchors || !o.held) return 0;
+  return o.held.to - o.held.from;
+}

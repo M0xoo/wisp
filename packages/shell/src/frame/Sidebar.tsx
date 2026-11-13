@@ -3,7 +3,7 @@
 // sections (Needs you, Working, Done), each task a row (the kit's TaskCard). The crew rail beside it.
 // Opening a row navigates at once (design/feedback.md); Mark done is optimistic through the command.
 
-import { For, Show, createMemo, createSignal, type JSX } from 'solid-js';
+import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import type { EntityKey, Json } from '@wisp/client';
 import { forLater, markRead, setState } from './commands.ts';
 import { openSwitcher } from './project-switch.ts';
@@ -17,6 +17,7 @@ import { rowSlots, useHeadSlots } from './slots.tsx';
 import { harnessOf } from './harness.ts';
 import { SECTIONS, crewOf, flatRow, goalOf, longTime, overlapOf, projectOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
 import { useProjects } from './projects.ts';
+import { meOf, type PeerDoc, type StatusDoc } from './me.ts';
 import { Slot, useExtensions, usePluginClient } from '../slot.tsx';
 
 interface CrewRow {
@@ -74,7 +75,15 @@ export function Rail(): JSX.Element {
 export function Head(props: { readonly filter: () => string; readonly setFilter: (id: string) => void }): JSX.Element {
   const shell = useShell();
   const sessions = useSessions();
-  const { list: projects, reorder } = useProjects(shell, usePluginClient('shell').home);
+  const pc = usePluginClient('shell');
+  const { list: projects, reorder } = useProjects(shell, pc.home);
+  // you on the grid (v1 split.js meInfo): wisp.machines' rows, on its topic while the head shows
+  const meScope = pc.scope.child('sidebar-me');
+  onCleanup(() => meScope.dispose());
+  pc.watch(pc.home, 'machines' as never, meScope);
+  const peers = useSignal(shell.client.entities.list<PeerDoc>('machines_peer'));
+  const statuses = useSignal(shell.client.entities.list<StatusDoc>('machines_status'));
+  const me = createMemo(() => meOf(peers(), statuses()));
   const needs = (pred: (s: SessionRow) => boolean): number => sessions().filter((s) => sectionOf(s) === 'needs' && pred(s)).length;
   const needLabel = (n: number): string => shell.t(n === 1 ? 'shell.side.need.one' : 'shell.side.need.other', { count: n });
   const chips = createMemo<ProjectChip[]>(() => {
@@ -91,14 +100,28 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
   const nav = useSignal(shell.nav);
   const homeOn = (): boolean => nav().main.kind === 'home';
   const sheet = (pane: string | undefined): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: pane === undefined ? {} : { pane } } });
+  // v1 #meMenu: you first, then Machines, Automations and Settings (the theme after, v2's)
   const account = (): MenuEntry[] => [
-    { value: 'settings', label: shell.t('shell.account.settings'), icon: 'settings', part: 'topbar.settings' },
-    { value: 'machines', label: shell.t('shell.account.machines'), icon: 'laptop' },
+    {
+      value: 'me',
+      label: me().who || shell.t('shell.me.grid'),
+      hint: me().state === 'out' ? shell.t('shell.me.out') : me().sub,
+      icon: 'user',
+      part: 'topbar.me',
+    },
+    { kind: 'separator' },
+    { value: 'machines', label: shell.t('shell.account.machines'), icon: 'server' },
     { value: 'automations', label: shell.t('shell.account.automations'), icon: 'bolt' },
+    { value: 'settings', label: shell.t('shell.account.settings'), icon: 'settings', part: 'topbar.settings' },
     { kind: 'separator' },
     { value: 'theme', label: shell.t(shell.theme.resolved() === 'dark' ? 'shell.cmd.theme.light' : 'shell.cmd.theme.dark'), icon: shell.theme.resolved() === 'dark' ? 'sun' : 'moon' },
   ];
+  // v1 meBtn's title: "<you> · Machines, Automations and Settings"
+  const meLabel = (): string => (me().who ? shell.t('shell.me.title', { who: me().who }) : shell.t('shell.side.account'));
   const onAccount = (v: string): void => {
+    const href = me().href;
+    // signed in: the grid's account page; signed out (or never): Settings → Cloud, to sign in
+    if (v === 'me') return href && me().state !== 'out' ? shell.platform.openExternal(href) : sheet('cloud');
     if (v === 'theme') void shell.theme.set(shell.theme.resolved() === 'dark' ? 'light' : 'dark');
     else if (v === 'machines') shell.navigate({ t: 'openView', id: 'machine.this' as never, params: null as Json });
     // Settings on a phone opens on its list, as v1's did; a wider window shows General beside the list
@@ -110,7 +133,6 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
       slots={slots()}
       brandLabel={shell.t('shell.brand')}
       searchLabel={shell.t('shell.side.search')}
-      accountLabel={shell.t('shell.side.account')}
       viewLabel={shell.t('shell.side.view')}
       manageLabel={shell.t('shell.side.manage')}
       chips={chips()}
@@ -123,6 +145,8 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
       switchLabel={`${shell.t('shell.projects.switch')} (${displayCombo('mod+p', shell.platform.apple).join('')})`}
       onReorder={reorder}
       accountAct={{ menu: { items: account(), onSelect: onAccount } }}
+      accountLabel={meLabel()}
+      {...(me().initial !== undefined && { me: { initial: me().initial as string, state: me().state, ...(me().avatar !== undefined && { avatar: me().avatar as string }) } })}
       manageAct={{
         menu: {
           items: [
