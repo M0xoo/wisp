@@ -258,7 +258,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           ...(group && { group }),
           mode: mode(),
           at: Date.now(),
-          ...(p && { cwd, projectId: p.id, color: p.color }),
+          ...(p && { cwd, projectId: p.id, color: p.color, worktree: worktree() }),
           ...(g && { goal: g }),
           ...(attachments.length > 0 && { attachments }),
           ...(agent() !== 'auto' && model() && { model: model() }),
@@ -278,7 +278,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
             mode: mode(),
             at: Date.now(),
             group: group ?? '',
-            ...(p && { cwd, projectId: p.id, color: p.color }),
+            // each run of a compare in its own checkout, or they'd edit one folder (v1 forced it)
+            ...(p && { cwd, projectId: p.id, color: p.color, worktree: true }),
             ...(attachments.length > 0 && { attachments }),
           })
           .catch(() => undefined);
@@ -488,6 +489,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           },
         }}
       />
+      {/* usage at a glance under the prompt box (wisp.budget's plan windows), v1 #790 .sh-usage */}
+      <Slot input="shell.home:usage" layout="contents" />
       {/* opened from the Auto pick (v1 openPop); before Auto answers it says it's still looking, then fills in */}
       <Show when={autoPop()}>
         {(_) => {

@@ -933,6 +933,108 @@
     height: 13px;
   }
 
+  /* v1 #790 .sh-usage / .hu-*: usage at a glance under the prompt box, one quiet row, a thin meter per window; the
+     row opens Settings → Usage. Accounts wrap as wholes, never mid-meter. What needs you sits 22px under it, not 30. */
+  /* in a display: contents slot, so it takes Home's column width itself */
+  [data-kit='home-usage'] {
+    flex: none;
+    width: 100%;
+    max-width: 760px;
+    margin-top: 10px;
+    margin-bottom: -8px;
+    display: flex;
+  }
+  /* a Wrap group: its accounts wrap as wholes (each nowrap) */
+  [data-kit='hu-row'][data-part='home.usage.wrap'] {
+    flex-wrap: wrap;
+  }
+  [data-kit='hu-row'] {
+    display: flex;
+    align-items: center;
+    column-gap: 20px;
+    row-gap: 6px;
+    max-width: 100%;
+    padding: 6px 10px;
+    border-radius: 9px;
+    border: var(--size-hairline) solid transparent;
+    text-align: left;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+  [data-kit='hu-row']:hover {
+    background: var(--surface);
+    border-color: var(--line);
+  }
+  [data-kit='hu-row']:focus-visible {
+    border-color: var(--line-2);
+  }
+  [data-kit='hu-acct'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+  }
+  [data-kit='hu-logo'] {
+    display: inline-flex;
+    width: 13px;
+    height: 13px;
+    color: var(--ink-2);
+    opacity: 0.85;
+  }
+  [data-kit='hu-logo'] > img,
+  [data-kit='hu-logo'] > [data-kit='icon'] {
+    width: 100%;
+    height: 100%;
+  }
+  [data-kit='hu-acc'] {
+    margin-left: -6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  [data-kit='hu-win'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+  [data-kit='hu-l'] {
+    color: var(--muted);
+  }
+  [data-kit='hu-bar'] {
+    width: 36px;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--ink) 9%, transparent);
+    overflow: hidden;
+  }
+  [data-kit='hu-bar'] > i {
+    display: block;
+    width: var(--k-p);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+    transition: width 0.3s;
+  }
+  [data-kit='hu-p'] {
+    min-width: 3ch;
+    font-weight: var(--fw-medium);
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  [data-kit='hu-win'][data-tone='warn'] [data-kit='hu-bar'] > i {
+    background: var(--warn);
+  }
+  [data-kit='hu-win'][data-tone='warn'] [data-kit='hu-p'] {
+    color: var(--warn);
+  }
+  [data-kit='hu-win'][data-tone='full'] [data-kit='hu-bar'] > i {
+    background: var(--bad);
+  }
+  [data-kit='hu-win'][data-tone='full'] [data-kit='hu-p'] {
+    color: var(--bad);
+  }
+
   /* v1 .sh-spare / .spr-card: notes on plans under what needs you */
   [data-kit='sh-spare'] {
     margin-top: 30px;

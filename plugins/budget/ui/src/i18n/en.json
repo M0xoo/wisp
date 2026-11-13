@@ -120,5 +120,13 @@
   "budget.plan.report.cache": ", {pct}% of input from the cache",
   "budget.plan.report.foot": "Median of each finished turn over the last 7 days, as the CLI reported it. Input counts cache reads. Same machine, same wisp; only the signed-in account differs.",
   "budget.plan.copied": "Copied: paste it in a bug report to the vendor",
-  "budget.usage.compare.copy": "Copy report"
+  "budget.usage.compare.copy": "Copy report",
+  "budget.home.title": "Usage: open Settings → Usage",
+  "budget.home.who": "{name} ({account})",
+  "budget.home.tip": "{who}, {label} window: {pct} used. {line}",
+  "budget.home.aria": "{who}, {label} window used",
+  "budget.home.short.fiveHour": "5h",
+  "budget.home.short.week": "Week",
+  "budget.home.short.opus": "Opus week",
+  "budget.home.short.sonnet": "Sonnet week"
 }

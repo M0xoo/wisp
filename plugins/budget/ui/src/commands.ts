@@ -126,3 +126,12 @@ export const dismissNotice = defineCommand<{ peer: PeerId; agent: string; accoun
   optimistic: 'none',
   pending: 'the ×',
 });
+
+/** The harnesses set up here (wisp.runtime's `runtime.agents`): Home's usage row skips one that isn't. */
+export const agents = defineCommand<{ peer: PeerId }, { id: string; available: boolean }[]>({
+  id: 'runtime.agents',
+  owner: (a) => a.peer,
+  wire: () => ({}),
+  optimistic: 'none',
+  pending: 'the harness list',
+});

@@ -513,7 +513,7 @@ export const COMMANDS: Record<string, CommandFn> = {
   },
   'budget.view': (a) =>
     // no plan windows reported yet (MOCK_COMPOSER: Claude's)
-    ({ ops: [], result: COMPOSER && str(obj(a), 'agent') === 'claude' ? [{ account: '', at: null, windows: [{ id: '5h', label: '5h', used: 0.42 }, { id: '7d', label: 'Week', used: 0.18 }] }] : [] }),
+    ({ ops: [], result: COMPOSER && str(obj(a), 'agent') === 'claude' ? [{ account: 'default', at: null, windows: [{ id: 'five_hour', label: '5h', used: 0.42 }, { id: 'seven_day', label: 'Week', used: 0.18 }] }] : [] }),
   // the side panel's Preview: nothing runs yet, package.json's dev script to start from
   'terminal.run.info': () => ({ ops: [], result: { open: false, port: 41234, dir: '~/code/wisp-repo', guess: 'npm run dev' } }),
   'terminal.run.start': () => ({ ops: [], result: { ok: true, started: true, port: 41234, dir: '~/code/wisp-repo' } }),
