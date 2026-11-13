@@ -9,7 +9,9 @@ mod answers;
 mod calls;
 mod jobs;
 mod kind;
+mod offers;
 mod remote;
+mod stats;
 mod store;
 mod transfer;
 mod wakes;
@@ -305,7 +307,11 @@ pub(crate) async fn report(
     failed: bool,
 ) {
     let mut p = last.and_then(|t| t.presentation.as_ref()).and_then(|p| calls::to_json(p).ok()).unwrap_or_default();
-    let quiet = wisp_crew_core::memory::take_crew_block(&mut p).is_some_and(|d| d.quiet);
+    let data = wisp_crew_core::memory::take_crew_block(&mut p);
+    let quiet = data.as_ref().is_some_and(|d| d.quiet);
+    if let Some(d) = data.as_ref().filter(|_| !failed) {
+        offers::from_report(ctx, call, st, &m.id, job, &d.kit).await;
+    }
     // asked in another task: the answer goes under the message that asked
     let said = last.and_then(|t| t.text.clone()).unwrap_or_else(|| text.to_owned());
     let said = wisp_crew_core::answers::answer_text(&said, &p);
@@ -372,6 +378,7 @@ impl Plugin for CrewPlugin {
         remote::register(s, &st);
         wakes::register(s, &st);
         transfer::register(s, &st);
+        offers::register(s, &st);
         let tick = st.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();

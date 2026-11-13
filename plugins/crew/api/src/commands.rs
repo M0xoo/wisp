@@ -10,7 +10,7 @@ use ts_rs::TS;
 use wisp_kernel::Command;
 
 use crate::rows::{JobSummary, MemberView};
-use crate::{PERM_ASSIGN, PERM_READ, PERM_WRITE};
+use crate::{PERM_ASSIGN, PERM_PROPOSE, PERM_READ, PERM_WRITE};
 
 macro_rules! command {
     ($(#[$m:meta])* $name:ident = $id:literal [$perm:expr] : $args:ty => $out:ty $(, $ro:ident)?) => {
@@ -167,6 +167,9 @@ pub struct LocalKitFile {
     pub path: String,
     /// `home` or `project`
     pub from: String,
+    /// its text, as the kit takes it (a skill without its front matter); empty when it couldn't be read
+    #[serde(default)]
+    pub body: String,
 }
 
 /// `PUT /crew-layout`.
@@ -210,6 +213,31 @@ pub struct OfferSettle {
     pub state: String,
     #[serde(default)]
     pub names: Vec<String>,
+}
+
+/// `crew.agent.kit`: the `wisp_crew_kit` tool (v1 POST /internal/crew/:id/kit). `session` is the caller's task: the
+/// offer shows under its latest turn.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct AgentKitArgs {
+    pub session: String,
+    /// their name, @handle or id
+    pub member: String,
+    #[serde(default)]
+    #[ts(type = "unknown[]")]
+    pub files: Vec<Value>,
+}
+
+/// What the agent reads back: `text`, or `error` for a refusal it acts on.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct AgentText {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub error: Option<String>,
 }
 
 /// `PATCH /crew/:id`. `queue`: the waiting job ids to keep (the rest are dropped).
@@ -262,6 +290,43 @@ pub struct MemberStats {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cost: Option<f64>,
+    /// tokens its jobs in the range used (input, output and cache); additive (2026-11-13)
+    #[serde(default)]
+    #[ts(type = "number")]
+    pub tokens: u64,
+    /// where they went, by where the job came from (`checkin`, `task`, …)
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    #[ts(as = "Option<std::collections::BTreeMap<String, KindUse>>", optional)]
+    pub by_kind: std::collections::BTreeMap<String, KindUse>,
+    /// its biggest jobs in the range, most tokens first (5 at most)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<TopJob>>", optional)]
+    pub top: Vec<TopJob>,
+    /// the range's length in days, for per-day rates
+    #[serde(default)]
+    pub days: u32,
+}
+
+/// One kind of job's runs and tokens over the range.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct KindUse {
+    pub runs: u32,
+    #[ts(type = "number")]
+    pub tokens: u64,
+    /// check-ins (or checks) that found nothing to do
+    pub quiet: u32,
+}
+
+/// One of a member's biggest jobs.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct TopJob {
+    pub id: String,
+    pub title: String,
+    pub job: crate::JobKind,
+    #[ts(type = "number")]
+    pub tokens: u64,
 }
 
 /// `POST /crew/:id/jobs`. `kit: true` with no prompt: "Build your kit".
@@ -433,6 +498,10 @@ command!(
 command!(
     /// `GET /crew-kit`
     LocalKit = "crew.kit" [PERM_READ] : KitArgs => Vec<LocalKitFile>, ro
+);
+command!(
+    /// `POST /internal/crew/:id/kit`: files an agent proposes for a member's kit, an offer the user picks from
+    AgentKit = "crew.agent.kit" [PERM_PROPOSE] : AgentKitArgs => AgentText
 );
 command!(
     /// `GET /crew-layout`

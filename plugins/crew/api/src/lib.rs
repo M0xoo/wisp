@@ -24,6 +24,9 @@ pub const PERM_READ: &str = "crew:read";
 pub const PERM_WRITE: &str = "crew:write";
 /// Handing a member work (a job, a check-in, an @mention).
 pub const PERM_ASSIGN: &str = "crew:assign";
+/// Proposing files for a member's kit (`wisp_crew_kit`): nothing changes until the user picks, so a crew member's
+/// own job may build its kit.
+pub const PERM_PROPOSE: &str = "crew:propose";
 
 pub const MAX_CREW: usize = 12;
 pub const MAX_PARALLEL: u32 = 5;

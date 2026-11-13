@@ -119,6 +119,10 @@
         "id": "crew.kit",
         "title": "Skills and instructions a member's kit can take",
         "readOnly": true
+      },
+      {
+        "id": "crew.agent.kit",
+        "title": "Propose skills or instructions for a member's kit (wisp_crew_kit)"
       }
     ]
   },

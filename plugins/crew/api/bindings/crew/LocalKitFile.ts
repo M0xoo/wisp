@@ -7,4 +7,8 @@ export type LocalKitFile = { name: string, description: string, path: string,
 /**
  * `home` or `project`
  */
-from: string, };
+from: string, 
+/**
+ * its text, as the kit takes it (a skill without its front matter); empty when it couldn't be read
+ */
+body: string, };

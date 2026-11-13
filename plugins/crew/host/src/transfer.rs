@@ -83,27 +83,40 @@ pub fn import(crew: &[Member], a: &c::ImportArgs, now: i64) -> Result<(c::Import
     ))
 }
 
-/// What a kit can take here: wisp's skills, and the project's AGENTS.md.
+/// A file's text, or empty when it can't be read; a skill's path may be its folder (its SKILL.md inside).
+async fn read_kit_text(path: &str, skill: bool) -> String {
+    if path.is_empty() {
+        return String::new();
+    }
+    let file = match tokio::fs::metadata(path).await {
+        Ok(m) if m.is_dir() && skill => format!("{}/SKILL.md", path.trim_end_matches('/')),
+        Ok(m) if m.is_file() => path.to_owned(),
+        _ => return String::new(),
+    };
+    tokio::fs::read_to_string(&file).await.map(|t| wisp_crew_core::kit::local_body(&t, skill)).unwrap_or_default()
+}
+
+/// What a kit can take here: wisp's skills, and the project's AGENTS.md, each with its text (v1 `/crew-kit`).
 async fn kit(ctx: &Ctx, cwd: &str) -> Vec<LocalKitFile> {
     let call = ctx.root_call();
-    let mut out: Vec<LocalKitFile> = calls::export(ctx, &call, &["skill"])
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|r| r.kind == "skill")
-        .map(|r| {
-            let s = |k: &str| r.spec.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-            LocalKitFile { description: s("description"), path: s("path"), name: r.name, from: "home".into() }
-        })
-        .collect();
+    let skills = calls::export(ctx, &call, &["skill"]).await.unwrap_or_default().into_iter().filter(|r| r.kind == "skill");
+    let mut out = Vec::new();
+    for r in skills {
+        let s = |k: &str| r.spec.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+        let (path, text) = (s("path"), s("body"));
+        let body = if text.trim().is_empty() { read_kit_text(&path, true).await } else { wisp_crew_core::kit::local_body(&text, true) };
+        out.push(LocalKitFile { description: s("description"), path, name: r.name, from: "home".into(), body });
+    }
     if !cwd.is_empty() {
         let p = format!("{}/AGENTS.md", cwd.trim_end_matches('/'));
-        if tokio::fs::metadata(&p).await.is_ok_and(|m| m.is_file()) {
+        let body = read_kit_text(&p, false).await;
+        if !body.is_empty() {
             out.push(LocalKitFile {
                 name: "AGENTS.md".into(),
                 description: "this project's instructions".into(),
                 path: p,
                 from: "project".into(),
+                body,
             });
         }
     }
@@ -171,6 +184,23 @@ mod tests {
             parallel: 1,
             ..Member::default()
         }
+    }
+
+    /// A skill found on this computer comes with its text (no front matter), from its folder's SKILL.md; a file that
+    /// can't be read gives no text (the UI leaves it out) rather than failing the list.
+    #[tokio::test]
+    async fn a_local_kit_file_comes_with_its_text_read_from_its_skill_md_or_file() {
+        let dir = std::env::temp_dir().join(format!("wisp-crew-kit-{}", std::process::id()));
+        let skill = dir.join("release-notes");
+        tokio::fs::create_dir_all(&skill).await.unwrap();
+        tokio::fs::write(skill.join("SKILL.md"), "---\nname: release-notes\ndescription: Notes\n---\n\n1. Read the log\n").await.unwrap();
+        tokio::fs::write(dir.join("AGENTS.md"), "\r\n- Run the tests\r\n").await.unwrap();
+        assert_eq!(read_kit_text(skill.to_str().unwrap(), true).await, "1. Read the log");
+        assert_eq!(read_kit_text(skill.join("SKILL.md").to_str().unwrap(), true).await, "1. Read the log");
+        assert_eq!(read_kit_text(dir.join("AGENTS.md").to_str().unwrap(), false).await, "- Run the tests");
+        assert_eq!(read_kit_text(dir.join("gone.md").to_str().unwrap(), false).await, "");
+        assert_eq!(read_kit_text("", true).await, "");
+        let _ = tokio::fs::remove_dir_all(&dir).await;
     }
 
     /// A shared member's bundle comes back in as the same member, paused, under a free name; the review

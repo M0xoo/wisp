@@ -277,7 +277,8 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         if let Some(keep) = &a.queue {
             prev.queue.retain(|w| keep.contains(&w.id)); // drop waiting jobs
         }
-        let m = st.normalize(&a.member, Some(&prev), now(&ctx), &profile_names(&ctx, &call).await)?;
+        let mut m = st.normalize(&a.member, Some(&prev), now(&ctx), &profile_names(&ctx, &call).await)?;
+        crate::offers::settle_all(&mut m, a.offers.as_ref(), now(&ctx));
         st.put(m.clone());
         st.save().await;
         ctx.emit(&call, &wisp_crew_api::events::MemberChanged { crew_id: m.id.clone() });
@@ -325,23 +326,7 @@ fn work_commands(s: &mut Setup, st: &Arc<State>) {
     });
     on!(s, st, c::Checkin, |st, ctx, call, a| checkin(&ctx, &call, &st, &a.id, false).await);
     wakes(s, st);
-    on!(s, st, c::Stats, |st, ctx, call, _a| {
-        let crew = lock(&st.saved).crew.clone();
-        let mut out = Vec::new();
-        for m in &crew {
-            let jobs = jobs_of(&ctx, &call, &st, m).await;
-            let n = |f: &dyn Fn(&JobSummary) -> bool| u32::try_from(jobs.iter().filter(|j| f(j)).count()).unwrap_or(u32::MAX);
-            out.push(c::MemberStats {
-                id: m.id.clone(),
-                jobs: n(&|_| true),
-                done: n(&|j| j.state == "done" || j.state == "review"),
-                failed: n(&|j| j.state == "error"),
-                quiet: u32::try_from(m.log.iter().filter(|l| l.quiet).count()).unwrap_or(0),
-                ..c::MemberStats::default()
-            });
-        }
-        Ok(out)
-    });
+    crate::stats::register(s, st);
 }
 
 /// Every 20 s (v1 `tick`): the check-ins that are due, then each queue with room.

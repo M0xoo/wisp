@@ -51,6 +51,13 @@ pub fn skill_name(s: &str) -> String {
     clip(&out, 64)
 }
 
+/// A file found on this computer as kit text (v1 `/crew-kit` read each file): a skill's SKILL.md without its front
+/// matter, an instructions file trimmed; both clipped to [`KIT_BODY_MAX`] characters so the kit takes it.
+pub fn local_body(text: &str, skill: bool) -> String {
+    let body = if skill { parse_skill_md(&unix(text)).body } else { unix(text).trim().to_owned() };
+    clip(&body, KIT_BODY_MAX)
+}
+
 /// A SKILL.md's text: its front matter (plain `key: value` lines, folded `>` / `|` values too) and the rest.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SkillMd {
