@@ -43,7 +43,8 @@ impl TransportDef for Def {
         Arc::new(Telegram { hub, limit: Mutex::new(RateLimit::default()), hook_turn: Mutex::new(()) })
     }
     fn secrets(&self) -> &'static [&'static str] {
-        &["token"]
+        // the webhook's secret is kept across a restart (the hub's `chan_kept`) in secrets.json, not the store
+        &["token", "hook.secret"]
     }
 }
 

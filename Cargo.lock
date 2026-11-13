@@ -4280,6 +4280,7 @@ dependencies = [
  "wisp-runtime-api",
  "wisp-store",
  "wisp-stuff-api",
+ "wisp-telegram",
  "wisp-telemetry-api",
  "wisp-testkit",
 ]
@@ -5949,6 +5950,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-automations-api",
+ "wisp-git",
  "wisp-git-api",
  "wisp-kernel",
  "wisp-proc",
@@ -5957,6 +5959,7 @@ dependencies = [
  "wisp-settings-api",
  "wisp-store",
  "wisp-telemetry-api",
+ "wisp-testkit",
  "wisp-worktrees-api",
  "wisp-worktrees-core",
 ]

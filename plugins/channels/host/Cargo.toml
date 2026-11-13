@@ -30,11 +30,12 @@ wisp-telemetry-api.workspace = true
 wisp-automations-api.workspace = true
 wisp-stuff-api.workspace = true
 wisp-grid-client-api.workspace = true
+wisp-store.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 wisp-testkit.workspace = true
-wisp-store.workspace = true
+wisp-telegram = { path = "../../telegram/host" }
 wisp-resources = { path = "../../resources/host" }
 
 [lints]

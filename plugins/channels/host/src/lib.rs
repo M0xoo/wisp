@@ -5,6 +5,7 @@
 //! Transports own their wire; every IO they do goes through the hub's handles (`hub.rs`).
 
 mod hub;
+mod kept;
 mod kinds;
 mod report;
 mod routed;
@@ -20,7 +21,7 @@ use wisp_channels_api::{
     Update, View,
 };
 use wisp_kernel::{CancellationToken, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_runtime_api::events::{TaskAsked, TurnEnded, TurnFinished};
+use wisp_runtime_api::events::{SessionDeleted, TaskAsked, TurnEnded, TurnFinished};
 use wisp_runtime_api::model::TurnStatus;
 
 use crate::hub::{Hub, State};
@@ -42,8 +43,6 @@ struct Live {
     kinds: OnceLock<Arc<Kinds>>,
     /// asks a channel already said it waits on
     said: report::Said,
-    /// the keys each channel's declaration gave its config last time (`keep_over`)
-    declared: Mutex<HashMap<String, Vec<String>>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -68,6 +67,10 @@ async fn config_of(ctx: &Ctx, c: &kinds::ChannelSpec) -> Value {
 /// Re-reads the declared channels; stops every transport, then starts the ones that are on.
 async fn act(ctx: &Ctx, live: &Arc<Live>) {
     let Some(k) = live.kinds.get() else { return };
+    // before the start read what was kept, an act would start a transport over it
+    if !live.st.loaded.load(std::sync::atomic::Ordering::Acquire) {
+        return;
+    }
     kinds::read(k, &live.channels, &live.notes).await;
     for (_, (_, stop)) in lock(&live.running).drain() {
         stop.cancel();
@@ -79,11 +82,14 @@ async fn act(ctx: &Ctx, live: &Arc<Live>) {
         let cfg = config_of(ctx, c).await;
         {
             let keys: Vec<String> = cfg.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default();
-            let before = lock(&live.declared).insert(def.name().to_owned(), keys).unwrap_or_default();
+            let before = lock(&live.st.declared).insert(def.name().to_owned(), keys).unwrap_or_default();
+            lock(&live.st.secret_paths).insert(def.name().to_owned(), def.secrets().iter().map(|p| (*p).to_owned()).collect());
             let mut all = lock(&live.st.cfg);
-            let kept = all.remove(def.name()).unwrap_or_default();
+            // the first act after a restart: what the transport kept before it, under the same token
+            let kept = all.remove(def.name()).or_else(|| kept::restore(&live.st, def.name(), &cfg)).unwrap_or_default();
             all.insert(def.name().to_owned(), kinds::keep_over(kept, cfg, &before));
         }
+        kept::put_kept(ctx, &live.st, def.name());
         if c.enabled != Some(true) {
             continue;
         }
@@ -208,6 +214,14 @@ fn events(s: &mut Setup, live: &Arc<Live>) {
         let (live, e, c) = (l.clone(), e.0.clone(), ctx.clone());
         report::asked(&ctx, &l, e.session_id.as_str());
         ctx.spawn(async move { notify(&c, &live, "asks", e.session_id.as_str(), &e.text, Vec::new(), true).await });
+        async {}
+    });
+    // a deleted task's origin goes with it (`chan_task`)
+    let l = live.clone();
+    s.on::<SessionDeleted, _, _>(move |_ctx, e| {
+        if l.st.forget(e.id.as_str()) {
+            kept::drop_task(&l.st, e.id.as_str());
+        }
         async {}
     });
 }
@@ -342,6 +356,20 @@ impl Plugin for ChannelsPlugin {
                 k
             };
             *lock(&l.st.key) = key;
+            // what the hub kept before a restart: each channel task's origin, each transport's own state
+            if let Ok(store) = ctx.service::<wisp_store::Store>() {
+                let paths: Vec<(String, Vec<String>)> = ctx
+                    .contributions(&TRANSPORTS)
+                    .iter()
+                    .map(|d| (d.name().to_owned(), d.secrets().iter().map(|p| (*p).to_owned()).collect()))
+                    .collect();
+                if let Err(e) = kept::read_into(&ctx, &l.st, store.as_ref().clone(), &paths).await {
+                    tracing::warn!("channels: what was kept couldn't be read, so this run keeps it in memory: {e}");
+                }
+            } else {
+                tracing::warn!("channels: no store, so what a channel keeps lasts until a restart");
+            }
+            l.st.loaded.store(true, std::sync::atomic::Ordering::Release);
             act(&ctx, &l).await;
             Ok(())
         });

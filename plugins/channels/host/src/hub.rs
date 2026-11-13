@@ -1,11 +1,11 @@
 //! The hub a transport is handed (`ChannelHub`): its IO handles (net and exec through the kernel's
 //! services, no socket or process of its own), its config (the `channel` resource for its transport,
 //! `${secret:}` read), what wisp does for it (`Phone`: runtime commands as the channel's caller) and
-//! what it keeps about tasks (their thread there, who started them). In memory; the config is the
-//! resource, so a restart reads it again.
+//! what it keeps about tasks (their thread there, who started them). The config is the resource, so a restart
+//! reads it again; what's kept about tasks and what a transport keeps for itself is in the store (`kept.rs`).
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -44,6 +44,52 @@ pub struct State {
     started: Mutex<HashMap<String, (String, Option<String>)>>,
     /// the key taps are signed with (`channels/sign` in secrets)
     pub key: Mutex<String>,
+    /// the keys each channel's declaration gave its config last time (`keep_over`; never kept in `chan_kept`)
+    pub declared: Mutex<HashMap<String, Vec<String>>>,
+    /// each transport's secret config fields (`TransportDef::secrets`)
+    pub secret_paths: Mutex<HashMap<String, Vec<String>>>,
+    /// where the hub keeps it all (`kept.rs`); unset: memory only
+    pub store: OnceLock<wisp_store::Store>,
+    /// what each transport kept before the restart, until its first act takes it
+    pub restored: Mutex<HashMap<String, crate::kept::KeptRow>>,
+    /// what was last written for each transport (`kept::put_kept` writes only a change)
+    pub written: Mutex<HashMap<String, (crate::kept::KeptRow, crate::kept::KeptSecrets)>>,
+    /// the kept secrets as saved; held while saving, so saves go one at a time
+    pub secrets_saved: tokio::sync::Mutex<HashMap<String, crate::kept::KeptSecrets>>,
+    /// held from reading a task's origin to submitting its row
+    pub task_turn: Mutex<()>,
+    /// what was kept before the restart is read: the hub may act
+    pub loaded: std::sync::atomic::AtomicBool,
+}
+
+impl State {
+    /// A task's origin as `chan_task` keeps it.
+    pub fn task_row(&self, id: &str) -> crate::kept::TaskRow {
+        crate::kept::TaskRow {
+            remote: lock(&self.remotes).get(id).cloned(),
+            started: lock(&self.started).get(id).cloned(),
+            away: lock(&self.away).get(id).cloned(),
+        }
+    }
+    /// A row read back at start.
+    pub fn put_row(&self, id: &str, r: crate::kept::TaskRow) {
+        if let Some(v) = r.remote {
+            lock(&self.remotes).insert(id.to_owned(), v);
+        }
+        if let Some(v) = r.started {
+            lock(&self.started).insert(id.to_owned(), v);
+        }
+        if let Some(v) = r.away {
+            lock(&self.away).insert(id.to_owned(), v);
+        }
+    }
+    /// A task was deleted: nothing about it stays.
+    pub fn forget(&self, id: &str) -> bool {
+        let a = lock(&self.remotes).remove(id).is_some();
+        let b = lock(&self.started).remove(id).is_some();
+        let c = lock(&self.away).remove(id).is_some();
+        a || b || c
+    }
 }
 
 pub struct Hub {
@@ -564,6 +610,8 @@ impl ChannelHub for Hub {
                 h.insert(k.clone(), v.clone());
             }
         }
+        drop(all);
+        crate::kept::put_kept(&self.ctx, &self.st, channel);
     }
     fn mark(&self, channel: &str, st: Status) {
         lock(&self.st.status).insert(channel.to_owned(), st);
@@ -580,6 +628,7 @@ impl ChannelHub for Hub {
     }
     fn set_remote(&self, session_id: &str, remote: Remote) {
         lock(&self.st.remotes).insert(session_id.to_owned(), remote);
+        crate::kept::put_task(&self.st, session_id);
     }
     fn find_remote(&self, pred: &(dyn Fn(&Remote, &str) -> bool + Send + Sync)) -> Vec<String> {
         lock(&self.st.remotes).iter().filter(|(id, r)| pred(r, id)).map(|(id, _)| id.clone()).collect()
@@ -589,6 +638,7 @@ impl ChannelHub for Hub {
     }
     fn keep_away(&self, session_id: &str, entry: AwayEntry) {
         lock(&self.st.away).insert(session_id.to_owned(), entry);
+        crate::kept::put_task(&self.st, session_id);
     }
     fn sign(&self, session_id: &str, kind: ActionKind, reference: &str, index: u32) -> String {
         wisp_channels_core::sign::sign(&lock(&self.st.key), session_id, kind, reference, index)
@@ -601,6 +651,7 @@ impl ChannelHub for Hub {
     }
     fn mark_started(&self, session_id: &str, channel: &str, by: Option<&str>) {
         lock(&self.st.started).insert(session_id.to_owned(), (channel.to_owned(), by.map(str::to_owned)));
+        crate::kept::put_task(&self.st, session_id);
         self.ctx.emit(
             &self.ctx.root_call(),
             &wisp_channels_api::StartedFrom { session_id: session_id.to_owned(), channel: channel.to_owned(), by: by.map(str::to_owned) },
