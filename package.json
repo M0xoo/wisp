@@ -17,7 +17,7 @@
     "test": "node tools/test.ts",
     "test:v1": "node scripts/test.mjs",
     "check": "node tools/check/index.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json",
+    "typecheck": "node tools/typecheck.ts",
     "verify": "npm run check && npm run typecheck && npm test",
     "build": "npm run build --workspace @wisp/web && node tools/bundle.ts",
     "dev": "node tools/dev.ts",
