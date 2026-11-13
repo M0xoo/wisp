@@ -59,7 +59,11 @@ async function main(): Promise<void> {
   if (process.argv.includes('--json')) process.stdout.write(`${JSON.stringify({ ...res, findings: shown }, null, 2)}\n`);
   else {
     for (const f of shown) process.stdout.write(`${formatFinding(f)}\n`);
-    process.stdout.write(`check: ${res.errors} error${res.errors === 1 ? '' : 's'}, ${res.warnings} warning${res.warnings === 1 ? '' : 's'} (${rules.length} rules, ${res.files} files, ${Math.round(res.ms)} ms)\n`);
+    // warnings by rule, so a migrating rule's count (rust-typed-commands) shows in the summary
+    const byRule = new Map<string, number>();
+    for (const f of res.findings) if (f.severity === 'warn') byRule.set(f.rule, (byRule.get(f.rule) ?? 0) + 1);
+    const warns = [...byRule].map(([r, n]) => `${r} ${n}`).join(', ');
+    process.stdout.write(`check: ${res.errors} error${res.errors === 1 ? '' : 's'}, ${res.warnings} warning${res.warnings === 1 ? '' : 's'}${warns ? ` [${warns}]` : ''} (${rules.length} rules, ${res.files} files, ${Math.round(res.ms)} ms)\n`);
   }
   process.exitCode = res.errors ? 1 : 0;
 }

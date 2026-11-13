@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { codeLines, header, isTestFile } from '../core/rust.ts';
-import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustSansIo, rustSizes, rustUnsafe } from '../rules/rust.ts';
+import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustSansIo, rustSizes, rustTypedCommands, rustUnsafe } from '../rules/rust.ts';
 import { fixture, messages, run, writeTree } from './helpers.ts';
 
 test('rust-layers: plugins use other plugins through -api only; api ↛ core ↛ host; base crates use no plugin', async () => {
@@ -141,4 +141,31 @@ test('rust-mcp: a listed command its host never registers is no MCP tool; uiOnly
   assert.equal(got.length, 2, got.join('\n'));
   assert.ok(got.some((m) => m.includes('shop.gone is listed but its host registers it nowhere')));
   assert.ok(got.some((m) => m.includes('shop.lazy: "uiOnly" says why')));
+});
+
+test('rust-typed-commands: a string-name call to another plugin\'s typed command warns with the type; a typed call does not (ADR-0003)', async () => {
+  const root = writeTree(
+    new Map([
+      ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host"]\n'],
+      ['plugins/shop/api/Cargo.toml', '[package]\nname = "wisp-shop-api"\n'],
+      ['plugins/shop/api/src/lib.rs', 'command!(Buy = "shop.buy" : Value => Value);'],
+      ['plugins/till/host/Cargo.toml', '[package]\nname = "wisp-till"\n'],
+      [
+        'plugins/till/host/src/lib.rs',
+        [
+          'async fn pay(ctx: &Ctx, call: &Call) {',
+          '    let _ = ctx.run_json(call, "shop.buy", json!({ "n": 1 })).await;', // the finding
+          '    let _ = ctx.run::<wisp_shop_api::Buy>(call, Args { n: 1 }).await;', // typed: none
+          '    let _ = ctx.run_json(call, "shop.untyped", json!({})).await;', // no typed command: none
+          '    // ctx.run_json(call, "shop.buy", json!({}))', // a comment: none
+          '}',
+          '#[cfg(test)]',
+          'mod tests { fn t() { ctx.run_json(call, "shop.buy", json!({})); } }', // tests: none
+        ].join('\n'),
+      ],
+    ]),
+  );
+  assert.deepEqual(await run(rustTypedCommands, root), ['plugins/till/host/src/lib.rs:2 warn:rust-typed-commands']);
+  const [m] = await messages(rustTypedCommands, root);
+  assert.ok(m?.includes('wisp_shop_api::Buy'), m);
 });

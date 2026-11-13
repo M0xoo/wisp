@@ -9,7 +9,7 @@ import type { Finding, Rule } from '../core/types.ts';
 
 /** Every command type an api crate defines, by id: `command!(Name = "id" …)`, `command!(Name, "id", …)` and
  *  `impl Command for Name { const ID: &'static str = "id"; … }`. */
-function commandTypes(text: string): Map<string, string> {
+export function commandTypes(text: string): Map<string, string> {
   const out = new Map<string, string>();
   const code = text.replace(/^\s*\/\/.*$/gm, '');
   for (const m of code.matchAll(/command!\(\s*(?:#\[[^\]]*\]\s*)*(\w+)\s*(?:=|,)\s*"([^"]+)"/g)) out.set(m[1] ?? '', m[2] ?? '');

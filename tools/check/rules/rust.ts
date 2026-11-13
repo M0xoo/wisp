@@ -9,6 +9,8 @@
 //                   and are named by a capability set
 //   rust-mcp        every command a manifest lists is registered by its host (so it's an MCP tool), unless
 //                   it says "uiOnly": "<why>" (ADR-0040)
+//   rust-typed-commands  a plugin calls another plugin's typed command through its -api type, not by
+//                   string id with hand-built JSON (warn while callers migrate; rust-typed-commands.ts)
 //   rust-resource-kinds  a plugin with tables a user sets up registers a resource kind (its settings are
 //                   wisp.settings' `setting` kind), unless plugins/resources/pending-kinds.txt lists it
 // Normal and build dependencies count for the layers; dev-dependencies don't (tests may wire anything).
@@ -337,5 +339,7 @@ function stripTests(text: string): string {
 
 export { rustMcp } from './rust-mcp.ts';
 import { rustMcp } from './rust-mcp.ts';
+import { rustTypedCommands } from './rust-typed-commands.ts';
+export { rustTypedCommands } from './rust-typed-commands.ts';
 
-export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds, rustEvents, rustMcp];
+export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds, rustEvents, rustMcp, rustTypedCommands];
