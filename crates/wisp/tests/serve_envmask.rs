@@ -35,7 +35,7 @@ fn replay(dir: &std::path::Path, proj: &std::path::Path) -> std::path::PathBuf {
         json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01 }),
     ];
     let f = dir.join("env-run.jsonl");
-    std::fs::write(&f, lines.iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
+    std::fs::write(&f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
     f
 }
 
