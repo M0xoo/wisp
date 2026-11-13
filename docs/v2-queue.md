@@ -473,6 +473,13 @@ alone.
    - the 46 remaining views at v1 parity;
    - the new screens: Repo tab, blame gutter, import, Share setup, Setup section, My shares, Automations "When" picker and crew Wakes;
    - composer `@` and `/`.
+   - **Pick several projects (owner, 2026-11-13).** The project selector picks more than one project: the list
+     shows the tasks of every project picked (All projects stays one choice). In the ⌘P switcher, Enter switches to one
+     project as today and a modifier (⌘-Enter / ⌘-click, with a visible checkbox per row) adds or removes a project;
+     ⌘1–⌘9 still go to one. The top-bar selector names the pick ("api, web" or "3 projects"). Saved like today's choice,
+     restored after a reload, the same on the phone. With it, F-comp-47: New task can work in several folders (the
+     projects picked, or + beside another project as in v1), passed as `dirs` (server side built). Named tests + seen in
+     Chrome at 1440 and 390.
    - Start by wiring the built screens to the real server: in the demo (`wisp serve` with the fake claude), `/task/<id>`
      mounts no task view (2026-11-09 check-in).
      Done (docs/v2-round-7.md): six causes fixed; the list and the task mount on `wisp serve`. Left: the row squeeze,
