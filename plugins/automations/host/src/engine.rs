@@ -12,6 +12,8 @@ use wisp_automations_api::commands::{FireOut, LogLine, SourceRow, Tried, Trigger
 use wisp_automations_api::{PROVIDERS, Polled, Provided, SOURCE, Target, TriggerEvent, TriggerFired, TriggerSpec, Zone, parse_cron};
 use wisp_automations_core::engine::{self as core, Decision, Job, Outcome, PollOutcome, State, World};
 use wisp_kernel::{Call, Ctx, EventEnvelope, Result, WireError};
+use wisp_runtime_api::commands as rt;
+use wisp_runtime_api::spec::Lineage;
 use wisp_store::{Col, EntityDef, Query, Row, Store};
 
 fn topics(_: &Row) -> Vec<String> {
@@ -167,7 +169,7 @@ impl Engine {
             Decision::Start(j) => Some(j),
             Decision::Replace { stop, job } => {
                 for id in stop {
-                    if let Err(e) = ctx.run_json(call, "runtime.stop", json!({ "id": id })).await {
+                    if let Err(e) = ctx.run::<rt::Stop>(call, rt::StopArgs { id: id.as_str().into(), clear_queue: false }).await {
                         tracing::warn!(trigger = %t.name, "couldn't stop {id}: {}", e.message);
                     }
                     st.running.retain(|r| *r != id);
@@ -495,13 +497,20 @@ async fn start(ctx: &Ctx, call: &Call, store: &Store, t: &Live, job: &Job) -> Re
             if cwd.is_empty() {
                 return Err(WireError::invalid(format!("Not a project folder: (none). Trigger {} starts a task, so it needs spec.project, the folder it runs in", t.name)));
             }
-            let mut a = json!({ "prompt": text("{event.summary}"), "title": t.name, "lineage": { "triggeredBy": by }, "ext": { "wisp.automations": { "trigger": t.name, "event": first.key } } });
-            for (k, v) in [("cwd", &cwd), ("agent", &t.spec.agent), ("model", &t.spec.model), ("mode", &t.spec.mode)] {
-                if !v.is_empty() {
-                    a[k] = json!(v);
-                }
-            }
-            ctx.run_json(call, "runtime.create", a).await?
+            let opt = |s: &str| (!s.is_empty()).then(|| s.to_owned());
+            let a = rt::StartArgs {
+                prompt: text("{event.summary}"),
+                title: Some(t.name.clone()),
+                cwd: Some(cwd.clone()),
+                agent: opt(&t.spec.agent),
+                model: opt(&t.spec.model),
+                mode: crate::mode_of(&t.spec.mode)?,
+                lineage: Lineage { triggered_by: Some(by.clone()), ..Lineage::default() },
+                ext: [(wisp_automations_api::PLUGIN_ID.to_owned(), json!({ "trigger": t.name, "event": first.key }))].into_iter().collect(),
+                ..rt::StartArgs::default()
+            };
+            let made = ctx.run::<rt::Create>(call, a).await?;
+            serde_json::to_value(made).map_err(|e| WireError::internal(e.to_string()))?
         }
         Target::Crew(member) => ctx.run_json(call, "crew.wake", json!({ "id": member, "why": text("{event.summary}"), "source": by })).await?,
         Target::Workflow(w) => ctx.run_json(call, "workflows.run", json!({ "name": w, "inputs": { "event": core::event_scope(&first)["event"] }, "project": (!cwd.is_empty()).then_some(&cwd) })).await?,
@@ -509,7 +518,7 @@ async fn start(ctx: &Ctx, call: &Call, store: &Store, t: &Live, job: &Job) -> Re
             let Some(id) = first.subject.clone() else {
                 return Err(WireError::invalid(format!("{} follows up the event's task, and {} names none", t.name, first.on)));
             };
-            ctx.run_json(call, "runtime.followUp", json!({ "id": id, "text": text("{event.summary}"), "queue": true })).await?;
+            ctx.run::<rt::FollowUp>(call, rt::FollowUpArgs { id: id.as_str().into(), text: text("{event.summary}"), queue: Some(true), ..rt::FollowUpArgs::default() }).await?;
             json!({ "id": id })
         }
     };

@@ -169,8 +169,8 @@ async fn lineage(ctx: &Ctx, call: &Call, engine: &Engine, env: &wisp_kernel::Eve
         return (Some(b.to_owned()), 0);
     }
     let Some(subject) = &env.subject else { return (None, 0) };
-    let spec = ctx.run_json(call, "runtime.spec", json!({ "id": subject })).await.unwrap_or_default();
-    let by = spec.pointer("/lineage/triggeredBy").and_then(Value::as_str).map(str::to_owned);
+    let spec = ctx.run::<wisp_runtime_api::commands::SpecOf>(call, wisp_runtime_api::commands::IdArgs { id: subject.as_str().into() }).await;
+    let by = spec.ok().and_then(|s| s.lineage.triggered_by);
     let depth = engine.states().await.iter().filter_map(|(_, st)| st.depths.get(subject).copied()).max().unwrap_or(0);
     (by, depth)
 }

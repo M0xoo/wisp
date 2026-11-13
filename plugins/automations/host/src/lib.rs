@@ -13,10 +13,13 @@ mod trigger;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use wisp_automations_api::tasks::{NamedTask, RunTask, TaskDecl, TaskRemove, TaskRun, TaskSet, Tasks, fill};
 use wisp_automations_api::{Utc, matches, parse_cron, read_schedule};
-use wisp_kernel::{BoxFuture, Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_kernel::{BoxFuture, Call, Command, Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_runtime_api::Mode;
+use wisp_runtime_api::commands::{Create, StartArgs};
+use wisp_runtime_api::spec::Lineage;
 use wisp_resources_api::{CrudKind, KindInfo, Op, RESOURCE_KIND, Resource, ResourceKind, schema_of};
 use wisp_store::{Col, EntityDef, Migration, Query, Row, Store};
 
@@ -75,7 +78,7 @@ async fn put(store: &Store, t: NamedTask) -> Result<NamedTask> {
 }
 
 /// The task a run makes: `runtime.create`'s args from the spec, the run's values and fields over it.
-pub fn start_args(t: &NamedTask, run: &RunTask, by: &str) -> Result<Value> {
+pub fn start_args(t: &NamedTask, run: &RunTask, by: &str) -> Result<StartArgs> {
     let mut values: BTreeMap<String, String> = run.params.clone();
     let names = wisp_automations_api::tasks::params_of(&format!("{} {}", t.spec.prompt, t.spec.steps.join(" ")));
     let mut words = run.words.iter();
@@ -88,34 +91,45 @@ pub fn start_args(t: &NamedTask, run: &RunTask, by: &str) -> Result<Value> {
     let prompt = fill(&t.spec.prompt, &values).map_err(WireError::invalid)?;
     let steps: Vec<String> = t.spec.steps.iter().map(|s| fill(s, &values)).collect::<std::result::Result<_, _>>().map_err(WireError::invalid)?;
     let d = &t.spec;
-    let opt = |s: &str| (!s.is_empty()).then(|| json!(s));
-    let mut a = Map::new();
-    a.insert("prompt".into(), json!(prompt));
-    a.insert("title".into(), json!(t.name));
-    for (k, v) in [("agent", opt(&d.agent)), ("model", opt(&d.model)), ("effort", opt(&d.effort)), ("mode", opt(&d.mode)), ("cwd", opt(&d.project)), ("crew", opt(&d.crew)), ("schedule", opt(&d.schedule))] {
-        if let Some(v) = v {
-            a.insert(k.into(), v);
-        }
+    let opt = |s: &str| (!s.is_empty()).then(|| s.to_owned());
+    let args = StartArgs {
+        prompt,
+        title: Some(t.name.clone()),
+        agent: opt(&d.agent),
+        model: opt(&d.model),
+        effort: opt(&d.effort),
+        mode: mode_of(&d.mode)?,
+        cwd: opt(&d.project),
+        crew: opt(&d.crew),
+        schedule: opt(&d.schedule),
+        steps,
+        connectors: d.connectors.clone(),
+        worktree: d.worktree,
+        goal: d.goal.clone(),
+        lineage: Lineage { triggered_by: Some(by.to_owned()), ..Lineage::default() },
+        ext: [(wisp_automations_api::PLUGIN_ID.to_owned(), json!({ "task": t.name }))].into_iter().collect(),
+        ..StartArgs::default()
+    };
+    if run.over.is_empty() {
+        return Ok(args);
     }
-    if !steps.is_empty() {
-        a.insert("steps".into(), json!(steps));
-    }
-    if !d.connectors.is_empty() {
-        a.insert("connectors".into(), json!(d.connectors));
-    }
-    if let Some(w) = d.worktree {
-        a.insert("worktree".into(), json!(w));
-    }
-    if let Some(g) = &d.goal {
-        a.insert("goal".into(), g.clone());
-    }
-    a.insert("lineage".into(), json!({ "triggeredBy": by }));
-    a.insert("ext".into(), json!({ "wisp.automations": { "task": t.name } }));
+    // the run's own fields (`wisp run <task> --agent …`) are free-form: laid over the args, then checked whole
+    let Value::Object(mut over) = serde_json::to_value(&args).map_err(|e| WireError::internal(e.to_string()))? else {
+        return Err(WireError::internal("runtime.create's args are not an object"));
+    };
     for (k, v) in &run.over {
         let k = if k == "project" { "cwd" } else { k.as_str() };
-        a.insert(k.to_owned(), v.clone());
+        over.insert(k.to_owned(), v.clone());
     }
-    Ok(Value::Object(a))
+    serde_json::from_value(Value::Object(over)).map_err(|e| WireError::invalid(format!("{}: {e}", Create::ID)))
+}
+
+/// A spec's `mode` (`plan`, `edits`, `auto`; empty: the task's default).
+pub(crate) fn mode_of(s: &str) -> Result<Option<Mode>> {
+    if s.is_empty() {
+        return Ok(None);
+    }
+    serde_json::from_value(json!(s)).map(Some).map_err(|e| WireError::invalid(format!("{}: mode {s}: {e}", Create::ID)))
 }
 
 async fn run(ctx: &Ctx, call: &Call, store: &Store, r: RunTask, by: &str) -> Result<Value> {
@@ -123,7 +137,8 @@ async fn run(ctx: &Ctx, call: &Call, store: &Store, r: RunTask, by: &str) -> Res
     let Some(t) = tasks.iter().find(|t| t.name == r.name) else {
         return Err(WireError::not_found(format!("no task named {} (wisp export tasks lists them)", r.name)));
     };
-    ctx.run_json(call, "runtime.create", start_args(t, &r, by)?).await
+    let made = ctx.run::<Create>(call, start_args(t, &r, by)?).await?;
+    serde_json::to_value(made).map_err(|e| WireError::internal(e.to_string()))
 }
 
 /// Runs declared task `name` in `cwd` for `by` (a trigger).
@@ -266,8 +281,8 @@ mod tests {
         let t = NamedTask { name: "fix-issue".into(), spec: TaskDecl { prompt: "fix issue {n}".into(), steps: vec!["test {n}".into()], project: "/w".into(), agent: "reviewer".into(), ..TaskDecl::default() } };
         let r = RunTask { name: "fix-issue".into(), words: vec!["42".into()], over: [("agent".to_owned(), json!("codex"))].into_iter().collect(), ..RunTask::default() };
         let a = start_args(&t, &r, "hand").unwrap();
-        assert_eq!((a["prompt"].as_str(), a["steps"][0].as_str(), a["cwd"].as_str(), a["agent"].as_str()), (Some("fix issue 42"), Some("test 42"), Some("/w"), Some("codex")));
-        assert_eq!(a["lineage"]["triggeredBy"], "hand");
+        assert_eq!((a.prompt.as_str(), a.steps[0].as_str(), a.cwd.as_deref(), a.agent.as_deref()), ("fix issue 42", "test 42", Some("/w"), Some("codex")));
+        assert_eq!(a.lineage.triggered_by.as_deref(), Some("hand"));
         assert!(start_args(&t, &RunTask::default(), "hand").is_err(), "a missing param says which");
     }
 }
