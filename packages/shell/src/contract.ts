@@ -40,6 +40,12 @@ export const INPUTS = {
   // added 2026-11-13 (additive): in the harness · model picker, a signed-out harness's sign-in, right there (wisp.accounts'
   // link-and-code steps, v1 runner-picker.js paintSignIn); its extension gets the harness as `id`
   'shell.runner:signin': 'runner.signin',
+  // added 2026-11-13 (additive): what other plugins put in Settings → Cloud under the account (wisp.machines' cloud
+  // computers, v1 .cg-list: Open, Wake / Put to sleep, its agents)
+  'shell.settings:cloud': 'cloud.computers',
+  // added 2026-11-13 (additive): a machine's coding agents, signed in to from here (wisp.accounts, v1 cloud.js agents: the
+  // login runs on that computer and stays there); its extension gets the machine's peer as `id`
+  'shell.machine:agents': 'machine.agents',
   // added 2026-11-12 (additive): what goes between Needs you and Working (the crew's section on the phone, v1 #secCrew)
   'shell.list:crew': 'section.crew',
   // added 2026-11-12 (additive): what a crew face's card beside the rail says (v1 .cl-card: who it is, the tasks it's on);

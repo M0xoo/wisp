@@ -3,6 +3,7 @@
 // where, this computer on the grid (reach it from any browser), and Sign out.
 import { Match, Show, Switch as Pick, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
+import { Slot } from '@wisp/shell';
 import { Button, Code, Inline, Input, Link, SettingsBlock, SettingsInputRow, SettingsGroup, SettingsNote, SettingsRow, Stack, Switch, Text } from '@wisp/ui';
 import { cancelSignIn, DEFAULT_GRID, setComputer, signOut } from '../commands.ts';
 import { t } from '../i18n.ts';
@@ -35,7 +36,6 @@ export default function Cloud(props: { readonly client: PluginClient }): JSX.Ele
                 control={<Switch aria-label={t('grid-client.computer.title')} checked={r()?.computer?.on ?? false} onChange={(on) => void c.run(setComputer, { peer, on }).catch(() => {})} />}
               />
             </SettingsGroup>
-            <MyShares client={c} />
           </Match>
           <Match when={waiting()}>
             {(s) => (
@@ -81,6 +81,11 @@ export default function Cloud(props: { readonly client: PluginClient }): JSX.Ele
             </SettingsGroup>
           </Match>
         </Pick>
+        {/* the cloud computers (wisp.machines), each with its agents to sign in to (v1 .cg-list): whenever there are any */}
+        <Slot input="shell.settings:cloud" layout="contents" />
+        <Show when={r()?.signedIn}>
+          <MyShares client={c} />
+        </Show>
         <SettingsNote part="grid-client.note" after={10}>
           {t('grid-client.note')}
         </SettingsNote>

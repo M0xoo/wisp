@@ -104,3 +104,8 @@ export const masked = (k: Pick<KeyRow, 'set' | 'hint'>): string => (k.set ? (k.h
 
 /** "opencode.ai/auth" from its URL, for the line saying where keys come from. */
 export const site = (url: string): string => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+/** Another computer's harnesses that sign in with their CLI (v1 cloud.js signable): found there, in wisp's order. */
+export function signable(rows: readonly (HarnessRow | undefined)[]): HarnessRow[] {
+  return rows.filter((h): h is HarnessRow => !!h && h.available && h.signIn === 'cli').sort((a, b) => a.ord - b.ord);
+}

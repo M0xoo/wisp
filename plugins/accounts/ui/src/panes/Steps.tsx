@@ -1,7 +1,7 @@
 // A CLI sign-in's steps (v1 agent-login.js loginPanel): the page to open, the code, the paste box. Settings → Agents
 // and the harness picker's sign-in (SignInHere) show the same.
 import { createSignal, Match, Show, Switch as Pick, type JSX } from 'solid-js';
-import type { PluginClient } from '@wisp/client';
+import type { PeerId, PluginClient } from '@wisp/client';
 import { Button, Inline, Input, Link, Stack, Text } from '@wisp/ui';
 import { loginInput } from '../commands.ts';
 import { t } from '../i18n.ts';
@@ -13,10 +13,11 @@ const quiet = (p: Promise<unknown>): void => {
 };
 
 /** A sign-in under way: the page to open, the code, the paste box. */
-export function Steps(props: { readonly c: PluginClient; readonly agent: string; readonly account: string; readonly login: LoginRow | undefined }): JSX.Element {
+/** `peer`: the computer the sign-in runs on (a cloud computer's agents, signed in to from here); this wisp's by default. */
+export function Steps(props: { readonly c: PluginClient; readonly agent: string; readonly account: string; readonly login: LoginRow | undefined; readonly peer?: PeerId }): JSX.Element {
   const [code, setCode] = createSignal('');
   const step = () => loginStep(props.agent, props.login);
-  const peer = props.c.home;
+  const peer = props.peer ?? props.c.home;
   return (
     <Pick>
       <Match when={step().kind === 'failed'}>

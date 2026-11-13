@@ -71,5 +71,6 @@
   "accounts.tool.gh": "For pushing branches and opening pull requests (the gh CLI)",
   "accounts.recheck.title": "Installed something new?",
   "accounts.recheck.hint": "After installing a CLI, signing in or adding a provider, look for harnesses and models again",
-  "accounts.state.limit": "At its limit"
+  "accounts.state.limit": "At its limit",
+  "accounts.machine.none": "No coding agent that signs in is there yet. Install Claude Code or Codex on it."
 }

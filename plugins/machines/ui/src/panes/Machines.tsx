@@ -1,53 +1,15 @@
 // Settings → Machines (v1 settings.js machines, design/v1-reference/settings.machines): other computers that
 // run agents for you over SSH (each with its state, Connect / Disconnect / Remove, and Add), reaching this
 // computer from anywhere through a wisp Grid, and what another computer needs to reach this one over SSH.
-import { createResource, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
+import { createResource, createSignal, onCleanup, Show, type JSX } from 'solid-js';
 import { type PluginClient } from '@wisp/client';
 import { Slot } from '@wisp/shell';
-import { Button, Code, CopyCommand, Dialog, Field, Inline, Input, Link, Menu, Pill, SettingsGroup, SettingsNote, SettingsRow, Stack, useSignal } from '@wisp/ui';
-import { addMachine, connect, disconnect, PEER, reachable, removeMachine, STATUS, TOPIC, type PeerBody, type StatusBody } from '../commands.ts';
+import { Button, Code, CopyCommand, Link, Pill, SettingsGroup, SettingsNote, SettingsRow, useSignal } from '@wisp/ui';
+import { PEER, reachable, STATUS, TOPIC, type PeerBody, type StatusBody } from '../commands.ts';
+import { MachinesDialog } from './Manager.tsx';
 import { t } from '../i18n.ts';
 
 type Doc<T> = { readonly id: string; readonly body: T };
-const quiet = (p: Promise<unknown>): void => {
-  p.catch(() => {}); // the shell's onError shows the rollback toast
-};
-
-const TONE: Record<string, 'good' | 'warn' | 'bad' | 'neutral'> = { online: 'good', connecting: 'neutral', reconnecting: 'warn', asleep: 'neutral', off: 'neutral', error: 'bad', incompatible: 'bad' };
-
-function Add(props: { readonly onAdd: (name: string, address: string) => void; readonly onClose: () => void }): JSX.Element {
-  const [name, setName] = createSignal('');
-  const [address, setAddress] = createSignal('');
-  return (
-    <Dialog
-      open
-      onOpenChange={(o) => !o && props.onClose()}
-      title={t('machines.add.title')}
-      description={t('machines.add.description')}
-      part="machines.add"
-      footer={
-        <Inline gap="3" justify="end">
-          <Button size="sm" variant="ghost" onClick={props.onClose}>
-            {t('machines.cancel')}
-          </Button>
-          <Button size="sm" variant="primary" disabled={address().trim() === ''} onClick={() => props.onAdd(name().trim() || address().trim(), address().trim())}>
-            {t('machines.add.go')}
-          </Button>
-        </Inline>
-      }
-    >
-      <Stack gap="3">
-        <Field label={t('machines.add.address')} hint={t('machines.add.address.hint')}>
-          <Input mono value={address()} onInput={setAddress} placeholder="me@build-box.local" />
-        </Field>
-        <Field label={t('machines.add.name')}>
-          <Input value={name()} onInput={setName} placeholder={t('machines.add.name.placeholder')} />
-        </Field>
-      </Stack>
-    </Dialog>
-  );
-}
-
 export default function Machines(props: { readonly client: PluginClient }): JSX.Element {
   const c = props.client;
   const peer = c.home;
@@ -56,7 +18,6 @@ export default function Machines(props: { readonly client: PluginClient }): JSX.
   c.watch(peer, TOPIC, scope);
   const peers = useSignal(c.entities.list<Doc<PeerBody>>(PEER));
   const statuses = useSignal(c.entities.list<Doc<StatusBody>>(STATUS));
-  const [adding, setAdding] = createSignal(false);
   const [reach, { refetch }] = createResource(() => c.run(reachable, { peer }).catch(() => undefined));
   const stateOf = (id: string): StatusBody | undefined => (statuses() as readonly Doc<StatusBody>[]).find((s) => s.body.id === id || s.id === id)?.body;
   // a sandbox belongs to its owner (ADR-0047): never a machine you pick or manage here (Settings → Cloud lists them)
@@ -65,11 +26,6 @@ export default function Machines(props: { readonly client: PluginClient }): JSX.
       .map((p) => p.body)
       .filter((p) => !p.data?.['sandbox'])
       .sort((a, b) => a.name.localeCompare(b.name));
-  const act = (id: string, v: string): void => {
-    if (v === 'connect') quiet(c.run(connect, { peer, id }));
-    else if (v === 'disconnect') quiet(c.run(disconnect, { peer, id }));
-    else if (v === 'remove') quiet(c.run(removeMachine, { peer, id }));
-  };
   const r = () => reach();
   const [managing, setManaging] = createSignal(false);
   const copy = (cmd: string): void => {
@@ -82,47 +38,6 @@ export default function Machines(props: { readonly client: PluginClient }): JSX.
     const on = list().filter((m) => stateOf(m.id)?.state === 'online').length;
     return t('machines.summary', { count: n, online: on ? t('machines.summary.online', { count: on }) : t('machines.summary.noneOnline') });
   };
-  const listGroup = (): JSX.Element => (
-    <SettingsGroup
-      part="machines.list"
-      actions={
-        <Button size="sm" variant="ghost" icon="plus" part="machines.add.open" onClick={() => setAdding(true)}>
-          {t('machines.add.title')}
-        </Button>
-      }
-    >
-      <Show when={list().length > 0} fallback={<SettingsRow part="machines.empty" title={t('machines.none')} description={t('machines.none.description')} />}>
-        <For each={list()}>
-          {(m) => {
-            const s = () => stateOf(m.id)?.state ?? 'off';
-            return (
-              <SettingsRow
-                part="machines.row"
-                title={m.name}
-                description={stateOf(m.id)?.error || m.address}
-                control={
-                  <Inline gap="2">
-                    <Pill tone={TONE[s()] ?? 'neutral'} dot live={s() === 'connecting' || s() === 'reconnecting'} variant="outline">
-                      {t(`machines.state.${s() as 'off'}`)}
-                    </Pill>
-                    <Menu
-                      trigger={{ icon: 'dots', 'aria-label': t('machines.more', { name: m.name }), variant: 'ghost', size: 'sm' }}
-                      items={[
-                        s() === 'off' || s() === 'error' ? { value: 'connect', label: t('machines.connect'), icon: 'play' } : { value: 'disconnect', label: t('machines.disconnect'), icon: 'stop' },
-                        { kind: 'separator' },
-                        { value: 'remove', label: t('machines.remove'), icon: 'trash', danger: true },
-                      ]}
-                      onSelect={(v) => act(m.id, v)}
-                    />
-                  </Inline>
-                }
-              />
-            );
-          }}
-        </For>
-      </Show>
-    </SettingsGroup>
-  );
   return (
     <>
       {/* v1: one row (how many, Manage), the line on where they show, this computer on a grid, then SSH */}
@@ -220,18 +135,7 @@ export default function Machines(props: { readonly client: PluginClient }): JSX.
         </Show>
       </SettingsGroup>
       <Show when={managing()}>
-        <Dialog open onOpenChange={(o) => !o && setManaging(false)} title={t('machines.title')} description={t('machines.manage.description')} part="machines.manage.dialog">
-          {listGroup()}
-        </Dialog>
-      </Show>
-      <Show when={adding()}>
-        <Add
-          onClose={() => setAdding(false)}
-          onAdd={(name, address) => {
-            setAdding(false);
-            quiet(c.run(addMachine, { peer, name, address }));
-          }}
-        />
+        <MachinesDialog client={c} onClose={() => setManaging(false)} />
       </Show>
     </>
   );
