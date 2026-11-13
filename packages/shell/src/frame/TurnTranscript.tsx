@@ -1,9 +1,10 @@
 // A finished turn's full transcript (v1 features/transcript.js renderTranscript), drawn with the kit's Timeline:
 // the head ("Transcript · 1 message · 4 steps"), each step on the rail (an edit with its +/−, a command that isn't
 // already its label, what it printed or the error in full behind a chevron), the agent's messages as prose, and
-// where the turn ended. The answer follows it (TaskView).
-import { For, createSignal, type JSX } from 'solid-js';
-import { Icon, Markdown, Text, Timeline, TimelineEnd, TimelineMessage, TimelineStep, type IconName } from '@wisp/ui';
+// where the turn ended. The answer follows it (TaskView). What a step printed of a .env file (`cat .env`) reads
+// KEY=•••• under v1's Reveal line (env-reveal.ts keeps what's shown, per task).
+import { For, Show, createSignal, type JSX } from 'solid-js';
+import { EnvMask, Icon, Markdown, Text, Timeline, TimelineEnd, TimelineMessage, TimelineStep, envFileNamed, envName, maskText, readsEnvFile, type EnvReveal, type IconName } from '@wisp/ui';
 import type { ShellContext } from '../contract.ts';
 import { changeFigures } from './rows-view.ts';
 
@@ -22,9 +23,27 @@ export interface TranscriptStepRow {
 
 type Change = Parameters<typeof changeFigures>[0][number];
 
-function Step(props: { readonly a: TranscriptStepRow; readonly changes: readonly Change[]; readonly here: (s: string) => string }): JSX.Element {
+/** What a step's opened detail shows of its output: masked when it read a .env file and isn't revealed. */
+export function stepOutput(a: TranscriptStepRow, maskOn: boolean, shown: boolean): { readonly text: string; readonly env: boolean } | undefined {
+  if (a.out === undefined) return undefined;
+  const env = maskOn && readsEnvFile(a) && maskText(a.out) !== a.out;
+  return { text: env && !shown ? maskText(a.out) : a.out, env };
+}
+
+function Step(props: {
+  readonly a: TranscriptStepRow;
+  readonly index: number;
+  readonly changes: readonly Change[];
+  readonly here: (s: string) => string;
+  readonly env: EnvReveal | undefined;
+  readonly t: ShellContext['t'];
+}): JSX.Element {
   const [open, setOpen] = createSignal(false);
   const a = props.a;
+  const id = `step:${props.index}`;
+  const shown = (): boolean => props.env?.shown(id) ?? false;
+  const out = () => stepOutput(a, props.env?.on() ?? true, shown());
+  const t = props.t;
   const change = props.changes.find((c) => (c as { file?: string }).file === a.file);
   const nums = a.kind === 'edit' && change ? changeFigures([change]) : undefined;
   const command = a.kind === 'run' && a.detail && !(a.label ?? '').includes(a.detail.slice(0, 24)) ? props.here(a.detail) : undefined;
@@ -39,13 +58,33 @@ function Step(props: { readonly a: TranscriptStepRow; readonly changes: readonly
       {...(command !== undefined && { command })}
       {...(nums && { nums: { add: nums.plus, del: nums.minus } })}
       {...(a.bad || a.kind === 'error' ? { tone: 'bad' as const } : {})}
-      {...(opens && { expanded: open(), onToggle: () => setOpen(!open()), detail: () => (more !== undefined ? <pre>{props.here(more)}</pre> : null) })}
+      {...(opens && {
+        expanded: open(),
+        onToggle: () => setOpen(!open()),
+        detail: () =>
+          more === undefined ? null : (
+            <>
+              <Show when={out()?.env}>
+                <EnvMask
+                  part="turn.transcript.envMask"
+                  shown={shown()}
+                  what={t(shown() ? 'shell.env.shown' : 'shell.env.hidden', { name: envName(a.file || envFileNamed(a.detail) || envFileNamed(a.label)) })}
+                  action={t(shown() ? 'shell.env.hide' : 'shell.env.reveal')}
+                  onToggle={(on) => props.env?.set(id, on)}
+                />
+              </Show>
+              <pre>{props.here(out()?.text ?? more)}</pre>
+            </>
+          ),
+      })}
     />
   );
 }
 
 export function TurnTranscript(props: {
   readonly steps: readonly TranscriptStepRow[];
+  /** masked .env output shown (Reveal), per task; without it the output stays masked */
+  readonly env?: EnvReveal;
   readonly changes: readonly Change[];
   readonly here: (s: string) => string;
   readonly status: string;
@@ -75,13 +114,13 @@ export function TurnTranscript(props: {
       }
     >
       <For each={props.steps}>
-        {(a) =>
+        {(a, i) =>
           a.kind === 'text' ? (
             <TimelineMessage>
               <Markdown source={props.here(a.label ?? '')} />
             </TimelineMessage>
           ) : (
-            <Step a={a} changes={props.changes} here={props.here} />
+            <Step a={a} index={i()} changes={props.changes} here={props.here} env={props.env} t={t} />
           )
         }
       </For>

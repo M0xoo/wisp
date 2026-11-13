@@ -1,7 +1,7 @@
 // The Changes pane's pure half (v1 features/panel.js changes): what the task's turns changed, file by file,
 // as the kit's Diff reads it. A turn's `body.changes` (runtime's FileChange: file, op, edits of before → after)
 // becomes one DiffFile per file, its edits in order, each edit a hunk of a line diff (kept lines as context).
-import type { DiffFile, DiffHunk, DiffLine, DiffStatus } from '@wisp/ui';
+import { isEnvFile, maskEdit, type DiffFile, type DiffHunk, type DiffLine, type DiffStatus } from '@wisp/ui';
 
 export interface FileChange {
   readonly file: string;
@@ -51,14 +51,18 @@ export function hunkOf(before: string, after: string, at = 1): DiffHunk {
 const STATUS: Readonly<Record<string, DiffStatus>> = { add: 'added', delete: 'deleted', rename: 'renamed' };
 
 /** The task's changes, file by file, in the order they were first changed; `session` is its bare id, `cwd` its
- *  folder (paths show from there). */
-export function filesOf(turns: readonly ChangeTurn[], session: string, cwd = ''): DiffFile[] {
+ *  folder (paths show from there). `mask`: a file (as shown) whose edits read KEY=•••• (a .env file, not revealed). */
+export function filesOf(turns: readonly ChangeTurn[], session: string, cwd = '', mask: (path: string) => boolean = () => false): DiffFile[] {
   const byFile = new Map<string, { status: DiffStatus; hunks: DiffHunk[] }>();
   for (const turn of [...turns].filter((t) => t.session_id === session).sort((x, y) => x.idx - y.idx)) {
     for (const raw of changesOf(turn)) {
       const c = { ...raw, file: relative(raw.file, cwd) };
       const f = byFile.get(c.file) ?? { status: STATUS[c.op ?? ''] ?? 'modified', hunks: [] };
-      for (const e of c.edits ?? []) f.hunks.push(hunkOf(e.before, e.after));
+      const hide = mask(c.file);
+      for (const raw of c.edits ?? []) {
+        const e = hide ? maskEdit(raw) : raw;
+        f.hunks.push(hunkOf(e.before, e.after));
+      }
       if (c.op === 'delete') f.status = 'deleted';
       byFile.set(c.file, f);
     }
@@ -143,6 +147,9 @@ export function setRevealed(task: string, path: string, on: boolean): ReadonlySe
 
 /** A file's .env line (v1 env-mask.js maskBar): 'hidden' when git sent it masked, 'shown' once revealed (git then
  *  sends it as it is, unmarked), none for any other file. */
+/** A file wisp saw edited (no git): masked when it's a .env file, masking is on and it isn't revealed. */
+export const seenMasked = (path: string, maskOn: boolean, revealed: ReadonlySet<string>): boolean => maskOn && isEnvFile(path) && !revealed.has(path);
+
 export function envState(f: { readonly path: string; readonly masked?: boolean | null }, revealed: ReadonlySet<string>): 'hidden' | 'shown' | undefined {
   if (revealed.has(f.path)) return 'shown';
   return f.masked ? 'hidden' : undefined;

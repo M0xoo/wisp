@@ -4,12 +4,12 @@
 // once (design/feedback.md): the toggle flips, the reverted hunk goes, the committed files go; then git's own read
 // comes back. A refusal puts it back as it was, with the error. Without git, the edits wisp saw, per file.
 import { Show, createEffect, createMemo, createResource, createSignal, on, type JSX } from 'solid-js';
-import { defineCommand, type EntityKey } from '@wisp/client';
-import { ChangesList, CommentCard, EmptyState, rowKey, useSignal, type ChangeFile, type ChangeRow, type StageState } from '@wisp/ui';
+import { defineCommand, entityKey, ownerOf, type EntityKey, type SettingRow } from '@wisp/client';
+import { ChangesList, CommentCard, EmptyState, isEnvFile, rowKey, useSignal, type ChangeFile, type ChangeRow, type StageState } from '@wisp/ui';
 import { added, commentStore, lineKey, lineLabel, placeOf, waiting } from '../comments.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
-import { envState, filesOf, revealedOf, setRevealed, type ChangeTurn } from './changes.ts';
+import { envState, filesOf, revealedOf, seenMasked, setRevealed, type ChangeTurn } from './changes.ts';
 
 interface GitFileRow {
   readonly path: string;
@@ -64,15 +64,17 @@ type Raw = { cwd?: string; title?: string; summary?: { worktree?: Wt | null }; b
 
 const stageOf = (f: GitFileRow): StageState => (!f.staged && !f.unstaged ? 'none' : f.staged && !f.unstaged ? 'staged' : f.staged ? 'part' : 'stage');
 
-/** The edits wisp saw (no git), as the list's rows: each hunk's lines, a gap between hunks. */
-function seenFiles(turns: readonly ChangeTurn[], id: string, cwd: string): ChangeFile[] {
-  return filesOf(turns, id, cwd).map((f) => ({
+/** The edits wisp saw (no git), as the list's rows: each hunk's lines, a gap between hunks. A .env file's values read
+ *  KEY=•••• under the Reveal line until it's revealed (v1 maskChange; git masks its own rows). */
+function seenFiles(turns: readonly ChangeTurn[], id: string, cwd: string, maskOn: boolean, revealed: ReadonlySet<string>): ChangeFile[] {
+  return filesOf(turns, id, cwd, (p) => seenMasked(p, maskOn, revealed)).map((f) => ({
     path: f.path,
     status: f.status === 'added' ? 'A' : f.status === 'deleted' ? 'D' : 'M',
     add: f.additions,
     del: f.deletions,
     binary: f.binary,
     revertable: false,
+    ...(maskOn && isEnvFile(f.path) ? { env: revealed.has(f.path) ? ('shown' as const) : ('hidden' as const) } : {}),
     rows: f.hunks.flatMap((h, i) => [...(i ? [{ op: '…', count: 0 }] : []), ...h.lines.map((l) => ({ op: l.kind === 'add' ? '+' : l.kind === 'del' ? '-' : ' ', text: l.text }))]),
   }));
 }
@@ -98,6 +100,9 @@ export function ChangesPane(): JSX.Element {
     (a) => task.client.run(read, { key: task.key, ...a }).catch(() => null),
   );
   const turns = useSignal(task.client.entities.list<ChangeTurn>('turn'));
+  // Settings → Privacy's Hide .env values (git masks its own rows by it; the edits wisp saw follow it here)
+  const maskSetting = useSignal(task.client.entities.row<SettingRow>('setting', entityKey(ownerOf(task.key), 'git.maskEnvFiles')));
+  const maskOn = (): boolean => !(maskSetting()?.value === false || maskSetting()?.value === 'off');
   // what you did before git answers again: a toggle flipped, a hunk or file reverted, files committed
   const [flipped, setFlipped] = createSignal(new Map<string, StageState>());
   const [going, setGoing] = createSignal(new Set<string>());
@@ -110,7 +115,7 @@ export function ChangesPane(): JSX.Element {
   const envOf = (f: GitFileRow): 'hidden' | 'shown' | undefined => envState(f, revealed()) ?? (hiding().has(f.path) ? 'hidden' : undefined);
   const files = createMemo((): ChangeFile[] => {
     const g = git();
-    if (!g || g.body.kind !== 'inline') return seenFiles(turns() as readonly ChangeTurn[], task.id, dir());
+    if (!g || g.body.kind !== 'inline') return seenFiles(turns() as readonly ChangeTurn[], task.id, dir(), maskOn(), revealed());
     return g.body.files
       .filter((f) => !going().has(f.path))
       .map((f) => ({

@@ -22,6 +22,12 @@ export const CONTENT_STRINGS = {
 
   'block.code.label': 'code',
 
+  // a .env file's values masked (v1 env-mask.js maskBar)
+  'block.env.hidden': '{name}’s values are hidden',
+  'block.env.shown': 'Showing {name}’s values',
+  'block.env.reveal': 'Reveal',
+  'block.env.hide': 'Hide',
+
   'block.compare.before': 'Before',
   'block.compare.after': 'After',
 

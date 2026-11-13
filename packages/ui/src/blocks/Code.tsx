@@ -1,6 +1,7 @@
 // The `code` block (v1 R.code): a key snippet with its line numbers (from `line`), the lines it
 // points at highlighted, and the file it's from (opening it at that line), or its language. Copy
-// takes the code. A long snippet lays out only its lines near the screen.
+// takes the code. A .env file's values show masked under a Reveal line (./env-view.tsx). A long
+// snippet lays out only its lines near the screen.
 import { createMemo, For, Show, type JSX } from 'solid-js';
 import { highlight, type Token } from '../content/highlight.ts';
 import { flag } from '../core/props.ts';
@@ -8,6 +9,7 @@ import { useBlocks, useBlockT } from './context.tsx';
 import { CopyButton } from './content-copy.tsx';
 import { InlineMd, PathText } from './content-parts.tsx';
 import { chunksOf, langOf } from './content-util.ts';
+import { useEnvView } from './env-view.tsx';
 import { list, num, str } from './read.ts';
 import type { BlockProps } from './types.ts';
 
@@ -60,7 +62,9 @@ function CodeHead(props: { readonly file: string; readonly line: number | undefi
 }
 
 export function CodeBlock(props: BlockProps): JSX.Element {
-  const code = (): string => str(props.block['code']).replace(/\n$/, '');
+  // a .env file's values masked until Reveal (copy takes what shows)
+  const env = useEnvView(props, 'block.code.envMask');
+  const code = (): string => str(env.block()['code']).replace(/\n$/, '');
   const file = (): string => str(props.block['file']);
   const line = (): number | undefined => {
     const n = num(props.block['line']);
@@ -76,6 +80,7 @@ export function CodeBlock(props: BlockProps): JSX.Element {
   return (
     <div data-kit="cb-code" data-part="block.code">
       <CodeHead file={file()} line={line()} lang={lang()} code={code} />
+      {env.bar()}
       <div data-kit="cb-code-scroll" data-part="block.code.body" tabIndex={0}>
         <div data-kit="cb-code-lines" data-lang={lang() || undefined}>
           <For each={chunksOf(lines(), CHUNK)}>

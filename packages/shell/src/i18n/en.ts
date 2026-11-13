@@ -273,6 +273,11 @@ export const SHELL_STRINGS = {
   'shell.tips.vsa': ' in the launcher to run the same task on two agents, each on its own branch',
   'shell.tips.goal2a': ' in a reply box to keep a task going until your condition holds',
   'shell.task.transcript': 'Transcript',
+  // a step's output of a .env file, masked (v1 env-mask.js maskBar)
+  'shell.env.hidden': '{name}’s values are hidden',
+  'shell.env.shown': 'Showing {name}’s values',
+  'shell.env.reveal': 'Reveal',
+  'shell.env.hide': 'Hide',
   'shell.task.messages.one': '1 message',
   'shell.task.messages.other': '{n} messages',
   'shell.task.steps.one': '1 step',

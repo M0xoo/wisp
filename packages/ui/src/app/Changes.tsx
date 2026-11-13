@@ -6,6 +6,7 @@
 import { For, Show, createSignal, type JSX } from 'solid-js';
 import { flag, type PartName } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
+import { EnvMask } from '../content/EnvMask.tsx';
 import { WithAct, type Act } from './act.tsx';
 
 /** A row of a git diff (wisp-git's FileDiff rows): ' ', '+', '-', or '…' for a gap of `count` unchanged lines. */
@@ -236,12 +237,14 @@ function FileDiff(props: { readonly f: ChangeFile; readonly p: ChangesListProps 
     <div data-kit="cx-diff">
       <Show when={props.f.env}>
         {(env) => (
-          <div data-kit="cx-env" data-part="changes.envMask">
-            <span data-kit="cx-env-what">{env() === 'shown' ? L.envShown?.(name()) : L.envHidden?.(name())}</span>
-            <button type="button" data-kit="cx-env-btn" data-part="changes.envReveal" aria-pressed={env() === 'shown'} onClick={() => props.p.onReveal?.(props.f.path, env() !== 'shown')}>
-              {env() === 'shown' ? L.hide : L.reveal}
-            </button>
-          </div>
+          <EnvMask
+            part="changes.envMask"
+            buttonPart="changes.envReveal"
+            shown={env() === 'shown'}
+            what={(env() === 'shown' ? L.envShown?.(name()) : L.envHidden?.(name())) ?? ''}
+            action={(env() === 'shown' ? L.hide : L.reveal) ?? ''}
+            onToggle={(show) => props.p.onReveal?.(props.f.path, show)}
+          />
         )}
       </Show>
       <Show when={props.f.from}>

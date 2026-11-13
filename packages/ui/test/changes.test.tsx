@@ -159,7 +159,7 @@ test('F-page-41: a .env file has v1 env-mask\'s line over its diff, Reveal ⇄ H
   setEnv('shown');
   expect(btn().textContent).toBe('Hide');
   expect(btn().getAttribute('aria-pressed')).toBe('true');
-  expect(host.querySelector('[data-kit="cx-env-what"]')?.textContent).toBe('Showing .env.local’s values');
+  expect(host.querySelector('[data-kit="env-mask-what"]')?.textContent).toBe('Showing .env.local’s values');
   btn().click();
   expect(calls).toEqual(['app/.env.local true', 'app/.env.local false']);
 });

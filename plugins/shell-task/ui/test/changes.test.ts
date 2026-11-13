@@ -1,6 +1,6 @@
 // The Changes pane's model (side/changes.ts).
 import { expect, test } from 'vitest';
-import { envState, filesOf, gitFiles, hunkOf, revealedOf, setRevealed, type ChangeTurn } from '../src/side/changes.ts';
+import { envState, filesOf, gitFiles, hunkOf, revealedOf, seenMasked, setRevealed, type ChangeTurn } from '../src/side/changes.ts';
 
 test('a task\'s turns become one diff per file, edits in turn order, kept lines as context', () => {
   const h = hunkOf('a\nb\nc\n', 'a\nB\nc\n');
@@ -46,4 +46,13 @@ test('F-page-41: a .env file git sent masked reads hidden; once revealed it stay
   const off = setRevealed('t1', '.env', false);
   expect(envState({ path: '.env', masked: true }, off)).toBe('hidden');
   expect(revealedOf('t1').size).toBe(0);
+});
+
+test('F-page-41: the edits wisp saw to a .env file (no git) read KEY=•••• until revealed; other files and masking off as they are', () => {
+  const turns: ChangeTurn[] = [{ session_id: 's', idx: 0, body: { changes: [{ file: '/w/.env', op: 'modify', edits: [{ before: 'API_KEY=sk-1\n', after: 'API_KEY=sk-2\n' }] }, { file: '/w/a.ts', op: 'modify', edits: [{ before: 'K=1', after: 'K=2' }] }] } }];
+  const text = (mask: (p: string) => boolean): string[] => filesOf(turns, 's', '/w', mask).flatMap((f) => f.hunks.flatMap((h) => h.lines.map((l) => `${f.path} ${l.kind}:${l.text}`)));
+  expect(text((p) => seenMasked(p, true, new Set()))).toEqual(['.env del:API_KEY=••••', '.env add:API_KEY=•••• (changed)', 'a.ts del:K=1', 'a.ts add:K=2']);
+  expect(text((p) => seenMasked(p, true, new Set(['.env'])))).toContain('.env add:API_KEY=sk-2');
+  expect(text((p) => seenMasked(p, false, new Set()))).toContain('.env add:API_KEY=sk-2');
+  expect(seenMasked('.env.example', true, new Set())).toBe(false);
 });

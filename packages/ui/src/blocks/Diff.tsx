@@ -8,6 +8,7 @@ import { Diff } from '../content/diff/Diff.tsx';
 import { Icon } from '../content/Icon.tsx';
 import { useBlocks, useBlockT } from './context.tsx';
 import { ownDiff } from './content-diff.ts';
+import { useEnvView } from './env-view.tsx';
 import { InlineMd, PathText } from './content-parts.tsx';
 import { str } from './read.ts';
 import type { BlockProps } from './types.ts';
@@ -15,8 +16,10 @@ import type { BlockProps } from './types.ts';
 export function DiffBlock(props: BlockProps): JSX.Element {
   const ctx = useBlocks();
   const t = useBlockT();
+  // a .env file's values masked until Reveal (./env-view.tsx)
+  const env = useEnvView(props, 'block.diff.envMask');
   const file = (): string => str(props.block['file']) || str(props.block['path']);
-  const diff = createMemo(() => ownDiff(props.block, file()));
+  const diff = createMemo(() => ownDiff(env.block(), file()));
   const path = (): string => diff()?.path || file();
   const caption = (): string => str(props.block['caption']);
   return (
@@ -33,7 +36,12 @@ export function DiffBlock(props: BlockProps): JSX.Element {
           </div>
         }
       >
-        {(d) => <Diff part="block.diff.body" files={[d()]} />}
+        {(d) => (
+          <>
+            {env.bar()}
+            <Diff part="block.diff.body" files={[d()]} />
+          </>
+        )}
       </Show>
       <Show when={caption() || (ctx.openFile && path())}>
         <div data-kit="cb-diff-foot" data-part="block.diff.foot">

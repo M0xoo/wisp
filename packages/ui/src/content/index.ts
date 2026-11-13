@@ -9,3 +9,5 @@ export { Avatar, initials, type AvatarProps } from './Avatar.tsx';
 export { Skeleton, type SkeletonProps, type SkeletonWidth } from './Skeleton.tsx';
 export { Divider, type DividerProps } from './Divider.tsx';
 export { FileView, langOfPath, lineAt, nameAt, type FileViewProps, type GutterMark } from './file/FileView.tsx';
+export { EnvMask, envName, type EnvMaskProps } from './EnvMask.tsx';
+export { DOTS, envFileNamed, isEnvFile, maskBlock, maskDiffs, maskEdit, maskLine, maskText, namesEnvFile, readsEnvFile } from './env-mask.ts';

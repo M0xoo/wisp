@@ -76,6 +76,7 @@ import { useAttachments } from './attach.ts';
 import { harnessOf } from './harness.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { TurnTranscript } from './TurnTranscript.tsx';
+import { envReveal } from './env-reveal.ts';
 import { runPick, type Runner } from './runner.ts';
 import { rowUsage, taskUsage, type TurnStatsLike } from './task-usage.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
@@ -699,6 +700,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
                       // a follow-up with comments on lines: the cards over the words typed with them (v1 sentComments)
                       const sent = readComments(turn.prompt);
+                      // what a step printed of a .env file: masked, revealed per task (env-reveal.ts)
+                      const env = envReveal(shell, key, `${turn.id}:`);
                       return (
                         <>
                           <TurnView
@@ -746,6 +749,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                           : []),
                                       ]}
                                       changes={changes}
+                                      env={env}
                                       here={here}
                                       status={turn.status ?? ''}
                                       t={t}
@@ -757,6 +761,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                       shell,
                                       key,
                                       turnId: turn.id,
+                                      env,
                                       blocked: () => blockedOf(b),
                                       latest: () => turn.id === turns().at(-1)?.id,
                                       title: () => s().title,

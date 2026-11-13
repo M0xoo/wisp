@@ -55,6 +55,15 @@ export interface BlockedItem {
   readonly why?: string;
 }
 
+/** Which masked .env views show as they are (v1 env-mask.js `shown`): the host keeps them per task for the tab's
+ *  life, so a refresh or a new turn doesn't hide them again. `id` names one view in this answer (`block:<index>`). */
+export interface EnvReveal {
+  /** masking is on (the `git.maskEnvFiles` setting); off, every view shows as it is */
+  readonly on: () => boolean;
+  readonly shown: (id: string) => boolean;
+  readonly set: (id: string, shown: boolean) => void;
+}
+
 /**
  * Everything a block may ask of its host. Every member is optional: a block whose action the host
  * doesn't offer renders without that control (a share page has no Reply), never a dead button.
@@ -108,6 +117,8 @@ export interface BlockContext {
   readonly taskTitle?: string;
   /** beside a hero's state (v1 R.hero meta: how long, what it cost, files touched), shown with the transcript */
   readonly heroMeta?: readonly string[];
+  /** masked .env views shown (Reveal). Without it a block masks and keeps its Reveal to itself. Additive (2026-11-13). */
+  readonly env?: EnvReveal;
   /** the block's own copy, translated; default English (./strings.ts) */
   readonly t?: (key: BlockString, vars?: Readonly<Record<string, string | number>>) => string;
 }

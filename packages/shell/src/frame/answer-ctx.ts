@@ -3,7 +3,7 @@
 // link, allow or deny a blocked turn, read another task's title and state. Live only on the latest answer.
 import type { EntityKey } from '@wisp/client';
 import { entityKey, ownerOf } from '@wisp/client';
-import { useSignal, type BlockContext, type StuffRef, type TaskRef } from '@wisp/ui';
+import { useSignal, type BlockContext, type EnvReveal, type StuffRef, type TaskRef } from '@wisp/ui';
 import type { ShellContext } from '../contract.ts';
 import { usePluginClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
@@ -26,6 +26,8 @@ export interface AnswerHost {
   readonly reply: (text: string) => void;
   readonly draft: (text: string) => void;
   readonly openChanges: () => void;
+  /** which masked .env views show (env-reveal.ts), built once per turn; without it a block keeps its own Reveal */
+  readonly env?: EnvReveal;
   /** what the turn's `app` blocks saved (`ext["wisp.apps"]`) */
   readonly apps: () => Readonly<Record<string, unknown>>;
 }
@@ -48,6 +50,8 @@ export function answerContext(h: AnswerHost): BlockContext {
   const home = usePluginClient('shell').home;
   const keyOf = (id: string): EntityKey => (id.includes(':') ? (id as EntityKey) : entityKey(peer, id));
   return {
+    // a .env file's values in a code or diff block: masked, revealed per task for the tab's life (env-reveal.ts)
+    ...(h.env && { env: h.env }),
     get latest() {
       return h.latest();
     },
