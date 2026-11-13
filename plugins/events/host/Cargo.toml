@@ -16,7 +16,7 @@ tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 wisp-events-api = { path = "../api" }
 wisp-kernel.workspace = true
-wisp-mcp-api = { path = "../../mcp/api" }
+wisp-mcp-api.workspace = true
 wisp-store.workspace = true
 
 [dev-dependencies]

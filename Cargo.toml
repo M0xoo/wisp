@@ -22,7 +22,6 @@ edition = "2024"
 rust-version = "1.89"
 license = "MIT"
 publish = false
-repository = "https://github.com/WispAgents/wisp"
 
 [workspace.dependencies]
 # wisp crates
@@ -41,15 +40,12 @@ wisp-runtime-api = { path = "plugins/runtime/api" }
 wisp-runtime-core = { path = "plugins/runtime/core" }
 # plugin contracts and cores (owned by the stuff/plugins/telemetry/update/settings agent)
 wisp-plugins-api = { path = "plugins/plugins/api" }
-wisp-plugins-core = { path = "plugins/plugins/core" }
 wisp-settings-api = { path = "plugins/settings/api" }
-wisp-settings-core = { path = "plugins/settings/core" }
 wisp-stuff-api = { path = "plugins/stuff/api" }
 wisp-stuff-core = { path = "plugins/stuff/core" }
 wisp-telemetry-api = { path = "plugins/telemetry/api" }
 wisp-telemetry-core = { path = "plugins/telemetry/core" }
 wisp-posthog-core = { path = "plugins/posthog/core" }
-wisp-update-api = { path = "plugins/update/api" }
 wisp-update-core = { path = "plugins/update/core" }
 # plugin contracts and cores (owned by the crew-row agent: crew, goal, later, budget, router, automations, learn)
 wisp-crew-api = { path = "plugins/crew/api" }
