@@ -7,6 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 use wisp_kernel::{BoxFuture, Caller, Command, Manifest, Plugin, Result, Setup};
+use wisp_runtime_api::model::{Mode, Presentation, Session, Turn, TurnStatus};
+use wisp_runtime_api::{SessionId, TurnId};
 use wisp_store::{Location, Store, SystemClock};
 use wisp_telemetry_api::{SINK, Sink};
 use wisp_testkit::TestApp;
@@ -54,9 +56,35 @@ impl Plugin for Runtime {
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.contribute(&SINK, Arc::new(Sometimes(self.0.clone())) as Arc<dyn Sink>);
-        s.command::<Get, _, _>(|_, _, _| async { Ok(json!({ "id": "s1", "agent": "claude", "mode": "auto", "ext": {} })) });
-        s.command::<Turns, _, _>(|_, _, _| async {
-            Ok(json!([{ "id": "t1", "idx": 0, "agent": "claude", "model": "opus", "mode": "auto", "status": "done", "startedAt": 1000, "endedAt": 61000, "prompt": "secret prompt", "presentation": { "blocks": [{ "type": "hero", "status": "done" }] } }]))
+        // runtime's own shapes (a partial body would not read as a task or a turn)
+        let task = Session { id: SessionId("s1".into()), agent: "claude".into(), mode: Mode::Auto, ..Session::default() };
+        let turn = Turn {
+            id: TurnId("t1".into()),
+            session_id: SessionId("s1".into()),
+            agent: "claude".into(),
+            model: "opus".into(),
+            status: TurnStatus::Done,
+            started_at: 1000,
+            ended_at: Some(61000),
+            prompt: "secret prompt".into(),
+            presentation: Some(Presentation {
+                blocks: vec![json!({ "type": "hero", "status": "done" })],
+                v: 1,
+                dropped: Vec::new(),
+                topic: None,
+                notes: None,
+                fallback: false,
+            }),
+            ..Turn::default()
+        };
+        let (task, turns) = (serde_json::to_value(task).unwrap(), serde_json::to_value([turn]).unwrap());
+        s.command::<Get, _, _>(move |_, _, _| {
+            let task = task.clone();
+            async move { Ok(task) }
+        });
+        s.command::<Turns, _, _>(move |_, _, _| {
+            let turns = turns.clone();
+            async move { Ok(turns) }
         });
         let ext = self.0.ext.clone();
         s.command::<TurnExt, _, _>(move |_, _, a| {

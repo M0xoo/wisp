@@ -16,12 +16,19 @@ use std::time::Duration;
 
 use serde_json::{Map, Value, json};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_router_api::commands as router;
+use wisp_router_api::types::{Feedback, Signals};
+use wisp_runtime_api::commands as r;
 use wisp_runtime_api::events::{TurnEnded, TurnStarted};
+use wisp_runtime_api::{SessionId, TurnId};
 use wisp_store::{Col, EntityDef, Migration, Query, Row, Store};
 use wisp_telemetry_api::{self as api, SINK, TelemetryEvent};
 use wisp_telemetry_core::env::{FLUSH_MS, TIMEOUT_MS};
-use wisp_telemetry_core::turns::{BlockFact, RunFacts, TurnFacts, ended_props, started_props};
+use wisp_telemetry_core::turns::{ended_props, started_props};
 use wisp_telemetry_core::{Common, Env, ScrubOptions, Telemetry, Tracked};
+
+mod facts;
+use facts::facts;
 
 const MIGRATIONS: &[Migration] = &[
     Migration::sql(1, "CREATE TABLE telemetry_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
@@ -165,9 +172,18 @@ async fn feedback(st: &State, ctx: &Ctx, call: &Call, body: &Value) -> Result<Va
     {
         let rating = a.rating.and_then(fb::Rating::as_str);
         let value = json!({ "feedback": rating.map(|r| json!({ "rating": r, "at": now(ctx) })) });
-        ctx.run_json(call, "runtime.turn.setExt", json!({ "id": sid, "turnId": tid, "plugin": "wisp.telemetry", "value": value })).await?;
+        let ext = r::TurnExtArgs { id: SessionId(sid.clone()), turn_id: TurnId(tid.clone()), plugin: api::PLUGIN_ID.into(), value };
+        ctx.run::<r::TurnSetExt>(call, ext).await?;
         // Auto learns from it (v1 router.signal): best effort, a task Auto didn't route has nothing to learn
-        let _ = ctx.run_json(call, "router.signal", json!({ "id": sid, "patch": { "feedback": rating } })).await;
+        let feedback = match a.rating {
+            Some(fb::Rating::Up) => Some(Feedback::Up),
+            Some(fb::Rating::Down) => Some(Feedback::Down),
+            Some(fb::Rating::Clear) | None => None,
+        };
+        let signal = router::SignalArgs { id: sid.clone(), patch: Signals { feedback: Some(feedback), ..Signals::default() } };
+        if let Err(err) = ctx.run::<router::Signal>(call, signal).await {
+            tracing::warn!(error = %err.message, task = %sid, "telemetry: router.signal");
+        }
     }
     let (name, props) = fb::event(&a, &Context { run: facts.as_ref().map(|(r, t)| (r, t)), tour: false, machine: false });
     let outbox: Vec<Value> = lock(&st.outbox).clone();
@@ -182,41 +198,6 @@ async fn feedback(st: &State, ctx: &Ctx, call: &Call, body: &Value) -> Result<Va
         st.save().await;
     }
     Ok(json!({ "ok": true, "sent": sent, "available": available }))
-}
-
-/// The facts a turn's events report, read from wisp.runtime (fixed values only, never the prompt).
-async fn facts(ctx: &Ctx, call: &Call, sid: &str, tid: &str) -> Option<(RunFacts, TurnFacts)> {
-    let s = ctx.run_json(call, "runtime.get", json!({ "id": sid })).await.ok()?;
-    let turns = ctx.run_json(call, "runtime.turns", json!({ "id": sid })).await.ok()?;
-    let t = turns.as_array()?.iter().find(|t| t["id"] == tid)?.clone();
-    let str_of = |v: &Value| v.as_str().filter(|x| !x.is_empty()).map(str::to_owned);
-    let run = RunFacts {
-        agent: t["agent"].as_str().or(s["agent"].as_str()).unwrap_or_default().to_owned(),
-        model: str_of(&t["model"]),
-        mode: t["mode"].as_str().or(s["mode"].as_str()).unwrap_or_default().to_owned(),
-        effort: str_of(&t["effort"]),
-        turn_index: t["idx"].as_u64().and_then(|i| usize::try_from(i).ok()).unwrap_or(0),
-        route: s["ext"].get("wisp.router").and_then(|r| r.get("route")).cloned(),
-    };
-    let blocks = t["presentation"]["blocks"]
-        .as_array()
-        .map(|b| {
-            b.iter().map(|b| BlockFact { ty: b["type"].as_str().unwrap_or_default().to_owned(), status: str_of(&b["status"]) }).collect()
-        })
-        .unwrap_or_default();
-    let turn = TurnFacts {
-        status: t["status"].as_str().unwrap_or_default().to_owned(),
-        started_at: t["startedAt"].as_i64().unwrap_or(0),
-        ended_at: t["endedAt"].as_i64(),
-        attachments: t["attachments"].as_array().map_or(0, Vec::len),
-        blocks,
-        presentation_fallback: t["presentation"]["fallback"].as_bool().unwrap_or(false),
-        changed_files: t["changedFiles"].as_u64().and_then(|n| usize::try_from(n).ok()).unwrap_or(0),
-        input_tokens: t["stats"]["inputTokens"].as_f64(),
-        output_tokens: t["stats"]["outputTokens"].as_f64(),
-        cost_usd: t["stats"]["costUsd"].as_f64(),
-    };
-    Some((run, turn))
 }
 
 fn env() -> Env {
@@ -355,15 +336,13 @@ impl Plugin for TelemetryPlugin {
             // app_started: which harnesses are installed, and their versions (v1 index.js), off the start's way
             let (c3, st3) = (ctx.clone(), st.clone());
             ctx.spawn(async move {
-                if let Ok(agents) = c3.run_json(&c3.root_call(), "runtime.agents", json!({})).await {
-                    let list: Vec<(String, Option<String>)> = agents
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter(|a| a["available"] == true)
-                        .map(|a| (a["id"].as_str().unwrap_or_default().to_owned(), a["version"].as_str().map(str::to_owned)))
-                        .collect();
-                    st3.track(&c3, "app_started", wisp_telemetry_core::turns::app_started_props(&list)).await;
+                match c3.run::<r::Agents>(&c3.root_call(), r::AgentsArgs::default()).await {
+                    Ok(agents) => {
+                        let list: Vec<(String, Option<String>)> =
+                            agents.into_iter().filter(|a| a.available).map(|a| (a.id, a.version)).collect();
+                        st3.track(&c3, "app_started", wisp_telemetry_core::turns::app_started_props(&list)).await;
+                    }
+                    Err(err) => tracing::warn!(error = %err.message, "telemetry: runtime.agents (no app_started)"),
                 }
             });
             if let Ok(clock) = ctx.clock() {

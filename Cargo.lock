@@ -4996,6 +4996,7 @@ dependencies = [
  "wisp-learn-core",
  "wisp-runtime-api",
  "wisp-store",
+ "wisp-telemetry-api",
 ]
 
 [[package]]
@@ -5751,6 +5752,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-kernel",
+ "wisp-router-api",
  "wisp-runtime-api",
  "wisp-store",
  "wisp-telemetry-api",
