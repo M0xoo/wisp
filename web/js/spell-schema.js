@@ -344,6 +344,7 @@ export const PARTS = {
   'split.pane.bar': '#splitHome .sh-pane .pa-bar',
   'split.pane.grip': '#splitHome .sh-grip', // the handles between panes and under them: hide them and the sizes are the spell's
   'split.pane.row': '#splitHome .sh-pane-row', // a pane's row when stacked (a phone, a narrow window): it opens as a page
+  'split.usage': '#splitHome .sh-usage', // usage at a glance under the prompt box: each plan's 5-hour and weekly windows
   'split.spare': '#splitHome .sh-spare',
   'split.spare.start': '#splitHome .sh-spare .spr-start', // Use <harness>: picks that harness and account in the prompt box
   // Window changes (web/js/window-notice.js): a row when a plan's usage window appears, goes, changes length or moves its reset.

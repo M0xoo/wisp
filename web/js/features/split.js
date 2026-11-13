@@ -37,7 +37,7 @@ import { leaveStuff, paintStuff, stuffShown } from './stuff.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 import { backTarget, trailOf } from './lineage.js';
-import { dismissNotice, noticesOn, noticeTip, noticeWhen, planLine } from './budget.js';
+import { dismissNotice, homeUsageHtml, noticesOn, noticeTip, noticeWhen, planLine } from './budget.js';
 import { harnessLogo } from './runners.js';
 import { pruneSeen, spareKey, spareOf, spareWhose, spareWords } from '../spare.js';
 import { noticesOf, noticeWords } from '../window-notice.js';
@@ -547,6 +547,7 @@ function paintHome() {
   const next = $('.sh-next', home);
   if (next.dataset.h !== html) (next.innerHTML = html), (next.dataset.h = html);
   next.hidden = !html;
+  paintUsage();
   paintSpare();
   paintPanes();
   // What's coming up: scheduled tasks, reminders, follow-ups, crew check-ins and schedules (later.js).
@@ -613,6 +614,14 @@ function paintSpare() {
   box.hidden = !all;
 }
 let notes = []; // the window changes, as painted
+
+// Usage at a glance under the prompt box (budget.js homeUsageHtml): hidden until a CLI reports its plan.
+function paintUsage() {
+  const box = $('.sh-usage', home);
+  const html = homeUsageHtml(S.agents);
+  if (box.dataset.h !== html) (box.innerHTML = html), (box.dataset.h = html);
+  box.hidden = !html;
+}
 
 // Panes on home (panes.js): apps pinned there. Side by side they tile, in the order of their pins:
 // as many columns as fit (the spell's split.panes columns at most), sized by your drag, else the
@@ -940,6 +949,10 @@ home.addEventListener('click', (e) => {
     return;
   }
   if (e.target.closest('.sh-fb')) return openFeedback({ source: 'home' });
+  if (e.target.closest('.hu-row')) {
+    import('./settings.js').then((m) => m.openSettings({ pane: 'usage' }));
+    return;
+  }
   const sp = e.target.closest('[data-spare]');
   if (sp) return onSpare(sp);
   if (e.target.closest('[data-install]')) {
@@ -998,9 +1011,11 @@ wide.addEventListener('change', () => {
   paintSplit();
 });
 bus.on('spells', applyView);
-// A window moved (server/budget.js broadcasts 'agents'): the spare card follows, while home shows.
+// A window moved (server/budget.js broadcasts 'agents'): usage and the spare card follow, while home shows.
 bus.on('agents', () => {
-  if (isSplit() && !home.hidden) paintSpare();
+  if (!isSplit() || home.hidden) return;
+  paintUsage();
+  paintSpare();
 });
 bus.on('config', paintMe);
 bus.on('machines', paintMe);
