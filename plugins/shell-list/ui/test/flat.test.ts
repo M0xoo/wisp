@@ -24,8 +24,7 @@ test('the_crews_section_goes_right_after_needs_you_on_the_phone_and_first_when_n
 });
 
 test('a compare task is one card: its head and a row per run, inside its section_v1_compare_card', async () => {
-  const { flatten } = await import('../src/model/flat.ts');
-  const { sectionGroups } = await import('../src/ui/TaskList.tsx');
+  const { flatten, sectionGroups } = await import('../src/model/flat.ts');
   const task = (k: string) => ({ kind: 'task' as const, key: k as never, s: {} as never });
   const run = (k: string) => ({ key: k as never, s: {} as never });
   const group = { kind: 'group' as const, key: 'g:1', runs: [run('r1'), run('r2')], state: 'running' as const, updatedAt: 1 };

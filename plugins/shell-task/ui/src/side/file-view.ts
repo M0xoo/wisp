@@ -47,3 +47,14 @@ export function statusOf(s: {
   if (s.saving) return 'saving';
   return s.dirty ? 'unsaved' : 'saved';
 }
+
+/** `src/a.ts#L12` (Go to definition's place) → the file and the line. */
+export function placeOf(p: string): { readonly file: string; readonly line?: number } {
+  const m = /^(.*)#L(\d+)$/.exec(p);
+  return m ? { file: m[1] ?? p, line: Number(m[2]) } : { file: p };
+}
+
+/** What ✦ puts in the reply box: the file, and the lines when some are selected. */
+export function askText(file: string, lines: { readonly from: number; readonly to: number } | undefined): string {
+  return `@${file}${lines ? (lines.from === lines.to ? `:${lines.from}` : `:${lines.from}-${lines.to}`) : ''} `;
+}

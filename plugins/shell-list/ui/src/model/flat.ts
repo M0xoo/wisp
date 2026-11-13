@@ -87,3 +87,25 @@ export function taskKeys(items: readonly Item[]): EntityKey[] {
 /** Where a task's row is, for scrolling to it. */
 export const indexOfKey = (items: readonly Item[], key: string): number =>
   items.findIndex((i) => (i.t === 'entry' && holds(i.entry, key as EntityKey)) || ((i.t === 'run' || i.t === 'sub') && i.key === key));
+
+/** Each section's run of items: its heading and the rows under it, up to the next heading or slot. */
+export function sectionGroups(items: readonly Item[]): { part: string; from: number; to: number }[] {
+  const out: { part: string; from: number; to: number }[] = [];
+  items.forEach((it, i) => {
+    if (it.t === 'head') out.push({ part: `section.${it.id === 'forLater' ? 'forLater' : it.id}`, from: i, to: i });
+    else if (it.t !== 'slot' && out.length > 0) {
+      const g = out[out.length - 1];
+      if (g) g.to = i;
+    }
+    // a slot (the crew) closes the section before it
+    if (it.t === 'slot') out.push({ part: '', from: i, to: i - 1 });
+  });
+  // a compare task (v1 .task-item): its head and its runs' rows as one card
+  items.forEach((it, i) => {
+    if (it.t !== 'entry' || it.entry.kind !== 'group') return;
+    let to = i;
+    while (items[to + 1]?.t === 'run') to++;
+    out.push({ part: 'list.compare', from: i, to });
+  });
+  return out.filter((g) => g.part !== '' && g.to >= g.from);
+}

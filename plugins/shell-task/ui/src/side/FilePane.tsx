@@ -7,7 +7,7 @@ import { defineCommand, entityKey, type EntityKey } from '@wisp/client';
 import { Box, Button, EmptyState, FileView, IconButton, Inline, Stack, Text, langOfPath, useSignal } from '@wisp/ui';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
-import { gutterOf, statusOf, type BlameLine } from './file-view.ts';
+import { askText, gutterOf, placeOf, statusOf, type BlameLine } from './file-view.ts';
 
 interface Source {
   readonly path: string;
@@ -44,17 +44,6 @@ const blame = defineCommand<{ key: EntityKey; repo: string; path: string }, { by
   optimistic: 'none',
   pending: 'the why-gutter',
 });
-
-/** `src/a.ts#L12` (Go to definition's place) → the file and the line. */
-export function placeOf(p: string): { readonly file: string; readonly line?: number } {
-  const m = /^(.*)#L(\d+)$/.exec(p);
-  return m ? { file: m[1] ?? p, line: Number(m[2]) } : { file: p };
-}
-
-/** What ✦ puts in the reply box: the file, and the lines when some are selected. */
-export function askText(file: string, lines: { readonly from: number; readonly to: number } | undefined): string {
-  return `@${file}${lines ? (lines.from === lines.to ? `:${lines.from}` : `:${lines.from}-${lines.to}`) : ''} `;
-}
 
 export function FilePane(props: { readonly path: string }): JSX.Element {
   const place = createMemo(() => placeOf(props.path));

@@ -8,7 +8,7 @@ import { ContextMenu, EmptyState, Stack, VirtualList, useSignal, type MenuEntry 
 import type { EntityKey } from '@wisp/client';
 import type { ExtensionProps, ResolvedExtension } from '@wisp/shell/contract';
 import { copyId, setUnread, toggleArchived, toggleDone, toggleForLater, togglePin } from '../actions.ts';
-import { flatten, itemKey, type Item } from '../model/flat.ts';
+import { flatten, itemKey, sectionGroups, type Item } from '../model/flat.ts';
 import { rowMenu } from '../model/menu.ts';
 import { menuEntryOf } from '@wisp/shell';
 import { flatSession } from '../model/wire.ts';
@@ -105,28 +105,6 @@ function ListBody(): JSX.Element {
       <DeleteDialog />
     </Stack>
   );
-}
-
-/** Each section's run of items: its heading and the rows under it, up to the next heading or slot. */
-export function sectionGroups(items: readonly Item[]): { part: string; from: number; to: number }[] {
-  const out: { part: string; from: number; to: number }[] = [];
-  items.forEach((it, i) => {
-    if (it.t === 'head') out.push({ part: `section.${it.id === 'forLater' ? 'forLater' : it.id}`, from: i, to: i });
-    else if (it.t !== 'slot' && out.length > 0) {
-      const g = out[out.length - 1];
-      if (g) g.to = i;
-    }
-    // a slot (the crew) closes the section before it
-    if (it.t === 'slot') out.push({ part: '', from: i, to: i - 1 });
-  });
-  // a compare task (v1 .task-item): its head and its runs' rows as one card
-  items.forEach((it, i) => {
-    if (it.t !== 'entry' || it.entry.kind !== 'group') return;
-    let to = i;
-    while (items[to + 1]?.t === 'run') to++;
-    out.push({ part: 'list.compare', from: i, to });
-  });
-  return out.filter((g) => g.part !== '' && g.to >= g.from);
 }
 
 /** A task's row (its FeedItem): two in a row are 2px apart (v1 .f-list gap), a heading and a row are not. */
