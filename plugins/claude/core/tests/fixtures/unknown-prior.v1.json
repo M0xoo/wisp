@@ -133,6 +133,7 @@
    "contextTokens": 481020,
    "cacheTtlMs": 3600000
   },
-  "background": 0
+  "background": 0,
+  "backgroundAgents": 0
  }
 ]

@@ -117,6 +117,7 @@
     "costUsd": 0.01
    }
   },
-  "background": 0
+  "background": 0,
+  "backgroundAgents": 0
  }
 ]

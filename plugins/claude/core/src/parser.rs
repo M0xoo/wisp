@@ -420,8 +420,8 @@ impl ClaudeParser {
         }
         self.refused = false;
         e.background = Some(self.background.len() as u64); // > 0: another turn and result follow
-        // of those, subagents: their reports follow (only when some are: the recorded runs, from before v1 #775, have none)
-        e.background_agents = (!self.agent_tasks.is_empty()).then_some(self.agent_tasks.len() as u64);
+        // of those, subagents: their reports follow (v1 #775: on every result, 0 included)
+        e.background_agents = Some(self.agent_tasks.len() as u64);
         out.push(ev(HarnessEvent::Result(e)));
     }
 }

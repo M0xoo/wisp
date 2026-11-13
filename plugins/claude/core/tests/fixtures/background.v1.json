@@ -104,7 +104,8 @@
   "stats": {
    "totals": {}
   },
-  "background": 1
+  "background": 1,
+  "backgroundAgents": 0
  },
  {
   "type": "session",
@@ -133,6 +134,7 @@
   "stats": {
    "totals": {}
   },
-  "background": 0
+  "background": 0,
+  "backgroundAgents": 0
  }
 ]
