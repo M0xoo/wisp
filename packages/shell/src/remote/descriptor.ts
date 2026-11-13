@@ -5,6 +5,8 @@
 //   Node = string | { c: 'Stack', p?: { gap: '2' }, k?: Node[], on?: 'save' }
 //
 // `on` names the event the plugin hears back (a click, a value) — the only way anything goes back to it.
+// kit.json beside it is the same list, for agents writing a plugin (wisp_plugin_schema, _check):
+// test/remote-kit.test.ts fails when they differ, so change both.
 
 export type Prop = 'string' | 'bool' | 'number' | readonly string[] | 'items' | 'node';
 
@@ -32,7 +34,7 @@ export const KIT: Readonly<Record<string, Readonly<Record<string, Prop>>>> = {
 };
 
 /** What can hold children (the rest takes its text from props). */
-const PARENTS = new Set(['Stack', 'Inline', 'Text', 'Callout']);
+export const PARENTS: ReadonlySet<string> = new Set(['Stack', 'Inline', 'Text', 'Callout']);
 
 export interface Desc {
   readonly c: string;
@@ -45,7 +47,10 @@ export type Node = Desc | string;
 const MAX_TEXT = 10_000;
 const MAX_NODES = 2_000;
 const MAX_DEPTH = 32;
+const MAX_ITEMS = 200;
 const EVENT = /^[\w.:-]{1,64}$/;
+/** What a tree may hold: characters per text, nodes, levels, items per Select, the event name's pattern. */
+export const LIMITS = { text: MAX_TEXT, nodes: MAX_NODES, depth: MAX_DEPTH, items: MAX_ITEMS, event: EVENT.source } as const;
 
 function value(kind: Prop, v: unknown, budget: { n: number }, depth: number): Desc['p'][string] | undefined {
   if (kind === 'string') return typeof v === 'string' ? v.slice(0, MAX_TEXT) : undefined;
@@ -58,7 +63,7 @@ function value(kind: Prop, v: unknown, budget: { n: number }, depth: number): De
   if (kind === 'items') {
     if (!Array.isArray(v)) return undefined;
     return v
-      .slice(0, 200)
+      .slice(0, MAX_ITEMS)
       .flatMap((i: unknown) =>
         i && typeof i === 'object' && typeof (i as { value?: unknown }).value === 'string'
           ? [{ value: (i as { value: string }).value.slice(0, 200), label: String((i as { label?: unknown }).label ?? (i as { value: string }).value).slice(0, 200) }]

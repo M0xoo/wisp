@@ -6,6 +6,7 @@ import { clean, type Desc } from '../src/remote/descriptor.ts';
 import { CSP, PRELUDE, SANDBOX, frameDoc } from '../src/remote/frame.ts';
 import { Render, readFrame } from '../src/remote/RemoteView.tsx';
 import { remoteUiDefs } from '../src/remote/index.ts';
+import kit from '../src/remote/kit.json' with { type: 'json' };
 
 const off: (() => void)[] = [];
 afterEach(() => {
@@ -106,5 +107,12 @@ describe('the untrusted tier’s UI (ADR-0048)', () => {
       [undefined, undefined],
       ['name', 'Ada'],
     ]);
+  });
+
+  test('agents_reference_says_where_the_app_draws_an_untrusted_ui', () => {
+    // kit.json's places (what wisp_plugin_schema and wisp_plugin_check tell an agent): drawn = what this registers
+    const one = Object.keys(kit.places).map((place, i) => ({ plugin: 'user.x', id: `user.x.${i}`, place, title: place, module: '' }));
+    const drawn = remoteUiDefs(one).flatMap((d) => (d.settings ?? []).map((s) => one.find((u) => u.id === s.id)?.place));
+    expect(drawn).toEqual(Object.entries(kit.places).filter(([, p]) => p.drawn).map(([id]) => id));
   });
 });
