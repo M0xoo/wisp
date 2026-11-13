@@ -18,7 +18,10 @@ use serde_json::{Value, json};
 use tokio::sync::broadcast;
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_resources_api::{CrudKind, KindInfo, RESOURCE_KIND, Resource, ResourceKind, schema_of};
+use wisp_runtime_api::commands as r;
 use wisp_runtime_api::events::TurnEnded;
+use wisp_runtime_api::spec::Lineage;
+use wisp_runtime_api::{Mode, SessionId, SessionState, Turn, TurnStatus};
 use wisp_store::{Col, EntityDef, Migration, Query, Row, Store};
 use wisp_workflows_api::{EXT, List, NamedWorkflow, Remove, Run as RunCmd, RunArgs, Set, Started, WorkflowSpec};
 use wisp_workflows_core::{Action, Run, check, output_of};
@@ -87,61 +90,87 @@ struct State {
     ended: Ended,
 }
 
-fn s<'a>(v: &'a Value, k: &str) -> &'a str {
-    v.get(k).and_then(Value::as_str).unwrap_or("")
+/// A node's `mode:` as runtime names it (`plan`, `edits`, `auto`); a wrong one fails the step, as runtime's own
+/// check of the args did.
+fn mode_of(m: &str) -> std::result::Result<Option<Mode>, String> {
+    if m.is_empty() {
+        return Ok(None);
+    }
+    serde_json::from_value(json!(m)).map(Some).map_err(|_| format!("{m:?} isn't a mode (plan, edits or auto)"))
 }
 
-/// The child task's args for a node.
-#[allow(clippy::needless_pass_by_value)]
-fn child_args(run: &Run, name: &str, parent: &str, project: &str, node: &str, prompt: String, steps: Vec<String>) -> Value {
+fn some(v: &str) -> Option<String> {
+    (!v.is_empty()).then(|| v.to_owned())
+}
+
+/// The child task's args for a node (Err: why it can't start).
+fn child_args(
+    run: &Run,
+    name: &str,
+    parent: &str,
+    project: &str,
+    node: &str,
+    prompt: String,
+    steps: Vec<String>,
+) -> std::result::Result<r::StartArgs, String> {
     let n = run.nodes.iter().find(|n| n.id == node).map(|n| n.spec.clone()).unwrap_or_default();
-    let cwd = if n.project.is_empty() { project.to_owned() } else { n.project.clone() };
-    let mut a = json!({
-        "prompt": prompt,
-        "title": format!("{name} · {node}"),
-        "parentId": parent,
-        "lineage": { "workflowRun": parent },
-        "ext": { EXT: { "run": parent, "node": node } },
-    });
-    for (k, v) in [("agent", &n.agent), ("model", &n.model), ("effort", &n.effort), ("mode", &n.mode), ("cwd", &cwd)] {
-        if !v.is_empty() {
-            a[k] = json!(v);
-        }
-    }
-    if !steps.is_empty() {
-        a["steps"] = json!(steps);
-    }
-    if let Some(g) = &n.goal {
-        a["goal"] = g.clone();
-    }
-    if let Some(w) = n.worktree {
-        a["worktree"] = json!(w);
-    }
-    a
+    let cwd = if n.project.is_empty() { project } else { n.project.as_str() };
+    Ok(r::StartArgs {
+        prompt,
+        title: Some(format!("{name} · {node}")),
+        parent_id: Some(SessionId(parent.to_owned())),
+        lineage: Lineage { workflow_run: Some(parent.to_owned()), ..Lineage::default() },
+        ext: [(EXT.to_owned(), json!({ "run": parent, "node": node }))].into(),
+        agent: some(&n.agent),
+        model: some(&n.model),
+        effort: some(&n.effort),
+        mode: mode_of(&n.mode)?,
+        cwd: some(cwd),
+        steps,
+        goal: n.goal.clone(),
+        worktree: n.worktree,
+        ..r::StartArgs::default()
+    })
+}
+
+/// A wire name (`running`, `done`, …) of a runtime enum.
+fn wire_name<T: serde::Serialize>(v: T) -> String {
+    serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()
 }
 
 async fn report(ctx: &Ctx, call: &Call, parent: &str, name: &str, run: &Run, state: &str, notes: &[String]) {
     let value = json!({ "workflow": name, "state": state, "cost": run.cost(), "steps": run.report(), "notes": notes });
-    let _ = ctx.run_json(call, "runtime.setExt", json!({ "id": parent, "plugin": EXT, "value": value })).await;
+    let a = r::SetExtArgs { id: SessionId(parent.to_owned()), plugin: EXT.into(), value };
+    if let Err(err) = ctx.run::<r::SetExt>(call, a).await {
+        tracing::warn!(error = %err.message, task = parent, "workflows: runtime.setExt");
+    }
 }
 
-/// How the node's task stands: None while it runs (or waits on you); else (ok, its output, why).
+async fn set_state(ctx: &Ctx, call: &Call, id: &str, state: SessionState) {
+    if let Err(err) = ctx.run::<r::SetState>(call, r::SetStateArgs { id: SessionId(id.to_owned()), state }).await {
+        tracing::warn!(error = %err.message, task = id, "workflows: runtime.setState");
+    }
+}
+
+/// How the node's task stands: None while it runs (or waits on you), or when it can't be read; else (ok, its
+/// output, why).
 async fn ended(ctx: &Ctx, call: &Call, task: &str) -> Option<(bool, Value, String)> {
-    let t = ctx.run_json(call, "runtime.get", json!({ "id": task })).await.ok()?;
-    let busy = matches!(s(&t, "state"), "running" | "waiting")
-        || t.get("queue").and_then(Value::as_array).is_some_and(|q| !q.is_empty()) && t.get("queueHeld") != Some(&json!(true));
+    let id = SessionId(task.to_owned());
+    let t = ctx.run::<r::Get>(call, r::IdArgs { id: id.clone() }).await.ok()?;
+    let busy = matches!(t.state, SessionState::Running | SessionState::Waiting) || !t.queue.is_empty() && !t.queue_held;
     if busy {
         return None;
     }
-    let turns = ctx.run_json(call, "runtime.turns", json!({ "id": task })).await.ok()?;
-    let last = turns.as_array().and_then(|a| a.last()).cloned().unwrap_or(Value::Null);
-    let ok = s(&last, "status") == "done" && last.get("isError") != Some(&json!(true));
-    let why = if ok {
-        String::new()
-    } else {
-        format!("it ended {}", if s(&last, "status").is_empty() { s(&t, "state") } else { s(&last, "status") })
-    };
-    Some((ok, output_of(&last), why))
+    let turns = ctx.run::<r::Turns>(call, r::TurnsArgs { id, before: None, limit: None, masked: None }).await.ok()?;
+    Some(outcome(t.state, turns.last()))
+}
+
+/// How a step ended, from its task's state and its last turn: done with no error is ok.
+fn outcome(state: SessionState, last: Option<&Turn>) -> (bool, Value, String) {
+    let ok = last.is_some_and(|l| l.status == TurnStatus::Done && !l.is_error);
+    let why = if ok { String::new() } else { format!("it ended {}", last.map_or_else(|| wire_name(state), |l| wire_name(l.status))) };
+    let output = last.and_then(|l| serde_json::to_value(l).ok()).map_or(Value::Null, |l| output_of(&l));
+    (ok, output, why)
 }
 
 /// Runs `w` under the parent task until every step has ended.
@@ -168,15 +197,17 @@ async fn drive(
     loop {
         for a in run.next(clock.now_ms()) {
             match a {
-                Action::Start { node, prompt, steps } => {
-                    let args = child_args(&run, &name, &parent, &project, &node, prompt, steps);
-                    match ctx.run_json(&call, "runtime.create", args).await {
-                        Ok(made) => run.started(&node, s(&made, "id")),
+                Action::Start { node, prompt, steps } => match child_args(&run, &name, &parent, &project, &node, prompt, steps) {
+                    Ok(args) => match ctx.run::<r::Create>(&call, args).await {
+                        Ok(made) => run.started(&node, &made.id.0),
                         Err(e) => run.finished(&node, false, Value::Null, &e.message, 0.0),
-                    }
-                }
+                    },
+                    Err(why) => run.finished(&node, false, Value::Null, &why, 0.0),
+                },
                 Action::Stop { node, task } => {
-                    let _ = ctx.run_json(&call, "runtime.stop", json!({ "id": task })).await;
+                    if let Err(err) = ctx.run::<r::Stop>(&call, r::StopArgs { id: SessionId(task.clone()), clear_queue: false }).await {
+                        tracing::warn!(error = %err.message, task, "workflows: runtime.stop");
+                    }
                     run.finished(&node, false, Value::Null, "it ran past its timeout", costs.remove(&task).unwrap_or(0.0));
                 }
             }
@@ -207,9 +238,9 @@ async fn drive(
             }
         }
     }
-    let state = if run.ok() { "review" } else { "error" };
+    let state = if run.ok() { SessionState::Review } else { SessionState::Error };
     report(&ctx, &call, &parent, &name, &run, if run.ok() { "done" } else { "failed" }, &notes).await;
-    let _ = ctx.run_json(&call, "runtime.setState", json!({ "id": parent, "state": state })).await;
+    set_state(&ctx, &call, &parent, state).await;
 }
 
 async fn start(ctx: &Ctx, call: &Call, st: &State, a: RunArgs) -> Result<Started> {
@@ -228,11 +259,16 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, a: RunArgs) -> Result<Started
     }
     let project = a.project.clone().unwrap_or_else(|| w.spec.project.clone());
     let steps: Vec<String> = w.spec.tasks.keys().cloned().collect();
-    let parent = ctx
-        .run_json(call, "runtime.create", json!({ "prompt": format!("Run the workflow {}: {}", w.name, steps.join(", ")), "title": format!("{} (workflow)", w.name), "hold": true, "cwd": project, "ext": { EXT: { "workflow": w.name, "state": "starting" } } }))
-        .await?;
-    let id = s(&parent, "id").to_owned();
-    let _ = ctx.run_json(call, "runtime.setState", json!({ "id": id, "state": "running" })).await;
+    let made = r::StartArgs {
+        prompt: format!("Run the workflow {}: {}", w.name, steps.join(", ")),
+        title: Some(format!("{} (workflow)", w.name)),
+        hold: true,
+        cwd: some(&project),
+        ext: [(EXT.to_owned(), json!({ "workflow": w.name, "state": "starting" }))].into(),
+        ..r::StartArgs::default()
+    };
+    let id = ctx.run::<r::Create>(call, made).await?.id.0;
+    set_state(ctx, call, &id, SessionState::Running).await;
     ctx.spawn(drive(ctx.clone(), st.ended.subscribe(), id.clone(), w.name, project, w.spec, a.inputs));
     Ok(Started { id })
 }
@@ -288,6 +324,7 @@ impl Plugin for WorkflowsPlugin {
         });
         let st3 = st;
         s.on::<TurnEnded, _, _>(move |_ctx, e| {
+            // no run listening (none going) is fine: nothing waits on this turn
             let _ = st3.ended.send((e.session_id.as_str().to_owned(), e.cost_usd.unwrap_or(0.0)));
             async move {}
         });
@@ -308,5 +345,32 @@ mod tests {
     #[test]
     fn manifest_is_valid() {
         assert_eq!(WorkflowsPlugin.manifest().id, PLUGIN_ID);
+    }
+
+    #[test]
+    fn a_wrong_mode_fails_the_step_and_an_empty_one_is_left_out() {
+        assert_eq!(mode_of(""), Ok(None));
+        assert_eq!(mode_of("plan"), Ok(Some(Mode::Plan)));
+        assert!(mode_of("yolo").is_err_and(|e| e.contains("yolo")));
+    }
+
+    fn turn(status: TurnStatus, is_error: bool) -> Turn {
+        serde_json::from_value(json!({
+            "id": "t1", "sessionId": "s1", "idx": 0, "prompt": "p", "agent": "claude", "model": "", "effort": "",
+            "mode": "auto", "status": status, "startedAt": 0, "endedAt": null, "stats": null, "presentation": null,
+            "isError": is_error,
+        }))
+        .unwrap_or_else(|e| panic!("turn: {e}"))
+    }
+
+    #[test]
+    fn a_step_is_ok_only_when_its_last_turn_is_done_without_an_error() {
+        assert!(outcome(SessionState::Review, Some(&turn(TurnStatus::Done, false))).0);
+        let (ok, _, why) = outcome(SessionState::Review, Some(&turn(TurnStatus::Done, true)));
+        assert!(!ok);
+        assert_eq!(why, "it ended done");
+        assert_eq!(outcome(SessionState::Error, Some(&turn(TurnStatus::Stopped, false))).2, "it ended stopped");
+        // no turn at all: the task's own state says how it ended
+        assert_eq!(outcome(SessionState::Error, None), (false, Value::Null, "it ended error".to_owned()));
     }
 }
