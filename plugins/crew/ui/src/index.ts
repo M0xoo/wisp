@@ -104,6 +104,31 @@ export default definePluginUi({
       component: lazy(() => import('./CrewEditor.tsx')),
     }),
   ],
+  // ⌘K's Actions: share the whole crew as a link or a file (ADR-0052), and take one in (a link, v1's gist or a file)
+  palette: [
+    {
+      id: 'wisp.crew.palette',
+      order: 61,
+      items: (ctx) => [
+        {
+          id: 'wisp.crew.share',
+          group: 'shell.palette.group.actions',
+          label: t('wisp.crew.palette.share'),
+          icon: 'share',
+          keywords: 'crew members share link export gist file team',
+          run: () => ctx.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.share as never, params: {} } }),
+        },
+        {
+          id: 'wisp.crew.import',
+          group: 'shell.palette.group.actions',
+          label: t('wisp.crew.palette.import'),
+          icon: 'download',
+          keywords: 'crew members import add link gist file crew.json',
+          run: () => ctx.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.import as never, params: {} } }),
+        },
+      ],
+    },
+  ],
   commands: [],
   catalogue,
 });

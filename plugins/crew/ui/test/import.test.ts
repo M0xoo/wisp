@@ -8,5 +8,9 @@ test('a_link_is_fetched_by_the_host_and_anything_else_is_the_bundles_text_and_on
   const json = '{ "wispCrew": 1, "members": [] }';
   expect(srcOf(json)).toEqual({ text: json });
   expect(srcOf('http://insecure.example/x.json')).toEqual({ text: 'http://insecure.example/x.json' }); // https only, as v1
+  // a crew shared as a link (ADR-0052): wisp Cloud, Open in wisp, a self-hosted grid's share page
+  expect(srcOf('https://grid.trywisp.dev/s/k3j')).toEqual({ url: 'https://grid.trywisp.dev/s/k3j' });
+  expect(srcOf('wisp://open/k3j')).toEqual({ url: 'wisp://open/k3j' });
+  expect(srcOf('http://box.local:7000/s/k3j')).toEqual({ url: 'http://box.local:7000/s/k3j' });
   expect(joining({ a: { name: 'Ada', skip: false }, b: { name: 'Bea', skip: true }, c: { name: 'Cal', skip: false } })).toBe(2);
 });

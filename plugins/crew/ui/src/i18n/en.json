@@ -240,8 +240,8 @@
   "wisp.crew.org.pickRemove": "Take {name} off {of}’s delegates",
   "wisp.crew.import.title": "Import crew members",
   "wisp.crew.import.label": "A shared member",
-  "wisp.crew.import.placeholder": "gist:3f2a… or { \"wispCrew\": 1, \"members\": [ … ] }",
-  "wisp.crew.import.hint": "A .crew.json file’s JSON, or a link (https or gist:<id>)",
+  "wisp.crew.import.placeholder": "https://grid.trywisp.dev/s/… or gist:3f2a… or { \"wispCrew\": 1, \"members\": [ … ] }",
+  "wisp.crew.import.hint": "A .crew.json file’s JSON, a share link, or v1’s gist (gist:<id>)",
   "wisp.crew.import.file": "File…",
   "wisp.crew.import.review": "Review",
   "wisp.crew.import.back": "Back",
@@ -293,6 +293,14 @@
   "wisp.crew.share.copy": "Copy",
   "wisp.crew.share.copied": "Copied {name}. They paste it in Import crew members… (⌘K)",
   "wisp.crew.share.copyFailed": "Couldn’t copy: the browser refused the clipboard.",
+  "wisp.crew.share.makeLink": "Share link",
+  "wisp.crew.share.link": "The crew’s link",
+  "wisp.crew.share.copyLink": "Copy link",
+  "wisp.crew.share.linkCopied": "Copied",
+  "wisp.crew.share.linkHint": "Anyone with the link can add them: they paste it in Import crew members… (⌘K). Stop sharing it in Settings → Cloud → My shares.",
   "wisp.crew.page.share": "Share…",
-  "wisp.crew.page.record": "Track record…"
+  "wisp.crew.page.shareCrew": "Share your crew…",
+  "wisp.crew.page.record": "Track record…",
+  "wisp.crew.palette.share": "Share your crew…",
+  "wisp.crew.palette.import": "Import crew members…"
 }

@@ -153,6 +153,7 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
                       { value: 'edit', label: t('wisp.crew.page.editMember'), icon: 'pen' },
                       { value: 'checkin', label: t('wisp.crew.page.checkin'), icon: 'clock' },
                       { value: 'share', label: t('wisp.crew.page.share'), icon: 'share' },
+                      { value: 'shareCrew', label: t('wisp.crew.page.shareCrew'), icon: 'crew' },
                       { value: 'record', label: t('wisp.crew.page.record'), icon: 'stats' },
                       { kind: 'separator' },
                       { value: 'remove', label: t('wisp.crew.page.remove'), icon: 'trash', danger: true },
@@ -160,6 +161,7 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
                     onSelect={(v) => {
                       if (v === 'edit') editMember();
                       else if (v === 'checkin') checkin();
+                      else if (v === 'shareCrew') c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.share as never, params: {} } });
                       else if (v === 'share') c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.share as never, params: { ids: [m().id], name: m().name } } });
                       else if (v === 'record') c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.record as never, params: { id: m().id } } });
                       else setRemoving(true);
