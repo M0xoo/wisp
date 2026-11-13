@@ -7,6 +7,7 @@
 //! resources: data-only (its tables are Settings → Worktrees' rows: checkouts, leftovers, offers, the last
 //! look; what a user sets up is its settings, `worktrees.*`, and a project's `worktree:` policy).
 
+pub mod archived;
 pub mod cleanup;
 pub mod done;
 pub mod engine;
@@ -18,6 +19,7 @@ pub mod ports;
 pub mod prepare;
 mod runtime_port;
 mod source;
+pub mod summary;
 pub mod trust;
 
 use std::sync::Arc;
@@ -154,6 +156,15 @@ impl Plugin for WorktreesPlugin {
         commands::register(s, &st);
         source::register(s);
         files::register(s);
+        s.contribute(&wisp_runtime_api::points::SUMMARY, Arc::new(summary::Summary) as Arc<dyn wisp_runtime_api::points::SummaryField>);
+        // archived and idle: a clean worktree goes (its branch stays). Changes come in bursts while a task
+        // streams, so they're coalesced: one look per session per burst.
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        s.on::<wisp_runtime_api::events::SessionChanged, _, _>(move |_ctx, e| {
+            let _ = tx.send(e.id.as_str().to_owned());
+            async {}
+        });
+        let rx = Arc::new(tokio::sync::Mutex::new(Some(rx)));
         let hook_st = st.clone();
         s.intercept::<BeforeRunView, _, _>(
             InterceptOpts { priority: 50, failure: Failure::Closed, timeout_ms: 1000 },
@@ -175,6 +186,26 @@ impl Plugin for WorktreesPlugin {
                 pane::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
             }
             let (engine, cleanup, port) = start_st.parts(&ctx).await?;
+            if let Some(mut rx) = rx.lock().await.take() {
+                let (e, cx, ast) = (engine.clone(), ctx.clone(), start_st.clone());
+                ctx.spawn(async move {
+                    while let Some(first) = rx.recv().await {
+                        let mut ids = vec![first];
+                        while let Ok(more) = rx.try_recv() {
+                            if !ids.contains(&more) {
+                                ids.push(more);
+                            }
+                        }
+                        let mut gone = false;
+                        for id in ids {
+                            gone |= archived::on_changed(&cx, &e, &id).await;
+                        }
+                        if gone {
+                            ast.refresh(&cx).await;
+                        }
+                    }
+                });
+            }
             // the pane's rows: now, and each time a look ends or a clean-up moves
             let (pub_st, pub_ctx, changed) = (start_st.clone(), ctx.clone(), cleanup.clone());
             ctx.spawn(async move {

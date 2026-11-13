@@ -72,6 +72,8 @@ export interface CreateArgs {
   readonly lineage?: { readonly rerunOf: string };
   readonly dirs?: readonly string[];
   readonly steps?: readonly string[];
+  /** in a worktree of its own (New task's Worktree / In place toggle, `defaults.worktree`) */
+  readonly worktree?: boolean;
 }
 
 /** A file sent with a prompt (runtime's Attachment): what stuff's upload answered. */

@@ -26,6 +26,9 @@ tracing.workspace = true
 
 [dev-dependencies]
 wisp-settings-api.workspace = true
+wisp-testkit.workspace = true
+# real repos in temp folders for the flow tests (dev-dependencies don't count for the layers)
+wisp-git = { path = "../../git/host" }
 tokio = { workspace = true, features = ["test-util"] }
 
 [lints]

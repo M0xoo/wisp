@@ -86,12 +86,12 @@ export type Entry =
 
 export type Filter = 'all' | 'dirty' | 'kept' | 'left';
 
-// ---------- settings (v1 defaults.*, prefixed) ----------
+// ---------- settings (v1 defaults.*, as the manifest declares them: settings-api key_of) ----------
 
 export const SETTING = {
-  cleanup: 'worktrees.worktreeCleanup',
-  max: 'worktrees.worktreeMax',
-  onDone: 'worktrees.worktreeOnDone',
+  cleanup: 'worktrees.cleanup',
+  max: 'worktrees.max',
+  onDone: 'worktrees.onDone',
 } as const;
 
 export const CLEANUP_CHOICES = ['off', '3', '7', '14', '30'] as const;
@@ -129,4 +129,49 @@ export interface BringInArgs {
 export interface DismissArgs {
   readonly peer: PeerId;
   readonly project: string;
+}
+
+// ---------- Done's folders (worktrees.done.list / apply: api FolderRow, DoneList, DoneApplyOut) ----------
+
+export type OnDone = 'ask' | 'remove' | 'keep';
+
+/** One folder a task marked done (or what ran under it) holds on disk. */
+export interface DoneFolder {
+  readonly path: string;
+  /** the task holding it */
+  readonly task: string;
+  readonly title: string;
+  /** the task marked done itself */
+  readonly own: boolean;
+  readonly branch: string;
+  /** bytes; null until the second answer, or where there's no du */
+  readonly size: number | null;
+  /** what's lost with it: uncommitted paths, plus one when HEAD left the branch; null: git can't tell */
+  readonly only: number | null;
+  readonly uncommitted: number | null;
+  readonly unpushed: number;
+  readonly pr: { readonly number: number; readonly url: string; readonly state: string } | null;
+  readonly kept: boolean;
+}
+
+export interface DoneList {
+  readonly folders: readonly DoneFolder[];
+  readonly onDone: OnDone;
+}
+
+export interface DoneApplyOut {
+  readonly removed: readonly string[];
+  readonly kept: readonly string[];
+  readonly failed: readonly { readonly path: string; readonly error: string }[];
+}
+
+/** worktrees.done.apply: the paths to remove (`force`: the ones holding work you ticked), the ones to keep. */
+export interface DoneApplyArgs {
+  readonly peer: PeerId;
+  readonly sessionId: string;
+  readonly remove?: readonly string[];
+  readonly force?: readonly string[];
+  readonly keep?: readonly string[];
+  /** local only: the tasks whose folders Keep pins (their rows read Kept at once) */
+  readonly keepTasks?: readonly string[];
 }

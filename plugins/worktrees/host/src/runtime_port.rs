@@ -12,7 +12,7 @@ use wisp_runtime_api::commands::Adopt;
 use wisp_runtime_api::commands::{AdoptSession, AdoptSessionArgs, Get, IdArgs, List, ListArgs, Sessions, SessionsArgs, SetExt, SetExtArgs};
 use wisp_runtime_api::model::SessionState;
 use wisp_runtime_api::spec::AdoptArgs;
-use wisp_worktrees_api::{EXT, OfferItem, Worktree};
+use wisp_worktrees_api::{EXT, OfferItem, PrRef, Worktree};
 
 use crate::ports::{Port, TaskInfo, TaskTree, WtSettings};
 
@@ -42,8 +42,24 @@ fn text(v: Option<Value>) -> Option<String> {
 }
 
 /// The last folder name of a path (the project a task is in).
-fn project_of(cwd: &str) -> String {
+pub(crate) fn project_of(cwd: &str) -> String {
     cwd.trim_end_matches(['/', '\\']).rsplit(['/', '\\']).next().unwrap_or_default().to_owned()
+}
+
+/// The task's PR as wisp.ship keeps it (`ext["wisp.ship"].pr`, a `PrSummary`: number, url, state, …), so the
+/// sweep and Done see a merged or closed one. None: no PR, or one that doesn't read.
+pub(crate) fn pr_of(ship: Option<&Value>) -> Option<PrRef> {
+    let pr = ship?.get("pr").filter(|p| p.is_object())?;
+    let r: PrRef = serde_json::from_value(pr.clone()).ok()?;
+    (r.number > 0 && !r.state.is_empty()).then_some(r)
+}
+
+/// Each task's kids: the sessions whose parent is it (subagents, delegated jobs), in list order.
+pub(crate) fn fill_kids(tasks: &mut [TaskInfo]) {
+    let parents: Vec<(String, String)> = tasks.iter().filter_map(|t| t.parent_id.as_ref().map(|p| (p.clone(), t.id.clone()))).collect();
+    for t in tasks.iter_mut() {
+        t.kids = parents.iter().filter(|(p, _)| *p == t.id).map(|(_, k)| k.clone()).collect();
+    }
 }
 
 impl Port for RuntimePort {
@@ -51,15 +67,24 @@ impl Port for RuntimePort {
         let ctx = self.ctx.clone();
         Box::pin(async move {
             let call = ctx.root_call();
-            let Ok(list) = ctx.run::<List>(&call, ListArgs { archived: Some(true), limit: None }).await else { return Vec::new() };
+            let Ok(list) = ctx
+                .run::<List>(
+                    &call, // every task, archived ones too (`Some(true)` would list only the archived ones)
+                    ListArgs { archived: None, limit: None },
+                )
+                .await
+            else {
+                return Vec::new();
+            };
             let mut out = Vec::with_capacity(list.len());
             for s in list {
                 let Ok(full) = ctx.run::<Get>(&call, IdArgs { id: s.id.clone() }).await else { continue };
                 let slot = full.ext.get(EXT).cloned().unwrap_or(Value::Null);
+                let pr = pr_of(full.ext.get("wisp.ship"));
                 let trees = serde_json::from_value::<Worktree>(slot.clone())
                     .ok()
                     .filter(|w| !w.path.is_empty())
-                    .map(|worktree| TaskTree { worktree, pr: None })
+                    .map(|worktree| TaskTree { worktree, pr })
                     .into_iter()
                     .collect();
                 out.push(TaskInfo {
@@ -85,6 +110,7 @@ impl Port for RuntimePort {
                         .map(str::to_owned),
                 });
             }
+            fill_kids(&mut out);
             out
         })
     }
@@ -179,12 +205,81 @@ impl Port for RuntimePort {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use super::project_of;
+    use super::{TaskInfo, fill_kids, pr_of, project_of};
+    use serde_json::json;
 
     #[test]
     fn the_project_is_the_last_folder() {
         assert_eq!(project_of("/Users/me/code/wisp/"), "wisp");
         assert_eq!(project_of("C:\\code\\app"), "app");
+    }
+
+    /// wisp.ship's slot holds a `PrSummary`: its number, url and state are the task's PR (a merged or closed one
+    /// lets the sweep take the folder); no slot, a null PR or one that doesn't read is no PR.
+    #[test]
+    fn the_tasks_pr_is_read_from_ships_slot() {
+        let ship =
+            json!({ "pr": { "number": 12, "url": "https://x/pr/12", "title": "Fix", "state": "MERGED", "draft": false, "checks": {} } });
+        let pr = pr_of(Some(&ship)).unwrap();
+        assert_eq!((pr.number, pr.url.as_str(), pr.state.as_str()), (12, "https://x/pr/12", "MERGED"));
+        assert!(pr_of(None).is_none());
+        assert!(pr_of(Some(&json!({ "pr": null }))).is_none());
+        assert!(pr_of(Some(&json!({ "pr": { "number": "x" } }))).is_none());
+    }
+
+    /// Done's list walks a task's kids: every session whose parent is it.
+    #[test]
+    fn a_tasks_kids_are_the_sessions_it_is_parent_of() {
+        let t = |id: &str, parent: Option<&str>| TaskInfo { id: id.into(), parent_id: parent.map(str::to_owned), ..TaskInfo::default() };
+        let mut all = vec![t("lead", None), t("sub", Some("lead")), t("job", Some("lead")), t("deep", Some("sub")), t("other", None)];
+        fill_kids(&mut all);
+        assert_eq!(all[0].kids, ["sub", "job"]);
+        assert_eq!(all[1].kids, ["deep"]);
+        assert_eq!(all[4].kids, Vec::<String>::new());
+    }
+
+    /// Done, the sweep and the pane read every task: a live one with a worktree too (the list once asked
+    /// for archived ones only, so Done had no folders to ask about).
+    #[tokio::test]
+    async fn the_tasks_are_every_task_live_and_archived() {
+        use wisp_kernel::{Manifest, Plugin, Result, Setup};
+        use wisp_runtime_api::model::{Session, Summary};
+        struct Rt;
+        impl Plugin for Rt {
+            fn manifest(&self) -> Manifest {
+                Manifest::from_value(
+                    json!({ "wispPlugin": 1, "id": "wisp.runtime", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] }),
+                )
+                .unwrap()
+            }
+            fn setup(&self, s: &mut Setup) -> Result<()> {
+                // runtime.list's own rule: `archived: Some(x)` keeps only rows whose archived is x
+                s.command::<super::List, _, _>(|_c, _call, a| async move {
+                    let row = |id: &str, archived: bool| Summary { id: id.into(), archived, ..serde_json::from_value(json!({ "id": id, "title": "", "agent": "claude", "model": "", "effort": "", "mode": "auto", "cwd": "/w", "state": "review", "status": "done", "unread": false, "archived": archived, "createdAt": 0, "updatedAt": 0, "turnCount": 1, "queued": 0, "preview": "", "live": "" })).unwrap() };
+                    Ok([row("live", false), row("old", true)].into_iter().filter(|r| a.archived.is_none_or(|x| r.archived == x)).collect())
+                });
+                s.command::<super::Get, _, _>(|_c, _call, a| async move {
+                    let mut s = Session { id: a.id.clone(), ..Session::default() };
+                    s.ext.insert("wisp.worktrees".into(), json!({ "path": format!("/w/{}", a.id.0), "cwd": "/w", "branch": "b", "base": "main", "baseRef": "origin/main", "root": "/w", "createdAt": 0 }));
+                    Ok(s)
+                });
+                Ok(())
+            }
+        }
+        struct Me;
+        impl Plugin for Me {
+            fn manifest(&self) -> Manifest {
+                Manifest::from_value(json!({ "wispPlugin": 1, "id": "wisp.worktrees", "version": "2.0.0", "api": "^1", "activation": ["onStartup"], "permissions": ["runtime:list", "runtime:get"] })).unwrap()
+            }
+            fn setup(&self, _s: &mut Setup) -> Result<()> {
+                Ok(())
+            }
+        }
+        let k = wisp_testkit::TestApp::new().with(Rt).with(Me).start().await;
+        let port = super::RuntimePort::new(k.ctx("wisp.worktrees").unwrap(), 0);
+        let ids: Vec<String> = crate::ports::Port::tasks(port.as_ref()).await.into_iter().map(|t| t.id).collect();
+        assert_eq!(ids, ["live", "old"]);
     }
 }

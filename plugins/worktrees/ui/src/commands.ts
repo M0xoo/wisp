@@ -1,8 +1,8 @@
 // The pane's writes. Each shows its result at once and rolls back if the peer refuses (v1 did the
 // same by hand: a `gone` set for removals, the item's status for Keep, the offer held for Bring in).
 
-import { defineCommand, entityKey, type EntityReader, type LocalOp } from '@wisp/client';
-import { KIND, type BringInArgs, type CleanArgs, type DismissArgs, type KeepArgs, type WorktreeItem } from './types.ts';
+import { defineCommand, entityKey, type EntityReader, type LocalOp, type PeerId } from '@wisp/client';
+import { KIND, type BringInArgs, type CleanArgs, type DismissArgs, type DoneApplyArgs, type DoneApplyOut, type DoneList, type KeepArgs, type WorktreeItem } from './types.ts';
 
 /** Remove task folders and leftovers: their rows go now; the scan's next answer agrees or brings them back. */
 export const clean = defineCommand<CleanArgs>({
@@ -43,4 +43,25 @@ export const dismiss = defineCommand<DismissArgs>({
   wire: (a) => ({ project: a.project }),
   dedupe: (a) => a.project,
   optimistic: (_base, a): LocalOp[] => [{ e: KIND.offer, id: entityKey(a.peer, a.project), op: 'del' }],
+});
+
+/** Done's folders (v1 GET /sessions/:id/folders): `sizes: false` answers at once, the second ask brings sizes. */
+export const doneList = defineCommand<{ peer: PeerId; sessionId: string; sizes: boolean }, DoneList>({
+  id: 'worktrees.done.list',
+  owner: (a) => entityKey(a.peer, a.sessionId),
+  wire: (a) => ({ sessionId: a.sessionId, sizes: a.sizes }),
+  optimistic: 'none',
+  pending: 'the Done folders dialog (its placeholder rows)',
+});
+
+/** The answer (v1 POST /sessions/:id/folders): kept rows read Kept at once; removed ones leave when the server says. */
+export const doneApply = defineCommand<DoneApplyArgs, DoneApplyOut>({
+  id: 'worktrees.done.apply',
+  owner: (a) => entityKey(a.peer, a.sessionId),
+  wire: (a) => ({ sessionId: a.sessionId, remove: a.remove ?? [], force: a.force ?? [], keep: a.keep ?? [] }),
+  optimistic: (base: EntityReader, a): LocalOp[] =>
+    (a.keepTasks ?? [])
+      .map((t) => entityKey(a.peer, t))
+      .filter((id) => base.peek<WorktreeItem>(KIND.item, id) !== undefined)
+      .map((id): LocalOp => ({ e: KIND.item, id, op: 'patch', ops: [{ op: 'replace', path: '/status', value: 'kept' }] })),
 });
