@@ -21,5 +21,8 @@ export function useUnsent(): (task: string) => number {
 }
 
 /** The row as Ship reads it, with what waits counted in. */
-export const withUnsent = <S extends { readonly id: string; readonly unsentComments?: number }>(s: S | undefined, count: (task: string) => number): S | undefined =>
+export const withUnsent = <S extends { readonly id: string; readonly unsentComments?: number }>(
+  s: S | undefined,
+  count: (task: string) => number,
+): (S & { readonly unsentComments: number }) | undefined =>
   s ? { ...s, unsentComments: (s.unsentComments ?? 0) + count(s.id) } : s;
