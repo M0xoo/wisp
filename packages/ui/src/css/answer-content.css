@@ -4,6 +4,10 @@
   [data-kit='cb-card'], [data-kit^='cb-'][data-card], [data-kit^='rb-'][data-card] { background: var(--surface); border: var(--size-hairline) solid var(--line); border-radius: var(--radius); }
   [data-kit='cb-card'] { padding: var(--space-7) calc(var(--space-7) + var(--space-1)); }
 
+  /* a block's title (v1 .b-title): 13px semibold ink, the count after it in faint medium, 8px apart */
+  [data-kit='cb-title'] { display: flex; align-items: center; gap: var(--space-4); margin: 0 0 var(--space-5); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+  [data-kit='cb-count'] { font-weight: var(--fw-medium); color: var(--faint); }
+
   /* small quiet buttons inside blocks (v1 .ghost.xs) and a file named in mono that opens */
   [data-kit='cb-ghost-xs'] {
     display: inline-flex; align-items: center; gap: var(--space-2); height: var(--size-control-xs); padding: 0 var(--space-4); border-radius: var(--radius-sm);
@@ -145,4 +149,32 @@
   [data-kit='cb-path'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--fs-sm) var(--mono); }
   [data-kit='cb-dir'] { color: var(--faint); }
   [data-kit='cb-base'] { color: var(--ink); font-weight: var(--fw-medium); }
+
+  /* a change marker (v1 .badge): a 20px mono letter on its kind's tint; smaller in a tree (v1 .b-tree .badge) */
+  [data-kit='cb-badge'] { display: grid; place-items: center; flex: none; width: var(--size-avatar-sm); height: var(--size-avatar-sm); border-radius: var(--radius-sm); font: var(--fw-semibold) var(--fs-xs) var(--mono); }
+  [data-kit='cb-badge'][data-change='add'] { background: var(--add-bg); color: var(--add); }
+  [data-kit='cb-badge'][data-change='mod'] { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+  [data-kit='cb-badge'][data-change='del'] { background: var(--del-bg); color: var(--del); }
+  [data-kit='cb-badge'][data-change='ren'] { background: var(--accent-soft); color: var(--accent-ink); }
+  [data-part='block.tree.change'] { width: calc(var(--size-avatar-sm) - 3px); height: calc(var(--size-avatar-sm) - 3px); font-size: calc(var(--fs-xs) - 1.5px); }
+  /* +N −M (v1 .nums .plus .minus) */
+  [data-kit='cb-nums'] { display: inline-flex; gap: var(--space-3); flex: none; font: var(--fw-medium) var(--fs-xs) var(--mono); }
+  [data-kit='cb-plus'] { color: var(--add); }
+  [data-kit='cb-minus'] { color: var(--del); }
+
+  /* files (v1 .b-files): rows that tint on hover, the badge, the path cut at its end, the counts, actions shown on
+     hover or open; the note under the path; a row's own diff in a card under it */
+  [data-kit='cb-card'][data-type='files'] { padding: var(--space-7) var(--space-4) var(--space-4); }
+  [data-part='block.files.title'] { padding: 0 var(--space-6); }
+  [data-kit='cb-files'] { list-style: none; margin: 0; padding: 0; }
+  [data-kit='cb-file'] { border-radius: var(--radius-lg); animation: kit-rise 0.5s var(--ease) calc(200ms + var(--k, 0) * 60ms) both; }
+  [data-kit='cb-file'][data-has-diff] { cursor: pointer; }
+  [data-kit='cb-file']:hover, [data-kit='cb-file'][data-open] { background: var(--surface-2); }
+  [data-kit='cb-file-row'] { display: flex; align-items: center; gap: var(--space-5); min-width: 0; padding: calc(var(--space-3) + 1px) var(--space-6); }
+  [data-kit='cb-file-note'] { margin: calc(-1 * var(--space-2)) 0 0; padding: 0 var(--space-6) var(--space-4) calc(var(--space-6) + var(--size-avatar-sm) + var(--space-5)); font-size: var(--fs-md); color: var(--muted); }
+  [data-kit='cb-file-actions'] { display: flex; margin-left: auto; opacity: 0; transition: opacity var(--dur-base); }
+  [data-kit='cb-file']:hover [data-kit='cb-file-actions'], [data-kit='cb-file'][data-open] [data-kit='cb-file-actions'], [data-kit='cb-file-actions']:focus-within { opacity: 1; }
+  [data-part='block.files.toggle'] [data-kit='icon'] { transition: transform var(--dur-slow); }
+  [data-kit='cb-file'][data-open] [data-part='block.files.toggle'] [data-kit='icon'] { transform: rotate(90deg); }
+  [data-kit='cb-file-diff'] { margin: 0 var(--space-4) var(--space-5); }
 }

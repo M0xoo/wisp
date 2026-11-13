@@ -6,7 +6,7 @@ import { createMemo, createSignal, Show, type JSX } from 'solid-js';
 import { IconButton } from '../controls/Button.tsx';
 import { Diff } from '../content/diff/Diff.tsx';
 import type { DiffFile } from '../content/diff/parse.ts';
-import { flag } from '../core/props.ts';
+import { flag, styleOf } from '../core/props.ts';
 import { useBlocks, useBlockT } from './context.tsx';
 import { ownDiff } from './content-diff.ts';
 import { BlockTitle, ChangeBadge, Folded, InlineMd, PathText } from './content-parts.tsx';
@@ -54,7 +54,7 @@ export function Counts(props: { readonly add: number | undefined; readonly del: 
   );
 }
 
-function FileItem(props: { readonly f: FileRow }): JSX.Element {
+function FileItem(props: { readonly f: FileRow; readonly i: number }): JSX.Element {
   const ctx = useBlocks();
   const t = useBlockT();
   const [open, setOpen] = createSignal(false);
@@ -62,7 +62,7 @@ function FileItem(props: { readonly f: FileRow }): JSX.Element {
     if (props.f.diff) setOpen(!open());
   };
   return (
-    <li data-kit="cb-file" data-part="block.files.item" data-open={flag(open())} data-has-diff={flag(props.f.diff !== undefined)}>
+    <li data-kit="cb-file" data-part="block.files.item" data-open={flag(open())} data-has-diff={flag(props.f.diff !== undefined)} style={styleOf({ '--k': props.i })}>
       <div data-kit="cb-file-row" data-part="block.files.row" onClick={toggle}>
         <ChangeBadge part="block.files.change" mark={props.f.mark} kind={props.f.kind} />
         <PathText part="block.files.path" path={props.f.path} />
@@ -101,7 +101,7 @@ export function FilesBlock(props: BlockProps): JSX.Element {
     <div data-kit="cb-card" data-part="block.files" data-type="files">
       <BlockTitle part="block.files.title" title={str(props.block['title']) || t('block.files.title')} count={rows().length} />
       <Folded items={rows()} limit={LIMIT} as="ul" kit="cb-files" part="block.files.list">
-        {(f) => <FileItem f={f} />}
+        {(f, i) => <FileItem f={f} i={i()} />}
       </Folded>
     </div>
   );
