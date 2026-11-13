@@ -3,7 +3,7 @@
 import { afterEach, expect, test } from 'vitest';
 import { render } from 'solid-js/web';
 import type { EnvReveal } from '@wisp/ui';
-import { envShown, maskIsOn, setEnvShown } from '../src/frame/env-reveal.ts';
+import { askOf, envShown, maskIsOn, setEnvShown } from '../src/frame/env-reveal.ts';
 import { TurnTranscript, stepOutput } from '../src/frame/TurnTranscript.tsx';
 
 const off: (() => void)[] = [];
@@ -52,4 +52,16 @@ test('F-page-41: the transcript step’s output has v1’s line over it, Reveal 
   expect(host.querySelector('[data-part="turn.transcript.envMask"]')).toBe(bar); // in place
   btn().click();
   expect(host.querySelector('pre')?.textContent).toBe('SECRET=••••');
+});
+
+test('ADR-0050: a step the server masked shows the masked text until Reveal brings its value; Reveal names it by its event', () => {
+  const a = { kind: 'run', label: 'Show the env', detail: 'cat .env', out: 'API_KEY=••••\nPORT=••••', seq: 7 };
+  expect(stepOutput(a, true, false)).toEqual({ text: 'API_KEY=••••\nPORT=••••', env: true }); // still has its Reveal line
+  expect(stepOutput(a, true, true)).toEqual({ text: 'API_KEY=••••\nPORT=••••', env: true }); // on its way
+  expect(stepOutput(a, true, true, 'API_KEY=sk-123\nPORT=3000')?.text).toBe('API_KEY=sk-123\nPORT=3000');
+  expect(askOf('step:7')).toEqual({ step: 7 });
+  expect(askOf('block:2')).toEqual({ block: 2 });
+  expect(askOf('file:apps/.env')).toEqual({ file: 'apps/.env' });
+  expect(askOf('index:3')).toBeUndefined(); // an older row: nothing to ask the server for
+  expect(askOf('step:')).toBeUndefined();
 });

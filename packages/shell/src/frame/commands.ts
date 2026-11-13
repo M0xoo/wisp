@@ -336,6 +336,15 @@ export const reveal = defineCommand<{ id: string; path: string }, { ok: boolean;
   optimistic: 'none',
   pending: 'the Show in folder button',
 });
+/** Reveal one masked .env item (ADR-0050, v1 GET /sessions/:id/unmasked): the server sends every .env value as
+ *  KEY=••••, and this asks for one step's output, one answer block or one file's captured change as it is. */
+export const unmasked = defineCommand<{ id: string; turnId: string; step?: number; block?: number; file?: string }, Readonly<Record<string, unknown>>>({
+  id: 'runtime.unmasked',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), turnId: bare(a.turnId), ...(a.step !== undefined && { step: a.step }), ...(a.block !== undefined && { block: a.block }), ...(a.file !== undefined && { file: a.file }) }),
+  optimistic: 'none',
+  pending: 'the Reveal button, pressed at once; the masked text stays until the value arrives',
+});
 /** A `blocked` block's Allow & retry / Deny. */
 export const approveBlocked = defineCommand<{ id: string; turnId: string; allow: boolean }, unknown>({
   id: 'runtime.approveBlocked',

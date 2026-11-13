@@ -9,7 +9,7 @@ import { ChangesList, CommentCard, EmptyState, isEnvFile, rowKey, useSignal, typ
 import { added, commentStore, lineKey, lineLabel, placeOf, waiting } from '../comments.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
-import { envState, filesOf, revealedOf, seenMasked, setRevealed, type ChangeTurn } from './changes.ts';
+import { changesOf, envState, filesOf, relative, revealedOf, seenMasked, setRevealed, type ChangeTurn } from './changes.ts';
 
 interface GitFileRow {
   readonly path: string;
@@ -37,6 +37,14 @@ const read = defineCommand<{ key: EntityKey; path: string; base: string; reveal:
   optimistic: 'none',
   pending: 'the Changes pane',
 });
+/** Reveal a .env file's captured edits in one turn (ADR-0050): the turn rows carry them masked. */
+const unmasked = defineCommand<{ key: EntityKey; turnId: string; file: string }, { readonly edits?: readonly { readonly before: string; readonly after: string }[] }>({
+  id: 'runtime.unmasked',
+  owner: (a) => a.key,
+  wire: (a) => ({ id: a.key.slice(a.key.indexOf(':') + 1), turnId: a.turnId, file: a.file }),
+  optimistic: 'none',
+  pending: 'the Reveal button, pressed at once; the masked edits stay until the values arrive',
+});
 const stage = defineCommand<{ key: EntityKey; dir: string; base: string; path: string; hunk?: number; hunkKey?: string; unstage: boolean }, { ok: boolean }>({
   id: 'git.stage',
   owner: (a) => a.key,
@@ -59,6 +67,8 @@ const commit = defineCommand<{ key: EntityKey; dir: string; message: string; all
   pending: 'the committed files (gone at once)',
 });
 
+type Edits = readonly { readonly before: string; readonly after: string }[];
+const shownKey = (turn: string, file: string): string => `${turn}\n${file}`;
 type Wt = { baseRef?: string; base?: string; path?: string; cwd?: string };
 type Raw = { cwd?: string; title?: string; summary?: { worktree?: Wt | null }; body?: { cwd?: string; ext?: Record<string, Wt | undefined> } };
 
@@ -66,8 +76,8 @@ const stageOf = (f: GitFileRow): StageState => (!f.staged && !f.unstaged ? 'none
 
 /** The edits wisp saw (no git), as the list's rows: each hunk's lines, a gap between hunks. A .env file's values read
  *  KEY=•••• under the Reveal line until it's revealed (v1 maskChange; git masks its own rows). */
-function seenFiles(turns: readonly ChangeTurn[], id: string, cwd: string, maskOn: boolean, revealed: ReadonlySet<string>): ChangeFile[] {
-  return filesOf(turns, id, cwd, (p) => seenMasked(p, maskOn, revealed)).map((f) => ({
+function seenFiles(turns: readonly ChangeTurn[], id: string, cwd: string, maskOn: boolean, revealed: ReadonlySet<string>, shown: ReadonlyMap<string, Edits>): ChangeFile[] {
+  return filesOf(turns, id, cwd, (p) => seenMasked(p, maskOn, revealed), (turn, file) => shown.get(shownKey(turn, file))).map((f) => ({
     path: f.path,
     status: f.status === 'added' ? 'A' : f.status === 'deleted' ? 'D' : 'M',
     add: f.additions,
@@ -115,7 +125,7 @@ export function ChangesPane(): JSX.Element {
   const envOf = (f: GitFileRow): 'hidden' | 'shown' | undefined => envState(f, revealed()) ?? (hiding().has(f.path) ? 'hidden' : undefined);
   const files = createMemo((): ChangeFile[] => {
     const g = git();
-    if (!g || g.body.kind !== 'inline') return seenFiles(turns() as readonly ChangeTurn[], task.id, dir(), maskOn(), revealed());
+    if (!g || g.body.kind !== 'inline') return seenFiles(turns() as readonly ChangeTurn[], task.id, dir(), maskOn(), revealed(), seenShown());
     return g.body.files
       .filter((f) => !going().has(f.path))
       .map((f) => ({
@@ -162,9 +172,32 @@ export function ChangesPane(): JSX.Element {
     const a = after(() => undefined);
     task.client.run(stage, { key: task.key, dir: dir(), base: base(), path, hunk, hunkKey, unstage }).then(a.ok, a.no);
   };
+  // no git: the edits wisp saw come masked in the turn rows; Reveal asks for each turn's change to that file
+  const [seenShown, setSeenShown] = createSignal<ReadonlyMap<string, Edits>>(new Map());
+  const revealSeen = (path: string, show: boolean): void => {
+    const g = git();
+    if (g && g.body.kind === 'inline') return;
+    const mine = (turns() as readonly ChangeTurn[]).filter((x) => x.session_id === task.id && x.id !== undefined);
+    for (const turn of mine) {
+      for (const c of changesOf(turn).filter((x) => relative(x.file, dir()) === path)) {
+        const k = shownKey(turn.id ?? '', c.file);
+        if (!show) {
+          const m = new Map(seenShown());
+          m.delete(k);
+          setSeenShown(m);
+          continue;
+        }
+        task.client.run(unmasked, { key: task.key, turnId: turn.id ?? '', file: c.file }).then(
+          (r) => revealed().has(path) && r.edits && setSeenShown(new Map(seenShown()).set(k, r.edits)),
+          (e: unknown) => (setRevealedHere(setRevealed(task.id, path, false)), failed(e)),
+        );
+      }
+    }
+  };
   const onReveal = (path: string, show: boolean): void => {
     if (!show) setHiding(new Set(hiding()).add(path));
     setRevealedHere(setRevealed(task.id, path, show));
+    revealSeen(path, show);
   };
   const [goingHunks, setGoingHunks] = createSignal(new Set<string>());
   const onRevertHunk = (path: string, hunk: number, hunkKey: string): void => {

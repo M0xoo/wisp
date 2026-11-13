@@ -97,6 +97,9 @@ interface TurnBody {
 }
 
 /** A step of a turn, as the task's topic sends it (runtime's event log: `kind`, and a tool's `tool` and `label`). */
+/** A tool's output carried by its own `tool_output` event, as a step's `out` and the event that carried it. */
+const outputOf = (o: { readonly text: string; readonly seq: number } | undefined): { out?: string; seq?: number } => (o?.text ? { out: o.text, seq: o.seq } : {});
+
 interface EventRow {
   readonly seq: number;
   readonly turn_id: string;
@@ -111,6 +114,7 @@ interface EventRow {
     readonly title?: string;
     readonly text?: string;
     readonly detail?: string;
+    readonly file?: string;
     readonly output?: string;
     readonly callId?: string;
     /** when a call's result came in */
@@ -672,11 +676,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       const b = turn.body;
                       const hero = b.presentation?.blocks?.find((x) => x.type === 'hero');
                       // the steps come as the turn's events (the task's topic); a turn row that carries its own still reads
-                      const steps = createMemo((): { kind: string; label?: string; title?: string; detail?: string; out?: string; bad?: boolean }[] => {
+                      const steps = createMemo((): { kind: string; label?: string; title?: string; detail?: string; out?: string; bad?: boolean; seq?: number }[] => {
                         const all = stepsOf(turn.id);
                         const kindOf = (e: EventRow): string => e.kind ?? e.body?.kind ?? '';
                         // a tool's output: on the step itself, or the tool_output that names its call
-                        const outputs = new Map(all.filter((e) => kindOf(e) === 'tool_output' && e.body?.callId).map((e) => [e.body?.callId ?? '', e.body?.text ?? '']));
+                        const outputs = new Map(all.filter((e) => kindOf(e) === 'tool_output' && e.body?.callId).map((e) => [e.body?.callId ?? '', { text: e.body?.text ?? '', seq: e.seq }]));
                         const ev = all.filter((e) => kindOf(e) === 'tool' || kindOf(e) === 'tool_error');
                         if (!ev.length) return [...(b.activity ?? [])];
                         return ev.map((e) =>
@@ -687,7 +691,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                 label: e.body?.label ?? '',
                                 ...(e.body?.title && { title: e.body.title }),
                                 ...(e.body?.detail && { detail: e.body.detail }),
-                                ...((e.body?.output ?? outputs.get(e.body?.callId ?? '')) && { out: e.body?.output ?? outputs.get(e.body?.callId ?? '') ?? '' }),
+                                ...(e.body?.file && { file: e.body.file }),
+                                // the event that carried the output names it to Reveal (ADR-0050)
+                                ...(e.body?.output ? { out: e.body.output, seq: e.seq } : outputOf(outputs.get(e.body?.callId ?? ''))),
                               },
                         );
                       });

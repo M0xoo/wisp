@@ -1,6 +1,8 @@
 // A `code` or `diff` block about a .env file (v1 blocks.js R.code / R.diff with `masked`): its values read KEY=••••
 // under a line that says so, Reveal there shows this one block as it is, Hide masks it again, in place. The host's
-// `env` keeps what's shown per task; a host without one (a share page) keeps it in the block.
+// `env` keeps what's shown per task; a host without one (a share page) keeps it in the block. The server masks the
+// block before it leaves (ADR-0050, `masked: true`), so Reveal shows what the host's `raw` brought back; masking here
+// again is the second layer for a block an older server sent as it is.
 import { createMemo, createSignal, Show, type JSX } from 'solid-js';
 import { EnvMask, envName } from '../content/EnvMask.tsx';
 import { maskBlock } from '../content/env-mask.ts';
@@ -24,7 +26,12 @@ export function useEnvView(props: BlockProps, part: PartName): EnvView {
   const masked = createMemo(() => (ctx.env?.on() ?? true ? maskBlock(props.block) : undefined));
   const name = (): string => envName(props.block['file'] ?? props.block['path']);
   return {
-    block: () => (masked() && !shown() ? (masked() as AnswerBlock) : props.block),
+    block: () => {
+      if (!masked() || !shown()) return masked() ? (masked() as AnswerBlock) : props.block;
+      // shown: the server's copy as it is; the masked one while it's on its way (or with no server to ask)
+      const raw = ctx.env?.raw?.(id());
+      return raw ? ({ ...props.block, ...raw } as AnswerBlock) : props.block['masked'] === true ? (masked() as AnswerBlock) : props.block;
+    },
     bar: () => (
       <Show when={masked()}>
         <EnvMask

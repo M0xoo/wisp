@@ -117,3 +117,16 @@ test('F-page-41: without a host (a share page) a .env block still masks, and its
   (root.querySelector('[data-part="block.code.envMask.reveal"]') as HTMLButtonElement).click();
   expect(root.textContent).toContain('K=secret');
 });
+
+test('ADR-0050: a block the server masked stays masked when revealed until the host brings its value, then shows it', () => {
+  const [raw, setRaw] = createSignal<Readonly<Record<string, unknown>> | undefined>(undefined);
+  const base = host();
+  const env: EnvReveal = { ...base, raw: () => raw() };
+  const root = mount(() => <Answer blocks={[{ type: 'code', file: '.env', code: `API_KEY=${DOTS}`, masked: true }]} ctx={{ env }} />);
+  const src = (): string => root.querySelector('[data-part="block.code.body"]')?.textContent ?? '';
+  expect(root.querySelector('[data-part="block.code.envMask"]')).not.toBeNull(); // a server-masked block still has its line
+  (root.querySelector('[data-part="block.code.envMask.reveal"]') as HTMLButtonElement).click();
+  expect(src()).toContain(`API_KEY=${DOTS}`); // on its way: still masked, never the dots as "the value"
+  setRaw({ type: 'code', file: '.env', code: 'API_KEY=sk-live-1' });
+  expect(src()).toContain('API_KEY=sk-live-1');
+});

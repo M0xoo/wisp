@@ -11,6 +11,8 @@ export interface FileChange {
 
 /** A server turn row, as far as the pane reads it. */
 export interface ChangeTurn {
+  /** the turn's id: what Reveal names to the server */
+  readonly id?: string;
   readonly session_id: string;
   readonly idx: number;
   readonly body?: { readonly changes?: readonly FileChange[]; readonly ext?: { readonly 'wisp.runtime'?: { readonly changes?: readonly FileChange[] } } };
@@ -50,16 +52,26 @@ export function hunkOf(before: string, after: string, at = 1): DiffHunk {
 
 const STATUS: Readonly<Record<string, DiffStatus>> = { add: 'added', delete: 'deleted', rename: 'renamed' };
 
+type Edits = readonly { readonly before: string; readonly after: string }[];
+
 /** The task's changes, file by file, in the order they were first changed; `session` is its bare id, `cwd` its
- *  folder (paths show from there). `mask`: a file (as shown) whose edits read KEY=•••• (a .env file, not revealed). */
-export function filesOf(turns: readonly ChangeTurn[], session: string, cwd = '', mask: (path: string) => boolean = () => false): DiffFile[] {
+ *  folder (paths show from there). `mask`: a file (as shown) whose edits read KEY=•••• (a .env file, not revealed).
+ *  `shown`: a revealed file's edits as the server keeps them (Reveal asked: the turn rows carry them masked). */
+export function filesOf(
+  turns: readonly ChangeTurn[],
+  session: string,
+  cwd = '',
+  mask: (path: string) => boolean = () => false,
+  shown: (turn: string, file: string) => Edits | undefined = () => undefined,
+): DiffFile[] {
   const byFile = new Map<string, { status: DiffStatus; hunks: DiffHunk[] }>();
   for (const turn of [...turns].filter((t) => t.session_id === session).sort((x, y) => x.idx - y.idx)) {
     for (const raw of changesOf(turn)) {
       const c = { ...raw, file: relative(raw.file, cwd) };
       const f = byFile.get(c.file) ?? { status: STATUS[c.op ?? ''] ?? 'modified', hunks: [] };
       const hide = mask(c.file);
-      for (const raw of c.edits ?? []) {
+      const edits = (!hide && turn.id !== undefined ? shown(turn.id, raw.file) : undefined) ?? c.edits ?? [];
+      for (const raw of edits) {
         const e = hide ? maskEdit(raw) : raw;
         f.hunks.push(hunkOf(e.before, e.after));
       }

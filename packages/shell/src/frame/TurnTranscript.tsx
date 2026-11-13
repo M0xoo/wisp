@@ -4,7 +4,7 @@
 // where the turn ended. The answer follows it (TaskView). What a step printed of a .env file (`cat .env`) reads
 // KEY=•••• under v1's Reveal line (env-reveal.ts keeps what's shown, per task).
 import { For, Show, createSignal, type JSX } from 'solid-js';
-import { EnvMask, Icon, Markdown, Text, Timeline, TimelineEnd, TimelineMessage, TimelineStep, envFileNamed, envName, maskText, readsEnvFile, type EnvReveal, type IconName } from '@wisp/ui';
+import { EnvMask, Icon, Markdown, Text, Timeline, TimelineEnd, TimelineMessage, TimelineStep, DOTS, envFileNamed, envName, maskText, readsEnvFile, type EnvReveal, type IconName } from '@wisp/ui';
 import type { ShellContext } from '../contract.ts';
 import { changeFigures } from './rows-view.ts';
 
@@ -19,15 +19,22 @@ export interface TranscriptStepRow {
   readonly out?: string;
   readonly bad?: boolean;
   readonly file?: string;
+  /** the event (its per-session seq) that carried `out`: what Reveal asks the server for */
+  readonly seq?: number;
 }
 
 type Change = Parameters<typeof changeFigures>[0][number];
 
-/** What a step's opened detail shows of its output: masked when it read a .env file and isn't revealed. */
-export function stepOutput(a: TranscriptStepRow, maskOn: boolean, shown: boolean): { readonly text: string; readonly env: boolean } | undefined {
+/** What a step's opened detail shows of its output: masked when it read a .env file and isn't revealed. The server
+ *  sends it masked already (ADR-0050): shown, it is what Reveal brought back (`raw`), the masked text until then;
+ *  masking here again is the second layer for an older server's step. */
+export function stepOutput(a: TranscriptStepRow, maskOn: boolean, shown: boolean, raw?: string): { readonly text: string; readonly env: boolean } | undefined {
   if (a.out === undefined) return undefined;
-  const env = maskOn && readsEnvFile(a) && maskText(a.out) !== a.out;
-  return { text: env && !shown ? maskText(a.out) : a.out, env };
+  const masked = maskText(a.out);
+  const env = maskOn && readsEnvFile(a) && (masked !== a.out || a.out.includes(DOTS));
+  if (!env) return { text: a.out, env };
+  // shown: the server's copy; until it comes, the masked text (an older server's step is its own copy already)
+  return { text: shown ? (raw ?? (a.out.includes(DOTS) ? masked : a.out)) : masked, env };
 }
 
 function Step(props: {
@@ -40,9 +47,15 @@ function Step(props: {
 }): JSX.Element {
   const [open, setOpen] = createSignal(false);
   const a = props.a;
-  const id = `step:${props.index}`;
+  // the step's event names it to the server; an older row without one is its place in the list (no Reveal to ask)
+  const id = a.seq !== undefined ? `step:${a.seq}` : `index:${props.index}`;
   const shown = (): boolean => props.env?.shown(id) ?? false;
-  const out = () => stepOutput(a, props.env?.on() ?? true, shown());
+  const rawOut = (): string | undefined => {
+    const r = props.env?.raw?.(id);
+    const v = r?.['output'] ?? r?.['text'];
+    return typeof v === 'string' ? v : undefined;
+  };
+  const out = () => stepOutput(a, props.env?.on() ?? true, shown(), rawOut());
   const t = props.t;
   const change = props.changes.find((c) => (c as { file?: string }).file === a.file);
   const nums = a.kind === 'edit' && change ? changeFigures([change]) : undefined;

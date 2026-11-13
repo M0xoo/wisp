@@ -56,3 +56,14 @@ test('F-page-41: the edits wisp saw to a .env file (no git) read KEY=•••�
   expect(text((p) => seenMasked(p, false, new Set()))).toContain('.env add:API_KEY=sk-2');
   expect(seenMasked('.env.example', true, new Set())).toBe(false);
 });
+
+test('ADR-0050: a revealed .env file the server sent masked shows each turn’s edits as Reveal brought them back', () => {
+  const turns = [{ id: 't1', session_id: 's', idx: 0, body: { ext: { 'wisp.runtime': { changes: [{ file: '/w/.env', op: 'modify', edits: [{ before: 'K=••••', after: 'K=•••• (changed)' }] }] } } } }];
+  const masked = filesOf(turns, 's', '/w');
+  expect(masked[0]?.hunks.flatMap((h) => h.lines.map((l) => l.text))).not.toContain('K=sk-2');
+  const shown = filesOf(turns, 's', '/w', () => false, (turn, file) => (turn === 't1' && file === '/w/.env' ? [{ before: 'K=sk-1', after: 'K=sk-2' }] : undefined));
+  expect(shown[0]?.hunks.flatMap((h) => h.lines.map((l) => l.text))).toEqual(['K=sk-1', 'K=sk-2']);
+  // still masked (not revealed): the server's copy is never asked for
+  const hidden = filesOf(turns, 's', '/w', () => true, () => [{ before: 'K=sk-1', after: 'K=sk-2' }]);
+  expect(JSON.stringify(hidden)).not.toContain('sk-');
+});

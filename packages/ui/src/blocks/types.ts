@@ -62,6 +62,9 @@ export interface EnvReveal {
   readonly on: () => boolean;
   readonly shown: (id: string) => boolean;
   readonly set: (id: string, shown: boolean) => void;
+  /** the item as the server keeps it, once Reveal asked for it (ADR-0050: what reaches the page is masked by the
+   *  server); undefined until it arrives, or with no server to ask (a share page never gets one) */
+  readonly raw?: (id: string) => Readonly<Record<string, unknown>> | undefined;
 }
 
 /**
