@@ -1,0 +1,6 @@
+# rustfmt for the Rust workspace (CI: `cargo fmt --all --check`). Stable options only.
+# 140 + "Max" match the dense style most of the code was written in (short chains, struct literals and
+# argument lists on one line); it was the smallest reformat among 100–150 short of absurd widths.
+edition = "2024"
+max_width = 140
+use_small_heuristics = "Max"

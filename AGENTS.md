@@ -20,6 +20,7 @@ npm install                      # once: links the TypeScript (UI) workspaces
 cargo build                      # the Rust workspace (one shared target dir per machine)
 npm run check                    # structure rules for both sides (layers, cycles, CSS, state, manifests, OpenAPI, sizes; rust-layers, -sans-io, -unsafe, -sizes, -manifests)
 npm run typecheck                # tsc strict for every TS package, tests, dev and gallery included (tools/typecheck.ts: 4 programs in parallel)
+cargo fmt --all                  # format the Rust workspace (rustfmt.toml); CI runs `cargo fmt --all --check`
 cargo clippy --workspace --all-targets -- -D warnings
 cargo deny check                 # licences, advisories, bans, sources (deny.toml)
 cargo test -p <crate> --test <file> <name>  # the test you're writing: that's all a coder runs

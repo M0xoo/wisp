@@ -56,16 +56,18 @@ jobs:
           cache: false
       - run: node tools/setup-monoflow.ts --build
 
-      # The Rust workspace (ADR-0013): clippy pedantic with -D warnings, every crate's tests, and cargo
-      # deny (licences, advisories, bans, sources: deny.toml). Builds share one cached target dir.
+      # The Rust workspace (ADR-0013): rustfmt (rustfmt.toml), clippy pedantic with -D warnings, every
+      # crate's tests, and cargo deny (licences, advisories, bans, sources: deny.toml). Builds share one cached target dir.
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
 
       - run: npm ci --no-audit --no-fund
       - run: npm run check
       - run: npm run typecheck
+      - name: cargo fmt
+        run: cargo fmt --all --check
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: cargo test
