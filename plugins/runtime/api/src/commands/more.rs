@@ -402,6 +402,71 @@ pub struct AgentWatchArgs {
     pub body: serde_json::Map<String, Value>,
 }
 
+/// `wisp_tag` (v1 POST /internal/tags): the topics of the agent's own task, the whole list (it replaces them).
+/// `tags` as the agent sent it: a list, or a comma-separated string. Additive (2026-11-13).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentTagArgs {
+    pub session: String,
+    #[serde(default)]
+    pub tags: Value,
+}
+
+/// `wisp_blocks` (v1 protocol.js `blockDocs`): the full docs of the answer blocks the prompt only names.
+/// Additive (2026-11-13).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentBlocksArgs {
+    pub session: String,
+    /// a list of block types, or one
+    #[serde(default)]
+    pub types: Value,
+}
+
+/// `wisp_stats` (v1 GET /internal/stats/:id): tool calls, turns, cost and success over the user's tasks.
+/// `days` as the agent sent it (a number, or a numeric string); `project` "current" = the asking task's.
+/// Additive (2026-11-13).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentStatsArgs {
+    pub session: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub days: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+}
+
+/// `wisp_available` (v1 GET /internal/available/:id): `session` is the asking agent's task. Additive (2026-11-13).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentAvailableArgs {
+    pub session: String,
+}
+
+/// `wisp_task` (v1 POST /internal/task/:id): the tool's input as the agent sent it, plus `session`. Additive (2026-11-13).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AgentTaskArgs {
+    pub session: String,
+    #[serde(default)]
+    pub task: String,
+    /// reply, stop, done, archive, unarchive or rename
+    #[serde(default)]
+    pub action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// reply: wait for its current run (only `true` does)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
 /// What an agent tool reads back: `text`, or `error`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]

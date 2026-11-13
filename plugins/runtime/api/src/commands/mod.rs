@@ -199,6 +199,61 @@ impl Command for AgentWatch {
     type Out = AgentText;
 }
 
+/// `wisp_tag`: the agent names its own task's topics (what the user finds it by, ⌘K and #tag). Additive (2026-11-13).
+#[derive(Debug)]
+pub struct AgentTag;
+impl Command for AgentTag {
+    const ID: &'static str = "runtime.agent.tag";
+    const TASK_ARGS: &'static [&'static str] = &["session"];
+    type Args = AgentTagArgs;
+    type Out = AgentText;
+}
+
+/// `wisp_blocks`: the fields of the answer blocks the agent's instructions only name. Additive (2026-11-13).
+#[derive(Debug)]
+pub struct AgentBlocks;
+impl Command for AgentBlocks {
+    const ID: &'static str = "runtime.agent.blocks";
+    const READ_ONLY: bool = true;
+    const TASK_ARGS: &'static [&'static str] = &["session"];
+    type Args = AgentBlocksArgs;
+    type Out = AgentText;
+}
+
+/// `wisp_stats`: tool calls, turns, cost and success across the user's tasks; a capped agent's stay in its
+/// task's project. Additive (2026-11-13).
+#[derive(Debug)]
+pub struct AgentStats;
+impl Command for AgentStats {
+    const ID: &'static str = "runtime.agent.stats";
+    const READ_ONLY: bool = true;
+    const TASK_ARGS: &'static [&'static str] = &["session"];
+    type Args = AgentStatsArgs;
+    type Out = AgentText;
+}
+
+/// `wisp_available`: the harnesses, machines, projects, saved teams and crew an agent can pick from. Additive (2026-11-13).
+#[derive(Debug)]
+pub struct AgentAvailable;
+impl Command for AgentAvailable {
+    const ID: &'static str = "runtime.agent.available";
+    const READ_ONLY: bool = true;
+    const TASK_ARGS: &'static [&'static str] = &["session"];
+    type Args = AgentAvailableArgs;
+    type Out = AgentText;
+}
+
+/// `wisp_task`: act on another task as the user would from its card (`task` names it; the guards are wisp.runtime's,
+/// so it is not one of the task args the kernel scopes to the caller's own tree). Additive (2026-11-13).
+#[derive(Debug)]
+pub struct AgentTask;
+impl Command for AgentTask {
+    const ID: &'static str = "runtime.agent.task";
+    const TASK_ARGS: &'static [&'static str] = &["session"];
+    type Args = AgentTaskArgs;
+    type Out = AgentText;
+}
+
 /// `wisp_session`: one task in words, readable like `AgentSessions`.
 #[derive(Debug)]
 pub struct AgentSession;

@@ -39,7 +39,7 @@
       "version": "1.0.0"
     }
   },
-  "permissions": ["router:read", "router:write", "stuff:read", "fs:read{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/shots}", "proc:exec{bin:*}", "proc:spawn{bin:*}", "store:write{owner:runtime}", "telemetry:track", "worktrees:create", "accounts:write", "budget:read", "terminal:open", "terminal:input", "terminal:read", "sandbox:place", "sandbox:bring", "machines:route"],
+  "permissions": ["router:read", "router:write", "stuff:read", "fs:read{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/shots}", "proc:exec{bin:*}", "proc:spawn{bin:*}", "store:write{owner:runtime}", "telemetry:track", "worktrees:create", "accounts:write", "budget:read", "terminal:open", "terminal:input", "terminal:read", "sandbox:place", "sandbox:bring", "sandbox:info", "machines:route", "machines:list", "crew:read"],
   "server": {
     "builtin": "wisp-runtime"
   },
@@ -272,6 +272,29 @@
         "id": "runtime.agent.session",
         "title": "An agent reads a task (wisp_session)",
         "readOnly": true
+      },
+      {
+        "id": "runtime.agent.tag",
+        "title": "An agent tags its task with its topics (wisp_tag)"
+      },
+      {
+        "id": "runtime.agent.blocks",
+        "title": "An agent reads the fields of answer blocks (wisp_blocks)",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.agent.stats",
+        "title": "An agent reads tool stats across the user's tasks (wisp_stats)",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.agent.available",
+        "title": "An agent reads what it can run work on (wisp_available)",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.agent.task",
+        "title": "An agent acts on another task (wisp_task)"
       },
       {
         "id": "runtime.profiles",

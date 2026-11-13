@@ -34,7 +34,7 @@ pub fn summarize(turns: &[Turn], from: i64) -> UsageSummary {
 const DAY: i64 = 86_400_000;
 
 /// `YYYY-MM-DD` of a UTC day number (days since 1970-01-01), Howard Hinnant's `civil_from_days`.
-fn civil(days: i64) -> String {
+pub(crate) fn civil(days: i64) -> String {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;
@@ -76,7 +76,7 @@ fn row(key: String, name: String, agent: String, turns: &[&Turn]) -> UsageRow {
 }
 
 /// The folder's last part, as v1 named a project it didn't know (places.js projectName).
-fn project_name(cwd: &str) -> String {
+pub(crate) fn project_name(cwd: &str) -> String {
     cwd.trim_end_matches(['/', '\\']).rsplit(['/', '\\']).next().filter(|s| !s.is_empty()).unwrap_or(cwd).to_owned()
 }
 

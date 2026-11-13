@@ -38,6 +38,8 @@ macro_rules! cmd {
     }};
 }
 
+mod agent_task;
+mod agent_tools;
 mod create;
 mod ctx_host;
 mod edits;
@@ -71,11 +73,13 @@ fn commands(s: &mut Setup, slot: &Slot) {
     s.contribute(&wisp_issues_api::PROJECTS, issue_projects);
     let brief: Arc<dyn wisp_runtime_api::points::PromptPart> = Arc::new(crate::kinds::Brief);
     s.contribute(&wisp_runtime_api::points::PROMPT, brief);
+    agent_task::setup(s, slot, made_kinds.project.clone(), made_kinds.team.clone());
     create::create_and_follow_up(s, slot, made_kinds);
     specs::specs(s, slot);
     edits::edits(s, slot);
     reads::reads(s, slot);
     reads::for_agents(s, slot);
+    agent_tools::setup(s, slot);
     more::more(s, slot, harness_kind, project_kind);
     crate::term::setup(s, slot);
     crate::group::setup(s);
