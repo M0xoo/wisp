@@ -49,6 +49,31 @@ impl std::fmt::Debug for TopicSource {
 pub struct TopicReader {
     pub matches: fn(&str) -> bool,
     pub read: ReadFn,
+    /// How the topic's committed changes and resumes are sent, when the snapshot isn't the rows as stored
+    /// (the window's stubs). Additive (2026-11-13).
+    pub live: Option<Live>,
+}
+
+/// A [`TopicReader`]'s changes: a committed upsert or patch of one of `kinds` on a matching topic goes through
+/// `change` (`Some(rows)`: upserts of those `(topic, id, value)` in its place, in that order); a resume's rows
+/// through `delta`. Only `kinds` pay a read, on the store's writer thread after the commit.
+#[derive(Clone, Copy)]
+pub struct Live {
+    pub kinds: &'static [&'static str],
+    pub change: ChangeFn,
+    pub delta: DeltaFn,
+}
+
+/// [`Live::change`]: `(reader, topic, kind, id)`.
+pub type ChangeFn = fn(&Reader<'_>, &str, &str, &str) -> wisp_store::Result<Option<Vec<(String, String, Map<String, Value>)>>>;
+
+/// [`Live::delta`]: `(reader, topic, rows as (kind, value))`, rewritten in place.
+pub type DeltaFn = fn(&Reader<'_>, &str, &mut [(String, Map<String, Value>)]) -> wisp_store::Result<()>;
+
+impl std::fmt::Debug for Live {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Live").field("kinds", &self.kinds).finish_non_exhaustive()
+    }
 }
 
 /// A [`TopicReader`]'s read: the topic's rows as `(kind, id, value)`.
@@ -210,8 +235,11 @@ fn read_topic(
 ) -> wisp_store::Result<Read> {
     let key_of = |e: &str| sources.iter().find(|s| s.kind == e).map(|s| s.key);
     if let Some(since) = since
-        && let Some(d) = r.changed_since(topic, i64::try_from(since).unwrap_or(i64::MAX))?
+        && let Some(mut d) = r.changed_since(topic, i64::try_from(since).unwrap_or(i64::MAX))?
     {
+        if let Some(live) = readers.iter().find(|x| (x.matches)(topic)).and_then(|x| x.live) {
+            (live.delta)(r, topic, &mut d.rows)?;
+        }
         return Ok(delta_read(d, false, key_of));
     }
     // a first look, or a cursor retention already dropped: the whole topic
@@ -351,6 +379,45 @@ pub fn to_wire(c: &wisp_store::ChangeRow) -> Vec<ChangeRow> {
         .collect()
 }
 
+/// Committed wire changes as their topics' [`Live`]s send them (what [`feed_read`] sends). Additive (2026-11-13).
+pub fn live_changes(store: &Store, readers: &[TopicReader], wire: Vec<ChangeRow>) -> Vec<ChangeRow> {
+    if readers.iter().all(|x| x.live.is_none()) {
+        return wire;
+    }
+    wire.into_iter().flat_map(|c| live_change(store, readers, c)).collect()
+}
+
+/// One committed change as its topic's [`Live`] sends it: as it is, or the upserts `change` gave in its place.
+/// A read that fails sends the change as committed (the client may resync, as before).
+fn live_change(store: &Store, readers: &[TopicReader], c: ChangeRow) -> Vec<ChangeRow> {
+    let wanted = matches!(c.change, Change::Upsert { .. } | Change::Patch { .. });
+    let Some(live) = readers
+        .iter()
+        .find(|x| wanted && (x.matches)(c.topic.as_str()))
+        .and_then(|x| x.live)
+        .filter(|l| l.kinds.contains(&c.entity.as_str()))
+    else {
+        return vec![c];
+    };
+    let rows = store.read(|r| (live.change)(r, c.topic.as_str(), &c.entity, &c.id)).unwrap_or_else(|e| {
+        tracing::warn!(topic = c.topic.as_str(), "a live change read failed: {e}");
+        None
+    });
+    let Some(rows) = rows else { return vec![c] };
+    rows.into_iter()
+        .filter_map(|(t, id, v)| {
+            Some(ChangeRow {
+                seq: c.seq,
+                topic: Topic::parse(&t)?,
+                entity: c.entity.clone(),
+                id,
+                change: Change::Upsert { v: Value::Object(v) },
+                at: c.at,
+            })
+        })
+        .collect()
+}
+
 /// Streams every commit to `driver`. Keep the subscription: dropping it stops the feed.
 pub fn feed(store: &Store, driver: Arc<Driver>) -> Subscription {
     feed_viewed(store, driver, Arc::new(NoViews))
@@ -358,8 +425,16 @@ pub fn feed(store: &Store, driver: Arc<Driver>) -> Subscription {
 
 /// [`feed`], each change through its owner's `kernel.egress` view first (ADR-0050). Additive (2026-11-13).
 pub fn feed_viewed(store: &Store, driver: Arc<Driver>, views: Arc<dyn ViewSource>) -> Subscription {
+    feed_read(store, driver, views, Arc::new([]))
+}
+
+/// [`feed_viewed`], each change on a [`TopicReader`]'s topic sent as its [`Live`] says (the task window sends
+/// a change to a stubbed turn as the stub). Additive (2026-11-13).
+pub fn feed_read(store: &Store, driver: Arc<Driver>, views: Arc<dyn ViewSource>, readers: Arc<[TopicReader]>) -> Subscription {
+    let reads = store.clone();
     store.on_commit(move |rows| {
         let mut wire: Vec<ChangeRow> = rows.iter().flat_map(to_wire).collect();
+        wire = live_changes(&reads, &readers, wire);
         if !wire.is_empty() {
             let vs = views.views();
             for c in &mut wire {

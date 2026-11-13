@@ -91,11 +91,14 @@ fn snapshot_sources() -> Vec<wisp_api::v2_store::TopicSource> {
 }
 
 /// The topics a plugin reads itself for a first look: wisp.runtime's task window (v1 #788: the latest turns
-/// whole, older ones as stubs, only the whole ones' events), so a long task never sends every event it had.
+/// whole, older ones as stubs, only the whole ones' events), so a long task never sends every event it had; a
+/// change to a stubbed turn goes as its stub (ADR-0051).
 fn snapshot_readers() -> Vec<wisp_api::v2_store::TopicReader> {
     #[cfg(feature = "runtime")]
     {
-        vec![wisp_api::v2_store::TopicReader { matches: wisp_runtime::turn_window::matches, read: wisp_runtime::turn_window::read }]
+        use wisp_runtime::turn_window as w;
+        let live = wisp_api::v2_store::Live { kinds: w::LIVE_KINDS, change: w::live, delta: w::delta };
+        vec![wisp_api::v2_store::TopicReader { matches: w::matches, read: w::read, live: Some(live) }]
     }
     #[cfg(not(feature = "runtime"))]
     {
@@ -171,9 +174,10 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     // epoch), and every commit streamed as it lands (Store::on_commit → Driver::committed)
     // every row leaves through its owner's `kernel.egress` view (ADR-0050: .env values never leave)
     let views: Arc<dyn wisp_api::egress::ViewSource> = Arc::new(kernel.clone());
-    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new()).with_readers(snapshot_readers()).with_views(views.clone());
+    let readers = snapshot_readers();
+    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new()).with_readers(readers.clone()).with_views(views.clone());
     let driver = wisp_api::v2::Driver::start(Arc::new(snaps), backend.clone(), peer(&kernel));
-    let feed = wisp_api::v2_store::feed_viewed(&store, driver.clone(), views);
+    let feed = wisp_api::v2_store::feed_read(&store, driver.clone(), views, readers.into());
     hub.mount(driver);
     let edge = Edge::new(cfg, backend, hub);
 

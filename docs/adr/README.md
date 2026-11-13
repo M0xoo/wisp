@@ -52,3 +52,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0047](0047-sandboxes.md) | Sandboxes are their own plugin (wisp.sandbox): one owner each, deleted with it; /sandbox, delegates, crew jobs, judges |
 | [0048](0048-untrusted-plugin-tier.md) | Anything downloaded is an untrusted plugin: its UI is described (kit descriptors from a Worker in a sandboxed frame), its calls checked as itself |
 | [0050](0050-env-values-masked-on-the-server.md) | .env values are masked on the server (wisp-envmask, the `kernel.egress` row view, `runtime.unmasked` for Reveal), never only in the page |
+| [0051](0051-task-topic-is-a-turn-window.md) | A task's topic is a window (latest 8 turns whole, older ones as stubs; `/turn/<id>`, `/turns`, `/all`), read by an additive `TopicReader`; a change to a stub goes as the stub |

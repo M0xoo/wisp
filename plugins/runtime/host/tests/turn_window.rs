@@ -192,3 +192,98 @@ fn the_tuis_all_view_reads_every_turn_whole_with_every_event_from_the_tables() {
     assert_eq!(rows.iter().filter(|(e, ..)| e == "event").count(), TURNS * EVENTS_PER_TURN);
     println!("session:lead/all: {} B", bytes(&rows));
 }
+
+/// An older turn changes (a late rating, an edited answer, one more edit) after the window was read.
+fn rate(store: &Store, id: &str, text: &str) -> Vec<wisp_store::ChangeRow> {
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let tap = seen.clone();
+    let _sub = store.on_commit(move |rows| tap.lock().unwrap().extend(rows.iter().cloned()));
+    let (id, text) = (id.to_owned(), text.to_owned());
+    store
+        .write_blocking(move |w| {
+            let mut t = w.get("turn", id.as_str())?.unwrap();
+            let body = t.get_mut("body").and_then(Value::as_object_mut).unwrap();
+            body.insert("text".into(), json!(text));
+            body["ext"].as_object_mut().unwrap().insert("wisp.telemetry".into(), json!({ "feedback": { "rating": "down" } }));
+            body["ext"]["wisp.runtime"]["changes"].as_array_mut().unwrap().push(json!({ "file": "/w/src/b.ts", "edits": [] }));
+            body["presentation"]["blocks"][1]["text"] = json!(text);
+            t.insert("answer".into(), json!(text));
+            w.upsert("turn", t)?;
+            Ok(())
+        })
+        .unwrap();
+    seen.lock().unwrap().clone()
+}
+
+fn live(store: &Store, topic: &str, id: &str) -> Option<turn_window::Rows> {
+    store.read(|r| turn_window::live(r, topic, "turn", id)).unwrap()
+}
+
+/// The gap the window left (ADR-0051): the store's diff of a stubbed turn doesn't apply to the stub a client
+/// holds (its answer, text and blocks are gone), so the client resynced and re-read the whole window. The
+/// change now goes as the stub itself: it applies, and the client's copy is the stub a fresh window sends.
+#[test]
+fn a_change_to_a_stubbed_turn_goes_as_its_stub_so_a_client_holding_stubs_never_drifts() {
+    let store = seeded();
+    let window = read(&store, "session:lead");
+    let held = turns_of(&window).into_iter().find(|t| t["id"] == "lead-t5").unwrap().clone();
+    assert!(stub(&held));
+    let changes = rate(&store, "lead-t5", "a new answer");
+    let diff = changes.iter().find(|c| c.entity == "turn" && c.op == wisp_store::ChangeOp::Patch).expect("the store records a diff");
+    let ops: Vec<wisp_store::PatchOp> = serde_json::from_value(diff.patch.clone()).unwrap();
+    // `add /body/ext/wisp.runtime/changes/-`: the stub has no `changes`; and without it the stub would take the
+    // answer, the text and every block (`replace` on a missing key inserts), a stub no longer
+    assert!(wisp_store::json_patch::apply(&Value::Object(held.clone()), &ops).is_err(), "as committed, the diff fails on the stub");
+    let no_append: Vec<_> = ops.iter().filter(|o| !o.path().ends_with("/-")).cloned().collect();
+    let hybrid = wisp_store::json_patch::apply(&Value::Object(held.clone()), &no_append).unwrap();
+    assert_eq!(hybrid["answer"], "a new answer", "and what applies turns the stub into a hybrid");
+
+    let sent = live(&store, "session:lead", "lead-t5").expect("a stubbed turn goes another way");
+    let topics: Vec<&str> = sent.iter().map(|(t, ..)| t.as_str()).collect();
+    assert_eq!(topics, ["session:lead", "session:lead/all", "session:lead/turn/lead-t5", "session:lead/turns"]);
+    let mut flushed = topics.clone();
+    flushed.sort_unstable(); // the outbox takes a rank's topics by name
+    assert_eq!(topics, flushed, "the window's stub goes first, the whole rows after it, in one flush");
+    let fresh = read(&store, "session:lead");
+    let now = turns_of(&fresh).into_iter().find(|t| t["id"] == "lead-t5").unwrap();
+    assert_eq!(&sent[0].2, now, "the window's change is the stub a fresh window sends: no drift");
+    assert_eq!(sent[0].2["body"]["ext"]["wisp.telemetry"]["feedback"]["rating"], "down");
+    assert_eq!(sent[0].2.get("answer"), None);
+    for (_, id, v) in &sent[1..] {
+        assert_eq!(id, "lead-t5");
+        assert!(!stub(v), "whole on the topics that hold it whole");
+        assert_eq!(v["answer"], "a new answer");
+    }
+}
+
+#[test]
+fn a_change_to_a_whole_turn_goes_as_committed() {
+    let store = seeded();
+    let latest = format!("lead-t{}", TURNS - 1);
+    let boundary = format!("lead-t{}", TURNS - WHOLE_TURNS);
+    rate(&store, &latest, "x");
+    assert!(live(&store, "session:lead", &latest).is_none(), "the running turn's diffs stay diffs");
+    assert!(live(&store, "session:lead", &boundary).is_none(), "the oldest whole turn is whole");
+    assert!(live(&store, "session:lead", &format!("lead-t{}", TURNS - WHOLE_TURNS - 1)).is_some(), "the one before it is a stub");
+    assert!(live(&store, "session:sub0", "sub0-t0").is_none(), "a short task sends every turn whole");
+    assert!(live(&store, "session:lead", "sub0-t0").is_none(), "another task's turn isn't the window's");
+    assert!(live(&store, "session:lead/turns", "lead-t5").is_none(), "only the window stubs");
+    assert!(store.read(|r| turn_window::live(r, "session:lead", "session", "lead")).unwrap().is_none(), "only turns");
+}
+
+#[test]
+fn a_resumed_window_sends_the_older_turns_it_stubs_as_stubs() {
+    let store = seeded();
+    #[allow(clippy::redundant_closure_for_method_calls)] // the method path isn't general over the reader's lifetime
+    let head = store.read(|r| r.head_seq()).unwrap();
+    rate(&store, "lead-t5", "y");
+    rate(&store, &format!("lead-t{}", TURNS - 1), "z");
+    let mut rows = store.read(|r| r.changed_since("session:lead", head)).unwrap().unwrap().rows;
+    store.read(|r| turn_window::delta(r, "session:lead", &mut rows)).unwrap();
+    let by = |id: &str| rows.iter().find(|(e, v)| e == "turn" && v["id"] == id).map(|(_, v)| v).unwrap();
+    assert!(stub(by("lead-t5")), "an older turn resumes as its stub");
+    assert!(!stub(by(&format!("lead-t{}", TURNS - 1))), "a whole one resumes whole");
+    let mut whole = store.read(|r| r.changed_since("session:lead", head)).unwrap().unwrap().rows;
+    store.read(|r| turn_window::delta(r, "session:lead/turns", &mut whole)).unwrap();
+    assert!(whole.iter().all(|(_, v)| !stub(v)), "only the window stubs");
+}

@@ -10,7 +10,7 @@ use std::time::Duration;
 use support::{Fake, config, json_h, send};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use wisp_api::v2::{Driver, Snapshots};
-use wisp_api::v2_store::{StoreSnapshots, TopicReader, TopicSource, feed, to_wire};
+use wisp_api::v2_store::{Live, StoreSnapshots, TopicReader, TopicSource, feed, live_changes, to_wire};
 use wisp_api::{Edge, Hub};
 use wisp_protocol::{Change, PeerInfo, Topic};
 use wisp_store::{Location, ManualClock, Query, Store, row};
@@ -94,6 +94,7 @@ async fn a_topic_reader_answers_the_first_look_and_a_resume_reads_the_feed() {
     let snaps = StoreSnapshots::new(s.clone(), sources(), Vec::new()).with_readers(vec![TopicReader {
         matches: |t| t == "config",
         read: |_, _| Ok(vec![("setting".into(), "windowed".into(), serde_json::Map::new())]),
+        live: None,
     }]);
     let config = Topic::parse("config").unwrap();
     let full = snaps.snapshot(&config, None).await;
@@ -188,4 +189,53 @@ async fn a_commit_reaches_an_open_stream() {
     set(&s, "volume", "3").await;
     until(&mut c, &mut seen, "\"volume\"").await;
     server.shutdown().await;
+}
+
+/// A reader's [`Live`] (the task window's: a change to a stubbed turn goes as the stub): a committed change of
+/// one of its kinds goes as the upserts it gives, in their order, on their topics; a resume's rows go through
+/// `delta`; another kind goes as committed.
+fn stubbing() -> TopicReader {
+    TopicReader {
+        matches: |t| t == "config",
+        read: |_, _| Ok(Vec::new()),
+        live: Some(Live {
+            kinds: &["setting"],
+            change: |r, topic, _, id| {
+                let Some(mut v) = r.get("setting", id)? else { return Ok(None) };
+                v.insert("value".into(), "stubbed".into());
+                Ok(Some(vec![(topic.to_owned(), id.to_owned(), v.clone()), ("list".into(), id.to_owned(), v)]))
+            },
+            delta: |_, _, rows| {
+                for (_, v) in rows {
+                    v.insert("value".into(), "stubbed".into());
+                }
+                Ok(())
+            },
+        }),
+    }
+}
+
+#[tokio::test]
+async fn a_live_reader_sends_a_change_as_its_rows_and_a_resume_through_its_delta() {
+    let s = store();
+    set(&s, "theme", "dark").await;
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let _tap = s.on_commit(move |rows| {
+        let _ = tx.send(rows.iter().flat_map(to_wire).collect::<Vec<_>>());
+    });
+    let snaps = StoreSnapshots::new(s.clone(), sources(), Vec::new()).with_readers(vec![stubbing()]);
+    let head = snaps.head_seq();
+    set(&s, "theme", "light").await;
+    let committed = rx.recv().await.unwrap();
+    assert!(matches!(&committed[0].change, Change::Patch { .. }), "the store committed a diff");
+    let seq = committed[0].seq;
+    let sent = live_changes(&s, &[stubbing()], committed);
+    let got: Vec<(&str, &str)> = sent.iter().map(|c| (c.topic.as_str(), c.id.as_str())).collect();
+    assert_eq!(got, [("config", "theme"), ("list", "theme")], "its rows, in their order, on their topics");
+    assert!(sent.iter().all(|c| c.seq == seq && matches!(&c.change, Change::Upsert { v } if v["value"] == "stubbed")));
+    let untouched = vec![wisp_sync::ChangeRow { seq, topic: Topic::parse("config").unwrap(), entity: "other".into(), id: "x".into(), change: Change::Del, at: 0 }];
+    assert_eq!(live_changes(&s, &[stubbing()], untouched.clone()), untouched, "another kind, or a del, goes as committed");
+    let resumed = snaps.snapshot(&Topic::parse("config").unwrap(), Some(head)).await;
+    assert!(!resumed.full);
+    assert_eq!(resumed.rows[0].v["value"], "stubbed", "a resume goes through delta");
 }
