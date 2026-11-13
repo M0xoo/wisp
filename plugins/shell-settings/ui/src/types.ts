@@ -29,6 +29,7 @@ export const KEYS = {
   transcript: 'shell-task.transcript', // off unless 'on'
   notify: 'settings.notify', // 'on' | 'off'
   acceptChannels: 'channels.acceptChannels', // off unless 'on'
+  channelProject: 'channels.project', // a project id (its name), '' for the last used
   crewTint: 'crew.tint', // bool, on by default
 } as const;
 

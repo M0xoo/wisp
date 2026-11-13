@@ -348,6 +348,8 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 | F-chan-11 | Unrel. | Given a report with a token in it, when it goes to a channel, then the secret is redacted | built | redaction in `plugins/channels/api` |
 | F-chan-12 | 0.27.0 | Given Settings → Notifications, when a task finishes or asks, then a desktop notification shows | partial | `Notifications.tsx` pane; `shell-home/ui/src/notify.ts` not mounted |
 | F-chan-13 | 0.8.0 | Given Settings → Phone, when I open it, then one dialog sets up ntfy, Telegram, Slack, Discord, GitHub and email | partial | `channels.view`/`update`/`test`; Phone dialog not mounted (Notifications links to it) |
+| F-chan-14 | 0.13.0 | Given a channel message that names no project, when it starts a task, then it runs in the project picked as Default project, else the last used, else the first (a deleted pick falls through) | built | `channels.project` setting; `wisp_channels_core::default_project` (last used = newest task's project from `runtime.list`, no new state); tests `serve_channels::a_channel_task_lands_in_the_project_it_names_else_the_picked_else_the_last_used_else_the_first`, core `the_picked_project_then_the_last_used_then_the_first`, `a_task_counts_for_the_deepest_project_that_holds_its_folder` |
+| F-chan-15 | 0.13.0 | Given Settings → Notifications, when I open Default project, then it offers Last used (naming that project) and every project | built | `shell-settings/ui` `ChannelProject` row (`settings.channelProject`); test `channel-project.test.ts` `the_default_project_picker_names_the_last_used_project_then_lists_every_project_v1_telegram_project`; seen in Chrome at 1440 light / 390 dark |
 
 ## 13. Connectors and MCP (`CONN`)
 

@@ -2,11 +2,13 @@
 // browser's permission can only be granted from here, never revoked, so when it blocks the switch
 // it shows as the row's hint (v1 notify.js). Turning it on asks for the permission first.
 
-import { createSignal, type JSX } from 'solid-js';
+import { createMemo, createSignal, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Button, Code, SettingsGroup, SettingsRow, Switch, SwitchSetting, useSignal } from '@wisp/ui';
+import { projectList } from '@wisp/shell';
+import { Button, Code, SelectSetting, SettingsGroup, SettingsRow, Switch, SwitchSetting, useSignal } from '@wisp/ui';
+import { lastUsed, projectItems } from '../channel-project.ts';
 import { t } from '../i18n.ts';
-import { fromRow, onOff } from '../source.ts';
+import { fromRow, onOff, text } from '../source.ts';
 import { KEYS, VIEW_ID } from '../types.ts';
 
 export type Permission = 'granted' | 'denied' | 'default' | 'unsupported';
@@ -46,6 +48,24 @@ function Desktop(props: { readonly client: PluginClient }): JSX.Element {
   );
 }
 
+/** v1 Phone → Telegram's Default project, for every channel: Last used (named), or one project. */
+function ChannelProject(props: { readonly client: PluginClient }): JSX.Element {
+  const projectRows = useSignal(props.client.entities.list<unknown>('project'));
+  const sessionRows = useSignal(props.client.entities.list<unknown>('session'));
+  const projects = createMemo(() => projectList(projectRows(), undefined));
+  const items = createMemo(() => projectItems(projects(), lastUsed(projects(), sessionRows()), (name) => (name ? t('shell-settings.channelProject.lastOf', { name }) : t('shell-settings.channelProject.last'))));
+  return (
+    <SelectSetting
+      part="settings.channelProject"
+      title={t('shell-settings.channelProject')}
+      description={t('shell-settings.channelProject.hint')}
+      source={text(fromRow(props.client, KEYS.channelProject), '')}
+      locked={(by) => t('shell-settings.locked', { by })}
+      items={items()}
+    />
+  );
+}
+
 export default function Notifications(props: { readonly client: PluginClient }): JSX.Element {
   const openMachines = (): void => props.client.navigate({ t: 'openOverlay', overlay: { kind: 'sheet', id: VIEW_ID, params: { pane: 'machines' } } });
   return (
@@ -76,6 +96,7 @@ export default function Notifications(props: { readonly client: PluginClient }):
           source={onOff(fromRow(props.client, KEYS.acceptChannels), false, KEYS.acceptChannels)}
           locked={(by) => t('shell-settings.locked', { by })}
         />
+        <ChannelProject client={props.client} />
       </SettingsGroup>
     </>
   );
