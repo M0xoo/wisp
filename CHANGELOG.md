@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: Ship it and worktrees as in v1.** Ship it follows every worktree task, hides when there's nothing to ship, comes back after a merge and shows the review on the row; Mark done asks to remove the task's worktrees; archiving removes a clean worktree and keeps its branch; Bring in lists Conductor's worktrees.
 - **v2: usage at a glance on Home.** Under the prompt box, each plan's 5-hour and weekly windows as thin meters, amber near your line and red when used up; a click opens Settings → Usage.
 - **v2: the task page as v1.** A row's run line names the harness, model and place, and its pill says At limit, Refused or Failed; the avatar menu starts with you; Done and Archived list every task; the subagents line under a turn; the cold-cache line and Compact now; your place is kept when a turn lands; hovering a name in a file shows the language server's words.
 - **v2: channels tidy what they keep.** A task deleted while wisp was off loses its kept chat link at the next start; removing a channel deletes what it kept (link, poll offset, webhook secret); Telegram writes its poll offset once per poll instead of once per update.

@@ -262,24 +262,24 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 |---|---|---|---|---|
 | F-wt-1 | 0.51.0 | Given `.worktreeinclude`, when a worktree is made, then ignored files listed are copied (copy-on-write on a Mac) | built | `plugins/worktrees/core` + host |
 | F-wt-2 | Unrel. | Given a repo with `.conductor/settings.toml`, when a task starts, then its setup runs | built | conductor support in worktrees core/host |
-| F-wt-3 | Unrel. | Given Conductor worktrees, when I open the project, then *Bring in* lists them | partial | `worktrees.bringIn` in manifest; `BringIn.tsx` in the Worktrees pane; topic `plugin:wisp.worktrees:worktrees` had no writer (sweep) |
-| F-wt-4 | Unrel. | Given I mark a task done, when it has a worktree, then wisp asks to remove it (and its delegates') | partial | `worktrees.done.list`/`apply`; dialog in GUI not verified |
+| F-wt-3 | Unrel. | Given Conductor worktrees, when I open the project, then *Bring in* lists them | built | round 124 (seen on a real server with a fake gh) |
+| F-wt-4 | Unrel. | Given I mark a task done, when it has a worktree, then wisp asks to remove it (and its delegates') | built | round 124 (seen on a real server with a fake gh) |
 | F-wt-5 | Unrel. | Given old worktrees, when the hourly sweep runs, then merged/closed and old Done ones go, under a cap | built | `worktrees.sweep`, `worktrees.clean` |
 | F-wt-6 | Unrel. | Given Settings → Worktrees, when I open it, then I see every worktree with Keep and Remove | built | `plugins/worktrees/ui/src/panes/Worktrees.tsx` |
-| F-wt-7 | Unrel. | Given a task archived right after it finishes, when its worktree is clean, then it's removed | partial | not verified |
+| F-wt-7 | Unrel. | Given a task archived right after it finishes, when its worktree is clean, then it's removed | built | round 124 (seen on a real server with a fake gh) |
 
 ## 8. Ship, PR, review (`SHIP`)
 
 | ID | v1 | Scenario | v2 | Evidence or gap |
 |---|---|---|---|---|
 | F-ship-1 | 0.8.0 | Given a finished worktree task, when I click Ship it (S), then it commits, pushes and opens a PR | built | `ship.ship`; `ShipButton.tsx`, `ShipDialog.tsx`; CLI `wisp ship <id>`; S key not registered |
-| F-ship-2 | 0.10.0 | Given nothing to ship, when the task finishes, then Ship it doesn't show | partial | not verified |
+| F-ship-2 | 0.10.0 | Given nothing to ship, when the task finishes, then Ship it doesn't show | built | round 124 (seen on a real server with a fake gh) |
 | F-ship-3 | 0.38.0 | Given Ship it, when I click it, then the dialog opens at once and shipping happens in the background | built | `ShipDialog.tsx` + `ShipRun.tsx` (pending state) |
 | F-ship-4 | 0.30.2 | Given a PR, when I click Merge, then it confirms and merges | built | `ship.merge`; `MergeConfirm.tsx`; CLI `wisp merge` |
 | F-ship-5 | 0.20.0 | Given a PR with running checks, when they change, then the PR state updates faster | built | `ship.refresh`, `ship.recheck` |
 | F-ship-6 | 0.44.0 | Given agents open PRs, when they call `wisp_pr`, then the PRs attach to the task | built | `ship.attach`, `wisp_pr` tool |
-| F-ship-7 | 0.45.0 | Given a task's PR merged, when more changes are made, then Ship it comes back | partial | not verified |
-| F-ship-8 | 0.56.0 | Given *Review by another harness* on, when a PR is open, then another harness reviews before Merge (sees what I ruled out, says if partial) | partial | `review.maybe`, `review.view`; General has the setting; UI sends `ship.review` (not in manifest) |
+| F-ship-7 | 0.45.0 | Given a task's PR merged, when more changes are made, then Ship it comes back | built | round 124 (seen on a real server with a fake gh) |
+| F-ship-8 | 0.56.0 | Given *Review by another harness* on, when a PR is open, then another harness reviews before Merge (sees what I ruled out, says if partial) | built | round 124 (seen on a real server with a fake gh) |
 | F-ship-9 | 0.30.2 | Given a PR conflict, when I see the PR row, then Fix conflicts is last, in the same place | built | `PrStrip.tsx` |
 
 ## 9. My Stuff, apps and panes (`STUFF`)
