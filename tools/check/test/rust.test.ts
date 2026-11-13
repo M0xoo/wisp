@@ -143,7 +143,7 @@ test('rust-mcp: a listed command its host never registers is no MCP tool; uiOnly
   assert.ok(got.some((m) => m.includes('shop.lazy: "uiOnly" says why')));
 });
 
-test('rust-typed-commands: a string-name call to another plugin\'s typed command warns with the type; a typed call does not (ADR-0003)', async () => {
+test('rust-typed-commands: a string-name call to another plugin\'s typed command fails with the type; a typed call or a `// by-name:` reason does not (ADR-0003)', async () => {
   const root = writeTree(
     new Map([
       ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host"]\n'],
@@ -158,6 +158,11 @@ test('rust-typed-commands: a string-name call to another plugin\'s typed command
           '    let _ = ctx.run::<wisp_shop_api::Buy>(call, Args { n: 1 }).await;', // typed: none
           '    let _ = ctx.run_json(call, "shop.untyped", json!({})).await;', // no typed command: none
           '    // ctx.run_json(call, "shop.buy", json!({}))', // a comment: none
+          '    // by-name: a peer\'s command, over its HTTP edge',
+          '    let _ = peer_cmd(ch, "shop.buy", json!({})).await;', // a reason on the line above: none
+          '    let _ = peer_cmd(ch, "shop.buy", json!({})).await; // by-name: a peer\'s command', // on its line: none
+          '    // by-name:',
+          '    let _ = peer_cmd(ch, "shop.buy", json!({})).await;', // no reason given: the finding
           '}',
           '#[cfg(test)]',
           'mod tests { fn t() { ctx.run_json(call, "shop.buy", json!({})); } }', // tests: none
@@ -165,7 +170,7 @@ test('rust-typed-commands: a string-name call to another plugin\'s typed command
       ],
     ]),
   );
-  assert.deepEqual(await run(rustTypedCommands, root), ['plugins/till/host/src/lib.rs:2 warn:rust-typed-commands']);
+  assert.deepEqual(await run(rustTypedCommands, root), ['plugins/till/host/src/lib.rs:10 rust-typed-commands', 'plugins/till/host/src/lib.rs:2 rust-typed-commands']);
   const [m] = await messages(rustTypedCommands, root);
   assert.ok(m?.includes('wisp_shop_api::Buy'), m);
 });
