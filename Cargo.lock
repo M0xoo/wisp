@@ -5059,10 +5059,12 @@ dependencies = [
  "wisp-kernel",
  "wisp-machine-api",
  "wisp-machine-core",
+ "wisp-machines-api",
  "wisp-proc",
  "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-store",
+ "wisp-worktrees-api",
 ]
 
 [[package]]

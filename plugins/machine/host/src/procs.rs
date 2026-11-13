@@ -8,137 +8,29 @@
 //!
 //! The runs: `machine.runs@1` contributors, else each running task's harness CLI is the process wisp
 //! started whose tag names it.
-//!
-//! size-ok: one sampling pass and the three commands that act on it
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use wisp_kernel::{Call, Ctx, Result, Setup, WireError};
 use wisp_machine_api::this_mac::commands::{self as c, Cleaned, FixFiled, Stopped};
-use wisp_machine_api::this_mac::{FACTS, FIXER, Facts, HARNESS_DISK, HistoryPoint, LeftoverGroup, LiveRun, LoadReading, MachineView, MemoryPer, RUNS, WispUse};
+use wisp_machine_api::this_mac::{FACTS, FIXER, HARNESS_DISK, HistoryPoint, LeftoverGroup, LiveRun, MachineView, MemoryPer, RUNS, WispUse};
 use wisp_machine_core::this_mac::attribute::{Attributor, Placed};
 use wisp_machine_core::this_mac::history::History;
 use wisp_machine_core::this_mac::load::Load;
-use wisp_machine_core::this_mac::view::{self, TaskInfo, ViewInput, WtItem, WtLeftover, WtView};
+use wisp_machine_core::this_mac::view::{self, TaskInfo, ViewInput};
 use wisp_machine_core::this_mac::{AFTER_MS, KILL_MS, POINT_MS, Platform, READ_MS, Refusal, RefusalKind, holds, parse};
-use wisp_store::{Col, EntityDef, Migration, Row, Store};
+use wisp_runtime_api::model::SessionState;
+use wisp_store::Store;
 
+use crate::calls;
+use crate::rows::{LOAD, SNAPSHOT, platform_name, rows};
 use crate::this_mac::{Guard, lock, run};
 
-pub const OWNER: &str = "machine";
-pub const SNAPSHOT_TOPIC: &str = "plugin:wisp.machine:snapshot";
-pub const LOAD_TOPIC: &str = "plugin:wisp.machine:load";
 /// Sampling when nothing runs and nobody reads the page: once a minute (the history's pace).
 const IDLE_MS: i64 = 60_000;
-
-const MIGRATIONS: &[Migration] = &[Migration::sql(
-    1,
-    "CREATE TABLE machine_snapshot (id TEXT PRIMARY KEY, at INTEGER NOT NULL, platform TEXT NOT NULL, mem TEXT, cpu TEXT, disk TEXT, wisp TEXT,
-       guard TEXT, tasks TEXT, crew TEXT, leftovers TEXT, leftover_groups TEXT, history TEXT, reclaim TEXT, cleanup TEXT) STRICT;
-     CREATE TABLE machine_load (id TEXT PRIMARY KEY, at INTEGER NOT NULL, platform TEXT NOT NULL, mem_free_pct REAL, runs INTEGER NOT NULL,
-       held TEXT, limits TEXT, paused_until INTEGER NOT NULL, left_behind INTEGER NOT NULL) STRICT;",
-),
-// v1's Now line reads the CPU too ("CPU at 50% of its cores"): the guard's reading, as a share of all cores
-Migration::sql(2, "ALTER TABLE machine_load ADD COLUMN cpu REAL;")];
-
-fn snapshot_topics(_: &Row) -> Vec<String> {
-    vec![SNAPSHOT_TOPIC.into()]
-}
-fn load_topics(_: &Row) -> Vec<String> {
-    vec![LOAD_TOPIC.into()]
-}
-
-pub const SNAPSHOT: EntityDef = EntityDef {
-    kind: "machine.snapshot",
-    table: "machine_snapshot",
-    key: "id",
-    columns: &[
-        ("id", Col::Text),
-        ("at", Col::Int),
-        ("platform", Col::Text),
-        ("mem", Col::Text),
-        ("cpu", Col::Text),
-        ("disk", Col::Text),
-        ("wisp", Col::Text),
-        ("guard", Col::Text),
-        ("tasks", Col::Text),
-        ("crew", Col::Text),
-        ("leftovers", Col::Text),
-        ("leftover_groups", Col::Text),
-        ("history", Col::Text),
-        ("reclaim", Col::Text),
-        ("cleanup", Col::Text),
-    ],
-    json_columns: &["mem", "cpu", "disk", "wisp", "guard", "tasks", "crew", "leftovers", "leftover_groups", "history", "reclaim"],
-    parent: None,
-    seq: None,
-    topics: snapshot_topics,
-};
-
-pub const LOAD: EntityDef = EntityDef {
-    kind: "machine.load",
-    table: "machine_load",
-    key: "id",
-    columns: &[
-        ("id", Col::Text),
-        ("at", Col::Int),
-        ("platform", Col::Text),
-        ("mem_free_pct", Col::Real),
-        ("cpu", Col::Real),
-        ("runs", Col::Int),
-        ("held", Col::Text),
-        ("limits", Col::Text),
-        ("paused_until", Col::Int),
-        ("left_behind", Col::Int),
-    ],
-    json_columns: &["held", "limits"],
-    parent: None,
-    seq: None,
-    topics: load_topics,
-};
-
-pub fn install(store: &Store) -> wisp_store::Result<()> {
-    store.migrate(OWNER, MIGRATIONS)?;
-    store.define_entity(SNAPSHOT)?;
-    store.define_entity(LOAD)?;
-    Ok(())
-}
-
-/// `darwin`, `linux`, `win32`: the page names itself from it (This Mac, This computer, This PC).
-pub fn platform_name() -> &'static str {
-    match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "win32",
-        _ => "linux",
-    }
-}
-
-/// The two rows, from a view and the guard's reading. `cleanup`: Settings → Worktrees' idle days, or `off`.
-pub fn rows(v: &MachineView, reading: &LoadReading, paused_until: i64, cleanup: Option<&str>, platform: &str) -> (Row, Row) {
-    let Value::Object(f) = serde_json::to_value(v).unwrap_or(Value::Null) else { return (Row::new(), Row::new()) };
-    let mut snap = Row::new();
-    snap.insert("id".into(), json!("this"));
-    snap.insert("platform".into(), json!(platform));
-    for (col, key) in [("at", "at"), ("mem", "mem"), ("cpu", "cpu"), ("disk", "disk"), ("wisp", "wisp"), ("guard", "guard"), ("tasks", "tasks"), ("crew", "crew"), ("leftovers", "leftovers"), ("leftover_groups", "leftoverGroups"), ("history", "history"), ("reclaim", "reclaim")] {
-        snap.insert(col.into(), f.get(key).cloned().unwrap_or(Value::Null));
-    }
-    snap.insert("cleanup".into(), cleanup.map_or(Value::Null, |c| json!(c)));
-    let mut load = Row::new();
-    load.insert("id".into(), json!("this"));
-    load.insert("at".into(), json!(reading.at));
-    load.insert("platform".into(), json!(platform));
-    load.insert("mem_free_pct".into(), reading.mem_free_pct.map_or(Value::Null, |n| json!(n)));
-    load.insert("cpu".into(), reading.cpu.map_or(Value::Null, |n| json!(n)));
-    load.insert("runs".into(), json!(reading.runs));
-    load.insert("held".into(), serde_json::to_value(&reading.held).unwrap_or(Value::Null));
-    load.insert("limits".into(), serde_json::to_value(reading.limits).unwrap_or(Value::Null));
-    load.insert("paused_until".into(), json!(paused_until));
-    load.insert("left_behind".into(), json!(v.leftovers.len()));
-    (snap, load)
-}
 
 /// The last view, the pids Stop may take, and what started wisp.
 type Last = (MachineView, HashSet<u32>, HashSet<u32>);
@@ -178,29 +70,6 @@ fn refusal(r: Refusal) -> WireError {
         RefusalKind::NotFound => WireError::not_found(r.message),
         RefusalKind::Conflict => WireError::conflict(r.message),
     }
-}
-
-/// A list row's task, as This Mac reads it.
-fn task_of(row: &Value) -> Option<TaskInfo> {
-    let s = |k: &str| row.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-    let id = s("id");
-    (!id.is_empty()).then(|| TaskInfo { id, title: s("title"), state: s("state"), cwd: s("cwd"), facts: Facts::default() })
-}
-
-/// Settings → Worktrees' answer, as much as This Mac reads.
-fn wt_of(v: &Value) -> Option<WtView> {
-    let items = v.get("items")?.as_array()?;
-    let leftovers = v.get("leftovers").and_then(Value::as_array).cloned().unwrap_or_default();
-    let n = |x: &Value, k: &str| x.get(k).and_then(Value::as_u64);
-    Some(WtView {
-        items: items.iter().map(|x| WtItem { id: x.get("id").and_then(Value::as_str).unwrap_or_default().to_owned(), idle: x.get("status").and_then(Value::as_str) == Some("idle"), size: n(x, "size") }).collect(),
-        leftovers: leftovers
-            .iter()
-            .map(|x| WtLeftover { name: x.get("name").and_then(Value::as_str).unwrap_or_default().to_owned(), size: n(x, "size"), only: n(x, "only").and_then(|o| u32::try_from(o).ok()) })
-            .collect(),
-        size: n(v, "size"),
-        disk: v.get("disk").and_then(|d| Some((n(d, "free")?, n(d, "total")?))),
-    })
 }
 
 /// The runs going now: the contributors' (runtime), else for each running task the process wisp itself
@@ -272,9 +141,9 @@ impl Procs {
                 lock(&self.attr).set_environ(pid, since, parse::tag_in_environ(&text));
             }
         }
-        let list = ctx.run_json(&call, "runtime.list", json!({ "archived": false })).await.unwrap_or_default();
-        let mut tasks: HashMap<String, TaskInfo> = list.as_array().into_iter().flatten().filter_map(task_of).map(|t| (t.id.clone(), t)).collect();
-        let running: HashSet<String> = tasks.values().filter(|t| t.state == "running").map(|t| t.id.clone()).collect();
+        let list = calls::tasks(ctx, &call, Some(false)).await;
+        let running: HashSet<String> = list.iter().filter(|t| t.state == SessionState::Running).map(|t| t.id.0.clone()).collect();
+        let mut tasks: HashMap<String, TaskInfo> = list.iter().map(calls::task_of).map(|t| (t.id.clone(), t)).collect();
         let contributed: Vec<LiveRun> = ctx.contributions(&RUNS).iter().flat_map(|r| r.live()).collect();
         if platform == Platform::Mac {
             let pids: Vec<u32> = procs.iter().map(|p| p.pid).collect();
@@ -295,15 +164,20 @@ impl Procs {
         };
         let usage = view::rows(&placed);
         let wisp = placed.get(me).map_or(WispUse { rss: 0, cpu: None }, |p| WispUse { rss: p.rss, cpu: Some(p.cpu) });
-        let wt = ctx.run_json(&call, "worktrees.view", json!({})).await.ok().as_ref().and_then(wt_of);
+        let wt = calls::worktrees(ctx, &call).await;
         // the facts other plugins add, for the tasks the page names
         let named: HashSet<String> = usage.keys().cloned().chain(leftovers.iter().filter_map(|l| l.task.clone())).chain(wt.iter().flat_map(|w| w.items.iter().map(|i| i.id.clone()))).collect();
         let facts = ctx.contributions(&FACTS);
         if !facts.is_empty() {
             let ids: Vec<String> = named.into_iter().filter(|id| tasks.contains_key(id)).collect();
             for id in &ids {
-                let Ok(full) = ctx.run_json(&call, "runtime.get", json!({ "id": id })).await else { continue };
-                let Ok(session) = serde_json::from_value::<wisp_runtime_api::Session>(full) else { continue };
+                let session = match calls::session(ctx, &call, id).await {
+                    Ok(s) => s,
+                    Err(err) => {
+                        tracing::warn!(error = %err.message, task = %id, "machine: runtime.get for its facts");
+                        continue;
+                    }
+                };
                 if let Some(t) = tasks.get_mut(id) {
                     for f in &facts {
                         f.facts(&session, &mut t.facts);
@@ -392,7 +266,10 @@ fn stop(p: &Procs, pid: &Value) -> Result<Stopped> {
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(u64::try_from(KILL_MS).unwrap_or(5_000))).await;
         if wisp_proc::pid_alive(pid) {
-            let _ = wisp_proc::signal_pid(pid, wisp_proc::Signal::Kill);
+            match wisp_proc::signal_pid(pid, wisp_proc::Signal::Kill) {
+                Ok(()) | Err(wisp_proc::ProcError::Exited) => {}
+                Err(e) => tracing::warn!(error = %e, pid, "machine: SIGKILL after SIGTERM"),
+            }
         }
     });
     if let Some(l) = lock(&p.last).as_mut() {
@@ -409,7 +286,7 @@ async fn fix(p: &Procs, ctx: &Ctx, call: &Call, group: &Value, now: i64) -> Resu
         return Err(WireError::not_found("That group of processes is gone: look again."));
     };
     let task = match g.task.as_deref() {
-        Some(t) => ctx.run_json(call, "runtime.get", json!({ "id": t })).await.ok().as_ref().and_then(task_of),
+        Some(t) => calls::session(ctx, call, t).await.map(|s| calls::task_of_session(&s)).map_err(|err| tracing::warn!(error = %err.message, task = %t, "machine: runtime.get for a fix")).ok(),
         None => None,
     };
     let project = view::project_of(task.as_ref());
@@ -419,12 +296,8 @@ async fn fix(p: &Procs, ctx: &Ctx, call: &Call, group: &Value, now: i64) -> Resu
             return Ok(filed);
         }
     }
-    let mut args = json!({ "prompt": prompt, "title": format!("Fix: {} left running", g.command) });
-    if let Some(cwd) = project {
-        args["cwd"] = json!(cwd);
-    }
-    let made = ctx.run_json(call, "runtime.create", args).await?;
-    Ok(FixFiled { session: made.get("id").and_then(Value::as_str).map(str::to_owned), ..FixFiled::default() })
+    let id = calls::create(ctx, call, prompt, format!("Fix: {} left running", g.command), project.as_deref()).await?;
+    Ok(FixFiled { session: Some(id), ..FixFiled::default() })
 }
 
 pub(crate) fn setup(s: &mut Setup, g: &Arc<Guard>) -> Arc<Procs> {
@@ -471,8 +344,8 @@ pub(crate) fn setup(s: &mut Setup, g: &Arc<Guard>) -> Arc<Procs> {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
-    use wisp_machine_api::this_mac::{Leftover, Limits};
-    use wisp_store::{Location, SystemClock};
+    use serde_json::json;
+    use wisp_machine_api::this_mac::{Limits, LoadReading};
 
     fn proc(pid: u32, ppid: u32, task: Option<&str>) -> parse::Proc {
         parse::Proc { pid, ppid, rss: 1, cpu: 0.0, since: 0, command: "claude".into(), task: task.map(str::to_owned), time: 0 }
@@ -489,36 +362,6 @@ mod tests {
         assert_eq!(runs, vec![LiveRun { task: "t1".into(), pid: 200 }]);
         let given = vec![LiveRun { task: "t9".into(), pid: 9 }];
         assert_eq!(live_runs(given.clone(), &procs, me, &running), given, "runtime's own answer wins");
-    }
-
-    /// The page and the chip read two flat rows, id `this`, on the topics they watch; the two-word fields are
-    /// the store's snake-case columns (`leftover_groups`, `mem_free_pct`, `paused_until`, `left_behind`).
-    #[tokio::test]
-    async fn the_snapshot_and_load_rows_are_published_on_the_topics_the_ui_watches() {
-        let db = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
-        install(&db).unwrap();
-        let reading = LoadReading { mem_free_pct: Some(42.5), cpu: Some(10.0), pressure: None, at: 7, runs: 2, limits: Limits { floor: Some(15), ..Limits::default() }, held: None };
-        let left = Leftover { pid: 9, command: "node dev".into(), rss: 5, cpu: 0.0, task: Some("t1".into()), since: 1 };
-        let v = view::build(
-            ViewInput { now: 7, mem_total: 16, cores: 8, memory: MemoryPer::Rss, reading: &reading, hold: None, paused_until: 0, battery: None, battery_hold: None, rows: &std::collections::BTreeMap::default(), tasks: &HashMap::new(), worktrees: None, harness: None, wisp: WispUse { rss: 3, cpu: Some(1.0) }, leftovers: vec![left], groups: Vec::new(), history: Vec::new() },
-            Vec::new(),
-        );
-        let (snap, load) = rows(&v, &reading, 99, Some("7"), "darwin");
-        db.write(move |w| w.upsert(SNAPSHOT.kind, snap).and_then(|_| w.upsert(LOAD.kind, load)).map(|_| ())).await.unwrap();
-        let s = db.read(|r| r.get("machine.snapshot", "this")).unwrap().unwrap();
-        assert_eq!(s["platform"], "darwin");
-        assert_eq!(s["mem"]["freePct"], 42.5);
-        assert_eq!(s["leftovers"][0]["pid"], 9);
-        assert!(s["leftover_groups"].is_array());
-        assert_eq!(s["cleanup"], "7");
-        let l = db.read(|r| r.get("machine.load", "this")).unwrap().unwrap();
-        assert_eq!(l["mem_free_pct"], 42.5);
-        assert_eq!(l["cpu"], 10.0, "v1's Now line: CPU at 10% of its cores");
-        assert_eq!(l["paused_until"], 99);
-        assert_eq!(l["left_behind"], 1);
-        assert_eq!(l["limits"]["floor"], 15);
-        assert_eq!((SNAPSHOT.topics)(&s), vec!["plugin:wisp.machine:snapshot".to_owned()]);
-        assert_eq!((LOAD.topics)(&l), vec!["plugin:wisp.machine:load".to_owned()]);
     }
 
     /// Stop takes only what the last sample placed as a task's (a leftover, a run's tree): never wisp,

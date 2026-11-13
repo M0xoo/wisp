@@ -11,7 +11,6 @@
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use serde_json::json;
 use wisp_kernel::{Call, Ctx, Result, Setup, WireError};
 use wisp_machine_api::this_mac::commands::{self as c, LoadFree, Paused};
 use wisp_machine_api::this_mac::service::{Hold, LoadReading, MachineApi, MachineService, PERM_LOAD, Short};
@@ -127,8 +126,8 @@ async fn tick(ctx: &Ctx, g: &Guard, proc: &wisp_proc::Proc, procs: &crate::procs
     *lock(&g.now) = now;
     let paused = lock(&g.knobs).automations_paused_until;
     *lock(&g.knobs) = read_knobs(ctx, paused);
-    let list = ctx.run_json(&ctx.root_call(), "runtime.list", json!({})).await.unwrap_or_default();
-    *lock(&g.runs) = u32::try_from(list.as_array().into_iter().flatten().filter(|s| s.get("state").and_then(serde_json::Value::as_str) == Some("running")).count()).unwrap_or(u32::MAX);
+    let list = crate::calls::tasks(ctx, &ctx.root_call(), None).await;
+    *lock(&g.runs) = u32::try_from(list.iter().filter(|s| s.state == wisp_runtime_api::model::SessionState::Running).count()).unwrap_or(u32::MAX);
     if g.mac {
         *lock(&g.battery) = run(proc, "pmset", &["-g", "batt"]).await.and_then(|t| parse::parse_batt(&t));
     }
@@ -171,7 +170,7 @@ pub(crate) fn setup(s: &mut Setup) {
     s.on_start(move |ctx| async move {
         let proc = ctx.service::<wisp_proc::Proc>()?;
         if let Ok(store) = ctx.service::<wisp_store::Store>() {
-            crate::procs::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
+            crate::rows::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
         }
         let total = total_memory(&proc, g.mac).await;
         *lock(&g.total) = total;

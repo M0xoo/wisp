@@ -9,8 +9,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use wisp_machines_api::AddArgs;
 use wisp_kernel::{BoxFuture, Call, Result, Setup};
+use crate::calls;
 use wisp_resources_api::{KindInfo, Op, OpKind, RESOURCE_KIND, Resource, ResourceKind, StoredKind, schema_of};
 
 /// What a computer may take on before automations wait.
@@ -66,18 +68,13 @@ impl MachineKind {
         let ctx = &self.0.ctx;
         let call = ctx.root_call();
         let m: MachineSpec = serde_json::from_value(op.spec.clone()).unwrap_or_default();
-        let peers = ctx.run_json(&call, "machines.list", json!({})).await?;
-        let had = peers.as_array().and_then(|l| l.iter().find(|p| p["name"] == op.name.as_str())).and_then(|p| p["id"].as_str()).map(str::to_owned);
-        let set = json!({ "name": op.name, "transport": m.transport, "address": m.address, "port": m.port });
+        let had = calls::peers(ctx, &call).await?.into_iter().find(|p| p.name == op.name).map(|p| p.id);
+        let set = AddArgs { name: Some(op.name.clone()), transport: Some(m.transport.clone()), address: Some(m.address.clone()), port: m.port.map(Value::from), ..AddArgs::default() };
         match (op.op == OpKind::Delete || !is_peer(&m), had) {
-            (true, Some(id)) => ctx.run_json(&call, "machines.remove", json!({ "id": id })).await.map(drop),
+            (true, Some(id)) => calls::remove_peer(ctx, &call, id).await,
             (true, None) => Ok(()),
-            (false, Some(id)) => {
-                let mut a = set;
-                a["id"] = json!(id);
-                ctx.run_json(&call, "machines.update", a).await.map(drop)
-            }
-            (false, None) => ctx.run_json(&call, "machines.add", set).await.map(drop),
+            (false, Some(id)) => calls::update_peer(ctx, &call, id, set).await,
+            (false, None) => calls::add_peer(ctx, &call, set).await,
         }
     }
 }

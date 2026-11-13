@@ -2,9 +2,11 @@
 //! routes/machine.js), `hold` (the before:run limit guard) and `watch` (GET /sessions/:id/watch) to the
 //! kernel, the proc service and HTTP.
 
-mod kinds;
+mod calls;
 mod hold;
+mod kinds;
 mod procs;
+mod rows;
 mod this_mac;
 mod watch;
 
