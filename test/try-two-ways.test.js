@@ -409,9 +409,15 @@ test('telemetry: the count goes through the off switch; what leaves holds no pro
   const env = Object.fromEntries(['CI', 'DO_NOT_TRACK', 'WISP_TELEMETRY'].map((k) => [k, process.env[k]]));
   const { post } = srv.telemetry;
   const { telemetry } = srv.store.config.defaults;
-  srv.telemetry.post = async () => true; // never the network
+  // Never the network. The 15 s flush can run mid-test and empty the queue (Windows CI, run
+  // 43109836654): what it posted still counts.
+  const posted = [];
+  srv.telemetry.post = async (batch) => {
+    posted.push(...batch);
+    return true;
+  };
   for (const k of Object.keys(env)) delete process.env[k];
-  const counts = () => srv.telemetry.queue.filter((x) => x.event === 'try_two_ways');
+  const counts = () => [...posted, ...srv.telemetry.queue].filter((x) => x.event === 'try_two_ways');
   try {
     srv.telemetry.queue.length = 0;
     srv.store.config.defaults.telemetry = 'off';
