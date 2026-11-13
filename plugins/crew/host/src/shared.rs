@@ -153,10 +153,15 @@ async fn fetch(ctx: &Ctx, call: &Call, src: &Source, password: Option<String>) -
 pub(crate) async fn resolve(ctx: &Ctx, call: &Call, a: &mut ImportArgs) -> R<Option<Fetched>> {
     let Some(url) = a.url.take().filter(|u| !u.trim().is_empty()) else { return Ok(None) };
     let src = source_of(&url).map_err(wire)?;
-    // a password-locked link answers that it is (grid-client's words); the dialog has no password box yet
-    let (bundle, version) = fetch(ctx, call, &src, None).await?;
+    let password = a.password.take().map(|p| p.trim().to_owned()).filter(|p| !p.is_empty());
+    let (bundle, version) = fetch(ctx, call, &src, password).await?;
     a.bundle = Some(bundle);
     Ok(Some(Fetched { kind: src.kind(), link: url.trim().to_owned(), version }))
+}
+
+/// What locks a share link (`password`, `people`, `team`), from grid-client's refusal (its `details.locked`).
+pub fn locked(e: &WireError) -> Option<&str> {
+    e.details.as_ref()?.get("locked")?.as_str()
 }
 
 /// Counted on the grid as taken in, and remembered there for "update available"; the import stands without it.
@@ -253,5 +258,21 @@ mod tests {
         let (_, joined) = transfer::import(&[], &c::ImportArgs { bundle: Some(bundle), ..c::ImportArgs::default() }, 1).unwrap();
         assert_eq!(joined.len(), 1);
         assert_eq!(joined[0].role, "Reviewer");
+    }
+
+    /// A password-locked link is told apart by grid-client's `details.locked`, not its CLI words, so the import dialog
+    /// asks for the password; a share for some people or a team, or any other refusal, isn't a password.
+    #[test]
+    fn a_password_locked_link_asks_for_its_password() {
+        let e = WireError::forbidden("This share has a password: --password").with_details(json!({ "locked": "password" }));
+        assert_eq!(locked(&e), Some("password"));
+        let team = WireError::forbidden("This share is for a team").with_details(json!({ "locked": "team" }));
+        assert_eq!(locked(&team), Some("team"));
+        assert_eq!(locked(&WireError::forbidden("This share has a password: --password")), None, "the words alone don't say");
+        let a: c::ImportArgs =
+            serde_json::from_value(json!({ "url": "https://grid.trywisp.dev/s/abc", "password": "pw", "dryRun": true })).unwrap();
+        assert_eq!(a.password.as_deref(), Some("pw"));
+        let locked_review = c::Imported { locked: Some("password".into()), wrong: true, ..c::Imported::default() };
+        assert_eq!(serde_json::to_value(&locked_review).unwrap(), json!({ "locked": "password", "wrong": true }));
     }
 }

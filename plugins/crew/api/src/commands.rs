@@ -228,6 +228,24 @@ pub struct AgentKitArgs {
     pub files: Vec<Value>,
 }
 
+/// `crew.agent.add`: the `wisp_crew_add` tool (v1 POST /internal/crew/:id). `session` is the caller's task (its
+/// project is the default folder). With `from` (a share link, `gist:<id>`, an https `.crew.json`, or its JSON) the
+/// members someone shared join through `crew.import`, paused; without it, a member is made from the fields.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "crew/")]
+pub struct AgentAddArgs {
+    pub session: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub checkin: Option<bool>,
+    #[serde(flatten)]
+    pub member: MemberBody,
+}
+
 /// What the agent reads back: `text`, or `error` for a refusal it acts on.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "crew/")]
@@ -429,9 +447,14 @@ pub struct ImportArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "Record<string, unknown>")]
     pub choices: Option<Value>,
+    /// a password-locked share link's password (asked when a review answers `locked: "password"`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub password: Option<String>,
 }
 
-/// The review (`members` plan, `room` left), a spell to review, or the members that joined.
+/// The review (`members` plan, `room` left), a spell to review, or the members that joined. A review of a link the
+/// grid won't open without a password answers `locked: "password"` (and `wrong` when the one given didn't open it).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "crew/")]
@@ -448,6 +471,12 @@ pub struct Imported {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub room: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub locked: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub wrong: bool,
 }
 
 /// `crew.ask`: a message in a task that's for a member (`@ada can you check this?`): it becomes their job, and their
@@ -502,6 +531,10 @@ command!(
 command!(
     /// `POST /internal/crew/:id/kit`: files an agent proposes for a member's kit, an offer the user picks from
     AgentKit = "crew.agent.kit" [PERM_PROPOSE] : AgentKitArgs => AgentText
+);
+command!(
+    /// `POST /internal/crew/:id`: an agent adds a member, or takes in the members a link or crew file holds
+    AgentAdd = "crew.agent.add" [PERM_WRITE] : AgentAddArgs => AgentText
 );
 command!(
     /// `GET /crew-layout`

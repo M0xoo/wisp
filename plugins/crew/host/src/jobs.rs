@@ -167,7 +167,7 @@ pub(crate) async fn assign(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: Wa
 }
 
 /// `crew.checkin`: one check-in at a time per member (v1 `checkin`).
-async fn checkin(ctx: &Ctx, call: &Call, st: &State, id: &str, wake: bool) -> Result<c::Started, WireError> {
+pub(crate) async fn checkin(ctx: &Ctx, call: &Call, st: &State, id: &str, wake: bool) -> Result<c::Started, WireError> {
     let mut m = st.member(id)?;
     let live = jobs_of(ctx, call, st, &m).await.iter().any(|j| j.job == JobKind::Checkin && j.live());
     if checkin_already(&m, live) {

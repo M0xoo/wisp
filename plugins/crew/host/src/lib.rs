@@ -5,6 +5,7 @@
 //! The crew lives in crew-owned store tables (`store.rs`): every change is one transaction of the rows it
 //! touched. v1's config.json crew is imported once at start.
 
+mod agent;
 mod answers;
 mod calls;
 mod jobs;
@@ -380,6 +381,7 @@ impl Plugin for CrewPlugin {
         wakes::register(s, &st);
         transfer::register(s, &st);
         offers::register(s, &st);
+        agent::register(s, &st);
         let tick = st.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();

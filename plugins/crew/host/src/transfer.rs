@@ -63,7 +63,7 @@ pub fn import(crew: &[Member], a: &c::ImportArgs, now: i64) -> Result<(c::Import
     let src = json!({ "kind": source });
     if a.dry_run {
         let members = plan.iter().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)).collect();
-        return Ok((c::Imported { members, spell: None, source: Some(src), room: Some(room) }, Vec::new()));
+        return Ok((c::Imported { members, spell: None, source: Some(src), room: Some(room), ..c::Imported::default() }, Vec::new()));
     }
     let exists = |p: &str| std::path::Path::new(p).is_dir();
     let machine_ok = |_: &str| false;
@@ -78,6 +78,7 @@ pub fn import(crew: &[Member], a: &c::ImportArgs, now: i64) -> Result<(c::Import
             spell: None,
             source: Some(src),
             room: Some(room.saturating_sub(u32::try_from(members.len()).unwrap_or(0))),
+            ..c::Imported::default()
         },
         members,
     ))
@@ -144,32 +145,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
     let i = st.clone();
     s.command::<c::Import, _, _>(move |ctx, call, a| {
         let st = i.clone();
-        async move {
-            let mut a = a;
-            // a link (a share, v1's gist, an https file) is read first, then imported like a pasted file
-            let fetched = crate::shared::resolve(&ctx, &call, &mut a).await?;
-            let source = fetched.as_ref().map_or("file", |f| f.kind);
-            let now = ctx.clock().map_or(0, |c| c.now_ms());
-            let crew = lock(&st.saved).crew.clone();
-            let (mut out, joined) = import(&crew, &a, now)?;
-            if let Some(f) = &fetched {
-                out.source = Some(json!({ "kind": f.kind, "link": f.link }));
-            }
-            if !joined.is_empty() {
-                for m in &joined {
-                    st.put(m.clone());
-                    ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "import".into() });
-                }
-                st.save().await;
-                if let Some(f) = &fetched {
-                    crate::shared::counted(&ctx, &call, f).await;
-                }
-                let members = u32::try_from(joined.len()).unwrap_or(0);
-                track(&ctx, "crew_imported", serde_json::json!({ "members": members, "source": source, "by": "user" })).await;
-                ctx.emit(&call, &wisp_crew_api::events::Imported { members, source: source.into() });
-            }
-            Ok(out)
-        }
+        async move { take_in(&ctx, &call, &st, a, "user", None).await }
     });
     let sh = st.clone();
     s.command::<wisp_crew_api::share::Share, _, _>(move |ctx, call, a| {
@@ -184,6 +160,86 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         }
     });
     s.command::<c::LocalKit, _, _>(move |ctx, _call, a| async move { Ok(kit(&ctx, &a.cwd).await) });
+}
+
+/// `crew.import`: a link (a share, v1's gist, an https file) is read first, then imported like a pasted file. `cwd`
+/// (an agent's `wisp_crew_add { from }`: its project) puts every member there, unless `choices` already say.
+pub(crate) async fn take_in(
+    ctx: &Ctx,
+    call: &wisp_kernel::Call,
+    st: &State,
+    mut a: c::ImportArgs,
+    by: &str,
+    cwd: Option<&str>,
+) -> Result<c::Imported, WireError> {
+    let asked = a.password.as_deref().is_some_and(|p| !p.trim().is_empty());
+    let fetched = match crate::shared::resolve(ctx, call, &mut a).await {
+        // a review asks for the password in the dialog's words; the import itself keeps the grid's refusal
+        Err(e) if a.dry_run && crate::shared::locked(&e) == Some("password") => {
+            return Ok(c::Imported { locked: Some("password".into()), wrong: asked, ..c::Imported::default() });
+        }
+        r => r?,
+    };
+    let source = fetched.as_ref().map_or("file", |f| f.kind);
+    let now = ctx.clock().map_or(0, |c| c.now_ms());
+    let crew = lock(&st.saved).crew.clone();
+    if let (Some(cwd), None, false) = (cwd, &a.choices, a.dry_run) {
+        let review = import(&crew, &c::ImportArgs { dry_run: true, ..a.clone() }, now)?.0;
+        a.choices = Some(choices_in(&review.members, cwd));
+    }
+    let (mut out, joined) = import(&crew, &a, now)?;
+    if let Some(f) = &fetched {
+        out.source = Some(json!({ "kind": f.kind, "link": f.link }));
+    }
+    if !joined.is_empty() {
+        for m in &joined {
+            st.put(m.clone());
+            ctx.emit(call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "import".into() });
+        }
+        st.save().await;
+        if let Some(f) = &fetched {
+            crate::shared::counted(ctx, call, f).await;
+        }
+        let members = u32::try_from(joined.len()).unwrap_or(0);
+        track(ctx, "crew_imported", json!({ "members": members, "source": source, "by": by })).await;
+        ctx.emit(call, &wisp_crew_api::events::Imported { members, source: source.into() });
+    }
+    Ok(out)
+}
+
+/// What `wisp_crew_add { from }` asks `crew.import`: a crew file's JSON as pasted text, anything else as a link.
+pub fn from_args(from: &str) -> c::ImportArgs {
+    let f = from.trim().to_owned();
+    if f.starts_with('{') {
+        c::ImportArgs { text: Some(f), ..c::ImportArgs::default() }
+    } else {
+        c::ImportArgs { url: Some(f), ..c::ImportArgs::default() }
+    }
+}
+
+/// What the agent reads after `wisp_crew_add { from }`: who joined, paused, and where.
+pub fn joined_text(members: &[Value], cwd: &str) -> String {
+    let names: Vec<&str> = members.iter().filter_map(|m| m.get("name").and_then(Value::as_str)).collect();
+    let who = match names.as_slice() {
+        [] => return "Nobody joined: the crew file had no one to add.".to_owned(),
+        [one] => (*one).to_owned(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    };
+    let place = if cwd.is_empty() { String::new() } else { format!(" in {cwd}") };
+    format!("Added {who} to your crew{place}, paused: the user resumes each one when they're ready.")
+}
+
+/// Every member a review planned, kept, in `cwd` (a member's own folder can't come from the sharer's computer).
+pub fn choices_in(plan: &[Value], cwd: &str) -> Value {
+    let picks = plan
+        .iter()
+        .filter_map(|p| {
+            let key = p.get("key").and_then(Value::as_str)?;
+            let name = p.get("name").and_then(Value::as_str).unwrap_or_default();
+            Some((key.to_owned(), json!({ "name": name, "cwd": cwd, "skip": false })))
+        })
+        .collect::<serde_json::Map<_, _>>();
+    Value::Object(picks)
 }
 
 /// A catalogue event for a fact the crew owns (ADR-0021); never fails the command.
@@ -247,6 +303,40 @@ mod tests {
         assert!(
             import(&crew, &c::ImportArgs { url: Some("https://x".into()), ..c::ImportArgs::default() }, 1).is_err(),
             "a link isn't fetched here"
+        );
+    }
+
+    /// `wisp_crew_add { from }` (`crew.agent.add`, mcp's `CREW_ADD` owner) reaches `crew.import`: a link goes as `url`
+    /// (read by `shared::resolve`), a crew file's JSON as `text`; every member joins paused in the caller's project, and the
+    /// agent reads who joined and where.
+    #[test]
+    fn wisp_crew_add_from_reaches_crew_import() {
+        use wisp_kernel::Command as _;
+        assert_eq!(c::AgentAdd::ID, "crew.agent.add", "the id wisp.mcp's wisp_crew_add runs (owners::CREW_ADD)");
+        let manifest = include_str!("../wisp-plugin.json");
+        assert!(manifest.contains("\"crew.agent.add\""), "declared, so a capability set can reach it");
+        let a: c::AgentAddArgs = serde_json::from_value(json!({ "session": "s1", "from": " gist:0a1b " })).unwrap();
+        assert_eq!(a.from.as_deref(), Some(" gist:0a1b "));
+        assert_eq!(from_args("https://grid.trywisp.dev/s/abc").url.as_deref(), Some("https://grid.trywisp.dev/s/abc"));
+        assert_eq!(from_args(" gist:0a1b ").url.as_deref(), Some("gist:0a1b"));
+        let crew = vec![member("Ada", "Reviews PRs")];
+        let out = export(&crew, &c::ExportArgs { ids: vec!["Ada".into()], ..c::ExportArgs::default() }).unwrap();
+        let text = serde_json::to_string(&out.bundle).unwrap();
+        let mut args = from_args(&format!("  {text}"));
+        assert!(args.url.is_none() && args.text.is_some(), "JSON is pasted text, not a link");
+        let cwd = std::env::temp_dir();
+        let cwd = cwd.to_str().unwrap();
+        let review = import(&crew, &c::ImportArgs { dry_run: true, ..args.clone() }, 1).unwrap().0;
+        args.choices = Some(choices_in(&review.members, cwd));
+        let (done, joined) = import(&crew, &args, 1).unwrap();
+        assert_eq!(joined.len(), 1);
+        assert!(joined[0].paused, "they join paused");
+        assert_eq!(joined[0].cwd, cwd, "in the caller's project");
+        let said = joined_text(&done.members, cwd);
+        assert!(said.starts_with(&format!("Added {} to your crew in {cwd}, paused", joined[0].name)), "{said}");
+        assert_eq!(
+            joined_text(&[json!({ "name": "A" }), json!({ "name": "B" }), json!({ "name": "C" })], ""),
+            "Added A, B and C to your crew, paused: the user resumes each one when they're ready."
         );
     }
 }

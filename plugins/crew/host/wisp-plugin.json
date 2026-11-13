@@ -130,6 +130,10 @@
       {
         "id": "crew.agent.kit",
         "title": "Propose skills or instructions for a member's kit (wisp_crew_kit)"
+      },
+      {
+        "id": "crew.agent.add",
+        "title": "Add a member, or the members a shared link or crew file holds, paused (wisp_crew_add)"
       }
     ]
   },

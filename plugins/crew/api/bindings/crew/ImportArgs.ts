@@ -4,4 +4,8 @@
  * `POST /crew/import`: pasted `text`, a `url` (https or gist:<id>), or a `bundle`. `dryRun` answers
  * the review; `choices` (`{ [key]: { name, cwd, skip } }`) are the review's answers.
  */
-export type ImportArgs = { text?: string, url?: string, bundle?: Record<string, unknown>, dryRun?: boolean, choices?: Record<string, unknown>, };
+export type ImportArgs = { text?: string, url?: string, bundle?: Record<string, unknown>, dryRun?: boolean, choices?: Record<string, unknown>, 
+/**
+ * a password-locked share link's password (asked when a review answers `locked: "password"`)
+ */
+password?: string, };
