@@ -145,6 +145,7 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 | F-comp-44 | 0.18.0 | Given wisp starting, when the first frame paints, then the launcher is there (placeholders, not an empty strip) | built | `HomeView.tsx` renders before data (design/feedback.md) |
 | F-comp-45 | Unrel. | Given Safari with an IME, when I press Enter to pick a word, then nothing is sent | built | keyCode 229 rule in `packages/shell/src/keys.ts` |
 | F-comp-46 | Unrel. | Given Send from a finished task, when the row moves to Working, then the keyboard stays in the reply box | built | not verified; round 40: verified: Send from a finished task leaves the caret in the reply box, awake, as the task moves to Working; test `reply-box.test.tsx` `…_v1_send_keeps_focus`; seen in Chrome 1440 and 390 (activeElement stays the reply box) |
+| F-comp-47 | Daily | Given New task with a project picked, when I press + beside another project (or ⌘-click it), then the task also works in that folder (v1 launcher.js `lp-also`, project-list.js `pm-also`; the task's places list every folder) | missing | server side built: `runtime.create { dirs }` → spec.dirs → Claude/Copilot `--add-dir`, Codex writable roots; no New task UI to pick them, no place chips for them on the task |
 
 ## 3. Task page: answers, questions, side panel (`PAGE`)
 
