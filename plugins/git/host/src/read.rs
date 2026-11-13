@@ -196,7 +196,7 @@ impl Inner {
     }
 
     /// Files changed since the merge-base with `base`, uncommitted edits and new files; `head` is a
-    /// commit of the work as it stands (`stash create` when there are edits). One read after another.
+    /// commit of the work as it stands (a snapshot through a temporary index when there are edits). One read after another.
     pub async fn touched(&self, base_ref: &str) -> Result<Option<Touched>> {
         let Some(at) = self.merge_base("HEAD", base_ref).await? else {
             return Ok(None);
@@ -222,11 +222,11 @@ impl Inner {
             .collect();
         files.sort();
         files.dedup();
-        let stash = self.git.quiet(&self.dir, &["stash", "create"]).await;
-        let head = if stash.is_empty() {
-            self.git.quiet(&self.dir, &["rev-parse", "HEAD"]).await
-        } else {
-            stash
+        // the work as it stands through a temporary index: `stash create` rewrote the user's index under
+        // `index.lock`, failing a `git commit` they ran at that moment
+        let head = match self.snapshot().await.ok().flatten() {
+            Some(sha) => sha,
+            None => self.git.quiet(&self.dir, &["rev-parse", "HEAD"]).await,
         };
         Ok(Some(Touched {
             files,

@@ -70,8 +70,9 @@ impl Disk for SysDisk<'_> {
     fn read(&self, abs: &str) -> DiskFuture<'_, Option<String>> {
         self.0.read_file(abs)
     }
-    fn git<'a>(&'a self, cwd: &'a str, args: &'a [&'a str]) -> DiskFuture<'a, Option<String>> {
-        let req = ExecReq { program: "git".into(), args: args.iter().map(|a| (*a).to_owned()).collect(), cwd: Some(cwd.to_owned()), timeout_ms: 10_000, ..ExecReq::default() };
+    fn git_env<'a>(&'a self, cwd: &'a str, args: &'a [&'a str], env: &'a [(&'a str, &'a str)]) -> DiskFuture<'a, Option<String>> {
+        let env = env.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+        let req = ExecReq { program: "git".into(), args: args.iter().map(|a| (*a).to_owned()).collect(), env, cwd: Some(cwd.to_owned()), timeout_ms: 10_000, ..ExecReq::default() };
         let run = self.0.exec(req);
         Box::pin(async move {
             match run.await {
@@ -79,6 +80,9 @@ impl Disk for SysDisk<'_> {
                 _ => None,
             }
         })
+    }
+    fn remove<'a>(&'a self, abs: &'a str) -> DiskFuture<'a, ()> {
+        self.0.remove_file(abs)
     }
 }
 

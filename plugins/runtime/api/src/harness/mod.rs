@@ -75,6 +75,12 @@ pub trait HarnessSys: Send + Sync {
     /// the CLI's own config (trusting a folder): written atomically
     fn write_file(&self, path: &str, contents: String) -> BoxFuture<'_, Result<()>>;
     fn list_dir(&self, path: &str) -> BoxFuture<'_, Vec<String>>;
+    /// removes a file the run made (a temporary git index); a missing one is fine. Additive (2026-11-13):
+    /// the default leaves it, so a real implementation should override it.
+    fn remove_file(&self, path: &str) -> BoxFuture<'_, ()> {
+        let _ = path;
+        Box::pin(async {})
+    }
     fn env(&self, name: &str) -> Option<String>;
     fn home(&self) -> String;
     /// 'darwin' | 'linux' | 'win32' (v1 names)

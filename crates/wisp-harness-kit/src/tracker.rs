@@ -2,7 +2,8 @@
 //! "file X changed" after the fact. The driver reads the disk and git; this decides what the "before"
 //! side is. In order: the content after the previous change we saw, else a snapshot taken when the
 //! harness announced the edit (only if it predates the write: the harness doesn't wait for us), else
-//! the file as it was when the turn started (`git stash create`, pinned once per folder per tick),
+//! the file as it was when the turn started (the work in progress through a temporary index,
+//! [`crate::wip`], pinned once per folder per tick),
 //! else nothing (a new file).
 
 use std::collections::HashMap;

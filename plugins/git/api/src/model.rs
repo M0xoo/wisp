@@ -299,7 +299,8 @@ pub enum MergeTree {
 }
 
 /// What a task touched since `base` (v1 touchedFiles): `head` is a commit of the work as it stands
-/// (`stash create` when there are edits, so a merge-tree sees them).
+/// (a snapshot through a temporary index when there are edits, untracked included, so a merge-tree
+/// sees them; the user's index is never written).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "git/")]

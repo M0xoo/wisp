@@ -37,6 +37,12 @@ impl HarnessSys for Sys {
         let p = PathBuf::from(path);
         Box::pin(async move { write_atomic(&p, contents.as_bytes()).await.map_err(|e| WireError::invalid(e.to_string())) })
     }
+    fn remove_file(&self, path: &str) -> BoxFuture<'_, ()> {
+        let path = path.to_owned();
+        Box::pin(async move {
+            let _ = tokio::fs::remove_file(path).await;
+        })
+    }
     fn list_dir(&self, path: &str) -> BoxFuture<'_, Vec<String>> {
         let p = path.to_owned();
         Box::pin(async move {

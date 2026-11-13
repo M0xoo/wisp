@@ -17,6 +17,7 @@ pub mod protocol;
 pub mod re;
 pub mod text;
 pub mod tracker;
+pub mod wip;
 
 pub use commands::{describe_command, run_label};
 pub use drive::{Disk, DiskFuture, Driver};

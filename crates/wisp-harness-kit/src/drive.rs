@@ -17,7 +17,19 @@ pub trait Disk: Send + Sync {
     /// The file's text, or None when it isn't a readable file.
     fn read(&self, abs: &str) -> DiskFuture<'_, Option<String>>;
     /// `git <args>` in `cwd`: its stdout when it exited 0.
-    fn git<'a>(&'a self, cwd: &'a str, args: &'a [&'a str]) -> DiskFuture<'a, Option<String>>;
+    fn git<'a>(&'a self, cwd: &'a str, args: &'a [&'a str]) -> DiskFuture<'a, Option<String>> {
+        self.git_env(cwd, args, &[])
+    }
+    /// `git <args>` in `cwd` with `env` added (a temporary `GIT_INDEX_FILE`): its stdout when it exited 0.
+    /// Additive (2026-11-13).
+    fn git_env<'a>(
+        &'a self,
+        cwd: &'a str,
+        args: &'a [&'a str],
+        env: &'a [(&'a str, &'a str)],
+    ) -> DiskFuture<'a, Option<String>>;
+    /// Removes a file wisp made (a temporary index); a missing one is fine. Additive (2026-11-13).
+    fn remove<'a>(&'a self, abs: &'a str) -> DiskFuture<'a, ()>;
 }
 
 /// The file now when it is at most `max` bytes, else None (missing, not a file, too big).
@@ -75,19 +87,15 @@ impl<P: LineParser> Driver<P> {
         &self.parser
     }
 
-    /// Pins the git base the tracker diffs against (v1 pinned it before spawning): `git stash create`
-    /// captures tracked working-tree changes without touching anything, else HEAD. Idempotent.
+    /// Pins the git base the tracker diffs against (v1 pinned it before spawning): the tracked work in
+    /// progress as a commit, written through a temporary index (never the user's: their `git commit`
+    /// must not meet our `index.lock`), else HEAD. Idempotent.
     pub async fn pin(&mut self, disk: &dyn Disk) {
         if self.base != Pin::Unpinned {
             return;
         }
         let cwd = self.paths.cwd.clone();
-        let stash = disk
-            .git(&cwd, &["stash", "create"])
-            .await
-            .map(|s| s.trim().to_owned())
-            .filter(|s| !s.is_empty());
-        let base = match stash {
+        let base = match crate::wip::work_in_progress(disk, &cwd).await {
             Some(s) => Some(s),
             None => disk
                 .git(&cwd, &["rev-parse", "--verify", "HEAD"])
@@ -223,9 +231,12 @@ mod tests {
             let v = self.files.lock().ok().and_then(|m| m.get(abs).cloned());
             Box::pin(async move { v })
         }
-        fn git<'a>(&'a self, _cwd: &'a str, args: &'a [&'a str]) -> DiskFuture<'a, Option<String>> {
+        fn git_env<'a>(&'a self, _cwd: &'a str, args: &'a [&'a str], _env: &'a [(&'a str, &'a str)]) -> DiskFuture<'a, Option<String>> {
             let v = self.git.get(&args.join(" ")).cloned();
             Box::pin(async move { v })
+        }
+        fn remove<'a>(&'a self, _abs: &'a str) -> DiskFuture<'a, ()> {
+            Box::pin(async {})
         }
     }
 
