@@ -7,13 +7,14 @@
 //! minute's look at each task-owned sandbox (its task gone there: the sandbox goes). The sweep, at start and every
 //! 10 minutes, drops what a failed drop left and launches that never got their task.
 
+mod calls;
 mod claude;
 mod make;
 mod seed;
 
 use std::sync::{Arc, Mutex};
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_sandbox_api as api;
 use wisp_sandbox_core::{self as core, Owner};
@@ -36,7 +37,7 @@ fn home() -> std::path::PathBuf {
 }
 
 async fn info(ctx: &Ctx, call: &wisp_kernel::Call) -> Result<api::Info> {
-    let grid = ctx.run_json(call, "grid-client.sandboxInfo", json!({})).await;
+    let grid = calls::grid_info(ctx, call).await;
     let (enabled, why, logins, env) = match &grid {
         Ok(v) => {
             let names = |k: &str| v.get(k).and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.as_str().map(str::to_owned).or_else(|| x.get("agent").and_then(Value::as_str).map(str::to_owned))).collect::<Vec<_>>();
@@ -45,7 +46,7 @@ async fn info(ctx: &Ctx, call: &wisp_kernel::Call) -> Result<api::Info> {
         }
         Err(e) => (false, Some(e.message.clone()), Vec::new(), Vec::new()),
     };
-    let list = make::machines(ctx, call).await;
+    let list = calls::machines(ctx, call).await;
     let sandboxes = list
         .iter()
         .filter_map(|m| {
@@ -65,7 +66,7 @@ async fn owners_gone(ctx: &Ctx) {
     for h in make::held(ctx, &call).await {
         let Some(Owner::Task { task } | Owner::Job { job: task, .. }) = &h.owner else { continue };
         let id = core::bare(task);
-        if let Err(e) = make::route(ctx, &call, &h.machine, "runtime.get", json!({ "id": id })).await
+        if let Err(e) = calls::route::<wisp_runtime_api::commands::Get>(ctx, &call, &h.machine, wisp_runtime_api::commands::IdArgs { id: id.into() }).await
             && e.code == wisp_kernel::Code::NotFound
         {
             make::drop_one(ctx, &call, &h.machine, &h.sandbox).await;
@@ -193,11 +194,11 @@ impl Plugin for SandboxPlugin {
             async move { Ok(claude::current(&f)) }
         });
         s.command::<api::Logout, _, _>(|ctx, call, a| async move {
-            ctx.run_json(&call, "grid-client.sandboxLogout", json!({ "agent": a.agent })).await?;
+            calls::grid_logout(&ctx, &call, &a.agent).await?;
             info(&ctx, &call).await
         });
         s.command::<api::Env, _, _>(|ctx, call, a| async move {
-            ctx.run_json(&call, "grid-client.sandboxEnv", json!({ "key": a.key, "value": a.value })).await?;
+            calls::grid_env(&ctx, &call, &a.key, &a.value).await?;
             info(&ctx, &call).await
         });
         watch(s);

@@ -1,15 +1,20 @@
 //! Making a sandbox for an owner, waiting for it, carrying the project in, starting work there, and dropping it
 //! (ADR-0047). The grid is reached through wisp.grid-client, a sandbox through `machines.route`, git through proc.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use base64::Engine as _;
-use serde_json::{Value, json};
+use serde_json::Value;
 use wisp_kernel::{Call, Ctx, Result, WireError};
+use wisp_machines_api::PeerState;
 use wisp_proc::{Env, ExecOpts, Proc};
+use wisp_runtime_api::commands as rt;
 use wisp_sandbox_api as api;
 use wisp_sandbox_core::{self as core, Held, Owner};
+
+use crate::calls;
 
 /// How long a new sandbox has to come up (a cold start is ~25 s on a real grid).
 const UP_MS: u64 = 90_000;
@@ -19,49 +24,29 @@ pub(crate) fn now(ctx: &Ctx) -> i64 {
     ctx.clock().map_or(0, |c| c.now_ms())
 }
 
-pub(crate) async fn machines(ctx: &Ctx, call: &Call) -> Vec<Value> {
-    ctx.run_json(call, "machines.list", json!({})).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default()
-}
-
 /// The sandboxes this computer keeps.
 pub(crate) async fn held(ctx: &Ctx, call: &Call) -> Vec<Held> {
-    core::held(&machines(ctx, call).await)
+    core::held(&calls::machines(ctx, call).await)
 }
 
-/// Sets fields of a sandbox machine's `data` (its owner, `dropping`), keeping the rest.
-async fn set_data(ctx: &Ctx, call: &Call, machine: &str, f: impl FnOnce(&mut serde_json::Map<String, Value>)) -> Result<()> {
-    let m = ctx.run_json(call, "machines.get", json!({ "id": machine })).await?;
-    let mut data = m.get("data").and_then(Value::as_object).cloned().unwrap_or_default();
-    f(&mut data);
-    ctx.run_json(call, "machines.update", json!({ "id": machine, "data": data })).await?;
-    Ok(())
-}
-
+/// Sets a sandbox machine's owner (`data.owner`; machines keeps its other fields).
 pub(crate) async fn set_owner(ctx: &Ctx, call: &Call, machine: &str, owner: &Owner) -> Result<()> {
-    let o = owner.to_value();
-    set_data(ctx, call, machine, |d| {
-        d.insert("owner".into(), o);
-    })
-    .await
-}
-
-/// A command on a sandbox's own wisp.
-pub(crate) async fn route(ctx: &Ctx, call: &Call, machine: &str, cmd: &str, args: Value) -> Result<Value> {
-    let mid = format!("sbx-{}", wisp_kernel::ids::uuid7());
-    ctx.run_json(call, "machines.route", json!({ "id": machine, "cmd": cmd, "args": args, "mid": mid })).await
+    calls::set_data(ctx, call, machine, BTreeMap::from([("owner".to_owned(), owner.to_value())])).await
 }
 
 /// The sign-ins every sandbox starts with (`claude` when the user signed in for sandboxes).
 pub(crate) async fn logins(ctx: &Ctx, call: &Call) -> Vec<String> {
-    let v = ctx.run_json(call, "grid-client.sandboxInfo", json!({})).await.ok();
-    core::logins_of(v.as_ref().and_then(|v| v.get("logins")))
+    let v = calls::grid_info(ctx, call).await;
+    if let Err(err) = &v {
+        tracing::warn!(error = %err.message, "sandbox: grid-client.sandboxInfo");
+    }
+    core::logins_of(v.as_ref().ok().and_then(|v| v.get("logins")))
 }
 
 /// A sandbox for `owner`, up and answering: `(machine, peer, sandbox id)`. A full grid fails at once.
 pub(crate) async fn make(ctx: &Ctx, call: &Call, owner: &Owner, name: &str) -> Result<(String, String, String)> {
-    let made = ctx.run_json(call, "grid-client.sandbox", json!({ "name": name })).await?;
-    let s = |k: &str| made.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-    let (machine, sandbox) = (s("machine"), s("id"));
+    let made = calls::grid_new(ctx, call, name).await?;
+    let (machine, sandbox) = (made.machine, made.id);
     if machine.is_empty() {
         return Err(WireError::internal("the sandbox was made but no machine here keeps it"));
     }
@@ -75,21 +60,22 @@ async fn wait_up(ctx: &Ctx, call: &Call, machine: &str) -> Result<String> {
     let clock = ctx.clock()?;
     let until = clock.now_ms() + i64::try_from(UP_MS).unwrap_or(i64::MAX);
     loop {
-        let m = ctx.run_json(call, "machines.get", json!({ "id": machine })).await?;
-        let state = m.get("state").and_then(Value::as_str).unwrap_or_default();
-        if state == "online" {
+        let m = calls::machine(ctx, call, machine).await?;
+        let state = m.state;
+        if state == PeerState::Online {
             // the app reaches it as the peer named by this machine's own id (`/api/peer/<id>`)
             return Ok(machine.to_owned());
         }
-        if state == "off" || state == "disconnected" {
-            let _ = ctx.run_json(call, "machines.connect", json!({ "id": machine })).await;
+        if state == PeerState::Off {
+            calls::connect(ctx, call, machine).await;
         }
         // a new box sleeps until it's used: one real request wakes it (a passive watch never does)
-        if state == "asleep" {
-            let _ = ctx.run_json(call, "machines.call", json!({ "id": machine, "method": "GET", "path": "/health", "timeoutMs": 30_000 })).await;
+        if state == PeerState::Asleep {
+            calls::wake(ctx, call, machine).await;
         }
         if clock.now_ms() > until {
-            let why = m.get("error").and_then(Value::as_str).filter(|e| !e.is_empty()).unwrap_or("it didn't answer in 3 minutes");
+            let why = if m.error.is_empty() { "it didn't answer in 3 minutes" } else { m.error.as_str() };
+            let state = serde_json::to_value(state).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
             return Err(WireError::unavailable(format!("The sandbox didn't come up ({state}): {why}")));
         }
         clock.sleep(POLL_MS).await;
@@ -133,8 +119,11 @@ async fn seed(ctx: &Ctx, call: &Call, machine: &str, cwd: Option<&str>) -> Resul
         Some(c) => pack(ctx, c).await?,
         None => api::SeedArgs { name: "scratch".into(), ..api::SeedArgs::default() },
     };
-    let out = route(ctx, call, machine, "sandbox.seed", serde_json::to_value(&args).unwrap_or_default()).await?;
-    out.get("cwd").and_then(Value::as_str).map(str::to_owned).ok_or_else(|| WireError::internal("the sandbox took the project but didn't say where"))
+    let out = calls::route::<api::Seed>(ctx, call, machine, args).await?;
+    if out.cwd.is_empty() {
+        return Err(WireError::internal("the sandbox took the project but didn't say where"));
+    }
+    Ok(out.cwd)
 }
 
 /// `sandbox.place`: the owner's sandbox from before (a member's own, a delegate's, a task's judges'), else a new one,
@@ -161,6 +150,10 @@ pub(crate) async fn place(ctx: &Ctx, call: &Call, a: &api::PlaceArgs) -> Result<
 pub(crate) async fn launch(ctx: &Ctx, call: &Call, a: &api::LaunchArgs) -> Result<api::Launched> {
     let agent = a.agent.clone().unwrap_or_default();
     core::may_start(&agent, &logins(ctx, call).await).map_err(WireError::invalid)?;
+    let mode = match &a.mode {
+        Some(m) => Some(serde_json::from_value::<wisp_runtime_api::model::Mode>(Value::String(m.clone())).map_err(|_| WireError::invalid(format!("{m} isn't a mode (plan, edits or auto)")))?),
+        None => None,
+    };
     let name = a.title.clone().filter(|t| !t.trim().is_empty()).unwrap_or_else(|| a.prompt.lines().next().unwrap_or("task").chars().take(40).collect());
     let pending = Owner::Pending { pending: now(ctx) };
     let (machine, peer, sandbox) = make(ctx, call, &pending, &name).await?;
@@ -171,37 +164,37 @@ pub(crate) async fn launch(ctx: &Ctx, call: &Call, a: &api::LaunchArgs) -> Resul
             return Err(e);
         }
     };
-    let mut args = json!({ "prompt": a.prompt, "cwd": cwd, "title": a.title, "agent": if agent == "auto" || agent.is_empty() { json!("claude") } else { json!(agent) } });
-    for (k, v) in [("model", &a.model), ("effort", &a.effort), ("mode", &a.mode)] {
-        if let Some(v) = v {
-            args[k] = json!(v);
-        }
-    }
-    if let Some(g) = &a.goal {
-        args["goal"] = g.clone();
-    }
-    let made = match route(ctx, call, &machine, "runtime.create", args).await {
+    let args = rt::StartArgs {
+        prompt: a.prompt.clone(),
+        cwd: Some(cwd),
+        title: a.title.clone(),
+        // Auto picks Claude in a sandbox
+        agent: Some(if agent == "auto" || agent.is_empty() { "claude".to_owned() } else { agent }),
+        model: a.model.clone(),
+        effort: a.effort.clone(),
+        mode,
+        goal: a.goal.clone(),
+        ..rt::StartArgs::default()
+    };
+    let made = match calls::route::<rt::Create>(ctx, call, &machine, args).await {
         Ok(m) => m,
         Err(e) => {
             drop_one(ctx, call, &machine, &sandbox).await;
             return Err(e);
         }
     };
-    let task = made.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let task = made.id.0;
     set_owner(ctx, call, &machine, &Owner::Task { task: format!("{peer}:{task}") }).await?;
     Ok(api::Launched { machine, peer, task, sandbox })
 }
 
 /// Deletes one on the grid, then its machine here. A grid that can't be reached marks it `dropping` for the sweep.
 pub(crate) async fn drop_one(ctx: &Ctx, call: &Call, machine: &str, sandbox: &str) -> bool {
-    match ctx.run_json(call, "grid-client.sandboxRemove", json!({ "id": sandbox })).await {
-        Ok(_) => true,
+    match calls::grid_remove(ctx, call, sandbox).await {
+        Ok(()) => true,
         Err(e) => {
             tracing::warn!(sandbox, "a sandbox's drop failed, the sweep tries again: {}", e.message);
-            let _ = set_data(ctx, call, machine, |d| {
-                d.insert("dropping".into(), json!(true));
-            })
-            .await;
+            calls::warn("marking a sandbox dropping", calls::set_data(ctx, call, machine, BTreeMap::from([("dropping".to_owned(), Value::Bool(true))])).await);
             false
         }
     }
@@ -219,8 +212,7 @@ pub(crate) async fn drop_all(ctx: &Ctx, call: &Call, list: &[&Held]) -> u32 {
 
 /// `sandbox.bring`: a delegate's changes in its sandbox, applied to the lead's folder here.
 pub(crate) async fn bring(ctx: &Ctx, call: &Call, a: &api::BringArgs) -> Result<api::Brought> {
-    let out = route(ctx, call, &a.machine, "sandbox.patch", json!({ "cwd": a.from })).await?;
-    let patch = out.get("patch").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let patch = calls::route::<api::PatchCmd>(ctx, call, &a.machine, api::PatchArgs { cwd: a.from.clone() }).await?.patch;
     if patch.trim().is_empty() {
         return Ok(api::Brought { files: 0, error: None });
     }

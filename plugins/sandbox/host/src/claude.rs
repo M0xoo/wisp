@@ -4,7 +4,6 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use serde_json::json;
 use wisp_kernel::{Call, Ctx, Result, WireError};
 use wisp_proc::{ChildHandle, Proc, PtySize, SpawnOpts};
 use wisp_sandbox_api::ClaudeSignIn;
@@ -95,7 +94,7 @@ pub async fn code(ctx: &Ctx, call: &Call, f: &Shared, code: &str) -> Result<Clau
         return Ok(state(f));
     };
     lock(f).out.clear();
-    ctx.run_json(call, "grid-client.sandboxLogin", json!({ "agent": "claude", "token": token })).await?;
+    crate::calls::grid_login(ctx, call, "claude", &token).await?;
     lock(f).state = ClaudeSignIn { state: "done".into(), link: None, error: None };
     Ok(state(f))
 }
