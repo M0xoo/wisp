@@ -6,6 +6,7 @@
 //! writes the rows it touched in one transaction. v1's router.json and `defaults.router` are imported
 //! once at start.
 
+mod calls;
 mod pipeline;
 mod kind;
 mod service;
@@ -13,12 +14,13 @@ mod store;
 
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use wisp_kernel::services::Paths;
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_router_api::commands::{Ack, Preview, Record, Reset, Set, Signal, View};
 use wisp_router_api::view::{PreviewArgs, RouterView, Settings};
 use wisp_router_api::{AgentInfo, ChooseArgs, ModelInfo};
+use wisp_resources_api::Resource;
 use wisp_router_core::{Mulberry32, Router, RouterState, auto, choose, report};
 
 #[derive(Debug, Default)]
@@ -84,23 +86,26 @@ impl State {
     }
 }
 
-/// This computer's harnesses, as Auto sees them (from `runtime.agents`).
+/// This computer's harnesses, as Auto sees them (from `runtime.agents`; none when refused).
 async fn agents(ctx: &Ctx, call: &Call) -> Vec<AgentInfo> {
-    let list = ctx.run_json(call, "runtime.agents", json!({})).await.unwrap_or(Value::Null);
-    list.as_array()
-        .into_iter()
-        .flatten()
-        .map(|a| AgentInfo {
-            id: a["id"].as_str().unwrap_or_default().to_owned(),
-            name: a["name"].as_str().unwrap_or_default().to_owned(),
-            available: a["available"].as_bool().unwrap_or(false),
-            models: a["models"].as_array().into_iter().flatten().map(|m| ModelInfo { id: m["id"].as_str().unwrap_or_default().to_owned(), label: m["label"].as_str().map(str::to_owned), efforts: None }).collect(),
-            efforts: a["efforts"].as_array().map(|e| e.iter().filter_map(Value::as_str).map(str::to_owned).collect()),
-            delegates: a["delegates"].as_bool(),
-            signed_in: a["signedIn"].as_bool(),
-            version: a["version"].as_str().map(str::to_owned),
-        })
-        .collect()
+    let list = calls::agents(ctx, call).await.unwrap_or_else(|err| {
+        tracing::warn!(error = %err.message, "router: runtime.agents");
+        Vec::new()
+    });
+    list.into_iter().map(agent_info).collect()
+}
+
+fn agent_info(a: wisp_runtime_api::commands::AgentStatus) -> AgentInfo {
+    AgentInfo {
+        id: a.id,
+        name: a.name,
+        available: a.available,
+        models: a.models.into_iter().map(|m| ModelInfo { id: m.id, label: Some(m.label), efforts: None }).collect(),
+        efforts: Some(a.efforts),
+        delegates: Some(a.delegates),
+        signed_in: a.signed_in,
+        version: a.version,
+    }
 }
 
 fn now(ctx: &Ctx) -> i64 {
@@ -117,25 +122,29 @@ fn view(st: &State, here: &[AgentInfo], projects: Vec<Value>, now: i64) -> Route
 }
 
 /// Tests per project: each declared project (`resources.export`'s `project` kind) with its test command.
-pub fn project_rows(resources: &[Value]) -> Vec<Value> {
+pub fn project_rows(resources: &[Resource]) -> Vec<Value> {
     resources
         .iter()
-        .filter(|r| r.get("kind").and_then(Value::as_str) == Some("project"))
-        .filter_map(|r| {
-            let name = r.get("name").and_then(Value::as_str)?;
-            let spec = r.get("spec").cloned().unwrap_or(Value::Null);
+        .filter(|r| r.kind == "project")
+        .map(|r| {
+            let (name, spec) = (r.name.as_str(), &r.spec);
             let mut row = serde_json::json!({ "id": name, "name": name, "testCommand": spec.get("test").and_then(Value::as_str).unwrap_or_default() });
             if let Some(c) = spec.get("color").and_then(Value::as_str).filter(|c| !c.is_empty()) {
                 row["color"] = Value::String(c.to_owned());
             }
-            Some(row)
+            row
         })
         .collect()
 }
 
 async fn projects(ctx: &Ctx, call: &wisp_kernel::Call) -> Vec<Value> {
-    let list = ctx.run_json(call, "resources.export", serde_json::json!({ "kinds": ["project"] })).await.ok();
-    list.as_ref().and_then(Value::as_array).map(|a| project_rows(a)).unwrap_or_default()
+    match calls::export(ctx, call, &["project"]).await {
+        Ok(list) => project_rows(&list),
+        Err(err) => {
+            tracing::warn!(error = %err.message, "router: resources.export");
+            Vec::new()
+        }
+    }
 }
 
 /// The same prompt previews the same pick: the dice are seeded from it.
@@ -271,9 +280,9 @@ mod tests {
     #[test]
     fn tests_per_project_lists_the_declared_projects_and_their_test_commands() {
         let res = vec![
-            serde_json::json!({ "kind": "project", "name": "app", "spec": { "path": "/w/app", "test": "cargo test -p app", "color": "#f00" } }),
-            serde_json::json!({ "kind": "project", "name": "web", "spec": { "path": "/w/web" } }),
-            serde_json::json!({ "kind": "skill", "name": "x", "spec": {} }),
+            Resource::new("project", "app", serde_json::json!({ "path": "/w/app", "test": "cargo test -p app", "color": "#f00" })),
+            Resource::new("project", "web", serde_json::json!({ "path": "/w/web" })),
+            Resource::new("skill", "x", serde_json::json!({})),
         ];
         let rows = project_rows(&res);
         assert_eq!(rows.len(), 2);
@@ -281,6 +290,16 @@ mod tests {
         assert_eq!(rows[0]["color"], "#f00");
         assert_eq!(rows[1]["testCommand"], "");
         assert!(rows[1].get("color").is_none());
+    }
+
+    /// `runtime.agents`' typed answer reaches Auto whole: models with their labels, efforts, delegates, sign-in.
+    #[test]
+    fn auto_sees_each_harness_as_runtime_agents_says_it() {
+        let a = serde_json::json!({ "id": "codex", "name": "Codex", "available": true, "version": "1.2", "models": [{ "id": "gpt-5", "label": "GPT-5" }], "efforts": ["low", "high"], "delegates": false, "signedIn": true });
+        let info = agent_info(serde_json::from_value(a).unwrap());
+        assert_eq!((info.id.as_str(), info.name.as_str(), info.available), ("codex", "Codex", true));
+        assert_eq!((info.models[0].id.as_str(), info.models[0].label.as_deref()), ("gpt-5", Some("GPT-5")));
+        assert_eq!((info.efforts, info.delegates, info.signed_in, info.version.as_deref()), (Some(vec!["low".into(), "high".into()]), Some(false), Some(true), Some("1.2")));
     }
 
     #[test]

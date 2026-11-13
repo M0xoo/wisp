@@ -51,7 +51,7 @@ impl RouterApi for Svc {
         self.ctx.spawn(async move {
             st.save(false).await;
             if let Some((event, props)) = fact {
-                let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": event, "props": props })).await;
+                crate::calls::track(&ctx, &ctx.root_call(), event, props).await;
             }
         });
         Ok(())

@@ -14,11 +14,15 @@ use std::sync::{Arc, Mutex};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::json;
 use wisp_kernel::{BoxFuture, Call, Ctx, Result, Setup};
 use wisp_resources_api::{KindInfo, Op, RESOURCE_KIND, Resource, ResourceKind, StoredKind, schema_of};
+use wisp_runtime_api::commands::RunPick;
 use wisp_runtime_api::events::TurnEnded;
-use wisp_runtime_api::model::TurnStatus;
+use wisp_runtime_api::model::{SessionState, TurnStatus};
+use wisp_runtime_api::spec::TaskSpec;
+
+use crate::calls;
 
 /// The steps after a run, by name (a task or a workflow step names one: `pipeline: careful`).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -109,31 +113,32 @@ fn pick(cache: &Cache, profile: &str) -> Option<(String, PipelineSpec)> {
 async fn after(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
     let call = ctx.root_call();
     let id = e.session_id.as_str();
-    let Ok(spec) = ctx.run_json(&call, "runtime.spec", json!({ "id": id })).await else { return };
-    let Some((name, p)) = pick(cache, spec.get("agent").and_then(Value::as_str).unwrap_or_default()) else { return };
-    let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": id })).await.unwrap_or_default();
-    let this = turns.as_array().and_then(|t| t.iter().find(|t| t.get("id").and_then(Value::as_str) == Some(e.turn_id.as_str())).cloned()).unwrap_or_default();
-    let by = this.get("by").and_then(Value::as_str).unwrap_or_default().to_owned();
-    let from = spec.pointer("/lineage/triggeredBy").and_then(Value::as_str).unwrap_or_default();
-    let ended = Ended { status: e.status, by: &by, from, error: e.error_text.as_deref(), first: this.get("idx").and_then(Value::as_u64) == Some(0) };
+    let spec = match calls::spec(ctx, &call, id).await {
+        Ok(s) => s,
+        Err(err) => return tracing::warn!(error = %err.message, "pipeline: runtime.spec"),
+    };
+    let Some((name, p)) = pick(cache, &spec.agent) else { return };
+    let turns = calls::turns(ctx, &call, id).await;
+    let this = turns.iter().find(|t| t.id == e.turn_id);
+    let by = this.and_then(|t| t.by.as_deref()).unwrap_or_default();
+    let from = spec.lineage.triggered_by.as_deref().unwrap_or_default();
+    let ended = Ended { status: e.status, by, from, error: e.error_text.as_deref(), first: this.is_some_and(|t| t.idx == 0) };
     let out = match next(&p, ended) {
         None => return,
         Some(Next::Switch) => switch(ctx, id, &e.agent).await,
         Some(Next::BestOf(n, judge)) => best_of(ctx, &name, id, &spec, n, &judge).await,
         Some(Next::Again(high)) => {
             let why = e.error_text.as_deref().unwrap_or("it stopped with an error");
-            let mut a = json!({ "id": id, "text": format!("The last run failed ({why}). Try again."), "by": BY });
-            if high {
-                a["run"] = json!({ "effort": "high" });
+            let run = high.then(|| RunPick { effort: Some("high".into()), ..RunPick::default() });
+            calls::follow_up(ctx, &call, id, format!("The last run failed ({why}). Try again."), BY, run).await
+        }
+        Some(Next::Review(agent)) => match calls::task(ctx, &call, id).await {
+            Ok(task) => {
+                let prompt = format!("Review what the task \"{}\" ({id}) just changed in this folder: correctness first, then risks. Report what to fix.", task.title);
+                calls::create(ctx, &call, prompt, &task.cwd, &agent, format!("pipeline:{name}")).await.map(|_| ())
             }
-            ctx.run_json(&call, "runtime.followUp", a).await
-        }
-        Some(Next::Review(agent)) => {
-            let task = ctx.run_json(&call, "runtime.get", json!({ "id": id })).await.unwrap_or_default();
-            let title = task.get("title").and_then(Value::as_str).unwrap_or_default();
-            let prompt = format!("Review what the task \"{title}\" ({id}) just changed in this folder: correctness first, then risks. Report what to fix.");
-            ctx.run_json(&call, "runtime.create", json!({ "prompt": prompt, "cwd": task.get("cwd"), "agent": agent, "lineage": { "triggeredBy": format!("pipeline:{name}") } })).await
-        }
+            Err(err) => Err(err),
+        },
     };
     if let Err(err) = out {
         tracing::warn!(pipeline = %name, "didn't act: {}", err.message);
@@ -141,47 +146,51 @@ async fn after(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
 }
 
 /// Carries on on the first other harness that's there.
-async fn switch(ctx: &Ctx, id: &str, was: &str) -> Result<Value> {
+async fn switch(ctx: &Ctx, id: &str, was: &str) -> Result<()> {
     let call = ctx.root_call();
-    let agents = ctx.run_json(&call, "runtime.agents", json!({})).await?;
-    let Some(other) = agents.as_array().and_then(|l| l.iter().find(|a| a["available"] == true && a["id"] != was)).and_then(|a| a["id"].as_str()).map(str::to_owned) else {
-        return Ok(Value::Null);
-    };
+    let agents = calls::agents(ctx, &call).await?;
+    let Some(other) = agents.into_iter().find(|a| a.available && a.id != was) else { return Ok(()) };
     let text = format!("{was} hit its usage limit. Carry on from where it stopped.");
-    ctx.run_json(&call, "runtime.followUp", json!({ "id": id, "text": text, "by": BY, "run": { "agent": other } })).await
+    calls::follow_up(ctx, &call, id, text, BY, Some(RunPick { agent: Some(other.id), ..RunPick::default() })).await
 }
 
 /// N−1 more runs of the same ask, all waited for, then the judge's pick.
-async fn best_of(ctx: &Ctx, name: &str, id: &str, spec: &Value, n: u32, judge: &str) -> Result<Value> {
+async fn best_of(ctx: &Ctx, name: &str, id: &str, spec: &TaskSpec, n: u32, judge: &str) -> Result<()> {
     let call = ctx.root_call();
     let mut runs = vec![id.to_owned()];
     for _ in 1..n.min(8) {
-        let a = json!({ "prompt": spec.get("prompt"), "cwd": spec.get("cwd"), "agent": spec.get("agent"), "lineage": { "triggeredBy": format!("pipeline:{name}") } });
-        let made = ctx.run_json(&call, "runtime.create", a).await?;
-        runs.push(made.get("id").and_then(Value::as_str).unwrap_or_default().to_owned());
+        runs.push(calls::create(ctx, &call, spec.prompt.clone(), &spec.cwd, &spec.agent, format!("pipeline:{name}")).await?);
     }
     let clock = ctx.clock()?;
     let until = clock.now_ms() + 30 * 60_000;
     let mut answers = Vec::new();
     for r in &runs {
         loop {
-            let t = ctx.run_json(&call, "runtime.get", json!({ "id": r })).await?;
-            if t.get("state").and_then(Value::as_str) != Some("running") || clock.now_ms() > until {
+            let t = calls::task(ctx, &call, r).await?;
+            if t.state != SessionState::Running || clock.now_ms() > until {
                 break;
             }
             clock.sleep(500).await;
         }
-        let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": r })).await.unwrap_or_default();
-        let text: String = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("text")).and_then(Value::as_str).unwrap_or_default().chars().take(3000).collect();
+        let turns = calls::turns(ctx, &call, r).await;
+        let text: String = turns.last().and_then(|t| t.text.as_deref()).unwrap_or_default().chars().take(3000).collect();
         answers.push(text);
     }
     let list: Vec<String> = answers.iter().enumerate().map(|(i, a)| format!("## Run {}\n{a}", i + 1)).collect();
-    let prompt = format!("These are {} runs of the same task: \"{}\". Which did it best? Answer with its number first, then one line why.\n\n{}", runs.len(), spec.get("prompt").and_then(Value::as_str).unwrap_or_default(), list.join("\n\n"));
-    let pick = if judge.is_empty() { json!({ "agent": spec.get("agent") }) } else { json!({ "agent": judge }) };
-    let said = ctx.run_json(&call, "runtime.quick", json!({ "prompt": prompt, "cwd": spec.get("cwd"), "pick": pick, "timeoutMs": 300_000 })).await.map(|r| r.get("text").and_then(Value::as_str).unwrap_or_default().to_owned()).unwrap_or_default();
+    let prompt = format!("These are {} runs of the same task: \"{}\". Which did it best? Answer with its number first, then one line why.\n\n{}", runs.len(), spec.prompt, list.join("\n\n"));
+    let agent = if judge.is_empty() { spec.agent.as_str() } else { judge };
+    // a task with no folder has no judge (it never runs in the server's folder): the first run wins
+    let said = if spec.cwd.is_empty() {
+        String::new()
+    } else {
+        calls::quick(ctx, &call, prompt, &spec.cwd, agent).await.unwrap_or_else(|err| {
+            tracing::warn!(error = %err.message, "pipeline: the judge didn't answer");
+            String::new()
+        })
+    };
     let best = runs.get(winner(&said, runs.len()) - 1).cloned().unwrap_or_default();
     let why: String = said.lines().find(|l| !l.trim().is_empty()).unwrap_or_default().chars().take(300).collect();
-    ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": "wisp.router", "value": { "bestOf": { "runs": runs, "winner": best, "why": why } } })).await
+    calls::set_ext(ctx, &call, id, json!({ "bestOf": { "runs": runs, "winner": best, "why": why } })).await
 }
 
 struct PipelineKind {

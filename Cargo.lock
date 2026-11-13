@@ -5388,6 +5388,7 @@ dependencies = [
  "wisp-router-core",
  "wisp-runtime-api",
  "wisp-store",
+ "wisp-telemetry-api",
 ]
 
 [[package]]
