@@ -8,7 +8,9 @@ use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 use wisp_runtime_api::harness::{HarnessChangeOp, HarnessEvent};
-use wisp_runtime_api::model::{Activity, ChangeOp, Edit, Presentation, Session, SessionState, ToolKind, Turn, TurnStatus};
+use wisp_runtime_api::model::{
+    Activity, ChangeOp, Edit, Presentation, Session, SessionState, ToolKind, Turn, TurnLimit, TurnRefusal, TurnStatus,
+};
 use wisp_runtime_api::points::Outcome;
 use wisp_runtime_core::activity::{self, Effect, Head, MAX_OUTPUT};
 use wisp_runtime_core::land::{self, Ending, Facts};
@@ -230,6 +232,26 @@ fn the_row_says_who_a_lead_waits_on_what_it_asks_and_what_plugins_add() {
     // contributed fields are flattened onto the row (v1 names)
     let row = summarize(&s, &RowFacts::default(), BTreeMap::from([("branch".to_owned(), json!("feat/x"))]));
     assert_eq!(serde_json::to_value(&row).unwrap()["branch"], "feat/x");
+}
+
+#[test]
+fn a_crashed_limited_or_refused_run_says_which_on_its_row() {
+    // F-task-14 (v1 format.js haltOf): the row's pill reads `halt` over the agent's "Blocked"
+    let s = session();
+    let none = BTreeMap::new;
+    let row = |t: &Turn| summarize(&s, &RowFacts { last: Some(t), report: Some(t), ..RowFacts::default() }, none());
+    let crashed = Turn { status: TurnStatus::Error, ..Turn::default() };
+    assert_eq!((row(&crashed).status.as_str(), row(&crashed).fields.get("halt")), ("blocked", Some(&json!("failed"))));
+    let limit = Turn { status: TurnStatus::Error, limit: Some(TurnLimit { until: 1, ..TurnLimit::default() }), ..Turn::default() };
+    assert_eq!(row(&limit).fields.get("halt"), Some(&json!("limit")));
+    let refused = Turn {
+        status: TurnStatus::Error,
+        refusal: Some(TurnRefusal { agent: "claude".into(), model: String::new(), vendor: None, kind: "policy".into(), line: None }),
+        ..Turn::default()
+    };
+    assert_eq!(row(&refused).fields.get("halt"), Some(&json!("refused")));
+    // a finished run has none, and a later good turn clears it
+    assert_eq!(row(&done_turn("ok", "done")).fields.get("halt"), None);
 }
 
 #[test]

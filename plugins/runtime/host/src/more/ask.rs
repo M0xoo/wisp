@@ -235,3 +235,28 @@ impl Runtime {
         })
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::{Decision, approval_decision};
+
+    /// F-page-3 (v1 `approvalDecision`): one box answers a live approval; a yes or no typed out is that answer, and any
+    /// other words deny the call and go to the agent as what to do instead.
+    #[test]
+    fn a_reply_typed_under_an_approval_denies_the_call_and_hands_the_agent_the_words() {
+        let d = |allow, always, message: Option<&str>| Decision { allow, always, message: message.map(str::to_owned) };
+        for yes in ["Allow", "yes", "y", "OK", "go ahead", "1"] {
+            assert_eq!(approval_decision(yes), d(true, false, None), "{yes}");
+        }
+        for always in ["Always allow in this task", "always", "2"] {
+            assert_eq!(approval_decision(always), d(true, true, None), "{always}");
+        }
+        for no in ["Deny", "no", "n", "reject", "3"] {
+            assert_eq!(approval_decision(no), d(false, false, None), "{no}");
+        }
+        assert_eq!(approval_decision("  use pnpm publish --dry-run instead "), d(false, false, Some("use pnpm publish --dry-run instead")));
+        // "yes, but…" isn't a plain yes: it denies, with the words
+        assert_eq!(approval_decision("yes but only on staging"), d(false, false, Some("yes but only on staging")));
+    }
+}

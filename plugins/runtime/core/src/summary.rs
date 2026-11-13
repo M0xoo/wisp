@@ -66,6 +66,21 @@ fn live(f: &RowFacts<'_>, waiting: &str) -> String {
     f.after_busy.unwrap_or_default().to_owned()
 }
 
+/// Why the last run stopped short, in wisp's words (v1 format.js haltOf): a usage limit, a refusal, a crash. The row's
+/// pill says it in place of the agent's "Blocked", as each needs something else from you (F-task-14).
+fn halt(t: Option<&Turn>) -> Option<&'static str> {
+    let t = t?;
+    if t.limit.is_some() {
+        Some("limit")
+    } else if t.refusal.is_some() {
+        Some("refused")
+    } else if t.status == TurnStatus::Error {
+        Some("failed")
+    } else {
+        None
+    }
+}
+
 /// The held turn's id (Later's Start / Skip name it).
 fn t_id(t: Option<&Turn>) -> String {
     t.map(|t| t.id.as_str().to_owned()).unwrap_or_default()
@@ -95,6 +110,7 @@ pub fn summarize(s: &Session, f: &RowFacts<'_>, fields: BTreeMap<String, Value>)
     if let Some(l) = s.ext.get("wisp.runtime").and_then(|r| r.get("forLater")).filter(|l| !l.is_null()) {
         out.insert("forLater".into(), l.clone());
     }
+    out.extend(halt(f.last).map(|h| ("halt".to_owned(), json!(h))));
     if let Some(h) = f.last.filter(|t| t.status == TurnStatus::Held).and_then(|t| t.held.as_ref()) {
         out.insert("held".into(), json!({ "kind": h.kind, "by": h.by, "until": h.until, "data": h.data, "turnId": t_id(f.last) }));
     }
