@@ -65,7 +65,7 @@ Never send builds to someone's own phone as part of QA.
 - **Run:** `qa/mobile.mjs` (390 and 412 wide), Emulator
 - **Steps:** open `http://<wisp>/?m=Studio` with `wispMobile` in the user agent.
 - **Expected:** `body.wisp-mobile`; the avatar menu's row reads *Computers* with the computer's
-  name after it (*Studio*), not *Machines*; nowhere says *This computer*; the task list fills the screen
+  name after it (*Studio*), not *Machines*, already before wisp answers (the check holds `/api/`); nowhere says *This computer*; the task list fills the screen
   (stacked split view) with a floating **New task** button and no New task row; no sidebar switch,
   no keyboard hints (`kbd`), no tips; no sideways scroll; no page errors.
 

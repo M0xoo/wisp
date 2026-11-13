@@ -90,8 +90,19 @@ try {
       const page = await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
+      // The row says Computers before wisp answers at all (a slow tunnel): the API is held until it's read.
+      let release;
+      const held = new Promise((r) => (release = r));
+      await page.route((u) => u.pathname.startsWith('/api/'), async (route) => {
+        await held;
+        await route.continue();
+      });
       await page.goto(`${wisp.url}/?m=${COMPUTER}`);
       await page.waitForSelector('body.wisp-mobile', { timeout: 10_000 });
+      await page.waitForSelector('#promptFab', { state: 'attached', timeout: 10_000 }); // app.js has booted (index.html sets body.wisp-mobile)
+      const early = await page.evaluate(() => document.querySelector('#machinesBtn span')?.textContent);
+      release();
+      ok(early === `Computers ${COMPUTER}`, `before wisp answers, the computers row reads "${early}", expected "Computers ${COMPUTER}"`);
       await page.waitForTimeout(1500);
       const ui = await page.evaluate(() => {
         const vis = (e) => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';

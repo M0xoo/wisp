@@ -19,7 +19,7 @@ import { paintNoOutput } from './features/turns.js';
 import { stream } from './no-output.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
 import { paintGetApp } from './features/getapp.js';
-import { loadMachines, openComputers, openMachines, setMachines } from './features/machines.js';
+import { loadMachines, openComputers, openMachines, paintMachinesBtn, setMachines } from './features/machines.js';
 import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
 import { initSwitcher } from './features/switcher.js';
@@ -42,6 +42,7 @@ initSwitcher();
 stage.addEventListener('scroll', onScroll, { passive: true });
 if (MOBILE) promptFab(); // the phone opens the prompt box from a floating New task button
 if (MOBILE) pressFeedback(); // what you touch shows it while your finger is down
+if (MOBILE) paintMachinesBtn(); // Computers, not index.html's Machines, before the config is in (a slow tunnel)
 $('#toTop').onclick = backToTop;
 
 // Top bar and the feed's Done / Archived toggles.
