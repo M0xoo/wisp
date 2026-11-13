@@ -293,7 +293,8 @@ pub fn fake_gh_bin() -> PathBuf {
     sibling("wisp-fake-gh")
 }
 
-/// A bin of this crate, next to the running test's executable (`target/<profile>/`).
+/// A bin of this crate, next to the running executable (`target/<profile>/`). Only right in the
+/// default cargo layout; tests should prefer `CARGO_BIN_EXE_<bin>` with [`install_fakes_from`].
 fn sibling(name: &str) -> PathBuf {
     let exe = std::env::current_exe().unwrap_or_default();
     let dir = exe.parent().map_or(Path::new("."), |d| {

@@ -18,7 +18,7 @@ use wisp_kernel::{
 };
 use wisp_testkit::{
     FakeClock, TestApp, assert_deactivate_leaks_nothing, assert_golden_at,
-    assert_missing_permission_refused, install_fakes,
+    assert_missing_permission_refused, install_fakes_from,
 };
 
 struct Go;
@@ -169,6 +169,16 @@ fn goldens_compare() {
     );
 }
 
+/// This crate's fakes, by the paths cargo hands its own integration tests: cargo builds the bins
+/// before the tests and `CARGO_BIN_EXE_<bin>` names where they landed, in any layout (a separate
+/// `CARGO_TARGET_DIR` or `CARGO_BUILD_BUILD_DIR`, where the test executable sits elsewhere).
+fn install_fakes(dir: &std::path::Path, names: &[&str]) {
+    let agent = std::path::Path::new(env!("CARGO_BIN_EXE_wisp-fake-agent"));
+    let gh = std::path::Path::new(env!("CARGO_BIN_EXE_wisp-fake-gh"));
+    assert!(agent.is_file() && gh.is_file(), "{} and {}", agent.display(), gh.display());
+    install_fakes_from(dir, names, agent, gh).unwrap();
+}
+
 fn run(
     bin: &std::path::Path,
     args: &[&str],
@@ -205,7 +215,7 @@ fn run(
 fn the_fake_harness_plays_claude_and_codex() {
     let d = tmp("agent");
     let bin = d.join("bin");
-    install_fakes(&bin, &["claude", "codex", "gh"]).unwrap();
+    install_fakes(&bin, &["claude", "codex", "gh"]);
     let work = d.join("work");
     std::fs::create_dir_all(&work).unwrap();
     std::fs::write(
@@ -270,7 +280,7 @@ fn the_fake_harness_plays_claude_and_codex() {
 fn the_fake_gh_keeps_pull_requests() {
     let d = tmp("gh");
     let bin = d.join("bin");
-    install_fakes(&bin, &["gh"]).unwrap();
+    install_fakes(&bin, &["gh"]);
     let state = d.join("state.json").display().to_string();
     let env = [("FAKE_GH_STATE", state.as_str())];
     let gh = bin.join("gh");
