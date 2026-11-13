@@ -483,6 +483,9 @@ alone.
      (Material 3; Apple HIG), built from `@wisp/ui` kit components with per-platform variants on wisp's tokens, no app
      CSS; every v1 feature kept. Starts with an ADR + a mobile design doc; the phone apps leave `qa/parity.mjs`. The web
      app at phone width keeps v1 parity.
+   - **Gestures (owner, 2026-11-13):** prefer gestures where they fit better than tapping, and be creative: swipe a row to
+     archive, mark read or save for later; long-press for the menu; pull to refresh; swipe between tasks; drag to reorder
+     the queue; edge swipe back. Every gesture also has a visible control, so nobody has to know it.
 9. [ ] **Cutover:**
    - Once our own tasks run on wisp v2, turn on `.wisp/` tracking for this repo (owner, 2026-11-10). Don't backfill the v2 rewrite sessions run on v1.
    - delete v1 (`server/`, `web/`, v1 `grid/`, v1 `desktop/` packaging, v1 tests and workflows);
