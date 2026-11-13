@@ -473,6 +473,10 @@ alone.
      the list's `status` from `body`, shell-task's stub screens, Home and the composer screens.
    - Each screen is seen in Chrome once (desktop and phone, light and dark); parity/layout/feedback gates run in CI.
 8. [ ] **Apps:** the desktop app embeds the core (Tauri, `apps/desktop`); Android gets its own frontend.
+   - **Phone apps' design (owner, 2026-11-13):** Android and iPhone don't copy v1's look. Each follows its platform
+     (Material 3; Apple HIG), built from `@wisp/ui` kit components with per-platform variants on wisp's tokens, no app
+     CSS; every v1 feature kept. Starts with an ADR + a mobile design doc; the phone apps leave `qa/parity.mjs`. The web
+     app at phone width keeps v1 parity.
 9. [ ] **Cutover:**
    - Once our own tasks run on wisp v2, turn on `.wisp/` tracking for this repo (owner, 2026-11-10). Don't backfill the v2 rewrite sessions run on v1.
    - delete v1 (`server/`, `web/`, v1 `grid/`, v1 `desktop/` packaging, v1 tests and workflows);
