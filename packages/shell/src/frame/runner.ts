@@ -22,6 +22,47 @@ export interface Runner {
   readonly model: string;
   /** '' : the harness's default */
   readonly effort: string;
+  /** one of the harness's accounts (wisp.accounts' `accounts.list` id); unset or '': Auto, your saved one */
+  readonly account?: string;
+  /** that account's name, for the bar's words (not sent) */
+  readonly accountLabel?: string;
+}
+
+/** One of a harness's accounts as `accounts.list` gives it (wisp.accounts' AccountView). */
+export interface AccountOffer {
+  readonly id: string;
+  readonly label: string;
+  readonly email?: string;
+  readonly plan?: string;
+  readonly default?: boolean;
+  readonly state?: 'ready' | 'limit' | 'signedOut';
+  readonly until?: number | null;
+}
+
+/** The account choice under the models (v1 runner-picker.js paintAccounts): Auto, then each account in your order,
+ * only when the harness has two or more. A signed-out one can't be picked; one at its limit can (wisp never
+ * switches for you), and says so. */
+export function accountChoices(
+  accounts: readonly AccountOffer[],
+  words: { readonly auto: string; readonly autoHint: string; readonly limit: string; readonly out: string },
+): { value: string; label: string; hint?: string; disabled?: boolean }[] {
+  if (accounts.length < 2) return [];
+  return [
+    { value: '', label: words.auto, hint: words.autoHint },
+    ...accounts.map((a) => {
+      const line = [a.email, a.plan].filter(Boolean).join(' · ');
+      if (a.state === 'signedOut') return { value: a.id, label: a.label, hint: words.out, disabled: true };
+      if (a.state === 'limit') return { value: a.id, label: a.label, hint: words.limit };
+      return { value: a.id, label: a.label, ...(line && { hint: line }) };
+    }),
+  ];
+}
+
+/** The account a task starts on: the pick while it's still one of the harness's and signed in, else Auto (''). */
+export function accountFor(accounts: readonly AccountOffer[], want: string | undefined): string {
+  if (!want || accounts.length < 2) return '';
+  const a = accounts.find((x) => x.id === want);
+  return a && a.state !== 'signedOut' ? a.id : '';
 }
 
 /** The models to show for `agent`, the Default first, narrowed by `query` (the harness's own name matches all). */
@@ -55,7 +96,7 @@ export function effortsFor(agents: readonly AgentOffer[], r: Runner): readonly s
 export function runnerWords(agents: readonly AgentOffer[], r: Runner, name: (id: string) => string): string {
   const a = agents.find((x) => x.id === r.agent);
   const model = a?.models.find((m) => m.id === r.model)?.label ?? (r.model || '');
-  return [name(r.agent), model, r.effort].filter(Boolean).join(' · ');
+  return [name(r.agent), model, r.effort, r.account ? (r.accountLabel ?? r.account) : ''].filter(Boolean).join(' · ');
 }
 
 /** A reply's own harness · model (the reply box's pick) as runtime.followUp's `run`; none: the task's own. */

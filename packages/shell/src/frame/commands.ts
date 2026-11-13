@@ -51,6 +51,8 @@ export interface CreateArgs {
   readonly mode: string;
   readonly model?: string;
   readonly effort?: string;
+  /** one of the harness's accounts (runtime's StartArgs.account); unset: your saved one */
+  readonly account?: string;
   readonly at: number;
   readonly cwd?: string;
   readonly projectId?: string;

@@ -114,16 +114,18 @@ export function RowButton(props: { readonly icon: IconName; readonly label: stri
 export function RowRun(props: {
   readonly logo?: JSX.Element;
   readonly name: string;
-  readonly nameTitle?: string | undefined;
+  /** v1 .ir-m: the model in its own span, so a long one ellipsises before the place does */
+  readonly model?: string | undefined;
+  /** v1 .it-run[title]: harness · model · effort · place, on the whole line */
+  readonly title?: string | undefined;
   readonly where: { readonly icon: IconName; readonly text: string };
   readonly part?: PartName;
 }): JSX.Element {
   return (
-    <div data-kit="row-run" data-part={props.part ?? 'ui.row-run'}>
+    <div data-kit="row-run" data-part={props.part ?? 'ui.row-run'} title={props.title}>
       {props.logo}
-      <span data-kit="ir-h" title={props.nameTitle}>
-        {props.name}
-      </span>
+      <span data-kit="ir-h">{props.name}</span>
+      <Show when={props.model}>{(m) => <span data-kit="ir-m">{m()}</span>}</Show>
       <span data-kit="ir-w">
         <Icon name={props.where.icon} size="xs" />
         <span>{props.where.text}</span>

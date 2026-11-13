@@ -97,7 +97,7 @@ export function RunLine(props: { readonly run: RunView; readonly s: SessionRow }
   const harnesses = useSignal(env.shell.harnesses());
   /** the harness as its plugin registered it: v1's name ("Claude Code") and logo */
   const harness = (): HarnessUiDef | undefined => harnesses().find((h) => h.id === props.s.agent);
-  const name = (): string => (props.run.model ? `${harness()?.name ?? props.run.agentName} · ${props.run.model}` : (harness()?.name ?? props.run.agentName));
+  const name = (): string => harness()?.name ?? props.run.agentName;
   return (
     <RowRun
       part="list.row.run card.run"
@@ -115,7 +115,8 @@ export function RunLine(props: { readonly run: RunView; readonly s: SessionRow }
         </Show>
       }
       name={name()}
-      nameTitle={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, props.run.title, env.now())}
+      model={props.run.model}
+      title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, props.run.title, env.now())}
       where={{ icon: props.run.sandbox ? 'box' : props.run.remote ? 'server' : 'laptop', text: props.run.where }}
     />
   );

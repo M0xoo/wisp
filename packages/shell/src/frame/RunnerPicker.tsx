@@ -6,7 +6,7 @@ import { defineCommand } from '@wisp/client';
 import { Dialog, Grid, Input, RadioGroup, Stack, Text, ThinkingSlider, useSignal } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { Slot } from '../slot.tsx';
-import { effortsFor, fullest, harnessesFor, modelsFor, usedPct, type AgentOffer, type PlanWindow, type Runner } from './runner.ts';
+import { accountChoices, accountFor, effortsFor, fullest, harnessesFor, modelsFor, usedPct, type AccountOffer, type AgentOffer, type PlanWindow, type Runner } from './runner.ts';
 
 /** v1 effortLabel: "X-High", else the level capitalised */
 const levelLabel = (e: string): string => (e === 'xhigh' ? 'X-High' : e.charAt(0).toUpperCase() + e.slice(1));
@@ -21,6 +21,15 @@ const plansOf = defineCommand<{ peer: string; agent: string }, { windows: PlanWi
   pending: 'the plan windows',
 });
 
+/** A harness's accounts (wisp.accounts); refused or absent: none, and the picker shows no account choice. */
+const accountsOf = defineCommand<{ peer: string; agent: string }, { accounts: AccountOffer[] }>({
+  id: 'accounts.list',
+  owner: (a) => a.peer,
+  wire: (a) => ({ agent: a.agent }),
+  optimistic: 'none',
+  pending: 'the account list',
+});
+
 export function RunnerPicker(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -28,6 +37,7 @@ export function RunnerPicker(props: {
   readonly value: Runner;
   readonly onChange: (r: Runner) => void;
   /** false: what it's for has no thinking level (a trigger) */ readonly efforts?: boolean;
+  /** true: it can pick one of the harness's accounts (New task); elsewhere the run keeps its own */ readonly accounts?: boolean;
 }): JSX.Element {
   const shell = useShell();
   const t = shell.t;
@@ -55,6 +65,23 @@ export function RunnerPicker(props: {
   const signedOut = (id: string): boolean => (agents() ?? []).some((a) => a.id === id && a.signedIn === false);
   const models = createMemo(() => modelsFor(agents() ?? [], props.value.agent, query()));
   const efforts = createMemo(() => (props.efforts === false ? [] : effortsFor(agents() ?? [], props.value)));
+  // the picked harness's accounts, asked while the picker is open (v1 runner-picker.js accountsAt): two or more show
+  const wantsAccounts = (): false | { peer: string; agent: string } =>
+    props.open && props.accounts === true && !signedOut(props.value.agent) && (agents() ?? []).some((a) => a.id === props.value.agent && a.available)
+      ? { peer: props.peer, agent: props.value.agent }
+      : false;
+  const [fetched] = createResource(wantsAccounts, async (a) => ({
+    agent: a.agent,
+    list: (await shell.client.commands.run(accountsOf, a).catch(() => ({ accounts: [] as AccountOffer[] }))).accounts,
+  }));
+  // only the picked harness's own list: a resource keeps its last value while the next loads or once it's off
+  const accounts = (): readonly AccountOffer[] => {
+    const f = fetched.latest;
+    return wantsAccounts() && f?.agent === props.value.agent ? f.list : [];
+  };
+  const accountRows = createMemo(() =>
+    accountChoices(accounts(), { auto: t('shell.runner.accountAuto'), autoHint: t('shell.runner.accountAutoHint'), limit: t('shell.runner.accountLimit'), out: t('shell.runner.accountOut') }),
+  );
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange} title={t('shell.runner.title')} size="md" part="shell.runner">
       <Stack gap="5" part="shell.runner.body">
@@ -76,7 +103,7 @@ export function RunnerPicker(props: {
                 return { value: a.id, label: a.name, logo: logoOf(a.id), ...(!a.available && !out && { disabled: true, hint: t('shell.runner.notSetUp') }), ...out, ...(used && { hint: used }) };
               })}
               value={props.value.agent}
-              onChange={(agent) => props.onChange({ agent, model: '', effort: '' })}
+              onChange={(agent) => props.onChange({ agent, model: '', effort: '', account: '' })}
             />
           </Show>
           <Show when={signedOut(props.value.agent)}>
@@ -95,6 +122,19 @@ export function RunnerPicker(props: {
             />
           </Show>
         </Grid>
+        <Show when={accountRows().length > 0}>
+          {/* v1 runner-picker.js paintAccounts: Auto, then each account; a pick commits in place */}
+          <RadioGroup
+            label={t('shell.runner.account')}
+            part="shell.runner.account"
+            options={accountRows()}
+            value={accountFor(accounts(), props.value.account)}
+            onChange={(account) => {
+              const label = accounts().find((a) => a.id === account)?.label;
+              props.onChange({ ...props.value, account, ...(account && label && { accountLabel: label }) });
+            }}
+          />
+        </Show>
         <Show when={efforts().length > 0}>
           {/* v1 runner-picker.js: Thinking is a slider from Default to the harness's top level */}
           <ThinkingSlider

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { effortsFor, harnessesFor, modelsFor, runnerWords, type AgentOffer, runPick, fullest, usedPct } from '../src/frame/runner.ts';
+import { accountChoices, accountFor, effortsFor, harnessesFor, modelsFor, runnerWords, type AccountOffer, type AgentOffer, runPick, fullest, usedPct } from '../src/frame/runner.ts';
 
 const AGENTS: AgentOffer[] = [
   { id: 'codex', name: 'Codex', available: true, models: [{ id: 'gpt-5.5', label: 'GPT-5.5' }], efforts: ['low', 'high'] },
@@ -50,4 +50,29 @@ test('a signed out harness sits with the set up ones so it can be picked to sign
     { id: 'claude', name: 'Claude Code', available: true, models: [], efforts: [] },
   ];
   expect(harnessesFor(list, '').map((a) => a.id)).toEqual(['codex', 'claude', 'cursor']);
+});
+
+const WORDS = { auto: 'Auto', autoHint: 'saved', limit: 'at limit', out: 'signed out' };
+
+test('a_second_account_shows_in_the_picker_and_the_task_starts_on_the_one_picked', () => {
+  const one: AccountOffer[] = [{ id: 'default', label: 'Main', default: true, state: 'ready' }];
+  // one account: no choice (v1 accountsAt: two or more)
+  expect(accountChoices(one, WORDS)).toEqual([]);
+  expect(accountFor(one, 'default')).toBe('');
+  const two: AccountOffer[] = [
+    { id: 'default', label: 'Main', email: 'me@home.dev', plan: 'Max', default: true, state: 'ready' },
+    { id: 'w1', label: 'Work', state: 'limit', until: 9 },
+    { id: 'p2', label: 'Spare', state: 'signedOut' },
+  ];
+  const rows = accountChoices(two, WORDS);
+  // Auto first, then your order; a signed-out one can't be picked, one at its limit can and says so
+  expect(rows.map((r) => r.value)).toEqual(['', 'default', 'w1', 'p2']);
+  expect(rows[1]).toEqual({ value: 'default', label: 'Main', hint: 'me@home.dev · Max' });
+  expect(rows[2]).toEqual({ value: 'w1', label: 'Work', hint: 'at limit' });
+  expect(rows[3]?.disabled).toBe(true);
+  expect(accountFor(two, 'w1')).toBe('w1');
+  expect(accountFor(two, 'p2')).toBe('');
+  expect(accountFor(two, 'gone')).toBe('');
+  // the bar says which account
+  expect(runnerWords(AGENTS, { agent: 'codex', model: '', effort: '', account: 'w1', accountLabel: 'Work' }, (id) => id)).toBe('codex · Work');
 });

@@ -110,11 +110,18 @@
     margin-right: 5px;
   }
   [data-kit='row-run'] > [data-kit='ir-h'] {
+    color: var(--muted);
+  }
+  /* v1 .ir-m: the model ellipsises first, never under 7ch */
+  [data-kit='row-run'] > [data-kit='ir-m'] {
     flex: 0 1 auto;
     min-width: 7ch;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--muted);
+  }
+  [data-kit='ir-m']::before {
+    content: '·';
+    padding: 0 5px;
   }
   [data-kit='ir-w'] {
     flex: 0 1 auto;

@@ -140,7 +140,8 @@ export function runOf(s: SessionRow, c: RowContext): RunView | undefined {
     where,
     remote: !!s.machine,
     ...(sandbox && { sandbox: true }),
-    title: tx(s.effort ? 'shell-list.run.tip-effort' : 'shell-list.run.tip', { agent: name, model: model ?? '', effort: s.effort === 'xhigh' ? 'X-High' : s.effort ? s.effort.charAt(0).toUpperCase() + s.effort.slice(1) : '', where }),
+    // v1 runLine's tip: "Default model" when none was picked, "<effort> thinking", "on <place>"
+    title: tx(`shell-list.run.tip${model ? '' : '-default'}${s.effort ? '-effort' : ''}`, { agent: name, model: model ?? '', effort: s.effort === 'xhigh' ? 'X-High' : s.effort ? s.effort.charAt(0).toUpperCase() + s.effort.slice(1) : '', where }),
   };
 }
 

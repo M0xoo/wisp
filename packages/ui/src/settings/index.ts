@@ -8,4 +8,5 @@ export { SettingsItem, type SettingsItemProps } from './SettingsItem.tsx';
 export { SettingsNote, type SettingsNoteProps } from './SettingsNote.tsx';
 export { SettingsBlock, type SettingsBlockProps } from './SettingsBlock.tsx';
 export { Meter, type MeterProps } from './Meter.tsx';
+export { PlanAccount, PlanCompare, PlanList, type PlanAccountProps, type PlanCompareProps, type PlanWindowRow, type PlanWhereRow } from './PlanBudget.tsx';
 export { SwitchSetting, SelectSetting, ChoiceSetting, type SettingSource, type SelectSettingProps, type ChoiceSettingProps, type ChoiceOption } from './SettingControls.tsx';

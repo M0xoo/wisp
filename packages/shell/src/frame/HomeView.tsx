@@ -69,6 +69,14 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   // the model and thinking level picked for the harness (Default: '')
   const [model, setModel] = createSignal('');
   const [effort, setEffort] = createSignal('');
+  // the account picked for the harness ('' : Auto, your saved one) and its name for the bar (F-acct-3)
+  const [account, setAccount] = createSignal<{ id: string; label: string } | undefined>();
+  const pickAgent = (a: string): void => {
+    setAgent(a);
+    setModel('');
+    setEffort('');
+    setAccount(undefined);
+  };
   const [picker, setPicker] = createSignal(false);
   // What Auto will run (v1 auto-preview.js openPop): from the Auto pick while Auto picks
   const [autoPop, setAutoPop] = createSignal(false);
@@ -255,6 +263,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           ...(attachments.length > 0 && { attachments }),
           ...(agent() !== 'auto' && model() && { model: model() }),
           ...(agent() !== 'auto' && effort() && { effort: effort() }),
+          ...((a) => (agent() !== 'auto' && a ? { account: a.id } : {}))(account()),
           ...(team().size > 0 && { team: teamRows(team(), subagents(), (a) => agentName(t, harnesses(), a)) }),
         })
         .catch(() => setText(prompt));
@@ -370,11 +379,13 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         runner={{
           label: agentName(t, harnesses(), agent()),
           title: t('shell.home.autoTitle'),
-          pick: shown()?.label ?? [pick().name, agent() !== 'auto' && model() ? model() : '', agent() !== 'auto' ? effort() : ''].filter(Boolean).join(' · '),
+          pick:
+            shown()?.label ??
+            [pick().name, agent() !== 'auto' && model() ? model() : '', agent() !== 'auto' ? effort() : '', agent() !== 'auto' ? (account()?.label ?? '') : ''].filter(Boolean).join(' · '),
           pickTitle: shown() ? t('shell.home.autoWhy', { label: preview()?.pick?.label ?? '', why: preview()?.why ?? '' }) : t('shell.home.pickTitle', { name: pick().name }),
           ...(pick().logo && { logo: pick().logo }),
           compare: runs().length > 0 ? t('shell.home.compareMore', { n: MAX_RUNNERS }) : t('shell.home.compare'),
-          act: { menu: { items: agentMenu(t, harnesses(), agent()), onSelect: (a) => (setAgent(a), setModel(''), setEffort('')) } },
+          act: { menu: { items: agentMenu(t, harnesses(), agent()), onSelect: pickAgent } },
           // the searchable harness · model picker (v1 runner-picker.js)
           pickAct: { onClick: () => (agent() === 'auto' ? setAutoPop(!autoPop()) : setPicker(true)) },
           ...(agent() === 'auto' && { pickOpen: autoPop() }),
@@ -521,7 +532,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
                 const c = [p().suggest, ...(p().alternatives ?? [])].find((a) => a?.key === key);
                 setAutoPop(false);
                 if (!c) return;
-                setAgent(c.agent);
+                pickAgent(c.agent);
                 setModel(c.model);
                 setEffort(c.effort);
               }}
@@ -538,11 +549,13 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         open={picker()}
         onOpenChange={setPicker}
         peer={target()}
-        value={{ agent: agent() === 'auto' ? auto() : agent(), model: model(), effort: effort() }}
+        accounts
+        value={{ agent: agent() === 'auto' ? auto() : agent(), model: model(), effort: effort(), account: account()?.id ?? '' }}
         onChange={(r) => {
           setAgent(r.agent);
           setModel(r.model);
           setEffort(r.effort);
+          setAccount(r.account ? { id: r.account, label: r.accountLabel ?? r.account } : undefined);
         }}
       />
       <NextList
@@ -561,7 +574,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         onOpen={(id) => shell.navigate({ t: 'openTask', id: id as EntityKey as never })}
       />
       {/* notes on plans other plugins add (wisp.budget's Spare allowance), v1 .sh-spare */}
-      <Slot input="shell.home:cards" layout="contents" pickAgent={(a) => setAgent(a)} />
+      <Slot input="shell.home:cards" layout="contents" pickAgent={pickAgent} />
       <Tips
         heading={t('shell.tips.heading')}
         more={t('shell.tips.more')}

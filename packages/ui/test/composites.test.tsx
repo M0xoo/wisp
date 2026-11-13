@@ -271,4 +271,17 @@ describe('the feed row (v1 #feed .it-head)', () => {
     head?.click();
     expect(opened).toHaveBeenCalledTimes(2);
   });
+  test('a_rows_third_line_names_harness_model_and_place_each_in_its_own_span_with_the_tip_on_the_line', async () => {
+    // F-task-6, v1 feed.js runLine(): .ir-h, .ir-m (it ellipsises first), .ir-w; the tip on the whole .it-run
+    const { RowRun } = await import('../src/composites/ListRow.tsx');
+    const host = mount(() => <RowRun name="Claude Code" model="Opus 4.7" title="Claude Code · Opus 4.7 · High thinking · on This computer" where={{ icon: 'laptop', text: 'This computer' }} />);
+    const run = host.querySelector<HTMLElement>('[data-kit="row-run"]');
+    expect([...(run?.children ?? [])].map((e) => (e as HTMLElement).dataset['kit'])).toEqual(['ir-h', 'ir-m', 'ir-w']);
+    expect(run?.querySelector('[data-kit="ir-h"]')?.textContent).toBe('Claude Code');
+    expect(run?.querySelector('[data-kit="ir-m"]')?.textContent).toBe('Opus 4.7');
+    expect(run?.title).toBe('Claude Code · Opus 4.7 · High thinking · on This computer');
+    // no model: no empty span (v1 drops "Default model" from the row, the tip keeps it)
+    const bare = mount(() => <RowRun name="Codex" where={{ icon: 'server', text: 'box-1' }} />);
+    expect([...(bare.querySelector('[data-kit="row-run"]')?.children ?? [])].map((e) => (e as HTMLElement).dataset['kit'])).toEqual(['ir-h', 'ir-w']);
+  });
 });
