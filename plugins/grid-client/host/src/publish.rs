@@ -8,7 +8,7 @@ use std::sync::Arc;
 use base64::Engine as _;
 use serde_json::{Value, json};
 use wisp_kernel::{BoxFuture, Call, Ctx, Result, WireError};
-use wisp_stuff_api::{StuffItem, StuffKind};
+use wisp_stuff_api::{Published, StuffItem, StuffKind};
 
 use crate::net::host_of;
 use crate::{Slot, st};
@@ -63,18 +63,20 @@ impl wisp_stuff_api::commands::Publisher for Publish {
             call.require_write("stuff:publish")?;
             let state = st(&slot)?;
             let (acct, token) = state.signed_in().await.map_err(|_| WireError::conflict("Sign in to a wisp Grid first (Settings → Cloud) to publish apps."))?;
-            let bundle = ctx.run_json(&call, "stuff.bundle", json!({ "id": id })).await?;
-            let body = base64::engine::general_purpose::STANDARD.decode(bundle["body"].as_str().unwrap_or_default()).map_err(|e| WireError::internal(e.to_string()))?;
-            let (title, entry) = (bundle["title"].as_str().unwrap_or("App"), bundle["entry"].as_str().unwrap_or("index.html"));
+            let bundle = crate::calls::bundle(&ctx, &call, &id).await?;
+            let body = base64::engine::general_purpose::STANDARD.decode(&bundle.body).map_err(|e| WireError::internal(e.to_string()))?;
+            let or = |v: &str, d: &'static str| if v.is_empty() { d.to_owned() } else { v.to_owned() };
+            let (title, entry) = (or(&bundle.title, "App"), or(&bundle.entry, "index.html"));
             let host = host_of(&acct.grid).to_owned();
-            let url = format!("{}/api/sites/{}?title={}&entry={}", acct.grid.trim_end_matches('/'), enc(&id), enc(title), enc(entry));
+            let url = format!("{}/api/sites/{}?title={}&entry={}", acct.grid.trim_end_matches('/'), enc(&id), enc(&title), enc(&entry));
             let r = state.http.put(&url).bearer_auth(&token).header("content-type", "application/octet-stream").body(body).timeout(std::time::Duration::from_secs(120)).send().await.map_err(|e| WireError::unavailable(format!("Couldn’t reach {host}: {e}")))?;
             let status = r.status().as_u16();
             let v: Value = r.json().await.unwrap_or_else(|_| json!({}));
             let site = answer(&host, "PUT", status, &v)?;
             let now = ctx.clock().map_or(0, |c| c.now_ms());
-            let published = json!({ "url": site["url"], "account": "cloud", "host": host, "handle": acct.handle, "at": now });
-            ctx.run_json(&call, "stuff.setPublished", json!({ "id": id, "published": published })).await?;
+            let url = site["url"].as_str().ok_or_else(|| WireError::internal(format!("{host} published it but gave no link")))?.to_owned();
+            let published = Published { url, account: Some("cloud".into()), host: Some(host), handle: Some(acct.handle), rev: None, at: Some(now) };
+            crate::calls::set_published(&ctx, &call, &id, Some(published)).await?;
             Ok(item(&id))
         })
     }
@@ -85,14 +87,14 @@ impl wisp_stuff_api::commands::Publisher for Publish {
             call.require_write("stuff:publish")?;
             let s = st(&slot)?;
             let Ok((a, token)) = s.signed_in().await else {
-                ctx.run_json(&call, "stuff.setPublished", json!({ "id": id, "published": null })).await?;
+                crate::calls::set_published(&ctx, &call, &id, None).await?;
                 return Err(WireError::conflict("You’re signed out of wisp Cloud, so it’s still up there: unpublish it from your account page."));
             };
             let host = host_of(&a.grid).to_owned();
             let url = format!("{}/api/sites/{}", a.grid.trim_end_matches('/'), enc(&id));
             let (status, v) = crate::net::call(&s.http, "DELETE", &url, Some(&token), None, &[]).await?;
             answer(&host, "DELETE", status, &v)?;
-            ctx.run_json(&call, "stuff.setPublished", json!({ "id": id, "published": null })).await?;
+            crate::calls::set_published(&ctx, &call, &id, None).await?;
             Ok(item(&id))
         })
     }

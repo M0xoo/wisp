@@ -17,6 +17,7 @@
 // `Failing<T>` is the transport contract's result (machines-api): a failure carries its hint; rare, never hot
 #![allow(clippy::result_large_err)]
 
+mod calls;
 mod cloud;
 pub mod computer;
 mod net;
@@ -139,7 +140,7 @@ impl Plugin for GridClientPlugin {
             view::publish(&st);
             let st2 = st.clone();
             st.ctx.spawn(async move {
-                let _ = peers::sync_computers(&st2).await;
+                calls::warn("the account's computers", peers::sync_computers(&st2).await);
             });
             Ok(())
         });

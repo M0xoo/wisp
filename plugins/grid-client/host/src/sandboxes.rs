@@ -8,17 +8,13 @@ use serde_json::{Value, json};
 use wisp_grid_client_api as api;
 use wisp_kernel::{Result, WireError};
 
+use crate::calls::{self, Peer};
 use crate::net;
 use crate::peers::host_port;
 use crate::state::St;
 
-async fn peers(st: &St) -> Vec<Value> {
-    let call = st.ctx.root_call();
-    st.ctx.run_json(&call, "machines.list", json!({})).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default()
-}
-
-fn machine_of(list: &[Value], id: &str) -> String {
-    list.iter().find(|p| p.pointer("/data/sandbox").and_then(Value::as_str) == Some(id)).and_then(|p| p.get("id").and_then(Value::as_str)).unwrap_or_default().to_owned()
+fn machine_of(list: &[Peer], id: &str) -> String {
+    list.iter().find(|p| p.field("sandbox") == Some(id)).map(|p| p.id.clone()).unwrap_or_default()
 }
 
 /// Makes one on the grid and adds its peer.
@@ -35,11 +31,20 @@ pub async fn create(st: &Arc<St>, name: &str) -> Result<api::Sandbox> {
     }
     let (host, port) = host_port(&url);
     let label = format!("Sandbox {}", if s("name").is_empty() { id.clone() } else { s("name") });
-    let call = st.ctx.root_call();
     // its own token: the peer opens that sandbox and nothing else
-    let made = st.ctx.run_json(&call, "machines.add", json!({ "name": label, "transport": "grid", "address": host, "port": port, "token": own.trim_start_matches("Bearer "), "data": { "url": url, "grid": a.grid, "handle": a.handle, "sandbox": id }, "connect": false })).await?;
-    let machine = made.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
-    let _ = st.ctx.run_json(&call, "machines.follow", json!({ "id": machine })).await;
+    let data = [("url", &url), ("grid", &a.grid), ("handle", &a.handle), ("sandbox", &id)].into_iter().map(|(k, v)| (k.to_owned(), json!(v))).collect();
+    let add = wisp_machines_api::AddArgs {
+        name: Some(label),
+        transport: Some(wisp_machines_api::GRID.into()),
+        address: Some(host),
+        port: Some(json!(port)),
+        token: Some(own.trim_start_matches("Bearer ").to_owned()),
+        data,
+        connect: Some(false),
+        ..wisp_machines_api::AddArgs::default()
+    };
+    let machine = calls::add(&st.ctx, add).await?;
+    calls::warn("machines.follow (a sandbox)", calls::follow(&st.ctx, &machine).await);
     Ok(api::Sandbox { id, name: s("name"), url, machine })
 }
 
@@ -49,7 +54,7 @@ pub async fn list(st: &Arc<St>) -> Result<Vec<api::Sandbox>> {
     if status >= 400 {
         return Err(net::refused(status, &v));
     }
-    let have = peers(st).await;
+    let have = calls::peers(&st.ctx).await;
     Ok(v.get("sandboxes").and_then(Value::as_array).into_iter().flatten().map(|x| {
         let s = |k: &str| x.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
         api::Sandbox { machine: machine_of(&have, &s("id")), id: s("id"), name: s("name"), url: s("url") }
@@ -63,10 +68,9 @@ pub async fn remove(st: &Arc<St>, id: &str) -> Result<Value> {
     if status >= 400 && status != 404 {
         return Err(net::refused(status, &v));
     }
-    let machine = machine_of(&peers(st).await, id);
+    let machine = machine_of(&calls::peers(&st.ctx).await, id);
     if !machine.is_empty() {
-        let call = st.ctx.root_call();
-        let _ = st.ctx.run_json(&call, "machines.remove", json!({ "id": machine })).await;
+        calls::warn("machines.remove (a sandbox)", calls::remove(&st.ctx, &machine).await);
     }
     Ok(json!({ "ok": true, "machine": machine }))
 }
@@ -150,7 +154,8 @@ mod tests {
 
     #[test]
     fn a_sandbox_peer_is_found_by_its_sandbox_id() {
-        let list = vec![json!({ "id": "m1", "data": { "computer": "c1" } }), json!({ "id": "m2", "data": { "sandbox": "0a1b2c3d" } })];
+        let peer = |id: &str, k: &str, v: &str| Peer { id: id.into(), data: [(k.to_owned(), json!(v))].into(), ..Peer::default() };
+        let list = vec![peer("m1", "computer", "c1"), peer("m2", "sandbox", "0a1b2c3d")];
         assert_eq!(machine_of(&list, "0a1b2c3d"), "m2");
         assert_eq!(machine_of(&list, "ffffffff"), "");
     }

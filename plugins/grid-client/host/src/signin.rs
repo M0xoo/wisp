@@ -96,9 +96,9 @@ async fn done(st: &Arc<St>, f: &SignIn, b: &Value, add_computer: bool) -> Result
     a.machine.clone_from(&machine);
     st.save_account(Some(a)).await?;
     if add_computer {
-        let _ = crate::computer::set(st, true, None).await;
+        crate::calls::warn("this computer on the grid", crate::computer::set(st, true, None).await);
     }
-    let _ = crate::peers::sync_computers(st).await;
+    crate::calls::warn("the account's computers", crate::peers::sync_computers(st).await);
     Ok((handle, machine))
 }
 
@@ -119,12 +119,9 @@ pub fn cancel(st: &St, id: &str) -> Result<SignIn> {
 pub async fn sign_out(st: &Arc<St>) -> Result<()> {
     crate::computer::stop(st);
     if let Some(a) = st.account() {
-        let call = st.ctx.root_call();
-        let list = st.ctx.run_json(&call, "machines.list", json!({})).await.unwrap_or(Value::Null);
-        for p in list.as_array().into_iter().flatten() {
-            let mine = p.pointer("/data/grid").and_then(Value::as_str) == Some(a.grid.as_str()) || p.get("id").and_then(Value::as_str) == Some(a.machine.as_str());
-            if mine && let Some(id) = p.get("id").and_then(Value::as_str) {
-                let _ = st.ctx.run_json(&call, "machines.remove", json!({ "id": id })).await;
+        for p in crate::calls::peers(&st.ctx).await {
+            if p.field("grid") == Some(a.grid.as_str()) || p.id == a.machine {
+                crate::calls::warn("machines.remove (signed out)", crate::calls::remove(&st.ctx, &p.id).await);
             }
         }
     }

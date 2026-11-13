@@ -136,7 +136,8 @@ pub async fn imported(st: &St, raw: &str, version: i64) -> Result<Value> {
     let l = link(raw).ok_or_else(|| WireError::invalid("not a link"))?;
     let grid = grid_of(st, &l)?;
     let token = st.token().await.filter(|_| st.account().is_some_and(|a| a.grid == grid));
-    let _ = net::call(&st.http, "POST", &format!("{grid}/api/shares/{id}/import"), token.as_deref(), Some(&json!({})), &[]).await;
+    // counted on the grid as taken in; the import stands without it
+    crate::calls::warn("the grid's import count", net::call(&st.http, "POST", &format!("{grid}/api/shares/{id}/import"), token.as_deref(), Some(&json!({})), &[]).await);
     let s = |k: &str| f.card.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
     st.save_import(Import { id, grid, url: s("url"), title: s("title"), kind: s("kind"), version: if version > 0 { version } else { f.version } }).await?;
     Ok(json!({ "ok": true }))

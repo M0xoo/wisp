@@ -202,8 +202,8 @@ async fn serve(st: &St, local: &Client<HttpConnector, Body>, port: u16, req: htt
         }
         let Ok(b) = http_body_util::Limited::new(body, 64 * 1024).collect().await.map(http_body_util::Collected::to_bytes) else { return answer(413, &json!({ "reply": "That message was too big." })) };
         let args: Value = serde_json::from_slice(&b).unwrap_or(Value::Null);
-        return match st.ctx.run_json(&st.ctx.root_call(), "channels.routed", args).await {
-            Ok(out) => answer(u16::try_from(out["status"].as_u64().unwrap_or(200)).unwrap_or(200), &out["body"]),
+        return match crate::calls::routed(&st.ctx, args).await {
+            Ok(out) => answer(out.status, &out.body),
             Err(e) => answer(e.status(), &json!({ "reply": e.message })),
         };
     }

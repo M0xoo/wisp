@@ -4781,6 +4781,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "wisp-channels-api",
  "wisp-grid-client-api",
  "wisp-grid-client-core",
  "wisp-kernel",
