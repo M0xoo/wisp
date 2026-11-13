@@ -3,8 +3,8 @@
 // with Rename, View ›, Goal ›, Copy ›, Files ›). The shell's taskMenu lays it out, as it does the open task's More.
 // Pure: which items show and what they say.
 
-import { taskMenu, type TaskMenuEntry } from '@wisp/shell';
-import type { MenuEntry, MenuItem } from '@wisp/ui';
+import { taskMenu, type TaskMenuEntry } from '@wisp/shell/pure';
+import type { MenuEntry, MenuItem } from '@wisp/ui/pure';
 import type { SessionRow } from '../types.ts';
 import { busy } from './row.ts';
 import { isForLater } from './sections.ts';

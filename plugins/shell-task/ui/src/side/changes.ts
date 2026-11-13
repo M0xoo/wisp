@@ -1,7 +1,7 @@
 // The Changes pane's pure half (v1 features/panel.js changes): what the task's turns changed, file by file,
 // as the kit's Diff reads it. A turn's `body.changes` (runtime's FileChange: file, op, edits of before → after)
 // becomes one DiffFile per file, its edits in order, each edit a hunk of a line diff (kept lines as context).
-import { isEnvFile, maskEdit, type DiffFile, type DiffHunk, type DiffLine, type DiffStatus } from '@wisp/ui';
+import { isEnvFile, maskEdit, type DiffFile, type DiffHunk, type DiffLine, type DiffStatus } from '@wisp/ui/pure';
 
 export interface FileChange {
   readonly file: string;

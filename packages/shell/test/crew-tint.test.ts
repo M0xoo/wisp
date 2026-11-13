@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { spiritCode } from '@wisp/ui';
+import { spiritCode } from '@wisp/ui/pure';
 import { crewTint, glowOf } from '../src/frame/crew-tint.ts';
 
 test('a_picked_crew_member_tints_the_list_with_their_glow_unless_the_setting_or_their_tint_says_none', () => {

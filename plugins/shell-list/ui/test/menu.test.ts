@@ -2,8 +2,8 @@
 // ones plugins attach to `shell.row:menu` placed by their section / submenu (View ›, Goal ›, Copy ›, Files ›), a line
 // between sections, Delete alone; v2's own Pin and Mark read after every v1 entry (the owner, round 30).
 import { expect, test } from 'vitest';
-import type { TaskMenuEntry } from '@wisp/shell';
-import type { MenuEntry } from '@wisp/ui';
+import type { TaskMenuEntry } from '@wisp/shell/pure';
+import type { MenuEntry } from '@wisp/ui/pure';
 import { rowMenu } from '../src/model/menu.ts';
 import type { SessionRow } from '../src/types.ts';
 

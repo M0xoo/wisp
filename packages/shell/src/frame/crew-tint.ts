@@ -1,7 +1,7 @@
 // The crew tint (v1 crew.js paintCrewTint, panelTint, glowOf; #768), DOM-free: a member picked on the rail gives the
 // list beside it and its top bar a very light wash of their colour, so a glance says whose jobs it holds. None when
 // nothing is picked, the setting (`crew.tint`) is off, or their tint is none.
-import { isSpirit, parseSpirit } from '@wisp/ui';
+import { isSpirit, parseSpirit } from '@wisp/ui/pure';
 
 export interface TintMember {
   readonly id: string;

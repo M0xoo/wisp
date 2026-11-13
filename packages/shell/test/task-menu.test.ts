@@ -1,7 +1,7 @@
 // A task's menu (src/task-menu.ts, v1 #786 actions.js taskMenuHtml): sections with a line between them, View, Goal,
 // Copy and Files submenus, a submenu of one inline, Delete alone, v2's Pin and Mark read after it.
 import { expect, test } from 'vitest';
-import type { MenuEntry } from '@wisp/ui';
+import type { MenuEntry } from '@wisp/ui/pure';
 import { menuEntryOf, taskMenu, type TaskMenuEntry } from '../src/task-menu.ts';
 import type { ResolvedExtension } from '../src/contract.ts';
 

@@ -2,7 +2,7 @@
 // task's More build it here, so both say the same things in the same groups. Sections go from the task itself to
 // where to look, what to keep and, last, Delete; views, the goal, copies and files fold into submenus, so the menu
 // stays about a dozen rows. v2's own Pin and Mark read come after every v1 entry (the owner, round 30). Pure.
-import { menuSections, type MenuEntry, type MenuItem, type MenuSeparator, type MenuGroup, type IconName } from '@wisp/ui';
+import { menuSections, type MenuEntry, type MenuItem, type MenuSeparator, type MenuGroup, type IconName } from '@wisp/ui/pure';
 import type { ExtensionProps, ResolvedExtension, TaskMenuSection, TaskMenuSub } from './contract.ts';
 
 /** One entry of a task's menu and where it goes: the shell's, the list's or a plugin's (`bar.section`, `bar.sub`). */

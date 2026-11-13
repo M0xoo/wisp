@@ -2,7 +2,7 @@
 // it. DOM-free. The frame is `sandbox="allow-scripts"` (its own opaque origin: no cookies, no wisp API, no popups) and
 // the CSP comes first, so a later policy can only tighten it. Unlike the app block's, scripts, styles and fonts may
 // come from https CDNs (a chart library); it still can't fetch or send anything.
-import { themeCss, type FrameScheme } from '@wisp/ui';
+import { themeCss, type FrameScheme } from '@wisp/ui/pure';
 
 const CSP =
   "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; media-src data: blob:; connect-src 'none'; form-action 'none'";
