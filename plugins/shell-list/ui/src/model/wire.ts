@@ -31,6 +31,12 @@ export function flatSession(raw: SessionRow | undefined): SessionRow | undefined
   // whose crew job it is: the crew's note in `ext` (CrewExt), read as v1's `crew`
   const job = obj(obj(out['ext'])?.['wisp.crew']);
   if (job && typeof job['id'] === 'string' && out['crew'] === undefined) out['crew'] = { id: job['id'], ...(typeof job['job'] === 'string' && { job: job['job'] }) };
+  // what's scheduled on it: wisp.later's mirror in `ext` (LaterExt), read as v1's `later`, so a task waiting on a
+  // follow-up or an agent's check-in sits in Scheduled, not Needs you (v1 0.56.0)
+  const later = obj(out['ext'])?.['wisp.later'];
+  const items = obj(later)?.['later'];
+  // soonest first: the row's line and Scheduled's order read the first (the mirror keeps them in the order they were set)
+  if (Array.isArray(items) && items.length && out['later'] === undefined) out['later'] = [...(items as { at?: number }[])].sort((x, y) => (x.at ?? 0) - (y.at ?? 0));
   const flat = out as unknown as SessionRow;
   cache.set(raw, flat);
   return flat;

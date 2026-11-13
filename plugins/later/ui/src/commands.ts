@@ -29,6 +29,13 @@ function patchRow<T extends object>(base: EntityReader, kind: string, key: strin
 
 const session = (base: EntityReader, key: string, next: (row: SessionRow) => Partial<Record<keyof SessionRow, unknown>>): EntityOps => patchRow<SessionRow>(base, KIND.session, key, next);
 const listOrNone = (list: LaterView[]): LaterView[] | undefined => (list.length ? list : undefined);
+type ExtRow = SessionRow & { body?: { ext?: Record<string, { later?: LaterView[] } | undefined> } };
+/** What's scheduled on a task: the flat list (v1's row, an earlier patch), else wisp.later's mirror in the server
+ * row's `body.ext` (LaterFoot reads the same). */
+export const laterOf = (s: SessionRow): LaterView[] => s.later ?? (s as ExtRow).body?.ext?.['wisp.later']?.later ?? [];
+/** The list after a change: emptied, it stays as `[]` when it came from the mirror (removing a flat list that isn't
+ * there would leave the mirror showing what was just taken away). */
+const after = (s: SessionRow, list: LaterView[]): LaterView[] | undefined => (s.later ? listOrNone(list) : list);
 
 export interface AddArgs {
   sessionId: string;
@@ -45,7 +52,7 @@ export const addFollowUp = defineCommand<AddArgs, LaterView>({
   wire: bareSession,
   optimistic: (base, a) =>
     session(base, a.sessionId, (s) => ({
-      later: sortLater([...(s.later ?? []), { id: a.tmp, at: a.at, text: a.text, by: 'user', setAt: a.setAt, ...(a.remind && { remind: true as const }) }]),
+      later: sortLater([...laterOf(s), { id: a.tmp, at: a.at, text: a.text, by: 'user', setAt: a.setAt, ...(a.remind && { remind: true as const }) }]),
     })),
 });
 
@@ -56,12 +63,18 @@ export const editFollowUp = defineCommand<EditArgs>({
   wire: bareSession,
   optimistic: (base, a) =>
     session(base, a.sessionId, (s) => {
-      const list = s.later ?? [];
-      if ('now' in a) return { later: listOrNone(list.filter((l) => l.id !== a.item)) };
+      const list = laterOf(s);
+      if ('now' in a) return { later: after(s, list.filter((l) => l.id !== a.item)) };
       if ('text' in a) return { later: list.map((l) => (l.id === a.item ? { ...l, text: a.text } : l)) };
       return { later: sortLater(list.map((l) => (l.id === a.item ? { ...l, at: a.at } : l))) };
     }),
 });
+
+/** What an edit in place sends: the new text, or nothing when it was left, emptied or unchanged. */
+export function editedText(was: string, text: string | undefined): string | undefined {
+  const next = text?.trim();
+  return next && next !== was.trim() ? next : undefined;
+}
 
 /** Snooze… a reminder that came due: it goes back to Scheduled at that time. */
 export const snoozeReminder = defineCommand<{ sessionId: string; at: number; tmp: string; setAt: number }>({
@@ -73,7 +86,7 @@ export const snoozeReminder = defineCommand<{ sessionId: string; at: number; tmp
     session(base, a.sessionId, (s) => ({
       reminder: undefined,
       unread: false,
-      later: sortLater([...(s.later ?? []), { id: a.tmp, at: a.at, text: s.reminder?.text ?? '', by: 'user', setAt: a.setAt, remind: true as const }]),
+      later: sortLater([...laterOf(s), { id: a.tmp, at: a.at, text: s.reminder?.text ?? '', by: 'user', setAt: a.setAt, remind: true as const }]),
     })),
 });
 
@@ -81,7 +94,7 @@ export const cancelFollowUp = defineCommand<{ sessionId: string; item: string }>
   id: 'later.cancel',
   owner: (a) => a.sessionId,
   wire: bareSession,
-  optimistic: (base, a) => session(base, a.sessionId, (s) => ({ later: listOrNone((s.later ?? []).filter((l) => l.id !== a.item)) })),
+  optimistic: (base, a) => session(base, a.sessionId, (s) => ({ later: after(s, laterOf(s).filter((l) => l.id !== a.item)) })),
 });
 
 /** Save for later / Unsave. at: when it was saved (Undo puts back the old time); state: Undo after Mark done. */
