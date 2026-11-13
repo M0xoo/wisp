@@ -451,6 +451,24 @@ impl Command for Save {
     type Out = Saved;
 }
 
+/// Fetches a project's remote now, while you type its task in New task (v1 POST /launch/warm), so Send doesn't wait
+/// on the network for the worktree's base. Answers at once; the fetch is shared while fresh (60 s). Additive
+/// (2026-11-13).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WarmArgs {
+    /// a project of yours, by its folder
+    pub path: String,
+}
+
+#[derive(Debug)]
+pub struct Warm;
+impl Command for Warm {
+    const ID: &'static str = "worktrees.warm";
+    const READ_ONLY: bool = true;
+    type Args = WarmArgs;
+    type Out = ();
+}
+
 #[derive(Debug)]
 pub struct Files;
 impl Command for Files {

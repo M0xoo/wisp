@@ -109,6 +109,19 @@ macro_rules! handle {
 
 pub fn register(s: &mut Setup, st: &Arc<State>) {
     handle!(s, st, api::Create, |st, ctx, call, args| create(&st, &ctx, &call, args).await);
+    handle!(s, st, api::Warm, |st, ctx, call, args| {
+        let mine = crate::source::my_project(&ctx, &call, &args.path).await?;
+        let (e, _, _) = st.parts(&ctx).await?;
+        // answered at once: the fetch goes on behind (git's own lock shares one in flight, fresh for 60 s)
+        ctx.spawn(async move {
+            if let Ok(here) = e.repo(&call, &mine.to_string_lossy()).await
+                && let Err(err) = here.base(&call, true).await
+            {
+                tracing::debug!(error = %err.message, "worktrees.warm: fetch");
+            }
+        });
+        Ok(())
+    });
     handle!(s, st, api::Ensure, |st, ctx, call, args| {
         let (e, _, _) = st.parts(&ctx).await?;
         Ok(e.ensure(&call, &args.worktree).await?)

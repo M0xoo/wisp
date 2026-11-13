@@ -39,6 +39,16 @@ fn project_root(path: &str, projects: &[Resource]) -> Option<PathBuf> {
     projects.iter().any(|r| r.spec.get("path").and_then(Value::as_str).is_some_and(same)).then(|| full.into_path())
 }
 
+/// `path` when it's a project of yours (by its full folder), else refused: never the server's own folder.
+pub(crate) async fn my_project(ctx: &Ctx, call: &Call, path: &str) -> Result<PathBuf> {
+    let ask = res::ExportArgs { kinds: vec!["project".into()], include: Vec::new() };
+    let mine = ctx.run::<res::Export>(call, ask).await.unwrap_or_else(|err| {
+        tracing::warn!(error = %err.message, "worktrees: resources.export");
+        Vec::new()
+    });
+    project_root(path, &mine).ok_or_else(|| WireError::forbidden("Only a project of yours is listed or fetched here."))
+}
+
 fn gone() -> WireError {
     WireError::not_found("That file isn't in this task's folder any more.")
 }
@@ -90,16 +100,7 @@ pub(crate) fn register(s: &mut Setup) {
     });
     s.command::<api::Files, _, _>(|ctx, call, a| async move {
         // a project of yours by its folder (New task's @), else the task's folder
-        let root = if a.id.is_empty() {
-            let ask = res::ExportArgs { kinds: vec!["project".into()], include: Vec::new() };
-            let mine = ctx.run::<res::Export>(&call, ask).await.unwrap_or_else(|err| {
-                tracing::warn!(error = %err.message, "worktrees: resources.export");
-                Vec::new()
-            });
-            project_root(&a.path, &mine).ok_or_else(|| WireError::forbidden("Only a project of yours lists its files here."))?
-        } else {
-            folder(&ctx, &call, &a.id).await?.0
-        };
+        let root = if a.id.is_empty() { my_project(&ctx, &call, &a.path).await? } else { folder(&ctx, &call, &a.id).await?.0 };
         let proc = ctx.service::<Proc>()?;
         let args: Vec<String> = ["ls-files", "--cached", "--others", "--exclude-standard", "-z"].map(str::to_owned).to_vec();
         let opts = ExecOpts {

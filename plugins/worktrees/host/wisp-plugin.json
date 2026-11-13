@@ -51,6 +51,7 @@
       { "id": "worktrees.source", "title": "Open a file of a task's folder (the file view)", "readOnly": true },
       { "id": "worktrees.save", "title": "Save a file of a task's folder (refused while it runs, or if it changed)" },
       { "id": "worktrees.files", "title": "A task folder's (or a project's) files, as git lists them", "readOnly": true },
+      { "id": "worktrees.warm", "title": "Fetch a project's remote now, while its task is typed (New task)", "readOnly": true },
       { "id": "worktrees.grep", "title": "Where a name is declared in a task's folder (Go to definition)", "readOnly": true },
       {
         "id": "worktrees.create",
