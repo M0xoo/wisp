@@ -473,13 +473,23 @@ alone.
    - the 46 remaining views at v1 parity;
    - the new screens: Repo tab, blame gutter, import, Share setup, Setup section, My shares, Automations "When" picker and crew Wakes;
    - composer `@` and `/`.
-   - **Pick several projects (owner, 2026-11-13).** The project selector picks more than one project: the list
-     shows the tasks of every project picked (All projects stays one choice). In the ⌘P switcher, Enter switches to one
-     project as today and a modifier (⌘-Enter / ⌘-click, with a visible checkbox per row) adds or removes a project;
-     ⌘1–⌘9 still go to one. The top-bar selector names the pick ("api, web" or "3 projects"). Saved like today's choice,
-     restored after a reload, the same on the phone. With it, F-comp-47: New task can work in several folders (the
-     projects picked, or + beside another project as in v1), passed as `dirs` (server side built). Named tests + seen in
-     Chrome at 1440 and 390.
+   - **Pick several projects (owner, 2026-11-13).** Clicking a project selects *only* that project, as today; adding
+     more is a separate, visible act. Design (lead):
+     - **Each project row (selector menu, ⌘P switcher)** has a small **+** at its right edge: shown on hover and on the
+       focused row on desktop, always shown on touch. **+** adds the project to the pick without closing the menu;
+       once added, the row shows a check and the **+** becomes **−** (remove). Clicking the row's name still means
+       "only this one" and closes the menu. Keyboard: Enter = only this, ⌘-Enter (Ctrl-Enter) = add/remove, ⌘1–⌘9 = only.
+     - **The top-bar button** names the pick: one project as today (its dot + name); two or three as "api + web"
+       (dots stacked, names truncated in the middle); more as "4 projects" with the dots. Its tooltip lists them.
+     - **A pick of several** shows a slim strip at the top of the list: each project as a removable chip (× on hover,
+       always on touch) and **Only api** / **All projects** links, so leaving the multi-pick is one click. The task
+       list groups rows by project only when several are picked (each group headed by the project's dot and name).
+     - **All projects** stays a single choice that clears the pick. The pick is saved per device like today's choice
+       and restored after a reload. Need-you counts in the menu stay per project; the button shows their sum.
+     - **Phone:** the same rows with **+** always visible; the strip becomes a horizontal chip row that scrolls.
+     - **New task** in a multi-pick starts in the first picked project and offers the others as "Also work in" chips
+       (F-comp-47, `dirs`; server side built); the v1 **+** beside another project there works the same way.
+     Named tests (pick, add, remove, only, all, restore, ⌘ keys) and seen in Chrome at 1440 and 390, light and dark.
    - Start by wiring the built screens to the real server: in the demo (`wisp serve` with the fake claude), `/task/<id>`
      mounts no task view (2026-11-09 check-in).
      Done (docs/v2-round-7.md): six causes fixed; the list and the task mount on `wisp serve`. Left: the row squeeze,
