@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: channel tasks report back where they started.** A task started from Slack, Discord, GitHub, email or Telegram reports in its thread when it finishes or asks, and says once when it waits for your OK in wisp. Telegram works on a sleeping cloud wisp through the grid. "Asks" notifications fire again, and desktop notifications follow the Settings switch.
 - **Pick the account a task runs on.** With two or more accounts for Claude Code or Codex, the harness · model picker has **Account**: Auto (your saved one; one at its limit is skipped when you start a task), then each account. A signed-out one can't be picked. The bar says which (*Codex · Work*).
 - **Plan budget, as v1 showed it.** Settings → Usage shows each account's windows with the line under each bar (when it resets, *at this pace, runs out …*, *Automations wait*), Codex's banked resets, *Past your plan*, **Where the weekly window went** (the tasks that used it, each opens; what ran outside wisp) and, with two accounts, **tokens per turn by account** per model with Copy report. In v2 `turn.ended` carries input, output and cached tokens, and `budget.compare` answers the comparison.
 - **Settings → Agents tells you how to install what's missing.** A harness, git or gh that isn't found shows this OS's one-line install to copy and a Docs link. Re-check now looks again on every online computer too and says what it found.
