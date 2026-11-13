@@ -1,5 +1,11 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 1e58037b (2026-11-13).** `plugins/claude/core/tests/g6.rs:105` and `:181` (G6 33/34):
+`compact-real` result event #9 now has `stats.contextWindow` (added by the #785 port), the v1 recording doesn't. Check
+what v1 #785 (`git show fd4d280a`) emits: if v1 now has a context window too, refresh the recording the way G6's
+fixtures were made; if it's a v2-only additive field, make G6 compare v1's fields and list the additive ones by name
+(not a blanket ignore). G6 back to 34/34.
+
 **Bug (found 2026-11-13, round 64):** `plugins/channels/host` `KPhone::projects` reads `/projects` from the
 `resources.export` answer, but that command returns `Vec<Resource>` (an array), so a channel's context never gets the
 projects or the default project. Fix with a test that a channel task lands in the right project.
