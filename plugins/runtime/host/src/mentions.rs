@@ -21,7 +21,13 @@ impl Runtime {
     async fn stuff_note(&self, found: &[wisp_runtime_core::prompt::mentions::Mention], tools: bool) -> String {
         let mut lines = Vec::new();
         for m in found {
-            let text = self.host.command("stuff.describe", serde_json::json!({ "id": m.id })).await.ok().and_then(|v| v.get("text").and_then(serde_json::Value::as_str).map(str::to_owned));
+            let text = match crate::calls::run::<wisp_stuff_api::commands::Describe>(&*self.host, wisp_stuff_api::commands::Id { id: m.id.clone() }).await {
+                Ok(t) => t.map(|t| t.text),
+                Err(err) => {
+                    tracing::warn!(error = %err.message, stuff = %m.id, "runtime: stuff.describe");
+                    None
+                }
+            };
             lines.push(text.unwrap_or_else(|| format!("- `{}` ({}): no longer in My Stuff.", m.id, m.title)));
         }
         let how = if tools { "Use them from these paths. To change one for the user, save the new version with wisp_save and its id." } else { "Use them from these paths; leave the copies there as they are." };

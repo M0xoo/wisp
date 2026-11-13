@@ -576,11 +576,13 @@ impl wisp_router_api::service::RouterApi for Limits {
 #[tokio::test(flavor = "multi_thread")]
 #[allow(clippy::many_single_char_names)] // r, t, l, s, w, n: one rig each, as the other tests name them
 async fn a_run_at_its_usage_limit_gets_its_card_and_waits_for_the_reset_when_settings_say() {
-    let accounts = serde_json::json!({ "accounts": [{ "id": "default", "label": "Me", "state": "limit", "kind": "personal" }, { "id": "w", "label": "Work", "state": "ready", "kind": "work" }] });
+    // wisp.accounts' and wisp.later's answers in the shapes their typed commands declare
+    let acct = |id: &str, label: &str, state: &str, kind: &str| serde_json::json!({ "id": id, "label": label, "email": "", "plan": "", "default": id == "default", "kind": kind, "state": state, "until": null, "why": "" });
+    let accounts = serde_json::json!({ "accounts": [acct("default", "Me", "limit", "personal"), acct("w", "Work", "ready", "work")] });
     let answers = |wait: bool| {
         let mut a: std::collections::BTreeMap<String, serde_json::Value> = [("budget.resetAt".to_owned(), serde_json::json!(4_102_444_800_000_i64)), ("accounts.cool".to_owned(), accounts.clone())].into();
         if wait {
-            a.insert("later.waitAtLimit".into(), serde_json::json!({ "id": "l1" }));
+            a.insert("later.waitAtLimit".into(), serde_json::json!({ "id": "l1", "sessionId": "t", "at": 4_102_444_800_000_i64, "text": "", "by": "limit", "setAt": 0 }));
         }
         a
     };

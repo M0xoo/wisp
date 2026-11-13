@@ -13,6 +13,8 @@ use wisp_kernel::{BoxFuture, Result as KResult, Setup, WireError};
 use wisp_runtime_api::commands as c;
 use wisp_runtime_api::harness::ResumeOptions;
 use wisp_runtime_api::model::Session;
+use wisp_terminal_api::commands as term;
+use wisp_terminal_api::{TermKind, TermState};
 
 use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
@@ -172,28 +174,41 @@ type Slot = crate::plugin::Slot;
 pub async fn open(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call, rt: &Arc<Runtime>, id: &str, follow: Option<&str>, size: (Option<f64>, Option<f64>)) -> KResult<Value> {
     let o = rt.terminal_argv(id, follow).await.map_err(WireError::from)?;
     let tui = rt.repo.session(id).await.is_ok_and(|s| term_of(&s).is_some());
-    let mut args = json!({ "kind": "takeover", "id": id, "argv": o.argv, "cwd": o.cwd, "tui": tui });
-    if let (Some(c), Some(r)) = size {
-        args["cols"] = json!(c);
-        args["rows"] = json!(r);
-    }
-    let out = ctx.run_json(call, "terminal.open", args).await?;
+    let (cols, rows) = match size {
+        (Some(c), Some(r)) => (Some(c), Some(r)),
+        _ => (None, None),
+    };
+    let args = term::OpenArgs { kind: TermKind::Takeover, id: id.to_owned(), argv: o.argv, cwd: o.cwd, cols, rows, tui };
+    let out = ctx.run::<term::Open>(call, args).await?;
     if let Some(text) = o.typed {
         let (ctx2, call2, id) = (ctx.clone(), call.clone(), id.to_owned());
         let fut: BoxFuture<'static, ()> = Box::pin(async move {
             tokio::time::sleep(std::time::Duration::from_millis(SETTLE_MS)).await;
-            let _ = ctx2.run_json(&call2, "terminal.input", json!({ "kind": "takeover", "id": id, "data": pasted(&text) })).await;
+            if let Err(err) = ctx2.run::<term::Input>(&call2, typed(&id, &text)).await {
+                tracing::warn!(error = %err.message, task = id, "runtime: the prompt typed into its terminal");
+            }
         });
         ctx.spawn(fut);
     }
-    Ok(out)
+    serde_json::to_value(out).map_err(|e| WireError::invalid(format!("terminal.open: {e}")))
+}
+
+/// `text` pasted into task `id`'s take over terminal.
+fn typed(id: &str, text: &str) -> term::InputArgs {
+    term::InputArgs { kind: TermKind::Takeover, id: id.to_owned(), data: Some(pasted(text)), ..term::InputArgs::default() }
 }
 
 /// A follow-up on a terminal task: typed into its terminal while it runs, else it opens again on it.
 pub async fn follow_up(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call, rt: &Arc<Runtime>, id: &str, text: &str) -> KResult<c::FollowedUp> {
-    let live = ctx.run_json(call, "terminal.get", json!({ "kind": "takeover", "id": id })).await.ok().filter(|t| t.is_object() && !matches!(t["state"].as_str(), Some("ended" | "failed")));
-    if live.is_some() {
-        ctx.run_json(call, "terminal.input", json!({ "kind": "takeover", "id": id, "data": pasted(text) })).await?;
+    let live = match ctx.run::<term::Get>(call, term::KindId { kind: TermKind::Takeover, id: id.to_owned() }).await {
+        Ok(t) => t.is_some_and(|t| !matches!(t.state, TermState::Ended | TermState::Failed)),
+        Err(err) => {
+            tracing::warn!(error = %err.message, task = id, "runtime: terminal.get (it opens again)");
+            false
+        }
+    };
+    if live {
+        ctx.run::<term::Input>(call, typed(id, text)).await?;
     } else {
         open(ctx, call, rt, id, Some(text), (None, None)).await?;
     }

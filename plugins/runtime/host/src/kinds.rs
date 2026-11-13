@@ -259,7 +259,7 @@ impl HarnessKind {
             None => Ok(()),
             Some(Install::Npm(pkg)) => {
                 let want = if h.pin.is_empty() { pkg } else { format!("{pkg}@{}", h.pin.trim_start_matches('v')) };
-                ctx.run_json(&call, "accounts.install", serde_json::json!({ "agent": name, "package": want })).await.map(drop)
+                ctx.run::<wisp_accounts_api::commands::Install>(&call, wisp_accounts_api::commands::InstallArgs { agent: name.to_owned(), package: Some(want) }).await.map(drop)
             }
             Some(Install::Brew(formula)) => {
                 let proc = ctx.service::<wisp_proc::Proc>()?;

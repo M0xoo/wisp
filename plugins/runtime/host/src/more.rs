@@ -632,28 +632,34 @@ impl Runtime {
     async fn sandbox_member(self: &Arc<Self>, lead: &Session, m: &Value, slot_name: &str, existing: Option<String>, prompt: &str) -> Result<String> {
         let wire = |e: wisp_kernel::WireError| RuntimeError::Invalid(e.message);
         if let Some((machine, id)) = existing.as_deref().and_then(|k| k.split_once('|')) {
-            let mid = format!("dlg-{}", wisp_kernel::ids::uuid7());
-            self.host.command("machines.route", json!({ "id": machine, "cmd": "runtime.followUp", "args": { "id": id, "text": prompt, "queue": true }, "mid": mid })).await.map_err(wire)?;
+            self.route(machine, "runtime.followUp", json!({ "id": id, "text": prompt, "queue": true })).await.map_err(wire)?;
             return Ok(format!("{machine}|{id}"));
         }
-        let placed = self.host.command("sandbox.place", json!({ "owner": { "lead": lead.id.0, "member": slot_name }, "cwd": lead.cwd })).await.map_err(wire)?;
-        let machine = str_at(&placed, "machine");
-        let mut args = json!({ "prompt": prompt, "cwd": str_at(&placed, "cwd"), "mode": lead.mode, "title": format!("{slot_name} · {}", lead.title) });
+        let place = wisp_sandbox_api::PlaceArgs { owner: json!({ "lead": lead.id.0, "member": slot_name }), cwd: Some(lead.cwd.clone()) };
+        let placed = crate::calls::run::<wisp_sandbox_api::Place>(&*self.host, place).await.map_err(wire)?;
+        let machine = placed.machine;
+        let mut args = json!({ "prompt": prompt, "cwd": placed.cwd, "mode": lead.mode, "title": format!("{slot_name} · {}", lead.title) });
         for k in ["agent", "model", "effort"] {
             let v = str_at(m, k);
             if !v.is_empty() {
                 args[k] = json!(v);
             }
         }
-        let mid = format!("dlg-{}", wisp_kernel::ids::uuid7());
-        let made = self.host.command("machines.route", json!({ "id": machine, "cmd": "runtime.create", "args": args, "mid": mid })).await.map_err(wire)?;
+        let made = self.route(&machine, "runtime.create", args).await.map_err(wire)?;
         Ok(format!("{machine}|{}", str_at(&made, "id")))
+    }
+
+    /// Runtime command `cmd` on sandbox `machine` (`machines.route`, typed; the routed command stays by name: it is
+    /// this plugin's own, run by the wisp over there).
+    async fn route(&self, machine: &str, cmd: &str, args: Value) -> wisp_kernel::Result<Value> {
+        let a = wisp_machines_api::RouteArgs { id: Some(machine.to_owned()), cmd: cmd.to_owned(), args, mid: format!("dlg-{}", wisp_kernel::ids::uuid7()) };
+        crate::calls::run::<wisp_machines_api::Route>(&*self.host, a).await
     }
 
     /// A sandbox member's report, read there; once it's done, its changes come into the lead's folder (once).
     async fn sandbox_report(self: &Arc<Self>, lead: &Session, key: &str) -> Option<Report> {
         let (machine, id) = key.split_once('|')?;
-        let route = |cmd: &str, args: Value| self.host.command("machines.route", json!({ "id": machine, "cmd": cmd, "args": args, "mid": format!("dlg-{}", wisp_kernel::ids::uuid7()) }));
+        let route = |cmd: &'static str, args: Value| self.route(machine, cmd, args);
         let s = route("runtime.get", json!({ "id": id })).await.ok()?;
         let state: SessionState = serde_json::from_value(s.get("state").cloned().unwrap_or_default()).unwrap_or(SessionState::Running);
         let done = state != SessionState::Running;
@@ -662,10 +668,10 @@ impl Runtime {
         let mut text = str_at(&last, "text");
         let brought = slot(lead).and_then(|m| m.get("brought")).and_then(Value::as_array).is_some_and(|b| b.iter().any(|x| x.as_str() == Some(key)));
         if done && !brought {
-            let b = self.host.command("sandbox.bring", json!({ "machine": machine, "from": str_at(&s, "cwd"), "into": lead.cwd })).await;
-            let note = match b {
-                Ok(b) if b.get("error").is_some_and(|e| !e.is_null()) => format!("\n\n(Its changes didn't come back: {})", str_at(&b, "error")),
-                Ok(b) if b.get("files").and_then(Value::as_u64).unwrap_or(0) > 0 => format!("\n\n(Its changes to {} file(s) are in your folder now.)", b["files"]),
+            let bring = wisp_sandbox_api::BringArgs { machine: machine.to_owned(), from: str_at(&s, "cwd"), into: lead.cwd.clone() };
+            let note = match crate::calls::run::<wisp_sandbox_api::Bring>(&*self.host, bring).await {
+                Ok(wisp_sandbox_api::Brought { error: Some(e), .. }) => format!("\n\n(Its changes didn't come back: {e})"),
+                Ok(b) if b.files > 0 => format!("\n\n(Its changes to {} file(s) are in your folder now.)", b.files),
                 Ok(_) => String::new(),
                 Err(e) => format!("\n\n(Its changes didn't come back: {})", e.message),
             };
@@ -673,7 +679,9 @@ impl Runtime {
             let _g = self.task_lock(lead.id.as_str()).await;
             if let Ok(mut l) = self.repo.session(lead.id.as_str()).await {
                 with_slot(&mut l.ext, |x| push(x, "brought", json!(key)));
-                let _ = self.persist(&mut l, Vec::new()).await;
+                if let Err(err) = self.persist(&mut l, Vec::new()).await {
+                    tracing::warn!(error = %err, task = lead.id.as_str(), "runtime: a sandbox member's changes, marked brought");
+                }
             }
         }
         let cost = last.pointer("/stats/costUsd").and_then(Value::as_f64);

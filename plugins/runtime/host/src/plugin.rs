@@ -147,7 +147,13 @@ macro_rules! cmd {
 
 /// A catalogue event for the fact this plugin owns (ADR-0021); never fails the command that caused it.
 async fn track(ctx: &wisp_kernel::Ctx, event: &str, props: serde_json::Value) {
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": event, "props": props })).await;
+    let props = match props {
+        serde_json::Value::Object(m) => m,
+        _ => serde_json::Map::new(),
+    };
+    if let Err(err) = ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), wisp_telemetry_api::TrackArgs { event: event.into(), props }).await {
+        tracing::warn!(error = %err.message, event, "runtime: telemetry.track");
+    }
 }
 
 /// How often the retention sweep looks.
@@ -274,7 +280,14 @@ fn commands(s: &mut Setup, slot: &Slot) {
             let made = rt.create(args).await.map_err(WireError::from)?;
             let made = if wants_tree {
                 let mode = mode.map(|m| serde_json::to_value(m).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()).unwrap_or_default();
-                let wt = ctx.run_json(&call, "worktrees.create", serde_json::json!({ "sessionId": made.id.as_str(), "cwd": cwd, "title": title, "mode": mode })).await.ok().filter(serde_json::Value::is_object);
+                let wa = wisp_worktrees_api::CreateArgs { session_id: made.id.0.clone(), cwd, title, mode };
+                let wt = match ctx.run::<wisp_worktrees_api::Create>(&call, wa).await {
+                    Ok(w) => w.and_then(|w| serde_json::to_value(w).ok()),
+                    Err(err) => {
+                        tracing::warn!(error = %err.message, task = made.id.as_str(), "runtime: worktrees.create (it runs in its folder)");
+                        None
+                    }
+                };
                 let failed = match wt.as_ref().and_then(|w| w.get("path")).and_then(serde_json::Value::as_str) {
                     Some(dir) if !setup.is_empty() => crate::specs::run_setup(&proc, dir, &setup).await,
                     _ => None,
@@ -327,7 +340,7 @@ fn for_agents(s: &mut Setup, slot: &Slot) {
             let capped = call.caller().set.starts_with("agent:capped");
             let out = r.agent_sessions(&a, capped).await.map_err(WireError::from)?;
             let agent = r.get(&a.session).await.map(|x| x.agent).unwrap_or_default();
-            let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "wisp_sessions", "props": { "agent": agent } })).await;
+            track(&ctx, "wisp_sessions", serde_json::json!({ "agent": agent })).await;
             Ok(out)
         }
     });
@@ -339,7 +352,7 @@ fn for_agents(s: &mut Setup, slot: &Slot) {
             let capped = call.caller().set.starts_with("agent:capped");
             let out = crate::env_view::mask_agent_text(&ctx, r.agent_session(&a, capped).await.map_err(WireError::from)?);
             let agent = r.get(&a.session).await.map(|x| x.agent).unwrap_or_default();
-            let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "wisp_session", "props": { "agent": agent } })).await;
+            track(&ctx, "wisp_session", serde_json::json!({ "agent": agent })).await;
             Ok(out)
         }
     });
@@ -393,10 +406,11 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
             if p.run.is_empty() {
                 return Err(WireError::invalid(format!("{name} has no run scripts (run: in its project)")));
             }
-            let args = serde_json::json!({ "kind": "shell", "id": format!("run:{name}"), "argv": ["sh", "-c", p.run.join(" && ")], "cwd": p.path });
-            let out = ctx.run_json(&call, "terminal.open", args).await?;
+            let argv = vec!["sh".to_owned(), "-c".to_owned(), p.run.join(" && ")];
+            let args = wisp_terminal_api::commands::OpenArgs { kind: wisp_terminal_api::TermKind::Shell, id: format!("run:{name}"), argv, cwd: p.path.clone(), ..Default::default() };
+            let out = ctx.run::<wisp_terminal_api::commands::Open>(&call, args).await?;
             track(&ctx, "run_app", serde_json::json!({ "source": "project" })).await;
-            Ok(out)
+            serde_json::to_value(out).map_err(|e| WireError::invalid(format!("terminal.open: {e}")))
         }
     });
     s.command::<c::Sessions, _, _>(|ctx, _call, a| async move {
