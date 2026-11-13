@@ -10,7 +10,33 @@
   },
   "permissions": [
     "plugins:manage",
-    "proc:exec{bin:git}"
+    "proc:exec{bin:git}",
+    "automations:read",
+    "budget:read",
+    "connectors:list",
+    "crew:read",
+    "git:diff",
+    "git:read",
+    "git:status",
+    "history:blame",
+    "history:list",
+    "later:list",
+    "machines:list",
+    "plugins:read",
+    "resources:read",
+    "runtime:activity",
+    "runtime:agents",
+    "runtime:get",
+    "runtime:list",
+    "runtime:presentation",
+    "runtime:sessions",
+    "runtime:turns",
+    "runtime:usage",
+    "settings:read",
+    "ship:details",
+    "ship:view",
+    "stuff:read",
+    "workflows:read"
   ],
   "activation": [
     "onStartup"
@@ -35,7 +61,11 @@
         "title": "Remove a plugin you installed"
       },
       { "id": "plugins.trust", "title": "Trust a plugin you installed (or take the trust back): it reloads" },
-      { "id": "plugins.ui", "title": "What your untrusted plugins show in the app (their UI modules)", "readOnly": true }
+      { "id": "plugins.ui", "title": "What your untrusted plugins show in the app (their UI modules)", "readOnly": true },
+      { "id": "plugins.agent.list", "title": "The plugins you have, in plain words, for an agent writing one (wisp_plugins)", "readOnly": true },
+      { "id": "plugins.agent.schema", "title": "The reference for writing an untrusted plugin: manifest, kit descriptors, commands, examples (wisp_plugin_schema)", "readOnly": true },
+      { "id": "plugins.agent.data", "title": "A sample of what a read-only command answers, for a plugin being written (wisp_plugin_data)", "readOnly": true },
+      { "id": "plugins.agent.check", "title": "Check a plugin without installing it: what it does, or every problem (wisp_plugin_check)", "readOnly": true }
     ]
   }
 }

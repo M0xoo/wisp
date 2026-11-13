@@ -5,7 +5,6 @@
 //! view, a block renderer, a toolbar button); a module is 256 KB at most and never read from outside its folder.
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use wisp_kernel::{Ctx, Result};
 
 /// The largest module the app runs.
@@ -23,34 +22,10 @@ pub struct RemoteUi {
     pub module: String,
 }
 
-/// A module's path inside its plugin's folder, from `component` (`./ui.js#default`, as the manifest checker asks):
-/// relative, a `.js` file, no way out. None: not one.
-pub fn module_path(component: &str) -> Option<String> {
-    let path = component.split('#').next().unwrap_or_default();
-    let path = path.strip_prefix("./").unwrap_or(path);
-    let p = std::path::Path::new(path);
-    let ok = p.extension().is_some_and(|e| e == "js")
-        && !path.starts_with('/')
-        && !path.contains('\\')
-        && p.components().all(|c| matches!(c, std::path::Component::Normal(_)));
-    ok.then(|| path.to_owned())
-}
-
-/// `(id, place, title, component)` for each entry of a manifest's `contributes.ui` an untrusted UI may have.
-pub fn entries(contributes: &std::collections::BTreeMap<String, Value>) -> Vec<(String, String, String, String)> {
-    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-    contributes
-        .get("ui")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|x| {
-            let place = x.get("attachTo").map(|a| s(a, "id")).unwrap_or_default();
-            let path = module_path(&s(x, "component"))?;
-            PLACES.contains(&place.as_str()).then(|| (s(x, "id"), place, s(x, "title"), path))
-        })
-        .collect()
-}
+/// A module's path inside its plugin's folder (`./ui.js#default` → `ui.js`); and the `contributes.ui` entries an
+/// untrusted UI may have. In wisp-plugins-core, so `wisp_plugin_check` reads a plugin exactly as this serves it.
+pub use wisp_plugins_core::check::entries;
+pub use wisp_plugins_core::module_path;
 
 pub async fn list(ctx: &Ctx) -> Result<Vec<RemoteUi>> {
     let home = ctx.service::<wisp_kernel::services::Paths>()?;
@@ -75,7 +50,7 @@ pub async fn list(ctx: &Ctx) -> Result<Vec<RemoteUi>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     #[test]
     fn an_untrusted_ui_is_a_module_in_its_own_folder_shown_only_where_it_may() {
@@ -100,5 +75,14 @@ mod tests {
             vec![("user.theme.pane".into(), "shell.settings".into(), "Theme".into(), "ui.js".into())],
             "not the frame, nothing outside its folder"
         );
+    }
+
+    #[test]
+    fn the_places_an_untrusted_ui_may_show_are_the_kits_and_its_largest_module_too() {
+        let kit = wisp_plugins_core::kit::kit();
+        let mut places = PLACES.to_vec();
+        places.sort_unstable();
+        assert_eq!(kit.places.keys().map(String::as_str).collect::<Vec<_>>(), places, "kit.json places = remote::PLACES");
+        assert_eq!(kit.limits.module, MAX_MODULE);
     }
 }

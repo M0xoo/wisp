@@ -58,9 +58,7 @@ pub fn read(dir: &Path, text: &str, trusted: bool) -> Result<UserPlugin> {
 }
 
 /// The folder a plugin goes in: `user.my-tool` → `my-tool`.
-pub fn slug(id: &str) -> String {
-    id.trim_start_matches("user.").chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '-' }).collect()
-}
+pub use wisp_plugins_core::slug;
 
 /// Every plugin under `<home>/plugins` (startup: blocking reads are fine there). A folder that doesn't read as a
 /// plugin is skipped with a warning; it never stops wisp starting.

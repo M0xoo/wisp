@@ -10,7 +10,7 @@
       "id": "agent:session",
       "allow": [
         "runtime:*", "session:*", "stuff:*", "crew:*", "git:*", "fs:*", "topic:read", "ask:*", "later:*", "goal:*",
-        "connectors:*", "machines:*", "sandbox:*", "prs:*", "ship:agent.*", "notice:send", "plugins:read", "blob:*", "budget:read", "mcp:call",
+        "connectors:*", "machines:*", "sandbox:*", "prs:*", "ship:agent.*", "notice:send", "plugins:read", "plugins:agent.*", "blob:*", "budget:read", "mcp:call",
         "history:blame", "history:requests", "events:tail", "events:why", "history:resumeRequest", "automations:read"
       ],
       "deny": [

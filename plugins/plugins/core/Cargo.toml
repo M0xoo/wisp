@@ -1,6 +1,6 @@
 [package]
 name = "wisp-plugins-core"
-description = "pure, sans-IO logic of wisp.plugins: v1 spell checks, conversion, the plugin table, hooks, the Make a plugin guide"
+description = "pure, sans-IO logic of wisp.plugins: the reference an agent writes an untrusted plugin from, the check that validates one without installing it, data samples"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +8,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wisp-kernel.workspace = true
 
 [lints]
 workspace = true

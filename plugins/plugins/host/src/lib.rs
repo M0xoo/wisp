@@ -2,6 +2,7 @@
 //! `plugins.setEnabled` (the kernel switches it on or off, and everything it registered with it); the
 //! `plugin` resource kind (ADR-0028) does the same from a formula, on apply and at start.
 
+mod agent;
 mod install;
 mod kinds;
 pub mod remote;
@@ -87,6 +88,8 @@ impl Plugin for PluginsPlugin {
         s.command::<Uninstall, _, _>(|ctx, _call, a| async move { install::uninstall(&ctx, &a).await });
         s.command::<Trust, _, _>(|ctx, _call, a| async move { install::trust(&ctx, &a).await });
         s.command::<Ui, _, _>(|ctx, _call, _a| async move { remote::list(&ctx).await });
+        // ADR-0048, ADR-0040: what an agent writing a plugin reads and runs (wisp_plugins, wisp_plugin_*)
+        agent::register(s);
         Ok(())
     }
 }

@@ -1,0 +1,86 @@
+[
+ {
+  "ask": "A Settings pane that lists my plugins and which are on",
+  "manifest": {
+   "wispPlugin": 1,
+   "id": "user.my-plugins",
+   "name": "My plugins",
+   "version": "1.0.0",
+   "api": "^1",
+   "description": "Lists the plugins this wisp has and which are on.",
+   "permissions": [
+    "plugins:read"
+   ],
+   "activation": [
+    "onView:user.my-plugins.pane"
+   ],
+   "contributes": {
+    "ui": [
+     {
+      "id": "user.my-plugins.pane",
+      "attachTo": {
+       "id": "shell.settings",
+       "input": "pane"
+      },
+      "component": "./ui.js#default",
+      "title": "My plugins"
+     }
+    ]
+   }
+  },
+  "files": {
+   "ui.js": "// runs in a Worker: no DOM, no network. It only describes kit components and calls wisp as itself.\nconst show = (rows, error) => wisp.render({ c: 'Stack', p: { gap: '2' }, k: [\n  { c: 'Inline', p: { justify: 'between' }, k: [\n    { c: 'Text', p: { weight: 'semibold' }, k: [`${rows.length} plugins`] },\n    { c: 'Button', p: { label: 'Refresh', size: 'sm', variant: 'ghost' }, on: 'refresh' },\n  ] },\n  ...(error ? [{ c: 'Callout', p: { tone: 'bad', title: error } }] : []),\n  ...rows.map((r) => ({ c: 'ListRow', p: { title: r.id, sub: `${r.version} · ${r.enabled ? 'on' : 'off'}` } })),\n] });\nconst load = () => wisp.call('plugins.list', {}).then((rows) => show(rows), (e) => show([], e.message));\nwisp.on('refresh', load);\nshow([]);\nload();\n"
+  }
+ },
+ {
+  "ask": "A pane with a note I can type and a switch, that remembers nothing outside itself",
+  "manifest": {
+   "wispPlugin": 1,
+   "id": "user.scratch",
+   "name": "Scratch",
+   "version": "1.0.0",
+   "api": "^1",
+   "description": "A note and a switch, kept while the pane is open.",
+   "permissions": [],
+   "contributes": {
+    "ui": [
+     {
+      "id": "user.scratch.pane",
+      "attachTo": {
+       "id": "shell.settings",
+       "input": "pane"
+      },
+      "component": "./ui.js#default",
+      "title": "Scratch"
+     }
+    ]
+   }
+  },
+  "files": {
+   "ui.js": "let note = '';\nlet loud = false;\nconst draw = () => wisp.render({ c: 'Stack', p: { gap: '3' }, k: [\n  { c: 'SettingsRow', p: { title: 'Loud', description: 'Shows the note as a callout', control: { c: 'Switch', p: { checked: loud }, on: 'loud' } } },\n  { c: 'Input', p: { value: note, placeholder: 'A note', label: 'Note' }, on: 'note' },\n  loud ? { c: 'Callout', p: { tone: 'info', title: note || 'Nothing yet' } } : { c: 'Text', p: { tone: 'muted', size: 'sm' }, k: [note || 'Nothing yet'] },\n] });\nwisp.on('note', (v) => { note = String(v); draw(); });\nwisp.on('loud', (v) => { loud = v === true; draw(); });\ndraw();\n"
+  }
+ },
+ {
+  "ask": "A setting of my own that other things can read, with no UI",
+  "manifest": {
+   "wispPlugin": 1,
+   "id": "user.focus",
+   "name": "Focus",
+   "version": "1.0.0",
+   "api": "^1",
+   "description": "A focus-mode switch in Settings.",
+   "permissions": [],
+   "contributes": {
+    "settings": [
+     {
+      "key": "user.focus.on",
+      "type": "bool",
+      "default": false,
+      "title": "Focus mode"
+     }
+    ]
+   }
+  },
+  "files": {}
+ }
+]
