@@ -243,7 +243,8 @@ fn main() {
         prompt = std::fs::read_to_string(argv.get(i + 1).map_or("", String::as_str)).unwrap_or_default();
     }
     record(&name, &argv, &prompt);
-    RUN.store(!prompt.trim().is_empty(), std::sync::atomic::Ordering::Relaxed);
+    let run = !prompt.trim().is_empty();
+    RUN.store(run, std::sync::atomic::Ordering::Relaxed);
     // only a run (it has a prompt) hits it: a harness's detect probe (`opencode models`, `auth list`) that
     // lands late must not use the limit up (serve_kinds' best-of-n flaked on that under CI load)
     if let Some(f) = env("FAKE_LIMIT_ONCE")
@@ -258,7 +259,11 @@ fn main() {
         eprintln!("Error: the fake {name} failed on purpose");
         std::process::exit(1);
     }
-    wait_ms("FAKE_DELAY");
+    // a run's delay only: a detect probe (`opencode models`, `cursor-agent --list-models`, `copilot help config`)
+    // answers at once, or every `runtime.agents` paid FAKE_DELAY per probe (serve_mcp_tools' sweep took 274 s)
+    if run {
+        wait_ms("FAKE_DELAY");
+    }
     let target = std::env::current_dir().unwrap_or_default().join("math.js");
     let before = std::fs::read_to_string(&target).unwrap_or_default();
     let after = before.replace("a - b", "a + b");
