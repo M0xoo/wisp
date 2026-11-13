@@ -4,7 +4,7 @@
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
 import { ActIcon, WithAct, type Act } from './act.tsx';
-import { atTail, mediaShift, type Grew } from './media-shift.ts';
+import { atTail, dockShift, mediaShift, type Grew } from './media-shift.ts';
 import { Icon } from '../content/Icon.tsx';
 import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
 import type { IconName } from '../content/icons.ts';
@@ -699,8 +699,11 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
 /** v1 .it-body: the task's page under its head: the details column, the turns, the dock. */
 /** Pictures and videos in the turns load lazily with no box kept for them, so each grows when it arrives: the view
  *  stays where the reader had it (v1 #776, `mediaShift`). A ResizeObserver runs after layout and before paint, so the
- *  shift is never seen. A media box that had no size (a closed fold) opening is the reader's own doing: it moves nothing. */
-function holdMedia(body: HTMLElement): () => void {
+ *  shift is never seen. A media box that had no size (a closed fold) opening is the reader's own doing: it moves nothing.
+ *  The dock and the view are watched by the same observer: when the reply box grows, or the keyboard shortens the view,
+ *  at the tail the view goes back to the end, so the last block never sits under the box (`dockShift`). Every read
+ *  comes before the one write. */
+function holdMedia(body: HTMLElement, dock: HTMLElement): () => void {
   const anchors = typeof CSS !== 'undefined' && CSS.supports?.('overflow-anchor', 'auto') === true;
   const sizes = new WeakMap<Element, number | null>();
   const size = (m: Element): number | null => (m.getClientRects().length > 0 ? (m as HTMLElement).offsetHeight : null);
@@ -708,9 +711,18 @@ function holdMedia(body: HTMLElement): () => void {
   const onScroll = (): void => {
     tail = atTail(body);
   };
+  const held = new Map<Element, number>(); // the dock's height and the view's, at the last frame
   const ro = new ResizeObserver((entries) => {
     const grew: Grew[] = [];
-    for (const { target: m } of entries) {
+    const by = { dock: 0, view: 0 };
+    for (const { target: m, borderBoxSize } of entries) {
+      if (m === dock || m === body) {
+        const to = borderBoxSize[0]?.blockSize ?? (m as HTMLElement).offsetHeight;
+        const from = held.get(m);
+        held.set(m, to);
+        if (from !== undefined) by[m === dock ? 'dock' : 'view'] = to - from;
+        continue;
+      }
       if (!m.isConnected) {
         ro.unobserve(m);
         continue;
@@ -720,10 +732,12 @@ function holdMedia(body: HTMLElement): () => void {
       sizes.set(m, to);
       if (from != null && to != null && Math.abs(to - from) >= 1) grew.push({ top: m.getBoundingClientRect().top, from, to });
     }
-    if (grew.length === 0 || !body.isConnected || body.clientHeight === 0) return;
+    if (!body.isConnected || body.clientHeight === 0) return;
+    const dockEnd = (by.dock !== 0 || by.view !== 0) && dockShift({ scrollHeight: body.scrollHeight, scrollTop: body.scrollTop, clientHeight: body.clientHeight, ...by }) === 'end';
+    if (grew.length === 0 && !dockEnd) return;
     // a task that fit on screen is at its end and its start at once: a picture there pulls nothing
-    const dy = mediaShift({ tail: tail && body.scrollTop > 0, anchors, inset: body.getBoundingClientRect().top + (body.querySelector<HTMLElement>('[data-kit="it-bar"]')?.offsetHeight ?? 0), grew });
-    if (dy === 'end') body.scrollTop = body.scrollHeight;
+    const dy = grew.length === 0 ? 0 : mediaShift({ tail: tail && body.scrollTop > 0, anchors, inset: body.getBoundingClientRect().top + (body.querySelector<HTMLElement>('[data-kit="it-bar"]')?.offsetHeight ?? 0), grew });
+    if (dy === 'end' || dockEnd) body.scrollTop = body.scrollHeight;
     else if (Math.abs(dy) >= 1) body.scrollTop += dy;
     tail = atTail(body);
   });
@@ -735,6 +749,8 @@ function holdMedia(body: HTMLElement): () => void {
     }
   };
   watch(body);
+  ro.observe(dock);
+  ro.observe(body);
   const mo = new MutationObserver(() => watch(body));
   mo.observe(body, { childList: true, subtree: true });
   body.addEventListener('scroll', onScroll, { passive: true });
@@ -753,12 +769,12 @@ export function TaskBody(props: {
   /** the scroller (a task's kept place) */ readonly bodyRef?: (el: HTMLElement) => void;
 }): JSX.Element {
   let stop: (() => void) | undefined;
+  let body!: HTMLDivElement;
   onCleanup(() => stop?.());
   return (
     <div
       ref={(el) => {
-        stop?.();
-        stop = typeof ResizeObserver === 'undefined' ? undefined : holdMedia(el);
+        body = el;
         props.bodyRef?.(el);
       }}
       data-kit="it-body"
@@ -767,7 +783,16 @@ export function TaskBody(props: {
     >
       {props.details}
       <div data-kit="turns">{props.turns}</div>
-      <div data-kit="it-dock">{props.dock}</div>
+      <div
+        ref={(dock) => {
+          // a child's ref runs after its parent's: the body is known here
+          stop?.();
+          stop = typeof ResizeObserver === 'undefined' ? undefined : holdMedia(body, dock);
+        }}
+        data-kit="it-dock"
+      >
+        {props.dock}
+      </div>
     </div>
   );
 }
