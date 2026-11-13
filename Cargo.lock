@@ -4256,13 +4256,18 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "wisp-automations-api",
  "wisp-channels-api",
  "wisp-channels-core",
+ "wisp-crew-api",
+ "wisp-grid-client-api",
  "wisp-kernel",
  "wisp-proc",
  "wisp-resources-api",
  "wisp-router-api",
  "wisp-runtime-api",
+ "wisp-stuff-api",
+ "wisp-telemetry-api",
 ]
 
 [[package]]

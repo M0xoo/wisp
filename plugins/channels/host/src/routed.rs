@@ -133,7 +133,7 @@ pub fn again_in(status: u16, tries: usize) -> Option<u64> {
 pub async fn report(ctx: &Ctx, thread: &str, title: &str, text: &str) {
     let body = json!({ "thread": thread, "text": report_text(title, text) });
     for tries in 0.. {
-        let r = ctx.run_json(&ctx.root_call(), "grid-client.reply", body.clone()).await;
+        let r = crate::hub::typed_json::<wisp_grid_client_api::Reply>(ctx, body.clone()).await;
         let status = r.as_ref().ok().and_then(|v| v["status"].as_u64()).and_then(|s| u16::try_from(s).ok()).unwrap_or(0);
         let Some(wait) = again_in(status, tries) else {
             if !(200..300).contains(&status) {

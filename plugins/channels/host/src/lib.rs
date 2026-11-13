@@ -91,7 +91,7 @@ async fn notify(ctx: &Ctx, live: &Arc<Live>, event: &str, session: &str, text: &
     if due.is_empty() {
         return;
     }
-    let Ok(task) = ctx.run_json(&ctx.root_call(), "runtime.get", json!({ "id": session })).await else { return };
+    let Ok(task) = hub::typed::<wisp_runtime_api::commands::Get>(ctx, hub::get(session)).await else { return };
     let view = hub::session_view(&task);
     let cwd = view.cwd.clone().unwrap_or_default();
     let title = match event {

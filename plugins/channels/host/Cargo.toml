@@ -25,6 +25,11 @@ wisp-channels-api.workspace = true
 wisp-channels-core.workspace = true
 wisp-router-api.workspace = true
 wisp-kernel.workspace = true
+wisp-crew-api.workspace = true
+wisp-telemetry-api.workspace = true
+wisp-automations-api.workspace = true
+wisp-stuff-api.workspace = true
+wisp-grid-client-api.workspace = true
 
 [lints]
 workspace = true

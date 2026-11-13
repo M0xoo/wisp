@@ -14,7 +14,8 @@ use wisp_channels_api::views::{
 };
 use wisp_channels_api::{AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Status, Ws};
 use wisp_kernel::services::NetRequest;
-use wisp_kernel::{BoxFuture, Ctx, Result, WireError};
+use wisp_kernel::{BoxFuture, Command, Ctx, Result, WireError};
+use wisp_runtime_api::commands as rt;
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
@@ -210,9 +211,28 @@ fn member_view(v: &Value) -> wisp_channels_api::MemberView {
 /// What wisp does when a channel asks: runtime commands, as the channel's caller (its capability set).
 pub struct KPhone(pub Ctx);
 
+/// Typed command `C` as the root caller, its answer as the JSON `run_json` would have answered.
+pub(crate) async fn typed<C: Command>(ctx: &Ctx, args: C::Args) -> Result<Value> {
+    let out = ctx.run::<C>(&ctx.root_call(), args).await?;
+    serde_json::to_value(out).map_err(|e| WireError::internal(e.to_string()))
+}
+
+/// `C` with args from hand-built JSON, refused in the words its handler would use (`<id>: <why>`).
+pub(crate) async fn typed_json<C: Command>(ctx: &Ctx, v: Value) -> Result<Value> {
+    let args = serde_json::from_value(v).map_err(|e| WireError::invalid(format!("{}: {e}", C::ID)))?;
+    typed::<C>(ctx, args).await
+}
+
+pub(crate) fn get(id: &str) -> rt::IdArgs {
+    rt::IdArgs { id: id.into() }
+}
+
 impl KPhone {
-    async fn cmd(&self, name: &str, args: Value) -> Result<Value> {
-        self.0.run_json(&self.0.root_call(), name, args).await
+    async fn cmd<C: Command>(&self, args: C::Args) -> Result<Value> {
+        typed::<C>(&self.0, args).await
+    }
+    async fn cmd_json<C: Command>(&self, args: Value) -> Result<Value> {
+        typed_json::<C>(&self.0, args).await
     }
 }
 
@@ -230,8 +250,8 @@ impl Phone for KPhone {
     /// them), the crew, Auto's goals, the default project and harness, the tasks running or waiting.
     async fn context(&self) -> Result<ChannelCtx> {
         let projects = self.projects().await?;
-        let agents: Vec<wisp_channels_api::AgentView> = self.cmd("runtime.agents", json!({})).await.ok().and_then(|v| serde_json::from_value::<Vec<Value>>(v).ok()).unwrap_or_default().iter().map(agent_view).collect();
-        let crew = self.cmd("crew.list", json!({})).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default().iter().map(member_view).collect();
+        let agents: Vec<wisp_channels_api::AgentView> = self.cmd::<rt::Agents>(rt::AgentsArgs::default()).await.ok().and_then(|v| serde_json::from_value::<Vec<Value>>(v).ok()).unwrap_or_default().iter().map(agent_view).collect();
+        let crew = self.cmd::<wisp_crew_api::commands::List>(wisp_crew_api::commands::NoArgs {}).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default().iter().map(member_view).collect();
         let tasks = self.sessions().await.unwrap_or_default().into_iter().filter(|s| matches!(s.state.as_str(), "running" | "waiting")).map(|s| wisp_channels_api::TaskRow { id: s.id, title: s.title, state: s.state }).collect();
         let adapters = agents.iter().map(|a| wisp_channels_api::AdapterView { agent: a.clone(), overrides: Vec::new() }).collect();
         let default_agent = agents.iter().find(|a| a.available).map(|a| a.id.clone()).unwrap_or_default();
@@ -246,7 +266,7 @@ impl Phone for KPhone {
         }
         let ctx = self.0.clone();
         self.0.spawn(async move {
-            let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "channel_event", "props": props })).await;
+            let _ = typed_json::<wisp_telemetry_api::Track>(&ctx, json!({ "event": "channel_event", "props": props })).await;
         });
     }
     fn on_grid(&self) -> bool {
@@ -262,13 +282,13 @@ impl Phone for KPhone {
         let ev = json!({ "on": "chat.message", "key": format!("chat:{channel}:{sender}:{at}"), "at": at, "summary": text.lines().next().unwrap_or("").chars().take(160).collect::<String>(), "payload": { "channel": channel, "user": sender, "text": text, "trusted": true } });
         let ctx = self.0.clone();
         self.0.spawn(async move {
-            if let Err(e) = ctx.run_json(&ctx.root_call(), "automations.trigger.push", ev).await {
+            if let Err(e) = typed_json::<wisp_automations_api::commands::TriggerPush>(&ctx, ev).await {
                 tracing::debug!("chat.message not handed to triggers: {}", e.message);
             }
         });
     }
     async fn thread_ctx(&self, session_id: &str) -> Result<ThreadCtx> {
-        let t = self.cmd("runtime.get", json!({ "id": session_id })).await?;
+        let t = self.cmd::<rt::Get>(get(session_id)).await?;
         Ok(ThreadCtx { agent: t.get("agent").and_then(Value::as_str).unwrap_or_default().to_owned(), machine: String::new() })
     }
     async fn start_parsed(&self, p: &Parsed, o: &StartOpts) -> Result<Started> {
@@ -285,17 +305,17 @@ impl Phone for KPhone {
         if !o.attachments.is_empty() {
             a["attachments"] = json!(o.attachments);
         }
-        let made = self.cmd("runtime.create", a).await?;
+        let made = self.cmd_json::<rt::Create>(a).await?;
         let id = made.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
-        let t = self.cmd("runtime.get", json!({ "id": id })).await.unwrap_or_default();
+        let t = self.cmd::<rt::Get>(get(&id)).await.unwrap_or_default();
         Ok(Started { ack: format!("Started ({}): {}", mode.label(), t.get("title").and_then(Value::as_str).unwrap_or_default()), session: Some(session_view(&t)), queued: None })
     }
     async fn stop(&self, session_id: &str) -> Result<String> {
-        self.cmd("runtime.stop", json!({ "id": session_id })).await?;
+        self.cmd::<rt::Stop>(rt::StopArgs { id: session_id.into(), clear_queue: false }).await?;
         Ok("Stopped.".into())
     }
     async fn status(&self, session_id: &str) -> Result<String> {
-        let t = self.cmd("runtime.get", json!({ "id": session_id })).await?;
+        let t = self.cmd::<rt::Get>(get(session_id)).await?;
         Ok(format!("{}: {}", t.get("title").and_then(Value::as_str).unwrap_or_default(), t.get("state").and_then(Value::as_str).unwrap_or_default()))
     }
     async fn run(&self, session_id: &str, p: &Parsed, o: &RunOpts, _later: Option<Later>) -> Result<String> {
@@ -304,13 +324,13 @@ impl Phone for KPhone {
             a["mode"] = json!(m);
         }
         if o.btw {
-            self.cmd("runtime.btw", json!({ "id": session_id, "question": p.prompt })).await?;
+            self.cmd_json::<rt::Btw>(json!({ "id": session_id, "question": p.prompt })).await?;
             return Ok("Asked on the side.".into());
         }
         if !o.attachments.is_empty() {
             a["attachments"] = json!(o.attachments);
         }
-        self.cmd("runtime.followUp", a).await?;
+        self.cmd_json::<rt::FollowUp>(a).await?;
         Ok("Sent.".into())
     }
     async fn mention(&self, _session_id: &str, p: &Parsed, o: &StartOpts) -> Result<Started> {
@@ -318,32 +338,32 @@ impl Phone for KPhone {
     }
     async fn upload(&self, name: &str, mime: &str, bytes: Vec<u8>) -> Result<Value> {
         use base64::Engine as _;
-        let u = self.cmd("stuff.receive", json!({ "name": name, "mime": mime, "data": base64::engine::general_purpose::STANDARD.encode(bytes) })).await?;
+        let u = self.cmd_json::<wisp_stuff_api::commands::Receive>(json!({ "name": name, "mime": mime, "data": base64::engine::general_purpose::STANDARD.encode(bytes) })).await?;
         Ok(json!({ "id": u.get("id"), "name": u.get("name"), "mime": u.get("mime"), "size": u.get("size") }))
     }
     async fn launch(&self, project: &ProjectView, prompt: &str) -> Result<Option<SessionView>> {
-        let made = self.cmd("runtime.create", json!({ "prompt": prompt, "cwd": project.path, "mode": "plan" })).await?;
+        let made = self.cmd_json::<rt::Create>(json!({ "prompt": prompt, "cwd": project.path, "mode": "plan" })).await?;
         self.session(made.get("id").and_then(Value::as_str).unwrap_or_default()).await
     }
     async fn act(&self, a: &ActArgs) -> Result<String> {
         let text = a.text.clone().unwrap_or_default();
         match a.kind {
             ActKind::Done => {
-                self.cmd("runtime.setState", json!({ "id": a.session_id, "state": "done" })).await?;
+                self.cmd_json::<rt::SetState>(json!({ "id": a.session_id, "state": "done" })).await?;
                 Ok("Marked done.".into())
             }
             ActKind::Answer => {
-                self.cmd("runtime.answer", json!({ "id": a.session_id, "text": text })).await?;
+                self.cmd_json::<rt::Answer>(json!({ "id": a.session_id, "text": text })).await?;
                 Ok("Answered.".into())
             }
             ActKind::Reply | ActKind::Text => {
-                self.cmd("runtime.followUp", json!({ "id": a.session_id, "text": text })).await?;
+                self.cmd_json::<rt::FollowUp>(json!({ "id": a.session_id, "text": text })).await?;
                 Ok("Sent.".into())
             }
         }
     }
     async fn projects(&self) -> Result<Vec<ProjectView>> {
-        let list = self.cmd("resources.export", json!({ "kinds": ["project"] })).await.unwrap_or_default();
+        let list = self.cmd::<wisp_resources_api::Export>(wisp_resources_api::ExportArgs { kinds: vec!["project".into()], include: Vec::new() }).await.unwrap_or_default();
         Ok(list
             .pointer("/projects")
             .and_then(Value::as_array)
@@ -356,10 +376,10 @@ impl Phone for KPhone {
             .collect())
     }
     async fn session(&self, id: &str) -> Result<Option<SessionView>> {
-        Ok(self.cmd("runtime.get", json!({ "id": id })).await.ok().map(|t| session_view(&t)))
+        Ok(self.cmd::<rt::Get>(get(id)).await.ok().map(|t| session_view(&t)))
     }
     async fn sessions(&self) -> Result<Vec<SessionView>> {
-        let list = self.cmd("runtime.list", json!({})).await?;
+        let list = self.cmd::<rt::List>(rt::ListArgs::default()).await?;
         Ok(list.as_array().into_iter().flatten().map(session_view).collect())
     }
 }

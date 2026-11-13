@@ -51,6 +51,7 @@ wisp-posthog-core = { path = "plugins/posthog/core" }
 wisp-update-core = { path = "plugins/update/core" }
 # plugin contracts and cores (owned by the crew-row agent: crew, goal, later, budget, router, automations, learn)
 wisp-crew-api = { path = "plugins/crew/api" }
+wisp-grid-client-api = { path = "plugins/grid-client/api" }
 wisp-crew-core = { path = "plugins/crew/core" }
 wisp-goal-api = { path = "plugins/goal/api" }
 wisp-history-api = { path = "plugins/history/api" }
