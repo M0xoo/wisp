@@ -124,6 +124,8 @@ pub async fn fetch(st: &St, raw: &str, password: Option<&str>) -> Result<Fetched
                 "people" => "This share is for some people only: sign in as one of them (wisp cloud signin)".into(),
                 _ => "This share is for a team: sign in as a member (wisp cloud signin)".into(),
             };
+            // what locks it, for a GUI to ask in its own words (a password box, Sign in) instead of the CLI's
+            e = e.with_details(json!({ "locked": how }));
         }
         return Err(e);
     }
