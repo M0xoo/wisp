@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 wisp-git-api.workspace = true
+wisp-envmask.workspace = true
 
 [lints]
 workspace = true

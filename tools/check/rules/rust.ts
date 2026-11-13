@@ -2,7 +2,7 @@
 // workspace's Cargo.toml files and .rs sources (core/rust.ts):
 //   rust-layers     a plugin's crates use other plugins' -api crates only; api ↛ core ↛ host within a
 //                   plugin; base crates (crates/* but the binary) use no plugin crate
-//   rust-sans-io    plugins/*/core, wisp-sync and wisp-protocol: no IO crate, no fs/net/process/clock
+//   rust-sans-io    plugins/*/core, wisp-sync, wisp-protocol and wisp-envmask: no IO crate, no fs/net/process/clock
 //   rust-unsafe     `unsafe` only in crates/wisp-proc/src/sys/
 //   rust-sizes      src files over 400 lines and fns over 60 warn, unless a `size-ok:` reason is written
 //   rust-manifests  every plugin host has a valid wisp-plugin.json whose commands sit in its namespace
@@ -51,7 +51,7 @@ export const rustLayers: Rule = {
   },
 };
 
-const SANS_IO_CRATES = new Set(['wisp-sync', 'wisp-protocol']);
+const SANS_IO_CRATES = new Set(['wisp-sync', 'wisp-protocol', 'wisp-envmask']);
 const IO_DEPS = new Set(['tokio', 'reqwest', 'axum', 'hyper', 'rusqlite', 'wisp-proc', 'wisp-store']);
 const IO_CODE: readonly [RegExp, string][] = [
   [/\bstd::fs\b/, 'std::fs'],

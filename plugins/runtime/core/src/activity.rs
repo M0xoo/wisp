@@ -106,6 +106,8 @@ pub struct Head {
     pub interim: Option<(String, Option<HarnessStats>)>,
     pub tools: Option<Vec<Value>>,
     pub cli: Option<Value>,
+    /// the calls that read a .env file: their `tool_output` is flagged `env` (ADR-0050)
+    pub env_calls: Vec<String>,
 }
 
 /// What one event asks of the host besides the head update.
@@ -206,6 +208,15 @@ fn record_change(head: &mut Head, file: &str, op: ChangeOp, edits: &[Edit]) {
     }
 }
 
+/// A call that names a .env file: its `tool_output` is flagged `env` (ADR-0050).
+fn note_env_call(head: &mut Head, ev: &HarnessEvent) {
+    if let HarnessEvent::Tool { file, detail, label, id: Some(id), .. } = ev
+        && crate::env_mask::call_reads_env(file.as_deref(), detail.as_deref(), Some(label))
+    {
+        head.env_calls.push(id.clone());
+    }
+}
+
 /// Applies one event to the head and says what else to do. `plain`: the turn asked for a plain answer
 /// (wisp blocks off); `is_fallback`: whether a text is an answer that broke the protocol (the block
 /// parser's `fallback`), passed in so this module stays independent of it.
@@ -223,11 +234,15 @@ pub fn apply(
         }
         HarnessEvent::Tool { .. }
         | HarnessEvent::ToolError { .. }
-        | HarnessEvent::Thinking { .. } => return step_of(ev).map_or(Effect::None, Effect::Append),
+        | HarnessEvent::Thinking { .. } => {
+            note_env_call(head, ev);
+            return step_of(ev).map_or(Effect::None, Effect::Append);
+        }
         HarnessEvent::ToolOutput { id, text } => {
             return Effect::Append(Activity::ToolOutput {
                 call_id: id.clone(),
                 text: clip_output(text),
+                env: head.env_calls.contains(id),
             });
         }
         HarnessEvent::Change {

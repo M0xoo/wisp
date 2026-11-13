@@ -74,12 +74,13 @@ async fn preview(ctx: &Ctx, call: &Call, a: &ShareArgs) -> Result<Preview> {
     let mut report = None;
     let mut history = None;
     if a.level != Level::Spec {
-        let turns = ctx.run_json(call, "runtime.turns", json!({ "id": a.id })).await?;
+        // .env values never go in a share, whatever Hide .env values says (ADR-0050)
+        let turns = ctx.run_json(call, "runtime.turns", json!({ "id": a.id, "masked": true })).await?;
         let mut answers = Vec::new();
         let mut files = Vec::new();
         let mut full = Vec::new();
         for t in turns.as_array().into_iter().flatten() {
-            let steps = ctx.run_json(call, "runtime.activity", json!({ "id": a.id, "turnId": t["id"] })).await.unwrap_or(Value::Null);
+            let steps = ctx.run_json(call, "runtime.activity", json!({ "id": a.id, "turnId": t["id"], "masked": true })).await.unwrap_or(Value::Null);
             files_of(&steps, &mut files);
             answers.push(json!({ "prompt": t["prompt"], "status": t["status"], "blocks": t.pointer("/presentation/blocks").cloned().unwrap_or(json!([])), "text": t["text"] }));
             if a.level == Level::Full {

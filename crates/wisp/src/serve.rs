@@ -156,9 +156,11 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     let backend: Arc<dyn wisp_api::Backend> = Arc::new(kernel.clone());
     // the v2 stream on the store: snapshots and deltas from its tables and change feed (under its
     // epoch), and every commit streamed as it lands (Store::on_commit → Driver::committed)
-    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new());
+    // every row leaves through its owner's `kernel.egress` view (ADR-0050: .env values never leave)
+    let views: Arc<dyn wisp_api::egress::ViewSource> = Arc::new(kernel.clone());
+    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new()).with_views(views.clone());
     let driver = wisp_api::v2::Driver::start(Arc::new(snaps), backend.clone(), peer(&kernel));
-    let feed = wisp_api::v2_store::feed(&store, driver.clone());
+    let feed = wisp_api::v2_store::feed_viewed(&store, driver.clone(), views);
     hub.mount(driver);
     let edge = Edge::new(cfg, backend, hub);
 

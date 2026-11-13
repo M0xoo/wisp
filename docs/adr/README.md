@@ -51,3 +51,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0046](0046-plugins-installed-at-runtime.md) | A user's plugin is installed while wisp runs (a folder or a git URL, `user.` ids), off until switched on |
 | [0047](0047-sandboxes.md) | Sandboxes are their own plugin (wisp.sandbox): one owner each, deleted with it; /sandbox, delegates, crew jobs, judges |
 | [0048](0048-untrusted-plugin-tier.md) | Anything downloaded is an untrusted plugin: its UI is described (kit descriptors from a Worker in a sandboxed frame), its calls checked as itself |
+| [0050](0050-env-values-masked-on-the-server.md) | .env values are masked on the server (wisp-envmask, the `kernel.egress` row view, `runtime.unmasked` for Reveal), never only in the page |

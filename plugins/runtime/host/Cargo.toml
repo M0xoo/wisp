@@ -16,6 +16,7 @@ wisp-proc.workspace = true
 wisp-runtime-api.workspace = true
 wisp-terminal-api.workspace = true
 wisp-runtime-core.workspace = true
+wisp-envmask.workspace = true
 wisp-router-api.workspace = true
 wisp-issues-api.workspace = true
 serde.workspace = true

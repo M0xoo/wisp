@@ -53,7 +53,16 @@ impl Host for CtxHost {
             Emitted::Changed(x) => self.ctx.emit(&call, &x),
             Emitted::Deleted(x) => self.ctx.emit(&call, &x),
             Emitted::Started(x) => self.ctx.emit(&call, &x),
-            Emitted::Activity(x) => self.ctx.emit(&call, &x),
+            // a step's .env output never leaves on the event either (ADR-0050)
+            Emitted::Activity(mut x) => {
+                if crate::env_view::on(&self.ctx) {
+                    match crate::env_view::mask_items(std::mem::take(&mut x.items)) {
+                        Ok(items) => x.items = items,
+                        Err(_) => return,
+                    }
+                }
+                self.ctx.emit(&call, &x);
+            }
             Emitted::Finished(x) => self.ctx.emit(&call, &x),
             Emitted::Ended(x) => self.ctx.emit(&call, &x),
             Emitted::Held(x) => self.ctx.emit(&call, &x),
@@ -328,7 +337,7 @@ fn for_agents(s: &mut Setup, slot: &Slot) {
         async move {
             let r = rt(&slot)?;
             let capped = call.caller().set.starts_with("agent:capped");
-            let out = r.agent_session(&a, capped).await.map_err(WireError::from)?;
+            let out = crate::env_view::mask_agent_text(&ctx, r.agent_session(&a, capped).await.map_err(WireError::from)?);
             let agent = r.get(&a.session).await.map(|x| x.agent).unwrap_or_default();
             let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "wisp_session", "props": { "agent": agent } })).await;
             Ok(out)
@@ -516,16 +525,9 @@ fn reads(s: &mut Setup, slot: &Slot) {
         .iter()
         .map(|x| (**x).clone())
         .collect()));
-    cmd!(s, slot, c::Turns, |r, call, a| r
-        .turns(a.id.as_str(), a.before, a.limit)
-        .await);
-    cmd!(s, slot, c::ActivityOf, |r, call, a| r
-        .activity(a.turn_id.as_str(), a.since_seq)
-        .await);
+    // runtime.turns, runtime.activity and runtime.presentation answer with .env values masked (ADR-0050)
+    crate::env_view::register(s, slot);
     cmd!(s, slot, c::Cold, |r, call, a| r.cold(a.id.as_str()).await);
-    cmd!(s, slot, c::PresentationOf, |r, call, a| r
-        .presentation(a.id.as_str(), a.turn)
-        .await);
     cmd!(s, slot, c::SetExt, |r, call, a| {
         own_slot(&call, &a.plugin)?;
         r.set_ext(a.id.as_str(), &a.plugin, a.value)

@@ -100,7 +100,7 @@ pub fn to_v0(a: &Activity) -> Value {
             put("call", call_id.as_deref());
             put("output", output.as_deref());
         }
-        Activity::ToolOutput { call_id, text } => {
+        Activity::ToolOutput { call_id, text, .. } => {
             put("kind", Some("output"));
             put("call", Some(call_id));
             put("output", Some(text));

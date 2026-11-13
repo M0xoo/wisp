@@ -11,6 +11,7 @@
 pub mod caps;
 pub mod decl;
 pub mod durable;
+pub mod egress;
 pub mod error;
 pub mod http;
 pub mod ids;

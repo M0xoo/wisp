@@ -5,4 +5,8 @@ export type TurnsArgs = { id: SessionId,
 /**
  * turns with idx below this one (paging back through a long task)
  */
-before?: number, limit?: number, };
+before?: number, limit?: number, 
+/**
+ * true: .env values masked even with Hide .env values off (a share). Additive (2026-11-13).
+ */
+masked?: boolean, };

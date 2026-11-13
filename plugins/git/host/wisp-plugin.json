@@ -30,7 +30,7 @@
   ],
   "contributes": {
     "settings": [
-      { "key": "git.maskEnvFiles", "type": "bool", "default": true, "title": "Mask .env files in Changes: their values show as dots until you reveal one" },
+      { "key": "git.maskEnvFiles", "type": "bool", "default": true, "title": "Hide .env values: what a task shows of a .env file (its output, edits, blocks, Changes) leaves wisp as dots until you reveal one" },
       { "key": "git.cloneDir", "type": "string", "default": "", "title": "Where a pasted repo URL is cloned ('': the first of ~/code, ~/dev, ~/Developer, ~/projects… that exists, else ~/code)" }
     ],
     "commands": [

@@ -213,6 +213,12 @@
         "uiOnly": "opens the file manager on the computer running wisp; an agent already knows the path"
       },
       {
+        "id": "runtime.unmasked",
+        "title": "Reveal one hidden .env value of a task's turn",
+        "readOnly": true,
+        "uiOnly": "the Reveal button on a masked .env view; an agent reads the file itself, and a capped agent is refused"
+      },
+      {
         "id": "runtime.compact",
         "title": "Compact the conversation"
       },

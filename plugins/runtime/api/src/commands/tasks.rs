@@ -406,6 +406,10 @@ pub struct TurnsArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub limit: Option<u32>,
+    /// true: .env values masked even with Hide .env values off (a share). Additive (2026-11-13).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub masked: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -418,6 +422,10 @@ pub struct ActivityArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub since_seq: Option<u64>,
+    /// true: .env values masked even with Hide .env values off (a share). Additive (2026-11-13).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub masked: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

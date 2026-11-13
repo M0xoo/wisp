@@ -64,7 +64,8 @@
     { "permission": "prs:read{by:url}", "what": "read a PR by URL: give its number in this task’s repo" },
     { "permission": "crew:write", "what": "change the user’s crew" },
     { "permission": "crew:read{project:other}", "what": "read a member of another project" },
-    { "permission": "session:list{project:other}", "what": "read a task of another project" }
+    { "permission": "session:list{project:other}", "what": "read a task of another project" },
+    { "permission": "runtime:unmasked", "what": "reveal a .env value the user hid" }
   ],
   "crew": { "deny": [{ "permission": "crew:write", "why": "change the crew it belongs to" }] }
 }

@@ -108,6 +108,7 @@ command!(ApproveBlocked = "runtime.approveBlocked": ApproveBlockedArgs => Value)
 command!(Btw = "runtime.btw": BtwArgs => BtwEntry);
 command!(BtwDrop = "runtime.btw.drop": BtwDropArgs => Ack);
 command!(Reveal = "runtime.reveal": RevealArgs => Value);
+command!(Unmasked = "runtime.unmasked": UnmaskedArgs => Value, read_only);
 command!(Compact = "runtime.compact": IdArgs => FollowedUp);
 command!(
     /// A terminal task's CLI in its terminal (v1 services/tui.js `openTui`): opened on its first prompt the first

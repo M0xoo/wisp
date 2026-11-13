@@ -151,6 +151,11 @@ pub enum Activity {
         #[ts(rename = "callId")]
         call_id: String,
         text: String,
+        /// the call it answers read a .env file: its text leaves the server masked (ADR-0050). Always written, so a
+        /// row without it is one from before (its call decides). Additive (2026-11-13).
+        #[serde(default)]
+        #[ts(as = "Option<bool>", optional)]
+        env: bool,
     },
     ToolError {
         name: String,

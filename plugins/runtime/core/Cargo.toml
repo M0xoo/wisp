@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 wisp-runtime-api.workspace = true
+wisp-envmask.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regex.workspace = true

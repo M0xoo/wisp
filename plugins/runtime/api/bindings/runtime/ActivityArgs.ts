@@ -6,4 +6,8 @@ export type ActivityArgs = { id: SessionId, turnId: TurnId,
 /**
  * only events after this per-session seq (resume a stream)
  */
-sinceSeq?: bigint, };
+sinceSeq?: bigint, 
+/**
+ * true: .env values masked even with Hide .env values off (a share). Additive (2026-11-13).
+ */
+masked?: boolean, };

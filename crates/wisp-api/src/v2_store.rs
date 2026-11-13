@@ -19,6 +19,7 @@ use wisp_protocol::{Change, PatchOp, Row, Topic};
 use wisp_store::{ChangeOp, Delta, Query, Reader, Store, Subscription};
 use wisp_sync::{ChangeRow, Gone};
 
+use crate::egress::{self, NoViews, ViewSource};
 use crate::v2::{Driver, Read, Snapshots};
 
 /// The kinds a topic's full snapshot reads: `matches` picks the topics, `query` the rows (the topic
@@ -49,13 +50,21 @@ pub struct WindowSource {
 
 /// `Snapshots` over a store. The feed's head is kept from the commits it hears, so answering a
 /// command never reads the database on the runtime.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct StoreSnapshots {
     store: Store,
     sources: Arc<[TopicSource]>,
     windows: Arc<[WindowSource]>,
     head: Arc<AtomicU64>,
     _heard: Arc<Subscription>,
+    /// each row's owner's `kernel.egress` view, before it leaves (ADR-0050)
+    views: Arc<dyn ViewSource>,
+}
+
+impl std::fmt::Debug for StoreSnapshots {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoreSnapshots").field("head", &self.head).finish_non_exhaustive()
+    }
 }
 
 impl StoreSnapshots {
@@ -74,7 +83,15 @@ impl StoreSnapshots {
             windows: windows.into(),
             head,
             _heard: Arc::new(heard),
+            views: Arc::new(NoViews),
         }
+    }
+
+    /// Rows leave through `views` (the kernel's `kernel.egress` contributions). Additive (2026-11-13).
+    #[must_use]
+    pub fn with_views(mut self, views: Arc<dyn ViewSource>) -> Self {
+        self.views = views;
+        self
     }
 }
 
@@ -209,9 +226,10 @@ impl Snapshots for StoreSnapshots {
             self.sources.clone(),
             topic.as_str().to_owned(),
         );
+        let views = self.views.clone();
         Box::pin(async move {
             let t = topic.clone();
-            store
+            let mut read = store
                 .read_async(move |r| read_topic(r, &sources, &t, since))
                 .await
                 .unwrap_or_else(|e| {
@@ -220,7 +238,9 @@ impl Snapshots for StoreSnapshots {
                         full: since.is_none(),
                         ..Read::default()
                     }
-                })
+                });
+            egress::rows(&views.views(), &mut read.rows);
+            read
         })
     }
     fn window(
@@ -234,7 +254,7 @@ impl Snapshots for StoreSnapshots {
             t.strip_prefix(w.prefix)
                 .map(|parent| (w.kind, parent.to_owned()))
         });
-        let store = self.store.clone();
+        let (store, views) = (self.store.clone(), self.views.clone());
         Box::pin(async move {
             let Some((kind, parent)) = found else {
                 return (Vec::new(), true);
@@ -245,7 +265,7 @@ impl Snapshots for StoreSnapshots {
                 .await
                 .unwrap_or_default();
             let done = rows.len() < limit as usize;
-            let rows = rows
+            let mut rows: Vec<Row> = rows
                 .into_iter()
                 .map(|v| Row {
                     e: kind.to_owned(),
@@ -253,6 +273,7 @@ impl Snapshots for StoreSnapshots {
                     v: Value::Object(v),
                 })
                 .collect();
+            egress::rows(&views.views(), &mut rows);
             (rows, done)
         })
     }
@@ -293,9 +314,18 @@ pub fn to_wire(c: &wisp_store::ChangeRow) -> Vec<ChangeRow> {
 
 /// Streams every commit to `driver`. Keep the subscription: dropping it stops the feed.
 pub fn feed(store: &Store, driver: Arc<Driver>) -> Subscription {
+    feed_viewed(store, driver, Arc::new(NoViews))
+}
+
+/// [`feed`], each change through its owner's `kernel.egress` view first (ADR-0050). Additive (2026-11-13).
+pub fn feed_viewed(store: &Store, driver: Arc<Driver>, views: Arc<dyn ViewSource>) -> Subscription {
     store.on_commit(move |rows| {
-        let wire: Vec<ChangeRow> = rows.iter().flat_map(to_wire).collect();
+        let mut wire: Vec<ChangeRow> = rows.iter().flat_map(to_wire).collect();
         if !wire.is_empty() {
+            let vs = views.views();
+            for c in &mut wire {
+                egress::change(&vs, c);
+            }
             driver.committed(wire);
         }
     })

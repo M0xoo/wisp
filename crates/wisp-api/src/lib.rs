@@ -15,6 +15,7 @@ pub mod backend;
 pub mod body;
 pub mod config;
 pub mod edge;
+pub mod egress;
 pub mod error;
 pub mod guard;
 pub mod openapi;

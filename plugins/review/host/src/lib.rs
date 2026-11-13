@@ -114,6 +114,7 @@ impl Env for KernelEnv {
                 id: id.into(),
                 before: None,
                 limit: None,
+                masked: None,
             },
         );
         Box::pin(async move {

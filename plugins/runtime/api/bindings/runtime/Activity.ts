@@ -9,4 +9,9 @@ export type Activity = { "kind": "text", text: string, } | { "kind": "thinking",
 /**
  * its whole title, when `label` had to be cut (v1 #780): an opened step shows it. Additive (2026-11-12).
  */
-title?: string, } | { "kind": "tool_output", callId: string, text: string, } | { "kind": "tool_error", name: string, text: string, } | { "kind": "blocked", tool: string, detail: string, rule?: string, } | { "kind": "notice", text: string, tone?: Tone, };
+title?: string, } | { "kind": "tool_output", callId: string, text: string, 
+/**
+ * the call it answers read a .env file: its text leaves the server masked (ADR-0050). Always written, so a
+ * row without it is one from before (its call decides). Additive (2026-11-13).
+ */
+env?: boolean, } | { "kind": "tool_error", name: string, text: string, } | { "kind": "blocked", tool: string, detail: string, rule?: string, } | { "kind": "notice", text: string, tone?: Tone, };

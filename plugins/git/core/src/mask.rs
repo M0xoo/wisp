@@ -6,72 +6,8 @@ use wisp_git_api::{FileDiff, Row};
 
 use crate::hunks::hunk_key;
 
-pub const DOTS: &str = "••••";
-
-/// `.env`, `.env.local`, `.env.production`…, not the templates people commit (`.example`, `.sample`).
-pub fn is_env_file(path: &str) -> bool {
-    let p = path.replace('\\', "/");
-    let base = p.rsplit('/').next().unwrap_or(&p);
-    let Some(rest) = base.strip_prefix(".env") else {
-        return false;
-    };
-    let shape = rest.is_empty()
-        || (rest.starts_with('.')
-            && rest.len() > 1
-            && rest[1..]
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-')));
-    let low = base.to_ascii_lowercase();
-    shape && !low.ends_with(".example") && !low.ends_with(".sample")
-}
-
-/// Where a `[export ]KEY = ` / `KEY: ` prefix ends, if the line starts with one.
-fn key_prefix(line: &str) -> Option<usize> {
-    let lead = line.len() - line.trim_start().len();
-    let after_key = |from: usize| -> Option<usize> {
-        let s = &line[from..];
-        let mut it = s.char_indices();
-        let (_, c0) = it.next()?;
-        if !(c0.is_ascii_alphabetic() || c0 == '_') {
-            return None;
-        }
-        let end = s
-            .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-')))
-            .unwrap_or(s.len());
-        let rest = &s[end..];
-        let sep = rest.len() - rest.trim_start().len();
-        let rest2 = &rest[sep..];
-        if !(rest2.starts_with('=') || rest2.starts_with(':')) {
-            return None;
-        }
-        let after = &rest2[1..];
-        let ws = after.len() - after.trim_start().len();
-        Some(from + end + sep + 1 + ws)
-    };
-    let body = &line[lead..];
-    if let Some(r) = body.strip_prefix("export")
-        && r.starts_with(char::is_whitespace)
-    {
-        let ws = r.len() - r.trim_start().len();
-        if let Some(i) = after_key(lead + 6 + ws) {
-            return Some(i);
-        }
-    }
-    after_key(lead)
-}
-
-/// A line of a .env file with its value masked; blanks, comments and empty values stay.
-pub fn mask_line(line: &str) -> String {
-    let trimmed = line.trim_start();
-    if trimmed.is_empty() || trimmed.starts_with('#') {
-        return line.to_owned();
-    }
-    match key_prefix(line) {
-        Some(i) if i >= line.len() => line.to_owned(),
-        Some(i) => format!("{}{DOTS}", &line[..i]),
-        None => format!("{}{DOTS}", &line[..line.len() - trimmed.len()]),
-    }
-}
+// one rule set for every view of a .env file (ADR-0050): Changes masks as the transcript does
+pub use wisp_envmask::{DOTS, is_env_file, mask_line};
 
 pub fn mask_row(r: &Row) -> Row {
     match &r.text {

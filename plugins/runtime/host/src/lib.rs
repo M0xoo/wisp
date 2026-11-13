@@ -9,6 +9,7 @@ mod drive;
 mod found;
 mod group;
 pub mod error;
+mod env_view;
 mod finish;
 pub mod host;
 mod importer;

@@ -78,6 +78,26 @@ pub struct RevealArgs {
     pub path: String,
 }
 
+/// Reveal one masked .env item of a turn as it is (ADR-0050, v1 GET /sessions/:id/unmasked): a step's output by its
+/// event `step` (seq), an answer `block` by its index, or the captured change to `file`. Exactly one. Refused to a
+/// capped agent and to a share page's caller; answers `not_found` for an item that isn't masked. Additive (2026-11-13).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct UnmaskedArgs {
+    pub id: SessionId,
+    pub turn_id: TurnId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub step: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub block: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub file: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]
 pub struct DelegateTask {

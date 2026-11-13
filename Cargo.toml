@@ -34,6 +34,8 @@ wisp-proc = { path = "crates/wisp-proc" }
 wisp-api = { path = "crates/wisp-api" }
 wisp-testkit = { path = "crates/wisp-testkit" }
 wisp-harness-kit = { path = "crates/wisp-harness-kit" }
+# the .env masking rules every plugin that shows a task masks by (ADR-0050)
+wisp-envmask = { path = "crates/wisp-envmask" }
 # wisp.runtime (owned by the runtime agent): every plugin that starts, reads or reacts to a task uses the api
 wisp-runtime-api = { path = "plugins/runtime/api" }
 wisp-runtime-core = { path = "plugins/runtime/core" }
