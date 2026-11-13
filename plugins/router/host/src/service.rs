@@ -158,6 +158,10 @@ mod tests {
             model: "opus".into(),
             account: None,
             tokens: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_tokens: None,
+            cache_read_tokens: None,
             first: true,
             inner: false,
         };

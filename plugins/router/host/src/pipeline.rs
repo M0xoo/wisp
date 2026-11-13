@@ -103,10 +103,10 @@ pub enum Next {
     BestOf(u32, String),
 }
 
-/// A run that stopped at its usage limit says so (Claude Code, Codex, Gemini's words).
+/// A run that stopped at its usage limit says so (Claude Code, Codex, Gemini's words), or its model is at capacity.
 pub fn hit_limit(error: Option<&str>) -> bool {
     let e = error.unwrap_or_default().to_ascii_lowercase();
-    ["usage limit", "rate limit", "limit reached", "quota"].iter().any(|w| e.contains(w))
+    ["usage limit", "rate limit", "limit reached", "quota"].iter().any(|w| e.contains(w)) || crate::move_on::at_capacity(error)
 }
 
 /// The judge's pick among `n`: the first number 1..=n it says (1 when it says none).
@@ -180,7 +180,7 @@ async fn after(ctx: &Ctx, cache: &Cache, auto: &AutoSettings, e: &TurnEnded) {
     let step = if name == AUTO { auto_next(&p, ended) } else { next(&p, ended) };
     let out = match step {
         None => return,
-        Some(Next::Switch) => switch(ctx, id, &e.agent).await,
+        Some(Next::Switch) => switch(ctx, id, &e.agent, &e.model, e.error_text.as_deref()).await,
         Some(Next::BestOf(n, judge)) => best_of(ctx, &name, id, &spec, n, &judge).await,
         Some(Next::Again(high)) => {
             let why = e.error_text.as_deref().unwrap_or("it stopped with an error");
@@ -204,12 +204,12 @@ async fn after(ctx: &Ctx, cache: &Cache, auto: &AutoSettings, e: &TurnEnded) {
 }
 
 /// Carries on on the first other harness that's there.
-async fn switch(ctx: &Ctx, id: &str, was: &str) -> Result<()> {
+async fn switch(ctx: &Ctx, id: &str, was: &str, model: &str, error: Option<&str>) -> Result<()> {
     let call = ctx.root_call();
     let agents = calls::agents(ctx, &call).await?;
-    let Some(other) = agents.into_iter().find(|a| a.available && a.id != was) else { return Ok(()) };
-    let text = format!("{was} hit its usage limit. Carry on from where it stopped.");
-    calls::follow_up(ctx, &call, id, text, BY, Some(RunPick { agent: Some(other.id), ..RunPick::default() })).await
+    let tried = crate::move_on::tried(calls::turns(ctx, &call, id).await);
+    let Some((run, text)) = crate::move_on::move_on(&agents, was, model, error, &tried) else { return Ok(()) };
+    calls::follow_up(ctx, &call, id, text, BY, Some(run)).await
 }
 
 /// N−1 more runs of the same ask, all waited for, then the judge's pick.
