@@ -257,7 +257,7 @@ export function register(r, app) {
       // Crew members' jobs it delegated count as its children here too.
       const kids = [...Object.values(s.children || {}), ...s.turns.flatMap((t) => (t.delegations || []).filter((d) => d.crew).map((d) => d.sessionId))];
       const out = kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid) || runner.crewChild(cid)]).filter(([, x]) => x)) } : s;
-      const sent = c.query.get('lean') === '1' ? leanSession(out, Number(c.query.get('turns')) || 0, { whole: (id) => !store.get(id) }) : out;
+      const sent = c.query.get('lean') === '1' ? leanSession(out, Number(c.query.get('turns')) || 0, { whole: (id) => !store.get(id), also: (c.query.get('also') || '').split(',').filter(Boolean) }) : out;
       c.send(200, maskOn(store.config) ? maskSession(sent) : sent);
     }),
   );
