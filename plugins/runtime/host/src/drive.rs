@@ -243,11 +243,13 @@ impl Runtime {
 
     fn limits(&self, d: &Drive, limits: serde_json::Value) {
         let agent = self.lock_list().get(&d.sid).map(|s| s.agent.clone()).unwrap_or_default();
+        // the run's account: a second account's windows are its own, never the CLI's own login's
+        let account = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(&d.sid).and_then(|l| l.account.clone());
         self.host.emit(Emitted::Limits(TurnLimits {
             session_id: d.sid.as_str().into(),
             turn_id: d.tid.as_str().into(),
             agent,
-            account: None,
+            account,
             limits,
         }));
     }

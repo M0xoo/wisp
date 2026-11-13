@@ -16,6 +16,12 @@ account?: string,
  */
 tokens?: bigint, 
 /**
+ * the turn's tokens as its stats say, for tokens per turn by account (Settings → Usage): input (the cache aside),
+ * output, the cache (reads and writes: what the turn read besides `input`) and of that the reads alone (what came
+ * from the cache). Additive (2026-11-13).
+ */
+inputTokens?: bigint, outputTokens?: bigint, cacheTokens?: bigint, cacheReadTokens?: bigint, 
+/**
  * a task's first turn (else a follow-up): Ask near the limit learns each apart. Additive (2026-11-11).
  */
 first?: boolean, 

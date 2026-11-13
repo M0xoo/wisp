@@ -40,6 +40,8 @@ pub(crate) struct Live {
     pub interrupting: bool,
     /// the running turn's last step that isn't text (the row's live line)
     pub label: Option<String>,
+    /// the account the run is on (what `before:run` picked): its usage reports are that account's
+    pub account: Option<String>,
     pub ctl: mpsc::UnboundedSender<Ctl>,
 }
 
@@ -132,6 +134,11 @@ impl Runtime {
             Ok(c) => c,
             Err(e) => return self.refused(s, turn, &e.message).await,
         };
+        // the account wisp.accounts picked (an account at its limit or signed out is skipped on a run you start):
+        // the turn says which, so its end and its usage reports count on that account, not the task's first pick
+        if let Some(a) = ctx.account.clone().filter(|a| !a.is_empty()) {
+            turn.account = Some(a);
+        }
         // its project's setup failed in its fresh worktree: the turn waits with why (once: Start now runs it)
         if ctx.hold.is_none()
             && let Some(why) = s.ext.get_mut("wisp.runtime").and_then(Value::as_object_mut).and_then(|o| o.remove("setupFailed"))
@@ -348,7 +355,15 @@ impl Runtime {
             handle.close_stdin();
         }
         let (ctl, ctl_rx) = mpsc::unbounded_channel();
-        let live = Live { resumable: s.resume_id.is_some(), finished: false, stopping: false, interrupting: false, label: None, ctl };
+        let live = Live {
+            resumable: s.resume_id.is_some(),
+            finished: false,
+            stopping: false,
+            interrupting: false,
+            label: None,
+            account: t.account.clone(),
+            ctl,
+        };
         self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(s.id.0.clone(), live);
         let rt = self.clone();
         let driver = h.driver(run);

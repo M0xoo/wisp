@@ -102,6 +102,21 @@ pub struct TurnEnded {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub tokens: Option<u64>,
+    /// the turn's tokens as its stats say, for tokens per turn by account (Settings → Usage): input (the cache aside),
+    /// output, the cache (reads and writes: what the turn read besides `input`) and of that the reads alone (what came
+    /// from the cache). Additive (2026-11-13).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub input_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub output_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cache_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cache_read_tokens: Option<u64>,
     /// a task's first turn (else a follow-up): Ask near the limit learns each apart. Additive (2026-11-11).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]

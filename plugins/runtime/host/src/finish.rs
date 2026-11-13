@@ -168,6 +168,10 @@ impl Runtime {
                 let t = x.input_tokens.unwrap_or(0) + x.output_tokens.unwrap_or(0);
                 (t > 0).then_some(t)
             }),
+            input_tokens: turn.stats.as_ref().and_then(|x| x.input_tokens),
+            output_tokens: turn.stats.as_ref().and_then(|x| x.output_tokens),
+            cache_tokens: turn.stats.as_ref().and_then(|x| x.cache_tokens),
+            cache_read_tokens: turn.stats.as_ref().and_then(cache_reads),
             first: turn.idx == 0,
             inner: s.parent_id.is_some() || matches!(turn.by.as_deref(), Some("wisp" | "compact")),
         }));
@@ -287,4 +291,13 @@ fn refuse(
         turn.refusal = Some(r);
         p.blocks = blocks;
     }
+}
+
+/// What a turn read from the cache: Claude's per-model `cacheRead` when it gives them (its `cache_tokens` adds the
+/// writes), else the cached input (Codex's `cache_tokens` is reads alone).
+fn cache_reads(st: &wisp_runtime_api::model::TurnStats) -> Option<u64> {
+    let reads = st.models.as_ref().filter(|m| !m.is_empty()).and_then(|models| {
+        models.values().map(|m| m.get("cacheRead").and_then(serde_json::Value::as_u64)).try_fold(0u64, |a, x| x.map(|x| a + x))
+    });
+    reads.or(st.cache_tokens)
 }
