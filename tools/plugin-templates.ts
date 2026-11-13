@@ -236,6 +236,21 @@ export function ${n.pascal}Hello(props: { readonly t: (key: string) => string })
 `;
 }
 
+function uiIndex(n: PluginNames): string {
+  return `// ${n.id}'s UI. The shell registers every plugin UI by its default definePluginUi(…) export,
+// as the built-ins do (plugins/stuff/ui/src/index.ts); add views, extensions, palette items here.
+import { definePluginUi } from '@wisp/shell';
+
+export { EXTENSIONS } from './extensions.ts';
+export { ${n.pascal}Hello } from './Hello.tsx';
+
+export default definePluginUi({
+  id: '${n.id}',
+  catalogue: { '${n.name}.hello': 'Hello' },
+});
+`;
+}
+
 function uiTest(): string {
   return `import { describe, expect, it } from 'vitest';
 import { EXTENSIONS } from '../src/extensions.ts';
@@ -284,9 +299,9 @@ export function scaffold(n: PluginNames): Map<string, string> {
     [`${base}/host/wisp-plugin.json`, manifest(n)],
     [`${base}/host/src/index.ts`, n.tier === 'builtin' ? hostBuiltin(n) : hostExecRpc(n)],
     [`${base}/host/test/plugin.test.ts`, hostTest(n)],
-    [`${base}/ui/package.json`, packageJson(`@wisp-plugin/${n.name}-ui`, { '@wisp/ui': '*', [api]: '*', 'solid-js': '^1.9.18' }, { scripts: { test: 'vitest run --passWithNoTests', typecheck: 'tsc -p tsconfig.json' }, devDependencies: { vitest: '^4.1.0' } })],
+    [`${base}/ui/package.json`, packageJson(`@wisp-plugin/${n.name}-ui`, { '@wisp/shell': '*', '@wisp/ui': '*', [api]: '*', 'solid-js': '^1.9.18' }, { scripts: { test: 'vitest run --passWithNoTests', typecheck: 'tsc -p tsconfig.json' }, devDependencies: { vitest: '^4.1.0' } })],
     [`${base}/ui/tsconfig.json`, tsconfig('tsconfig.web.json')],
-    [`${base}/ui/src/index.ts`, `export { EXTENSIONS } from './extensions.ts';\nexport { ${n.pascal}Hello } from './Hello.tsx';\n`],
+    [`${base}/ui/src/index.ts`, uiIndex(n)],
     [`${base}/ui/src/extensions.ts`, uiExtensions(n)],
     [`${base}/ui/src/Hello.tsx`, uiComponent(n)],
     [`${base}/ui/test/extensions.test.ts`, uiTest()],

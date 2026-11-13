@@ -19,7 +19,10 @@ description: Use when adding a new feature area to wisp v2 or moving one into it
 5. **Host:** `export default definePlugin({ id, setup(ctx) { … } })`. Register everything through `ctx`, so
    it belongs to the plugin's scope. Write through `store.tx`. Never import another plugin's `host`.
 6. **UI:** extensions attach to shell inputs (`shell.task:head`, `shell.composer:left`, …), built from
-   `@wisp/ui` only. No CSS. Strings go through `t()`.
+   `@wisp/ui` only. No CSS. Strings go through `t()`. `ui/src/index.ts` registers the UI with a default
+   export, `export default definePluginUi({ id, catalogue, views, extensions, … })` from `@wisp/shell`
+   (as `plugins/stuff/ui/src/index.ts` does); the scaffold writes one. Without it `npm run check` fails
+   with "… is registered nowhere".
 7. Add it to the plugin groups in `apps/server/src/groups.ts` that should ship it.
 8. Tests: `host/test/` with `@wisp/testkit` (the free tests: "deactivate leaks nothing" and "a missing
    permission is refused"), plus the plugin's own behaviour. Then `.agents/bin/monoflow verify --affected`.
