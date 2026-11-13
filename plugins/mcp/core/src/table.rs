@@ -41,8 +41,6 @@ pub const CAPPED_OFF: &[&str] = &[
     "wisp_connector_add",
     "wisp_connector_signin",
 ];
-/// Offered only in a Cast a spell task.
-pub const SPELL_TOOLS: &[&str] = &["wisp_spells", "wisp_spell_schema", "wisp_spell_data", "wisp_spell_check"];
 /// The crew tools `wisp mcp` offers too (without `wisp_crew_kit`: there is no answer to show its files under).
 pub const USER_CREW: &[&str] = &["wisp_crew", "wisp_crew_add", "wisp_crew_edit", "wisp_crew_remove"];
 
@@ -139,13 +137,12 @@ pub fn not_offered(name: &str, info: &SessionInfo, own: Option<OwnFlags>) -> Opt
     }
 }
 
-/// Is a built-in agent tool there at all for this session (`wisp_watch`, `approve` and the spell tools
-/// need their flag)? A tool that isn't answers "Method not found", as v1's fallthrough did.
+/// Is a built-in agent tool there at all for this session (`wisp_watch` and `approve` need their flag; v1's
+/// spell tools are gone with spells, ADR-0031)? A tool that isn't answers "Method not found", as v1's fallthrough did.
 pub fn exists_for(name: &str, info: &SessionInfo) -> bool {
     match name {
         "wisp_watch" => info.watch,
         "approve" => info.approve,
-        n if SPELL_TOOLS.contains(&n) => info.spells,
         _ => true,
     }
 }

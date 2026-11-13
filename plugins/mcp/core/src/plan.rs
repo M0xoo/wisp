@@ -97,10 +97,6 @@ pub fn agent_action(name: &str, a: Args, session: &str, info: &SessionInfo) -> R
             AgentAction::Delegate { wait: a.get("wait").is_none_or(truthy), args: json!({ "session": s, "tasks": a.get("tasks") }) }
         }
         "subagent_results" => results(&a, s, info),
-        "wisp_spells" if info.spells => owner(owners::SPELLS, json!({ "session": s })),
-        "wisp_spell_schema" if info.spells => owner(owners::SPELL_SCHEMA, json!({ "session": s })),
-        "wisp_spell_data" if info.spells => owner(owners::SPELL_DATA, with_session(a, s)),
-        "wisp_spell_check" if info.spells => owner(owners::SPELL_CHECK, with_session(a, s)),
         _ => return Ok(None),
     };
     Ok(Some(action))

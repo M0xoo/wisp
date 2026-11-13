@@ -6,6 +6,7 @@
 //! The session a tool acts for is the caller's (its token's), never an argument. A session's flags
 //! (side discussion, capped, team) are what the runtime last said with `mcp.session.set`.
 
+mod crew;
 mod kinds;
 mod run;
 
