@@ -7,6 +7,7 @@ pub const ASK_CANCELLED: &str = "The user did not answer (the question was cance
 pub const NO_USER: &str = "wisp could not reach the user";
 pub const CAPPED: &str = "Refused: this task was started from a channel with a mode cap, so it can't use this. Say so in your report; the user can do it in wisp.";
 pub const READ_ONLY: &str = "Not available in a side discussion: it only reads and changes nothing.";
+pub const NOT_CAST: &str = "Not available in this task: the plugin-writing tools are only for a task started from Settings → Plugins → Cast a plugin. Say so in your report; the user can cast one there.";
 pub const APPROVE_CANCELLED: &str =
     "The user did not answer (the request was cancelled). Do not retry it; carry on without it and say what was skipped.";
 pub const DENIED: &str = "The user denied this. Do not retry it; carry on without it or ask how to proceed.";

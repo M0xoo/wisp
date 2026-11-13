@@ -48,7 +48,27 @@ fn all(ctx: &Ctx) -> Vec<CommandInfo> {
     ctx.catalogue(&Caller::kernel())
 }
 
+/// Which tasks get the four tools (v1 `info.spells`): the one Settings → Plugins' Cast box starts, whose spec carries
+/// `ext["wisp.plugins"].kind = "cast"`. Every other agent's list goes without them (wisp.mcp refuses a call).
+#[derive(Debug)]
+pub struct CastFlags;
+
+/// Is this session's `ext` a Cast task's?
+pub fn is_cast(ext: &serde_json::Value) -> bool {
+    ext.pointer("/wisp.plugins/kind").and_then(serde_json::Value::as_str) == Some("cast")
+}
+
+impl wisp_mcp_api::SessionFlags for CastFlags {
+    fn id(&self) -> &'static str {
+        "wisp.plugins"
+    }
+    fn flags(&self, _session: &str, ext: &serde_json::Value) -> wisp_mcp_api::SessionInfo {
+        wisp_mcp_api::SessionInfo { spells: is_cast(ext), ..wisp_mcp_api::SessionInfo::default() }
+    }
+}
+
 pub(crate) fn register(s: &mut Setup) {
+    s.contribute(&wisp_mcp_api::SESSION_POINT, std::sync::Arc::new(CastFlags));
     s.command::<AgentList, _, _>(|ctx, _call, _a| async move {
         let have: Vec<summary::Have> = ctx
             .plugins()?
@@ -107,6 +127,17 @@ async fn data(ctx: &Ctx, call: &Call, command: &str, args: serde_json::Value) ->
 mod tests {
     use super::*;
     use wisp_kernel::Plugin;
+
+    #[test]
+    fn only_a_cast_tasks_ext_turns_the_plugin_tools_on() {
+        use wisp_mcp_api::SessionFlags;
+        let on = |ext: serde_json::Value| CastFlags.flags("s", &ext).spells;
+        assert!(on(serde_json::json!({ "wisp.plugins": { "kind": "cast" } })));
+        assert!(!on(serde_json::json!({})), "a plain task");
+        assert!(!on(serde_json::Value::Null), "no ext at all");
+        assert!(!on(serde_json::json!({ "wisp.plugins": { "kind": "other" } })));
+        assert!(!on(serde_json::json!({ "wisp.runtime": { "kind": "cast" } })), "another plugin's slot");
+    }
 
     #[test]
     fn every_data_source_permission_is_one_this_plugin_declares() {

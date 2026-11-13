@@ -45,6 +45,9 @@ pub const CAPPED_OFF: &[&str] = &[
     "wisp_connector_add",
     "wisp_connector_signin",
 ];
+/// The tools for writing a plugin (v1's spell tools): only a Cast task's agent has them (v1 `info.spells`), so
+/// they don't add to every other agent's list.
+pub const PLUGIN_TOOLS: &[&str] = &["wisp_plugins", "wisp_plugin_schema", "wisp_plugin_data", "wisp_plugin_check"];
 /// The crew tools `wisp mcp` offers too (without `wisp_crew_kit`: there is no answer to show its files under).
 pub const USER_CREW: &[&str] = &["wisp_crew", "wisp_crew_add", "wisp_crew_edit", "wisp_crew_remove"];
 
@@ -118,6 +121,8 @@ impl Table {
 pub enum Refusal {
     Capped,
     ReadOnly,
+    /// a plugin-writing tool, in a task that wasn't started from Cast a plugin
+    NotCast,
 }
 
 /// The flags a contributed tool brings for the same checks.
@@ -132,7 +137,9 @@ pub struct OwnFlags {
 pub fn not_offered(name: &str, info: &SessionInfo, own: Option<OwnFlags>) -> Option<Refusal> {
     let capped_off = own.map_or_else(|| CAPPED_OFF.contains(&name), |o| o.capped_off);
     let read_only = own.map_or_else(|| READ_ONLY_TOOLS.contains(&name), |o| o.read_only);
-    if info.capped && capped_off {
+    if own.is_none() && !info.spells && PLUGIN_TOOLS.contains(&name) {
+        Some(Refusal::NotCast)
+    } else if info.capped && capped_off {
         Some(Refusal::Capped)
     } else if info.read_only && !read_only {
         Some(Refusal::ReadOnly)
@@ -141,8 +148,8 @@ pub fn not_offered(name: &str, info: &SessionInfo, own: Option<OwnFlags>) -> Opt
     }
 }
 
-/// Is a built-in agent tool there at all for this session (`wisp_watch` and `approve` need their flag; v1's
-/// spell tools are gone with spells, ADR-0031)? A tool that isn't answers "Method not found", as v1's fallthrough did.
+/// Is a built-in agent tool there at all for this session (`wisp_watch` and `approve` need their flag; the
+/// plugin tools are listed only to a Cast task, `not_offered`)? A tool that isn't answers "Method not found", as v1's fallthrough did.
 pub fn exists_for(name: &str, info: &SessionInfo) -> bool {
     match name {
         "wisp_watch" => info.watch,
@@ -189,20 +196,43 @@ fn build_agent_list(t: &Table, info: &SessionInfo) -> String {
 mod tests {
     use super::*;
 
+    fn names(info: &SessionInfo) -> Vec<String> {
+        let list: Vec<serde_json::Value> = serde_json::from_str(&format!("[{}]", agent_list(table().unwrap(), info))).unwrap();
+        list.iter().filter_map(|x| x["name"].as_str().map(str::to_owned)).collect()
+    }
+
     #[test]
-    fn the_plugin_tools_are_offered_read_only_to_every_agent_a_capped_one_and_a_side_discussion_too() {
-        let t = table().unwrap();
-        let names = ["wisp_plugins", "wisp_plugin_schema", "wisp_plugin_data", "wisp_plugin_check"];
+    fn a_plain_tasks_tool_list_lacks_the_plugin_tools_and_a_call_is_refused() {
         for info in [
             SessionInfo::default(),
             SessionInfo { capped: true, ..SessionInfo::default() },
             SessionInfo { read_only: true, ..SessionInfo::default() },
         ] {
+            let names = names(&info);
+            for n in PLUGIN_TOOLS {
+                assert!(!names.iter().any(|x| x == n), "{n} not offered to {info:?}");
+                assert_eq!(not_offered(n, &info, None), Some(Refusal::NotCast), "{n} refused for {info:?}");
+            }
+            assert!(names.iter().any(|x| x == "wisp_sessions"), "the rest stays: {names:?}");
+        }
+    }
+
+    #[test]
+    fn a_cast_tasks_tool_list_has_the_plugin_tools_read_only_capped_and_side_too() {
+        let t = table().unwrap();
+        for info in [
+            SessionInfo { spells: true, ..SessionInfo::default() },
+            SessionInfo { spells: true, capped: true, ..SessionInfo::default() },
+            SessionInfo { spells: true, read_only: true, ..SessionInfo::default() },
+        ] {
             let list: Vec<serde_json::Value> = serde_json::from_str(&format!("[{}]", agent_list(t, &info))).unwrap();
-            for n in names {
-                let tool = list.iter().find(|x| x["name"] == n).unwrap_or_else(|| panic!("{n} offered to {info:?}"));
+            for n in PLUGIN_TOOLS {
+                let tool = list.iter().find(|x| x["name"] == *n).unwrap_or_else(|| panic!("{n} offered to {info:?}"));
                 assert_eq!(tool["annotations"]["readOnlyHint"], true, "{n}: they only read");
+                assert_eq!(not_offered(n, &info, None), None);
             }
         }
+        // a contributed tool brings its own flags: the Cast check is the built-ins'
+        assert_eq!(not_offered("wisp_plugins", &SessionInfo::default(), Some(OwnFlags::default())), None);
     }
 }

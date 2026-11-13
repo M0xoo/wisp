@@ -14,6 +14,7 @@ serde_json.workspace = true
 wisp-resources-api.workspace = true
 wisp-kernel.workspace = true
 wisp-plugins-api.workspace = true
+wisp-mcp-api.workspace = true
 wisp-plugins-core.workspace = true
 tracing.workspace = true
 tokio.workspace = true

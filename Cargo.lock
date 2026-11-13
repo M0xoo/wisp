@@ -5233,6 +5233,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-kernel",
+ "wisp-mcp-api",
  "wisp-plugins-api",
  "wisp-plugins-core",
  "wisp-proc",

@@ -27,6 +27,16 @@ impl Agent {
 
     /// `start`, with more variables for the server (made from the test's folder, before it starts).
     async fn start_env(name: &str, env: impl FnOnce(&std::path::Path) -> Vec<(String, String)>) -> Self {
+        Self::start_spec(name, env, json!({})).await
+    }
+
+    /// A task started from Settings → Plugins' Cast box: its spec says so (`ext["wisp.plugins"].kind`).
+    async fn start_cast(name: &str) -> Self {
+        Self::start_spec(name, |_| Vec::new(), json!({ "ext": { "wisp.plugins": { "kind": "cast" } } })).await
+    }
+
+    /// `start_env`, with more fields for the task's `runtime.create`.
+    async fn start_spec(name: &str, env: impl FnOnce(&std::path::Path) -> Vec<(String, String)>, more_spec: Value) -> Self {
         let dir = temp(name);
         let rec = dir.join("rec");
         std::fs::create_dir_all(&rec).unwrap();
@@ -35,7 +45,11 @@ impl Agent {
         vars.extend(more.iter().map(|(k, v)| (k.as_str(), v.as_str())));
         let (serve, port) = start_with(&dir, &vars);
         let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
-        let made = api.cmd("runtime.create", json!({ "prompt": "hi", "cwd": dir.join("proj"), "agent": "claude" })).await;
+        let mut spec = json!({ "prompt": "hi", "cwd": dir.join("proj"), "agent": "claude" });
+        if let (Some(o), Some(more)) = (spec.as_object_mut(), more_spec.as_object()) {
+            o.extend(more.clone());
+        }
+        let made = api.cmd("runtime.create", spec).await;
         let id = made["id"].as_str().unwrap().to_owned();
         api.until(&id, "the turn running", |t| t.len() == 1 && t[0]["status"] == "running").await;
         let runs = until_records(&rec.join("claude.jsonl"), "the run's record", |r| !r.is_empty()).await;
@@ -93,7 +107,8 @@ fn reached(tool: &str, (text, _): &(String, bool)) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn every_builtin_tool_reaches_a_registered_owner() {
-    let a = Agent::start("mcp-sweep").await;
+    // a Cast task: every built-in is listed, the plugin-writing tools too
+    let a = Agent::start_cast("mcp-sweep").await;
     // these wait on the user or on other tasks; their owners are typed commands rust-mcp-owners checks
     let waits = ["ask_user", "delegate", "subagent_results", "wisp_launch"];
     let agent = a.names(true).await;
@@ -463,6 +478,31 @@ async fn wisp_task_refuses_this_task_itself() {
 
 // ---- writing an untrusted plugin (ADR-0048): v1's spell tools in their v2 form ----
 
+const PLUGIN_TOOLS: [&str; 4] = ["wisp_plugins", "wisp_plugin_schema", "wisp_plugin_data", "wisp_plugin_check"];
+
+#[tokio::test(flavor = "multi_thread")]
+async fn plugin_tools_only_in_a_cast_task_a_plain_tasks_list_lacks_them_and_a_call_is_refused() {
+    let a = Agent::start("mcp-plugin-plain").await;
+    let names = a.names(true).await;
+    assert!(names.iter().any(|n| n == "wisp_sessions"), "{names:?}");
+    for tool in PLUGIN_TOOLS {
+        assert!(!names.iter().any(|n| n == tool), "{tool} isn't in a plain task's list: {names:?}");
+        let (t, err) = a.call(tool, json!({})).await;
+        assert!(err && t.contains("only for a task started from Settings → Plugins → Cast a plugin"), "{tool}: {t}");
+    }
+    a.serve.stop();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn plugin_tools_a_cast_tasks_list_has_them() {
+    let a = Agent::start_cast("mcp-plugin-cast").await;
+    let names = a.names(true).await;
+    for tool in PLUGIN_TOOLS {
+        assert!(names.iter().any(|n| n == tool), "{tool} in a Cast task's list: {names:?}");
+    }
+    a.serve.stop();
+}
+
 /// A plugin of the user's, in a folder: a Settings pane that lists their plugins.
 fn my_plugins(dir: &std::path::Path) -> (Value, String) {
     let manifest = json!({
@@ -479,7 +519,7 @@ fn my_plugins(dir: &std::path::Path) -> (Value, String) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wisp_plugins_lists_the_users_own_plugins_in_plain_words_then_wisps() {
-    let a = Agent::start("mcp-plugins").await;
+    let a = Agent::start_cast("mcp-plugins").await;
     let (t, err) = a.call("wisp_plugins", json!({})).await;
     assert!(!err && t.starts_with("The user has no plugins of their own yet"), "{t}");
     assert!(t.contains("**Plugins** (wisp.plugins): on."), "wisp's own, one line each: {t}");
@@ -488,7 +528,7 @@ async fn wisp_plugins_lists_the_users_own_plugins_in_plain_words_then_wisps() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wisp_plugins_shows_an_installed_plugin_off_untrusted_with_its_manifest() {
-    let a = Agent::start("mcp-plugins-mine").await;
+    let a = Agent::start_cast("mcp-plugins-mine").await;
     let _ = my_plugins(&a.dir.join("mine"));
     a.api.cmd("plugins.install", json!({ "source": a.dir.join("mine") })).await;
     let (t, err) = a.call("wisp_plugins", json!({})).await;
@@ -501,7 +541,7 @@ async fn wisp_plugins_shows_an_installed_plugin_off_untrusted_with_its_manifest(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wisp_plugin_schema_is_the_reference_made_from_the_real_types() {
-    let a = Agent::start("mcp-plugin-schema").await;
+    let a = Agent::start_cast("mcp-plugin-schema").await;
     let (t, err) = a.call("wisp_plugin_schema", json!({})).await;
     assert!(!err && t.starts_with("# Writing a wisp plugin (the untrusted tier)"), "{}", &t[..t.len().min(300)]);
     for want in [
@@ -522,7 +562,7 @@ async fn wisp_plugin_schema_is_the_reference_made_from_the_real_types() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wisp_plugin_data_samples_a_read_only_command_and_refuses_the_rest() {
-    let a = Agent::start("mcp-plugin-data").await;
+    let a = Agent::start_cast("mcp-plugin-data").await;
     let (t, err) = a.call("wisp_plugin_data", json!({ "command": "plugins.list" })).await;
     assert!(!err && t.starts_with("plugins.list answered a list of "), "{t}");
     assert!(t.contains("needs \"plugins:read\" in its permissions") && t.contains("\"id\": ") && t.contains(" more\""), "a sample: {t}");
@@ -550,7 +590,7 @@ async fn wisp_plugin_data_samples_a_read_only_command_and_refuses_the_rest() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn wisp_plugin_check_validates_a_plugin_without_installing_it() {
-    let a = Agent::start("mcp-plugin-check").await;
+    let a = Agent::start_cast("mcp-plugin-check").await;
     let (manifest, ui) = my_plugins(&a.dir.join("mine"));
     let (t, err) = a.call("wisp_plugin_check", json!({ "manifest": manifest, "files": { "ui.js": ui } })).await;
     assert!(!err && t.starts_with("ok: My plugins (user.my-plugins) would install."), "{t}");

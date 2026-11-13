@@ -164,6 +164,7 @@ fn call(id: Box<RawValue>, mut m: Message, who: &Who, extras: &[Extra]) -> Step 
             match table::not_offered(&name, info, own) {
                 Some(Refusal::Capped) => return Step::Reply(rpc::result(&id, &rpc::tool_text(words::CAPPED, true))),
                 Some(Refusal::ReadOnly) => return Step::Reply(rpc::result(&id, &rpc::tool_text(words::READ_ONLY, true))),
+                Some(Refusal::NotCast) => return Step::Reply(rpc::result(&id, &rpc::tool_text(words::NOT_CAST, true))),
                 None => {}
             }
             let builtin =
