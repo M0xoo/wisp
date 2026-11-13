@@ -16,6 +16,9 @@ jobs:
       os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
       node: '["20", "22", "lts/*", "current"]'
       repeat: 3
+      # 30 fit three runs when a run took under 10 min. At ~11 min (Windows, macOS lts) the third
+      # run was cut off and every nightly since Nov 8 ended cancelled, so none published.
+      timeout: 50
 
   # The latest releases: they change upstream whether or not wisp does.
   real-clis:
