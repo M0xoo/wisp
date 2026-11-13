@@ -214,6 +214,22 @@ async fn notes_keep_the_tree_clean() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn notes_work_where_git_has_no_identity() {
+    // CI and fresh boxes: no user.name/email and none to guess (`useConfigOnly` makes git refuse to guess)
+    let d = dir("notes-noid", "history: { transcripts: notes }", true);
+    git(&d, &["config", "user.useConfigOnly", "true"]);
+    let k = kernel(&d, &Arc::new(Mutex::new("Fix".into())), true, &Kept::default()).await;
+    let t = k.call(Caller::user(), "history.track", track()).await.unwrap();
+    assert!(t["files"].to_string().contains("refs/notes/wisp:"), "{t}");
+    let who = std::process::Command::new("git").args(["log", "-1", "--format=%an <%ae> / %cn <%ce>", "refs/notes/wisp"]).current_dir(&d).output().unwrap();
+    assert_eq!(String::from_utf8_lossy(&who.stdout).trim(), "wisp <wisp@localhost> / wisp <wisp@localhost>", "the notes commit is wisp's, not a guess");
+    let cfg = std::fs::read_to_string(d.join(".git/config")).unwrap();
+    assert!(!cfg.contains("[user]\n\tname") && !cfg.contains("email"), "wisp never writes the user's git config: {cfg}");
+    k.call(Caller::user(), "history.untrack", json!({ "id": "01a1bc12ab34", "repo": d.display().to_string() })).await.unwrap();
+    assert!(git(&d, &["notes", "--ref=wisp", "list"]).trim().is_empty(), "removing works without an identity too");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn lfs_marks_transcripts() {
     let d = dir("lfs", "history: { transcripts: lfs }", true);
     let k = kernel(&d, &Arc::new(Mutex::new("Fix".into())), true, &Kept::default()).await;

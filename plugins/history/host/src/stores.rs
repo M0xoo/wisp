@@ -87,6 +87,24 @@ impl HistoryStore for Lfs {
 /// task file and report stay in the tree.
 pub struct Notes(pub Arc<Proc>);
 
+/// Who a notes commit on `refs/notes/wisp` is by: wisp itself, through env (as v1's `MOVER`), so notes work
+/// in a repo whose user has no `user.name`/`user.email` (CI, a fresh box) and wisp never writes their config.
+pub(crate) const NOTES_IDENTITY: &[(&str, &str)] = &[
+    ("GIT_AUTHOR_NAME", "wisp"),
+    ("GIT_AUTHOR_EMAIL", "wisp@localhost"),
+    ("GIT_COMMITTER_NAME", "wisp"),
+    ("GIT_COMMITTER_EMAIL", "wisp@localhost"),
+];
+
+/// `git notes --ref=wisp <args>` as wisp: stdout, or git's stderr (trimmed) when it fails.
+async fn git_notes(proc: &Proc, root: &std::path::Path, args: &[&str]) -> std::result::Result<String, String> {
+    let env = NOTES_IDENTITY.iter().fold(wisp_proc::Env::default(), |e, (k, v)| e.with(*k, *v));
+    let opts = wisp_proc::ExecOpts { cwd: Some(root.to_owned()), env, timeout: Some(std::time::Duration::from_secs(60)), ..wisp_proc::ExecOpts::default() };
+    let argv: Vec<String> = ["notes", "--ref=wisp"].iter().chain(args).map(|a| (*a).to_owned()).collect();
+    let r = proc.exec("git", &argv, opts).await.map_err(|e| e.to_string())?;
+    if r.exit.success() { Ok(r.stdout_text()) } else { Err(String::from_utf8_lossy(&r.stderr).trim().to_owned()) }
+}
+
 async fn key_blob(proc: &Proc, root: &std::path::Path, rel: &str) -> Option<String> {
     let opts = wisp_proc::ExecOpts { cwd: Some(root.to_owned()), input: Some(format!("wisp history {rel}\n").into_bytes()), ..wisp_proc::ExecOpts::default() };
     let r = proc.exec("git", &["hash-object".to_owned(), "-w".to_owned(), "--stdin".to_owned()], opts).await.ok()?;
@@ -106,13 +124,16 @@ impl HistoryStore for Notes {
                 let blob = key_blob(&p, &root, &rel).await.ok_or_else(|| WireError::invalid(format!("{} isn't a git repo: notes need one", root.display())))?;
                 // the bytes as a blob of their own (`-C`: no message clean-up, so a binary transcript stays exact)
                 let opts = wisp_proc::ExecOpts { cwd: Some(root.clone()), input: Some(bytes), ..wisp_proc::ExecOpts::default() };
-                let content = p.exec("git", &["hash-object".to_owned(), "-w".to_owned(), "--stdin".to_owned()], opts).await.ok().filter(|r| r.exit.success()).map(|r| r.stdout_text().trim().to_owned());
-                let ok = match content {
-                    Some(c) => crate::git::run(&p, "git", &root, &["notes", "--ref=wisp", "add", "-f", "-C", &c, &blob]).await.is_some(),
-                    None => false,
+                let content = match p.exec("git", &["hash-object".to_owned(), "-w".to_owned(), "--stdin".to_owned()], opts).await {
+                    Ok(r) if r.exit.success() => Ok(r.stdout_text().trim().to_owned()),
+                    Ok(r) => Err(String::from_utf8_lossy(&r.stderr).trim().to_owned()),
+                    Err(e) => Err(e.to_string()),
                 };
-                if !ok {
-                    return Err(WireError::internal(format!("git notes couldn't keep {rel}")));
+                if let Err(why) = match content {
+                    Ok(c) => git_notes(&p, &root, &["add", "-f", "-C", &c, &blob]).await.map(drop),
+                    Err(why) => Err(why),
+                } {
+                    return Err(WireError::internal(format!("git notes couldn't keep {rel}: {why}")));
                 }
                 out.push(format!("refs/notes/wisp:{rel}"));
             }
@@ -126,7 +147,7 @@ impl HistoryStore for Notes {
             let mut gone = remove_files(&root, tree).await;
             for rel in notes {
                 if let Some(blob) = key_blob(&p, &root, &rel).await
-                    && crate::git::run(&p, "git", &root, &["notes", "--ref=wisp", "remove", &blob]).await.is_some()
+                    && git_notes(&p, &root, &["remove", &blob]).await.is_ok()
                 {
                     gone.push(format!("refs/notes/wisp:{rel}"));
                 }
