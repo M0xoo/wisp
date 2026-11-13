@@ -1,5 +1,9 @@
 # v2 build queue (code first, verify later)
 
+**Next one-concern items (2026-11-13):** (1) the answer `code` block has no CSS in v2 (unstyled; v1's `.blk-code`
+values, highlighting, copy button); (2) Claude Code's own subagents per turn in TurnStats so the usage card lists them
+by type (#785 leftover); (3) re-take the task.more and task.right-click v1 references after #786.
+
 **Fix first: #756 CI on 0b5bff88 (2026-11-12).** tauri and tauri windows green on every OS (DESK2-01, DESK2-05 fixed).
 `pr` fails 3 tests in one file (`a_changed_harness_holds_its_turn_until_trusted`,
 `a_second_codex_account_signs_in_and_its_runs_use_its_folder`, `keys_limits_and_the_v1_routes`) at
