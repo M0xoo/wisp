@@ -1,5 +1,9 @@
 # v2 build queue (code first, verify later)
 
+**Bug (found 2026-11-13, round 64):** `plugins/channels/host` `KPhone::projects` reads `/projects` from the
+`resources.export` answer, but that command returns `Vec<Resource>` (an array), so a channel's context never gets the
+projects or the default project. Fix with a test that a channel task lands in the right project.
+
 **Fix first: #756 CI on 4dfb2791 (2026-11-13).** `crates/wisp/tests/serve_code.rs:33`
 `a_formula_applied_exported_and_its_workflow_run` (node 24): the test's `git commit -qam` still hits `.git/index.lock:
 File exists` after GIT_OPTIONAL_LOCKS=0. Some git call wisp makes during a formula's workflow run *writes* the index
