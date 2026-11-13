@@ -30,6 +30,10 @@ pub const READ_ONLY_TOOLS: &[&str] = &[
     "wisp_crew",
     "wisp_connectors",
     "wisp_available",
+    "wisp_plugins",
+    "wisp_plugin_schema",
+    "wisp_plugin_data",
+    "wisp_plugin_check",
 ];
 /// Not offered to a task a channel started at a mode cap: the tools that only change or read the user's setup.
 pub const CAPPED_OFF: &[&str] = &[
@@ -178,4 +182,27 @@ fn build_agent_list(t: &Table, info: &SessionInfo) -> String {
         out.push(if READ_ONLY_TOOLS.contains(&d.name.as_str()) { d.hinted.as_str().into() } else { d.raw.as_str().into() });
     }
     out.join(",")
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_plugin_tools_are_offered_read_only_to_every_agent_a_capped_one_and_a_side_discussion_too() {
+        let t = table().unwrap();
+        let names = ["wisp_plugins", "wisp_plugin_schema", "wisp_plugin_data", "wisp_plugin_check"];
+        for info in [
+            SessionInfo::default(),
+            SessionInfo { capped: true, ..SessionInfo::default() },
+            SessionInfo { read_only: true, ..SessionInfo::default() },
+        ] {
+            let list: Vec<serde_json::Value> = serde_json::from_str(&format!("[{}]", agent_list(t, &info))).unwrap();
+            for n in names {
+                let tool = list.iter().find(|x| x["name"] == n).unwrap_or_else(|| panic!("{n} offered to {info:?}"));
+                assert_eq!(tool["annotations"]["readOnlyHint"], true, "{n}: they only read");
+            }
+        }
+    }
 }

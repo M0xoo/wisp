@@ -460,3 +460,104 @@ async fn wisp_task_refuses_this_task_itself() {
     assert_eq!(a.api.turns(&a.id).await.len(), 1, "nothing was sent");
     a.serve.stop();
 }
+
+// ---- writing an untrusted plugin (ADR-0048): v1's spell tools in their v2 form ----
+
+/// A plugin of the user's, in a folder: a Settings pane that lists their plugins.
+fn my_plugins(dir: &std::path::Path) -> (Value, String) {
+    let manifest = json!({
+        "wispPlugin": 1, "id": "user.my-plugins", "name": "My plugins", "version": "1.0.0", "api": "^1",
+        "description": "Lists the plugins this wisp has.", "permissions": ["plugins:read"],
+        "contributes": { "ui": [{ "id": "user.my-plugins.pane", "attachTo": { "id": "shell.settings", "input": "pane" }, "component": "./ui.js#default", "title": "My plugins" }] }
+    });
+    let ui = "wisp.call('plugins.list', {}).then((rows) => wisp.render({ c: 'Stack', k: rows.map((r) => ({ c: 'ListRow', p: { title: r.id } })) }));".to_owned();
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(dir.join("wisp-plugin.json"), manifest.to_string()).unwrap();
+    std::fs::write(dir.join("ui.js"), &ui).unwrap();
+    (manifest, ui)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wisp_plugins_lists_the_users_own_plugins_in_plain_words_then_wisps() {
+    let a = Agent::start("mcp-plugins").await;
+    let (t, err) = a.call("wisp_plugins", json!({})).await;
+    assert!(!err && t.starts_with("The user has no plugins of their own yet"), "{t}");
+    assert!(t.contains("**Plugins** (wisp.plugins): on."), "wisp's own, one line each: {t}");
+    a.serve.stop();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wisp_plugins_shows_an_installed_plugin_off_untrusted_with_its_manifest() {
+    let a = Agent::start("mcp-plugins-mine").await;
+    let _ = my_plugins(&a.dir.join("mine"));
+    a.api.cmd("plugins.install", json!({ "source": a.dir.join("mine") })).await;
+    let (t, err) = a.call("wisp_plugins", json!({})).await;
+    assert!(!err && t.starts_with("The user's own plugins (1)"), "{t}");
+    assert!(t.contains("- **My plugins** (user.my-plugins 1.0.0): off, untrusted. Lists the plugins this wisp has."), "{t}");
+    assert!(t.contains("Shows a pane in Settings → Advanced (“My plugins”)") && t.contains("May: `plugins:read`."), "{t}");
+    assert!(t.contains("\"id\": \"user.my-plugins\""), "its manifest in full: {t}");
+    a.serve.stop();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wisp_plugin_schema_is_the_reference_made_from_the_real_types() {
+    let a = Agent::start("mcp-plugin-schema").await;
+    let (t, err) = a.call("wisp_plugin_schema", json!({})).await;
+    assert!(!err && t.starts_with("# Writing a wisp plugin (the untrusted tier)"), "{}", &t[..t.len().min(300)]);
+    for want in [
+        "- `permissions`: ",
+        "- `ui`: ",
+        "- `SettingsRow` {",
+        "`wisp.call(command, args)`",
+        "- `shell.settings`: ",
+        "- `plugins.list` ",
+        "(`plugins:read`, reads)",
+        "### “A Settings pane that lists my plugins and which are on”",
+    ] {
+        assert!(t.contains(want), "{want} in the reference");
+    }
+    assert!(!t.contains("`plugins.agent.list`"), "an agent's own tools aren't a plugin's commands");
+    a.serve.stop();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wisp_plugin_data_samples_a_read_only_command_and_refuses_the_rest() {
+    let a = Agent::start("mcp-plugin-data").await;
+    let (t, err) = a.call("wisp_plugin_data", json!({ "command": "plugins.list" })).await;
+    assert!(!err && t.starts_with("plugins.list answered a list of "), "{t}");
+    assert!(t.contains("needs \"plugins:read\" in its permissions") && t.contains("\"id\": ") && t.contains(" more\""), "a sample: {t}");
+    let (t, err) =
+        a.call("wisp_plugin_data", json!({ "command": "plugins.setEnabled", "args": { "id": "wisp.plugins", "enabled": false } })).await;
+    assert!(err && t.contains("plugins.setEnabled isn't a data source"), "{t}");
+    let (t, err) = a.call("wisp_plugin_data", json!({ "command": "nope.nothing" })).await;
+    assert!(err && t.contains("nope.nothing isn't a command wisp has"), "{t}");
+    // another plugin's data: the nested call narrows through wisp.plugins' own grant, which declares its sources
+    a.api.cmd("crew.create", json!({ "name": "Scout", "role": "CI watcher", "agent": "claude" })).await;
+    let (t, err) = a.call("wisp_plugin_data", json!({ "command": "crew.list" })).await;
+    assert!(!err && t.starts_with("crew.list answered a list of 1") && t.contains("\"Scout\""), "{t}");
+    let (t, err) = a.call("wisp_plugin_data", json!({ "command": "runtime.unmasked" })).await;
+    assert!(
+        err && t.contains("runtime.unmasked (\"runtime:unmasked\") isn't one wisp_plugin_data samples"),
+        "never what reveals a secret: {t}"
+    );
+    let (t, err) = a.call("wisp_plugin_data", json!({ "command": "plugins.agent.list" })).await;
+    assert!(err && t.contains("isn't a data source"), "not its own tools: {t}");
+    // nothing was switched off
+    let list = a.api.cmd("plugins.list", json!({})).await;
+    assert!(list.as_array().unwrap().iter().any(|p| p["id"] == "wisp.plugins" && p["enabled"] == true), "{list}");
+    a.serve.stop();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn wisp_plugin_check_validates_a_plugin_without_installing_it() {
+    let a = Agent::start("mcp-plugin-check").await;
+    let (manifest, ui) = my_plugins(&a.dir.join("mine"));
+    let (t, err) = a.call("wisp_plugin_check", json!({ "manifest": manifest, "files": { "ui.js": ui } })).await;
+    assert!(!err && t.starts_with("ok: My plugins (user.my-plugins) would install."), "{t}");
+    assert!(t.contains("- calls plugins.list (") && t.contains("which only reads"), "{t}");
+    let list = a.api.cmd("plugins.list", json!({})).await;
+    assert!(!list.to_string().contains("user.my-plugins"), "checked, never installed: {list}");
+    let (t, err) = a.call("wisp_plugin_check", json!({ "manifest": { "wispPlugin": 1, "id": "my-plugins", "version": "1.0.0", "api": "^1", "permissions": [], "contributes": manifest["contributes"] } })).await;
+    assert!(!err && t.contains("problems to fix") && t.contains("isn't a plugin of yours") && t.contains("ui.js isn't given"), "{t}");
+    a.serve.stop();
+}

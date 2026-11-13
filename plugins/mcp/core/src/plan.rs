@@ -97,6 +97,13 @@ pub fn agent_action(name: &str, a: Args, session: &str, info: &SessionInfo) -> R
             AgentAction::Delegate { wait: a.get("wait").is_none_or(truthy), args: json!({ "session": s, "tasks": a.get("tasks") }) }
         }
         "subagent_results" => results(&a, s, info),
+        "wisp_plugins" => owner(owners::PLUGINS, json!({ "session": s })),
+        "wisp_plugin_schema" => owner(owners::PLUGIN_SCHEMA, json!({ "session": s })),
+        "wisp_plugin_data" => owner(owners::PLUGIN_DATA, json!({ "session": s, "command": text(a.get("command")), "args": a.get("args") })),
+        "wisp_plugin_check" => owner(
+            owners::PLUGIN_CHECK,
+            json!({ "session": s, "manifest": a.get("manifest"), "files": a.get("files").cloned().unwrap_or_else(|| json!({})) }),
+        ),
         _ => return Ok(None),
     };
     Ok(Some(action))

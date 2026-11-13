@@ -77,8 +77,8 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | route | `GET /internal/delegate/:id` | `mcp:subagent_results` |
 | route | `GET /internal/session/:id` | `mcp:wisp_session` |
 | route | `GET /internal/sessions/:id` | `mcp:wisp_sessions` |
-| route | `GET /internal/spell-schema/:id` | `todo:wisp_plugin_schema: the reference for writing an untrusted plugin UI (ADR-0048)` |
-| route | `GET /internal/spells/:id` | `todo:wisp_plugins: the plugins you have, for an agent writing one (ADR-0048 kit descriptors; spells gone, ADR-0031)` |
+| route | `GET /internal/spell-schema/:id` | `mcp:wisp_plugin_schema` |
+| route | `GET /internal/spells/:id` | `mcp:wisp_plugins` |
 | route | `GET /internal/stats/:id` | `mcp:wisp_stats` |
 | route | `GET /internal/stuff/:id` | `mcp:wisp_stuff` |
 | route | `GET /internal/task/:id` | `mcp:wisp_task` |
@@ -212,8 +212,8 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | route | `POST /internal/later` | `mcp:resume_later` |
 | route | `POST /internal/launch/:id` | `mcp:wisp_launch` |
 | route | `POST /internal/prs` | `mcp:wisp_pr` |
-| route | `POST /internal/spell-check/:id` | `todo:wisp_plugin_check: validate a plugin without installing it (ADR-0048)` |
-| route | `POST /internal/spell-data/:id` | `todo:wisp_plugin_data: sample a data source for a plugin being written (ADR-0048)` |
+| route | `POST /internal/spell-check/:id` | `mcp:wisp_plugin_check` |
+| route | `POST /internal/spell-data/:id` | `mcp:wisp_plugin_data` |
 | route | `POST /internal/stuff` | `mcp:wisp_save` |
 | route | `POST /internal/tags` | `mcp:wisp_tag` |
 | route | `POST /internal/task/:id` | `mcp:wisp_task` |
@@ -292,10 +292,10 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | route | `POST /shares/import` | `cmd:share.import` |
 | route | `POST /shares/peek` | `cmd:share.peek` |
 | route | `POST /spells` | `cmd:plugins.setEnabled`, `kind:plugins` |
-| route | `POST /spells/:id/data/:name` | `todo:wisp_plugin_data: sample a data source for a plugin being written (ADR-0048)` |
-| route | `POST /spells/check` | `todo:wisp_plugin_check: validate a plugin without installing it (ADR-0048)` |
+| route | `POST /spells/:id/data/:name` | `mcp:wisp_plugin_data` |
+| route | `POST /spells/check` | `mcp:wisp_plugin_check` |
 | route | `POST /spells/off` | `cmd:plugins.setEnabled` |
-| route | `POST /spells/try-data` | `todo:wisp_plugin_data: sample a data source for a plugin being written (ADR-0048)` |
+| route | `POST /spells/try-data` | `mcp:wisp_plugin_data` |
 | route | `POST /stuff` | `cmd:stuff.save` |
 | route | `POST /stuff/:id/allow` | `cmd:stuff.allow` |
 | route | `POST /stuff/:id/launch` | `cmd:stuff.launch` |
@@ -341,10 +341,10 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | mcp | `wisp_save` | `mcp:wisp_save` |
 | mcp | `wisp_session` | `mcp:wisp_session` |
 | mcp | `wisp_sessions` | `mcp:wisp_sessions` |
-| mcp | `wisp_spell_check` | `todo:wisp_plugin_check: validate a plugin without installing it (ADR-0048)` |
-| mcp | `wisp_spell_data` | `todo:wisp_plugin_data: sample a data source for a plugin being written (ADR-0048)` |
-| mcp | `wisp_spell_schema` | `todo:wisp_plugin_schema: the reference for writing an untrusted plugin UI (ADR-0048)` |
-| mcp | `wisp_spells` | `todo:wisp_plugins: the plugins you have, for an agent writing one (ADR-0048 kit descriptors; spells gone, ADR-0031)` |
+| mcp | `wisp_spell_check` | `mcp:wisp_plugin_check` |
+| mcp | `wisp_spell_data` | `mcp:wisp_plugin_data` |
+| mcp | `wisp_spell_schema` | `mcp:wisp_plugin_schema` |
+| mcp | `wisp_spells` | `mcp:wisp_plugins` |
 | mcp | `wisp_stats` | `mcp:wisp_stats` |
 | mcp | `wisp_stop` | `mcp:wisp_stop` |
 | mcp | `wisp_stuff` | `mcp:wisp_stuff` |

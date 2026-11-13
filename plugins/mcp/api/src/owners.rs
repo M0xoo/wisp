@@ -27,6 +27,11 @@ pub const CONNECTORS_LIST: &str = "connectors.agent.list"; // GET /internal/conn
 pub const CONNECTORS_ADD: &str = "connectors.agent.add"; // POST /internal/connectors/:id
 /// → `{ text }`, or `{ id }`: an ask it opened with `mcp.ask.open`, answered "Done: …" when it works
 pub const CONNECTORS_SIGNIN: &str = "connectors.agent.signin"; // POST /internal/connectors/:id/signin
+/// an agent writing an untrusted plugin (ADR-0048; v1's spell tools, GET /internal/spells/:id … POST /internal/spell-check/:id)
+pub const PLUGINS: &str = "plugins.agent.list"; // wisp_plugins
+pub const PLUGIN_SCHEMA: &str = "plugins.agent.schema"; // wisp_plugin_schema
+pub const PLUGIN_DATA: &str = "plugins.agent.data"; // wisp_plugin_data
+pub const PLUGIN_CHECK: &str = "plugins.agent.check"; // wisp_plugin_check
 pub const AVAILABLE: &str = "runtime.agent.available"; // GET /internal/available/:id
 pub const TASK: &str = "runtime.agent.task"; // POST /internal/task/:id
 
