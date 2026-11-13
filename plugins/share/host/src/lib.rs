@@ -27,6 +27,7 @@ use wisp_share_core::{Scrub, canonical, counts, scrub, secret_env};
 
 pub use wisp_share_api::PLUGIN_ID;
 
+mod calls;
 mod link;
 
 /// The secret this wisp signs shares with (`share/key`: a 32-byte ed25519 seed, base64).
@@ -68,19 +69,19 @@ fn files_of(steps: &Value, out: &mut Vec<String>) {
 }
 
 async fn preview(ctx: &Ctx, call: &Call, a: &ShareArgs) -> Result<Preview> {
-    let task = ctx.run_json(call, "runtime.get", json!({ "id": a.id })).await?;
-    let spec = ctx.run_json(call, "runtime.spec", json!({ "id": a.id })).await?;
-    let formula = ctx.run_json(call, "runtime.snapshot", json!({ "of": a.id })).await.map_or(Value::Null, |x| x["formula"].clone());
+    let task = calls::task(ctx, call, &a.id).await?;
+    let spec = calls::spec(ctx, call, &a.id).await?;
+    let formula = calls::formula(ctx, call, &a.id).await;
     let mut report = None;
     let mut history = None;
     if a.level != Level::Spec {
         // .env values never go in a share, whatever Hide .env values says (ADR-0050)
-        let turns = ctx.run_json(call, "runtime.turns", json!({ "id": a.id, "masked": true })).await?;
+        let turns = calls::masked_turns(ctx, call, &a.id).await?;
         let mut answers = Vec::new();
         let mut files = Vec::new();
         let mut full = Vec::new();
-        for t in turns.as_array().into_iter().flatten() {
-            let steps = ctx.run_json(call, "runtime.activity", json!({ "id": a.id, "turnId": t["id"], "masked": true })).await.unwrap_or(Value::Null);
+        for (turn, t) in &turns {
+            let steps = calls::masked_steps(ctx, call, &a.id, turn).await;
             files_of(&steps, &mut files);
             answers.push(json!({ "prompt": t["prompt"], "status": t["status"], "blocks": t.pointer("/presentation/blocks").cloned().unwrap_or(json!([])), "text": t["text"] }));
             if a.level == Level::Full {
@@ -94,22 +95,22 @@ async fn preview(ctx: &Ctx, call: &Call, a: &ShareArgs) -> Result<Preview> {
     }
     // the scrub: secrets, this server's secret env values, paths, names the sharer didn't pick
     let mut names: Vec<(String, String)> = Vec::new();
-    if let Ok(list) = ctx.run_json(call, "runtime.list", json!({})).await {
-        names.extend(list.as_array().into_iter().flatten().filter(|t| s(t, "id") != a.id).map(|t| (s(t, "title").to_owned(), "<task>".to_owned())).filter(|(t, _)| t.len() > 3));
+    if let Ok(list) = calls::titles(ctx, call).await {
+        names.extend(list.into_iter().filter(|(id, _)| *id != a.id).map(|(_, title)| (title, "<task>".to_owned())).filter(|(t, _)| t.len() > 3));
     }
     let crew = spec.get("crew").and_then(Value::as_str).unwrap_or_default().to_owned();
-    if let Ok(list) = ctx.run_json(call, "crew.list", json!({})).await {
-        names.extend(list.as_array().into_iter().flatten().filter(|m| s(m, "name") != crew && s(m, "id") != crew).map(|m| (s(m, "name").to_owned(), "<crew>".to_owned())));
+    if let Ok(list) = calls::crew(ctx, call).await {
+        names.extend(list.into_iter().filter(|(id, name)| *name != crew && *id != crew).map(|(_, name)| (name, "<crew>".to_owned())));
     }
     let scrub_with = Scrub { env: secret_env(std::env::vars()), project: s(&spec, "cwd").to_owned(), home: std::env::var("HOME").unwrap_or_default(), names };
     let mut red = Vec::new();
-    let title = wisp_share_core::scrub_text(s(&task, "title"), &scrub_with, "title", &mut red);
+    let title = wisp_share_core::scrub_text(&task.title, &scrub_with, "title", &mut red);
     let spec = scrub(&spec, &scrub_with, "spec", &mut red);
     let formula = scrub(&formula, &scrub_with, "formula", &mut red);
     let report = report.map(|r| scrub(&r, &scrub_with, "report", &mut red));
     let history = history.map(|h| scrub(&h, &scrub_with, "history", &mut red));
     let mut needs = Vec::new();
-    let harness = s(&task, "agent");
+    let harness = &task.agent;
     if !harness.is_empty() {
         needs.push(format!("harness:{harness}"));
     }
@@ -162,8 +163,8 @@ async fn open(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Opened> {
     if b.wisp_task != FORMAT {
         return Err(WireError::invalid(format!("a .wisp-task of format {} (this wisp reads {FORMAT}): update wisp", b.wisp_task)));
     }
-    let agents = ctx.run_json(call, "runtime.agents", json!({})).await.unwrap_or(Value::Null);
-    let have = |h: &str| agents.as_array().into_iter().flatten().any(|a| s(a, "id") == h && a.get("available") != Some(&json!(false)));
+    let agents = calls::agents(ctx, call).await;
+    let have = |h: &str| agents.iter().any(|(id, available)| id == h && *available);
     let missing = b.needs.iter().filter(|n| n.strip_prefix("harness:").is_some_and(|h| !have(h))).cloned().collect();
     Ok(Opened { verified: verify(&b), fingerprint: fingerprint(&b.from.key), signer: b.from.clone(), level: b.level, title: b.title.clone(), missing, bundle: b })
 }
@@ -181,9 +182,9 @@ async fn import(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Value> {
     spec["lineage"] = json!({ "sharedFrom": b.id });
     let n = turns.len();
     let args = json!({ "title": format!("{} (shared by {})", b.title, b.from.name), "agent": harness, "cwd": "", "turns": turns, "spec": spec, "ext": { PLUGIN_ID: { "id": b.id, "from": b.from.name, "level": "full" } } });
-    let out = ctx.run_json(call, "runtime.adopt", args).await?;
+    let out = calls::adopt(ctx, call, args).await?;
     let props = json!({ "turns": n, "work": "none", "switched": false });
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "task_import", "props": props })).await;
+    calls::warn("task_import not tracked", calls::track(ctx, "task_import", props).await);
     Ok(out)
 }
 
@@ -197,7 +198,7 @@ async fn send(ctx: &Ctx, call: &Call, a: SendArgs) -> Result<Value> {
         let mut b = preview(ctx, call, &ShareArgs { id: id.clone(), level: a.level }).await?.bundle;
         // the same task shared again is the same bundle unless it changed (a new version only then)
         b.id = format!("share-{id}");
-        b.created_at = ctx.run_json(call, "runtime.get", json!({ "id": id })).await.ok().and_then(|t| t.get("updatedAt").and_then(Value::as_i64)).unwrap_or(0);
+        b.created_at = calls::task(ctx, call, &id).await.map_or(0, |t| t.updated_at);
         let k = signing_key(ctx).await?;
         b.from = Signer { name: me(), key: B64.encode(k.verifying_key().to_bytes()) };
         b.sig = B64.encode(k.sign(&canonical(&b)).to_bytes());

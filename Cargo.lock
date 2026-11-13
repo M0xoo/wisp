@@ -5528,10 +5528,14 @@ dependencies = [
  "rand 0.9.5",
  "serde",
  "serde_json",
+ "tracing",
+ "wisp-crew-api",
+ "wisp-grid-client-api",
  "wisp-kernel",
  "wisp-runtime-api",
  "wisp-share-api",
  "wisp-share-core",
+ "wisp-telemetry-api",
 ]
 
 [[package]]

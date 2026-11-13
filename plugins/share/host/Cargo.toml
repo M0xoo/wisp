@@ -13,10 +13,14 @@ ed25519-dalek.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tracing.workspace = true
 wisp-kernel.workspace = true
 wisp-share-api.workspace = true
 wisp-share-core.workspace = true
 wisp-runtime-api.workspace = true
+wisp-crew-api.workspace = true
+wisp-telemetry-api.workspace = true
+wisp-grid-client-api.workspace = true
 
 [lints]
 workspace = true

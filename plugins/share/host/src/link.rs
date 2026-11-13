@@ -9,7 +9,9 @@ use serde_json::{Value, json};
 use wisp_kernel::{Call, Command, Ctx, Result, Setup, WireError};
 use wisp_runtime_api::model::{Session, Turn};
 use wisp_runtime_api::points::{SUMMARY, SummaryField};
-use wisp_share_api::{Bundle, Level, PLUGIN_ID, SendArgs};
+use wisp_share_api::{Bundle, Destinations, Level, NoArgs, PLUGIN_ID, SendArgs, SendCmd};
+
+use crate::calls;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateArgs {
@@ -90,7 +92,7 @@ pub fn locked_card(tried: bool) -> Value {
 }
 
 async fn create(ctx: &Ctx, call: &Call, a: CreateArgs) -> Result<Value> {
-    let dests = ctx.run_json(call, "share.destinations", json!({})).await?;
+    let dests = ctx.run::<Destinations>(call, NoArgs {}).await?;
     let to = dests.as_array().into_iter().flatten().find(|d| d.get("ready") == Some(&json!(true))).and_then(|d| d.get("id")).and_then(Value::as_str).map(str::to_owned);
     let Some(to) = to else {
         let why = dests.as_array().and_then(|d| d.first()).and_then(|d| d.get("why")).and_then(Value::as_str).unwrap_or("Sign in to wisp Cloud to share a link.").to_owned();
@@ -98,30 +100,30 @@ async fn create(ctx: &Ctx, call: &Call, a: CreateArgs) -> Result<Value> {
     };
     let locked = a.passkey.as_deref().is_some_and(|p| !p.trim().is_empty());
     let args = SendArgs { to, id: Some(a.session.clone()), level: if a.work { Level::Report } else { Level::Spec }, access: Some(access_of(a.passkey.as_deref())), ..SendArgs::default() };
-    let sent = ctx.run_json(call, "share.send", serde_json::to_value(args).map_err(|e| WireError::internal(e.to_string()))?).await?;
+    let sent = ctx.run::<SendCmd>(call, args).await?;
     let at = ctx.clock().map_or(0, |c| c.now_ms());
     let keep = kept(&sent, locked, at);
-    let again = ctx.run_json(call, "runtime.get", json!({ "id": a.session })).await.is_ok_and(|s| s.pointer(&format!("/ext/{PLUGIN_ID}/url")).is_some());
-    ctx.run_json(call, "runtime.setExt", json!({ "id": a.session, "plugin": PLUGIN_ID, "value": keep })).await?;
+    let again = calls::task(ctx, call, &a.session).await.is_ok_and(|s| s.ext_of(PLUGIN_ID).get("url").is_some());
+    calls::set_ext(ctx, call, &a.session, keep.clone()).await?;
     let props = json!({ "locked": locked, "work": if a.work { "report" } else { "none" }, "again": again });
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "task_share", "props": props })).await;
+    calls::warn("task_share not tracked", calls::track(ctx, "task_share", props).await);
     Ok(json!({ "url": keep["url"], "locked": locked, "at": at, "notes": [] }))
 }
 
 async fn stop(ctx: &Ctx, call: &Call, a: SessionArgs) -> Result<Value> {
-    let task = ctx.run_json(call, "runtime.get", json!({ "id": a.session })).await?;
-    let Some(id) = task.get("ext").and_then(|e| e.get(PLUGIN_ID)).and_then(|v| v.get("id")).and_then(Value::as_str).map(str::to_owned) else {
+    let task = calls::task(ctx, call, &a.session).await?;
+    let Some(id) = task.ext_of(PLUGIN_ID).get("id").and_then(Value::as_str).map(str::to_owned) else {
         return Err(WireError::invalid("This task isn't shared."));
     };
-    ctx.run_json(call, "grid-client.revoke", json!({ "id": id })).await?;
-    ctx.run_json(call, "runtime.setExt", json!({ "id": a.session, "plugin": PLUGIN_ID, "value": null })).await?;
+    calls::revoke(ctx, call, id).await?;
+    calls::set_ext(ctx, call, &a.session, Value::Null).await?;
     Ok(json!({ "ok": true }))
 }
 
 async fn peek(ctx: &Ctx, call: &Call, a: PeekArgs) -> Result<Value> {
     let tried = a.passkey.as_deref().is_some_and(|p| !p.is_empty());
-    match ctx.run_json(call, "grid-client.fetch", json!({ "link": a.url, "password": a.passkey })).await {
-        Ok(f) => Ok(card_of(f.get("content").unwrap_or(&Value::Null), f.get("card").unwrap_or(&Value::Null), f.get("verified") == Some(&json!(true)))),
+    match calls::fetch(ctx, call, a.url, a.passkey).await {
+        Ok(f) => Ok(card_of(&f.content, &f.card, f.verified)),
         Err(e) if e.message.contains("password") || e.message.contains("people only") || e.message.contains("for a team") => Ok(locked_card(tried)),
         Err(e) => Err(e),
     }
