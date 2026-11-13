@@ -106,13 +106,20 @@ pub async fn status(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
     Ok(out)
 }
 
-/// The login's command line: under script(1) when the CLI only asks on a terminal (util-linux's flags,
-/// v1 `loginArgv`). Elsewhere as it is.
+/// The login's command line on this OS (see [`argv_for`]).
 fn argv_of(l: &HarnessLogin) -> (String, Vec<String>) {
-    if l.tty && std::env::consts::OS == "linux" {
+    argv_for(l, std::env::consts::OS)
+}
+
+/// The login's command line on `os`: under util-linux script(1) on Linux when the CLI only asks on a
+/// terminal (v1 `loginArgv`): `script -q -f -e -c '<bin> <args…>' /dev/null` (options and the one
+/// quoted command first, the typescript file last; BSD script's `script -q file cmd…` order is not
+/// used, macOS runs the CLI as it is, like v1). Elsewhere as it is.
+fn argv_for(l: &HarnessLogin, os: &str) -> (String, Vec<String>) {
+    if l.tty && os == "linux" {
         let q = |s: &str| format!("'{}'", s.replace('\'', "'\\''"));
         let line = std::iter::once(bin(l)).chain(l.args.iter().cloned()).map(|a| q(&a)).collect::<Vec<_>>().join(" ");
-        return ("script".into(), vec!["-qfec".into(), line, "/dev/null".into()]);
+        return ("script".into(), ["-q", "-f", "-e", "-c"].iter().map(|s| (*s).to_owned()).chain([line, "/dev/null".into()]).collect());
     }
     (bin(l), l.args.clone())
 }
@@ -290,16 +297,37 @@ pub async fn logout(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
 mod tests {
     use super::*;
 
+    fn v(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    fn agy() -> HarnessLogin {
+        HarnessLogin { bin: "agy".into(), bin_env: "WISP_TEST_NO_AGY_BIN".into(), args: v(&["-p", "Reply with OK."]), tty: true, ..HarnessLogin::default() }
+    }
+
     #[test]
     fn a_login_that_asks_on_a_terminal_gets_one_on_linux() {
-        let l = HarnessLogin { bin: "agy".into(), bin_env: "WISP_TEST_NO_AGY_BIN".into(), args: vec!["-p".into(), "Reply with OK.".into()], tty: true, ..HarnessLogin::default() };
-        let (p, a) = argv_of(&l);
-        if std::env::consts::OS == "linux" {
-            assert_eq!((p.as_str(), a[2].as_str()), ("script", "'agy' '-p' 'Reply with OK.'"));
-        } else {
-            assert_eq!((p.as_str(), a), ("agy", vec!["-p".to_owned(), "Reply with OK.".to_owned()]));
-        }
+        let (p, a) = argv_of(&agy());
+        assert_eq!((p, a), argv_for(&agy(), std::env::consts::OS));
         assert_eq!(login_id("codex", "default"), "codex");
         assert_eq!(login_id("codex", "w1"), "codex@w1");
+    }
+
+    #[test]
+    fn signin_argv_on_linux_is_util_linux_script_with_the_quoted_command_before_the_file() {
+        let (p, a) = argv_for(&agy(), "linux");
+        assert_eq!(p, "script");
+        assert_eq!(a, v(&["-q", "-f", "-e", "-c", "'agy' '-p' 'Reply with OK.'", "/dev/null"]));
+        let mut l = agy();
+        l.args = v(&["it's"]);
+        assert_eq!(argv_for(&l, "linux").1[4], "'agy' 'it'\\''s'");
+    }
+
+    #[test]
+    fn signin_argv_on_macos_or_without_tty_runs_the_cli_as_it_is() {
+        assert_eq!(argv_for(&agy(), "macos"), ("agy".to_owned(), v(&["-p", "Reply with OK."])));
+        let mut l = agy();
+        l.tty = false;
+        assert_eq!(argv_for(&l, "linux"), ("agy".to_owned(), v(&["-p", "Reply with OK."])));
     }
 }
