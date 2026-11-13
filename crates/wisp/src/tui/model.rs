@@ -129,6 +129,11 @@ pub struct Ask {
     pub options: Vec<String>,
 }
 
+/// A turn row the task's window sent as a stub (`body.stub`).
+fn is_stub(v: &Value) -> bool {
+    v.get("body").and_then(|b| b.get("stub")).and_then(Value::as_bool) == Some(true)
+}
+
 /// The open task, from its topic.
 #[derive(Debug, Default)]
 pub struct Transcript {
@@ -143,10 +148,27 @@ impl Transcript {
         Self { task: task.to_owned(), ..Self::default() }
     }
 
+    /// A first look at one of the task's two topics: `session:<id>`, a window whose older turns are stubs
+    /// (v1 #788), or `session:<id>/all`, every turn whole. A window keeps the whole turns (and their events)
+    /// the other brought, so a resync of the window never empties the older turns.
     pub fn snapshot(&mut self, rows: Vec<Row>) {
-        self.rows.clear();
+        let held = std::mem::take(&mut self.rows);
         for r in rows {
             self.rows.insert((r.e, r.id), r.v);
+        }
+        let stubs: BTreeSet<String> = self.rows.iter().filter(|((e, _), v)| e == "turn" && is_stub(v)).map(|((_, id), _)| id.clone()).collect();
+        if stubs.is_empty() {
+            return;
+        }
+        for ((e, id), v) in held {
+            let keep = match e.as_str() {
+                "turn" => stubs.contains(&id) && !is_stub(&v),
+                "event" => v.get("turn_id").and_then(Value::as_str).is_some_and(|t| stubs.contains(t)),
+                _ => false,
+            };
+            if keep {
+                self.rows.insert((e, id), v);
+            }
         }
     }
 

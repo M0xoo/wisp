@@ -32,6 +32,7 @@ mod watch;
 pub mod runtime;
 pub mod schema;
 pub mod sys;
+pub mod turn_window;
 
 pub use host::{Emitted, Host, Recorder};
 pub use plugin::RuntimePlugin;

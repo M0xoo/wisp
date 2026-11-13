@@ -10,7 +10,7 @@ use std::time::Duration;
 use support::{Fake, config, json_h, send};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use wisp_api::v2::{Driver, Snapshots};
-use wisp_api::v2_store::{StoreSnapshots, TopicSource, feed, to_wire};
+use wisp_api::v2_store::{StoreSnapshots, TopicReader, TopicSource, feed, to_wire};
 use wisp_api::{Edge, Hub};
 use wisp_protocol::{Change, PeerInfo, Topic};
 use wisp_store::{Location, ManualClock, Query, Store, row};
@@ -83,6 +83,26 @@ async fn snapshot_then_delta_from_the_store() {
     // a topic no source names reads from the change feed
     let other = snaps.snapshot(&Topic::parse("list").unwrap(), None).await;
     assert!(other.full && other.rows.is_empty());
+}
+
+/// A plugin's own first-look read (wisp.runtime's task window): it answers the full snapshot in place of the
+/// change feed; a resume still reads only what changed.
+#[tokio::test]
+async fn a_topic_reader_answers_the_first_look_and_a_resume_reads_the_feed() {
+    let s = store();
+    set(&s, "theme", "dark").await;
+    let snaps = StoreSnapshots::new(s.clone(), sources(), Vec::new()).with_readers(vec![TopicReader {
+        matches: |t| t == "config",
+        read: |_, _| Ok(vec![("setting".into(), "windowed".into(), serde_json::Map::new())]),
+    }]);
+    let config = Topic::parse("config").unwrap();
+    let full = snaps.snapshot(&config, None).await;
+    assert!(full.full);
+    assert_eq!(full.rows.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["windowed"], "the reader wins over the source");
+    set(&s, "volume", "3").await;
+    let delta = snaps.snapshot(&config, Some(full.seq)).await;
+    assert!(!delta.full);
+    assert_eq!(delta.rows.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["volume"]);
 }
 
 #[tokio::test]

@@ -90,6 +90,19 @@ fn snapshot_sources() -> Vec<wisp_api::v2_store::TopicSource> {
         .collect()
 }
 
+/// The topics a plugin reads itself for a first look: wisp.runtime's task window (v1 #788: the latest turns
+/// whole, older ones as stubs, only the whole ones' events), so a long task never sends every event it had.
+fn snapshot_readers() -> Vec<wisp_api::v2_store::TopicReader> {
+    #[cfg(feature = "runtime")]
+    {
+        vec![wisp_api::v2_store::TopicReader { matches: wisp_runtime::turn_window::matches, read: wisp_runtime::turn_window::read }]
+    }
+    #[cfg(not(feature = "runtime"))]
+    {
+        Vec::new()
+    }
+}
+
 /// The user's own plugins (`<home>/plugins/<slug>`, ADR-0046) join the group, each off at start: the plugin manager
 /// switches back on the ones you switched on.
 fn with_user_plugins(g: wisp_kernel::PluginGroup, home: &Path) -> wisp_kernel::PluginGroup {
@@ -158,7 +171,7 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     // epoch), and every commit streamed as it lands (Store::on_commit → Driver::committed)
     // every row leaves through its owner's `kernel.egress` view (ADR-0050: .env values never leave)
     let views: Arc<dyn wisp_api::egress::ViewSource> = Arc::new(kernel.clone());
-    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new()).with_views(views.clone());
+    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new()).with_readers(snapshot_readers()).with_views(views.clone());
     let driver = wisp_api::v2::Driver::start(Arc::new(snaps), backend.clone(), peer(&kernel));
     let feed = wisp_api::v2_store::feed_viewed(&store, driver.clone(), views);
     hub.mount(driver);

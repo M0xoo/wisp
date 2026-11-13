@@ -82,6 +82,25 @@ fn golden(name: &str, got: &str) {
     assert_eq!(got, want, "{name} changed; WISP_GOLDENS=update rewrites it");
 }
 
+/// v1 #788: the task's topic resyncs as a window (older turns as stubs, without their steps); the whole turns its
+/// `/all` read brought stay, with their steps, and a turn the window sends whole replaces them.
+#[test]
+fn a_window_resync_keeps_the_older_turns_whole_with_their_steps_v1_788() {
+    let mut a = opened();
+    let t = a.open.as_mut().unwrap();
+    t.snapshot(vec![
+        row("session", "t2", json!({ "id": "t2", "title": "Add dark mode", "state": "running" })),
+        row("turn", "T1", json!({ "id": "T1", "idx": 0, "body": { "stub": true, "status": "done", "prompt": "Make sessions last longer" } })),
+        row("turn", "T2", json!({ "id": "T2", "idx": 1, "body": { "status": "running", "prompt": "Add dark mode, again" } })),
+    ]);
+    let turns = t.turns();
+    assert_eq!(turns.len(), 2);
+    assert_eq!(turns[0]["presentation"]["blocks"][0]["title"], "Sessions last an hour", "the whole T1 stays over its stub: {}", turns[0]);
+    assert_eq!(t.events("T1").len(), 1, "with its steps");
+    assert_eq!(turns[1]["prompt"], "Add dark mode, again", "a turn sent whole is the window's");
+    assert!(t.events("T2").is_empty(), "a whole turn's steps are the window's: none now");
+}
+
 #[test]
 fn the_list_starts_on_the_newest_task_in_its_sections() {
     // round-6 nit: the selection started on whichever task the snapshot gave first (the oldest)

@@ -41,6 +41,25 @@ impl std::fmt::Debug for TopicSource {
     }
 }
 
+/// A topic whose full snapshot a plugin reads itself (`read`), in place of the change feed: wisp.runtime's
+/// task window (`session:<id>`: the latest turns whole, older ones as stubs, only the whole ones' events),
+/// so a long task's first look never reads every event it ever had. Rows are `(kind, id, value)`.
+/// Additive (2026-11-13).
+#[derive(Clone, Copy)]
+pub struct TopicReader {
+    pub matches: fn(&str) -> bool,
+    pub read: ReadFn,
+}
+
+/// A [`TopicReader`]'s read: the topic's rows as `(kind, id, value)`.
+pub type ReadFn = fn(&Reader<'_>, &str) -> wisp_store::Result<Vec<(String, String, Map<String, Value>)>>;
+
+impl std::fmt::Debug for TopicReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TopicReader").finish_non_exhaustive()
+    }
+}
+
 /// An event log a topic pages back through (`window`): `session:<id>` → the kind's rows under `<id>`.
 #[derive(Debug, Clone, Copy)]
 pub struct WindowSource {
@@ -54,6 +73,7 @@ pub struct WindowSource {
 pub struct StoreSnapshots {
     store: Store,
     sources: Arc<[TopicSource]>,
+    readers: Arc<[TopicReader]>,
     windows: Arc<[WindowSource]>,
     head: Arc<AtomicU64>,
     _heard: Arc<Subscription>,
@@ -80,11 +100,19 @@ impl StoreSnapshots {
         Self {
             store,
             sources: sources.into(),
+            readers: Arc::new([]),
             windows: windows.into(),
             head,
             _heard: Arc::new(heard),
             views: Arc::new(NoViews),
         }
+    }
+
+    /// Topics whose full snapshot `readers` read (the first that matches). Additive (2026-11-13).
+    #[must_use]
+    pub fn with_readers(mut self, readers: Vec<TopicReader>) -> Self {
+        self.readers = readers.into();
+        self
     }
 
     /// Rows leave through `views` (the kernel's `kernel.egress` contributions). Additive (2026-11-13).
@@ -176,6 +204,7 @@ fn full_rows(
 fn read_topic(
     r: &Reader<'_>,
     sources: &[TopicSource],
+    readers: &[TopicReader],
     topic: &str,
     since: Option<u64>,
 ) -> wisp_store::Result<Read> {
@@ -187,6 +216,15 @@ fn read_topic(
     }
     // a first look, or a cursor retention already dropped: the whole topic
     let head = r.head_seq()?;
+    if let Some(reader) = readers.iter().find(|x| (x.matches)(topic)) {
+        let rows = (reader.read)(r, topic)?.into_iter().map(|(e, id, v)| Row { e, id, v: Value::Object(v) }).collect();
+        return Ok(Read {
+            seq: seq(head),
+            rows,
+            full: true,
+            deleted: Vec::new(),
+        });
+    }
     if let Some(rows) = full_rows(r, sources, topic)? {
         return Ok(Read {
             seq: seq(head),
@@ -221,16 +259,17 @@ impl Snapshots for StoreSnapshots {
         self.store.read(oldest_of).map_or(0, seq)
     }
     fn snapshot(&self, topic: &Topic, since: Option<u64>) -> BoxFuture<'static, Read> {
-        let (store, sources, topic) = (
+        let (store, sources, readers, topic) = (
             self.store.clone(),
             self.sources.clone(),
+            self.readers.clone(),
             topic.as_str().to_owned(),
         );
         let views = self.views.clone();
         Box::pin(async move {
             let t = topic.clone();
             let mut read = store
-                .read_async(move |r| read_topic(r, &sources, &t, since))
+                .read_async(move |r| read_topic(r, &sources, &readers, &t, since))
                 .await
                 .unwrap_or_else(|e| {
                     tracing::warn!(topic, "snapshot failed: {e}");

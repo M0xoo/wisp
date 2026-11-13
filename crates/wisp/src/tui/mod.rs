@@ -247,7 +247,10 @@ fn ticked(app: &mut App) -> bool {
 /// The open task's topic, watched (a task still being created has none yet).
 async fn watch(c: &Client, app: &mut App, id: Option<String>) -> Option<Conn> {
     let id = id.filter(|id| !id.starts_with("local-"))?;
-    let mut conn = Conn::new(c, &[wisp_runtime_api::session_topic(&id)]);
+    // the task's own topic is a window (older turns as stubs, v1 #788); the TUI draws every turn's steps, so it
+    // also reads every turn whole once (`/all`), and the window's live changes keep it current
+    let topics = [wisp_runtime_api::session_topic(&id), format!("{}/all", wisp_runtime_api::session_topic(&id))];
+    let mut conn = Conn::new(c, &topics);
     match conn.start().await {
         Ok(got) => fold_task(app, got),
         Err(e) => app.toast(e.to_string(), true),
