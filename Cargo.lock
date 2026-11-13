@@ -4949,10 +4949,14 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "wisp-budget-api",
  "wisp-kernel",
  "wisp-later-api",
  "wisp-later-core",
+ "wisp-runtime-api",
  "wisp-store",
+ "wisp-telemetry-api",
+ "wisp-testkit",
 ]
 
 [[package]]

@@ -8,15 +8,16 @@
 //!
 //! resources: data-only (its rows are follow-ups and reminders scheduled on tasks: task data, kept with history (ADR-0029)).
 
+mod calls;
 mod store;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_later_api::commands as c;
-use wisp_later_api::{BY_AGENT, LaterEntry, LaterHeld, PER_TICK, PLUGIN_ID, Plan, PlanKind, SentMeta, TICK_MS};
+use wisp_later_api::{BY_AGENT, LaterEntry, LaterHeld, PER_TICK, Plan, PlanKind, SentMeta, TICK_MS};
 use wisp_later_core::{Action, PlanAction, Task, TaskMeta, TaskState, due, due_plans, next_at, rules};
 use wisp_store::Store;
 
@@ -66,22 +67,35 @@ fn dropped(ctx: &Ctx, call: &Call, session_id: &str, gone: &[LaterEntry], why: &
     }
 }
 
+/// The task, as wisp.runtime has it; None: it's gone, or couldn't be read (logged).
 async fn task_of(ctx: &Ctx, call: &Call, id: &str) -> Option<Task> {
-    let s = ctx.run_json(call, "runtime.get", json!({ "id": id })).await.ok()?;
-    let st = s["state"].as_str().unwrap_or("review");
-    Some(Task {
-        id: id.to_owned(),
-        title: s["title"].as_str().unwrap_or_default().to_owned(),
-        agent: s["agent"].as_str().unwrap_or_default().to_owned(),
-        account: s["account"].as_str().filter(|a| !a.is_empty()).unwrap_or("default").to_owned(),
-        state: TaskState::parse(st).unwrap_or(TaskState::Review),
-        archived: s["archived"].as_bool().unwrap_or(false),
-        busy: st == "running",
-        asking: st == "waiting" || !s["ext"]["wisp.runtime"]["ask"].is_null(),
-        delegates: false,
-        sub: s["parentId"].is_string(),
-        tour: s["agent"] == "wisp",
+    calls::task(ctx, call, id).await.unwrap_or_else(|err| {
+        tracing::warn!(error = %err.message, task = id, "later: runtime.get");
+        None
     })
+}
+
+/// The task for a command that needs it: not found when it's gone, runtime's own refusal otherwise.
+async fn need_task(ctx: &Ctx, call: &Call, id: &str, gone: &str) -> Result<Task> {
+    calls::task(ctx, call, id).await?.ok_or_else(|| WireError::not_found(gone))
+}
+
+/// A write a look makes as it goes (logged when refused: the next look sees the rows as they are).
+fn logged(r: Result<()>, what: &str) {
+    if let Err(err) = r {
+        tracing::warn!(error = %err.message, "later: {what}");
+    }
+}
+
+/// What a look may decide on: the entries and `/after` plans of tasks runtime answered for (gone or not).
+/// One it couldn't read would otherwise look gone, and its follow-ups forgotten, its plans lost.
+fn readable(entries: Vec<LaterEntry>, plans: Vec<Plan>, unread: &BTreeSet<String>) -> (Vec<LaterEntry>, Vec<Plan>) {
+    if unread.is_empty() {
+        return (entries, plans);
+    }
+    let entries = entries.into_iter().filter(|l| !unread.contains(&l.session_id)).collect();
+    let plans = plans.into_iter().filter(|p| p.after.as_ref().is_none_or(|a| !unread.contains(&a.id))).collect();
+    (entries, plans)
 }
 
 impl State {
@@ -105,11 +119,14 @@ impl State {
     /// The task's ext slot, so its list row shows what is scheduled.
     async fn mirror(&self, ctx: &Ctx, call: &Call, id: &str) {
         let ext = self.meta(id).ext(&self.of_task(id));
-        let _ = ctx.run_json(call, "runtime.setExt", json!({ "id": id, "plugin": PLUGIN_ID, "value": ext })).await;
+        match serde_json::to_value(ext) {
+            Ok(v) => calls::mirror(ctx, call, id, v).await,
+            Err(e) => tracing::warn!(error = %e, task = id, "later: a task's ext"),
+        }
     }
 
     async fn add(&self, ctx: &Ctx, call: &Call, a: &c::AddArgs) -> Result<LaterEntry> {
-        let task = task_of(ctx, call, &a.session_id).await.ok_or_else(|| WireError::not_found("No such task."))?;
+        let task = need_task(ctx, call, &a.session_id, "No such task.").await?;
         let pending = self.of_task(&a.session_id).len();
         let l = rules::new_entry(wisp_kernel::ids::uuid7(), &task, &self.meta(&a.session_id), pending, a, now(ctx), self.tz(now(ctx))).map_err(wire)?;
         lock(&self.entries).push(l.clone());
@@ -126,7 +143,7 @@ impl State {
     }
 
     /// A follow-up goes into its task now.
-    async fn fire(&self, ctx: &Ctx, call: &Call, l: &LaterEntry, late: bool) -> Result<Value> {
+    async fn fire(&self, ctx: &Ctx, call: &Call, l: &LaterEntry, late: bool) -> Result<wisp_runtime_api::commands::FollowedUp> {
         let sent = SentMeta { by: l.by.clone(), set_at: l.set_at, at: l.at, late };
         let note = rules::late_note(&sent, now(ctx), self.tz(now(ctx)));
         let mut m = self.meta(&l.session_id);
@@ -134,7 +151,7 @@ impl State {
         lock(&self.metas).insert(l.session_id.clone(), m.clone());
         self.write(store::Ops { drop_entries: vec![l.id.clone()], metas: vec![(l.session_id.clone(), m)], ..store::Ops::default() }).await?;
         let text = format!("{note}\n\n{}", l.text);
-        ctx.run_json(call, "runtime.followUp", json!({ "id": l.session_id, "text": text, "by": "later", "attachments": l.attachments })).await
+        calls::follow_up(ctx, call, &l.session_id, text, &l.attachments).await
     }
 
     /// A reminder (or a missed follow-up) brings the task back to Needs you with its text.
@@ -144,7 +161,7 @@ impl State {
         m.reminder = Some(reminder);
         lock(&self.metas).insert(l.session_id.clone(), m.clone());
         self.write(store::Ops { drop_entries: vec![l.id.clone()], metas: vec![(l.session_id.clone(), m)], ..store::Ops::default() }).await?;
-        let _ = ctx.run_json(call, "runtime.note", json!({ "id": l.session_id, "text": l.text })).await;
+        calls::note(ctx, call, &l.session_id, l.text.clone()).await;
         Ok(())
     }
 
@@ -160,15 +177,25 @@ impl State {
         ids.dedup();
         let mut tasks = BTreeMap::new();
         let mut holds: HashMap<(String, String), Option<LaterHeld>> = HashMap::new();
+        // a task runtime couldn't read this look (starting, a failed read) isn't gone: what it has waits
+        let mut unread = BTreeSet::new();
         for id in ids {
-            let Some(t) = task_of(ctx, call, &id).await else { continue };
+            let t = match calls::task(ctx, call, &id).await {
+                Ok(Some(t)) => t,
+                Ok(None) => continue,
+                Err(err) => {
+                    tracing::warn!(error = %err.message, task = %id, "later: runtime.get");
+                    unread.insert(id);
+                    continue;
+                }
+            };
             let key = (t.agent.clone(), t.account.clone());
             if let std::collections::hash_map::Entry::Vacant(slot) = holds.entry(key) {
-                let h = ctx.run_json(call, "budget.hold", json!({ "agent": t.agent, "account": t.account })).await.ok().filter(|h| !h.is_null());
-                slot.insert(h.map(|h| LaterHeld { why: h["why"].as_str().unwrap_or_default().to_owned(), until: h["until"].as_i64().unwrap_or(at), load: h["load"].as_bool().unwrap_or(false) }));
+                slot.insert(calls::hold(ctx, call, &t).await);
             }
             tasks.insert(id, t);
         }
+        let (entries, plans) = readable(entries, plans, &unread);
         let d = due(&entries, &tasks, &mut |t| holds.get(&(t.agent.clone(), t.account.clone())).cloned().flatten(), at, PER_TICK);
         let mut fired = 0;
         let mut touched = Vec::new();
@@ -176,13 +203,13 @@ impl State {
             match a {
                 Action::Lapse { session_id, ids } => {
                     self.take(&ids);
-                    let _ = self.write(store::Ops { drop_entries: ids, ..store::Ops::default() }).await;
+                    logged(self.write(store::Ops { drop_entries: ids, ..store::Ops::default() }).await, "lapse");
                     touched.push(session_id);
                 }
                 Action::Forget { session_id } => {
                     let ids: Vec<String> = self.of_task(&session_id).into_iter().map(|l| l.id).collect();
                     self.take(&ids);
-                    let _ = self.write(store::Ops { drop_entries: ids, ..store::Ops::default() }).await;
+                    logged(self.write(store::Ops { drop_entries: ids, ..store::Ops::default() }).await, "forget");
                 }
                 Action::Hold { session_id, id, at: when, held } => {
                     let moved = {
@@ -194,28 +221,29 @@ impl State {
                         })
                     };
                     if let Some(l) = moved {
-                        let _ = self.write(store::Ops { entries: vec![l], ..store::Ops::default() }).await;
+                        logged(self.write(store::Ops { entries: vec![l], ..store::Ops::default() }).await, "hold");
                     }
                     touched.push(session_id);
                 }
                 Action::Fire { session_id, id, late } => {
                     if let Some(l) = self.take(std::slice::from_ref(&id)).pop() {
-                        if self.fire(ctx, call, &l, late).await.is_ok() {
-                            fired += 1;
+                        match self.fire(ctx, call, &l, late).await {
+                            Ok(_) => fired += 1,
+                            Err(err) => tracing::warn!(error = %err.message, task = %session_id, "later: a follow-up"),
                         }
                         touched.push(session_id);
                     }
                 }
                 Action::Remind { session_id, id } => {
                     if let (Some(l), Some(t)) = (self.take(std::slice::from_ref(&id)).pop(), tasks.get(&session_id)) {
-                        let _ = self.remind(ctx, call, t, &l, l.text.clone(), false).await;
+                        logged(self.remind(ctx, call, t, &l, l.text.clone(), false).await, "a reminder");
                         touched.push(session_id);
                     }
                 }
                 Action::Missed { session_id, id } => {
                     if let (Some(l), Some(t)) = (self.take(std::slice::from_ref(&id)).pop(), tasks.get(&session_id)) {
                         let text = rules::missed_text(&l, at, self.tz(at));
-                        let _ = self.remind(ctx, call, t, &l, text, true).await;
+                        logged(self.remind(ctx, call, t, &l, text, true).await, "a missed follow-up");
                         dropped(ctx, call, &session_id, std::slice::from_ref(&l), "missed");
                         touched.push(session_id);
                     }
@@ -228,14 +256,11 @@ impl State {
                 PlanAction::Run { id } | PlanAction::Missed { id } => {
                     let Some(p) = lock(&self.plans).iter().find(|p| p.id == id).cloned() else { continue };
                     lock(&self.plans).retain(|x| x.id != id);
-                    let _ = self.write(store::Ops { drop_plans: vec![id], ..store::Ops::default() }).await;
+                    logged(self.write(store::Ops { drop_plans: vec![id], ..store::Ops::default() }).await, "a plan");
                     if p.kind == PlanKind::Task {
-                        let mut body = p.body.clone().unwrap_or_else(|| json!({}));
-                        if let Some(o) = body.as_object_mut() {
-                            o.insert("by".into(), json!("later"));
-                        }
-                        if ctx.run_json(call, "runtime.create", body).await.is_ok() {
-                            fired += 1;
+                        match calls::create(ctx, call, p.body.as_ref()).await {
+                            Ok(_) => fired += 1,
+                            Err(err) => tracing::warn!(error = %err.message, plan = %p.id, "later: runtime.create"),
                         }
                     }
                 }
@@ -244,7 +269,7 @@ impl State {
                     if let Some(p) = lost {
                         lock(&self.plans).retain(|x| x.id != id);
                         lock(&self.plans).push(p.clone());
-                        let _ = self.write(store::Ops { plans: vec![p], ..store::Ops::default() }).await;
+                        logged(self.write(store::Ops { plans: vec![p], ..store::Ops::default() }).await, "a lost plan");
                     }
                 }
             }
@@ -279,7 +304,8 @@ fn commands(s: &mut Setup, slot: &Slot) {
         let l = st.of_task(&a.session_id).into_iter().find(|l| l.id == a.item).ok_or_else(|| WireError::not_found("Nothing scheduled with that id."))?;
         if a.now {
             st.take(std::slice::from_ref(&l.id));
-            return st.fire(&ctx, &call, &l, false).await.map(c::Edited::Sent);
+            let sent = st.fire(&ctx, &call, &l, false).await?;
+            return serde_json::to_value(sent).map(c::Edited::Sent).map_err(|e| WireError::internal(e.to_string()));
         }
         let next = rules::edit_entry(&l, &a, now(&ctx), st.tz(now(&ctx))).map_err(wire)?;
         if let Some(x) = lock(&st.entries).iter_mut().find(|x| x.id == next.id) {
@@ -309,10 +335,10 @@ fn commands(s: &mut Setup, slot: &Slot) {
     });
     on!(s, slot, c::Park, |_st, ctx, call, a| {
         let (on, at) = rules::park_of(a.for_later.as_ref(), now(&ctx));
-        ctx.run_json(&call, "runtime.forLater", json!({ "id": a.session_id, "forLater": on, "at": at })).await?;
+        calls::for_later(&ctx, &call, &a.session_id, on, at).await?;
         if let Some(state) = &a.state {
             // Undo after Mark done puts the task's state back
-            ctx.run_json(&call, "runtime.setState", json!({ "id": a.session_id, "state": state })).await?;
+            calls::set_state(&ctx, &call, &a.session_id, state).await?;
         }
         Ok(c::Parked { for_later: at.filter(|_| on).map(|at| wisp_later_api::ForLater { at, by: a.by.clone().unwrap_or_else(|| "you".into()) }) })
     });
@@ -322,8 +348,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
         let after = match &a.after {
             Some(v) => {
                 let id = rules::after_id(v).map_err(wire)?;
-                let t = task_of(&ctx, &call, &id).await.ok_or_else(|| WireError::not_found("No such task to wait for."))?;
-                Some(t)
+                Some(need_task(&ctx, &call, &id, "No such task to wait for.").await?)
             }
             None => None,
         };
@@ -398,7 +423,8 @@ fn commands(s: &mut Setup, slot: &Slot) {
             Ok(l) => {
                 let task = task_of(&ctx, &call, &a.session).await;
                 let minutes = (l.at - now(&ctx)) / 60_000;
-                let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "resume_later", "props": { "agent": task.map(|t| t.agent), "minutes": minutes } })).await;
+                let props = Map::from_iter([("agent".to_owned(), json!(task.map(|t| t.agent))), ("minutes".to_owned(), json!(minutes))]);
+                calls::track(&ctx, "resume_later", props).await;
                 let others: Vec<LaterEntry> = st.of_task(&a.session).into_iter().filter(|x| x.id != l.id).collect();
                 Ok(c::ScheduleOut { text: Some(rules::scheduled_text(&l, &others, now(&ctx), st.tz(now(&ctx)))), error: None })
             }
