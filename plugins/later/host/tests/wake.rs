@@ -73,6 +73,21 @@ async fn kernel(rt: &Rt, clock: &FakeClock) -> Kernel {
     TestApp::new().clock(clock).service(store).with(LaterPlugin).with(Runtime(rt.clone())).start().await
 }
 
+/// The scheduler's own timer armed: its look (at start, or the one an advance woke) is over.
+async fn armed(clock: &FakeClock) {
+    while clock.sleepers() == 0 {
+        tokio::task::yield_now().await;
+    }
+}
+
+/// Moves the clock past the scheduler's next look and waits for that look to end, so the test's own look (and
+/// what it asserts) never runs beside it.
+async fn advance(clock: &FakeClock, ms: u64) {
+    armed(clock).await;
+    clock.advance(ms);
+    armed(clock).await;
+}
+
 async fn tick(k: &Kernel) -> Value {
     k.call(Caller::user(), "later.tick", json!({})).await.unwrap()
 }
@@ -92,14 +107,14 @@ async fn a_wake_set_during_a_running_turn_fires_once_the_turn_ends_v1_never_fire
         .await
         .unwrap();
     assert!(out["text"].as_str().unwrap().starts_with("Scheduled (id "), "{out}");
-    clock.advance(90_000);
+    advance(&clock, 90_000).await;
     // due, but the turn still runs: held, not dropped
     tick(&k).await;
     assert!(rt.sent.lock().unwrap().is_empty(), "nothing goes into a running turn");
     assert_eq!(listed(&k).await, 1, "still scheduled while the turn runs");
     // the turn ends: the next look sends it
     rt.set(SessionState::Review);
-    clock.advance(20_000);
+    advance(&clock, 20_000).await;
     tick(&k).await;
     let sent = rt.sent.lock().unwrap().clone();
     assert_eq!(sent.len(), 1, "{sent:?}");
@@ -113,9 +128,9 @@ async fn a_look_that_cannot_read_a_task_keeps_what_it_has_scheduled() {
     rt.set(SessionState::Review);
     let k = kernel(&rt, &clock).await;
     k.call(Caller::user(), "later.add", json!({ "sessionId": "t1", "text": "check the deploy", "in": 1 })).await.unwrap();
-    clock.advance(90_000);
     // runtime refuses the read (starting, a failed read): the task isn't gone, its follow-up stays
     *rt.down.lock().unwrap() = true;
+    advance(&clock, 90_000).await;
     tick(&k).await;
     assert_eq!(listed(&k).await, 1, "an unreadable task's follow-up was forgotten as if the task were gone");
     *rt.down.lock().unwrap() = false;
@@ -129,7 +144,7 @@ async fn a_reminder_coming_due_notes_its_text_on_the_task() {
     rt.set(SessionState::Review);
     let k = kernel(&rt, &clock).await;
     k.call(Caller::user(), "later.add", json!({ "sessionId": "t1", "text": "call the client", "in": 1, "remind": true })).await.unwrap();
-    clock.advance(90_000);
+    advance(&clock, 90_000).await;
     tick(&k).await;
     assert_eq!(rt.notes.lock().unwrap().clone(), ["call the client"], "runtime.note got v1's {{text}} and refused it");
     assert!(rt.sent.lock().unwrap().is_empty(), "a reminder isn't sent to the agent");

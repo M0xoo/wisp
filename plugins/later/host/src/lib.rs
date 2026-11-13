@@ -34,6 +34,10 @@ struct State {
     metas: Mutex<HashMap<String, TaskMeta>>,
     /// the user's IANA zone, as the client sent it
     zone: Mutex<Option<String>>,
+    /// one look at a time: a `later.tick` that lands while the scheduler's own look runs waits for it, so when it
+    /// returns everything that came due has gone (else it saw the entries the other look had taken, and returned
+    /// before their sends landed)
+    looking: tokio::sync::Mutex<()>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -171,6 +175,7 @@ impl State {
     /// One look (v1 later.js tick): what came due goes, at most `PER_TICK` at once.
     #[allow(clippy::too_many_lines)] // one arm per decision, as v1's tick
     async fn tick(&self, ctx: &Ctx, call: &Call) -> u32 {
+        let _one = self.looking.lock().await;
         let at = now(ctx);
         let entries = lock(&self.entries).clone();
         let plans = lock(&self.plans).clone();
@@ -497,6 +502,7 @@ impl Plugin for LaterPlugin {
                 plans: Mutex::new(plans),
                 metas: Mutex::new(metas.into_iter().collect()),
                 zone: Mutex::new(zone),
+                looking: tokio::sync::Mutex::new(()),
             });
             let _ = start.set(st.clone());
             // the zone the client sent with its settings wins over the one later kept
