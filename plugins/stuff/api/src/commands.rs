@@ -207,6 +207,76 @@ command!(
     UnpublishApp, "stuff.unpublish", Some("stuff:publish"), false, Id => StuffView
 );
 
+// ---------- a task's agent (v1 POST /internal/stuff, GET /internal/stuff/:id) ----------
+
+/// `stuff.agent.save`: the `wisp_save` tool's arguments and the caller's task. Exactly one of `path`, `text`, `url`
+/// or `app` (paths relative to the task's folder), or `id` alone to change an item's title, note or tags.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AgentSaveArgs {
+    pub session: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app: Option<String>,
+    /// with `app`: a picture of it, for its card
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover: Option<String>,
+    /// update this item instead of adding one
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub tags: Value,
+    /// with an app in a Make a pane task: `home` or `task`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pin: Option<String>,
+    /// with an app: true puts it on a public link (or updates it), false takes the link down
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish: Option<bool>,
+}
+
+/// `stuff.agent.list`: the `wisp_stuff` tool. With `id`, that item in full; else the items matching `query` and
+/// `kind`, newest first (`limit` 30, at most 100). A capped task sees its own project's items.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AgentListArgs {
+    pub session: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub limit: Value,
+}
+
+/// What an agent tool answers: `text`, or `error` (a refusal the agent reads).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentText {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+command!(
+    /// `POST /internal/stuff`: an agent keeps something in My Stuff, or updates an item (`wisp_save`)
+    AgentSave, "stuff.agent.save", None, false, AgentSaveArgs => AgentText
+);
+command!(
+    /// `GET /internal/stuff/:id`: My Stuff as an agent reads it, or one item in full (`wisp_stuff`)
+    AgentList, "stuff.agent.list", None, true, AgentListArgs => AgentText
+);
+
 // ---------- events (published after the command commits) ----------
 
 /// An item was saved or updated for a task: its answer shows it as a card (v1 `savedStuff`).

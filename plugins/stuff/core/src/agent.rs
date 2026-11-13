@@ -136,31 +136,54 @@ pub fn find_text(found: &[(StuffItem, String)], limit: usize, total: usize, capp
     )
 }
 
-/// `wisp_save`'s answer for a new item or an update.
+/// `wisp_save`'s answer for a new item or an update, saying where it's public when it is.
 pub fn save_text(it: &StuffItem, update: bool) -> String {
-    let size = if it.size > 0 { format!(", {}", bytes(it.size)) } else { String::new() };
-    let what = format!("“{}” ({}{size})", it.title, it.kind.as_str());
-    let app = it.kind == StuffKind::App;
-    let launch = if app { " The user launches it from My Stuff: wisp serves it on a port of its own." } else { "" };
-    let public = it.published.as_ref().map(|p| {
+    save_answer(it, update, &public_note(it))
+}
+
+/// ` It's public at <url>.`, and whether the link has an older version; "" for an item with no link.
+pub fn public_note(it: &StuffItem) -> String {
+    it.published.as_ref().map_or_else(String::new, |p| {
         let older = if p.rev.unwrap_or(1) == it.rev.unwrap_or(1) {
             ""
         } else {
             ", with an older version: wisp_save with this id and publish: true updates the link"
         };
         format!(" It's public at {}{older}.", p.url)
-    });
-    let public = public.unwrap_or_default();
+    })
+}
+
+/// `publish: true` worked: the link the user shares (`again`: it had one, now with this version).
+pub fn published_note(url: &str, again: bool, db: bool) -> String {
+    let what = if again { "Updated its public link (same address)" } else { "Published it" };
+    let data =
+        if db { " Anyone with the link can read and change this app's data, so no personal data in it: tell the user that." } else { "" };
+    format!(
+        " {what}: {url} — anyone with the link can open it, no sign-in. Give the user this link to share, and show the stuff block: its card has the link with Copy.{data}"
+    )
+}
+
+/// `publish: false` took `url` down.
+pub fn unpublished_note(url: &str) -> String {
+    format!(" Unpublished: {url} no longer opens. It stays in My Stuff.")
+}
+
+/// `wisp_save`'s answer, with `note` (where it's public, or what publishing did) after how it launches.
+pub fn save_answer(it: &StuffItem, update: bool, note: &str) -> String {
+    let size = if it.size > 0 { format!(", {}", bytes(it.size)) } else { String::new() };
+    let what = format!("“{}” ({}{size})", it.title, it.kind.as_str());
+    let app = it.kind == StuffKind::App;
+    let launch = if app { " The user launches it from My Stuff: wisp serves it on a port of its own." } else { "" };
     if update {
         return format!(
-            "Updated {what} in the user's My Stuff, now v{}; the version before is kept and the user can restore it.{launch}{public} Show it in your answer as {{\"type\":\"stuff\",\"id\":\"{}\"}}.",
+            "Updated {what} in the user's My Stuff, now v{}; the version before is kept and the user can restore it.{launch}{note} Show it in your answer as {{\"type\":\"stuff\",\"id\":\"{}\"}}.",
             it.rev.unwrap_or(1),
             it.id
         );
     }
     let inside = if app { " (the user launches it from there, inside wisp)" } else { "" };
     format!(
-        "Saved {what} to the user's My Stuff, id {}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).{launch}{public} Show it in your answer as {{\"type\":\"stuff\",\"id\":\"{}\"}}{inside}.",
+        "Saved {what} to the user's My Stuff, id {}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).{launch}{note} Show it in your answer as {{\"type\":\"stuff\",\"id\":\"{}\"}}{inside}.",
         it.id, it.id
     )
 }

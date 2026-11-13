@@ -3,6 +3,7 @@
 //! to merge its base in when it conflicts, and squash-merges the exact head that was reviewed. git runs
 //! only through `git.service@^1`, gh only through the kernel's proc service, all of it async.
 
+mod agent;
 pub mod error;
 pub mod flow;
 pub mod follow;
@@ -152,6 +153,7 @@ impl Plugin for ShipPlugin {
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
         commands(s, &self.slot);
+        agent::register(s, &self.slot);
         let slot = self.slot.clone();
         s.on_start(move |ctx| async move {
             let proc = ctx.service::<Proc>()?;

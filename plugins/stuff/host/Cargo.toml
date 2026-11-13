@@ -22,6 +22,7 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 wisp-kernel.workspace = true
+wisp-runtime-api.workspace = true
 wisp-stuff-api.workspace = true
 wisp-telemetry-api.workspace = true
 wisp-stuff-core.workspace = true

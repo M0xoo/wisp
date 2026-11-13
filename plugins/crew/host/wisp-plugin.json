@@ -134,6 +134,19 @@
       {
         "id": "crew.agent.add",
         "title": "Add a member, or the members a shared link or crew file holds, paused (wisp_crew_add)"
+      },
+      {
+        "id": "crew.agent.list",
+        "title": "The crew, or one member in full, as an agent reads it (wisp_crew)",
+        "readOnly": true
+      },
+      {
+        "id": "crew.agent.edit",
+        "title": "Change a member: only the fields given; remember adds notebook lines (wisp_crew_edit)"
+      },
+      {
+        "id": "crew.agent.remove",
+        "title": "Remove a member; a member's own job can't remove itself (wisp_crew_remove)"
       }
     ]
   },

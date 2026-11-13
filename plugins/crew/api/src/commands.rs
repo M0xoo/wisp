@@ -246,6 +246,43 @@ pub struct AgentAddArgs {
     pub member: MemberBody,
 }
 
+/// `crew.agent.list`: the `wisp_crew` tool (v1 GET /internal/crew/:id?member). With `member`, that one in full
+/// (brief, notebook, kit); without, the crew in one line each. A capped task sees its own project's members.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct AgentListArgs {
+    pub session: String,
+    /// their name, @handle or id
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub member: Option<String>,
+}
+
+/// `crew.agent.edit`: the `wisp_crew_edit` tool (v1 PATCH /internal/crew/:id). Only the fields given change (the
+/// tool's: no kit, team, machine or colours); `remember` adds lines to the end of their notebook.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct AgentEditArgs {
+    pub session: String,
+    /// their name, @handle or id
+    pub member: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub remember: Option<Vec<String>>,
+    #[serde(flatten)]
+    pub fields: MemberBody,
+}
+
+/// `crew.agent.remove`: the `wisp_crew_remove` tool (v1 DELETE /internal/crew/:id). A member's own job can't
+/// remove that member.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct AgentMemberArgs {
+    pub session: String,
+    /// their name, @handle or id
+    pub member: String,
+}
+
 /// What the agent reads back: `text`, or `error` for a refusal it acts on.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "crew/")]
@@ -535,6 +572,18 @@ command!(
 command!(
     /// `POST /internal/crew/:id`: an agent adds a member, or takes in the members a link or crew file holds
     AgentAdd = "crew.agent.add" [PERM_WRITE] : AgentAddArgs => AgentText
+);
+command!(
+    /// `GET /internal/crew/:id`: the crew, or one member in full, as an agent reads it (`wisp_crew`)
+    AgentList = "crew.agent.list" [PERM_READ] : AgentListArgs => AgentText, ro
+);
+command!(
+    /// `PATCH /internal/crew/:id`: an agent changes a member (`wisp_crew_edit`)
+    AgentEdit = "crew.agent.edit" [PERM_WRITE] : AgentEditArgs => AgentText
+);
+command!(
+    /// `DELETE /internal/crew/:id`: an agent removes a member (`wisp_crew_remove`)
+    AgentRemove = "crew.agent.remove" [PERM_WRITE] : AgentMemberArgs => AgentText
 );
 command!(
     /// `GET /crew-layout`

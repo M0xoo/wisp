@@ -11,6 +11,7 @@
   },
   "permissions": [
     "telemetry:track",
+    "runtime:get",
     "blob:read",
     "blob:write",
     "fs:read{scope:home}",
@@ -139,6 +140,15 @@
       {
         "id": "stuff.unpublish",
         "title": "Take an app's public link down"
+      },
+      {
+        "id": "stuff.agent.save",
+        "title": "Save to My Stuff, as a task's agent (wisp_save)"
+      },
+      {
+        "id": "stuff.agent.list",
+        "title": "My Stuff as a task's agent reads it (wisp_stuff)",
+        "readOnly": true
       }
     ],
     "events": [

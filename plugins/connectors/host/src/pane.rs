@@ -293,13 +293,13 @@ pub fn rows(v: &ConnectorsView) -> Vec<(&'static EntityDef, Vec<Row>)> {
 pub struct Pane {
     kind: Arc<StoredKind>,
     connectors: Arc<dyn ResourceKind>,
-    tests: Mutex<HashMap<String, ProbeResult>>,
+    pub(crate) tests: Mutex<HashMap<String, ProbeResult>>,
     testing: Mutex<HashSet<String>>,
     dismissed: Mutex<BTreeSet<String>>,
     pending: Mutex<PendingSignins>,
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -322,7 +322,7 @@ async fn sources() -> Vec<Source> {
 }
 
 impl Pane {
-    async fn specs(&self) -> Vec<(String, ConnectorSpec)> {
+    pub(crate) async fn specs(&self) -> Vec<(String, ConnectorSpec)> {
         self.kind.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect()
     }
 
@@ -335,7 +335,7 @@ impl Pane {
             .ok_or_else(|| WireError::not_found(format!("No connector called {id}")))
     }
 
-    async fn oauth_of(ctx: &Ctx, id: &str) -> Option<OAuthMeta> {
+    pub(crate) async fn oauth_of(ctx: &Ctx, id: &str) -> Option<OAuthMeta> {
         let s = secrets(ctx).ok()?;
         serde_json::from_str(&s.get(&format!("{}:oauth", secrets_ns(id))).await.ok()??).ok()
     }
@@ -415,6 +415,13 @@ impl Pane {
     }
 
     pub async fn add(self: &Arc<Self>, ctx: &Ctx, b: &ConnectorBody) -> Result<ConnectorsView> {
+        let name = self.create(ctx, b, |_| {}).await?;
+        self.test_later(ctx, &name);
+        Ok(self.publish(ctx).await)
+    }
+
+    /// The new connector stored (no test, no rows yet): its name. `edit` sees the spec before it's applied.
+    pub(crate) async fn create(&self, ctx: &Ctx, b: &ConnectorBody, edit: impl FnOnce(&mut ConnectorSpec)) -> Result<String> {
         let name = b.name.clone().unwrap_or_default().trim().to_owned();
         if !valid_name(&name) {
             return Err(WireError::invalid("A name: 1 to 40 of a–z, 0–9 and _"));
@@ -422,11 +429,11 @@ impl Pane {
         if self.specs().await.iter().any(|(n, _)| *n == name) {
             return Err(WireError::conflict(format!("There's a connector called {name} already")));
         }
-        let plan = plan_of(&name, b, None)?;
+        let mut plan = plan_of(&name, b, None)?;
+        edit(&mut plan.spec);
         Self::write_plan(ctx, &plan).await?;
         self.apply(ctx, OpKind::Create, &name, &plan.spec, None).await?;
-        self.test_later(ctx, &name);
-        Ok(self.publish(ctx).await)
+        Ok(name)
     }
 
     pub async fn update(self: &Arc<Self>, ctx: &Ctx, id: &str, b: &ConnectorBody) -> Result<ConnectorsView> {
@@ -765,6 +772,7 @@ pub(crate) fn register(s: &mut Setup, kind: Arc<StoredKind>, connectors: Arc<dyn
     on!(api::Signin, |p, ctx, a| p.signin(&ctx, &a.id, &a.origin).await);
     on!(api::OauthFinish, |p, ctx, a| p.finish(&ctx, &a.query).await);
     on!(api::Signout, |p, ctx, a| p.signout(&ctx, &a.id).await);
+    crate::agent::register(s, &pane);
     let cb = pane.clone();
     s.route(wisp_kernel::http::Route {
         method: "GET",

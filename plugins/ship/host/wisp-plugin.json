@@ -16,6 +16,7 @@
   "permissions": [
     "settings:read",
     "telemetry:track",
+    "runtime:get",
     "git:repo",
     "git:status",
     "git:read",
@@ -58,6 +59,10 @@
         "id": "ship.check_log",
         "title": "The end of a failing check's log",
         "readOnly": true
+      },
+      {
+        "id": "ship.agent.pr",
+        "title": "Attach a PR to a task, or detach one, as its agent (wisp_pr)"
       },
       {
         "id": "ship.track",

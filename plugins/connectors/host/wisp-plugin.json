@@ -66,6 +66,20 @@
         "title": "Sign out of a connector"
       },
       {
+        "id": "connectors.agent.list",
+        "title": "The user's connectors, as a task's agent reads them (wisp_connectors)",
+        "readOnly": true
+      },
+      {
+        "id": "connectors.agent.add",
+        "title": "Add a connector from a task, key names only (wisp_connector_add)"
+      },
+      {
+        "id": "connectors.agent.signin",
+        "title": "What a connector needs from the user before it works (wisp_connector_signin)",
+        "readOnly": true
+      },
+      {
         "id": "connectors.call",
         "title": "Call one tool of a remote connector, with its own sign-in (the issue picker lists Linear and Jira through them)"
       }

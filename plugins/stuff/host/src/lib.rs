@@ -6,6 +6,7 @@
 //! `<home>/stuff`. v1's files are imported once at start (`import.rs`).
 
 mod agent;
+mod agent_tools;
 pub mod appdb;
 mod appfiles;
 mod bundle;
@@ -49,6 +50,7 @@ impl Plugin for StuffPlugin {
             s.route(r);
         }
         commands::register(s, &cell);
+        agent_tools::register(s, &cell);
         bundle::register(s, &cell);
         s.on_start(move |ctx| async move {
             let home = ctx.service::<Paths>()?.home().to_owned();

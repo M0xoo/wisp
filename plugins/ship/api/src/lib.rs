@@ -120,6 +120,35 @@ pub struct Attached {
     pub text: String,
 }
 
+/// `ship.agent.pr`: the `wisp_pr` tool (v1 POST /internal/prs). The caller's task, the PR (a URL, or a number in the
+/// task's repo) and whether to detach it. A subagent's PR goes on its lead's task, where the user looks.
+#[derive(Debug)]
+pub struct AgentPr;
+impl Command for AgentPr {
+    const ID: &'static str = "ship.agent.pr";
+    type Args = AgentPrArgs;
+    type Out = AgentText;
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentPrArgs {
+    pub session: String,
+    /// a string, or the number an agent gave as one
+    #[serde(default)]
+    pub pr: serde_json::Value,
+    #[serde(default)]
+    pub remove: bool,
+}
+
+/// What an agent tool answers: `text`, or `error` (a refusal the agent reads).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentText {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 /// Fix conflicts: send the task a follow-up to merge its base in (the PR row's button, or Auto-fix).
 #[derive(Debug)]
 pub struct FixConflicts;

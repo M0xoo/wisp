@@ -1,6 +1,7 @@
 //! wisp.connectors: the MCP servers agents get. `kinds`: the `connector` resource kind and what runs get
 //! (`runtime.run@1`); `pane`: Settings → Connectors' commands, rows and the sign-in callback.
 
+mod agent;
 mod call;
 mod kinds;
 mod pane;

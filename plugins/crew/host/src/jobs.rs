@@ -88,7 +88,7 @@ async fn jobs_of(ctx: &Ctx, call: &Call, st: &State, m: &Member) -> Vec<JobSumma
     out
 }
 
-async fn view(ctx: &Ctx, call: &Call, st: &State, m: &Member) -> MemberView {
+pub(crate) async fn view(ctx: &Ctx, call: &Call, st: &State, m: &Member) -> MemberView {
     let live = jobs_of(ctx, call, st, m).await.iter().filter(|j| j.live()).count();
     st.view(m, u32::try_from(live).unwrap_or(u32::MAX), now(ctx))
 }

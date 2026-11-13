@@ -382,6 +382,8 @@ impl Plugin for CrewPlugin {
         transfer::register(s, &st);
         offers::register(s, &st);
         agent::register(s, &st);
+        agent::register_reads(s, &st);
+        agent::register_changes(s, &st);
         let tick = st.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();

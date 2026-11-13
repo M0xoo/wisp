@@ -139,14 +139,16 @@ pub struct TurnQuery {
 /// the user or the kernel. An agent naming another session is refused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AgentArgs {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// wisp.mcp sends it as `session`
+    #[serde(default, alias = "session", skip_serializing_if = "Option::is_none")]
     pub sid: Option<String>,
 }
 
 /// `wisp_connector_add`: key names only (`env: ["API_KEY"]`); a value would sit in the transcript.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct AgentAddArgs {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// wisp.mcp sends it as `session`
+    #[serde(default, alias = "session", skip_serializing_if = "Option::is_none")]
     pub sid: Option<String>,
     #[serde(default)]
     pub name: Option<String>,
@@ -167,7 +169,8 @@ pub struct AgentAddArgs {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AgentSigninArgs {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// wisp.mcp sends it as `session`
+    #[serde(default, alias = "session", skip_serializing_if = "Option::is_none")]
     pub sid: Option<String>,
     #[serde(default)]
     pub name: String,
