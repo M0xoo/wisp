@@ -18,7 +18,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wisp_kernel::{Command, Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_runtime_api::commands as rt;
+use wisp_runtime_api::model::{SessionState, Summary};
 use wisp_store::{Col, EntityDef, Migration, Row, Store};
+use wisp_telemetry_api as tel;
 use wisp_update_core::install::{self, Platform};
 use wisp_update_core::updater::{self as up, InstallStep, Refusal, Updater};
 
@@ -119,15 +122,18 @@ async fn row(ctx: &Ctx, st: &St) -> Value {
     let mut v = serde_json::to_value(lock(&st.up).view(&pref(ctx))).unwrap_or_default();
     v["checked_at"] = json!(*lock(&st.checked_at));
     v["checking"] = json!(*lock(&st.checking));
-    let list = ctx.run_json(&ctx.root_call(), "runtime.list", json!({})).await.unwrap_or_default();
-    let running = list
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|s| matches!(s.get("state").and_then(Value::as_str), Some("running" | "queued")))
-        .count();
-    v["running"] = json!(running);
+    let list = ctx.run::<rt::List>(&ctx.root_call(), rt::ListArgs::default()).await.unwrap_or_else(|err| {
+        tracing::warn!(error = %err.message, "update: runtime.list");
+        Vec::new()
+    });
+    v["running"] = json!(stopped_by_install(&list));
     v
+}
+
+/// The tasks a restart stops: a turn running, or one waiting on the user's answer (its harness is live). (Was
+/// `state` "running" | "queued": v2 has no "queued" state, so a waiting task went uncounted.)
+fn stopped_by_install(list: &[Summary]) -> usize {
+    list.iter().filter(|s| matches!(s.state, SessionState::Running | SessionState::Waiting)).count()
 }
 
 async fn publish(ctx: &Ctx, st: &St) -> Value {
@@ -240,13 +246,11 @@ async fn install(ctx: &Ctx, st: &St) -> Result<Value> {
         };
         let c = ctx.clone();
         ctx.spawn(async move {
-            let _ = c
-                .run_json(
-                    &c.root_call(),
-                    "telemetry.track",
-                    json!({ "event": "update", "props": { "from": from, "to": to, "method": method } }),
-                )
-                .await;
+            let props = [("from", json!(from)), ("to", json!(to)), ("method", json!(method))];
+            let a = tel::TrackArgs { event: "update".into(), props: props.into_iter().map(|(k, v)| (k.to_owned(), v)).collect() };
+            if let Err(err) = c.run::<tel::Track>(&c.root_call(), a).await {
+                tracing::warn!(error = %err.message, "update: telemetry.track");
+            }
         });
     }
     let mut v = publish(ctx, st).await;
@@ -318,6 +322,14 @@ mod tests {
             panic!("{}", e.message);
         }
         assert_eq!(UpdatePlugin.manifest().id, "wisp.update");
+    }
+
+    /// A task waiting on the user's answer is stopped by a restart too; done and review ones aren't.
+    #[test]
+    fn an_install_counts_running_and_waiting_tasks() {
+        let of = |state| Summary { state, ..Summary::default() };
+        let list = [of(SessionState::Running), of(SessionState::Waiting), of(SessionState::Done), of(SessionState::Review)];
+        assert_eq!(stopped_by_install(&list), 2);
     }
 
     #[test]
