@@ -7,7 +7,7 @@ import { Button, Checkbox, Inline, Input, Stack, Text, TextArea } from '@wisp/ui
 import { t } from './i18n.ts';
 import { cadenceLabel } from './model.ts';
 import { VIEW } from './views.ts';
-import { joining, srcOf, type Picks, type Src } from './import-picks.ts';
+import { joining, lockedOf, srcOf, withPassword, type Picks, type Src } from './import-picks.ts';
 
 interface Proposed {
   readonly key: string;
@@ -21,6 +21,8 @@ interface Answer {
   readonly members?: readonly Proposed[];
   readonly source?: { readonly owner?: string };
   readonly room?: number;
+  readonly locked?: string;
+  readonly wrong?: boolean;
 }
 
 const importCrew = defineCommand<{ peer: PeerId; src: Src; dryRun: boolean; choices?: Picks }, Answer>({
@@ -40,6 +42,9 @@ export default function ImportCrew(props: { readonly client: PluginClient; reado
   const [busy, setBusy] = createSignal(false);
   const [answer, setAnswer] = createSignal<{ src: Src; r: Answer } | undefined>();
   const [picks, setPicks] = createSignal<Picks>({});
+  // a password-locked link: the review asks for it here (the CLI's --password is the CLI's words)
+  const [locked, setLocked] = createSignal<{ wrong: boolean } | undefined>();
+  const [password, setPassword] = createSignal('');
   const close = (): void => c.navigate({ t: 'closeOverlay', id: VIEW.import as never });
   let file: HTMLInputElement | undefined;
 
@@ -48,6 +53,9 @@ export default function ImportCrew(props: { readonly client: PluginClient; reado
     setBad('');
     c.run(importCrew, { peer: c.home, src, dryRun: true })
       .then((r) => {
+        const lock = lockedOf(r);
+        setLocked(lock);
+        if (lock) return;
         setAnswer({ src, r });
         setPicks(Object.fromEntries((r.members ?? []).map((p) => [p.key, { name: p.name, skip: false }])));
       })
@@ -80,8 +88,28 @@ export default function ImportCrew(props: { readonly client: PluginClient; reado
             mono
             aria-label={t('wisp.crew.import.label')}
             placeholder={t('wisp.crew.import.placeholder')}
-            onInput={(v) => (setText(v), setBad(''))}
+            onInput={(v) => (setText(v), setBad(''), setLocked(undefined), setPassword(''))}
           />
+          <Show when={locked()}>
+            {(l) => (
+              <Stack gap="1" part="crew.import.password">
+                <Input
+                  type="password"
+                  value={password()}
+                  autofocus
+                  autocomplete="off"
+                  invalid={l().wrong}
+                  aria-label={t('wisp.crew.import.password')}
+                  placeholder={t('wisp.crew.import.passwordPlaceholder')}
+                  onInput={setPassword}
+                  onKeyDown={(e) => e.key === 'Enter' && password().trim() && review(withPassword(srcOf(text()), password()))}
+                />
+                <Text size="sm" tone={l().wrong ? 'bad' : 'muted'}>
+                  {t(l().wrong ? 'wisp.crew.import.passwordWrong' : 'wisp.crew.import.passwordHint')}
+                </Text>
+              </Stack>
+            )}
+          </Show>
           <Text size="sm" tone="muted">
             {t('wisp.crew.import.hint')}
           </Text>
@@ -108,7 +136,7 @@ export default function ImportCrew(props: { readonly client: PluginClient; reado
               <Button size="sm" variant="ghost" onClick={close}>
                 {t('wisp.crew.page.cancel')}
               </Button>
-              <Button size="sm" variant="primary" loading={busy()} disabled={!text().trim()} onClick={() => review(srcOf(text()))} part="crew.import.review">
+              <Button size="sm" variant="primary" loading={busy()} disabled={!text().trim() || (!!locked() && !password().trim())} onClick={() => review(withPassword(srcOf(text()), password()))} part="crew.import.review">
                 {t('wisp.crew.import.review')}
               </Button>
             </Inline>

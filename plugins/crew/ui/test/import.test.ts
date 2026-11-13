@@ -1,6 +1,6 @@
 // Import crew members (ImportCrew.tsx, v1 crew-share.js importCrew).
 import { expect, test } from 'vitest';
-import { joining, srcOf } from '../src/import-picks.ts';
+import { joining, lockedOf, srcOf, withPassword } from '../src/import-picks.ts';
 
 test('a_link_is_fetched_by_the_host_and_anything_else_is_the_bundles_text_and_only_ticked_members_join', () => {
   expect(srcOf('  gist:3f2a9  ')).toEqual({ url: 'gist:3f2a9' });
@@ -13,4 +13,16 @@ test('a_link_is_fetched_by_the_host_and_anything_else_is_the_bundles_text_and_on
   expect(srcOf('wisp://open/k3j')).toEqual({ url: 'wisp://open/k3j' });
   expect(srcOf('http://box.local:7000/s/k3j')).toEqual({ url: 'http://box.local:7000/s/k3j' });
   expect(joining({ a: { name: 'Ada', skip: false }, b: { name: 'Bea', skip: true }, c: { name: 'Cal', skip: false } })).toBe(2);
+});
+
+test('a_password_locked_link_shows_the_password_box_and_sends_the_password_with_the_link', () => {
+  expect(lockedOf({ locked: 'password' })).toEqual({ wrong: false });
+  expect(lockedOf({ locked: 'password', wrong: true })).toEqual({ wrong: true });
+  expect(lockedOf({})).toBeUndefined(); // a review with members: no box
+  expect(lockedOf({ locked: 'team' })).toBeUndefined(); // not a password: the refusal says why
+  const link = srcOf('https://grid.trywisp.dev/s/k3j');
+  expect(withPassword(link, '  pw  ')).toEqual({ url: 'https://grid.trywisp.dev/s/k3j', password: 'pw' });
+  expect(withPassword(link, '   ')).toEqual(link);
+  const file = srcOf('{ "wispCrew": 1, "members": [] }');
+  expect(withPassword(file, 'pw')).toEqual(file); // a pasted file has no password
 });

@@ -3,8 +3,8 @@
 // to tick; the peer's check of it (crew.export: notes, and a secret that refuses it) on every change; then Download
 // or Copy, or Share link (crew.share, ADR-0052: a wisp Cloud link like every other share, no GitHub token). Whoever
 // adds them picks a project, and they join paused (Import…, which takes the link).
-import { createEffect, createSignal, For, on, Show, type JSX } from 'solid-js';
-import { defineCommand, type PeerId, type PluginClient } from '@wisp/client';
+import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from 'solid-js';
+import { defineCommand, entityKey, type PeerId, type PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
 import { Button, Checkbox, Face, Icon, Inline, Input, Stack, Text, useSignal } from '@wisp/ui';
 import { crewData, type CrewMember } from './data.ts';
@@ -40,6 +40,13 @@ const shareLink = defineCommand<{ peer: PeerId; ids: string[] } & ShareOpts, Sha
   pending: 'the share dialog’s Share link button',
 });
 
+// wisp Cloud's sign-in, as grid-client's topic shows it (a plugin ui reads another's data only through its topic)
+const CLOUD_TOPIC = 'plugin:wisp.grid-client:cloud';
+const CLOUD_KIND = 'grid-client.cloud';
+/** Settings → Cloud, where the GUI signs in (the CLI's `wisp cloud signin` is the CLI's words, not the dialog's). */
+const openCloud = (c: PluginClient): void =>
+  c.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane: 'cloud' } } });
+
 /** A file saved from the page: the browser's download (the link freed a second later, through the plugin's scope). */
 function download(c: PluginClient, name: string, text: string): void {
   const a = document.createElement('a');
@@ -63,6 +70,12 @@ export default function ShareCrew(props: { readonly client: PluginClient; readon
   const [link, setLink] = createSignal<string | undefined>(undefined);
   const [linking, setLinking] = createSignal(false);
   const [copied, setCopied] = createSignal(false);
+  const cloudScope = c.scope.child('share-cloud');
+  onCleanup(() => cloudScope.dispose());
+  c.watch(c.home, CLOUD_TOPIC, cloudScope);
+  const cloud = useSignal(c.entities.row<{ signedIn?: boolean }>(CLOUD_KIND, entityKey(c.home, 'this')));
+  // signed out: Share link becomes the way to sign in, before any link is asked for (unknown yet: Share link)
+  const signedOut = (): boolean => (cloud() as { signedIn?: boolean } | undefined)?.signedIn === false;
   // the whole crew (no ids) is kept under one link, so sharing it again updates that link
   const whole = (): boolean => !(props.params as { ids?: unknown } | null)?.ids;
   const close = (): void => c.navigate({ t: 'closeOverlay', id: VIEW.share as never });
@@ -172,6 +185,14 @@ export default function ShareCrew(props: { readonly client: PluginClient; readon
           </Stack>
         )}
       </Show>
+      <Show when={signedOut() && !link()}>
+        <Inline gap="2" align="start" part="crew.share.signedOut">
+          <Icon name="cloud" size="sm" tone="muted" />
+          <Text size="sm" tone="muted">
+            {t('wisp.crew.share.signedOut')}
+          </Text>
+        </Inline>
+      </Show>
       <Inline gap="2" justify="end">
         <Button variant="ghost" size="sm" icon="download" disabled={!out()?.r} onClick={save}>
           {t('wisp.crew.share.download')}
@@ -179,7 +200,12 @@ export default function ShareCrew(props: { readonly client: PluginClient; readon
         <Button variant="ghost" size="sm" icon="copy" disabled={!out()?.r} onClick={copy}>
           {t('wisp.crew.share.copy')}
         </Button>
-        <Show when={!link()}>
+        <Show when={!link() && signedOut()}>
+          <Button variant="primary" size="sm" icon="cloud" onClick={() => openCloud(c)} part="crew.share.signIn">
+            {t('wisp.crew.share.signIn')}
+          </Button>
+        </Show>
+        <Show when={!link() && !signedOut()}>
           <Button variant="primary" size="sm" icon="share" disabled={!out()?.r} loading={linking()} onClick={makeLink}>
             {t('wisp.crew.share.makeLink')}
           </Button>
