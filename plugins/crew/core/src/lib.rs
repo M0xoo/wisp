@@ -19,6 +19,7 @@ pub mod run;
 pub mod scan;
 pub mod schedule;
 pub mod share;
+pub mod source;
 pub mod spell;
 pub mod stats;
 pub mod text;

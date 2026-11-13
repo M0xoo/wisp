@@ -11,6 +11,7 @@ mod jobs;
 mod kind;
 mod offers;
 mod remote;
+mod shared;
 mod stats;
 mod store;
 mod transfer;

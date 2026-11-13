@@ -9,6 +9,7 @@
 pub mod commands;
 pub mod events;
 pub mod rows;
+pub mod share;
 pub mod spec;
 
 pub use rows::*;

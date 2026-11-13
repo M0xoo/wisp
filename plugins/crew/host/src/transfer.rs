@@ -21,7 +21,7 @@ use crate::{NewIds, State, calls, lock, wire};
 /// The bundle for `a` from `crew`, or why it can't go (a secret in it, nobody picked).
 pub fn export(crew: &[Member], a: &c::ExportArgs) -> Result<c::Exported, WireError> {
     if a.gist == Some(true) {
-        return Err(WireError::invalid("A gist isn't made from here yet: save the file and share it."));
+        return Err(WireError::invalid("wisp shares a crew as a link now (crew.share), not a gist: no GitHub token needed."));
     }
     let e = export_crew(crew, &a.ids, &|_| Vec::new(), a.kit.unwrap_or(true), a.notebook.unwrap_or(false), a.team.unwrap_or(false))
         .map_err(wire)?;
@@ -36,13 +36,13 @@ pub fn export(crew: &[Member], a: &c::ExportArgs) -> Result<c::Exported, WireErr
     Ok(c::Exported { bundle: e.bundle, notes: e.notes, file: e.file, gist: None })
 }
 
-/// The bundle an import reads: the pasted text or the bundle itself (a link is fetched by the caller).
+/// The bundle an import reads: the pasted text or the bundle itself (a link was fetched into `bundle` by `shared::resolve`).
 fn bundle_of(a: &c::ImportArgs) -> Result<(Value, &'static str), WireError> {
     if let Some(b) = &a.bundle {
         return Ok((b.clone(), "file"));
     }
     if a.url.as_deref().is_some_and(|u| !u.trim().is_empty()) {
-        return Err(WireError::invalid("Paste the file's text: links and gists aren't read from here yet."));
+        return Err(WireError::invalid("A link is read before the import: the host fetches it (crew.import { url })."));
     }
     let text = a.text.as_deref().unwrap_or_default().trim();
     if text.is_empty() {
@@ -145,19 +145,41 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
     s.command::<c::Import, _, _>(move |ctx, call, a| {
         let st = i.clone();
         async move {
+            let mut a = a;
+            // a link (a share, v1's gist, an https file) is read first, then imported like a pasted file
+            let fetched = crate::shared::resolve(&ctx, &call, &mut a).await?;
+            let source = fetched.as_ref().map_or("file", |f| f.kind);
             let now = ctx.clock().map_or(0, |c| c.now_ms());
             let crew = lock(&st.saved).crew.clone();
-            let (out, joined) = import(&crew, &a, now)?;
+            let (mut out, joined) = import(&crew, &a, now)?;
+            if let Some(f) = &fetched {
+                out.source = Some(json!({ "kind": f.kind, "link": f.link }));
+            }
             if !joined.is_empty() {
                 for m in &joined {
                     st.put(m.clone());
                     ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "import".into() });
                 }
                 st.save().await;
+                if let Some(f) = &fetched {
+                    crate::shared::counted(&ctx, &call, f).await;
+                }
                 let members = u32::try_from(joined.len()).unwrap_or(0);
-                track(&ctx, "crew_imported", serde_json::json!({ "members": members, "source": "file", "by": "user" })).await;
-                ctx.emit(&call, &wisp_crew_api::events::Imported { members, source: "file".into() });
+                track(&ctx, "crew_imported", serde_json::json!({ "members": members, "source": source, "by": "user" })).await;
+                ctx.emit(&call, &wisp_crew_api::events::Imported { members, source: source.into() });
             }
+            Ok(out)
+        }
+    });
+    let sh = st.clone();
+    s.command::<wisp_crew_api::share::Share, _, _>(move |ctx, call, a| {
+        let st = sh.clone();
+        async move {
+            let crew = lock(&st.saved).crew.clone();
+            let out = crate::shared::share(&ctx, &call, &crew, &a).await?;
+            let shared = wisp_crew_api::events::Shared { members: out.members, gist: false, notebook: a.notebook.unwrap_or(false) };
+            track(&ctx, "crew_shared", json!({ "members": shared.members, "gist": false, "notebook": shared.notebook })).await;
+            ctx.emit(&call, &shared);
             Ok(out)
         }
     });

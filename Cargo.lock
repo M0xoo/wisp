@@ -4458,6 +4458,7 @@ dependencies = [
 name = "wisp-crew"
 version = "2.0.0"
 dependencies = [
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -4466,12 +4467,14 @@ dependencies = [
  "wisp-automations-api",
  "wisp-crew-api",
  "wisp-crew-core",
+ "wisp-grid-client-api",
  "wisp-kernel",
  "wisp-later-api",
  "wisp-machines-api",
  "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-sandbox-api",
+ "wisp-share-api",
  "wisp-store",
  "wisp-telemetry-api",
 ]

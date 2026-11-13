@@ -23,7 +23,10 @@
     "runtime:turn.setExt",
     "resources:read",
     "store:write{owner:crew}",
-    "telemetry:track"
+    "telemetry:track",
+    "share:make",
+    "grid-client:fetch",
+    "grid-client:imported"
   ],
   "requires": {},
   "provides": {},
@@ -114,6 +117,10 @@
       {
         "id": "crew.import",
         "title": "Review a crew file, or add its members (paused)"
+      },
+      {
+        "id": "crew.share",
+        "title": "Share members or the whole crew as a link (wisp Cloud; refused while it holds a secret)"
       },
       {
         "id": "crew.kit",
