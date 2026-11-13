@@ -77,10 +77,15 @@ function machine(extra = {}, { withNode = true } = {}) {
   return { ...env, ...extra };
 }
 
-const health = async (port) => (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
+// Each request to a wisp under test on a connection of its own. A pooled one can go stale while
+// sh()'s execFileSync blocks this loop: wisp closes it after 65 idle seconds (KEEP_ALIVE_MS), this
+// process can't see that until it runs again, and the next request goes out on it and gets a reset
+// ("fetch failed") from a wisp that's still up. Slow npx on Windows took INST-04b to 04d past that.
+const local = (url, opts = {}) => fetch(url, { ...opts, headers: { ...opts.headers, connection: 'close' } });
+const health = async (port) => (await local(`http://127.0.0.1:${port}/api/health`)).json();
 const up = (port, what = 'wisp') => until(() => health(port), { timeout: 60_000, every: 200, what });
 const down = (port) => until(() => health(port).then(() => false, () => true), { timeout: 20_000, every: 100, what: `port ${port} to free up` });
-const getUpdate = async (port) => (await fetch(`http://127.0.0.1:${port}/api/update`)).json();
+const getUpdate = async (port) => (await local(`http://127.0.0.1:${port}/api/update`)).json();
 const stopPort = async (port) => {
   const h = await health(port).catch(() => null);
   if (h && alive(h.pid)) process.kill(h.pid);
@@ -299,7 +304,7 @@ async function launchChecks(id, label, port, how) {
     ok(/\/Contents\/Resources\/node\/bin\/node$/.test(comm), `the server runs on ${comm}`);
     const update = await getUpdate(port);
     ok(update.method === 'app', `update method ${update.method}`);
-    const page = await fetch(`http://127.0.0.1:${port}/`);
+    const page = await local(`http://127.0.0.1:${port}/`);
     ok(page.ok, `the page: ${page.status}`);
   });
   await check(`${id}b`, `${label}: killing the shell leaves no server behind`, async () => {
@@ -402,7 +407,7 @@ async function macRows() {
       ok(/\/Contents\/Resources\/node\/bin\/node$/.test(sh('ps', ['-o', 'comm=', '-p', String(h.pid)]).trim()), 'not on the bundled Node');
       ok((await getUpdate(e)).method === 'app', 'update method');
       const saved = path.join(user, 'Library/Application Support/dev.wisp.app/shell-path');
-      const look = async () => (await (await fetch(`http://127.0.0.1:${e}/api/agents`)).json()).find((x) => x.id === 'claude');
+      const look = async () => (await (await local(`http://127.0.0.1:${e}/api/agents`)).json()).find((x) => x.id === 'claude');
       await until(async () => (await look())?.available, { timeout: 20_000, what: 'claude, from the login shell' }).catch(async (err) => {
         throw new Error(`${err.message}. Saved PATH: ${fs.existsSync(saved) ? fs.readFileSync(saved, 'utf8') : '(none)'}. Agent: ${JSON.stringify(await look())}`);
       });
@@ -465,11 +470,11 @@ async function macRows() {
       await up(port, 'the old app');
       await sleep(1500); // the login shell's PATH lands behind the server's start
       const offer = await until(async () => {
-        const u = await (await fetch(`http://127.0.0.1:${port}/api/update?check=1`)).json();
+        const u = await (await local(`http://127.0.0.1:${port}/api/update?check=1`)).json();
         return u.available && u;
       }, { timeout: 20_000, what: 'the update on offer' });
       ok(offer.method === 'app', `method ${offer.method}`);
-      const r = await fetch(`http://127.0.0.1:${port}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const r = await local(`http://127.0.0.1:${port}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
       ok(r.status === 202, `POST /api/update: ${r.status} ${await r.text()}`);
       const fresh = await until(() => health(port).then((x) => x.version === version && x, () => null), { timeout: 60_000, every: 200, what: `wisp ${version} on ${port}` }).catch((err) => {
         const procs = sh('ps', ['-axo', 'pid,ppid,command']).split('\n').filter((l) => l.includes(apps)).map((l) => l.slice(0, 120));
@@ -673,7 +678,7 @@ async function linuxRows() {
       ok(envOf(h.pid).APPIMAGE === img, `APPIMAGE is ${envOf(h.pid).APPIMAGE}`);
       ok((await getUpdate(b)).method === 'app', 'update method');
       ok(new Updater({ port: b, env: envOf(h.pid), platform: 'linux', arch, root: '/x/resources/app' }).assetName() === image, 'not its own download');
-      ok((await fetch(`http://127.0.0.1:${b}/`)).ok, 'the page');
+      ok((await local(`http://127.0.0.1:${b}/`)).ok, 'the page');
     } finally {
       process.kill(shellOf(h.pid), 'SIGKILL');
     }
@@ -708,11 +713,11 @@ async function linuxRows() {
     const first = start(old, [], clean(c, { QA_RELEASES: `http://127.0.0.1:${releases.address().port}` }));
     const h = await up(c, 'the old AppImage');
     const offer = await until(async () => {
-      const u = await (await fetch(`http://127.0.0.1:${c}/api/update?check=1`)).json();
+      const u = await (await local(`http://127.0.0.1:${c}/api/update?check=1`)).json();
       return u.available && u;
     }, { timeout: 20_000, what: 'the update on offer' });
     ok(offer.method === 'app' && offer.latest === version, JSON.stringify(offer));
-    const r = await fetch(`http://127.0.0.1:${c}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    const r = await local(`http://127.0.0.1:${c}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     ok(r.status === 202, `POST /api/update: ${r.status} ${await r.text()}`);
     const fresh = await until(() => health(c).then((x) => x.version === version && x, () => null), { timeout: 60_000, every: 200, what: `wisp ${version} on ${c}` }).catch((err) => {
       const procs = sh('ps', ['-eo', 'pid,ppid,args']).split('\n').filter((l) => /wisp|\.mount_|node/.test(l)).map((l) => l.slice(0, 140));
@@ -787,10 +792,10 @@ async function migrateRows() {
     const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], real(port));
     await up(port, 'v0.57.0');
     await until(() => mainWindow(child.pid)?.visible, { what: 'its window' });
-    const r = await fetch(`http://127.0.0.1:${port}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'fix the add function in math.js', cwd: makeRepo(), agent: 'claude' }) });
+    const r = await local(`http://127.0.0.1:${port}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'fix the add function in math.js', cwd: makeRepo(), agent: 'claude' }) });
     ok(r.status === 201, `launch ${r.status}`);
     opened.id = (await r.json()).id;
-    await until(async () => { const s = await (await fetch(`http://127.0.0.1:${port}/api/sessions/${opened.id}`)).json(); return !['running', 'queued', 'starting'].includes(s.state); }, { timeout: 60_000, what: 'the task' });
+    await until(async () => { const s = await (await local(`http://127.0.0.1:${port}/api/sessions/${opened.id}`)).json(); return !['running', 'queued', 'starting'].includes(s.state); }, { timeout: 60_000, what: 'the task' });
     ok(fs.existsSync(path.join(home, 'sessions', `${opened.id}.json`)), `no task in ${home}`);
     ok(fs.existsSync(profile), `no profile at ${profile}`);
     await closeApp(child, port);
@@ -813,7 +818,7 @@ async function migrateRows() {
     const h = await up(port, 'the app');
     ok(sh('powershell', ['-NoProfile', '-Command', `(Get-Process -Id ${h.pid}).Path`]).trim().toLowerCase() === path.join(TAURI_DIR(), 'node/node.exe').toLowerCase(), 'not on the bundled Node');
     await until(() => mainWindow(child.pid)?.visible, { what: 'its window' });
-    const task = await fetch(`http://127.0.0.1:${port}/api/sessions/${opened.id}`);
+    const task = await local(`http://127.0.0.1:${port}/api/sessions/${opened.id}`);
     ok(task.status === 200, `the Electron task: ${task.status}`);
     await closeApp(child, port);
   });
@@ -865,9 +870,9 @@ async function migrateRows() {
       // installer from stands there, and Windows won't delete a folder a process stands in.
       const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], env, { cwd: ELECTRON_DIR() });
       const old = await up(4477, 'v0.57.0');
-      const offer = await until(async () => { const u = await (await fetch('http://127.0.0.1:4477/api/update?check=1')).json(); return u.available && u; }, { timeout: 30_000, what: 'the update on offer' });
+      const offer = await until(async () => { const u = await (await local('http://127.0.0.1:4477/api/update?check=1')).json(); return u.available && u; }, { timeout: 30_000, what: 'the update on offer' });
       ok(offer.method === 'app', `method ${offer.method}`);
-      const r = await fetch('http://127.0.0.1:4477/api/update', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const r = await local('http://127.0.0.1:4477/api/update', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
       ok(r.status === 202, `POST /api/update: ${r.status} ${await r.text()}`);
       const node = path.join(TAURI_DIR(), 'node/node.exe').toLowerCase();
       const fresh = await until(async () => {

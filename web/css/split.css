@@ -249,6 +249,29 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-hello { margin: 0 0 18px; padding: 0 4px; font: 600 26px/1.2 var(--display); letter-spacing: -0.02em; color: var(--ink); }
 .sh-hello:empty { display: none; }
 .sh-launch .sp-feedtop { margin-top: 18px; }
+/* Usage at a glance (budget.js homeUsageHtml): one quiet row under the prompt box, a thin meter per
+   window; the row opens Settings → Usage. Accounts wrap as wholes on a narrow screen, never mid-meter. */
+.sh-usage { margin-top: 10px; display: flex; }
+.sh-usage[hidden] { display: none; }
+.hu-row {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: 20px; row-gap: 6px; max-width: 100%;
+  padding: 6px 10px; border-radius: 9px; border: 1px solid transparent; text-align: left; transition: background 0.15s, border-color 0.15s;
+}
+.hu-row:hover { background: var(--surface); border-color: var(--line); }
+.hu-row:focus-visible { border-color: var(--line-2); }
+.hu-acct { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; }
+.hu-acct > .model-logo { opacity: 0.85; cursor: inherit; }
+.hu-acc { margin-left: -6px; font-size: 12px; color: var(--muted); }
+.hu-win { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.hu-l { color: var(--muted); }
+.hu-bar { width: 36px; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); overflow: hidden; }
+.hu-bar i { display: block; width: var(--p); height: 100%; border-radius: inherit; background: var(--accent); transition: width 0.3s; }
+.hu-p { min-width: 3ch; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.hu-win.warn .hu-bar i { background: var(--warn); }
+.hu-win.warn .hu-p { color: var(--warn); }
+.hu-win.full .hu-bar i { background: var(--bad); }
+.hu-win.full .hu-p { color: var(--bad); }
+.sh-usage:not([hidden]) + .sh-next { margin-top: 22px; }
 .sh-next { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-next[hidden] { display: none; }
 .sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 13px; font-size: 12.5px; font-weight: 500; color: var(--muted); }

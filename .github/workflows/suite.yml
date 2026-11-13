@@ -23,13 +23,16 @@ on:
         description: Prefix of the uploaded verify-all artifacts (unique per caller in one workflow run)
         type: string
         default: verify-all
+      timeout:
+        description: Minutes a job may take; v2's whole Rust suite runs to the end (no fail-fast) and takes ~35 min cold, a repeat needs a run's worth each
+        type: number
+        default: 60
 
 jobs:
   suite:
     name: suite (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
-    # the whole Rust suite runs to the end (no fail-fast) and takes ~35 min on a cold cache
-    timeout-minutes: ${{ inputs.repeat > 1 && 90 || 60 }}
+    timeout-minutes: ${{ inputs.timeout }}
     strategy:
       fail-fast: false
       matrix:

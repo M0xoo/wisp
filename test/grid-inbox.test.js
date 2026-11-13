@@ -649,6 +649,22 @@ test('Slack: a retry signed anew is a row of its own, for the box to spot; a for
   assert.deepEqual(g.got(ada).map((r) => r.headers['x-slack-signature']), ['v0=forged', 'v0=abc', 'v0=retry']);
 });
 
+// Grids in one file can hand a box a port that another grid's hostd is still probing: that grid
+// then takes the box for its own and delivers what it held (main CI: 4 deliveries where 1 was sent).
+// A wisp only takes a delivery that carries its own grid's secret, and so does the stand-in.
+test('a delivery from another grid that landed on this box’s port is refused, not kept', async () => {
+  const [mine, other] = [await boot(), await boot()];
+  const ada = mine.user('ada');
+  await mine.grid.hostd.ensure(ada);
+  const stray = other.user('ada');
+  const { url } = await other.url(stray);
+  // What other's hostd ends up believing once its probe of that port gets this box's answer.
+  other.grid.hostd.inst.set(stray.id, { user: stray, state: 'running', port: mine.grid.hostd.port(ada.id), child: null, ready: null, lastTouch: 0, nextWakeAt: null });
+  assert.equal((await other.post(stray, url, update(1))).status, 200);
+  await until(() => other.rows(stray).every((r) => r.done_at), { what: 'the delivery' });
+  assert.equal(mine.got(ada).length, 0);
+});
+
 test('url_verification, box up: answered live with what the box says, kept nowhere, and it isn’t use of the box', async () => {
   const g = await boot();
   const ada = g.user('ada');
