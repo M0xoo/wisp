@@ -4074,12 +4074,14 @@ dependencies = [
  "tracing",
  "wisp-accounts-api",
  "wisp-accounts-core",
+ "wisp-git-api",
  "wisp-harness-kit",
  "wisp-kernel",
  "wisp-proc",
  "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-store",
+ "wisp-telemetry-api",
 ]
 
 [[package]]

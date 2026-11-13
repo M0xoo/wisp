@@ -12,6 +12,7 @@
 //!
 //! Rows live in the store (store.rs); clients watch `plugin:wisp.accounts:harnesses`.
 
+mod calls;
 mod folders;
 mod keys;
 mod kinds;

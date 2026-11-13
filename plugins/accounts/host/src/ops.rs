@@ -34,10 +34,7 @@ fn keyed(ctx: &Ctx, agent: &str) -> Result<(Arc<dyn wisp_runtime_api::Harness>, 
     Ok((h, k))
 }
 
-/// A usage event this plugin owns (wisp.telemetry's catalogue: v1's names and keys).
-async fn track(ctx: &Ctx, event: &str, props: serde_json::Value) {
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": event, "props": props })).await;
-}
+use crate::calls::track;
 
 fn out(ctx: &Ctx, st: &State, agent: &str) -> AccountsOut {
     let list = lock(&st.accounts).get(agent).cloned().unwrap_or_default();
@@ -140,7 +137,7 @@ pub(crate) fn register(s: &mut Setup, slot: &Slot) {
         // the turns it held run now
         let held = lock(&st.held).remove(&a.agent).unwrap_or_default();
         for (id, turn) in held {
-            let _ = ctx.run_json(&ctx.root_call(), "runtime.release", json!({ "id": id, "turnId": turn, "action": "start" })).await;
+            crate::calls::release(&ctx, &id, &turn).await;
         }
         Ok(watch::view(&lock(&st.watch).get(&a.agent).cloned().unwrap_or_default()))
     });
@@ -174,7 +171,7 @@ fn keys(s: &mut Setup, slot: &Slot) {
         let (_, k) = keyed(&ctx, &a.agent)?;
         let v = crate::keys::set(&a.agent, &k, &a.provider, &a.key).await?;
         // its models are looked up again, and a sign-in card's turn runs again
-        let _ = ctx.run_json(&ctx.root_call(), "runtime.signInDone", json!({ "agent": a.agent, "account": "" })).await;
+        crate::calls::sign_in_done(&ctx, &a.agent, "").await;
         Ok(v)
     });
     on!(s, slot, c::KeyRemove, |_st, ctx, a| {
@@ -271,15 +268,18 @@ fn install_and_more(s: &mut Setup, slot: &Slot) {
                 ));
             }
         }
-        let agents = ctx.run_json(&ctx.root_call(), "runtime.agents", json!({ "fresh": "all" })).await?;
-        let ok = agents.as_array().and_then(|l| l.iter().find(|x| x["id"] == a.agent.as_str())).is_some_and(|x| x["available"] == true);
+        let agents = crate::calls::agents(&ctx, Some("all")).await?;
+        let ok = agents.iter().any(|x| x.id == a.agent && x.available);
         track(&ctx, "harness_install", json!({ "agent": a.agent, "ok": ok })).await;
         if !ok {
             return Err(WireError::internal(format!("{} was installed but doesn’t start.", h.info().name)));
         }
-        Ok(agents)
+        serde_json::to_value(agents).map_err(|e| WireError::internal(e.to_string()))
     });
-    on!(s, slot, c::Recheck, |_st, ctx, _a| ctx.run_json(&ctx.root_call(), "runtime.agents", json!({ "fresh": "all" })).await);
+    on!(s, slot, c::Recheck, |_st, ctx, _a| {
+        let agents = crate::calls::agents(&ctx, Some("all")).await?;
+        serde_json::to_value(agents).map_err(|e| WireError::internal(e.to_string()))
+    });
     on!(s, slot, c::Limits, |st, ctx, a| {
         let h = harness(&ctx, &a.agent).ok_or_else(|| WireError::not_found("No such harness."))?;
         let mut env = std::collections::BTreeMap::new();

@@ -229,17 +229,10 @@ async fn finish(ctx: &Ctx, st: &State, id: &str, agent: &str, acc: &str, state: 
         LoginState::Cancelled => "cancelled",
         _ => "failed",
     };
-    let _ = ctx
-        .run_json(
-            &ctx.root_call(),
-            "telemetry.track",
-            serde_json::json!({ "event": "agent_login", "props": { "agent": agent, "step": step } }),
-        )
-        .await;
+    crate::calls::track(ctx, "agent_login", serde_json::json!({ "agent": agent, "step": step })).await;
     if state == LoginState::Done {
         // the turn a sign-in card waits on runs again
-        let _ =
-            ctx.run_json(&ctx.root_call(), "runtime.signInDone", serde_json::json!({ "agent": agent, "account": account_key(acc) })).await;
+        crate::calls::sign_in_done(ctx, agent, account_key(acc)).await;
     }
 }
 

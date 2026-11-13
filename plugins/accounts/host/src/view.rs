@@ -178,14 +178,16 @@ pub fn sign_in_kind(has_keys: bool, has_login: bool) -> &'static str {
 
 /// Every row, by kind, as they stand now.
 pub async fn rows(ctx: &Ctx, st: &State) -> Vec<(&'static EntityDef, Vec<Row>)> {
-    let call = ctx.root_call();
-    let agents = ctx.run_json(&call, "runtime.agents", json!({})).await.unwrap_or(Value::Null);
+    let agents = crate::calls::agents(ctx, None).await.unwrap_or_else(|err| {
+        tracing::warn!(error = %err.message, "accounts: runtime.agents");
+        Vec::new()
+    });
     let mut harnesses = Vec::new();
     let mut keys = Vec::new();
     let mut accounts = Vec::new();
     let installing = lock(&st.installing).clone();
-    for (ord, a) in agents.as_array().into_iter().flatten().enumerate() {
-        let id = a.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
+    for (ord, a) in agents.iter().enumerate() {
+        let id = a.id.clone();
         let h = crate::harness(ctx, &id);
         let has_keys = h.as_ref().is_some_and(|h| h.keys().is_some());
         let has_login = h.as_ref().is_some_and(|h| h.login().is_some());
@@ -198,17 +200,17 @@ pub async fn rows(ctx: &Ctx, st: &State) -> Vec<(&'static EntityDef, Vec<Row>)> 
         {
             has_key = json!(kv.providers.iter().any(|p| p.set) || !kv.env.is_empty());
             for p in kv.providers {
-                keys.push(row_of(&KEY, &json!({ "id": format!("{id}/{}", p.id), "agent": id, "agentName": a.get("name"), "provider": p.id, "name": p.name, "url": kv.url, "env": kv.env, "set": p.set, "hint": "", "savedAt": null })));
+                keys.push(row_of(&KEY, &json!({ "id": format!("{id}/{}", p.id), "agent": id, "agentName": a.name, "provider": p.id, "name": p.name, "url": kv.url, "env": kv.env, "set": p.set, "hint": "", "savedAt": null })));
             }
         }
-        let models: Vec<Value> = a.get("models").and_then(Value::as_array).into_iter().flatten().map(|m| json!({ "id": m.get("id"), "label": m.get("label").cloned().unwrap_or_else(|| m.get("id").cloned().unwrap_or(Value::Null)) })).collect();
+        let models: Vec<Value> = a.models.iter().map(|m| json!({ "id": m.id, "label": m.label })).collect();
         harnesses.push(row_of(
             &HARNESS,
             &json!({
-                "id": id, "name": a.get("name"), "ord": ord, "available": a.get("available").cloned().unwrap_or(json!(false)),
-                "version": a.get("version"), "models": models,
-                "signedIn": if a.get("signedIn") == Some(&json!(false)) { json!(false) } else { Value::Null },
-                "error": a.get("error"), "hasKey": has_key, "setup": a.get("setup"), "signIn": sign_in_kind(has_keys, has_login),
+                "id": id, "name": a.name, "ord": ord, "available": a.available,
+                "version": a.version, "models": models,
+                "signedIn": if a.signed_in == Some(false) { json!(false) } else { Value::Null },
+                "error": a.error, "hasKey": has_key, "setup": a.setup, "signIn": sign_in_kind(has_keys, has_login),
                 "installable": h.as_ref().is_some_and(|h| h.npm_package().is_some()), "installing": installing.contains(&id),
                 "brand": multi, "provider": null,
                 "changed": serde_json::to_value(&wv.changed).unwrap_or(Value::Null), "pinnedAt": wv.pinned_at,
@@ -239,14 +241,15 @@ pub async fn rows(ctx: &Ctx, st: &State) -> Vec<(&'static EntityDef, Vec<Row>)> 
             logins.push(row_of(&LOGIN, &json!({ "id": lid, "agent": agent, "account": account, "state": "idle", "signedIn": on })));
         }
     }
-    let tools = ctx.run_json(&call, "git.tools", json!(null)).await.unwrap_or(Value::Null);
-    let tool_rows: Vec<Row> = [("git", "git"), ("gh", "GitHub CLI")]
-        .iter()
-        .filter_map(|(id, name)| {
-            let t = tools.get(*id)?;
-            Some(row_of(&TOOL, &json!({ "id": id, "name": name, "installed": t.get("installed").cloned().unwrap_or(json!(false)), "setup": t.get("setup") })))
+    let tool_rows: Vec<Row> = crate::calls::tools(ctx)
+        .await
+        .map(|t| {
+            [("git", "git", t.git), ("gh", "GitHub CLI", t.gh)]
+                .into_iter()
+                .map(|(id, name, t)| row_of(&TOOL, &json!({ "id": id, "name": name, "installed": t.installed, "setup": t.setup })))
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
     let grid = std::env::var("WISP_GRID").is_ok_and(|v| !v.is_empty());
     vec![
         (&HARNESS, harnesses),
