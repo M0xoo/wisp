@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { codeLines, header, isTestFile } from '../core/rust.ts';
-import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustSansIo, rustSizes, rustTypedCommands, rustUnsafe } from '../rules/rust.ts';
+import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustMcpOwners, rustSansIo, rustSizes, rustTypedCommands, rustUnsafe } from '../rules/rust.ts';
 import { fixture, messages, run, writeTree } from './helpers.ts';
 
 test('rust-layers: plugins use other plugins through -api only; api ↛ core ↛ host; base crates use no plugin', async () => {
@@ -141,6 +141,31 @@ test('rust-mcp: a listed command its host never registers is no MCP tool; uiOnly
   assert.equal(got.length, 2, got.join('\n'));
   assert.ok(got.some((m) => m.includes('shop.gone is listed but its host registers it nowhere')));
   assert.ok(got.some((m) => m.includes('shop.lazy: "uiOnly" says why')));
+});
+
+test('rust-mcp-owners: an MCP tool whose owner command no Rust host registers fails the check (ADR-0040)', async () => {
+  const cargo = (n: string): string => `[package]\nname = "${n}"\n`;
+  const root = writeTree(
+    new Map([
+      ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host"]\n'],
+      ['plugins/shop/api/Cargo.toml', cargo('wisp-shop-api')],
+      ['plugins/shop/api/src/lib.rs', ['command!(AgentBuy = "shop.agent.buy" : Value => Value);', 'command!(AgentSell = "shop.agent.sell" : Value => Value);', 'command!(List = "shop.list" : Value => Value);', 'command!(Peek = "shop.peek" : Value => Value);'].join('\n')],
+      ['plugins/shop/host/Cargo.toml', cargo('wisp-shop')],
+      ['plugins/shop/host/src/lib.rs', ['impl Plugin for Shop {}', 's.command::<c::AgentBuy, _, _>(f);', 's.command::<c::List, _, _>(g);'].join('\n')],
+      ['plugins/mcp/api/Cargo.toml', cargo('wisp-mcp-api')],
+      ['plugins/mcp/api/src/owners.rs', ['pub const BUY: &str = "shop.agent.buy"; // registered', 'pub const SELL: &str = "shop.agent.sell"; // declared, never registered'].join('\n')],
+      ['plugins/mcp/host/Cargo.toml', cargo('wisp-mcp')],
+      ['plugins/mcp/host/src/run.rs', ['use wisp_shop_api::commands as sh;', 'let a = typed::<sh::List>(ctx, call, x).await;', 'let b = typed_json::<sh::Peek>(ctx, call, x).await;', 'let c = ctx.run::<wisp_shop_api::Peek>(call, x).await;', 'let d = ctx.run::<C>(call, x).await;', 'owner(ctx, call, owners::BUY, args)', 'owner(ctx, call, &format!("shop.{}", name), args)'].join('\n')],
+    ]),
+  );
+  const got = await run(rustMcpOwners, root);
+  assert.deepEqual(got, [
+    'plugins/mcp/api/src/owners.rs:2 rust-mcp-owners', // SELL: no host registers shop.agent.sell
+    'plugins/mcp/host/src/run.rs:3 rust-mcp-owners', // typed_json::<sh::Peek>: shop.peek is never registered
+    'plugins/mcp/host/src/run.rs:4 rust-mcp-owners', // ctx.run::<wisp_shop_api::Peek>
+    'plugins/mcp/host/src/run.rs:7 rust-mcp-owners', // an owner id built at run time
+  ]);
+  assert.ok((await messages(rustMcpOwners, root)).some((m) => m.includes('owners::SELL = "shop.agent.sell": no host registers it')));
 });
 
 test('rust-typed-commands: a string-name call to another plugin\'s typed command fails with the type; a typed call or a `// by-name:` reason does not (ADR-0003)', async () => {

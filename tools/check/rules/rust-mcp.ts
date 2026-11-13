@@ -18,7 +18,7 @@ export function commandTypes(text: string): Map<string, string> {
 }
 
 /** The command types a host registers: `.command::<T, …>`, the hosts' `on!(s, st, T, …)` and `on!(T, |…| …)` macros. */
-function registered(text: string): Set<string> {
+export function registered(text: string): Set<string> {
   // `use …::{Run as RunCmd}`: the alias is the type
   const alias = new Map<string, string>();
   for (const m of text.matchAll(/\b(\w+)\s+as\s+(\w+)\b/g)) alias.set(m[2] ?? '', m[1] ?? '');
