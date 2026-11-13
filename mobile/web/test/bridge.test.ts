@@ -116,10 +116,10 @@ test('Back closes what is open; with nothing left it leaves the app', () => {
   const bridge = fakeBridge();
   const client = createClient({ clientId: 'p', build: 'test', home: PHONE, width: 390 });
   client.nav.navigate({ t: 'openTask', id: 'ssh-a:s1' as SessionId });
-  assert.equal(client.nav.nav()().main.kind, 'task');
+  assert.equal(client.nav.nav().main.kind, 'task');
   back(client, bridge);
   assert.equal(bridge.leaves, 0, 'it closed the task');
-  assert.equal(client.nav.nav()().main.kind, 'home');
+  assert.equal(client.nav.nav().main.kind, 'home');
   back(client, bridge);
   assert.equal(bridge.leaves, 1, 'nothing left: the app goes behind');
   client.dispose();

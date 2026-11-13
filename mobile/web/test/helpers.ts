@@ -162,7 +162,7 @@ export function fakeServer(): FakeServer {
     requests: [],
     streams: [],
     fetch: async (url, init) => {
-      const r: Request = { url, method: init.method, headers: init.headers, ...(init.body !== undefined && { body: init.body }) };
+      const r: Request = { url, method: init.method, headers: init.headers, ...(typeof init.body === 'string' && { body: init.body }) };
       srv.requests.push(r);
       const custom = srv.reply?.(r);
       if (custom) return text(custom.status, custom.body);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createClient, createScope, defineCommand, entityKey, peerId, type EntityKey, type Mutate } from '@wisp/client';
+import { createClient, createScope, defineCommand, entityKey, peerId, type EntityKey } from '@wisp/client';
+import type { Mutate } from '@wisp/protocol';
 import { followComputers, peerOf, phonePeers, PHONE } from '../src/peers.ts';
 import { fakeBridge, fakeServer, fakeTimers, grid, settle, ssh, welcome } from './helpers.ts';
 
@@ -85,7 +86,7 @@ test('a disposed follower stops following', async () => {
   assert.deepEqual(client.peers.list()(), ['ssh-a']);
 });
 
-const followUp = defineCommand<{ id: EntityKey; text: string }>({ id: 'session.followUp', owner: (a) => a.id, optimistic: 'none' });
+const followUp = defineCommand<{ id: EntityKey; text: string }>({ id: 'session.followUp', owner: (a) => a.id, optimistic: 'none', pending: 'the session.followUp control' });
 
 test('a command run while the computer is down waits, and is sent once it is back, with the same mid and the token', async () => {
   const clock = fakeTimers();
