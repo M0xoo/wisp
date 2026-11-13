@@ -396,6 +396,9 @@ mod tests {
     #[test]
     fn families_and_plugins() {
         assert!(!allowed(&Caller::set("crew:ops"), "crew:write"));
+        // a member's own job may propose kit files (crew:propose) but never share the crew out (ADR-0052)
+        assert!(!allowed(&Caller::set("crew:ops"), "crew:share"));
+        assert!(allowed(&Caller::set("crew:ops"), "crew:propose"));
         assert!(allowed(&Caller::set("crew:ops"), "crew:read"));
         assert!(!allowed(&Caller::set("pane:x"), "topic:read"));
         assert!(!allowed(&Caller::set("box"), "machines:list"));
