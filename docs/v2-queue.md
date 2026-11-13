@@ -1,5 +1,12 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 0ff243fa (2026-11-13).** Only failure, both Node versions:
+`plugins/channels/core/src/ws.rs:266` `ws::tests::fragments_join_and_control_frames_come_through`: the parser yields
+`[Ping, Text("hello"), Pong, Close(1000,"bye")]`, the test wants no `Pong`. Decide by RFC 6455 and the callers (Slack
+socket mode, Discord gateway): if a Pong is a frame the caller never needs (keep-alive is answered by the transport),
+the parser drops it; if a caller uses pongs (latency, liveness), the test is wrong. Fix the root cause, run `cargo test
+-p wisp-channels-core ws`.
+
 **Fix first: #756 CI on 10ec0372 (2026-11-13).** Linux only: `plugins/accounts/host/src/signin.rs:298`
 `a_login_that_asks_on_a_terminal_gets_one_on_linux`: argv_of gives `script … /dev/null` with the command at another
 index than the test reads (left `("script", "/dev/null")`). Check util-linux `script` usage (`script -qec "<cmd>"
