@@ -151,6 +151,8 @@ export interface CrewJobProps {
   readonly state: string;
   /** Open job, Follow up, Save for later */
   readonly actions: readonly { readonly icon: IconName; readonly label: string; readonly on?: boolean; readonly onClick: () => void }[];
+  /** under its actions: what the job proposed for the kit (v1 .cv-offer) */
+  readonly extra?: JSX.Element;
 }
 
 /** v1 .cv-job: the request (where from, when, what was asked), then the member's answer. */
@@ -214,6 +216,7 @@ export function CrewJob(props: CrewJobProps): JSX.Element {
               )}
             </For>
           </div>
+          {props.extra}
         </div>
       </div>
     </article>
@@ -310,12 +313,40 @@ export function CrewSection(props: {
   readonly part: string;
   readonly title: string;
   readonly link?: { readonly label: string; readonly onClick: () => void } | undefined;
+  /** how many it holds, beside the title (v1 h5 small) */
+  readonly count?: number | undefined;
+  /** a control at the title's end in place of the link (the kit's Add menu) */
+  readonly tool?: JSX.Element;
+  /** files dropped on the section (the kit's .md files, v1 .cv-kit.drop): it lights up while they're over it */
+  readonly onFiles?: (files: File[]) => void;
   readonly children: JSX.Element;
 }): JSX.Element {
+  const [over, setOver] = createSignal(false);
+  const files = (e: DragEvent): boolean => !!props.onFiles && !!e.dataTransfer?.types.includes('Files');
   return (
-    <div data-kit="cv-sec" data-part={props.part}>
+    <div
+      data-kit="cv-sec"
+      data-part={props.part}
+      data-drop={flag(over())}
+      onDragOver={(e) => {
+        if (!files(e)) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={(e) => !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null) && setOver(false)}
+      onDrop={(e) => {
+        if (!files(e)) return;
+        e.preventDefault();
+        setOver(false);
+        props.onFiles?.([...(e.dataTransfer?.files ?? [])]);
+      }}
+    >
       <h5>
         {props.title}
+        <Show when={props.count}>{(n) => <small>{n()}</small>}</Show>
+        <Show when={props.tool}>
+          <span data-kit="cv-sec-tool">{props.tool}</span>
+        </Show>
         <Show when={props.link}>
           {(l) => (
             <button type="button" data-kit="link" data-tone="accent" onClick={() => l().onClick()}>

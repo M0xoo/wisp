@@ -574,9 +574,26 @@ export function CrewListSection(props: {
   readonly empty: { readonly title: string; readonly sub: string };
   readonly openLabel: (name: string) => string;
   readonly onOpen: (id: string) => void;
+  /** after the rows: the folded members' strip, or Show fewer (v1 .cr-strip, .cr-fewer) */
+  readonly foot?: JSX.Element;
+  /** the pointer or focus came in (true) or left (false): the caller holds its rows still meanwhile (v1 holding) */
+  readonly onHold?: (on: boolean) => void;
 }): JSX.Element {
+  const hold = (on: boolean) => () => props.onHold?.(on);
+  const leave = (e: FocusEvent): void => {
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) props.onHold?.(false);
+  };
   return (
-    <section data-kit="f-group" data-crew="" data-part="section.crew" data-collapsed={flag(props.collapsed)}>
+    <section
+      data-kit="f-group"
+      data-crew=""
+      data-part="section.crew"
+      data-collapsed={flag(props.collapsed)}
+      onPointerEnter={hold(true)}
+      onPointerLeave={hold(false)}
+      onFocusIn={hold(true)}
+      onFocusOut={leave}
+    >
       <h4 data-kit="sec-toggle" data-part="section.heading" role="button" tabindex="0" aria-expanded={!props.collapsed} onClick={() => props.onToggle()}>
         <Icon name="chevron" />
         <span data-kit="sec-name" data-text="control">
@@ -656,6 +673,7 @@ export function CrewListSection(props: {
                 </div>
               )}
             </For>
+            {props.foot}
           </Show>
         </div>
       </Show>

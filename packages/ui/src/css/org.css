@@ -127,4 +127,24 @@
   @media (pointer: coarse) { [data-kit='org-port'] { display: none; } }
   [data-kit='org-view'][data-dragging], [data-kit='org-view'][data-dragging] [data-kit='org-card'] { cursor: crosshair; }
   [data-kit='org-temp'] { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  /* v1 .cr-strip: the Crew section's folded members, one row of faces */
+  [data-kit='cr-strip'] { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 12px 0 8px; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
+  [data-kit='cr-strip']:hover { background: var(--bg-2); }
+  [data-kit='cr-faces'] { display: flex; align-items: center; gap: 4px; }
+  [data-kit='cr-face'] { display: grid; place-items: center; padding: 0; border-radius: 50%; transition: transform 0.15s var(--ease); }
+  [data-kit='cr-face']:hover { transform: translateY(-1px); }
+  [data-kit='cr-face']:focus-visible { outline: 2px solid var(--line-2); outline-offset: 1px; }
+  [data-kit='cr-face'][data-on] > [data-kit='face'] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 calc(var(--size-ring) + var(--size-ring-thin)) var(--accent); }
+  [data-kit='cr-fold'] { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0; text-align: left; color: var(--faint); }
+  [data-kit='cr-fold']:focus-visible { outline: none; }
+  [data-kit='cr-strip']:has(> [data-kit='cr-fold']:focus-visible) { background: var(--bg-2); }
+  [data-kit='cr-fold'] > [data-kit='cr-sub'] { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='cr-fold'] > [data-kit='icon'] { flex: none; width: 14px; height: 14px; color: var(--faint); }
+  [data-kit='cr-strip']:hover [data-kit='cr-fold'] > [data-kit='cr-sub'] { color: var(--muted); }
+  [data-kit='cr-fewer'] { align-self: flex-start; margin: 2px 0 0 8px; padding: 0; border: 0; background: none; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--accent-ink); white-space: nowrap; cursor: pointer; }
+  [data-kit='cr-fewer']:hover { text-decoration: underline; text-underline-offset: 3px; }
+  @media (pointer: coarse) {
+    [data-kit='cr-strip'] { min-height: 44px; }
+    [data-kit='cr-face'] { pointer-events: none; }
+  }
 }

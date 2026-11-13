@@ -10,6 +10,12 @@ import { t } from './i18n.ts';
 import { VIEW } from './views.ts';
 import { crewData } from './data.ts';
 
+/** Share Ada, or Share your crew (the dialog's title; the member's name from its params). */
+const shareTitle = (p: unknown): string => {
+  const name = (p as { name?: unknown } | null)?.name;
+  return typeof name === 'string' && name ? (t as (k: string, v?: Readonly<Record<string, string>>) => string)('wisp.crew.share.title', { name }) : t('wisp.crew.share.titleCrew');
+};
+
 interface RowLike {
   readonly id: string;
   readonly agent?: string;
@@ -81,9 +87,11 @@ export default definePluginUi({
   // add or edit a member (v1 crewEditor): the rail's +, a member page's Edit…
   views: [
     // Import crew members: a shared .crew.json, its JSON or a link (v1 crew-share.js importCrew)
+    // Share…: a member or the whole crew as a .crew.json (v1 crew-share.js shareMember)
+    defineView({ kind: VIEW.share, slot: 'overlay', overlay: 'dialog', parse: (p) => p, title: (p) => shareTitle(p), component: lazy(() => import('./ShareCrew.tsx')) }),
     defineView({ kind: VIEW.import, slot: 'overlay', overlay: 'dialog', parse: (p) => p, title: () => t('wisp.crew.import.title'), component: lazy(() => import('./ImportCrew.tsx')) }),
     // the crew's track record (v1 crew-record.js): Settings → Usage's Crew track record
-    defineView({ kind: VIEW.record, slot: 'overlay', overlay: 'dialog', parse: () => null, title: () => t('wisp.crew.record.title'), component: lazy(() => import('./Record.tsx')) }),
+    defineView({ kind: VIEW.record, slot: 'overlay', overlay: 'dialog', parse: (p) => p, title: () => t('wisp.crew.record.title'), component: lazy(() => import('./Record.tsx')) }),
     // Org: who hands work to whom (v1 org.js, F-crew-14), in the main pane
     defineView({ kind: VIEW.org, slot: 'main', parse: () => null, title: () => t('wisp.crew.org.title'), component: lazy(() => import('./OrgPage.tsx')) }),
     defineView({

@@ -4,7 +4,7 @@
 // routing); the peer reads `id`.
 
 import { defineCommand, type EntityKey, type EntityOps, type PeerId } from '@wisp/client';
-import { KIND, type Member, type SessionRow } from './types.ts';
+import { KIND, type KitFile, type Member, type Offer, type SessionRow } from './types.ts';
 
 /** The member fields the editor and the page change. */
 export type MemberPatch = Partial<
@@ -44,6 +44,34 @@ export const updateMember = defineCommand<{ key: EntityKey; id: string } & Membe
   owner: (a) => a.key,
   wire: ({ key: _key, ...a }) => a,
   optimistic: (_base, { key, id: _id, ...patch }) => replace(key, patch),
+});
+
+/** An offer you added from or dismissed (the peer's OfferSettle). */
+export interface OfferSettle {
+  id: string;
+  state: 'taken' | 'dismissed';
+  names: string[];
+}
+
+/** The member's offers with these settled, as the peer will keep them (crew core offers::settle). */
+export const settled = (offers: readonly Offer[], list: readonly OfferSettle[], now: number): Offer[] =>
+  offers.map((o) => {
+    const s = list.find((x) => x.id === o.id);
+    return s ? { ...o, state: s.state, names: s.names.slice(0, 12), settledAt: now } : o;
+  });
+
+/** crew.update with offers: the kit the offer added to (if any) and the offer settled, both at once. */
+export const settleOffer = defineCommand<{ key: EntityKey; id: string; kit?: KitFile[]; offers: OfferSettle[] }, Member>({
+  id: 'crew.update',
+  owner: (a) => a.key,
+  wire: ({ key: _key, ...a }) => a,
+  optimistic: (base, { key, kit, offers }) => {
+    const row = base.peek<Record<string, unknown>>(KIND.member, key) as Record<string, unknown> | undefined;
+    if (!row) return [];
+    const now = Date.now();
+    const had = ((row['offers'] ?? (row['body'] as Record<string, unknown> | undefined)?.['offers']) ?? []) as Offer[];
+    return replace(key, { ...(kit && { kit }), offers: settled(had, offers, now) });
+  },
 });
 
 /** Add a member. The id is made here so the row shows at once and the peer keeps it. */
@@ -152,7 +180,7 @@ export const markRead = defineCommand<{ key: EntityKey; id: string; unread: fals
   dedupe: (a) => `read:${a.id}`,
 });
 
-export const COMMANDS = [updateMember, createMember, removeMember, detachMember, checkIn, assignJob, answerJob, followJob, markRead];
+export const COMMANDS = [updateMember, settleOffer, createMember, removeMember, detachMember, checkIn, assignJob, answerJob, followJob, markRead];
 
 /** A reply in a task that starts with @a member: their job, their answer under the task's latest turn (crew.ask). */
 export const askCrew = defineCommand<{ task: EntityKey; id: string; question: string }>({

@@ -15,6 +15,8 @@ export interface LocalKitFile {
   path: string;
   /** `home` or `project` */
   from: string;
+  /** its text, as the kit takes it; empty when it couldn't be read */
+  body?: string;
 }
 
 /** Skills and instructions files on this computer, grouped (v1's shape). */

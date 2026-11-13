@@ -52,3 +52,13 @@ test('a_template_fills_the_editor_as_v1s_does_and_the_event_chips_and_face_save_
   const before = draftOf({ name: 'Ada', avatar: 'blob.teal', on: [] } as unknown as Member);
   expect(patchOf({ ...before, avatar: 'ghost.sky', on: ['ci'] }, before)).toEqual({ avatar: 'ghost.sky', on: ['ci'] });
 });
+
+test('settling_an_offer_shows_at_once_as_the_peer_will_keep_it', async () => {
+  const { settled } = await import('../src/commands.ts');
+  const offers = [
+    { id: 'o1', job: 's1', at: 1, state: 'open' as const, files: [] },
+    { id: 'o2', job: 's2', at: 1, state: 'open' as const, files: [] },
+  ];
+  expect(settled(offers, [{ id: 'o2', state: 'taken', names: ['AGENTS.md'] }], 9)).toEqual([offers[0], { ...offers[1], state: 'taken', names: ['AGENTS.md'], settledAt: 9 }]);
+  expect(settled(offers, [{ id: 'gone', state: 'dismissed', names: [] }], 9)).toEqual(offers);
+});

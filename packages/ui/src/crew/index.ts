@@ -6,3 +6,7 @@ export { isEmojiAvatar, spiritHash, type SpiritColor, type SpiritMood } from './
 export { CrewView, CrewJob, CrewQuiet, CrewEmpty, CrewFacts, CrewSideActions, CrewSection, CrewText, type CrewViewProps, type CrewJobProps } from './CrewView.tsx';
 export { CrewEditorForm, type CrewEditorBarItem, type CrewEditorChip, type CrewEditorFormProps, type CrewEditorTemplate } from './Editor.tsx';
 export { OrgView, OrgPerson, OrgSection, OrgMe, CrewListSection, edgePath, type CrewListRow, type OrgCard, type OrgEdge, type OrgViewProps } from './Org.tsx';
+export { SpiritMaker, type SpiritMakerProps } from './Maker.tsx';
+export { makerOptions, type MakerOption } from './maker-options.ts';
+export { CrewKitList, CrewPickList, CrewOffer, type CrewKitRow, type CrewPickRow } from './Kit.tsx';
+export { CrewListStrip, CrewListFewer, type CrewStripFace } from './ListStrip.tsx';

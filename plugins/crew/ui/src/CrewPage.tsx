@@ -33,6 +33,8 @@ import { cadenceLabel, JOB_ICON, originLabel, statusLine } from './model.ts';
 import { facts, pillOf, quietLabel, thread } from './page.ts';
 import type { SessionRow } from './types.ts';
 import { VIEW } from './views.ts';
+import { KitSection, OffersSection } from './more/index.ts';
+import { offerOf } from './more/kit-view.ts';
 
 const SHOW = 30;
 
@@ -150,10 +152,18 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
                     items={[
                       { value: 'edit', label: t('wisp.crew.page.editMember'), icon: 'pen' },
                       { value: 'checkin', label: t('wisp.crew.page.checkin'), icon: 'clock' },
+                      { value: 'share', label: t('wisp.crew.page.share'), icon: 'share' },
+                      { value: 'record', label: t('wisp.crew.page.record'), icon: 'stats' },
                       { kind: 'separator' },
                       { value: 'remove', label: t('wisp.crew.page.remove'), icon: 'trash', danger: true },
                     ]}
-                    onSelect={(v) => (v === 'edit' ? editMember() : v === 'checkin' ? checkin() : setRemoving(true))}
+                    onSelect={(v) => {
+                      if (v === 'edit') editMember();
+                      else if (v === 'checkin') checkin();
+                      else if (v === 'share') c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.share as never, params: { ids: [m().id], name: m().name } } });
+                      else if (v === 'record') c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.record as never, params: { id: m().id } } });
+                      else setRemoving(true);
+                    }}
                   />
                   <Show when={nav().layout !== 'stack'}>
                     <IconButton icon="x" label={t('wisp.crew.page.close')} variant="ghost" onClick={close} />
@@ -181,6 +191,11 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
                           question={it.job.state === 'waiting' ? it.job.question || it.job.live || it.job.title : undefined}
                           unread={!!it.job.unread && it.job.state === 'review'}
                           actions={[{ icon: 'expand', label: t('wisp.crew.page.open'), onClick: () => open(it.job) }]}
+                          extra={
+                            <Show when={offerOf(m().offers, it.job.id)}>
+                              <OffersSection client={c} member={m} job={it.job.id} />
+                            </Show>
+                          }
                         />
                       )
                     }
@@ -216,9 +231,7 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
                       {editor()}
                     </Show>
                   </CrewSection>
-                  <CrewSection part="crew.kit" title={t('wisp.crew.page.kit')}>
-                    <CrewText text={m().kit?.length ? t('wisp.crew.page.kit', { count: m().kit.length }) : t('wisp.crew.page.kit.empty')} empty={!m().kit?.length} />
-                  </CrewSection>
+                  <KitSection client={c} member={m} />
                 </>
               }
               dock={{

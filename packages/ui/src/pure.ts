@@ -8,3 +8,4 @@ export { isSpirit, parseSpirit, spiritCode, type SpiritPart, type SpiritParts } 
 export { themeCss, type FrameScheme } from './frame/theme.ts';
 export { isEnvFile, maskEdit } from './content/env-mask.ts';
 export type { DiffFile, DiffHunk, DiffLine, DiffStatus } from './content/diff/parse.ts';
+export { makerOptions, type MakerOption } from './crew/maker-options.ts';

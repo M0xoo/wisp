@@ -85,7 +85,7 @@ export function KitEditor(props: KitEditorProps): JSX.Element {
         <Field
           label={t('wisp.crew.more.kit.name')}
           hint={skill ? t('wisp.crew.more.kit.nameHintSkill') : t('wisp.crew.more.kit.nameHintRules')}
-          {...(clash() ? { error: t(skill ? 'wisp.crew.more.kit.clashSkill' : 'wisp.crew.more.kit.clashRules', { name: props.name }) } : bad() === 'name' ? { error: t('wisp.crew.more.kit.required') } : {})}
+          {...(clash() ? { error: t(skill ? 'wisp.crew.more.kit.clashSkill' : 'wisp.crew.more.kit.clashRules', { name: name() }) } : bad() === 'name' ? { error: t('wisp.crew.more.kit.required') } : {})}
         >
           <Input
             value={name()}

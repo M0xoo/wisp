@@ -3,6 +3,7 @@
 // each a trigger spec targeting this member (`{ on, match? }`; a hand-off is `crew.reported` matching who reports).
 import type { Member } from './types.ts';
 import type { MemberPatch } from './commands.ts';
+import { isSpirit, parseSpirit } from '@wisp/ui/pure';
 
 export interface Wake {
   readonly on: string;
@@ -14,6 +15,8 @@ export interface Draft {
   readonly role: string;
   /** a spirit code or an emoji (a new member rolls one) */
   readonly avatar: string;
+  /** the disc's colour: a spirit's glow follows its code (v1 setFace), an emoji keeps the one picked */
+  readonly color: string;
   /** what else starts their jobs (v1 EVENTS: finished, done, ci) */
   readonly on: readonly string[];
   /** the task panel's tint: '' their glow, 'none', or a crew colour */
@@ -41,6 +44,7 @@ export function draftOf(m: (Partial<Member> & { wakes?: unknown }) | undefined):
     name: m?.name ?? '',
     role: m?.role ?? '',
     avatar: m?.avatar ?? '',
+    color: m?.color ?? '',
     bg: m?.bg ?? '',
     on: Array.isArray(m?.on) ? m.on.filter((k) => EVENTS.includes(k)) : [],
     brief: m?.brief ?? '',
@@ -67,7 +71,7 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 /** Save on an existing member: only the fields that changed (crew.update merges). */
 export function patchOf(d: Draft, before: Draft): MemberPatch & { wakes?: readonly Wake[] } {
   const out: Record<string, unknown> = {};
-  for (const k of ['name', 'role', 'avatar', 'bg', 'on', 'brief', 'cron', 'parallel', 'agent', 'mode', 'cwd', 'wakes'] as const) {
+  for (const k of ['name', 'role', 'avatar', 'color', 'bg', 'on', 'brief', 'cron', 'parallel', 'agent', 'mode', 'cwd', 'wakes'] as const) {
     const v = typeof d[k] === 'string' ? (d[k] as string).trim() : d[k];
     if (!same(v, before[k])) out[k] = v;
   }
@@ -123,8 +127,11 @@ export interface TemplateText {
 export function fromTemplate(d: Draft, tp: Template, text: TemplateText, names: readonly string[]): Draft {
   const typed = d.name.trim();
   const keep = typed !== '' && !names.includes(typed);
-  return { ...d, name: keep ? d.name : text.name, role: text.role, brief: text.brief, cron: tp.cron, on: [...(tp.on ?? [])], avatar: tp.avatar };
+  return { ...d, name: keep ? d.name : text.name, role: text.role, brief: text.brief, cron: tp.cron, on: [...(tp.on ?? [])], ...faceOf(tp.avatar) };
 }
 
 /** One event chip pressed: on or off. */
 export const toggleOn = (on: readonly string[], k: string): string[] => (on.includes(k) ? on.filter((x) => x !== k) : [...on, k]);
+
+/** A new face (v1 setFace): the avatar, and for a spirit its glow as the member's colour. */
+export const faceOf = (avatar: string): { avatar: string; color?: string } => (isSpirit(avatar) ? { avatar, color: parseSpirit(avatar).color } : { avatar });

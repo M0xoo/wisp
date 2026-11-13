@@ -9,6 +9,7 @@ import type { IconName } from '../content/icons.ts';
 import { WithAct, ActIcon, type Act } from '../app/act.tsx';
 import { Face } from './Face.tsx';
 import { Spirit } from './Spirit.tsx';
+import { SpiritMaker, type SpiritMakerProps } from './Maker.tsx';
 
 export interface CrewEditorTemplate {
   readonly key: string;
@@ -39,6 +40,8 @@ export interface CrewEditorBarItem {
 export interface CrewEditorFormProps {
   readonly start?: { readonly label: string; readonly templates: readonly CrewEditorTemplate[]; readonly picked: string | undefined; readonly onPick: (key: string) => void; readonly import?: { readonly label: string; readonly title: string; readonly onClick: () => void } | undefined } | undefined;
   readonly face: { readonly avatar: string; readonly name: string; readonly color?: string; readonly title: string; readonly onRoll: () => void };
+  /** the spirit maker under the face (v1 .ce-maker), while it's open */
+  readonly maker?: SpiritMakerProps | undefined;
   readonly name: { readonly label: string; readonly value: string; readonly placeholder: string; readonly onInput: (v: string) => void };
   readonly role: { readonly label: string; readonly value: string; readonly placeholder: string; readonly onInput: (v: string) => void };
   /** under the names: how to reach them, or what's wrong with the name */
@@ -134,6 +137,7 @@ export function CrewEditorForm(props: CrewEditorFormProps): JSX.Element {
             </p>
           </div>
         </div>
+        <Show when={props.maker}>{(mk) => <SpiritMaker {...mk()} />}</Show>
         <label data-kit="ce-stack" data-part="crew.editor.brief">
           <span>
             {props.job.label} <small>{props.job.hint}</small>

@@ -19,7 +19,7 @@ const firstTurn = defineCommand<{ key: string; id: string }, readonly { prompt?:
   pending: 'the task’s first prompt',
 });
 import { crewData } from './data.ts';
-import { EVENTS, TEMPLATES, addWake, draftOf, fromTemplate, patchOf, problemOf, toggleOn, type Draft } from './editor.ts';
+import { EVENTS, TEMPLATES, addWake, draftOf, faceOf, fromTemplate, patchOf, problemOf, toggleOn, type Draft } from './editor.ts';
 import { t, type Key } from './i18n.ts';
 import { CADENCES } from './model.ts';
 import { cronWords, toCron } from './rules/schedule.ts';
@@ -58,7 +58,7 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
     const on = shell.projectFilter?.value();
     return all.find((p) => p.id === on)?.path ?? (all.length === 1 ? (all[0]?.path ?? '') : '');
   };
-  const [d, setD] = createSignal<Draft>(editing() ? before : { ...before, avatar: rollSpirit(String(Math.random())), cwd: task ? '' : here() });
+  const [d, setD] = createSignal<Draft>(editing() ? before : { ...before, ...faceOf(rollSpirit(String(Math.random()))), cwd: task ? '' : here() });
   if (task)
     void c
       .run(firstTurn, { key: task, id: bare(task) })
@@ -73,6 +73,9 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
   const [problem, setProblem] = createSignal<string | undefined>(undefined);
   const [picked, setPicked] = createSignal<string | undefined>(undefined);
   const [checkin, setCheckin] = createSignal(!editing() && !task);
+  // the spirit maker: the first click on the face opens it, later clicks roll (v1 .ce-face)
+  const [making, setMaking] = createSignal(false);
+  const roll = (): void => set(faceOf(rollSpirit(String(Math.random()))));
   // Custom…: a schedule typed in words, kept open once picked (v1)
   const [typing, setTyping] = createSignal(!CADENCES.some(([v]) => v === d().cron));
   const [said, setSaid] = createSignal(cronWords(d().cron) ?? d().cron);
@@ -205,7 +208,22 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
               },
             }
       }
-      face={{ avatar: d().avatar, name: d().name || 'wisp', title: t('wisp.crew.editor.face'), onRoll: () => set({ avatar: rollSpirit(String(Math.random())) }) }}
+      face={{ avatar: d().avatar, name: d().name || 'wisp', title: t('wisp.crew.editor.face'), onRoll: () => (making() ? roll() : setMaking(true)) }}
+      maker={
+        making()
+          ? {
+              avatar: d().avatar,
+              seed: d().name || 'wisp',
+              labels: { shape: t('wisp.crew.maker.shape'), color: t('wisp.crew.maker.color'), eyes: t('wisp.crew.maker.eyes'), mouth: t('wisp.crew.maker.mouth'), extra: t('wisp.crew.maker.extra') },
+              surprise: t('wisp.crew.maker.surprise'),
+              emoji: { label: t('wisp.crew.maker.emoji'), title: t('wisp.crew.maker.emojiTitle') },
+              onPick: (code) => set(faceOf(code)),
+              onRoll: roll,
+              // an emptied emoji box rolls a spirit again (v1)
+              onEmoji: (v) => set(faceOf(v || rollSpirit(d().name || String(Math.random())))),
+            }
+          : undefined
+      }
       name={{ label: t('wisp.crew.editor.name'), value: d().name, placeholder: t('wisp.crew.editor.namePlaceholder'), onInput: (v) => (setProblem(undefined), set({ name: v })) }}
       role={{ label: t('wisp.crew.editor.role'), value: d().role, placeholder: t('wisp.crew.editor.rolePlaceholder'), onInput: (v) => set({ role: v }) }}
       handle={
