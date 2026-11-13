@@ -30,6 +30,13 @@ pub trait Disk: Send + Sync {
     ) -> DiskFuture<'a, Option<String>>;
     /// Removes a file wisp made (a temporary index); a missing one is fine. Additive (2026-11-13).
     fn remove<'a>(&'a self, abs: &'a str) -> DiskFuture<'a, ()>;
+    /// Copies `from` to `to` byte for byte, read from one open file and with `from`'s mtime kept (git's
+    /// racy-clean check compares an index's mtime with its entries'): true when it did. Additive
+    /// (2026-11-13): the default copies nothing, and callers fall back to slower ways.
+    fn copy<'a>(&'a self, from: &'a str, to: &'a str) -> DiskFuture<'a, bool> {
+        let _ = (from, to);
+        Box::pin(async { false })
+    }
 }
 
 /// The file now when it is at most `max` bytes, else None (missing, not a file, too big).

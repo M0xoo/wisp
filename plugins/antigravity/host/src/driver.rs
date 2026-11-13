@@ -84,6 +84,9 @@ impl Disk for SysDisk<'_> {
     fn remove<'a>(&'a self, abs: &'a str) -> DiskFuture<'a, ()> {
         self.0.remove_file(abs)
     }
+    fn copy<'a>(&'a self, from: &'a str, to: &'a str) -> DiskFuture<'a, bool> {
+        self.0.copy_file(from, to)
+    }
 }
 
 /// Integer counters in the runtime's stats; v1 copied whatever the CLI sent.

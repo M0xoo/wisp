@@ -28,59 +28,25 @@ pub async fn work_in_progress(disk: &dyn Disk, cwd: &str) -> Option<String> {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     );
-    let out = through(disk, cwd, &head, &index).await;
+    let out = through(disk, cwd, &head, &git_dir, &index).await;
     disk.remove(&index).await;
     disk.remove(&format!("{index}.lock")).await;
     out
 }
 
-async fn through(disk: &dyn Disk, cwd: &str, head: &str, index: &str) -> Option<String> {
+async fn through(disk: &dyn Disk, cwd: &str, head: &str, git_dir: &str, index: &str) -> Option<String> {
     let mut env: Vec<(&str, &str)> = WHO.to_vec();
     env.push(("GIT_INDEX_FILE", index));
     let tmp = |args: &'static [&'static str]| disk.git_env(cwd, args, &env);
-    tmp(&["read-tree", "HEAD"]).await?;
-    tmp(&["add", "--update"]).await?;
-    // what the user's index holds that HEAD doesn't (a staged new file) or dropped (a staged removal):
-    // read from their index without a lock (GIT_OPTIONAL_LOCKS=0 from the proc service)
-    let staged = |filter: &'static str| async move {
-        let out = disk
-            .git(
-                cwd,
-                &[
-                    "diff",
-                    "--cached",
-                    "--name-only",
-                    "--no-renames",
-                    filter,
-                    "-z",
-                ],
-            )
-            .await
-            .unwrap_or_default();
-        // root-relative names, whatever folder `cwd` is in the checkout
-        out.split('\0')
-            .filter(|s| !s.is_empty())
-            .map(|s| format!(":(top,literal){s}"))
-            .collect::<Vec<_>>()
-    };
-    let steps: [(&str, &[&str]); 2] = [
-        ("--diff-filter=A", &["add", "--force", "--"]),
-        (
-            "--diff-filter=D",
-            &["rm", "--cached", "--quiet", "--ignore-unmatch", "--"],
-        ),
-    ];
-    for (filter, verb) in steps {
-        let files = staged(filter).await;
-        if files.is_empty() {
-            continue;
-        }
-        let args: Vec<&str> = verb
-            .iter()
-            .copied()
-            .chain(files.iter().map(String::as_str))
-            .collect();
-        disk.git_env(cwd, &args, &env).await?;
+    // seeded from the user's index (a plain read, no lock): its stat cache spares `add` re-hashing
+    // every tracked file, and its staged adds and removals come along. A copy git can't read (a
+    // missing index, a disk that can't copy) falls back to HEAD's tree, re-hashed whole.
+    let seeded = disk.copy(&format!("{git_dir}/index"), index).await
+        && tmp(&["add", "--update"]).await.is_some();
+    if !seeded {
+        disk.remove(index).await;
+        tmp(&["read-tree", "HEAD"]).await?;
+        tmp(&["add", "--update"]).await?;
     }
     let tree = trimmed(tmp(&["write-tree"]).await)?;
     if trimmed(disk.git(cwd, &["rev-parse", "HEAD^{tree}"]).await).as_deref() == Some(tree.as_str())

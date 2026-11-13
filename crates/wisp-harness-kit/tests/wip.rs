@@ -13,6 +13,21 @@ use std::task::{Context, Poll, Waker};
 use wisp_harness_kit::wip::work_in_progress;
 use wisp_harness_kit::{Disk, DiskFuture};
 
+/// A disk that can't copy (the trait's default): the pin falls back to HEAD's tree.
+struct NoCopyDisk;
+
+impl Disk for NoCopyDisk {
+    fn read(&self, abs: &str) -> DiskFuture<'_, Option<String>> {
+        RealDisk.read(abs)
+    }
+    fn git_env<'a>(&'a self, cwd: &'a str, args: &'a [&'a str], env: &'a [(&'a str, &'a str)]) -> DiskFuture<'a, Option<String>> {
+        RealDisk.git_env(cwd, args, env)
+    }
+    fn remove<'a>(&'a self, abs: &'a str) -> DiskFuture<'a, ()> {
+        RealDisk.remove(abs)
+    }
+}
+
 /// Git as the proc service runs it (`GIT_OPTIONAL_LOCKS=0`), synchronously: the futures are ready at once.
 struct RealDisk;
 
@@ -30,6 +45,19 @@ impl Disk for RealDisk {
         let _ = std::fs::remove_file(abs);
         Box::pin(async {})
     }
+    fn copy<'a>(&'a self, from: &'a str, to: &'a str) -> DiskFuture<'a, bool> {
+        let v = copy_keeping_mtime(Path::new(from), Path::new(to)).is_ok();
+        Box::pin(async move { v })
+    }
+}
+
+/// As `ProcSys::copy_file` (plugins/runtime/host/src/sys.rs): one open handle, the mtime kept.
+fn copy_keeping_mtime(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut src = std::fs::File::open(from)?;
+    let mtime = src.metadata()?.modified()?;
+    let mut dst = std::fs::File::create(to)?;
+    std::io::copy(&mut src, &mut dst)?;
+    dst.set_modified(mtime)
 }
 
 fn now<T>(f: impl Future<Output = T>) -> T {
@@ -116,5 +144,37 @@ fn the_pin_holds_what_stash_create_held_and_leaves_the_index_alone() {
     assert_eq!(files.lines().collect::<Vec<_>>(), ["a.txt", "new.txt"], "staged new in, staged removal out, untracked out");
     assert_eq!(git(&d, &["show", &format!("{sha}:a.txt")]).unwrap(), "a, edited");
     assert_eq!(git(&d, &["rev-parse", &format!("{sha}^")]).unwrap(), git(&d, &["rev-parse", "HEAD"]).unwrap());
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+#[test]
+fn a_disk_that_cannot_copy_still_pins_the_edits_from_heads_tree() {
+    let d = repo("nocopy");
+    std::fs::write(d.join("a.txt"), "a, edited\n").unwrap();
+    let sha = now(work_in_progress(&NoCopyDisk, d.to_str().unwrap())).expect("edits pin a commit");
+    assert_eq!(git(&d, &["show", &format!("{sha}:a.txt")]).unwrap(), "a, edited");
+    assert_eq!(git(&d, &["show", &format!("{sha}:sub/b.txt")]).unwrap(), "b");
+    let left: Vec<_> = std::fs::read_dir(d.join(".git")).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with("wisp-")).collect();
+    assert!(left.is_empty(), "{left:?}");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Git's racy-clean rule: an entry whose mtime isn't older than the index's own is re-read. The seeded
+/// copy keeps the index's mtime, so a same-size edit in the instant the index was written still shows
+/// (a fresh mtime on the copy would call it clean and pin the old text).
+#[test]
+fn the_pin_sees_a_same_size_edit_made_in_the_instant_the_index_was_written() {
+    let d = repo("racy");
+    git(&d, &["config", "core.trustctime", "false"]).unwrap();
+    let at = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+    let touch = |p: &Path| std::fs::File::options().write(true).open(p).unwrap().set_modified(at).unwrap();
+    std::fs::write(d.join("a.txt"), "x\n").unwrap();
+    touch(&d.join("a.txt"));
+    git(&d, &["add", "a.txt"]).unwrap();
+    touch(&d.join(".git/index")); // the index written in the same instant as a.txt
+    std::fs::write(d.join("a.txt"), "y\n").unwrap(); // same size, same mtime
+    touch(&d.join("a.txt"));
+    let sha = now(work_in_progress(&RealDisk, d.to_str().unwrap())).expect("edits pin a commit");
+    assert_eq!(git(&d, &["show", &format!("{sha}:a.txt")]).unwrap(), "y");
     let _ = std::fs::remove_dir_all(&d);
 }

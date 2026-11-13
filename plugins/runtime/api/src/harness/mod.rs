@@ -81,6 +81,13 @@ pub trait HarnessSys: Send + Sync {
         let _ = path;
         Box::pin(async {})
     }
+    /// copies a file (the user's git index, to seed a temporary one) byte for byte from one open file,
+    /// keeping its mtime: true when it did. Additive (2026-11-13): the default copies nothing (callers
+    /// fall back to a slower way), so a real implementation should override it.
+    fn copy_file(&self, from: &str, to: &str) -> BoxFuture<'_, bool> {
+        let _ = (from, to);
+        Box::pin(async { false })
+    }
     fn env(&self, name: &str) -> Option<String>;
     fn home(&self) -> String;
     /// 'darwin' | 'linux' | 'win32' (v1 names)

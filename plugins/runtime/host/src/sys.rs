@@ -72,6 +72,14 @@ impl HarnessSys for ProcSys {
             let _ = tokio::fs::remove_file(path).await;
         })
     }
+    fn copy_file(&self, from: &str, to: &str) -> BoxFuture<'_, bool> {
+        let (from, to) = (PathBuf::from(from), PathBuf::from(to));
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || copy_keeping_mtime(&from, &to).is_ok())
+                .await
+                .unwrap_or(false)
+        })
+    }
     fn list_dir(&self, path: &str) -> BoxFuture<'_, Vec<String>> {
         let path = path.to_owned();
         Box::pin(async move {
@@ -99,4 +107,15 @@ impl HarnessSys for ProcSys {
             other => other.into(),
         }
     }
+}
+
+/// `from` into `to` through one open handle (git swaps its index by rename, so this reads one whole
+/// file), with `from`'s mtime set on `to`: git's racy-clean check compares the index's mtime with
+/// its entries', and a fresh mtime would hide a same-size edit made in the second the index was written.
+fn copy_keeping_mtime(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    let mut src = std::fs::File::open(from)?;
+    let mtime = src.metadata()?.modified()?;
+    let mut dst = std::fs::File::create(to)?;
+    std::io::copy(&mut src, &mut dst)?;
+    dst.set_modified(mtime)
 }

@@ -455,7 +455,9 @@ impl Inner {
         Ok(String::from_utf8_lossy(&out).into_owned())
     }
 
-    /// The tree of the folder as it is, written through a temporary index.
+    /// The tree of the folder as it is, written through a temporary index seeded from the user's (a plain
+    /// read, no lock): its stat cache spares `add` re-hashing every tracked file. A copy git can't read
+    /// (no index yet, a failed copy) falls back to HEAD's tree, re-hashed whole.
     async fn work_tree(&self) -> Result<Option<String>> {
         if self.rev_parse("HEAD").await?.is_none() {
             return Ok(None);
@@ -466,11 +468,21 @@ impl Inner {
             timeout: Some(std::time::Duration::from_secs(120)),
             ..Opts::default()
         };
+        let git_dir = self
+            .git
+            .quiet(&self.dir, &["rev-parse", "--absolute-git-dir"])
+            .await;
         let go = async {
-            self.git
-                .run(&self.dir, &args(&["read-tree", "HEAD"]), o())
-                .await?;
-            self.git.run(&self.dir, &args(&["add", "-A"]), o()).await?;
+            let seeded = !git_dir.is_empty()
+                && copy_keeping_mtime(Path::new(&git_dir).join("index"), index.clone()).await
+                && self.git.run(&self.dir, &args(&["add", "-A"]), o()).await.is_ok();
+            if !seeded {
+                let _ = tokio::fs::remove_file(&index).await;
+                self.git
+                    .run(&self.dir, &args(&["read-tree", "HEAD"]), o())
+                    .await?;
+                self.git.run(&self.dir, &args(&["add", "-A"]), o()).await?;
+            }
             self.git
                 .run(&self.dir, &read_args(&["write-tree"]), o())
                 .await
@@ -479,6 +491,23 @@ impl Inner {
         let _ = tokio::fs::remove_file(&index).await;
         tree.map(Some)
     }
+}
+
+/// `from` into `to` through one open handle (git swaps its index by rename, so this reads one whole
+/// file), with `from`'s mtime set on `to`: git's racy-clean check compares the index's mtime with its
+/// entries', and a fresh mtime would hide a same-size edit made in the instant the index was written.
+/// As wisp.runtime's `copy_file` (plugins/runtime/host/src/sys.rs), which harness runs pin through.
+async fn copy_keeping_mtime(from: std::path::PathBuf, to: std::path::PathBuf) -> bool {
+    let copy = move || -> std::io::Result<()> {
+        let mut src = std::fs::File::open(&from)?;
+        let mtime = src.metadata()?.modified()?;
+        let mut dst = std::fs::File::create(&to)?;
+        std::io::copy(&mut src, &mut dst)?;
+        dst.set_modified(mtime)
+    };
+    tokio::task::spawn_blocking(copy)
+        .await
+        .is_ok_and(|r| r.is_ok())
 }
 
 fn temp_index() -> std::path::PathBuf {
