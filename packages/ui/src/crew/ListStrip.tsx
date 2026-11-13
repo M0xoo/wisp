@@ -1,7 +1,7 @@
 // The Crew section's folded row (v1 crew.js stripHtml, .cr-strip): the folded members' faces (each opens its
 // thread; a fine pointer only), how many and what they're doing, and a chevron that shows them all; Show fewer
 // folds them again. Faces are keyed by id, so a spirit never restarts its animation as the words change.
-import { For, type JSX } from 'solid-js';
+import { createSignal, For, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
 import { Face } from './Face.tsx';
@@ -19,8 +19,11 @@ export interface CrewStripFace {
 }
 
 export function CrewListStrip(props: { readonly faces: readonly CrewStripFace[]; readonly words: string; readonly title: string; readonly onFace: (id: string) => void; readonly onExpand: () => void }): JSX.Element {
+  // the chevron's keyboard focus lights the whole row (v1 .cr-strip:has(.cr-fold:focus-visible)), set here so the
+  // CSS needs no :has()
+  const [ring, setRing] = createSignal(false);
   return (
-    <div data-kit="cr-strip" data-part="crew.strip" onClick={() => props.onExpand()}>
+    <div data-kit="cr-strip" data-part="crew.strip" data-ring={flag(ring())} onClick={() => props.onExpand()}>
       <span data-kit="cr-faces">
         <For each={props.faces}>
           {(f) => (
@@ -40,7 +43,14 @@ export function CrewListStrip(props: { readonly faces: readonly CrewStripFace[];
           )}
         </For>
       </span>
-      <button type="button" data-kit="cr-fold" aria-expanded="false" title={props.title}>
+      <button
+        type="button"
+        data-kit="cr-fold"
+        aria-expanded="false"
+        title={props.title}
+        onFocus={(e) => setRing(e.currentTarget.matches(':focus-visible'))}
+        onBlur={() => setRing(false)}
+      >
         <span data-kit="cr-sub">{props.words}</span>
         <Icon name="chevron" size="sm" />
       </button>
