@@ -18,6 +18,12 @@ const server = http.createServer(async (req, res) => {
   if (req.url === '/api/channels/inbound') {
     let t = '';
     for await (const c of req) t += c;
+    // Like a real wisp (server/http/trust.js): only its own grid gets in. Grids in one test file
+    // can hand a box a port another grid is still polling, and that grid's held messages land here.
+    if (req.headers['x-wisp-proxy-secret'] !== process.env.WISP_TRUSTED_PROXY_SECRET) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      return res.end('{"error":"not through the proxy"}');
+    }
     const c = conf();
     fs.appendFileSync(path.join(home, 'inbound.jsonl'), `${JSON.stringify({ ...JSON.parse(t), http: req.headers })}\n`);
     if (c.answerMs) await new Promise((r) => setTimeout(r, c.answerMs));
