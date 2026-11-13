@@ -1,5 +1,11 @@
 # v2 build queue (code first, verify later)
 
+**Lead, seen 2026-11-14 at 390 (web app, demo data):** the task rows' quick buttons (save for later, mark done) stay
+visible on a touch screen and sit on top of the title: a long title runs under them and a letter peeks out between
+them ("…goes on and or [⌑] c [✓]"). On touch, the title must end in an ellipsis before the buttons (reserve their
+width), or the buttons move to the row's swipe actions / long-press menu as v1's phone did. Fix with the list parity
+work; seen in Chrome at 390 and 320.
+
 **Next (lead, 2026-11-13):** v1's spell tools for agents (wisp_spells, _schema, _data, _check) were dead in v2 and are
 removed; ADR-0031 dropped spells, but the intent stays: an agent writing a UI extension. Build their v2 form over the
 untrusted plugin tier (ADR-0048): `wisp_plugins`, `wisp_plugin_schema`, `wisp_plugin_data`, `wisp_plugin_check`, each with
