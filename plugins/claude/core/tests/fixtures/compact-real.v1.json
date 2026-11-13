@@ -78,6 +78,7 @@
     "post": 9521
    },
    "contextTokens": 0,
+   "contextWindow": 1000000,
    "models": [
     {
      "model": "claude-haiku-5-5",
