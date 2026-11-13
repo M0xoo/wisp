@@ -5,8 +5,8 @@
 //! `/new` never starts twice. Every request goes through the hub's `Net`; the wire's decisions are
 //! `wisp-telegram-core`'s.
 //!
-//! With `options` on, plain text reads as the launcher's grammar (`conv.rs`, through wisp.channels' flow). Not here
-//! yet: the cloud box's webhook through the grid's inbox.
+//! With `options` on, plain text reads as the launcher's grammar (`conv.rs`, through wisp.channels' flow). On a
+//! cloud wisp the bot's webhook points at the grid's inbox, which wakes the box and delivers (`hook.rs`).
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -14,12 +14,14 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 use wisp_channels_api::policy::{Gate, GateArgs, RateLimit, STALE_S, gate};
 use wisp_channels_api::scrub::scrub_out;
+use wisp_channels_api::transport::{Headers, InboundOpts, InboundResult};
 use wisp_channels_api::views::{ActArgs, ActKind, Msg, SessionView, Signed};
 use wisp_channels_api::{ChannelHub, HttpRequest, Status, TRANSPORTS, Transport, TransportDef, TransportKind};
 use wisp_kernel::{CancellationToken, Manifest, Plugin, Result, Setup, WireError};
 use wisp_telegram_core::{self as core, Message, Update, encode_tap, forwarded, links_it, parse_tap, publish_text, truncate};
 
 mod conv;
+mod hook;
 
 const MAX_TG_IDS: usize = 20;
 const LONG_POLL_S: u64 = 25;
@@ -27,13 +29,18 @@ const LONG_POLL_S: u64 = 25;
 #[derive(Debug, Default)]
 pub struct TelegramPlugin;
 
+/// The transport on `hub`, as wisp.channels makes it (tests drive it on the api's test hub).
+pub fn transport(hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
+    Def.create(hub)
+}
+
 struct Def;
 impl TransportDef for Def {
     fn name(&self) -> &'static str {
         "telegram"
     }
     fn create(&self, hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
-        Arc::new(Telegram { hub, limit: Mutex::new(RateLimit::default()) })
+        Arc::new(Telegram { hub, limit: Mutex::new(RateLimit::default()), hook_turn: Mutex::new(()) })
     }
     fn secrets(&self) -> &'static [&'static str] {
         &["token"]
@@ -43,6 +50,8 @@ impl TransportDef for Def {
 struct Telegram {
     hub: Arc<dyn ChannelHub>,
     limit: Mutex<RateLimit>,
+    /// held updates' `seen` list, read and written by one delivery at a time (hook.rs)
+    hook_turn: Mutex<()>,
 }
 
 fn s<'a>(v: &'a Value, k: &str) -> &'a str {
@@ -364,6 +373,9 @@ impl Transport for Telegram {
         true
     }
     async fn start(&self, stop: CancellationToken) {
+        if !self.ready() || self.hooked(&stop).await == hook::Inbound::Hooked {
+            return;
+        }
         let long = self.hub.tune("tgLongPoll").unwrap_or(LONG_POLL_S);
         while !stop.is_cancelled() && self.ready() {
             let offset = self.cfg()["offset"].as_i64().unwrap_or(0);
@@ -412,6 +424,14 @@ impl Transport for Telegram {
             }
         }
         Ok(())
+    }
+    /// an update the grid held for this cloud wisp (`hook.rs`), handled before the grid hears back
+    async fn inbound(&self, raw: &[u8], headers: &Headers, opts: InboundOpts) -> InboundResult {
+        let (r, u) = self.held(raw, headers, opts);
+        if let Some(u) = u {
+            self.on_update(u).await;
+        }
+        r
     }
     async fn dropped(&self, n: u32) {
         if self.sending() {

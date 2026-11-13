@@ -3,7 +3,7 @@
 // pure (`noticeFor`): a row's previous and next value in, the words out. The wiring follows each
 // row with its own effect, so a change to one task costs one comparison, never a pass over the list.
 
-import { effect, untracked, type EntityKey, type Nav, type PluginClient, type SessionId, type Target } from '@wisp/client';
+import { effect, entityKey, untracked, type EntityKey, type Nav, type PluginClient, type SessionId, type SettingRow, type Target } from '@wisp/client';
 import type { Platform } from '@wisp/shell/platform';
 import type { Toaster } from '@wisp/ui';
 import { SESSION, type TaskRow } from './types.ts';
@@ -58,6 +58,13 @@ export function noticeFor(prev: TaskRow | undefined, next: TaskRow, o: { sibling
   return { tag: next.id, head, title: titleOf(next), body, asks };
 }
 
+/** Settings → Notifications' switch (`settings.notify`: 'on' | 'off', or a boolean). v1 notify.js: off until you
+ * turn it on there; the browser allowing notifications isn't the same as wanting them. */
+export const NOTIFY_KEY = 'settings.notify';
+export function notifyOn(v: unknown): boolean {
+  return v === true || v === 'on';
+}
+
 /** A key's id: `<peer>:<id>` → `<id>` (an id alone stays). */
 const bareId = (k: string): string => k.slice(k.indexOf(':') + 1);
 
@@ -110,7 +117,8 @@ export function startNotifier(d: NotifierDeps): () => void {
   const tell = (key: EntityKey, n: Notice, row: TaskRow): void => {
     if (viewing(key, row)) return;
     d.toast?.show(n.head, { action: { label: t('shell-home.notify.open'), onClick: () => client.navigate({ t: 'openFromToast', target: target(key) }) } });
-    if (!d.focused()) void d.platform.notify({ title: n.title, body: n.body, tag: n.tag, target: target(key) });
+    const on = notifyOn(client.entities.peek<SettingRow>('setting', entityKey(client.home, NOTIFY_KEY))?.value);
+    if (on && !d.focused()) void d.platform.notify({ title: n.title, body: n.body, tag: n.tag, target: target(key) });
   };
   // read without tracking: a row's effect must not wake for every other row
   const siblings = (): TaskRow[] => untracked(() => (client.entities.list<unknown>(SESSION)() as unknown[]).map(flatRow).filter((r): r is TaskRow => r !== undefined));

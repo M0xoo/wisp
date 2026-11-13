@@ -241,7 +241,7 @@ pub trait ChannelHub: Send + Sync + 'static {
 
     /// this channel's config (an object; secrets merged in)
     fn cfg(&self, channel: &str) -> Value;
-    /// replaces it and saves: secrets to the secrets file, the rest to the channels table
+    /// merged over it, key by key (a partial object changes only its keys; `null` clears one)
     fn set_cfg(&self, channel: &str, cfg: Value);
     fn mark(&self, channel: &str, st: Status);
     /// Settings should look again

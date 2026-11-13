@@ -6,6 +6,7 @@
 
 mod hub;
 mod kinds;
+mod report;
 mod routed;
 mod ws;
 
@@ -19,7 +20,7 @@ use wisp_channels_api::{
     Update, View,
 };
 use wisp_kernel::{CancellationToken, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_runtime_api::events::{SessionAsked, TurnEnded, TurnFinished};
+use wisp_runtime_api::events::{TaskAsked, TurnEnded, TurnFinished};
 use wisp_runtime_api::model::TurnStatus;
 
 use crate::hub::{Hub, State};
@@ -39,6 +40,10 @@ struct Live {
     channels: Channels,
     notes: Notifications,
     kinds: OnceLock<Arc<Kinds>>,
+    /// asks a channel already said it waits on
+    said: report::Said,
+    /// the keys each channel's declaration gave its config last time (`keep_over`)
+    declared: Mutex<HashMap<String, Vec<String>>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -72,7 +77,13 @@ async fn act(ctx: &Ctx, live: &Arc<Live>) {
     for def in ctx.contributions(&TRANSPORTS) {
         let Some((_, c)) = declared.iter().find(|(_, c)| c.transport == def.name()) else { continue };
         let cfg = config_of(ctx, c).await;
-        lock(&live.st.cfg).insert(def.name().to_owned(), cfg);
+        {
+            let keys: Vec<String> = cfg.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default();
+            let before = lock(&live.declared).insert(def.name().to_owned(), keys).unwrap_or_default();
+            let mut all = lock(&live.st.cfg);
+            let kept = all.remove(def.name()).unwrap_or_default();
+            all.insert(def.name().to_owned(), kinds::keep_over(kept, cfg, &before));
+        }
         if c.enabled != Some(true) {
             continue;
         }
@@ -89,8 +100,9 @@ fn in_projects(projects: &[String], cwd: &str) -> bool {
         || projects.iter().any(|p| cwd == p.trim_end_matches('/') || cwd.starts_with(&format!("{}/", p.trim_end_matches('/'))))
 }
 
-/// Sends `event` about a task to every notification that asks for it.
-async fn notify(ctx: &Ctx, live: &Arc<Live>, event: &str, session: &str, text: &str, actions: Vec<Action>) {
+/// Sends `event` about a task to every notification that asks for it. `fanned`: the same event goes to the channels
+/// the task came from (report.rs), so a notification to one of them is already said.
+async fn notify(ctx: &Ctx, live: &Arc<Live>, event: &str, session: &str, text: &str, actions: Vec<Action>, fanned: bool) {
     let due: Vec<kinds::NotificationSpec> =
         lock(&live.notes).iter().filter(|(_, n)| n.on.iter().any(|e| e == event)).map(|(_, n)| n.clone()).collect();
     if due.is_empty() {
@@ -106,14 +118,14 @@ async fn notify(ctx: &Ctx, live: &Arc<Live>, event: &str, session: &str, text: &
     };
     let msg = Msg { title, text: text.to_owned(), actions };
     for n in due.into_iter().filter(|n| in_projects(&n.projects, &cwd)) {
-        if let Err(e) = deliver(ctx, live, &n.to, event, &msg, &view).await {
+        if let Err(e) = deliver(ctx, live, &n.to, event, &msg, &view, fanned).await {
             tracing::warn!(to = %n.to, "notification not sent: {}", e.message);
         }
     }
 }
 
 /// To a webhook (`https://…`: the event as JSON) or a declared channel's transport.
-async fn deliver(ctx: &Ctx, live: &Arc<Live>, to: &str, event: &str, msg: &Msg, s: &SessionView) -> Result<()> {
+async fn deliver(ctx: &Ctx, live: &Arc<Live>, to: &str, event: &str, msg: &Msg, s: &SessionView, fanned: bool) -> Result<()> {
     if to.starts_with("http://") || to.starts_with("https://") {
         let body = json!({ "event": event, "session": { "id": s.id, "title": s.title, "state": s.state, "cwd": s.cwd }, "title": msg.title, "text": msg.text });
         let net = wisp_kernel::services::net(ctx)?;
@@ -137,6 +149,9 @@ async fn deliver(ctx: &Ctx, live: &Arc<Live>, to: &str, event: &str, msg: &Msg, 
         .get(&transport)
         .map(|(t, _)| t.clone())
         .ok_or_else(|| WireError::unavailable(format!("the channel {to} is off")))?;
+    if fanned && report::covered(live, t.as_ref(), s) {
+        return Ok(()); // the task came from there: its report already goes there (report.rs)
+    }
     t.publish(msg, Some(s)).await
 }
 
@@ -158,11 +173,16 @@ fn events(s: &mut Setup, live: &Arc<Live>) {
             _ => None,
         };
         if let Some(event) = event {
+            // a subagent's or wisp's own turn (compact) isn't news in the chat a task came from
+            let fanned = !e.inner;
+            if fanned {
+                report::finished(&ctx, &l, e.session_id.as_str(), e.error_text.clone().unwrap_or_default());
+            }
             ctx.spawn(async move {
                 let why = e.error_text.clone().unwrap_or_else(|| "It's done.".into());
                 let acts =
                     vec![Action { label: "Done".into(), kind: ActionKind::Done, reference: e.turn_id.as_str().to_owned(), index: 0 }];
-                notify(&c, &live, event, e.session_id.as_str(), &why, acts).await;
+                notify(&c, &live, event, e.session_id.as_str(), &why, acts, fanned).await;
             });
         }
         async {}
@@ -183,9 +203,11 @@ fn events(s: &mut Setup, live: &Arc<Live>) {
         async {}
     });
     let l = live.clone();
-    s.on::<SessionAsked, _, _>(move |ctx, e| {
-        let (live, e, c) = (l.clone(), e.clone(), ctx.clone());
-        ctx.spawn(async move { notify(&c, &live, "asks", e.session_id.as_str(), &e.question, Vec::new()).await });
+    // `task.asked` (runtime more/ask.rs): the one fact every ask raises
+    s.on::<TaskAsked, _, _>(move |ctx, e| {
+        let (live, e, c) = (l.clone(), e.0.clone(), ctx.clone());
+        report::asked(&ctx, &l, e.session_id.as_str());
+        ctx.spawn(async move { notify(&c, &live, "asks", e.session_id.as_str(), &e.text, Vec::new(), true).await });
         async {}
     });
 }
@@ -230,7 +252,7 @@ fn commands(s: &mut Setup, live: &Arc<Live>) {
         let live = l.clone();
         async move {
             let text = a.summary.as_ref().and_then(|s| s.preview.clone()).unwrap_or_default();
-            notify(&ctx, &live, "finished", &a.session_id, &text, Vec::new()).await;
+            notify(&ctx, &live, "finished", &a.session_id, &text, Vec::new(), false).await;
             Ok(wisp_channels_api::Empty {})
         }
     });
@@ -336,6 +358,16 @@ mod tests {
         let m = ChannelsPlugin.manifest();
         assert_eq!(m.id, "wisp.channels");
         assert!(m.validate().is_ok());
+    }
+
+    #[test]
+    fn a_follow_up_keeps_the_tasks_mode_unless_one_is_asked_and_that_one_is_held_to_the_chats_cap() {
+        use wisp_channels_api::views::Mode::{Auto, Edits, Plan};
+        assert_eq!(hub::follow_up_mode(None, Some(Edits)), None, "the cap alone never raises a Plan task");
+        assert_eq!(hub::follow_up_mode(None, Some(Auto)), None, "nor does a private Telegram chat's");
+        assert_eq!(hub::follow_up_mode(Some(Auto), Some(Edits)), Some(Edits));
+        assert_eq!(hub::follow_up_mode(Some(Plan), Some(Edits)), Some(Plan));
+        assert_eq!(hub::follow_up_mode(Some(Auto), None), Some(Auto));
     }
 
     #[test]

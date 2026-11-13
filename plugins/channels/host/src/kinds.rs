@@ -134,3 +134,39 @@ pub fn register(s: &mut Setup, after: &OnChange) -> Arc<Kinds> {
     }
     Arc::new(Kinds { channels, notifications })
 }
+
+/// A re-read channel's config: what its transport kept for itself (Telegram's linked chat, a poll offset, a
+/// webhook's secret) stays under the declared fields, so applying any channel doesn't unlink this one. Another
+/// token is another bot: nothing kept about the old one carries over. `before`: the keys declared last time, so
+/// one taken out of the declaration goes too (only what the transport wrote itself stays).
+pub fn keep_over(kept: Value, declared: Value, before: &[String]) -> Value {
+    let (Value::Object(mut out), Value::Object(d)) = (kept, declared.clone()) else { return declared };
+    if ["token", "botToken"].iter().any(|k| out.get(*k) != d.get(*k)) {
+        return declared;
+    }
+    out.retain(|k, _| !before.contains(k));
+    out.extend(d);
+    Value::Object(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::keep_over;
+
+    #[test]
+    fn applying_a_channel_again_keeps_what_its_transport_kept_unless_its_token_changed() {
+        let kept = json!({ "token": "t1", "enabled": true, "allow": ["y"], "chatId": 42, "offset": 9 });
+        let before = ["token".to_owned(), "enabled".to_owned(), "allow".to_owned()];
+        let again = keep_over(kept.clone(), json!({ "token": "t1", "enabled": true, "allow": ["x"] }), &before);
+        assert_eq!((again["chatId"].as_i64(), again["offset"].as_i64(), again["allow"][0].as_str()), (Some(42), Some(9), Some("x")));
+        let off = keep_over(kept.clone(), json!({ "token": "t1", "enabled": false }), &before);
+        assert_eq!(off["enabled"], false, "what's declared wins");
+        assert!(off.get("allow").is_none(), "a key taken out of the declaration goes");
+        assert_eq!(off["chatId"], 42);
+        let other = keep_over(kept, json!({ "token": "t2", "enabled": true }), &before);
+        assert!(other.get("chatId").is_none(), "another bot: linked afresh");
+        assert_eq!(keep_over(Value::Null, json!({ "token": "t" }), &[]), json!({ "token": "t" }));
+    }
+}

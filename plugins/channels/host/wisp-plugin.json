@@ -10,6 +10,7 @@
   },
   "permissions": [
     "runtime:get",
+    "runtime:turns",
     "runtime:list",
     "runtime:create",
     "runtime:stop",
@@ -28,6 +29,7 @@
     "onStartup"
   ],
   "contributes": {
+    "triggerSources": ["chat.message"],
     "settings": [
       { "key": "channels.acceptChannels", "type": "bool", "default": false, "title": "Accept tasks from channels: messages routed here through wisp Cloud (“on this computer …”) may start tasks. Switch it on at this computer." },
       { "key": "channels.project", "type": "string", "default": "", "title": "Default project: where a task from a channel (Slack, Discord, Telegram, email) runs when its message names none ('': the last used)" }

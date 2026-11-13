@@ -195,9 +195,10 @@ impl Exec for ScriptExec {
 /// A reply mailed through the grid: (the message it answers, subject, text).
 pub type Mailed = Arc<Mutex<Vec<(String, String, String)>>>;
 
-/// The grid as a cloud box sees it: `Some` plays a box (`TestHub.on_box`); mail replies are kept.
+/// The grid as a cloud box sees it: `Some` plays a box (`TestHub.on_box`); mail replies are kept; `channel_url`
+/// answers with the box's scripted URL (`TestHub.box_url`).
 #[derive(Debug, Default)]
-pub struct NoBox(pub Option<BoxGrid>, pub Mailed);
+pub struct NoBox(pub Option<BoxGrid>, pub Mailed, pub Option<ChannelUrl>);
 
 #[async_trait]
 impl BoxApi for NoBox {
@@ -211,7 +212,7 @@ impl BoxApi for NoBox {
         format!("mark:{}", token.len())
     }
     async fn channel_url(&self, _b: &BoxGrid, _channel: &str, _bot: Option<&str>, _gone: bool) -> Result<Option<ChannelUrl>> {
-        Ok(None)
+        Ok(self.2.clone())
     }
     async fn rotate_url(&self, _b: &BoxGrid, _channel: &str) -> Result<ChannelUrl> {
         Err(WireError::unavailable("not a cloud wisp"))
@@ -335,6 +336,8 @@ pub struct TestHub {
     pub on_box: Option<BoxGrid>,
     /// replies mailed through it
     pub mailed: Mailed,
+    /// what the grid answers a box asking for its channel's URL (None: no hub there). Additive (2026-11-13).
+    pub box_url: Option<ChannelUrl>,
 }
 
 impl std::fmt::Debug for TestHub {
@@ -384,7 +387,7 @@ impl ChannelHub for TestHub {
         self.exec.clone()
     }
     fn grid(&self) -> Arc<dyn BoxApi> {
-        Arc::new(NoBox(self.on_box.clone(), self.mailed.clone()))
+        Arc::new(NoBox(self.on_box.clone(), self.mailed.clone(), self.box_url.clone()))
     }
     fn now_ms(&self) -> i64 {
         *lock(&self.now)
@@ -407,8 +410,14 @@ impl ChannelHub for TestHub {
     fn cfg(&self, channel: &str) -> Value {
         lock(&self.cfgs).get(channel).cloned().unwrap_or_else(|| json!({}))
     }
+    /// merged over what's kept, key by key, as wisp.channels' hub does
     fn set_cfg(&self, channel: &str, cfg: Value) {
-        lock(&self.cfgs).insert(channel.to_owned(), cfg);
+        let mut all = lock(&self.cfgs);
+        let had = all.entry(channel.to_owned()).or_insert_with(|| json!({}));
+        match (had.as_object_mut(), cfg) {
+            (Some(h), Value::Object(n)) => h.extend(n),
+            (_, cfg) => *had = cfg,
+        }
     }
     fn mark(&self, channel: &str, st: Status) {
         lock(&self.marks).push((channel.to_owned(), st));

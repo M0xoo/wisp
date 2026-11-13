@@ -31,5 +31,11 @@ wisp-automations-api.workspace = true
 wisp-stuff-api.workspace = true
 wisp-grid-client-api.workspace = true
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+wisp-testkit.workspace = true
+wisp-store.workspace = true
+wisp-resources = { path = "../../resources/host" }
+
 [lints]
 workspace = true

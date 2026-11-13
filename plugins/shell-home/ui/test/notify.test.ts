@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { flatRow, noticeFor } from '../src/notify.ts';
+import { flatRow, noticeFor, notifyOn, NOTIFY_KEY } from '../src/notify.ts';
 
 const t = (k: string, v?: Readonly<Record<string, string | number>>): string => `${k}${v ? JSON.stringify(v) : ''}`;
 const row = (state: string, summary: Record<string, unknown> = {}) => ({ id: 's1', title: 'Fix login', state, archived: false, summary: { preview: 'done it', question: '', approval: false, ...summary } });
 
 describe('notify', () => {
+  it('a_system_notification_shows_only_with_settings_notifications_switch_on_v1_notify_js', () => {
+    expect(NOTIFY_KEY).toBe('settings.notify');
+    expect([notifyOn('on'), notifyOn(true)]).toEqual([true, true]);
+    expect([notifyOn('off'), notifyOn(false), notifyOn(undefined), notifyOn(null)]).toEqual([false, false, false, false]);
+  });
   it('a_task_that_finishes_or_asks_tells_you_once_from_the_stores_row_shape', () => {
     const running = flatRow(row('running'));
     const done = flatRow(row('review'));

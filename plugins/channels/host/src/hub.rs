@@ -29,6 +29,11 @@ pub fn routed_thread(st: &State, session_id: &str) -> Option<String> {
     lock(&st.remotes).get(session_id).and_then(|r| r.get("routed")).and_then(Value::as_str).map(str::to_owned)
 }
 
+/// The channel a task started from, if one did.
+pub fn started_on(st: &State, session_id: &str) -> Option<String> {
+    lock(&st.started).get(session_id).map(|(c, _)| c.clone())
+}
+
 /// What the hub keeps, shared by every transport.
 #[derive(Default)]
 pub struct State {
@@ -309,6 +314,16 @@ pub fn project_views(list: &[wisp_resources_api::Resource]) -> Vec<ProjectView> 
         .collect()
 }
 
+/// A follow-up's mode (v1 phone.js `run`): the task's own stands unless the message asks for one, and that one is
+/// held to the chat's cap. The cap alone is no ask: sending it raised every Plan task followed up from Slack to Edits,
+/// and from a private Telegram chat to Full auto.
+pub(crate) fn follow_up_mode(
+    asked: Option<wisp_channels_api::views::Mode>,
+    cap: Option<wisp_channels_api::views::Mode>,
+) -> Option<wisp_channels_api::views::Mode> {
+    asked.map(|m| cap.map_or(m, |c| m.min(c)))
+}
+
 fn mode_str(m: Option<wisp_channels_api::views::Mode>) -> Option<&'static str> {
     m.map(|m| match m {
         wisp_channels_api::views::Mode::Plan => "plan",
@@ -437,7 +452,7 @@ impl Phone for KPhone {
     }
     async fn run(&self, session_id: &str, p: &Parsed, o: &RunOpts, _later: Option<Later>) -> Result<String> {
         let mut a = json!({ "id": session_id, "text": p.prompt, "by": o.sender.clone().unwrap_or_else(|| o.name.clone()) });
-        if let Some(m) = mode_str(o.cap) {
+        if let Some(m) = mode_str(follow_up_mode(p.mode, o.cap)) {
             a["mode"] = json!(m);
         }
         if o.btw {
