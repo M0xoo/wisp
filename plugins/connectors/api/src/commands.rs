@@ -195,51 +195,106 @@ macro_rules! command {
 
 command!(
     /// Settings → Connectors: every connector, the servers found in the harnesses' configs, the reach.
-    List, "connectors.list", "connectors:list", true, NoArgs, ConnectorsView
+    List,
+    "connectors.list",
+    "connectors:list",
+    true,
+    NoArgs,
+    ConnectorsView
 );
 command!(
     /// Adds one; its secrets go to the secrets file, and it is tested in the background.
-    Add, "connectors.add", "connectors:add", false, ConnectorBody, ConnectorsView
+    Add,
+    "connectors.add",
+    "connectors:add",
+    false,
+    ConnectorBody,
+    ConnectorsView
 );
 command!(Update, "connectors.update", "connectors:update", false, UpdateArgs, ConnectorsView);
 command!(Remove, "connectors.remove", "connectors:remove", false, IdArgs, ConnectorsView);
 command!(
     /// Starts it through the proxy, the way an agent would, and keeps the outcome on the row.
-    Test, "connectors.test", "connectors:test", false, IdArgs, ConnectorsView
+    Test,
+    "connectors.test",
+    "connectors:test",
+    false,
+    IdArgs,
+    ConnectorsView
 );
 command!(Import, "connectors.import", "connectors:import", false, ImportArgs, ImportView);
 command!(
     /// OAuth sign-in (discovery, dynamic registration, PKCE): the URL the page opens.
-    Signin, "connectors.signin", "connectors:signin", false, SigninArgs, SigninUrl
+    Signin,
+    "connectors.signin",
+    "connectors:signin",
+    false,
+    SigninArgs,
+    SigninUrl
 );
 command!(Signout, "connectors.signout", "connectors:signout", false, IdArgs, ConnectorsView);
 command!(
     /// The browser came back from the sign-in page: trade the code for tokens.
-    OauthFinish, "connectors.oauthFinish", "connectors:oauthFinish", false, OauthFinishArgs, SignedInName
+    OauthFinish,
+    "connectors.oauthFinish",
+    "connectors:oauthFinish",
+    false,
+    OauthFinishArgs,
+    SignedInName
 );
 command!(
     /// The proxy's fresh token: wisp is the only writer of tokens, so the proxy never refreshes itself.
-    Token, "connectors.token", "connectors:token", false, TokenArgs, TokenOut
+    Token,
+    "connectors.token",
+    "connectors:token",
+    false,
+    TokenArgs,
+    TokenOut
 );
 command!(
     /// What the proxy runs for one connector, with its secret values: the proxy's token only.
-    Spec, "connectors.spec", "connectors:spec", true, IdArgs, ProxySpec
+    Spec,
+    "connectors.spec",
+    "connectors:spec",
+    true,
+    IdArgs,
+    ProxySpec
 );
 command!(
     /// The `mcpServers` a turn gets (also [`crate::ConnectorsService`], for the runner's hot path).
-    ForTurn, "connectors.forTurn", "connectors:forTurn", true, TurnQuery, McpServers
+    ForTurn,
+    "connectors.forTurn",
+    "connectors:forTurn",
+    true,
+    TurnQuery,
+    McpServers
 );
 command!(
     /// `wisp_connectors`
-    AgentList, "connectors.agent.list", "connectors:agent.list", true, AgentArgs, AgentText
+    AgentList,
+    "connectors.agent.list",
+    "connectors:agent.list",
+    true,
+    AgentArgs,
+    AgentText
 );
 command!(
     /// `wisp_connector_add`: only a task the user started (not a subagent, not a crew member's job)
-    AgentAdd, "connectors.agent.add", "connectors:agent.add", false, AgentAddArgs, AgentText
+    AgentAdd,
+    "connectors.agent.add",
+    "connectors:agent.add",
+    false,
+    AgentAddArgs,
+    AgentText
 );
 command!(
     /// `wisp_connector_signin`: the card where the user signs in or types the keys
-    AgentSignin, "connectors.agent.signin", "connectors:agent.signin", true, AgentSigninArgs, AgentSigninOut
+    AgentSignin,
+    "connectors.agent.signin",
+    "connectors:agent.signin",
+    true,
+    AgentSigninArgs,
+    AgentSigninOut
 );
 
 /// `connectors.call`: one tool of a remote (HTTP) connector, called by wisp itself with the connector's own
@@ -264,7 +319,12 @@ pub struct CallOut {
 
 command!(
     /// A remote connector's tool, called by wisp (not an agent): its sign-in stays here.
-    Call, "connectors.call", "connectors:call", false, CallArgs, CallOut
+    Call,
+    "connectors.call",
+    "connectors:call",
+    false,
+    CallArgs,
+    CallOut
 );
 
 // ---------- events ----------
