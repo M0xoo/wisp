@@ -620,3 +620,16 @@ async fn a_folders_repo_and_the_other_computers_checkout_of_it_found_or_cloned_v
     let again = s.checkout(wisp_git_api::CheckoutArgs { url, known: vec![] }, &home.to_string_lossy(), parent).await.unwrap();
     assert_eq!((again.dir.as_str(), again.existed), (fresh.dir.as_str(), true));
 }
+
+/// A task with no folder (or a relative one) opens no repo: `canonicalize("src")` would be the server's own
+/// folder's `src`, and every checkpoint, restore and commit would act on the server's repo.
+#[tokio::test]
+async fn a_repo_is_never_opened_in_the_servers_own_folder() {
+    let (_, s) = service();
+    let o = owner();
+    // the test's own folder is in a git repo with a `src`: each of these would open it
+    for path in ["", " ", ".", "src", "./src"] {
+        let Err(e) = s.repo(&user(), &o, path).await else { panic!("{path:?} opened the server's own repo") };
+        assert!(e.message.contains("no such folder"), "{path:?}: {e:?}");
+    }
+}

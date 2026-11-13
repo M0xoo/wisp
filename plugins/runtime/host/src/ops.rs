@@ -228,7 +228,9 @@ impl Runtime {
             return Err(RuntimeError::Invalid("no command to run".into()));
         }
         let s = self.repo.session(id).await?;
-        let opts = wisp_proc::ExecOpts { cwd: (!s.cwd.is_empty()).then(|| s.cwd.clone().into()), timeout: Some(std::time::Duration::from_secs(120)), ..wisp_proc::ExecOpts::default() };
+        // a task with no folder has nowhere to run it: never the server's own folder
+        let dir = wisp_runtime_api::paths::Folder::of(&s.cwd).map_err(|e| RuntimeError::Invalid(format!("This task has no folder to run a command in ({e}).")))?;
+        let opts = wisp_proc::ExecOpts { cwd: Some(dir.into_path()), timeout: Some(std::time::Duration::from_secs(120)), ..wisp_proc::ExecOpts::default() };
         let r = self.proc.exec("sh", &["-c".to_owned(), command.to_owned()], opts).await.map_err(|e| RuntimeError::Invalid(e.to_string()))?;
         let mut out = r.stdout_text();
         out.push_str(&r.stderr_text());

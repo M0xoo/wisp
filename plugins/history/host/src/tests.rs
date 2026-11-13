@@ -345,3 +345,27 @@ async fn a_task_with_no_folder_is_never_tracked_in_the_servers_folder() {
         assert!(e.message.contains("no folder"), "{cmd}: {e:?}");
     }
 }
+
+/// A `repo` that's empty or relative names the server's own folder (`Path::new("")` reads, writes and removes its
+/// `.wisp/`): every command that takes one refuses it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_named_repo_that_is_empty_or_relative_is_refused_by_every_command() {
+    let d = dir("named", "", true);
+    let k = kernel(&d, &Arc::new(Mutex::new("Fix".into())), true, &Kept::default()).await;
+    for repo in ["", " ", ".", "relative/repo"] {
+        let calls = [
+            ("history.track", json!({ "id": "t1", "repo": repo })),
+            ("history.save", json!({ "id": "t1", "repo": repo })),
+            ("history.untrack", json!({ "id": "t1", "repo": repo })),
+            ("history.list", json!({ "repo": repo })),
+            ("history.report", json!({ "id": "t1", "repo": repo })),
+            ("history.blame", json!({ "target": "code.txt", "repo": repo })),
+            ("history.resumeRequest", json!({ "id": "t1", "repo": repo })),
+        ];
+        for (cmd, args) in calls {
+            let e = k.call(Caller::user(), cmd, args).await.unwrap_err();
+            assert_eq!(e.code, wisp_kernel::Code::Invalid, "{cmd} {repo:?}: {e:?}");
+            assert!(e.message.contains("repo"), "{cmd} {repo:?}: {e:?}");
+        }
+    }
+}

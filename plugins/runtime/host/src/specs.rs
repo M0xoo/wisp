@@ -311,7 +311,9 @@ pub async fn folder(home: Option<&std::path::Path>, a: &mut StartArgs) -> Result
         a.cwd = Some(dir.display().to_string());
         return Ok(());
     }
-    if !tokio::fs::metadata(&cwd).await.is_ok_and(|m| m.is_dir()) {
+    // a relative folder resolves against the server's own: refused, as a missing one is
+    let dir = wisp_runtime_api::paths::Folder::of(&cwd).map_err(|e| WireError::invalid(format!("Not a project folder: {e}")))?;
+    if !tokio::fs::metadata(dir.path()).await.is_ok_and(|m| m.is_dir()) {
         return Err(WireError::invalid(format!("Not a project folder: {cwd} (it isn't on this computer; pick a project that is)")));
     }
     Ok(())
@@ -551,6 +553,22 @@ pub fn adopted(s: &wisp_runtime_api::harness::sessions::OutsideSession, turns: &
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// A relative folder (`src`, `tests`: both in the crate's folder the test runs in) passed `metadata` against
+    /// the server's own folder: refused like a missing one. An empty one still gets its own scratch folder.
+    #[tokio::test]
+    async fn a_task_started_in_a_relative_folder_is_refused_and_one_with_none_gets_scratch() {
+        for cwd in ["src", ".", "tests", "./src"] {
+            let mut a = StartArgs { cwd: Some(cwd.into()), ..StartArgs::default() };
+            let e = folder(None, &mut a).await.unwrap_err();
+            assert!(e.message.contains("Not a project folder"), "{cwd}: {e:?}");
+        }
+        let mut a = StartArgs::default();
+        folder(None, &mut a).await.unwrap();
+        let made = std::path::PathBuf::from(a.cwd.unwrap());
+        assert!(made.is_absolute() && made.is_dir(), "{}", made.display());
+        std::fs::remove_dir_all(made).ok();
+    }
 
     #[test]
     fn the_same_formula_hashes_the_same() {

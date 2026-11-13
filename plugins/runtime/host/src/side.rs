@@ -43,7 +43,8 @@ impl Runtime {
     pub(crate) async fn side_run(&self, h: &dyn Harness, run: &HarnessRun, timeout: Duration) -> Result<SideOut> {
         let launch = h.launch(run)?;
         let opts = SpawnOpts {
-            cwd: (!launch.cwd.is_empty()).then(|| launch.cwd.clone().into()).or_else(|| (!run.cwd.is_empty()).then(|| run.cwd.clone().into())),
+            // a /btw runs where its task does; a quick answer with no folder in one empty folder of its own
+            cwd: Some(crate::run::run_folder(&launch.cwd, &run.cwd, if run.session_id.is_empty() { "quick" } else { &run.session_id }).await?),
             env: Env { clear: false, set: run.env.iter().chain(&run.account_env).chain(&launch.env).map(|(k, v)| (k.clone(), v.clone())).collect(), remove: launch.env_remove.clone() },
             no_stdin: launch.stdin == Stdin::Null,
             ..SpawnOpts::default()

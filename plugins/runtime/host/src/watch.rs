@@ -75,6 +75,10 @@ impl crate::runtime::Runtime {
         // the one file this call reads (a path page, or its reload), read before deciding: the core does no I/O
         let mut files = BTreeMap::new();
         if let Some(p) = watch::page_path(prev.as_ref(), &a.body, &s.cwd) {
+            // relative when the task has no folder (or `~/`): it'd be read from the server's own folder
+            if !std::path::Path::new(&p).is_absolute() {
+                return Err(format!("{p} isn't a full path (this task has no folder to read it from): give the page's full path."));
+            }
             let meta = tokio::fs::metadata(&p).await.ok();
             if meta.as_ref().is_some_and(|m| m.len() > watch::MAX_HTML as u64) {
                 return Err(format!("The page is larger than {} MB.", watch::MAX_HTML / 1_000_000));

@@ -1,7 +1,7 @@
 //! `history.blame`: which task made a line, a file, a folder, a commit or range, a PR; or a task's
 //! commits, PR, files and how much of what it wrote is still there.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde_json::{Value, json};
 use wisp_history_api::{BlameArgs, BlameSource};
@@ -79,7 +79,7 @@ async fn by_line(b: &dyn BlameSource, root: &Path, all: &[Doc], path: &str, rang
 
 #[allow(clippy::many_single_char_names, clippy::too_many_lines)] // one answer per kind of target
 pub async fn answer(ctx: &Ctx, a: &BlameArgs) -> Result<Value> {
-    let root = PathBuf::from(&a.repo);
+    let root = super::named_repo(&a.repo)?;
     let b = super::blame_for(ctx, &super::setting(&root, "blame", "git").await)?;
     let all = super::docs(&root).await;
     let target = a.target.as_str();

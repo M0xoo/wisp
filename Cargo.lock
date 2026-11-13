@@ -4657,6 +4657,7 @@ dependencies = [
  "wisp-github-core",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-runtime-api",
 ]
 
 [[package]]
@@ -5024,6 +5025,7 @@ dependencies = [
  "wisp-lsp-api",
  "wisp-lsp-core",
  "wisp-proc",
+ "wisp-runtime-api",
 ]
 
 [[package]]
@@ -5806,6 +5808,7 @@ dependencies = [
  "tracing",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-runtime-api",
  "wisp-terminal-api",
  "wisp-terminal-core",
 ]

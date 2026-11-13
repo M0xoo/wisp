@@ -84,6 +84,11 @@ pub async fn pending(
     extra: Vec<TrustItem>,
     user_home: &str,
 ) -> Option<Pending> {
+    // "" (or a relative path) walks up from the server's own folder: its `.git`, its `.claude/settings.json`
+    if let Err(e) = wisp_runtime_api::paths::Folder::of(dir) {
+        tracing::warn!("worktrees: trust not checked: the run has {e}");
+        return None;
+    }
     let (_, key) = repo_of(dir).await;
     let mut items = match hooks {
         Some(h) => hook_items(dir, user_home, h).await,
@@ -101,7 +106,7 @@ pub async fn setup_hold(
     project_ask: Option<&str>,
     mode: &str,
 ) -> Option<Vec<TrustItem>> {
-    if !trust::asks(project_ask, mode) {
+    if !trust::asks(project_ask, mode) || wisp_runtime_api::paths::Folder::of(root).is_err() {
         return None;
     }
     let (_, key) = repo_of(root).await;
@@ -159,5 +164,15 @@ mod tests {
         assert!(pending(&st, &d, None, Vec::new(), "/nonexistent-home").await.is_none(), "a harness that reads no project files asks nothing");
         assert!(pending(&st, &d, Some(&hooks), Vec::new(), "/nonexistent-home").await.is_some());
         let _ = tokio::fs::remove_dir_all(&dir).await;
+    }
+
+    /// A run with no folder is never checked against the server's own folder's `.git` and `.mcp.json`.
+    #[tokio::test]
+    async fn a_run_with_no_folder_reads_no_project_files_of_the_servers_own_folder() {
+        let hooks = ProjectHooks { settings: vec![".claude/settings.json".into()], mcp: Some(".mcp.json".into()) };
+        let st = TrustState::default();
+        for dir in ["", "  ", ".", "relative/dir"] {
+            assert!(pending(&st, dir, Some(&hooks), vec![trust::item(wisp_worktrees_api::TrustKind::Mcp, Some(".mcp.json"), "db", "npx db-mcp", None)], "/nonexistent-home").await.is_none(), "{dir:?}");
+        }
     }
 }

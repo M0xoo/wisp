@@ -86,7 +86,8 @@ impl Runtime {
     pub(crate) async fn keep_media(&self, s: &wisp_runtime_api::model::Session, turn: &str, blocks: &mut [Value]) {
         let Some(root) = self.host.shots() else { return };
         let shots = root.join(s.id.as_str());
-        for k in keep_plan(Path::new(&s.cwd), blocks, turn, &shots) {
+        // a relative path of a task with no folder would be read from the server's own folder: never copied
+        for k in keep_plan(Path::new(&s.cwd), blocks, turn, &shots).into_iter().filter(|k| k.from.is_absolute()) {
             // a copy only of what is the picture or video it says (never a secret behind a `.png` link)
             if tokio::fs::create_dir_all(&shots).await.is_err() || !copy_fitting(&k.from, &k.to, k.max).await {
                 continue;
@@ -118,7 +119,8 @@ impl Runtime {
         let mut seen = std::collections::HashMap::new();
         for p in named {
             if let std::collections::hash_map::Entry::Vacant(e) = seen.entry(p) {
-                let is = tokio::fs::metadata(e.key()).await.is_ok_and(|m| m.is_file());
+                // relative only when the task has no folder: it'd be the server's own folder's file
+                let is = e.key().is_absolute() && tokio::fs::metadata(e.key()).await.is_ok_and(|m| m.is_file());
                 e.insert(is);
             }
         }
@@ -147,7 +149,8 @@ impl Runtime {
             let s = self.repo.session(id).await?;
             let blocks: Vec<Value> = self.repo.turns(id, None, None).await?.into_iter().filter_map(|t| t.presentation).flat_map(|p| p.blocks).collect();
             let dir = PathBuf::from(&s.cwd);
-            let is = tokio::fs::metadata(resolve(&dir, asked)).await.is_ok_and(|m| m.is_file());
+            let at = resolve(&dir, asked);
+            let is = at.is_absolute() && tokio::fs::metadata(&at).await.is_ok_and(|m| m.is_file());
             doc_file(&dir, asked, &blocks, &|_| is).ok_or_else(|| RuntimeError::Invalid("That file is gone.".into()))?
         };
         let file = file.display().to_string();

@@ -22,6 +22,7 @@ use wisp_history_core::{Doc, repo};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::Proc;
 use wisp_runtime_api::model::{Session, SessionState};
+use wisp_runtime_api::paths::Folder;
 
 #[derive(Debug, Default)]
 pub struct HistoryPlugin;
@@ -37,12 +38,15 @@ async fn root_of(proc: &Proc, cwd: &str) -> PathBuf {
     git::run(proc, "git", start, &["rev-parse", "--show-toplevel"]).await.map_or_else(|| start.to_owned(), |t| PathBuf::from(t.trim()))
 }
 
-/// The repo of a task's folder. A task with no folder has no repo: never the server's own folder.
+/// The repo of a task's folder. A task with no folder (or a relative one) has no repo: never the server's own folder.
 async fn root_of_task(proc: &Proc, task: &Session) -> Result<PathBuf> {
-    if task.cwd.trim().is_empty() {
-        return Err(WireError::invalid(format!("task {} has no folder, so no repo: name one (repo)", task.id.as_str())));
-    }
-    Ok(root_of(proc, &task.cwd).await)
+    let dir = Folder::of(&task.cwd).map_err(|e| WireError::invalid(format!("task {} has {e}, so no repo: name one (repo)", task.id.as_str())))?;
+    Ok(root_of(proc, &dir.to_string()).await)
+}
+
+/// A repo named in a command's args: `""` or a relative path would be the server's own folder's `.wisp/`.
+pub(crate) fn named_repo(repo: &str) -> Result<PathBuf> {
+    Folder::of(repo).map(Folder::into_path).map_err(|e| WireError::invalid(format!("repo: {e} (name the repo's full path)")))
 }
 
 /// A `history:` setting of the repo (`.wisp/wisp.yml`).
@@ -111,7 +115,7 @@ async fn track(ctx: &Ctx, call: &Call, a: &api::TrackArgs) -> Result<Tracked> {
     let id = task.id.as_str().to_owned();
     let p = proc(ctx)?;
     let root = match &a.repo {
-        Some(r) => PathBuf::from(r),
+        Some(r) => named_repo(r)?,
         None => root_of_task(&p, &task).await?,
     };
     let preview = calls::preview(ctx, call, &id, a.level.as_deref().unwrap_or("full")).await?;
@@ -150,7 +154,7 @@ async fn native_log(ctx: &Ctx, task: &Session) -> Option<Vec<u8>> {
 async fn untrack(ctx: &Ctx, call: &Call, a: &api::UntrackArgs) -> Result<api::Gone> {
     let p = proc(ctx)?;
     let root = if let Some(r) = &a.repo {
-        PathBuf::from(r)
+        named_repo(r)?
     } else {
         // a task that can't be read has no repo here: never the server's own folder
         let task = calls::task(ctx, call, &a.id).await.map_err(|e| WireError::not_found(format!("{} isn't a task here ({}): name its repo", a.id, e.message)))?;
@@ -262,7 +266,7 @@ fn hooks(s: &mut Setup) {
         async move {
             // a run with no folder has no repo (never the server's own folder)
             if let Ok(p) = proc(&ctx)
-                && !c.cwd.trim().is_empty()
+                && Folder::of(&c.cwd).is_ok()
             {
                 let root = root_of(&p, &c.cwd).await;
                 let on = setting(&root, "inject", "false").await == "true";
@@ -299,11 +303,11 @@ impl Plugin for HistoryPlugin {
         s.command::<api::BlameCmd, _, _>(|ctx, _call, a| async move { blame::answer(&ctx, &a).await });
         // the Repo tab (ADR-0033): the repo's committed agent history, and one task's read-only report
         s.command::<api::List, _, _>(|_ctx, _call, a| async move {
-            let all = docs(std::path::Path::new(&a.repo)).await;
+            let all = docs(&named_repo(&a.repo)?).await;
             Ok(wisp_history_core::repo_list(&all, a.path.as_deref(), a.agent.as_deref(), a.grep.as_deref()))
         });
         s.command::<api::Report, _, _>(|_ctx, _call, a| async move {
-            let root = std::path::PathBuf::from(&a.repo);
+            let root = named_repo(&a.repo)?;
             let all = docs(&root).await;
             let d = wisp_history_core::find(&all, &a.id).ok_or_else(|| WireError::not_found(format!("no task {} in this repo's history", a.id)))?;
             let report = tokio::fs::read_to_string(root.join(d.path.replace(".task.yml", ".report.md"))).await.unwrap_or_default();

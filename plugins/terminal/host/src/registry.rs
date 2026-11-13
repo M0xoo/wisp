@@ -77,15 +77,18 @@ impl Registry {
         let patch = wisp_terminal_core::env::term_env(a.kind == TermKind::Takeover);
         let opts = SpawnOpts { cwd: Some(a.cwd.clone().into()), env: Env { clear: false, set: patch.set.clone(), remove: patch.remove.clone() }, pty: Some(PtySize { cols, rows }), ..SpawnOpts::default() };
         let mut replay = Replay::new(KEEP);
+        // "" or a relative folder would start it in the server's own folder
+        let no_dir = wisp_runtime_api::paths::Folder::of(&a.cwd).err();
         let spawned = match a.argv.split_first() {
-            Some((p, rest)) => self.proc.spawn(p, rest, opts).ok(),
-            None => None,
+            Some((p, rest)) if no_dir.is_none() => self.proc.spawn(p, rest, opts).ok(),
+            _ => None,
         };
         let Some(child) = spawned else {
             // it never ran: wisp's line on its screen, code 127 (v1)
             info.state = step(info.state, FlowEvent::Fail);
             info.code = Some(127);
-            replay.push(&format!("wisp: couldn't start {}\r\n", a.argv.first().map_or("", String::as_str)));
+            let why = no_dir.map_or_else(String::new, |e| format!(" ({e})"));
+            replay.push(&format!("wisp: couldn't start {}{why}\r\n", a.argv.first().map_or("", String::as_str)));
             lock(&self.map).insert(key, Term { info: info.clone(), handle: None, replay, clients: Vec::new(), order: order::InputOrder::new() });
             return info;
         };

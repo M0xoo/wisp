@@ -13,7 +13,10 @@ use wisp_channels_api::{ChannelCtx, ChannelHub, ProjectView};
 const NOW_MS: i64 = 1_704_164_645_000; // 2024-01-02T03:04:05Z
 
 fn hub(private: bool) -> Arc<TestHub> {
-    let project = ProjectView { id: "p1".into(), name: "api".into(), path: "/w/api".into(), repo: Some("https://github.com/me/api.git".into()), ..ProjectView::default() };
+    hub_of(private, ProjectView { id: "p1".into(), name: "api".into(), path: "/w/api".into(), repo: Some("https://github.com/me/api.git".into()), ..ProjectView::default() })
+}
+
+fn hub_of(private: bool, project: ProjectView) -> Arc<TestHub> {
     let phone = Arc::new(TestPhone { ctx: ChannelCtx { projects: vec![project], ..ChannelCtx::default() }, ..TestPhone::default() });
     let h = TestHub { phone, reply: Some("✓ On it.".into()), start_as: Some("t1".into()), tunes: [("ghPollMs".to_owned(), 60_000)].into(), ..TestHub::default() }.with_cfg("github", json!({ "enabled": true }));
     *h.now.lock().unwrap() = NOW_MS;
@@ -63,4 +66,17 @@ async fn on_a_private_repo_the_report_says_what_the_agent_wrote() {
     t.publish(&Msg { title: "✓ Fixed the login".into(), text: "2 files".into(), actions: Vec::new() }, Some(&sv)).await.unwrap();
     let last = h.exec.ran("-f body=").last().unwrap().last().unwrap().clone();
     assert!(last.starts_with("body=✓ Fixed the login\n\n2 files\n\nComment `/wisp …`"), "{last}");
+}
+
+/// A project with no folder and no repo URL: `git -C "" remote get-url` is the server's own checkout's origin, so
+/// its comments were read and its tasks started there. It's skipped (with a log); git never runs for it.
+#[tokio::test]
+async fn a_project_with_no_folder_is_skipped_never_the_servers_own_checkout() {
+    let h = hub_of(false, ProjectView { id: "p0".into(), name: "nowhere".into(), path: String::new(), repo: None, ..ProjectView::default() });
+    // what the server's own checkout would answer
+    h.exec.answer("get-url", 0, "https://github.com/me/api.git", "");
+    let dyn_hub: Arc<dyn ChannelHub> = h.clone();
+    wisp_github::comments::transport(dyn_hub).start(h.stop.clone()).await;
+    assert!(h.exec.ran("get-url").is_empty(), "git ran for a project with no folder");
+    assert!(h.conversed().is_empty(), "the server's own repo's comments were read");
 }

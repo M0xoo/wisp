@@ -32,8 +32,16 @@ async fn task_dir(ctx: &Ctx, call: &wisp_kernel::Call, id: &str) -> Result<(Stri
     let wt = s.pointer("/ext/wisp.worktrees/path").and_then(|v| v.as_str()).unwrap_or("").to_owned();
     let cwd = s["cwd"].as_str().unwrap_or("").to_owned();
     let home = std::env::var("HOME").unwrap_or_default();
-    let f = wisp_terminal_core::folder::task_folder(&wt, &cwd, &home, &|p| std::path::Path::new(p).is_dir());
-    Ok((f.dir, s["agent"].as_str().unwrap_or("").to_owned()))
+    let dir = shell_dir(&wt, &cwd, &home).map_err(|e| WireError::invalid(format!("task {id} has no folder to open a shell in ({e})")))?;
+    Ok((dir, s["agent"].as_str().unwrap_or("").to_owned()))
+}
+
+/// The worktree, else the folder, else home; none of them (no folder and no `$HOME`) is no folder, never the
+/// server's own (`""` would read its `package.json` and start the shell there).
+fn shell_dir(wt: &str, cwd: &str, home: &str) -> std::result::Result<String, wisp_runtime_api::paths::NoFolder> {
+    let full = |p: &str| wisp_runtime_api::paths::Folder::of(p).is_ok() && std::path::Path::new(p).is_dir();
+    let f = wisp_terminal_core::folder::task_folder(wt, cwd, home, &full);
+    wisp_runtime_api::paths::Folder::of(&f.dir).map(|d| d.to_string())
 }
 
 fn kind_of(req: &Request) -> TermKind {
@@ -106,7 +114,8 @@ fn plan_here(platform: &str, found: &[String], a: &c::OpenAppArgs, terminal: &st
     if a.via_proxy || !apps::app_here(&l, a.via_proxy) {
         return Err(WireError::conflict("No terminal app on this computer for you here: open the Shell tab instead."));
     }
-    if a.cwd.is_empty() || !std::path::Path::new(&a.cwd).is_dir() {
+    // "" or a relative folder (`src`) would be the server's own folder's
+    if wisp_runtime_api::paths::Folder::of(&a.cwd).is_err() || !std::path::Path::new(&a.cwd).is_dir() {
         return Err(WireError::invalid("That folder isn't on this computer."));
     }
     let argv = if a.argv.is_empty() { wisp_terminal_core::folder::shell_argv(std::env::var("SHELL").ok().as_deref()) } else { a.argv.clone() };
@@ -346,6 +355,10 @@ mod tests {
         assert!(got[0].args[1].contains("tell application \"Terminal\"") && got[0].args[1].contains("'claude' '--resume' 'x1'"), "{:?}", got[0].args);
         assert!(plan_here("darwin", &[], &c::OpenAppArgs { via_proxy: true, ..a.clone() }, "terminal", "").is_err(), "through a proxy there's no app for you");
         assert!(plan_here("darwin", &[], &c::OpenAppArgs { cwd: format!("{cwd}/no-such-folder-wisp"), ..a.clone() }, "terminal", "").is_err());
+        // the test runs in the crate's folder, which has a `src`: a relative folder is never it
+        for bad in ["", "src", "."] {
+            assert!(plan_here("darwin", &[], &c::OpenAppArgs { cwd: bad.into(), ..a.clone() }, "terminal", "").is_err(), "{bad:?}");
+        }
         let empty = plan_here("darwin", &[], &c::OpenAppArgs { argv: vec![], ..a }, "terminal", "").unwrap();
         assert!(empty[0].args[1].contains("'-l'"), "no command: a login shell in the folder");
     }
@@ -353,5 +366,17 @@ mod tests {
     #[test]
     fn manifest_is_valid() {
         assert_eq!(TerminalPlugin.manifest().id, "wisp.terminal");
+    }
+
+    /// A task's shell is never started in the server's own folder: no folder and no `$HOME` is refused, and a
+    /// relative worktree or folder (`src`, which is in the crate's folder the test runs in) is skipped.
+    #[test]
+    fn a_tasks_shell_folder_is_never_the_servers_own() {
+        let home = std::env::temp_dir().to_string_lossy().into_owned();
+        assert_eq!(shell_dir("", "", &home).unwrap(), home);
+        assert_eq!(shell_dir("src", "src", &home).unwrap(), home, "relative: home, not the server's src");
+        assert_eq!(shell_dir("", &home, "").unwrap(), home);
+        assert!(shell_dir("", "", "").is_err(), "nothing: refused");
+        assert!(shell_dir("src", "", "").is_err());
     }
 }

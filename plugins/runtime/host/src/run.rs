@@ -294,7 +294,9 @@ impl Runtime {
             env.insert("WISP_TOKEN".into(), token);
         }
         // a repo that keeps its agent history (ADR-0033): its tools (`wisp mcp`: history, blame, task)
-        if let Some(repo) = std::path::Path::new(&s.cwd).ancestors().find(|d| d.join(".wisp").is_dir())
+        // (a task with no folder has no repo: `Path::new("")` would find the server's own `.wisp/`)
+        if let Ok(dir) = wisp_runtime_api::paths::Folder::of(&s.cwd)
+            && let Some(repo) = dir.path().ancestors().find(|d| d.join(".wisp").is_dir())
             && let Ok(exe) = std::env::current_exe()
         {
             mcp_servers.insert("wisp-history".to_owned(), serde_json::json!({ "type": "stdio", "command": exe.display().to_string(), "args": ["mcp", "--repo", repo.display().to_string()] }));
@@ -350,21 +352,9 @@ impl Runtime {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         set.extend(launch.env.iter().map(|(k, v)| (k.clone(), fill(v))));
-        // never the server's own folder: a task with none (adopted from a share, made before
-        // `specs::folder`) runs in one empty folder of its own, the same each turn so a resume finds it
-        let cwd = if !launch.cwd.is_empty() {
-            launch.cwd.clone()
-        } else if !s.cwd.is_empty() {
-            s.cwd.clone()
-        } else {
-            let dir = std::env::temp_dir().join(format!("wisp-scratch-{}", s.id.0));
-            tokio::fs::create_dir_all(&dir)
-                .await
-                .map_err(|e| RuntimeError::Invalid(format!("couldn't make a folder for the task: {e}")))?;
-            dir.to_string_lossy().into_owned()
-        };
+        let cwd = run_folder(&launch.cwd, &s.cwd, &s.id.0).await?;
         let opts = SpawnOpts {
-            cwd: Some(cwd.into()),
+            cwd: Some(cwd),
             env: Env {
                 clear: false,
                 set,
@@ -447,5 +437,39 @@ impl Runtime {
     }
     pub(crate) fn release_linger(&self, id: &str) {
         self.send(id, Ctl::Release);
+    }
+}
+
+/// Where a harness runs, never the server's own folder: the launch's folder, else the task's; with neither
+/// (adopted from a share, made before `specs::folder`, a `runtime.quick` with no folder) one empty folder of
+/// its own under the temp dir, the same each turn for `scratch` so a resume finds it. A relative folder is
+/// refused: it would resolve against the server's folder.
+pub(crate) async fn run_folder(launch: &str, task: &str, scratch: &str) -> Result<std::path::PathBuf> {
+    let named = if launch.trim().is_empty() { task } else { launch };
+    if !named.trim().is_empty() {
+        return wisp_runtime_api::paths::Folder::of(named).map(wisp_runtime_api::paths::Folder::into_path).map_err(|e| RuntimeError::Invalid(format!("Not a project folder: {e}")));
+    }
+    let dir = std::env::temp_dir().join(format!("wisp-scratch-{scratch}"));
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| RuntimeError::Invalid(format!("couldn't make a folder for the task: {e}")))?;
+    Ok(dir)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod folder_tests {
+    /// A harness (a turn, a /btw, `runtime.quick`) never spawns with no cwd, which is the server's own folder.
+    #[tokio::test]
+    async fn a_harness_runs_in_the_launchs_folder_else_the_tasks_else_its_own_scratch_never_the_servers() {
+        let at = |p: &str| std::path::PathBuf::from(p);
+        assert_eq!(super::run_folder("/launch", "/task", "t1").await.unwrap(), at("/launch"));
+        assert_eq!(super::run_folder("", "/task", "t1").await.unwrap(), at("/task"));
+        let scratch = super::run_folder(" ", "", "folder-test").await.unwrap();
+        assert_eq!(scratch, std::env::temp_dir().join("wisp-scratch-folder-test"));
+        assert!(scratch.is_dir(), "made, so the spawn finds it");
+        for (launch, task) in [("relative", "/task"), ("", "src"), ("", ".")] {
+            let e = super::run_folder(launch, task, "t1").await.unwrap_err();
+            assert!(e.to_string().contains("Not a project folder"), "{launch:?} {task:?}: {e}");
+        }
+        std::fs::remove_dir_all(scratch).ok();
     }
 }

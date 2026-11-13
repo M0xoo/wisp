@@ -52,7 +52,7 @@ async fn all(ctx: &Ctx) -> Result<Vec<ResumeRequest>> {
 /// The task a request names, from the repo's history or the runtime: (title, what was asked, report, repo).
 async fn source(ctx: &Ctx, call: &Call, id: &str, repo: Option<&str>) -> Result<(String, String, String, String, String)> {
     if let Some(r) = repo {
-        let root = std::path::PathBuf::from(r);
+        let root = super::named_repo(r)?;
         let docs = super::docs(&root).await;
         if let Some(d) = wisp_history_core::find(&docs, id) {
             let report = tokio::fs::read_to_string(root.join(d.path.replace(".task.yml", ".report.md"))).await.unwrap_or_default();
@@ -70,8 +70,8 @@ async fn source(ctx: &Ctx, call: &Call, id: &str, repo: Option<&str>) -> Result<
     );
     let repo = repo.map_or(t.cwd, str::to_owned);
     // a resumed task runs in the repo: a task with no folder would run in the server's own
-    if repo.trim().is_empty() {
-        return Err(WireError::invalid(format!("task {id} has no folder: name its repo")));
+    if let Err(e) = wisp_runtime_api::paths::Folder::of(&repo) {
+        return Err(WireError::invalid(format!("task {id} has {e}: name its repo")));
     }
     Ok((t.id.as_str().to_owned(), t.title, asked, String::new(), repo))
 }

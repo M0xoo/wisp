@@ -56,3 +56,76 @@ fn split_root(p: &str) -> (String, &str) {
     }
     (String::new(), p)
 }
+
+/// A task's or project's folder, checked before it's used as a path: never empty, never relative. Either one
+/// resolves against the server's own working directory (`Path::new("")`, a spawn with no cwd, `git -C ""`),
+/// so a folder that is either is refused (or skipped, with a log) instead. Pure: it never reads the disk, so
+/// a folder that isn't there any more still passes (the spawn or read that follows says so).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Folder(std::path::PathBuf);
+
+/// Why a folder isn't one: empty (`path` is ""), or not a full path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoFolder {
+    pub path: String,
+}
+
+impl std::fmt::Display for NoFolder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.path.is_empty() {
+            f.write_str("no folder")
+        } else {
+            write!(f, "{} isn't a full path to a folder", self.path)
+        }
+    }
+}
+
+impl std::error::Error for NoFolder {}
+
+impl From<NoFolder> for wisp_kernel::WireError {
+    fn from(e: NoFolder) -> Self {
+        Self::invalid(e.to_string())
+    }
+}
+
+impl Folder {
+    /// `path` as a folder, when it is a full path (`/x`, `C:\x`, `\\host\share`).
+    ///
+    /// # Errors
+    /// Empty (or only spaces), or relative (`.`, `src`, `~/x`: they'd resolve against the server's folder).
+    pub fn of(path: &str) -> Result<Self, NoFolder> {
+        let p = path.trim();
+        let b = p.as_bytes();
+        // rooted on this OS or written for another (a peer's `C:\x` read on Linux): never the process's folder
+        let full = std::path::Path::new(p).is_absolute() || p.starts_with('/') || p.starts_with('\\') || (b.len() >= 3 && b[1] == b':' && matches!(b[2], b'\\' | b'/'));
+        if full { Ok(Self(p.into())) } else { Err(NoFolder { path: p.to_owned() }) }
+    }
+
+    /// The first of `paths` that is a folder (a task's worktree, else its folder).
+    #[must_use]
+    pub fn first<'a>(paths: impl IntoIterator<Item = &'a str>) -> Option<Self> {
+        paths.into_iter().find_map(|p| Self::of(p).ok())
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn into_path(self) -> std::path::PathBuf {
+        self.0
+    }
+}
+
+impl AsRef<std::path::Path> for Folder {
+    fn as_ref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for Folder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.display().fmt(f)
+    }
+}

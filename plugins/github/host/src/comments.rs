@@ -88,6 +88,11 @@ impl Gh {
             if out.len() >= MAX_REPOS {
                 break;
             }
+            // `git -C ""` runs in the server's own folder (and starts every task there): a project with no folder is skipped
+            if let Err(e) = wisp_runtime_api::paths::Folder::of(&p.path) {
+                tracing::warn!(project = %p.name, "github: project skipped: {e}");
+                continue;
+            }
             let origin = match p.repo.clone() {
                 Some(r) => r,
                 None => self.hub.exec().run("git", &["-C".into(), p.path.clone(), "remote".into(), "get-url".into(), "origin".into()], None, 5_000).await.map(|o| o.stdout).unwrap_or_default(),
@@ -190,6 +195,8 @@ impl Gh {
         let head = serde_json::from_str::<Value>(&out.stdout).ok()?.get("headRefName")?.as_str()?.to_owned();
         let phone = self.hub.phone();
         let root = project.path.trim_end_matches('/');
+        // "" is a prefix of every folder: a project with none follows no task
+        wisp_runtime_api::paths::Folder::of(&project.path).ok()?;
         let mut leads: Vec<_> = phone.sessions().await.ok()?.into_iter().filter(|s| s.parent_id.is_none() && s.cwd.as_deref().is_some_and(|c| c.starts_with(root))).collect();
         leads.sort_by_key(|s| std::cmp::Reverse(s.created_at.unwrap_or(0)));
         // the list rows have no branch: read the newest few in full

@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 wisp-kernel.workspace = true
+wisp-runtime-api.workspace = true
 wisp-proc.workspace = true
 wisp-terminal-api.workspace = true
 wisp-terminal-core.workspace = true

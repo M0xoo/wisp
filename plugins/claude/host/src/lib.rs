@@ -113,7 +113,12 @@ impl Harness for ClaudeHarness {
     }
     /// Claude Code loads `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`) and the project's `.claude/skills`.
     fn skill_dirs(&self, cwd: &str) -> Vec<(std::path::PathBuf, String)> {
-        vec![(sessions::store().join("skills"), "~/.claude/skills".into()), (std::path::Path::new(cwd).join(".claude/skills"), ".claude/skills".into())]
+        let mut dirs = vec![(sessions::store().join("skills"), "~/.claude/skills".into())];
+        // a run with no folder has no project skills: `Path::new("")` would list the server's own
+        if let Ok(dir) = wisp_runtime_api::paths::Folder::of(cwd) {
+            dirs.push((dir.path().join(".claude/skills"), ".claude/skills".into()));
+        }
+        dirs
     }
 
     fn detect<'a>(&'a self, sys: &'a dyn HarnessSys) -> BoxFuture<'a, HarnessFound> {

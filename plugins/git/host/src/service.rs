@@ -85,7 +85,9 @@ impl GitServiceImpl {
         owner: CancellationToken,
         path: String,
     ) -> Result<RepoImpl> {
-        let dir = tokio::fs::canonicalize(&path)
+        // "" or a relative path would canonicalize against the server's own folder
+        let full = wisp_runtime_api::paths::Folder::of(&path).map_err(|_| GitError::NoFolder(path.clone()))?;
+        let dir = tokio::fs::canonicalize(full.path())
             .await
             .map_err(|_| GitError::NoFolder(path.clone()))?;
         let repo = if let Some(r) = self.reuse(&dir) {

@@ -19,6 +19,7 @@ use wisp_lsp_core::edit::{apply_edits, workspace_edits};
 use wisp_lsp_core::servers::{Search, find_server, install_plan, lang_id, lang_of, spec};
 use wisp_lsp_core::url::file_url_to_path;
 use wisp_proc::{ChildHandle, Proc, SpawnOpts};
+use wisp_runtime_api::paths::Folder;
 
 /// How long one question waits for the server (a first one includes its start).
 const ASK_MS: u64 = 15_000;
@@ -120,8 +121,14 @@ impl State {
 /// The folder the task's paths are relative to: its worktree, else its folder.
 async fn root_of(ctx: &Ctx, call: &Call, id: &str) -> Result<PathBuf> {
     let s = ctx.run_json(call, "runtime.get", json!({ "id": id })).await?;
+    task_root(&s).ok_or_else(|| WireError::invalid(format!("task {id} has no folder, so no code to ask about")))
+}
+
+/// Its worktree when that's there, else its folder; a task with neither has none: never the server's own folder
+/// (was ".", so a language server started there and answered about the server's code).
+fn task_root(s: &Value) -> Option<PathBuf> {
     let wt = s.pointer("/ext/wisp.worktrees/path").and_then(Value::as_str).filter(|p| Path::new(p).is_dir());
-    Ok(PathBuf::from(wt.or_else(|| s["cwd"].as_str()).unwrap_or(".")))
+    Folder::first([wt.unwrap_or_default(), s["cwd"].as_str().unwrap_or_default()]).map(Folder::into_path)
 }
 
 /// Where a definition or references answer points, with each line's text.
@@ -284,6 +291,19 @@ impl Plugin for LspPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A task with no folder (or a relative one) asks no language server: "." started one in the server's folder.
+    #[test]
+    fn a_task_with_no_folder_has_no_root_never_the_servers_folder() {
+        let tmp = std::env::temp_dir();
+        let t = tmp.to_string_lossy();
+        assert_eq!(task_root(&json!({ "cwd": t })).unwrap(), tmp);
+        assert_eq!(task_root(&json!({ "cwd": t, "ext": { "wisp.worktrees": { "path": t } } })).unwrap(), tmp);
+        assert_eq!(task_root(&json!({ "cwd": t, "ext": { "wisp.worktrees": { "path": "/gone/wisp-lsp" } } })).unwrap(), tmp, "a gone worktree: the folder");
+        for s in [json!({}), json!({ "cwd": "" }), json!({ "cwd": "src" }), json!({ "cwd": "", "ext": { "wisp.worktrees": { "path": "src" } } })] {
+            assert!(task_root(&s).is_none(), "{s}");
+        }
+    }
 
     #[test]
     fn manifest_is_valid() {

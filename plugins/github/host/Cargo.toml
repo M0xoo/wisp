@@ -16,6 +16,7 @@ tracing.workspace = true
 wisp-automations-api.workspace = true
 wisp-channels-api.workspace = true
 wisp-kernel.workspace = true
+wisp-runtime-api.workspace = true
 wisp-proc.workspace = true
 wisp-github-core.workspace = true
 tokio = { workspace = true, features = ["macros"] }
