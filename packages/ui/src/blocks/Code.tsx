@@ -77,15 +77,17 @@ export function CodeBlock(props: BlockProps): JSX.Element {
     return tokenLines(code(), lang()).map((tokens, i) => ({ no: start + i, tokens, hl: hl.has(i + 1) }));
   });
   const caption = (): string => str(props.block['caption']);
+  // the gutter is as wide as the last line's number, so every row's number lines up (v1's table column)
+  const digits = (): number => String((line() ?? 1) + Math.max(0, lines().length - 1)).length;
   return (
     <div data-kit="cb-code" data-part="block.code">
       <CodeHead file={file()} line={line()} lang={lang()} code={code} />
       {env.bar()}
       <div data-kit="cb-code-scroll" data-part="block.code.body" tabIndex={0}>
-        <div data-kit="cb-code-lines" data-lang={lang() || undefined}>
+        <div data-kit="cb-code-lines" data-lang={lang() || undefined} style={{ '--k-digits': String(digits()) }}>
           <For each={chunksOf(lines(), CHUNK)}>
             {(chunk) => (
-              <div data-kit="cb-code-chunk" data-lazy={flag(lines().length > CHUNK * 2)}>
+              <div data-kit="cb-code-chunk" data-lazy={flag(lines().length > CHUNK * 2)} style={{ '--k-lines': String(chunk.length) }}>
                 <For each={chunk}>
                   {(l) => (
                     <div data-kit="cb-code-line" data-hl={flag(l.hl)}>

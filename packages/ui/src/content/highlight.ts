@@ -41,7 +41,8 @@ function kindOf(m: RegExpExecArray): TokenKind | null {
   if (m[3] !== undefined) return 'n';
   const word = m[4] ?? '';
   if (KEYWORDS.has(word)) return 'k';
-  return /^[A-Z][a-z]/.test(word) ? 't' : null;
+  // v1 md.js highlight(): any identifier that starts with a capital is a type or constant (Foo, LIMIT, WINDOW_MS)
+  return /^[A-Z][\w$-]*$/.test(word) ? 't' : null;
 }
 
 /** Splits `code` into tokens; plain text has `kind: null`. Joining the texts gives `code` back. */

@@ -47,6 +47,7 @@
   "prose": "720px",
   "row-min": "36px",
   "diff-gutter": "36px",
+  "code-max": "560px",
   "lazy-chunk": "400px",
   "rail": "56px",
   "rail-w": "64px",
