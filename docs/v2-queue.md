@@ -1,5 +1,12 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 13809a94 (2026-11-13).** fmt, clippy, the Rust suite and tools tests all pass. The monoflow
+run over every package fails 3 of 191 targets, all load-sensitive (each passes in the plain test step):
+plugins/shell-list/ui/test/flat.test.ts:26 (compare card) and plugins/shell-task/ui/test/file-view.test.ts:27 (go to
+definition) time out at 5 s; crates/wisp-proc tests/bench.rs fails (output truncated in the report). Find why each is
+slow under parallel load (real slowness is a bug; a fixed wait is a flaky test) and fix the cause; a bench that asserts
+timings must not run in the test step (an ignored test or a spike).
+
 **Fix first: #756 CI on c3278499 (2026-11-13).** `plugins/history/host/src/tests.rs:201`
 `notes_keep_the_tree_clean`: `history.track` fails with "git notes couldn't keep history/<id>.jsonl.zst" on Linux CI
 (both Node versions). Likely git notes needs a committer identity CI's git lacks (no user.name/email), or a recent
