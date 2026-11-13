@@ -128,9 +128,18 @@
   [data-kit='cb-code-src'] { padding-right: 18px; white-space: pre; color: var(--ink-2); }
   [data-kit='cb-code-line'][data-hl] { background: color-mix(in srgb, var(--accent) 10%, transparent); }
   [data-kit='cb-code-line'][data-hl] > [data-kit='cb-code-no'] { color: var(--accent); box-shadow: inset 2px 0 var(--accent); }
-  [data-kit='cb-code'] > [data-kit='cb-caption'] { margin: 0; padding: var(--space-5) var(--space-7) var(--space-6); border-top: var(--size-hairline) solid var(--line); font-size: var(--fs-md); color: var(--muted); }
+  [data-kit='cb-code'] > [data-kit='cb-caption'], [data-kit='cb-diff-foot'] > [data-kit='cb-caption'] { margin: 0; padding: var(--space-5) var(--space-7) var(--space-6); border-top: var(--size-hairline) solid var(--line); font-size: var(--fs-md); color: var(--muted); }
   /* v1 .caption has no strong rule (only .prose strong is ink): bold stays in the caption's muted colour */
-  [data-kit='cb-code'] > [data-kit='cb-caption'] [data-kit='md-strong'] { color: inherit; font-weight: bolder; }
+  [data-kit='cb-code'] > [data-kit='cb-caption'] [data-kit='md-strong'], [data-kit='cb-diff-foot'] [data-kit='md-strong'] { color: inherit; font-weight: bolder; }
+  /* the diff block's caption (v1 .b-diff .caption sits inside the file's card, under the lines): the foot closes the card */
+  [data-kit='cb-diff'][data-foot] [data-kit='diff-file'], [data-kit='cb-diff'][data-foot] > [data-kit='cb-card'] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  [data-kit='cb-diff-foot'] {
+    display: flex; align-items: flex-start; min-width: 0; background: var(--surface);
+    border: var(--size-hairline) solid var(--line); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
+  [data-kit='cb-diff'][data-missing] > [data-kit='cb-diff-foot'] { border-radius: 0 0 var(--radius) var(--radius); }
+  [data-kit='cb-diff-foot'] > [data-kit='cb-caption'] { flex: 1; min-width: 0; border-top: 0; }
+  [data-kit='cb-diff-foot'] > [data-kit='button'] { flex: none; margin: var(--space-3) var(--space-3) var(--space-3) auto; }
 
   /* a path in mono (v1 .path): the folder faint, the name in ink; one line, cut with an ellipsis */
   [data-kit='cb-path'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--fs-sm) var(--mono); }
