@@ -80,6 +80,14 @@ jobs:
       - name: tools tests
         run: node --test --test-reporter=dot "tools/**/*.test.ts"
 
+      # The Python SDK (sdk/python) is a monoflow package whose tests run under pytest: a pinned one, on a
+      # setup-python interpreter (the runner's system python is externally managed, PEP 668).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: pytest for sdk/python
+        run: python -m pip install --disable-pip-version-check pytest==8.3.5
+
       # Every run, even after a failing one, so a nightly says how flaky a package is (2 of 3).
       # --no-cache: a repeat must really run again.
       - name: monoflow verify --all (${{ inputs.repeat }}×)

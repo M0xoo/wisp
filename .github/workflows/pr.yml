@@ -53,6 +53,11 @@ jobs:
       # The affected set from `monoflow graph impact` per changed file: works with any monoflow
       # version, and lists the files no package owns (monoflow counts those as nothing affected).
       - run: node tools/g14.ts affected --base=origin/${{ github.base_ref }} --out=affected.json
+      # sdk/python's tests run under pytest (same pin as suite.yml)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pytest==8.3.5
       # What monoflow itself runs for this PR. (The pinned 8c6bc74 ignores --base and --json; a later
       # monoflow honours both. Either way it's report-only.)
       - name: monoflow verify --affected
