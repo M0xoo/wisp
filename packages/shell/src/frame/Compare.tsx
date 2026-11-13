@@ -3,12 +3,13 @@
 // run's last answer, Open card, and Keep this (the others are archived and their worktrees deleted with their
 // changes, after a confirm). Live: every run's topic is watched while the dialog is open, so a run still working
 // fills its column in place when it finishes; nothing re-renders a column whose answer didn't change.
-import { createEffect, createMemo, createSignal, onCleanup, Show, type JSX } from 'solid-js';
+import { createEffect, createMemo, createSignal, getOwner, onCleanup, runWithOwner, Show, type JSX } from 'solid-js';
 import { defineCommand, ownerOf, type EntityKey } from '@wisp/client';
 import { Answer, Button, CompareRuns, Dialog, Inline, Text, useSignal, type CompareRunView } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { answerContext } from './answer-ctx.ts';
+import { isStub, keepTurnsWhole } from './turn-window.ts';
 import { archive, stopRun } from './commands.ts';
 import { compareRows, compareSentence, letter, planShares, type CompareRun, type CompareTurn, type PlanShare } from './compare.ts';
 import { useNow } from '../clock.ts';
@@ -63,11 +64,16 @@ export default function Compare(props: { readonly params: { readonly id: string 
   });
   // each run's turns and steps come with its topic: watched while the dialog is open (the scope ends with it)
   const watched = new Set<string>();
+  const owner = getOwner();
   createEffect(() => {
     for (const s of group()) {
       if (watched.has(s.id)) continue;
       watched.add(s.id);
       shell.client.peers.watch(ownerOf(s.id as EntityKey), `session:${bareOf(s.id)}`, scope);
+      // its every turn whole, edits included: the task's topic sends turns past its latest 8 as stubs (v1 #788)
+      const run = s;
+      // owned by the dialog, not this effect: its re-runs (a run joining) must not end the watch's own effect
+      runWithOwner(owner, () => keepTurnsWhole({ scope, bare: bareOf(run.id), watch: (topic, sc) => shell.client.peers.watch(ownerOf(run.id as EntityKey), topic, sc), stubbed: () => turnsOf(run).some((x) => isStub(x.body)) }));
     }
   });
   const turnsOf = (s: SessionRow): TurnRow[] =>

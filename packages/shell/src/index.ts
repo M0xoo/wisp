@@ -15,6 +15,7 @@ export { rank as rankPalette, fuzzy, splitQuery } from './palette/match.ts';
 export { commandErrorToast } from './toasts.ts';
 export { PREPAINT_THEME, THEME_KEY, THEMES } from './theme.ts';
 export { CORE_TOPICS } from './watch.ts';
+export { isStub, keepTurnsWhole, turnTopic, turnsTopic } from './frame/turn-window.ts';
 export { useNow } from './clock.ts';
 // the harness · model picker New task uses, for any plugin that picks a runner (a trigger, a crew member's job)
 export { RunnerPicker } from './frame/RunnerPicker.tsx';

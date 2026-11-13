@@ -76,6 +76,7 @@ import { useAttachments } from './attach.ts';
 import { harnessOf } from './harness.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { TurnTranscript } from './TurnTranscript.tsx';
+import { isStub, turnOpener } from './turn-window.ts';
 import { envReveal } from './env-reveal.ts';
 import { runPick, type Runner } from './runner.ts';
 import { rowUsage, taskUsage, type TurnStatsLike } from './task-usage.ts';
@@ -264,6 +265,14 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   // older turns fold away (v1 transcript.js): Show earlier opens them for this view
   const [unfolded, setUnfolded] = createSignal(false);
   const fold = createMemo(() => folded(turns(), unfolded()));
+  // the older turns came as stubs (v1 #788): opening one asks for only that turn
+  const opener = turnOpener({
+    scope,
+    bare,
+    watch: (topic, s) => shell.client.peers.watch(ownerOf(key), topic, s),
+    stubOf: (id) => ((x) => (x ? isStub(x.body) : undefined))(turns().find((x) => x.id === id)),
+    failed: () => shell.toast.show(t('shell.task.openTurnFailed')),
+  });
   // files with the reply: picked, pasted or dropped, each uploading at once to the task's computer
   const att = useAttachments(shell, () => ownerOf(key));
   const files = att.files;
@@ -701,6 +710,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       const here = (text: string): string => (cwd ? text.replace(new RegExp(`(/private)?${cwd.replace(/^\/private/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?`, 'g'), '') : text);
                       const count = (k: string): number => steps().filter((a) => a.kind === k).length;
                       const blocks = b.presentation?.blocks ?? [];
+                      const stubbed = isStub(b);
                       const changes = b.ext?.['wisp.runtime']?.changes ?? b.changes ?? [];
                       const figures = changeFigures(changes);
                       const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
@@ -742,7 +752,14 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                               sha: { short: b.checkpoint.commit.slice(0, 7), title: t('shell.task.checkpoint', { branch: b.checkpoint.branch ?? '', sha: b.checkpoint.commit }) },
                             })}
                             {...(hero?.title && { hero: { title: hero.title, summary: hero.summary ?? '' } })}
-                            {...(blocks.length > 0 && {
+                            {...(stubbed && {
+                              answer: (
+                                <Button size="sm" variant="ghost" icon="chevron" part="turn.open" loading={opener.opening(turn.id)} onClick={() => opener.open(turn.id)}>
+                                  {t('shell.task.openTurn')}
+                                </Button>
+                              ),
+                            })}
+                            {...(!stubbed && blocks.length > 0 && {
                               answer: (
                                 <>
                                   {/* v1 transcript.js renderTranscript: with Transcript on, the turn's timeline comes before its answer */}

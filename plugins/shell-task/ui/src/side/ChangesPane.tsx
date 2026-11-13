@@ -3,10 +3,11 @@
 // staged is committed (nothing staged: everything changed), and a hunk or a whole file is reverted. Each answers at
 // once (design/feedback.md): the toggle flips, the reverted hunk goes, the committed files go; then git's own read
 // comes back. A refusal puts it back as it was, with the error. Without git, the edits wisp saw, per file.
-import { Show, createEffect, createMemo, createResource, createSignal, on, type JSX } from 'solid-js';
+import { Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, type JSX } from 'solid-js';
 import { defineCommand, entityKey, ownerOf, type EntityKey, type SettingRow } from '@wisp/client';
 import { ChangesList, CommentCard, EmptyState, isEnvFile, rowKey, useSignal, type ChangeFile, type ChangeRow, type StageState } from '@wisp/ui';
 import { added, commentStore, lineKey, lineLabel, placeOf, waiting } from '../comments.ts';
+import { isStub, keepTurnsWhole } from '@wisp/shell';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
 import { changesOf, envState, filesOf, relative, revealedOf, seenMasked, setRevealed, type ChangeTurn } from './changes.ts';
@@ -109,7 +110,16 @@ export function ChangesPane(): JSX.Element {
     () => (dir() ? { path: dir(), base: base(), reveal: [...revealed()] } : undefined),
     (a) => task.client.run(read, { key: task.key, ...a }).catch(() => null),
   );
+  // every turn whole while the pane is open: the task's topic sends older turns as stubs, without their edits (v1 #788)
   const turns = useSignal(task.client.entities.list<ChangeTurn>('turn'));
+  const whole = task.client.scope.child(`changes:${task.key}`);
+  onCleanup(() => whole.dispose());
+  keepTurnsWhole({
+    scope: whole,
+    bare: task.id,
+    watch: (topic, sc) => task.client.watch(ownerOf(task.key), topic, sc),
+    stubbed: () => turns().some((x) => x.session_id === task.id && isStub(x.body)),
+  });
   // Settings → Privacy's Hide .env values (git masks its own rows by it; the edits wisp saw follow it here)
   const maskSetting = useSignal(task.client.entities.row<SettingRow>('setting', entityKey(ownerOf(task.key), 'git.maskEnvFiles')));
   const maskOn = (): boolean => !(maskSetting()?.value === false || maskSetting()?.value === 'off');
