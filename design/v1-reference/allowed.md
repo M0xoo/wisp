@@ -88,6 +88,18 @@ the main column only). The glyphs still land a pixel apart on rows whose top fal
 the next step is a Chrome paint trace of one row on each side. Fixed on the way: v1's 1.55 line heights in the rows
 (20.140625 / 19.375 px), the section heading's chevron margin and count weight, the palette's inline keys and 7 px dots.
 
+## 7. Improvements over v1 (the lead's call, 2026-11-13)
+
+A place where v2 does better than v1 on purpose. Each names its rule below and its test.
+
+- **The Files block cuts a path in its middle, not at its end** (`block.files.path`; test
+  `files_block_path_truncates_in_the_middle_so_the_name_stays_visible`, `packages/ui/test/blocks-files.test.tsx`).
+  v1's `.b-files .path` was one span cut with an ellipsis at its end, so on a 320 px phone a long path lost the file
+  name, the one part that says which file it is. v2 cuts the folder from its start (`…oing/a-file.tsx`) and keeps the
+  name whole until the folder is down to `…/`, the way v1's own Changes panel already did; CSS only (the Changes
+  panel's `direction: rtl` folder with a `<bdi>`), no measuring per row. A path that fits renders exactly as v1's, so
+  only a path that overflows differs: its box is masked (an `owner` rule), everything around it is still checked.
+
 ## Rules (read by `qa/parity.mjs`)
 
 One rule a line: `<view glob> <part glob> <kind> [widths]` (widths: `390` or `320,390`; none means every width). `wrap` is §1, `pending` is §2, `fold` is §4
@@ -117,4 +129,5 @@ settings.privacy  settings.maskEnvFiles  owner  390
 settings.spells  x.input  owner  900,1440
 task.right-click  list.menu  owner
 task.right-click  list.menu.*  owner
+*   block.files.path   owner
 ```

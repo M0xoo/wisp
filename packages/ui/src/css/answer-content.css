@@ -162,7 +162,7 @@
   [data-kit='cb-plus'] { color: var(--add); }
   [data-kit='cb-minus'] { color: var(--del); }
 
-  /* files (v1 .b-files): rows that tint on hover, the badge, the path cut at its end, the counts, actions shown on
+  /* files (v1 .b-files): rows that tint on hover, the badge, the path cut in its middle, the counts, actions shown on
      hover or open; the note under the path; a row's own diff in a card under it */
   [data-kit='cb-card'][data-type='files'] { padding: var(--space-7) var(--space-4) var(--space-4); }
   [data-part='block.files.title'] { padding: 0 var(--space-6); }
@@ -170,6 +170,13 @@
   [data-kit='cb-file'] { border-radius: var(--radius-lg); animation: kit-rise 0.5s var(--ease) calc(200ms + var(--k, 0) * 60ms) both; }
   [data-kit='cb-file'][data-has-diff] { cursor: pointer; }
   [data-kit='cb-file']:hover, [data-kit='cb-file'][data-open] { background: var(--surface-2); }
+  /* the path cut in its middle (an improvement over v1, design/v1-reference/allowed.md §7): the folder shrinks
+     first, cut from its start (rtl, the <bdi> keeps its slashes in place), then the name from its end, so the file
+     name stays visible on a 320 px phone. The Changes panel's technique, CSS only. */
+  [data-part='block.files.path'] { display: flex; }
+  [data-part='block.files.path'] > [data-kit='cb-dir'] { flex: 0 1 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+  [data-part='block.files.path'] > [data-kit='cb-base'] { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; }
+  [data-part='block.files.path'] > [data-kit='cb-dir'] + [data-kit='cb-base'] { flex: none; max-width: calc(100% - 2ch); }
   [data-kit='cb-file-row'] { display: flex; align-items: center; gap: var(--space-5); min-width: 0; padding: calc(var(--space-3) + 1px) var(--space-6); }
   [data-kit='cb-file-note'] { margin: calc(-1 * var(--space-2)) 0 0; padding: 0 var(--space-6) var(--space-4) calc(var(--space-6) + var(--size-avatar-sm) + var(--space-5)); font-size: var(--fs-md); color: var(--muted); }
   [data-kit='cb-file-actions'] { display: flex; margin-left: auto; opacity: 0; transition: opacity var(--dur-base); }

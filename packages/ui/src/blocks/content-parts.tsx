@@ -59,7 +59,9 @@ export function PathText(props: { readonly path: string; readonly part: PartName
   return (
     <span data-kit="cb-path" data-part={props.part} title={props.path}>
       <Show when={parts()[0]}>
-        <span data-kit="cb-dir" data-text="control">{parts()[0]}</span>
+        <span data-kit="cb-dir" data-text="control">
+          <bdi>{parts()[0]}</bdi>
+        </span>
       </Show>
       <span data-kit="cb-base" data-text="control">{parts()[1]}</span>
     </span>

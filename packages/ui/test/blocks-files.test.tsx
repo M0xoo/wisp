@@ -44,4 +44,27 @@ describe('files block', () => {
     expect(rule("[data-kit='cb-file-row']")).toContain('display: flex');
     expect(rule("[data-kit='cb-files']")).toContain('list-style: none');
   });
+
+  // Improvement over v1 (design/v1-reference/allowed.md §7): v1 cut the whole path at its end, so on a 320 px phone
+  // the file name could vanish. The folder now shrinks first, cut from its start (rtl, its text isolated in a <bdi> so
+  // the slashes stay put), and the name keeps its width: CSS only, no measuring per row (the Changes panel's way).
+  test('files_block_path_truncates_in_the_middle_so_the_name_stays_visible', () => {
+    const files = { type: 'files', items: [{ path: 'packages/very/long/folder/that/keeps/going/a-file.tsx', change: 'modified' }] };
+    mount(() => <Answer blocks={[files]} />);
+    const path = part('block.files.path');
+    const dir = path?.querySelector('[data-kit="cb-dir"]');
+    expect(dir?.firstElementChild?.tagName).toBe('BDI');
+    expect(dir?.textContent).toBe('packages/very/long/folder/that/keeps/going/');
+    expect(path?.querySelector('[data-kit="cb-base"]')?.textContent).toBe('a-file.tsx');
+    expect(path?.getAttribute('title')).toBe(files.items[0]?.path);
+
+    expect(rule("[data-part='block.files.path']")).toContain('display: flex');
+    const d = rule("[data-part='block.files.path'] > [data-kit='cb-dir']");
+    for (const decl of ['flex: 0 1 auto', 'direction: rtl', 'text-overflow: ellipsis', 'overflow: hidden', 'min-width: 2ch']) expect(d).toContain(decl);
+    const b = rule("[data-part='block.files.path'] > [data-kit='cb-base']");
+    for (const decl of ['flex: 0 1 auto', 'text-overflow: ellipsis', 'min-width: 3ch']) expect(b).toContain(decl);
+    // after a folder the name never shrinks while the folder can (a weighted shrink leaked 0.1 px and cut it)
+    const nb = rule("[data-part='block.files.path'] > [data-kit='cb-dir'] + [data-kit='cb-base']");
+    for (const decl of ['flex: none', 'max-width: calc(100% - 2ch)']) expect(nb).toContain(decl);
+  });
 });
