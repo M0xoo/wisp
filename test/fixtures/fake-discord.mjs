@@ -17,6 +17,8 @@
 //   fake.silent = true     a new socket hears no hello
 //   fake.slowClose = true  a close frame isn't answered: the client gives up on its own
 //   fake.revoked = true    REST answers 401, and identify closes with 4004
+//   fake.refuse = code     every identify and resume closes with that code, as Discord does for a
+//                          fatal one: a socket wisp had just given up on doesn't hide it
 //   fake.noThreads = code  creating a thread fails with that code
 //   fake.threadChannels    channel ids that are threads; the ones made here are too
 //   fake.posts, callbacks, edits, deletes, threads, commands, identifies, resumes, beats, calls, connects: what happened
@@ -47,6 +49,7 @@ export class FakeDiscord {
   slowClose = false;
   connects = 0;
   revoked = false;
+  refuse = 0;
   noThreads = 0;
   threadChannels = new Set();
   limit = null; // session_start_limit
@@ -171,6 +174,11 @@ export class FakeDiscord {
           this.beats.push(m.d);
           if (!this.deaf) op({ op: 11 });
         }
+        if ((m.op === 2 || m.op === 6) && this.refuse) {
+          (m.op === 2 ? this.identifies : this.resumes).push(m.d);
+          this.#shut(socket, this.refuse);
+          continue;
+        }
         if (m.op === 2) {
           this.identifies.push(m.d);
           if (this.revoked) {
@@ -192,6 +200,13 @@ export class FakeDiscord {
       }
     });
     if (!this.silent) op({ op: 10, d: { heartbeat_interval: this.heartbeat } });
+  }
+
+  #shut(socket, code) {
+    const b = Buffer.alloc(2);
+    b.writeUInt16BE(code);
+    socket.write(frame(8, b));
+    socket.end();
   }
 
   #write(o) {
@@ -229,12 +244,7 @@ export class FakeDiscord {
   }
 
   close(code) {
-    const b = Buffer.alloc(2);
-    b.writeUInt16BE(code);
-    for (const s of this.sockets) {
-      s.write(frame(8, b));
-      s.end();
-    }
+    for (const s of this.sockets) this.#shut(s, code);
   }
 
   drop() {
