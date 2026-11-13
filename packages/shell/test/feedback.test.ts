@@ -2,6 +2,7 @@
 // and what the dialog may send.
 import { expect, test } from 'vitest';
 import { canSend, feedbackOf, isFeedback, parseFeedback, sendFeedback } from '../src/frame/feedback.ts';
+import { wireOf } from './command.ts';
 
 test('/feedback and /bug go to the team, not to a task; a bug needs words, an idea words or a thumb_v1_feedback_command', () => {
   expect(isFeedback('/feedback love the viewer')).toBe(true);
@@ -14,8 +15,8 @@ test('/feedback and /bug go to the team, not to a task; a bug needs words, an id
   expect(canSend('idea', 'up', '')).toBe(true);
   expect(canSend('idea', undefined, '')).toBe(false);
   // a bug sends no thumb; a task's note names it by its own id there
-  expect(sendFeedback.wire({ peer: 'p' as never, text: 'x', kind: 'bug', rating: 'up', source: 'dialog' })).toEqual({ text: 'x', source: 'dialog', kind: 'bug' });
-  expect(sendFeedback.wire({ peer: 'p' as never, text: 'x', kind: 'idea', rating: 'down', sessionId: 'p:s1', source: 'command' })).toEqual({
+  expect(wireOf(sendFeedback)({ peer: 'p' as never, text: 'x', kind: 'bug', rating: 'up', source: 'dialog' })).toEqual({ text: 'x', source: 'dialog', kind: 'bug' });
+  expect(wireOf(sendFeedback)({ peer: 'p' as never, text: 'x', kind: 'idea', rating: 'down', sessionId: 'p:s1', source: 'command' })).toEqual({
     text: 'x',
     source: 'command',
     rating: 'down',

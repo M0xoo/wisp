@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+/// <reference types="vite/client" />
+import CSS from '../src/css/answer-content.css?raw';
 import { describe, expect, test } from 'vitest';
 import { mount, part } from './helpers.tsx';
 import { Answer } from '../src/index.ts';
 
-const CSS = readFileSync(join(import.meta.dirname, '../src/css/answer-content.css'), 'utf8');
 const rule = (sel: string): string => {
   const i = CSS.indexOf(`${sel} {`);
   return i < 0 ? '' : CSS.slice(i, CSS.indexOf('}', i));

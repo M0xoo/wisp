@@ -2,6 +2,7 @@
 import { expect, test } from 'vitest';
 import { compareRows, compareSentence, newGroup, nextRun, planShares, runMetrics, windowName, type CompareRun } from '../src/frame/compare.ts';
 import { create } from '../src/frame/commands.ts';
+import { wireOf } from './command.ts';
 import { SHELL_STRINGS } from '../src/i18n/en.ts';
 
 const t = (key: string, p: Readonly<Record<string, string | number>> = {}): string =>
@@ -58,7 +59,7 @@ test('vs + adds the next harness nobody runs yet, then the lead again, never pas
   expect(newGroup(new Uint8Array([0, 15, 255]))).toBe('g-000fff');
   // the group goes in runtime's slot on the wire, and on the row at once
   const a = { peer: 'p', id: 'p:1', prompt: 'x', agent: 'codex', mode: 'auto', at: 1, group: 'g-1' };
-  expect(create.wire(a)).toEqual({ peer: 'p', id: 'p:1', prompt: 'x', agent: 'codex', mode: 'auto', at: 1, ext: { 'wisp.runtime': { group: 'g-1' } } });
+  expect(wireOf(create)(a)).toEqual({ peer: 'p', id: 'p:1', prompt: 'x', agent: 'codex', mode: 'auto', at: 1, ext: { 'wisp.runtime': { group: 'g-1' } } });
 });
 
 test('Plan: a run alone on its account shows its share; runs overlapping on one account split the total by cost, as an estimate_v1_compare_plan', () => {

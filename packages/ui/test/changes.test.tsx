@@ -68,7 +68,9 @@ test('a diff splits into hunks at each gap, each knowing the gap before it and i
   expect(hunkKey(hs[0]?.rows ?? [])).not.toBe(hunkKey(hs[1]?.rows ?? []));
 });
 
-const FILE: ChangeFile = { path: 'src/math.js', status: 'M', add: 1, del: 2, binary: false, rows: ROWS, stage: 'part', hunkStage: ['unstage', 'stage'], revertable: true };
+/** a file outside a worktree: no staging */
+const UNSTAGED: ChangeFile = { path: 'src/math.js', status: 'M', add: 1, del: 2, binary: false, rows: ROWS, revertable: true };
+const FILE: ChangeFile = { ...UNSTAGED, stage: 'part', hunkStage: ['unstage', 'stage'] };
 
 test('stage, stage a hunk, revert a hunk and commit call back with the path, hunk and key', () => {
   const calls: string[] = [];
@@ -113,7 +115,7 @@ test('a hunk being reverted is hidden at once, and the file without staging has 
   const [going, setGoing] = createSignal<ReadonlySet<string>>(new Set());
   const host = mount(() => (
     <ChangesList
-      files={[{ ...FILE, stage: undefined, hunkStage: undefined }]}
+      files={[UNSTAGED]}
       labels={L}
       open={() => true}
       viewed={() => false}
