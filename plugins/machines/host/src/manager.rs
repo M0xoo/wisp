@@ -262,6 +262,7 @@ pub(crate) async fn cmd(ch: &dyn Channel, name: &str, args: Value) -> Option<Val
 /// The peer's harnesses (`runtime.agents`); `fresh`: detect again first.
 pub(crate) async fn agents(ch: &dyn Channel, fresh: Option<&str>) -> Vec<RemoteAgent> {
     let args = fresh.map_or_else(|| json!({}), |f| json!({ "fresh": f }));
+    // by-name: the peer's own command, over its POST /api/cmd (another wisp's version, not a call in this kernel)
     cmd(ch, "runtime.agents", args).await.map(|v| view::remote_agents(&v)).unwrap_or_default()
 }
 

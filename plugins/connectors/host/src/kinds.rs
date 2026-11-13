@@ -175,8 +175,14 @@ async fn reveal_overlay(ctx: &Ctx, call: &Call, revealed: &Revealed, session: &s
     if revealed.lock().unwrap_or_else(std::sync::PoisonError::into_inner).contains_key(session) {
         return;
     }
-    let Ok(task) = ctx.run_json(call, "runtime.get", json!({ "id": session })).await else { return };
-    let mut list = overlay_of(task.pointer("/ext/wisp.runtime"));
+    let task = match ctx.run::<wisp_runtime_api::commands::Get>(call, wisp_runtime_api::commands::IdArgs { id: session.into() }).await {
+        Ok(t) => t,
+        Err(err) => {
+            tracing::warn!(error = %err.message, task = session, "connectors: runtime.get before a run");
+            return;
+        }
+    };
+    let mut list = overlay_of(task.ext.get("wisp.runtime"));
     if list.is_empty() {
         return;
     }

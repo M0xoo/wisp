@@ -23,6 +23,7 @@ tokio.workspace = true
 tracing.workspace = true
 wisp-kernel.workspace = true
 wisp-stuff-api.workspace = true
+wisp-telemetry-api.workspace = true
 wisp-stuff-core.workspace = true
 wisp-store.workspace = true
 

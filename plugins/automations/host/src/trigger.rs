@@ -257,7 +257,13 @@ async fn mentions(ctx: &Ctx, call: &Call, ev: &TriggerEvent) {
     if ev.on == "chat.message" && ev.payload.get("trusted").and_then(Value::as_bool) != Some(true) {
         return;
     }
-    if let Err(e) = ctx.run_json(call, "crew.wakeMentions", json!({ "text": text, "source": ev.on })).await {
+    if let Err(e) = ctx
+        .run::<wisp_crew_api::commands::WakeMentions>(
+            call,
+            wisp_crew_api::commands::MentionArgs { text: text.to_owned(), source: Some(ev.on.clone()) },
+        )
+        .await
+    {
         tracing::debug!("mentions not sent: {}", e.message);
     }
 }

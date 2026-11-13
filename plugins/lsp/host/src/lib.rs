@@ -133,15 +133,16 @@ impl State {
 
 /// The folder the task's paths are relative to: its worktree, else its folder.
 async fn root_of(ctx: &Ctx, call: &Call, id: &str) -> Result<PathBuf> {
-    let s = ctx.run_json(call, "runtime.get", json!({ "id": id })).await?;
-    task_root(&s).ok_or_else(|| WireError::invalid(format!("task {id} has no folder, so no code to ask about")))
+    let s = ctx.run::<wisp_runtime_api::commands::Get>(call, wisp_runtime_api::commands::IdArgs { id: id.into() }).await?;
+    task_root(s.ext_of("wisp.worktrees").get("path").and_then(Value::as_str), &s.cwd)
+        .ok_or_else(|| WireError::invalid(format!("task {id} has no folder, so no code to ask about")))
 }
 
 /// Its worktree when that's there, else its folder; a task with neither has none: never the server's own folder
 /// (was ".", so a language server started there and answered about the server's code).
-fn task_root(s: &Value) -> Option<PathBuf> {
-    let wt = s.pointer("/ext/wisp.worktrees/path").and_then(Value::as_str).filter(|p| Path::new(p).is_dir());
-    Folder::first([wt.unwrap_or_default(), s["cwd"].as_str().unwrap_or_default()]).map(Folder::into_path)
+fn task_root(worktree: Option<&str>, cwd: &str) -> Option<PathBuf> {
+    let wt = worktree.filter(|p| Path::new(p).is_dir());
+    Folder::first([wt.unwrap_or_default(), cwd]).map(Folder::into_path)
 }
 
 /// Where a definition or references answer points, with each line's text.
@@ -323,17 +324,11 @@ mod tests {
     fn a_task_with_no_folder_has_no_root_never_the_servers_folder() {
         let tmp = std::env::temp_dir();
         let t = tmp.to_string_lossy();
-        assert_eq!(task_root(&json!({ "cwd": t })).unwrap(), tmp);
-        assert_eq!(task_root(&json!({ "cwd": t, "ext": { "wisp.worktrees": { "path": t } } })).unwrap(), tmp);
-        assert_eq!(
-            task_root(&json!({ "cwd": t, "ext": { "wisp.worktrees": { "path": "/gone/wisp-lsp" } } })).unwrap(),
-            tmp,
-            "a gone worktree: the folder"
-        );
-        for s in
-            [json!({}), json!({ "cwd": "" }), json!({ "cwd": "src" }), json!({ "cwd": "", "ext": { "wisp.worktrees": { "path": "src" } } })]
-        {
-            assert!(task_root(&s).is_none(), "{s}");
+        assert_eq!(task_root(None, &t).unwrap(), tmp);
+        assert_eq!(task_root(Some(&t), &t).unwrap(), tmp);
+        assert_eq!(task_root(Some("/gone/wisp-lsp"), &t).unwrap(), tmp, "a gone worktree: the folder");
+        for (wt, cwd) in [(None, ""), (None, "src"), (Some("src"), "")] {
+            assert!(task_root(wt, cwd).is_none(), "{wt:?} {cwd}");
         }
     }
 

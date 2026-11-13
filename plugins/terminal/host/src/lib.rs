@@ -15,6 +15,9 @@ use serde_json::json;
 use wisp_kernel::http::{Request, Response, Route};
 use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::Proc;
+use wisp_runtime_api::SessionId;
+use wisp_runtime_api::commands as rt;
+use wisp_telemetry_api as tel;
 use wisp_terminal_api::commands as c;
 use wisp_terminal_api::{ShellInfo, TermKind, TerminalApps};
 
@@ -26,14 +29,25 @@ fn reg(slot: &Slot) -> Result<Arc<Registry>> {
     slot.get().cloned().ok_or_else(|| WireError::unavailable("wisp.terminal is starting"))
 }
 
+/// `telemetry.track`: a usage event this plugin owns; logged when refused (it only reports).
+async fn track(ctx: &Ctx, event: &str, props: serde_json::Value) {
+    let props = match props {
+        serde_json::Value::Object(m) => m,
+        _ => serde_json::Map::new(),
+    };
+    if let Err(err) = ctx.run::<tel::Track>(&ctx.root_call(), tel::TrackArgs { event: event.into(), props }).await {
+        tracing::warn!(error = %err.message, event, "terminal: telemetry.track");
+    }
+}
+
 /// A task's shell: in its worktree when it has one, else its folder (v1 `shellDir`).
 async fn task_dir(ctx: &Ctx, call: &wisp_kernel::Call, id: &str) -> Result<(String, String)> {
-    let s = ctx.run_json(call, "runtime.get", json!({ "id": id })).await?;
-    let wt = s.pointer("/ext/wisp.worktrees/path").and_then(|v| v.as_str()).unwrap_or("").to_owned();
-    let cwd = s["cwd"].as_str().unwrap_or("").to_owned();
+    let s = ctx.run::<rt::Get>(call, rt::IdArgs { id: SessionId(id.to_owned()) }).await?;
+    let wt = s.ext_of("wisp.worktrees").get("path").and_then(|v| v.as_str()).unwrap_or("").to_owned();
+    let cwd = s.cwd.clone();
     let home = std::env::var("HOME").unwrap_or_default();
     let dir = shell_dir(&wt, &cwd, &home).map_err(|e| WireError::invalid(format!("task {id} has no folder to open a shell in ({e})")))?;
-    Ok((dir, s["agent"].as_str().unwrap_or("").to_owned()))
+    Ok((dir, s.agent))
 }
 
 /// The worktree, else the folder, else home; none of them (no folder and no `$HOME`) is no folder, never the
@@ -138,7 +152,10 @@ fn plan_here(
 pub(crate) async fn mark_run(ctx: &Ctx, call: &wisp_kernel::Call, id: &str, running: bool) {
     let port = wisp_terminal_core::run::port_for(id);
     let value = json!({ "run": { "running": running, "port": port } });
-    let _ = ctx.run_json(call, "runtime.setExt", json!({ "id": id, "plugin": "wisp.terminal", "value": value })).await;
+    let a = rt::SetExtArgs { id: SessionId(id.to_owned()), plugin: "wisp.terminal".into(), value };
+    if let Err(err) = ctx.run::<rt::SetExt>(call, a).await {
+        tracing::warn!(error = %err.message, task = id, "terminal: runtime.setExt");
+    }
 }
 
 async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Arc<Registry>, a: &c::RunStartArgs) -> Result<wisp_terminal_api::RunStarted> {
@@ -266,7 +283,7 @@ async fn start_shell(
     let (dir, agent) = task_dir(ctx, call, id).await?;
     let argv = wisp_terminal_core::folder::shell_argv(std::env::var("SHELL").ok().as_deref());
     r.open(ctx, &c::OpenArgs { kind: TermKind::Shell, id: id.to_owned(), argv, cwd: dir.clone(), cols, rows, tui: false });
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "shell", "props": { "agent": agent } })).await;
+    track(ctx, "shell", json!({ "agent": agent })).await;
     Ok(wisp_terminal_api::ShellStarted { ok: true, started: true, dir: Some(dir), gone: Some(false) })
 }
 
@@ -309,13 +326,7 @@ impl Plugin for TerminalPlugin {
             let out = r.open(&ctx, &a);
             if a.kind == TermKind::Takeover {
                 // v1 proxy.js / takeover: the harness opened in wisp's own terminal (Open in <harness>)
-                let _ = ctx
-                    .run_json(
-                        &ctx.root_call(),
-                        "telemetry.track",
-                        json!({ "event": "takeover", "props": { "terminal": "wisp", "machine": false } }),
-                    )
-                    .await;
+                track(&ctx, "takeover", json!({ "terminal": "wisp", "machine": false })).await;
             }
             Ok(out)
         });

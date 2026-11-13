@@ -3,7 +3,7 @@
 //! suddenly moves much faster for the same work. With Drain watch on (`budget.drainWatch`, off by default), the
 //! phone hears of it once per window per two hours (`budget.drain`, and a note through `channels.send`).
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use wisp_budget_api::events::DrainNoted;
 use wisp_budget_api::settings;
 use wisp_budget_core::drain::units_of;
@@ -75,10 +75,9 @@ impl State {
             drain: d,
         };
         ctx.emit(&ctx.root_call(), &note);
-        if let Err(err) =
-            ctx.run_json(&ctx.root_call(), "channels.send", json!({ "msg": { "title": note.title, "text": note.text } })).await
-        {
-            tracing::debug!(%err, "Drain watch: no phone to tell");
+        let msg = wisp_channels_api::Msg { title: note.title.clone(), text: note.text.clone(), actions: Vec::new() };
+        if let Err(err) = ctx.run::<wisp_channels_api::SendNotice>(&ctx.root_call(), wisp_channels_api::SendArgs { msg }).await {
+            tracing::debug!(error = %err.message, "Drain watch: no phone to tell");
         }
         Some(note)
     }
@@ -88,6 +87,7 @@ impl State {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn drain_watch_is_off_unless_switched_on_here_or_in_v1() {

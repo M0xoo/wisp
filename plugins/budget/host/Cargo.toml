@@ -20,6 +20,8 @@ wisp-kernel.workspace = true
 wisp-budget-api.workspace = true
 wisp-budget-core.workspace = true
 wisp-runtime-api.workspace = true
+wisp-accounts-api.workspace = true
+wisp-channels-api.workspace = true
 wisp-store.workspace = true
 
 [dev-dependencies]

@@ -86,10 +86,9 @@ impl Tools for ConnectorTools {
         tool: &str,
         args: serde_json::Value,
     ) -> BoxFuture<'static, std::result::Result<serde_json::Value, String>> {
-        let (ctx, call, a) = (self.0.clone(), call.clone(), serde_json::json!({ "id": connector, "tool": tool, "args": args }));
-        Box::pin(async move {
-            ctx.run_json(&call, "connectors.call", a).await.map(|o| o.get("result").cloned().unwrap_or_default()).map_err(|e| e.message)
-        })
+        let a = wisp_connectors_api::commands::CallArgs { id: connector.to_owned(), tool: tool.to_owned(), args };
+        let (ctx, call) = (self.0.clone(), call.clone());
+        Box::pin(async move { ctx.run::<wisp_connectors_api::commands::Call>(&call, a).await.map(|o| o.result).map_err(|e| e.message) })
     }
 }
 

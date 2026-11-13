@@ -19,9 +19,11 @@ use wisp_budget_core::Budget;
 use wisp_budget_core::limits::report_from_value;
 use wisp_kernel::services::Paths;
 use wisp_kernel::{Ctx, Failure, InterceptOpts, Manifest, Plugin, Result, Setup, Verdict, WireError};
+use wisp_runtime_api::commands as rt;
 use wisp_runtime_api::events::{TurnEnded, TurnLimits, TurnStarted};
 use wisp_runtime_api::hooks::{BeforeRun, BeforeRunCtx};
 use wisp_runtime_api::model::Held;
+use wisp_runtime_api::{SessionId, TurnId};
 use wisp_store::Store;
 
 pub const PLUGIN_ID: &str = "wisp.budget";
@@ -121,7 +123,10 @@ impl State {
             due
         };
         for (id, turn) in due {
-            let _ = ctx.run_json(&ctx.root_call(), "runtime.release", json!({ "id": id, "turnId": turn, "action": "start" })).await;
+            let a = rt::ReleaseArgs { id: SessionId(id.clone()), turn_id: TurnId(turn.clone()), action: rt::ReleaseAction::Start };
+            if let Err(err) = ctx.run::<rt::Release>(&ctx.root_call(), a).await {
+                tracing::warn!(error = %err.message, task = %id, turn = %turn, "budget: runtime.release");
+            }
         }
     }
 
@@ -145,13 +150,15 @@ impl State {
         }
         writes.dedup_by(|a, b| a.1 == b.1);
         for (sid, tid, plan) in writes {
-            let _ = ctx
-                .run_json(
-                    &ctx.root_call(),
-                    "runtime.turn.setExt",
-                    json!({ "id": sid, "turnId": tid, "plugin": PLUGIN_ID, "value": { "plan": plan } }),
-                )
-                .await;
+            let a = rt::TurnExtArgs {
+                id: SessionId(sid.clone()),
+                turn_id: TurnId(tid.clone()),
+                plugin: PLUGIN_ID.into(),
+                value: json!({ "plan": plan }),
+            };
+            if let Err(err) = ctx.run::<rt::TurnSetExt>(&ctx.root_call(), a).await {
+                tracing::warn!(error = %err.message, task = %sid, turn = %tid, "budget: runtime.turn.setExt");
+            }
         }
     }
 

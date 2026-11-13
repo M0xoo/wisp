@@ -73,7 +73,14 @@ pub fn saved(ctx: &Ctx, call: &Call, it: &StuffItem, update: bool) {
 pub fn track(ctx: &Ctx, event: &'static str, props: serde_json::Value) {
     let c = ctx.clone();
     ctx.spawn(async move {
-        let _ = c.run_json(&c.root_call(), "telemetry.track", serde_json::json!({ "event": event, "props": props })).await;
+        let props = match props {
+            serde_json::Value::Object(m) => m,
+            _ => serde_json::Map::new(),
+        };
+        let a = wisp_telemetry_api::TrackArgs { event: event.into(), props };
+        if let Err(err) = c.run::<wisp_telemetry_api::Track>(&c.root_call(), a).await {
+            tracing::warn!(error = %err.message, event, "stuff: telemetry.track");
+        }
     });
 }
 

@@ -448,8 +448,15 @@ impl Engine {
         let events = if let Some(e) = event {
             vec![e]
         } else {
-            let rows =
-                ctx.run_json(call, "events.tail", json!({ "type": t.spec.on, "limit": last.clamp(1, 50) })).await.unwrap_or_default();
+            let a = wisp_events_api::TailArgs {
+                ty: Some(t.spec.on.clone()),
+                limit: Some(last.clamp(1, 50)),
+                ..wisp_events_api::TailArgs::default()
+            };
+            let rows = ctx.run::<wisp_events_api::Tail>(call, a).await.unwrap_or_else(|err| {
+                tracing::warn!(error = %err.message, trigger = %name, "automations: events.tail");
+                Value::Null
+            });
             rows.as_array().into_iter().flatten().filter_map(from_row).collect()
         };
         let st = self.load(name).await;
@@ -614,7 +621,10 @@ async fn start(ctx: &Ctx, call: &Call, store: &Store, t: &Live, job: &Job) -> Re
         Target::Prompt(_) => {
             // never the server's own folder (v1 triggers.js: "Not a project folder: (none)")
             if cwd.is_empty() {
-                return Err(WireError::invalid(format!("Not a project folder: (none). Trigger {} starts a task, so it needs spec.project, the folder it runs in", t.name)));
+                return Err(WireError::invalid(format!(
+                    "Not a project folder: (none). Trigger {} starts a task, so it needs spec.project, the folder it runs in",
+                    t.name
+                )));
             }
             let opt = |s: &str| (!s.is_empty()).then(|| s.to_owned());
             let a = rt::StartArgs {
@@ -631,17 +641,41 @@ async fn start(ctx: &Ctx, call: &Call, store: &Store, t: &Live, job: &Job) -> Re
             let made = ctx.run::<rt::Create>(call, a).await?;
             serde_json::to_value(made).map_err(|e| WireError::internal(e.to_string()))?
         }
-        Target::Crew(member) => ctx.run_json(call, "crew.wake", json!({ "id": member, "why": text("{event.summary}"), "source": by })).await?,
-        Target::Workflow(w) => ctx.run_json(call, "workflows.run", json!({ "name": w, "inputs": { "event": core::event_scope(&first)["event"] }, "project": (!cwd.is_empty()).then_some(&cwd) })).await?,
+        Target::Crew(member) => wake(ctx, call, member, text("{event.summary}"), &by).await?,
+        Target::Workflow(w) => run_workflow(ctx, call, w, &first, &cwd).await?,
         Target::FollowUp => {
             let Some(id) = first.subject.clone() else {
                 return Err(WireError::invalid(format!("{} follows up the event's task, and {} names none", t.name, first.on)));
             };
-            ctx.run::<rt::FollowUp>(call, rt::FollowUpArgs { id: id.as_str().into(), text: text("{event.summary}"), queue: Some(true), ..rt::FollowUpArgs::default() }).await?;
+            ctx.run::<rt::FollowUp>(
+                call,
+                rt::FollowUpArgs {
+                    id: id.as_str().into(),
+                    text: text("{event.summary}"),
+                    queue: Some(true),
+                    ..rt::FollowUpArgs::default()
+                },
+            )
+            .await?;
             json!({ "id": id })
         }
     };
     id_of(&made).ok_or_else(|| WireError::internal(format!("{} started, but its answer names no task: {made}", t.name)))
+}
+
+/// `crew.wake`: the member's job, as the trigger's answer (`session.id` names its task).
+async fn wake(ctx: &Ctx, call: &Call, member: &str, why: String, by: &str) -> Result<Value> {
+    let a = wisp_crew_api::commands::WakeArgs { id: member.to_owned(), why, source: Some(by.to_owned()) };
+    let started = ctx.run::<wisp_crew_api::commands::Wake>(call, a).await?;
+    serde_json::to_value(started).map_err(|e| WireError::internal(e.to_string()))
+}
+
+/// `workflows.run`: the event as its `event` input, in the trigger's folder when it has one (`id` names its task).
+async fn run_workflow(ctx: &Ctx, call: &Call, name: &str, first: &TriggerEvent, cwd: &str) -> Result<Value> {
+    let inputs = [("event".to_owned(), core::event_scope(first)["event"].clone())].into_iter().collect();
+    let a = wisp_workflows_api::RunArgs { name: name.to_owned(), inputs, project: (!cwd.is_empty()).then(|| cwd.to_owned()) };
+    let started = ctx.run::<wisp_workflows_api::Run>(call, a).await?;
+    serde_json::to_value(started).map_err(|e| WireError::internal(e.to_string()))
 }
 
 /// Three failures in a row paused it: say so where you'll see it.

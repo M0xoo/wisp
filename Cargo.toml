@@ -38,6 +38,8 @@ wisp-envmask = { path = "crates/wisp-envmask" }
 # wisp.runtime (owned by the runtime agent): every plugin that starts, reads or reacts to a task uses the api
 wisp-runtime-api = { path = "plugins/runtime/api" }
 wisp-runtime-core = { path = "plugins/runtime/core" }
+# wisp.events: the durable event log a trigger's dry run reads (`events.tail`)
+wisp-events-api = { path = "plugins/events/api" }
 # plugin contracts and cores (owned by the stuff/plugins/telemetry/update/settings agent)
 wisp-plugins-api = { path = "plugins/plugins/api" }
 wisp-settings-api = { path = "plugins/settings/api" }

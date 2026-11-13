@@ -4173,10 +4173,13 @@ dependencies = [
  "tracing",
  "wisp-automations-api",
  "wisp-automations-core",
+ "wisp-crew-api",
+ "wisp-events-api",
  "wisp-kernel",
  "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-store",
+ "wisp-workflows-api",
 ]
 
 [[package]]
@@ -4215,8 +4218,10 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "wisp-accounts-api",
  "wisp-budget-api",
  "wisp-budget-core",
+ "wisp-channels-api",
  "wisp-kernel",
  "wisp-resources-api",
  "wisp-runtime-api",
@@ -4888,6 +4893,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-automations-api",
+ "wisp-connectors-api",
  "wisp-git-api",
  "wisp-issues-api",
  "wisp-issues-core",
@@ -5657,6 +5663,7 @@ dependencies = [
  "wisp-store",
  "wisp-stuff-api",
  "wisp-stuff-core",
+ "wisp-telemetry-api",
 ]
 
 [[package]]
@@ -5801,6 +5808,7 @@ dependencies = [
  "wisp-kernel",
  "wisp-proc",
  "wisp-runtime-api",
+ "wisp-telemetry-api",
  "wisp-terminal-api",
  "wisp-terminal-core",
 ]
@@ -5851,9 +5859,12 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-runtime-api",
  "wisp-store",
+ "wisp-telemetry-api",
  "wisp-update-core",
 ]
 
@@ -5922,6 +5933,7 @@ dependencies = [
  "wisp-runtime-api",
  "wisp-settings-api",
  "wisp-store",
+ "wisp-telemetry-api",
  "wisp-worktrees-api",
  "wisp-worktrees-core",
 ]

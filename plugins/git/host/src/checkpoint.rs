@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wisp_git_api::GitService;
 use wisp_kernel::{BoxFuture, Command, Ctx, Setup, WireError};
-use wisp_runtime_api::model::Session;
+use wisp_runtime_api::SessionId;
+use wisp_runtime_api::commands as rt;
+use wisp_runtime_api::model::{Ext, Session};
 use wisp_runtime_api::points::{RUN, RunPart};
 
 use crate::service::{GitServiceImpl, Service};
@@ -24,7 +26,7 @@ pub struct Checkpoint {
 }
 
 /// The checkpoint a turn keeps, from its ext.
-pub fn of_turn(ext: &Value) -> Option<Checkpoint> {
+pub fn of_turn(ext: &Ext) -> Option<Checkpoint> {
     serde_json::from_value(ext.get(EXT)?.get("checkpoint")?.clone()).ok()
 }
 
@@ -72,21 +74,17 @@ impl Command for RestoreTurn {
 
 async fn restore(ctx: &Ctx, svc: &Service, a: RestoreTurnArgs) -> Result<Restored, WireError> {
     let call = ctx.root_call();
-    let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.id })).await?;
-    let cwd = task.get("cwd").and_then(Value::as_str).unwrap_or_default().to_owned();
-    let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": a.id })).await?;
-    let turn = turns
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|t| t.get("id").and_then(Value::as_str) == Some(a.turn.as_str()))
-        .ok_or_else(|| WireError::not_found("No such turn on this task."))?;
-    let Some(cp) = turn.get("ext").and_then(of_turn) else {
+    let task = ctx.run::<rt::Get>(&call, rt::IdArgs { id: SessionId(a.id.clone()) }).await?;
+    let turns = ctx.run::<rt::Turns>(&call, rt::TurnsArgs { id: SessionId(a.id.clone()), before: None, limit: None, masked: None }).await?;
+    let turn = turns.iter().find(|t| t.id.as_str() == a.turn.as_str()).ok_or_else(|| WireError::not_found("No such turn on this task."))?;
+    let Some(cp) = of_turn(&turn.ext) else {
         return Err(WireError::invalid("This turn ran before checkpoints were kept: there's nothing to go back to."));
     };
-    let repo = svc.repo(&call, ctx.scope(), &cwd).await?;
+    let repo = svc.repo(&call, ctx.scope(), &task.cwd).await?;
     repo.restore(&call, &cp.to, &cp.head).await?;
-    let _ = repo.touch(&call, "restore");
+    if let Err(err) = repo.touch(&call, "restore") {
+        tracing::warn!(error = %err.message, task = %a.id, "git: touch after a restore");
+    }
     Ok(Restored { restored: true })
 }
 
@@ -107,8 +105,8 @@ mod tests {
 
     #[test]
     fn a_turns_checkpoint_is_read_from_its_ext() {
-        let ext = json!({ "wisp.git": { "checkpoint": { "to": "abc", "head": "def" } }, "other": 1 });
+        let ext: Ext = serde_json::from_value(json!({ "wisp.git": { "checkpoint": { "to": "abc", "head": "def" } }, "other": 1 })).unwrap();
         assert_eq!(of_turn(&ext).unwrap(), Checkpoint { to: "abc".into(), head: "def".into() });
-        assert!(of_turn(&json!({})).is_none(), "a turn from before checkpoints");
+        assert!(of_turn(&Ext::new()).is_none(), "a turn from before checkpoints");
     }
 }
