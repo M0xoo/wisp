@@ -263,7 +263,11 @@ mod tests {
         bytes.extend(server(true, 0, b"lo"));
         bytes.extend(server(true, 10, b""));
         bytes.extend(server(true, 8, &close_payload(1000, "bye")));
-        assert_eq!(d.feed(&bytes), vec![Event::Ping(b"p".to_vec()), Event::Text("hello".into()), Event::Close(1000, "bye".into())]);
+        assert_eq!(
+            d.feed(&bytes),
+            vec![Event::Ping(b"p".to_vec()), Event::Text("hello".into()), Event::Pong, Event::Close(1000, "bye".into())],
+            "a pong (the answer to our keep-alive ping, RFC 6455 §5.5.3) comes through for liveness"
+        );
     }
 
     #[test]
