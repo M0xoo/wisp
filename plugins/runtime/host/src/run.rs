@@ -81,7 +81,11 @@ fn shown(title: &str, summary: &str, status: &str) -> Presentation {
 impl Runtime {
     /// Starts `item` as the task's next turn. The turn id, also for one held or refused.
     pub async fn start_turn(self: &Arc<Self>, mut s: Session, item: QueueItem) -> Result<TurnId> {
+        let was = s.agent.clone();
         apply_opts(&mut s, &item);
+        let run = item.opts.as_ref().and_then(|o| o.get("run"));
+        let next = self.harness(&s.agent).ok();
+        crate::handoff::carry_over(&mut s, &was, opt_str(run, "model").is_some(), opt_str(run, "effort").is_some(), next.as_deref());
         let idx = self.repo.turns(s.id.as_str(), None, Some(1)).await?.last().map_or(0, |t| t.idx + 1);
         let mut turn = Turn {
             id: TurnId::new(),
@@ -158,6 +162,8 @@ impl Runtime {
         self.host.emit(Emitted::Started(TurnStarted { session_id: s.id.clone(), turn_id: turn.id.clone() }));
         // a task or My Stuff mentioned in the prompt (the turn as saved keeps the user's words)
         let asked = Turn { prompt: self.with_mentions(&s, &turn, harness.info()).await, ..turn.clone() };
+        // another harness taking over: what it missed goes first, with the user's rules (v1 handoff.js)
+        let asked = Turn { prompt: Box::pin(self.with_handoff(&s, &asked, asked.prompt.clone())).await, ..asked };
         let mut run = self.harness_run(&s, &asked, &ctx, harness.as_ref());
         run.grants = next
             .get("grants")

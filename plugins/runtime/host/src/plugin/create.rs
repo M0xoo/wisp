@@ -20,7 +20,8 @@ pub(super) fn create_and_follow_up(s: &mut Setup, slot: &Slot, made_kinds: Arc<K
     let start = slot.clone();
     s.command::<c::Create, _, _>(move |_ctx, call, a| {
         let (slot, ctx, kinds) = (start.clone(), c1.clone(), made_kinds.clone());
-        async move { create(&ctx, &call, &slot, &kinds, a).await }
+        // boxed: a create runs its first turn, whose future is large (clippy large_futures)
+        async move { Box::pin(create(&ctx, &call, &slot, &kinds, a)).await }
     });
     let follow = slot.clone();
     s.command::<c::FollowUp, _, _>(move |_ctx, call, a| {

@@ -22,6 +22,20 @@ pub struct Fake {
 }
 
 impl Fake {
+    /// Another fake harness (a hand-off's), with its own thinking levels.
+    pub fn named(id: &str, name: &str, efforts: &[&str]) -> Arc<dyn Harness> {
+        Arc::new(Self {
+            info: HarnessInfo {
+                id: id.into(),
+                name: name.into(),
+                models: vec![HarnessModel { id: format!("{id}-m"), label: "M".into(), hint: None, efforts: vec![] }],
+                efforts: efforts.iter().map(|e| (*e).to_owned()).collect(),
+                system_prompt_flag: true,
+                ..HarnessInfo::default()
+            },
+        })
+    }
+
     pub fn harness() -> Arc<dyn Harness> {
         Arc::new(Self {
             info: HarnessInfo {
@@ -101,6 +115,9 @@ impl Harness for Fake {
     }
 }
 
+/// Whether the fake CLI is signed in: a `signedout…` prompt fails signed out until a test sets it.
+pub static SIGNED_IN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// The answer a turn prints, by its prompt: `slow…` waits to be killed, `fail…` errors, `refuse…` turns it down,
 /// else a hero.
 pub fn script(prompt: &str) -> Vec<Value> {
@@ -111,6 +128,13 @@ pub fn script(prompt: &str) -> Vec<Value> {
     );
     if prompt.starts_with("fail") {
         return vec![json!({"type":"session","id":"conv-1"}), json!({"type":"result","text":"Error: boom\nmore","isError":true})];
+    }
+    // signed out on its first run, then fine once it runs again (the sign-in landed)
+    if prompt.starts_with("signedout") && !SIGNED_IN.load(std::sync::atomic::Ordering::SeqCst) {
+        return vec![
+            json!({"type":"session","id":"conv-1"}),
+            json!({"type":"result","text":"Not logged in · Please run /login","isError":true,"authFailed":true}),
+        ];
     }
     if prompt.starts_with("limit") {
         return vec![
@@ -163,10 +187,15 @@ pub struct Rig {
 }
 
 pub async fn rig_with(host: Recorder) -> Rig {
+    rig_on(host, vec![Fake::harness()]).await
+}
+
+/// A rig with these harnesses (each runs the fake CLI).
+pub async fn rig_on(host: Recorder, harnesses: Vec<Arc<dyn Harness>>) -> Rig {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
     schema::install(&store).unwrap();
     let sim = SimProc::new().program("fake", fake_cli);
-    let host = Arc::new(Recorder { harnesses: vec![Fake::harness()], ..host });
+    let host = Arc::new(Recorder { harnesses, ..host });
     let rt = Runtime::new(Repo::new(store.clone()), host.clone(), Arc::new(sim.clone()), Arc::new(SystemClock));
     rt.start().await.unwrap();
     Rig { rt, host, store, sim }

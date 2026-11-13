@@ -11,6 +11,7 @@ pub mod error;
 mod finish;
 mod found;
 mod group;
+mod handoff;
 pub mod host;
 mod importer;
 mod kinds;
