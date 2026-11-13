@@ -73,3 +73,14 @@ async fn a_forwarded_message_never_runs_as_my_words_whatever_its_forward_field()
         }
     }
 }
+
+#[tokio::test]
+async fn a_burst_of_updates_moves_the_offset_with_one_write_before_any_is_handled() {
+    let h = hub(false, &[update(5, message("one")), update(6, message("two")), update(7, message("three"))]);
+    run(&h).await;
+    let offsets: Vec<Value> =
+        h.cfg_writes.lock().unwrap().iter().filter_map(|(c, v)| v.get("offset").filter(|_| c == "telegram").cloned()).collect();
+    assert_eq!(offsets, [json!(8)], "one write per poll, the latest offset");
+    assert_eq!(said(&h).len(), 3, "each update is still handled");
+    assert_eq!(h.net.sent("getUpdates")[1]["offset"], 8, "the next poll asks past the burst");
+}

@@ -246,10 +246,63 @@ pub fn restore(st: &State, transport: &str, declared: &Value) -> Option<Value> {
     Some(Value::Object(kept))
 }
 
-/// Reads the tables (and the kept secrets) into `st`: the start's first act finds them.
-pub async fn read_into(ctx: &Ctx, st: &State, store: Store, secret_paths: &[(String, Vec<String>)]) -> wisp_store::Result<()> {
+/// `transport`'s channel was removed: its row and its kept secrets go, and what the hub holds for it (a channel
+/// declared again starts over). Nothing to drop (never declared, nothing kept): nothing is written. The row goes
+/// under the `written` lock and the secrets under `secrets_saved`, so a `put_kept` still in flight finds nothing
+/// newer to write back; a channel declared again before its secrets went keeps the new ones.
+pub fn drop_kept(ctx: &Ctx, st: &Arc<State>, transport: &str, secret_paths: &[&str]) {
+    let mut last = lock(&st.written);
+    let had = [
+        last.remove(transport).is_some(),
+        lock(&st.declared).remove(transport).is_some(),
+        lock(&st.restored).remove(transport).is_some(),
+        lock(&st.cfg).remove(transport).is_some(),
+    ];
+    lock(&st.secret_paths).remove(transport);
+    if !had.contains(&true) {
+        return;
+    }
+    if let Some(store) = st.store.get() {
+        let name = transport.to_owned();
+        store.write_detached(move |w| w.del(KEPT.kind, name).map(|_| ()));
+    }
+    drop(last);
+    let Ok(sec) = wisp_kernel::services::secrets(ctx) else { return };
+    let (st, transport) = (st.clone(), transport.to_owned());
+    let keys: Vec<String> = secret_paths.iter().map(|p| secret_key(&transport, p)).collect();
+    ctx.spawn(async move {
+        let mut saved = st.secrets_saved.lock().await;
+        // declared again since: its own `put_kept` writes every secret path afresh once `saved` forgets this one
+        let again = lock(&st.written).contains_key(&transport);
+        for key in keys.into_iter().filter(|_| !again) {
+            if let Err(e) = sec.delete(&key).await {
+                tracing::warn!(%key, "channels: a removed channel's kept secret wasn't deleted: {}", e.message);
+            }
+        }
+        saved.remove(&transport);
+    });
+}
+
+/// Of the origins read back at start, those whose task is gone (deleted while wisp.channels was off) go too. Only a
+/// task wisp.runtime says isn't there: one it couldn't answer for (off, not up yet) keeps its row.
+pub async fn prune_tasks(ctx: &Ctx, st: &State, ids: Vec<String>) {
+    for id in ids {
+        let gone = matches!(
+            crate::hub::typed::<wisp_runtime_api::commands::Get>(ctx, crate::hub::get(&id)).await,
+            Err(e) if e.code == wisp_kernel::Code::NotFound
+        );
+        if gone && st.forget(&id) {
+            drop_task(st, &id);
+        }
+    }
+}
+
+/// Reads the tables (and the kept secrets) into `st`: the start's first act finds them. Returns the ids of the
+/// tasks whose origin it read (`prune_tasks`).
+pub async fn read_into(ctx: &Ctx, st: &State, store: Store, secret_paths: &[(String, Vec<String>)]) -> wisp_store::Result<Vec<String>> {
     install(&store)?;
     let loaded = load(&store).await?;
+    let ids = loaded.tasks.iter().map(|(id, _)| id.clone()).collect();
     for (id, t) in loaded.tasks {
         st.put_row(&id, t);
     }
@@ -266,7 +319,7 @@ pub async fn read_into(ctx: &Ctx, st: &State, store: Store, secret_paths: &[(Str
     }
     *lock(&st.restored) = kept;
     let _ = st.store.set(store);
-    Ok(())
+    Ok(ids)
 }
 
 #[cfg(test)]

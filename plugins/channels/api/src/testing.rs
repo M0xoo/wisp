@@ -338,6 +338,8 @@ pub struct TestHub {
     pub mailed: Mailed,
     /// what the grid answers a box asking for its channel's URL (None: no hub there). Additive (2026-11-13).
     pub box_url: Option<ChannelUrl>,
+    /// every `set_cfg`, in order (a kept-state write each, on the real hub). Additive (2026-11-14).
+    pub cfg_writes: Mutex<Vec<(String, Value)>>,
 }
 
 impl std::fmt::Debug for TestHub {
@@ -412,6 +414,7 @@ impl ChannelHub for TestHub {
     }
     /// merged over what's kept, key by key, as wisp.channels' hub does
     fn set_cfg(&self, channel: &str, cfg: Value) {
+        lock(&self.cfg_writes).push((channel.to_owned(), cfg.clone()));
         let mut all = lock(&self.cfgs);
         let had = all.entry(channel.to_owned()).or_insert_with(|| json!({}));
         match (had.as_object_mut(), cfg) {

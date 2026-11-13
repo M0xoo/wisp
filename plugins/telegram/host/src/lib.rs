@@ -387,13 +387,19 @@ impl Transport for Telegram {
             match got {
                 Ok(updates) => {
                     self.mark(None);
-                    for raw in updates.as_array().into_iter().flatten() {
-                        let Some(u) = serde_json::to_vec(raw).ok().and_then(|b| Update::parse(&b)) else { continue };
-                        if u.update_id < offset {
-                            continue;
-                        }
-                        // the offset first: a crash while handling never hands the same /new back
-                        self.hub.set_cfg("telegram", json!({ "offset": u.update_id + 1 }));
+                    let fresh: Vec<Update> = updates
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|raw| serde_json::to_vec(raw).ok().and_then(|b| Update::parse(&b)))
+                        .filter(|u| u.update_id >= offset)
+                        .collect();
+                    // the offset first, once per poll (each write is a row): a crash while handling never hands the
+                    // same /new back, and a burst of updates is one write, not one each
+                    if let Some(next) = fresh.iter().map(|u| u.update_id + 1).max() {
+                        self.hub.set_cfg("telegram", json!({ "offset": next }));
+                    }
+                    for u in fresh {
                         self.on_update(u).await;
                     }
                 }

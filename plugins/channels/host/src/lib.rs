@@ -71,14 +71,20 @@ async fn act(ctx: &Ctx, live: &Arc<Live>) {
     if !live.st.loaded.load(std::sync::atomic::Ordering::Acquire) {
         return;
     }
-    kinds::read(k, &live.channels, &live.notes).await;
+    let read = kinds::read(k, &live.channels, &live.notes).await;
     for (_, (_, stop)) in lock(&live.running).drain() {
         stop.cancel();
     }
     let declared = lock(&live.channels).clone();
     let hub: Arc<dyn wisp_channels_api::ChannelHub> = Arc::new(Hub { ctx: ctx.clone(), st: live.st.clone() });
     for def in ctx.contributions(&TRANSPORTS) {
-        let Some((_, c)) = declared.iter().find(|(_, c)| c.transport == def.name()) else { continue };
+        let Some((_, c)) = declared.iter().find(|(_, c)| c.transport == def.name()) else {
+            // its channel was removed (now, or while wisp was off): what it kept goes too, its secrets with it
+            if read.as_ref().is_some_and(|named| !named.iter().any(|t| t == def.name())) {
+                kept::drop_kept(ctx, &live.st, def.name(), def.secrets());
+            }
+            continue;
+        };
         let cfg = config_of(ctx, c).await;
         {
             let keys: Vec<String> = cfg.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default();
@@ -363,8 +369,12 @@ impl Plugin for ChannelsPlugin {
                     .iter()
                     .map(|d| (d.name().to_owned(), d.secrets().iter().map(|p| (*p).to_owned()).collect()))
                     .collect();
-                if let Err(e) = kept::read_into(&ctx, &l.st, store.as_ref().clone(), &paths).await {
-                    tracing::warn!("channels: what was kept couldn't be read, so this run keeps it in memory: {e}");
+                match kept::read_into(&ctx, &l.st, store.as_ref().clone(), &paths).await {
+                    Ok(ids) => {
+                        let (c, st) = (ctx.clone(), l.st.clone());
+                        ctx.spawn(async move { kept::prune_tasks(&c, &st, ids).await });
+                    }
+                    Err(e) => tracing::warn!("channels: what was kept couldn't be read, so this run keeps it in memory: {e}"),
                 }
             } else {
                 tracing::warn!("channels: no store, so what a channel keeps lasts until a restart");

@@ -103,9 +103,13 @@ pub struct Kinds {
     pub notifications: Arc<StoredKind>,
 }
 
-pub async fn read(k: &Kinds, ch: &Channels, no: &Notifications) {
-    let c =
-        k.channels.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect();
+/// Re-reads the declared channels and notifications. Returns the transports some channel names, read raw (a spec
+/// that doesn't parse still names its transport), or `None` when the channels couldn't be read: neither is a sign
+/// that a channel was removed.
+pub async fn read(k: &Kinds, ch: &Channels, no: &Notifications) -> Option<Vec<String>> {
+    let specs = k.channels.specs().await;
+    let named = specs.as_ref().ok().map(|s| s.iter().filter_map(|(_, v)| Some(v.get("transport")?.as_str()?.to_owned())).collect());
+    let c = specs.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect();
     let n = k
         .notifications
         .specs()
@@ -116,6 +120,7 @@ pub async fn read(k: &Kinds, ch: &Channels, no: &Notifications) {
         .collect();
     *ch.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = c;
     *no.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = n;
+    named
 }
 
 pub fn register(s: &mut Setup, after: &OnChange) -> Arc<Kinds> {

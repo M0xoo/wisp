@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: channels tidy what they keep.** A task deleted while wisp was off loses its kept chat link at the next start; removing a channel deletes what it kept (link, poll offset, webhook secret); Telegram writes its poll offset once per poll instead of once per update.
 - **v2: channels remember across a restart.** A task started from Slack, Discord, GitHub, email or Telegram still reports back to its thread after wisp restarts, and Telegram stays linked and doesn't hand back updates it already handled.
 - **v2: accounts as in v1.** Pick the account a task runs on in the harness · model picker; plan budget per account with its windows, stop line and banked resets; where the weekly window went; tokens per turn by account; Re-check works again; Auto moves on when a model is at capacity; wisp finds Claude Code in more places. A run on a second account no longer counts on the default one.
 - **v2: automations as in v1.** Webhook triggers are HMAC-signed; Linear and task-done triggers; Slack and Linear triggers fire again; a scheduled follow-up can be edited or moved in place and shows under Scheduled in the list.

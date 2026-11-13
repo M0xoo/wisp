@@ -61,6 +61,9 @@ impl Plugin for Runtime {
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.command::<r::Get, _, _>(|_, _, a: r::IdArgs| async move {
+            if a.id.0 == "gone" {
+                return Err(wisp_kernel::WireError::not_found("no task gone"));
+            }
             Ok(serde_json::from_value(
                 json!({ "id": a.id.0, "title": "Fix login", "cwd": "/w/api", "agent": "claude", "model": "", "effort": "",
                 "mode": "edits", "state": "review", "createdAt": 0, "updatedAt": 0 }),
@@ -285,4 +288,79 @@ async fn a_new_bot_token_while_off_starts_telegrams_kept_state_over() {
         row(&store, "chan_kept", "telegram").await.is_some_and(|b| b["kept"].get("chatId").is_none())
     })
     .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_kept_origin_whose_task_was_deleted_while_off_is_dropped_at_start() {
+    let (out, slot) = (Published::default(), HubSlot::default());
+    let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
+    let secrets: wisp_kernel::services::SecretsService = Arc::new(Secrets::default());
+    let k = TestApp::new()
+        .service(store.clone())
+        .service(secrets)
+        .with(wisp_resources::ResourcesPlugin)
+        .with(ChannelsPlugin)
+        .with(Runtime(Some((out.clone(), slot.clone()))))
+        .start()
+        .await;
+    k.call(
+        Caller::user(),
+        "resources.apply",
+        json!({ "resources": [{ "kind": "channel", "name": "fake", "spec": { "transport": "fake", "enabled": true } }] }),
+    )
+    .await
+    .unwrap();
+    eventually("the transport is made", async || slot.lock().unwrap().is_some()).await;
+    let hub = slot.lock().unwrap().clone().unwrap();
+    hub.mark_started("s1", "fake", None);
+    hub.mark_started("gone", "fake", None);
+    eventually("both origins are written", async || {
+        row(&store, "chan_task", "s1").await.is_some() && row(&store, "chan_task", "gone").await.is_some()
+    })
+    .await;
+
+    *slot.lock().unwrap() = None;
+    restart(&k).await; // `gone` was deleted while wisp.channels was off: no SessionDeleted reached it
+    eventually("the deleted task's origin goes", async || row(&store, "chan_task", "gone").await.is_none()).await;
+    eventually("the transport is made again", async || slot.lock().unwrap().is_some()).await;
+    let hub = slot.lock().unwrap().clone().unwrap();
+    assert_eq!(hub.started_from("gone"), None, "nor is it held in memory");
+    assert!(row(&store, "chan_task", "s1").await.is_some(), "a task that's there keeps its origin");
+    assert_eq!(hub.started_from("s1"), Some(("fake".to_owned(), None)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn removing_telegrams_channel_drops_its_kept_row_and_its_kept_secret() {
+    let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
+    let secrets = Arc::new(Secrets::default());
+    let bot = Arc::new(BotApi::default());
+    let (sec, net): (wisp_kernel::services::SecretsService, wisp_kernel::services::NetService) = (secrets.clone(), bot.clone());
+    let k = TestApp::new()
+        .service(store.clone())
+        .service(sec)
+        .service(net)
+        .with(wisp_resources::ResourcesPlugin)
+        .with(ChannelsPlugin)
+        .with(wisp_telegram::TelegramPlugin)
+        .with(Runtime(None))
+        .start()
+        .await;
+    let tg = json!({ "kind": "channel", "name": "tg", "spec": { "transport": "telegram", "enabled": true, "token": "123:abc", "routing": { "linkCode": "123456" } } });
+    k.call(Caller::user(), "resources.apply", json!({ "resources": [tg] })).await.unwrap();
+    eventually("linked", async || row(&store, "chan_kept", "telegram").await.is_some_and(|b| b["kept"]["chatId"] == "42")).await;
+    // a webhook's secret as `put_kept` keeps it (polling here keeps none)
+    secrets.0.lock().unwrap().insert("channels/kept/telegram/hook.secret".into(), "\"s\"".into());
+
+    k.call(Caller::user(), "resources.apply", json!({ "resources": [], "destroy": ["channel.tg"], "trust": true })).await.unwrap();
+    eventually("its row goes", async || row(&store, "chan_kept", "telegram").await.is_none()).await;
+    eventually("its kept secret goes", async || !secrets.0.lock().unwrap().contains_key("channels/kept/telegram/hook.secret")).await;
+    assert!(secrets.0.lock().unwrap().contains_key("channels/sign"), "the hub's own key stays");
+
+    // declared again with the same bot: it starts over (no link carried over)
+    let polled = bot.sent("getUpdates").len();
+    k.call(Caller::user(), "resources.apply", json!({ "resources": [{ "kind": "channel", "name": "tg", "spec": { "transport": "telegram", "enabled": true, "token": "123:abc" } }] }))
+        .await
+        .unwrap();
+    eventually("it polls again", async || bot.sent("getUpdates").len() > polled).await;
+    assert_eq!(bot.sent("getUpdates")[polled]["offset"], 0, "nothing kept from before the removal");
 }
