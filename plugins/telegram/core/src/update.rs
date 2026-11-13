@@ -83,23 +83,14 @@ pub struct Message {
 
 impl Message {
     pub fn reply_to(&self) -> Option<i64> {
-        self.reply_to_message
-            .as_ref()
-            .map(|r| r.message_id)
-            .filter(|id| *id != 0)
+        self.reply_to_message.as_ref().map(|r| r.message_id).filter(|id| *id != 0)
     }
     /// Who is counted by the rate limit: the person, when the allowed id is a whole chat.
     pub fn rate_key(&self) -> String {
-        self.from
-            .as_ref()
-            .and_then(|f| f.id.clone())
-            .unwrap_or_else(|| self.chat.id.clone())
+        self.from.as_ref().and_then(|f| f.id.clone()).unwrap_or_else(|| self.chat.id.clone())
     }
     pub fn sender_name(&self) -> String {
-        self.from
-            .as_ref()
-            .and_then(|f| f.first_name.clone())
-            .unwrap_or_default()
+        self.from.as_ref().and_then(|f| f.first_name.clone()).unwrap_or_default()
     }
 }
 
@@ -123,16 +114,10 @@ pub struct CallbackQuery {
 
 impl CallbackQuery {
     pub fn chat_id(&self) -> Option<&str> {
-        self.message
-            .as_ref()
-            .and_then(|m| m.chat.as_ref())
-            .map(|c| c.id.as_str())
+        self.message.as_ref().and_then(|m| m.chat.as_ref()).map(|c| c.id.as_str())
     }
     pub fn message_id(&self) -> Option<i64> {
-        self.message
-            .as_ref()
-            .map(|m| m.message_id)
-            .filter(|id| *id != 0)
+        self.message.as_ref().map(|m| m.message_id).filter(|id| *id != 0)
     }
 }
 
@@ -163,23 +148,13 @@ impl Update {
     }
 }
 
-const FORWARD_FIELDS: &[&str] = &[
-    "forward_origin",
-    "forward_from",
-    "forward_from_chat",
-    "forward_sender_name",
-    "forward_date",
-    "is_automatic_forward",
-];
+const FORWARD_FIELDS: &[&str] =
+    &["forward_origin", "forward_from", "forward_from_chat", "forward_sender_name", "forward_date", "is_automatic_forward"];
 
 /// A forward's text is someone else's, but it arrives as the linked person's message, so it must
 /// not run as theirs. The old fields count too: Bot API 7.0 replaced them, and old payloads have them.
 pub fn forwarded(m: &Message) -> bool {
-    FORWARD_FIELDS.iter().any(|f| {
-        m.rest
-            .get(*f)
-            .is_some_and(|v| !v.is_null() && *v != Value::Bool(false))
-    })
+    FORWARD_FIELDS.iter().any(|f| m.rest.get(*f).is_some_and(|v| !v.is_null() && *v != Value::Bool(false)))
 }
 
 /// The name Settings shows for a linked chat.
@@ -187,25 +162,14 @@ pub fn chat_name(c: &Chat) -> String {
     if let Some(t) = c.title.as_deref().filter(|t| !t.is_empty()) {
         return t.to_owned();
     }
-    let full = [c.first_name.as_deref(), c.last_name.as_deref()]
-        .into_iter()
-        .flatten()
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    if full.is_empty() {
-        c.username.clone().unwrap_or_default()
-    } else {
-        full
-    }
+    let full =
+        [c.first_name.as_deref(), c.last_name.as_deref()].into_iter().flatten().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" ");
+    if full.is_empty() { c.username.clone().unwrap_or_default() } else { full }
 }
 
 /// `/name@bot rest`, as v1 read it: the command (lower-cased) and the rest, trimmed. `None`: not one.
 pub fn slash_command(text: &str) -> Option<(String, &str)> {
-    let word = |s: &str| {
-        s.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-            .unwrap_or(s.len())
-    };
+    let word = |s: &str| s.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(s.len());
     let body = text.strip_prefix('/')?;
     let end = word(body);
     if end == 0 {
@@ -253,11 +217,7 @@ mod tests {
     #[test]
     fn solo_by_type_then_sign() {
         assert!(msg(json!({"chat":{"id":5,"type":"private"}})).chat.solo());
-        assert!(
-            !msg(json!({"chat":{"id":5,"type":"supergroup"}}))
-                .chat
-                .solo()
-        );
+        assert!(!msg(json!({"chat":{"id":5,"type":"supergroup"}})).chat.solo());
         assert!(msg(json!({"chat":{"id":5}})).chat.solo());
         assert!(!msg(json!({"chat":{"id":-5}})).chat.solo());
     }
@@ -267,45 +227,26 @@ mod tests {
         for f in FORWARD_FIELDS {
             assert!(forwarded(&msg(json!({ "text": "x", *f: 1 }))), "{f}");
         }
-        assert!(!forwarded(&msg(
-            json!({"text":"x","is_automatic_forward":false})
-        )));
+        assert!(!forwarded(&msg(json!({"text":"x","is_automatic_forward":false}))));
         assert!(!forwarded(&msg(json!({"text":"x","forward_date":null}))));
-        assert!(!forwarded(&msg(
-            json!({"text":"x","quote":{"text":"theirs"}})
-        )));
+        assert!(!forwarded(&msg(json!({"text":"x","quote":{"text":"theirs"}}))));
     }
 
     #[test]
     fn names() {
-        assert_eq!(
-            chat_name(&msg(json!({"chat":{"id":1,"title":"Team"}})).chat),
-            "Team"
-        );
-        assert_eq!(
-            chat_name(&msg(json!({"chat":{"id":1,"first_name":"Ada","last_name":"L"}})).chat),
-            "Ada L"
-        );
-        assert_eq!(
-            chat_name(&msg(json!({"chat":{"id":1,"username":"ada"}})).chat),
-            "ada"
-        );
+        assert_eq!(chat_name(&msg(json!({"chat":{"id":1,"title":"Team"}})).chat), "Team");
+        assert_eq!(chat_name(&msg(json!({"chat":{"id":1,"first_name":"Ada","last_name":"L"}})).chat), "Ada L");
+        assert_eq!(chat_name(&msg(json!({"chat":{"id":1,"username":"ada"}})).chat), "ada");
     }
 
     #[test]
     fn commands() {
         assert_eq!(slash_command("/new fix it"), Some(("new".into(), "fix it")));
-        assert_eq!(
-            slash_command("/New@wispbot  @api fix"),
-            Some(("new".into(), "@api fix"))
-        );
+        assert_eq!(slash_command("/New@wispbot  @api fix"), Some(("new".into(), "@api fix")));
         assert_eq!(slash_command("/help"), Some(("help".into(), "")));
         assert_eq!(slash_command("/newfoo"), Some(("newfoo".into(), "")));
         assert_eq!(slash_command("/ new"), None);
         assert_eq!(slash_command("new"), None);
-        assert_eq!(
-            slash_command("/new\nline two"),
-            Some(("new".into(), "line two"))
-        );
+        assert_eq!(slash_command("/new\nline two"), Some(("new".into(), "line two")));
     }
 }

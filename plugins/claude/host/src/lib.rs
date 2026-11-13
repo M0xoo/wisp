@@ -13,10 +13,13 @@ mod launch;
 use std::sync::{Arc, Mutex};
 
 use wisp_claude_core::{ClaudeOptions, ClaudeParser};
+use wisp_harness_kit::Re;
 use wisp_harness_kit::RunPaths;
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
-use wisp_harness_kit::Re;
-use wisp_runtime_api::harness::{ExecReq, HarnessAccounts, HarnessFound, HarnessInfo, HarnessLogin, HarnessModel, HarnessRun, HarnessSys, Launch, PermissionAsk, RunDriver, SetupTip};
+use wisp_runtime_api::harness::{
+    ExecReq, HarnessAccounts, HarnessFound, HarnessInfo, HarnessLogin, HarnessModel, HarnessRun, HarnessSys, Launch, PermissionAsk,
+    RunDriver, SetupTip,
+};
 use wisp_runtime_api::{HARNESS, Harness};
 
 pub use launch::{DEFAULT_BIN, launch};
@@ -50,7 +53,9 @@ pub fn info() -> HarnessInfo {
 }
 
 /// What a run says when it is signed out (v1 agent-login.js LOGINS.claude.authFailed).
-static AUTH_FAILED: Re = Re::new(r"(?im)^(?:Not logged in|Login expired|OAuth token revoked|Login reached its time limit|Authentication required|Failed to authenticate)\b|please run /login|run /login to (?:sign in|re-?authenticate)|oauth (?:access )?token has (?:expired|been revoked)|authentication_error|authentication_failed");
+static AUTH_FAILED: Re = Re::new(
+    r"(?im)^(?:Not logged in|Login expired|OAuth token revoked|Login reached its time limit|Authentication required|Failed to authenticate)\b|please run /login|run /login to (?:sign in|re-?authenticate)|oauth (?:access )?token has (?:expired|been revoked)|authentication_error|authentication_failed",
+);
 static LOGGED_IN: Re = Re::new(r#""loggedIn":\s*(true|false)"#);
 
 /// Signing in from wisp (v1 agent-login.js LOGINS.claude).
@@ -62,7 +67,13 @@ pub fn login() -> HarnessLogin {
         args: v(&["auth", "login", "--claudeai"]),
         logout: v(&["auth", "logout"]),
         status: v(&["auth", "status"]),
-        keys: v(&["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"]),
+        keys: v(&[
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX",
+        ]),
         ..HarnessLogin::default()
     }
 }
@@ -72,7 +83,9 @@ pub fn accounts() -> HarnessAccounts {
     HarnessAccounts {
         env: "CLAUDE_CONFIG_DIR".into(),
         home_dir: ".claude".into(),
-        own: [".credentials.json", ".claude.json", ".claude.json.lock", "backups", "statsig", "session-env", "shell-snapshots"].map(str::to_owned).to_vec(),
+        own: [".credentials.json", ".claude.json", ".claude.json.lock", "backups", "statsig", "session-env", "shell-snapshots"]
+            .map(str::to_owned)
+            .to_vec(),
         resumes: true,
         extra: "https://support.claude.com/en/articles/11145838".into(),
         label: "Claude".into(),
@@ -109,7 +122,10 @@ impl Harness for ClaudeHarness {
     }
     /// Claude Code runs a project's hooks and plugins from its settings files, and its MCP servers from `.mcp.json`.
     fn project_hooks(&self) -> Option<wisp_runtime_api::harness::ProjectHooks> {
-        Some(wisp_runtime_api::harness::ProjectHooks { settings: vec![".claude/settings.json".into(), ".claude/settings.local.json".into()], mcp: Some(".mcp.json".into()) })
+        Some(wisp_runtime_api::harness::ProjectHooks {
+            settings: vec![".claude/settings.json".into(), ".claude/settings.local.json".into()],
+            mcp: Some(".mcp.json".into()),
+        })
     }
     /// Claude Code loads `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`) and the project's `.claude/skills`.
     fn skill_dirs(&self, cwd: &str) -> Vec<(std::path::PathBuf, String)> {
@@ -174,11 +190,20 @@ impl Harness for ClaudeHarness {
     }
 
     fn program(&self) -> Option<String> {
-        Some(self.found_bin().or_else(|| std::env::var("WISP_CLAUDE_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned()))
+        Some(
+            self.found_bin()
+                .or_else(|| std::env::var("WISP_CLAUDE_BIN").ok().filter(|b| !b.is_empty()))
+                .unwrap_or_else(|| DEFAULT_BIN.to_owned()),
+        )
     }
 
     fn launch(&self, run: &HarnessRun) -> Result<Launch> {
-        let bin = run.bin.clone().or_else(|| self.found_bin()).or_else(|| std::env::var("WISP_CLAUDE_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned());
+        let bin = run
+            .bin
+            .clone()
+            .or_else(|| self.found_bin())
+            .or_else(|| std::env::var("WISP_CLAUDE_BIN").ok().filter(|b| !b.is_empty()))
+            .unwrap_or_else(|| DEFAULT_BIN.to_owned());
         Ok(launch(run, &bin))
     }
 
@@ -193,7 +218,12 @@ impl Harness for ClaudeHarness {
     fn permission(&self, tool: &str, input: &serde_json::Value, cwd: &str) -> Option<PermissionAsk> {
         let paths = RunPaths::same(cwd);
         let why = (tool == "Bash").then(|| input["description"].as_str().unwrap_or("").to_owned()).filter(|w| !w.is_empty());
-        Some(PermissionAsk { tool: tool.to_owned(), action: wisp_claude_core::describe::action_of(tool, input, &paths), detail: wisp_claude_core::describe::detail_of(tool, input, &paths), why })
+        Some(PermissionAsk {
+            tool: tool.to_owned(),
+            action: wisp_claude_core::describe::action_of(tool, input, &paths),
+            detail: wisp_claude_core::describe::detail_of(tool, input, &paths),
+            why,
+        })
     }
 
     fn login(&self) -> Option<&HarnessLogin> {
@@ -254,10 +284,37 @@ mod tests {
     fn resume_command_is_v1s() {
         use wisp_runtime_api::harness::ResumeOptions;
         let h = ClaudeHarness::default();
-        let o = ResumeOptions { session_id: Some("u-1".into()), model: "opus".into(), mode: Some(wisp_runtime_api::model::Mode::Edits), system_prompt: Some("SYS".into()), dirs: vec!["/d".into()], prompt: Some("-x fix".into()), ..ResumeOptions::default() };
+        let o = ResumeOptions {
+            session_id: Some("u-1".into()),
+            model: "opus".into(),
+            mode: Some(wisp_runtime_api::model::Mode::Edits),
+            system_prompt: Some("SYS".into()),
+            dirs: vec!["/d".into()],
+            prompt: Some("-x fix".into()),
+            ..ResumeOptions::default()
+        };
         let argv = h.resume_command(&o).map(|c| c.argv).unwrap_or_default();
-        assert_eq!(argv[1..], ["--session-id", "u-1", "--model", "opus", "--permission-mode", "acceptEdits", "--append-system-prompt", "SYS", "--add-dir", "/d", "--", "-x fix"]);
-        let r = h.resume_command(&ResumeOptions { resume_id: Some("u-1".into()), session_id: Some("u-2".into()), ..ResumeOptions::default() }).map(|c| c.argv).unwrap_or_default();
+        assert_eq!(
+            argv[1..],
+            [
+                "--session-id",
+                "u-1",
+                "--model",
+                "opus",
+                "--permission-mode",
+                "acceptEdits",
+                "--append-system-prompt",
+                "SYS",
+                "--add-dir",
+                "/d",
+                "--",
+                "-x fix"
+            ]
+        );
+        let r = h
+            .resume_command(&ResumeOptions { resume_id: Some("u-1".into()), session_id: Some("u-2".into()), ..ResumeOptions::default() })
+            .map(|c| c.argv)
+            .unwrap_or_default();
         assert_eq!(r[1..], ["--resume", "u-1"], "resumed, never named again");
     }
 

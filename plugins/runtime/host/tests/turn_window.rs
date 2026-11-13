@@ -29,12 +29,14 @@ fn turn(session: &str, idx: usize) -> Map<String, Value> {
     let id = format!("{session}-t{idx}");
     let text = "The answer, in a few paragraphs. ".repeat(60);
     let by = if idx == 3 { json!("compact") } else { Value::Null };
-    obj(json!({ "id": id, "session_id": session, "idx": idx, "status": "done", "started_at": idx, "ended_at": idx + 1, "prompt": format!("ask {idx}"),
+    obj(
+        json!({ "id": id, "session_id": session, "idx": idx, "status": "done", "started_at": idx, "ended_at": idx + 1, "prompt": format!("ask {idx}"),
       "answer": text, "body": { "id": id, "sessionId": session, "idx": idx, "prompt": format!("ask {idx}"), "status": "done", "by": by, "text": text,
         "stats": { "inputTokens": 1000, "outputTokens": 200, "costUsd": 0.01 }, "nEvents": EVENTS_PER_TURN,
         "presentation": { "blocks": [{ "type": "hero", "title": format!("Did {idx}"), "summary": "what changed" }, { "type": "markdown", "text": text }] },
         "ext": { "wisp.git": { "checkpoint": { "to": "abc", "head": "def" } },
-                 "wisp.runtime": { "changes": [{ "file": "/w/src/a.ts", "edits": [{ "old": "x".repeat(800), "new": "y".repeat(800) }] }] } } } }))
+                 "wisp.runtime": { "changes": [{ "file": "/w/src/a.ts", "edits": [{ "old": "x".repeat(800), "new": "y".repeat(800) }] }] } } } }),
+    )
 }
 
 /// A tool call and its output (~1.5 KB, a Read or a Bash).
@@ -103,7 +105,12 @@ fn a_long_task_with_many_subagents_opens_as_a_window_bytes_before_and_after() {
     let before = feed_rows(&store, "session:lead");
     let after = read(&store, "session:lead");
     let (b, a) = (bytes(&before), bytes(&after));
-    println!("session:lead first look, {TURNS} turns × {EVENTS_PER_TURN} events, {SUBAGENTS} subagents: before {b} B ({:.1} MB), after {a} B ({:.2} MB), {:.0}× less", b as f64 / 1e6, a as f64 / 1e6, b as f64 / a as f64);
+    println!(
+        "session:lead first look, {TURNS} turns × {EVENTS_PER_TURN} events, {SUBAGENTS} subagents: before {b} B ({:.1} MB), after {a} B ({:.2} MB), {:.0}× less",
+        b as f64 / 1e6,
+        a as f64 / 1e6,
+        b as f64 / a as f64
+    );
     assert!(a * 10 < b, "the window is a tenth or less of the whole task: {a} vs {b}");
     let turns = turns_of(&after);
     assert_eq!(turns.len(), TURNS, "every turn is there, for the folded rows and the usage card");

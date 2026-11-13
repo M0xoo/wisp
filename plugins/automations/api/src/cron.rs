@@ -55,13 +55,8 @@ impl From<CronError> for wisp_kernel::WireError {
 }
 
 /// `@daily` and friends (v1 triggers.js:54).
-pub const CRON_ALIASES: [(&str, &str); 5] = [
-    ("@hourly", "0 * * * *"),
-    ("@daily", "0 0 * * *"),
-    ("@weekly", "0 0 * * 0"),
-    ("@monthly", "0 0 1 * *"),
-    ("@weekdays", "0 9 * * 1-5"),
-];
+pub const CRON_ALIASES: [(&str, &str); 5] =
+    [("@hourly", "0 * * * *"), ("@daily", "0 0 * * *"), ("@weekly", "0 0 * * 0"), ("@monthly", "0 0 1 * *"), ("@weekdays", "0 9 * * 1-5")];
 
 /// A parsed cron: one bit per allowed value of each field, and whether a day field was `*` (or `*/n`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -75,13 +70,7 @@ pub struct Cron {
     dow_any: bool,
 }
 
-const FIELDS: [(&str, u32, u32); 5] = [
-    ("minute", 0, 59),
-    ("hour", 0, 23),
-    ("dom", 1, 31),
-    ("month", 1, 12),
-    ("dow", 0, 6),
-];
+const FIELDS: [(&str, u32, u32); 5] = [("minute", 0, 59), ("hour", 0, 23), ("dom", 1, 31), ("month", 1, 12), ("dow", 0, 6)];
 
 fn bad(name: &str, piece: &str) -> CronError {
     CronError(format!("Bad {name} field: {piece}"))
@@ -102,10 +91,7 @@ fn read_field(name: &str, lo: u32, hi: u32, part: &str) -> Result<u64, CronError
         let (mut a, mut b) = if range == "*" {
             (lo, hi)
         } else if let Some((x, y)) = range.split_once('-') {
-            (
-                num(x).ok_or_else(|| bad(name, piece))?,
-                num(y).ok_or_else(|| bad(name, piece))?,
-            )
+            (num(x).ok_or_else(|| bad(name, piece))?, num(y).ok_or_else(|| bad(name, piece))?)
         } else {
             let a = num(range).ok_or_else(|| bad(name, piece))?;
             (a, if step.is_some() { hi } else { a })
@@ -137,15 +123,10 @@ fn read_field(name: &str, lo: u32, hi: u32, part: &str) -> Result<u64, CronError
 /// A cron (or an alias such as `@daily`) → its fields, or why it isn't one.
 pub fn parse_cron(expr: &str) -> Result<Cron, CronError> {
     let said = expr.trim();
-    let src = CRON_ALIASES
-        .iter()
-        .find(|(a, _)| *a == said)
-        .map_or(said, |(_, c)| c);
+    let src = CRON_ALIASES.iter().find(|(a, _)| *a == said).map_or(said, |(_, c)| c);
     let parts: Vec<&str> = src.split_whitespace().collect();
     if parts.len() != 5 {
-        return Err(CronError(
-            "A schedule needs 5 fields: minute hour day-of-month month day-of-week".into(),
-        ));
+        return Err(CronError("A schedule needs 5 fields: minute hour day-of-month month day-of-week".into()));
     }
     let mut sets = [0u64; 5];
     for (i, (name, lo, hi)) in FIELDS.iter().enumerate() {
@@ -187,11 +168,7 @@ fn civil(days: i64) -> (i64, u32, u32) {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = yoe + era * 400 + i64::from(m <= 2);
-    (
-        y,
-        u32::try_from(m).unwrap_or(1),
-        u32::try_from(d).unwrap_or(1),
-    )
+    (y, u32::try_from(m).unwrap_or(1), u32::try_from(d).unwrap_or(1))
 }
 
 // days_from_civil: (year, month, day) → days since 1970-01-01.
@@ -228,11 +205,7 @@ impl Cron {
     fn day_ok(&self, l: &Local) -> bool {
         let dom = self.dom & (1 << l.day) != 0;
         let dow = self.dow & (1 << l.weekday) != 0;
-        if !self.dom_any && !self.dow_any {
-            dom || dow
-        } else {
-            dom && dow
-        }
+        if !self.dom_any && !self.dow_any { dom || dow } else { dom && dow }
     }
     fn hour_ok(&self, l: &Local) -> bool {
         self.hour & (1 << l.hour) != 0
@@ -270,11 +243,7 @@ pub fn next_run(c: &Cron, from: i64, zone: &dyn Zone) -> Option<i64> {
     while at < end {
         let lf = local_fields(at);
         if !c.month_ok(&lf) {
-            let (y, m) = if lf.month == 12 {
-                (lf.year + 1, 1)
-            } else {
-                (lf.year, lf.month + 1)
-            };
+            let (y, m) = if lf.month == 12 { (lf.year + 1, 1) } else { (lf.year, lf.month + 1) };
             at = days_from(y, m, 1) * DAY;
         } else if !c.day_ok(&lf) {
             at = at.div_euclid(DAY) * DAY + DAY;
@@ -310,16 +279,6 @@ pub fn read_schedule(text: &str) -> Result<String, CronError> {
 }
 
 /// Local wall time → UTC ms, for tests and callers that build instants from a date.
-pub fn local_to_utc(
-    year: i64,
-    month: u32,
-    day: u32,
-    hour: u32,
-    minute: u32,
-    zone: &dyn Zone,
-) -> i64 {
-    to_utc(
-        days_from(year, month, day) * DAY + i64::from(hour) * HOUR + i64::from(minute) * MINUTE,
-        zone,
-    )
+pub fn local_to_utc(year: i64, month: u32, day: u32, hour: u32, minute: u32, zone: &dyn Zone) -> i64 {
+    to_utc(days_from(year, month, day) * DAY + i64::from(hour) * HOUR + i64::from(minute) * MINUTE, zone)
 }

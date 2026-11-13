@@ -11,9 +11,7 @@
 
 use serde_json::{Value, json};
 use wisp_runtime_api::harness::HarnessStats;
-use wisp_runtime_api::model::{
-    ChangeOp, FileChange, Presentation, SessionState, TurnStats, TurnStatus,
-};
+use wisp_runtime_api::model::{ChangeOp, FileChange, Presentation, SessionState, TurnStats, TurnStatus};
 use wisp_runtime_api::points::Outcome;
 
 /// What ended the turn.
@@ -32,28 +30,19 @@ pub struct Ending<'a> {
 }
 
 fn clip_chars(s: &str, n: usize) -> String {
-    if s.chars().count() > n {
-        format!("{}…", s.chars().take(n - 1).collect::<String>())
-    } else {
-        s.to_owned()
-    }
+    if s.chars().count() > n { format!("{}…", s.chars().take(n - 1).collect::<String>()) } else { s.to_owned() }
 }
 
 /// The first non-blank line of an error, at most 200 characters (v1 `firstLine`).
 pub fn first_line(text: &str) -> String {
-    let line = text
-        .lines()
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or("")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let line = text.lines().find(|l| !l.trim().is_empty()).unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ");
     clip_chars(&line, 200)
 }
 
 fn files_block(changes: &[FileChange]) -> Option<Value> {
     (!changes.is_empty()).then(|| {
-        let items: Vec<Value> = changes.iter().map(|c| json!({ "path": c.file, "change": if c.op == ChangeOp::Add { "added" } else { "modified" } })).collect();
+        let items: Vec<Value> =
+            changes.iter().map(|c| json!({ "path": c.file, "change": if c.op == ChangeOp::Add { "added" } else { "modified" } })).collect();
         json!({ "type": "files", "items": items })
     })
 }
@@ -63,30 +52,17 @@ fn hero(title: &str, summary: &str, status: &str) -> Value {
 }
 
 fn shown(blocks: Vec<Value>) -> Presentation {
-    Presentation {
-        blocks,
-        v: crate::blocks::PARSER_VERSION,
-        ..Presentation::default()
-    }
+    Presentation { blocks, v: crate::blocks::PARSER_VERSION, ..Presentation::default() }
 }
 
 /// The turn's status and what it shows. `answer`: the parsed answer (`blocks::presentation`), used when
 /// the run finished well.
-pub fn end_presentation(
-    e: &Ending<'_>,
-    answer: impl FnOnce(&str) -> Presentation,
-) -> (TurnStatus, Presentation) {
+pub fn end_presentation(e: &Ending<'_>, answer: impl FnOnce(&str) -> Presentation) -> (TurnStatus, Presentation) {
     if e.stopped {
         let (title, summary) = if e.interrupted {
-            (
-                "Interrupted",
-                "You sent a follow-up while this was running, so it picked that up instead.",
-            )
+            ("Interrupted", "You sent a follow-up while this was running, so it picked that up instead.")
         } else {
-            e.reason.unwrap_or((
-                "Stopped",
-                "You stopped this run. Follow up to pick it back up.",
-            ))
+            e.reason.unwrap_or(("Stopped", "You stopped this run. Follow up to pick it back up."))
         };
         let mut blocks = vec![hero(title, summary, "partial")];
         blocks.extend(files_block(e.changes));
@@ -94,16 +70,8 @@ pub fn end_presentation(
     }
     if e.is_error {
         let summary = first_line(e.text);
-        let summary = if summary.is_empty() {
-            "It ended without saying why.".to_owned()
-        } else {
-            summary
-        };
-        let name = if e.harness.is_empty() {
-            "This harness"
-        } else {
-            e.harness
-        };
+        let summary = if summary.is_empty() { "It ended without saying why.".to_owned() } else { summary };
+        let name = if e.harness.is_empty() { "This harness" } else { e.harness };
         let blocks = vec![
             hero(&format!("{name} failed"), &summary, "blocked"),
             json!({ "type": "terminal", "output": if e.text.is_empty() { "No output." } else { e.text }, "exitCode": 1 }),
@@ -123,24 +91,13 @@ pub fn topic_title(p: &Presentation) -> Option<String> {
         .find(|b| b.get("type").and_then(Value::as_str) == Some("hero"))
         .and_then(|h| h.get("topic"))
         .and_then(Value::as_str);
-    let t = [hero_topic, p.topic.as_deref()]
-        .into_iter()
-        .flatten()
-        .map(str::trim)
-        .find(|t| !t.is_empty())?;
+    let t = [hero_topic, p.topic.as_deref()].into_iter().flatten().map(str::trim).find(|t| !t.is_empty())?;
     Some(clip_chars(t, 64))
 }
 
 /// v1 `autoTitle(prompt)`: the prompt's first line, whitespace collapsed, at most 64 characters.
 pub fn auto_title(prompt: &str) -> String {
-    let line = prompt
-        .trim()
-        .lines()
-        .next()
-        .unwrap_or("")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let line = prompt.trim().lines().next().unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ");
     clip_chars(&line, 64)
 }
 
@@ -153,23 +110,15 @@ pub fn turn_stats(s: &HarnessStats) -> TurnStats {
     // a map by model, or Claude's list of `{model, input, output, cacheRead, cacheWrite}` keyed by its model
     let models = match s.extra.get("models") {
         Some(Value::Object(m)) => Some(m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
-        Some(Value::Array(a)) => Some(
-            a.iter()
-                .filter_map(|m| Some((m.get("model")?.as_str()?.to_owned(), m.clone())))
-                .collect(),
-        ),
+        Some(Value::Array(a)) => Some(a.iter().filter_map(|m| Some((m.get("model")?.as_str()?.to_owned(), m.clone()))).collect()),
         _ => None,
     };
     let whole = |k: &str| {
-        s.extra
-            .get(k)
-            .and_then(Value::as_f64)
-            .filter(|x| x.is_finite() && *x >= 0.0)
-            .map(|x| {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // finite, ≥ 0, token counts
-                let n = x.round() as u64;
-                n
-            })
+        s.extra.get(k).and_then(Value::as_f64).filter(|x| x.is_finite() && *x >= 0.0).map(|x| {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // finite, ≥ 0, token counts
+            let n = x.round() as u64;
+            n
+        })
     };
     TurnStats {
         cost_usd: s.cost_usd,
@@ -260,11 +209,7 @@ pub struct Landing {
 pub fn land(f: Facts, outcome: Outcome, after: impl FnOnce() -> Option<String>) -> Landing {
     let handing = f.interrupted || f.follow_up_waits;
     let owes = !f.stopped && !handing && f.owes;
-    let run_after = if handing || owes || f.compact {
-        None
-    } else {
-        after()
-    };
+    let run_after = if handing || owes || f.compact { None } else { after() };
     let busy = run_after.is_some() || owes || handing;
     let waits = f.waits_reset && !busy;
     let quiet = ((outcome.quiet || outcome.filed) && !busy) || waits || f.compact_back;
@@ -277,26 +222,12 @@ pub fn land(f: Facts, outcome: Outcome, after: impl FnOnce() -> Option<String>) 
         (SessionState::Review, true)
     };
     let notify = !busy && !quiet && !for_later && !f.sub && !f.deleting;
-    Landing {
-        state,
-        unread,
-        notify,
-        handing,
-        quiet,
-        archive: outcome.quiet && !busy,
-        for_later,
-        run_after,
-    }
+    Landing { state, unread, notify, handing, quiet, archive: outcome.quiet && !busy, for_later, run_after }
 }
 
 /// v1 `settle`: an after-turn step is done with the task it held. `after`: a step that wants it next.
 /// None: a turn still runs, nothing to land.
-pub fn settle(
-    still_running: bool,
-    quiet: bool,
-    sub: bool,
-    after: impl FnOnce() -> Option<String>,
-) -> Option<Landing> {
+pub fn settle(still_running: bool, quiet: bool, sub: bool, after: impl FnOnce() -> Option<String>) -> Option<Landing> {
     if still_running {
         return None;
     }
@@ -311,13 +242,7 @@ pub fn settle(
         run_after: None,
     };
     if !quiet && let Some(id) = after() {
-        return Some(Landing {
-            state: SessionState::Running,
-            unread: false,
-            notify: false,
-            run_after: Some(id),
-            ..base
-        });
+        return Some(Landing { state: SessionState::Running, unread: false, notify: false, run_after: Some(id), ..base });
     }
     Some(base)
 }

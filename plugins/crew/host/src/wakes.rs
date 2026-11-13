@@ -31,7 +31,8 @@ pub fn provided(crew: &[Member]) -> Vec<Provided> {
 
 /// Who wakes whom.
 pub fn graph(crew: &[Member]) -> WakeGraph {
-    let wakes: Vec<(String, wisp_automations_api::TriggerSpec)> = crew.iter().flat_map(|m| m.wakes.iter().map(move |w| (m.name.clone(), w.clone()))).collect();
+    let wakes: Vec<(String, wisp_automations_api::TriggerSpec)> =
+        crew.iter().flat_map(|m| m.wakes.iter().map(move |w| (m.name.clone(), w.clone()))).collect();
     let edges = wisp_automations_api::spec::wake_edges(&wakes);
     WakeGraph {
         cycle: wisp_automations_api::spec::wake_cycle(&edges),

@@ -6,8 +6,7 @@ pub const PANE_CSP: &str = "default-src 'self' data: blob:; script-src 'self' 'u
 /// An app that doesn't keeps its network, but can't frame wisp's page and steal clicks.
 pub const PANE_APP_CSP: &str = "frame-src 'self' https: data: blob:";
 /// A picture shown on wisp's origin: no scripts, even opened on its own.
-pub const SVG_CSP: &str =
-    "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'";
+pub const SVG_CSP: &str = "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'";
 pub const COVER_CSP: &str = "sandbox; default-src 'none'; style-src 'unsafe-inline'";
 /// An upload is whatever was sent, served from wisp's own address: a page in one must not run there.
 pub const UPLOAD_CSP: &str = "sandbox";
@@ -67,11 +66,7 @@ pub fn percent_decode(s: &str) -> Option<String> {
 /// `/` as the entry. None when it can't be decoded or names nothing.
 pub fn app_rel(url_path: &str, entry: &str) -> Option<String> {
     let p = percent_decode(url_path.split(['?', '#']).next().unwrap_or_default())?;
-    let p = if p.is_empty() || p == "/" {
-        format!("/{entry}")
-    } else {
-        p
-    };
+    let p = if p.is_empty() || p == "/" { format!("/{entry}") } else { p };
     let mut parts: Vec<&str> = Vec::new();
     for seg in p.split('/') {
         match seg {
@@ -116,14 +111,7 @@ pub enum AppRoute {
     NotFound,
 }
 
-pub fn route_app(
-    method: &str,
-    host: &str,
-    path: &str,
-    entry: &str,
-    has_db: bool,
-    mut has: impl FnMut(&str) -> bool,
-) -> AppRoute {
+pub fn route_app(method: &str, host: &str, path: &str, entry: &str, has_db: bool, mut has: impl FnMut(&str) -> bool) -> AppRoute {
     if !loopback_host(host) {
         return AppRoute::Forbidden;
     }
@@ -146,9 +134,7 @@ pub fn route_app(
     if method != "GET" && method != "HEAD" {
         return AppRoute::MethodNotAllowed;
     }
-    app_rel(pathname, entry)
-        .and_then(|rel| resolve_in(&rel, &mut has))
-        .map_or(AppRoute::NotFound, AppRoute::File)
+    app_rel(pathname, entry).and_then(|rel| resolve_in(&rel, &mut has)).map_or(AppRoute::NotFound, AppRoute::File)
 }
 
 /// Headers for an app's file.
@@ -157,43 +143,23 @@ pub fn app_file_headers(content_type: &str, uses_wisp: bool) -> Vec<(String, Str
         ("content-type".into(), content_type.into()),
         ("cache-control".into(), "no-cache".into()),
         ("x-content-type-options".into(), "nosniff".into()),
-        (
-            "content-security-policy".into(),
-            (if uses_wisp { PANE_CSP } else { PANE_APP_CSP }).into(),
-        ),
+        ("content-security-policy".into(), (if uses_wisp { PANE_CSP } else { PANE_APP_CSP }).into()),
     ]
 }
 
 /// How a My Stuff file is served on wisp's origin: `(content type, headers)`. HTML (or XML) never
 /// opens there, only downloads: it would run on wisp's own origin. An SVG shows as a sandboxed picture.
-pub fn stuff_file_headers(
-    mime: &str,
-    name: &str,
-    download: bool,
-) -> (String, Vec<(String, String)>) {
+pub fn stuff_file_headers(mime: &str, name: &str, download: bool) -> (String, Vec<(String, String)>) {
     let svg = mime.contains("svg");
     let page = (mime.contains("html") || mime.contains("xml")) && !svg;
     let mut h = vec![("x-content-type-options".to_owned(), "nosniff".to_owned())];
     if download || page {
-        h.push((
-            "content-disposition".into(),
-            format!(
-                "attachment; filename*=UTF-8''{}",
-                encode_uri_component(name)
-            ),
-        ));
+        h.push(("content-disposition".into(), format!("attachment; filename*=UTF-8''{}", encode_uri_component(name))));
     }
     if svg {
         h.push(("content-security-policy".into(), SVG_CSP.into()));
     }
-    (
-        if page {
-            "application/octet-stream".into()
-        } else {
-            mime.to_owned()
-        },
-        h,
-    )
+    (if page { "application/octet-stream".into() } else { mime.to_owned() }, h)
 }
 
 /// JavaScript's `encodeURIComponent`.
@@ -230,26 +196,13 @@ pub fn parse_range(header: Option<&str>, size: u64) -> Range {
     if !digits(a) || !digits(b) || (a.is_empty() && b.is_empty()) {
         return Range::Full;
     }
-    let (Ok(start), end) = (
-        if a.is_empty() {
-            Ok(size.saturating_sub(b.parse().unwrap_or(0)))
-        } else {
-            a.parse::<u64>()
-        },
-        b,
-    ) else {
+    let (Ok(start), end) = (if a.is_empty() { Ok(size.saturating_sub(b.parse().unwrap_or(0))) } else { a.parse::<u64>() }, b) else {
         return Range::Full;
     };
     let end = if !a.is_empty() && !end.is_empty() {
-        end.parse::<u64>()
-            .unwrap_or(u64::MAX)
-            .min(size.saturating_sub(1))
+        end.parse::<u64>().unwrap_or(u64::MAX).min(size.saturating_sub(1))
     } else {
         size.saturating_sub(1)
     };
-    if start >= size || start > end {
-        Range::Unsatisfiable
-    } else {
-        Range::Part(start, end)
-    }
+    if start >= size || start > end { Range::Unsatisfiable } else { Range::Part(start, end) }
 }

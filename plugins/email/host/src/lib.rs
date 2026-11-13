@@ -134,7 +134,14 @@ impl Email {
         if refs.is_empty() {
             return None;
         }
-        self.hub.find_remote(&|r, _| r.get(NAME).and_then(|t| t["ids"].as_array()).is_some_and(|ids| ids.iter().any(|x| x.as_str().is_some_and(|i| refs.iter().any(|r| r == i))))).into_iter().next()
+        self.hub
+            .find_remote(&|r, _| {
+                r.get(NAME)
+                    .and_then(|t| t["ids"].as_array())
+                    .is_some_and(|ids| ids.iter().any(|x| x.as_str().is_some_and(|i| refs.iter().any(|r| r == i))))
+            })
+            .into_iter()
+            .next()
     }
 
     async fn run(self: &Arc<Self>, m: &Value, id: String) -> Result<()> {
@@ -171,7 +178,8 @@ impl Email {
         if let Some(line) = ec::left_out(m, files.len()) {
             self.say(&at, &line).await?;
         }
-        let conv = MailConv { email: self.clone(), phone, ctx, at: Mutex::new(at), ids, sender: s(&self.cfg(), "sender").to_owned(), files };
+        let conv =
+            MailConv { email: self.clone(), phone, ctx, at: Mutex::new(at), ids, sender: s(&self.cfg(), "sender").to_owned(), files };
         self.hub.converse(&conv, &text, session.as_deref(), None).await.map(drop)
     }
 }
@@ -292,7 +300,9 @@ impl Transport for Email {
         if from.is_empty() || id.is_empty() {
             return self.refused("dmarc", "Nobody it’s certainly from.");
         }
-        let Ok(m) = serde_json::from_slice::<Value>(raw) else { return InboundResult { status: 400, body: json!({ "error": "Not a message." }), after: None } };
+        let Ok(m) = serde_json::from_slice::<Value>(raw) else {
+            return InboundResult { status: 400, body: json!({ "error": "Not a message." }), after: None };
+        };
         let sender = s(&self.cfg(), "sender").to_lowercase();
         if from.to_lowercase() != sender {
             return self.refused("stranger", "Not the allowed sender.");
@@ -304,10 +314,19 @@ impl Transport for Email {
         }
         let g = {
             let mut limit = lock(&self.limit);
-            gate(GateArgs { sender: Some(&sender), senders: std::slice::from_ref(&sender), at_s: Some(at_s), limit: Some(&mut limit), now_ms: self.hub.now_ms(), ..GateArgs::default() })
+            gate(GateArgs {
+                sender: Some(&sender),
+                senders: std::slice::from_ref(&sender),
+                at_s: Some(at_s),
+                limit: Some(&mut limit),
+                now_ms: self.hub.now_ms(),
+                ..GateArgs::default()
+            })
         };
         self.mark(None, None);
-        let Some(me) = self.this.upgrade() else { return InboundResult { status: 503, body: json!({ "error": "Email is stopping." }), after: None } };
+        let Some(me) = self.this.upgrade() else {
+            return InboundResult { status: 503, body: json!({ "error": "Email is stopping." }), after: None };
+        };
         let at = At { id: id.clone(), subject: s(&m, "subject").to_owned(), session: None };
         let after: BoxFuture<'static, ()> = Box::pin(async move {
             let done = match g {
@@ -331,7 +350,15 @@ impl Transport for Email {
         let Some(sv) = sv else { return Ok(()) };
         let Some(t) = self.hub.remote_of(&sv.id).and_then(|r| r.get(NAME).cloned()) else { return Ok(()) };
         let choices: Vec<&str> = msg.actions.iter().filter(|a| a.kind != ActionKind::Done).map(|a| a.label.as_str()).collect();
-        let text = [msg.title.clone(), msg.text.clone(), if choices.is_empty() { String::new() } else { format!("Choices: {}", choices.join(" · ")) }].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join("\n\n");
+        let text = [
+            msg.title.clone(),
+            msg.text.clone(),
+            if choices.is_empty() { String::new() } else { format!("Choices: {}", choices.join(" · ")) },
+        ]
+        .into_iter()
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
         let at = At { id: s(&t, "id").to_owned(), subject: s(&t, "subject").to_owned(), session: Some(sv.id.clone()) };
         self.say(&at, &text).await?;
         self.hub.phone().count("report", Some("full"));
@@ -364,7 +391,9 @@ impl Transport for Email {
     }
 
     async fn rotate(&self) -> InboundResult {
-        let Some(b) = self.hub.grid().grid() else { return InboundResult { status: 409, body: json!({ "error": "This cloud computer has no address." }), after: None } };
+        let Some(b) = self.hub.grid().grid() else {
+            return InboundResult { status: 409, body: json!({ "error": "This cloud computer has no address." }), after: None };
+        };
         match self.hub.grid().rotate_url(&b, NAME).await {
             Ok(u) => {
                 let mut c = self.cfg();

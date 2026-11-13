@@ -16,7 +16,11 @@ pub fn default_home(a: &HarnessAccounts) -> PathBuf {
 }
 
 pub fn home_of(wisp_home: &Path, agent: &str, a: &HarnessAccounts, id: &str) -> PathBuf {
-    if id.is_empty() || id == wisp_accounts_core::accounts::DEFAULT { default_home(a) } else { wisp_home.join("accounts").join(agent).join(id) }
+    if id.is_empty() || id == wisp_accounts_core::accounts::DEFAULT {
+        default_home(a)
+    } else {
+        wisp_home.join("accounts").join(agent).join(id)
+    }
 }
 
 async fn link(target: &Path, at: &Path) -> std::io::Result<()> {

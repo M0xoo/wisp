@@ -68,11 +68,7 @@ pub struct Env {
 impl Env {
     /// Exactly these variables and nothing inherited.
     pub fn exactly(vars: impl IntoIterator<Item = (String, String)>) -> Self {
-        Self {
-            clear: true,
-            set: vars.into_iter().collect(),
-            remove: Vec::new(),
-        }
+        Self { clear: true, set: vars.into_iter().collect(), remove: Vec::new() }
     }
     #[must_use]
     pub fn with(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
@@ -95,15 +91,8 @@ impl Env {
         self
     }
     /// The variables the child sees, given the parent's.
-    pub fn resolve(
-        &self,
-        parent: impl IntoIterator<Item = (String, String)>,
-    ) -> Vec<(String, String)> {
-        let mut out: Vec<(String, String)> = if self.clear {
-            Vec::new()
-        } else {
-            parent.into_iter().collect()
-        };
+    pub fn resolve(&self, parent: impl IntoIterator<Item = (String, String)>) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = if self.clear { Vec::new() } else { parent.into_iter().collect() };
         out.retain(|(k, _)| !self.remove.iter().any(|r| r == k));
         for (k, v) in &self.set {
             out.retain(|(x, _)| x != k);
@@ -178,8 +167,7 @@ impl Exit {
     }
     /// v1's shell convention: the code, else 128 + the signal's number (129 for SIGHUP).
     pub fn shell_code(&self) -> i32 {
-        self.code
-            .unwrap_or_else(|| 128 + self.signal.as_deref().and_then(signal_number).unwrap_or(1))
+        self.code.unwrap_or_else(|| 128 + self.signal.as_deref().and_then(signal_number).unwrap_or(1))
     }
 }
 
@@ -228,20 +216,11 @@ pub fn signal_number(name: &str) -> Option<i32> {
 /// runtime's workers.
 pub trait ProcService: Send + Sync + 'static {
     /// `bin` on PATH (`env`'s PATH when given), as the platform finds it, or `None`.
-    fn which(
-        &self,
-        bin: &str,
-        env: Option<Vec<(String, String)>>,
-    ) -> BoxFuture<'static, Option<PathBuf>>;
+    fn which(&self, bin: &str, env: Option<Vec<(String, String)>>) -> BoxFuture<'static, Option<PathBuf>>;
     /// Starts `bin args`. A missing program is `Err(ProcError::NotFound)`, never a panic.
     fn spawn(&self, bin: &str, args: &[String], opts: SpawnOpts) -> Result<Child>;
     /// Runs to completion, keeping what it printed (up to `max_output` per stream).
-    fn exec(
-        &self,
-        bin: &str,
-        args: &[String],
-        opts: ExecOpts,
-    ) -> BoxFuture<'static, Result<ExecResult>>;
+    fn exec(&self, bin: &str, args: &[String], opts: ExecOpts) -> BoxFuture<'static, Result<ExecResult>>;
     /// A program on its own (a terminal app): its own session, no pipes, never killed with wisp.
     fn spawn_detached(&self, bin: &str, args: &[String], opts: SpawnOpts) -> Result<u32>;
     /// Children started and not yet exited.
@@ -260,9 +239,7 @@ pub(crate) fn output_channel() -> (mpsc::Sender<Output>, mpsc::Receiver<Output>)
 /// macOS: each pid's `phys_footprint` (what Activity Monitor shows as Memory), from one syscall per pid.
 /// Pids that are gone or another user's are left out; elsewhere the map is empty (keep RSS).
 pub fn footprints(pids: &[u32]) -> std::collections::HashMap<u32, u64> {
-    pids.iter()
-        .filter_map(|&p| sys::footprint(p).map(|b| (p, b)))
-        .collect()
+    pids.iter().filter_map(|&p| sys::footprint(p).map(|b| (p, b))).collect()
 }
 
 /// `sig` to one process that isn't a child of this service (This Mac's Stop on a left-behind process).
@@ -273,20 +250,13 @@ pub fn signal_pid(pid: u32, sig: Signal) -> Result<()> {
     }
     #[cfg(unix)]
     {
-        sys::signal_pid(pid, pipes::sig_number(sig)).map_err(|e| {
-            if e.raw_os_error() == Some(libc::ESRCH) {
-                ProcError::Exited
-            } else {
-                ProcError::Io(e)
-            }
-        })
+        sys::signal_pid(pid, pipes::sig_number(sig))
+            .map_err(|e| if e.raw_os_error() == Some(libc::ESRCH) { ProcError::Exited } else { ProcError::Io(e) })
     }
     #[cfg(windows)]
     {
         match sig {
-            Signal::Term | Signal::Kill | Signal::Hup => {
-                sys::terminate_pid(pid, 1).map_err(ProcError::Io)
-            }
+            Signal::Term | Signal::Kill | Signal::Hup => sys::terminate_pid(pid, 1).map_err(ProcError::Io),
             Signal::Int => Err(ProcError::Unsupported("SIGINT on Windows")),
         }
     }

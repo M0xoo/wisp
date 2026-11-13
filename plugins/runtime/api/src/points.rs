@@ -158,12 +158,7 @@ pub struct Started {
 pub trait DelegateTarget: Send + Sync + 'static {
     fn id(&self) -> &str;
     fn handles(&self, member: &Value) -> bool;
-    fn start(
-        &self,
-        lead: Session,
-        member: Value,
-        prompt: String,
-    ) -> BoxFuture<'static, Result<Started>>;
+    fn start(&self, lead: Session, member: Value, prompt: String) -> BoxFuture<'static, Result<Started>>;
     /// a job it started elsewhere, as last fetched, for the lead's reports
     fn child(&self, _id: &str) -> Option<Session> {
         None

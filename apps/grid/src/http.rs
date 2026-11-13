@@ -19,9 +19,7 @@ pub type Resp = Response<Body>;
 pub type Req = http::Request<hyper::body::Incoming>;
 
 pub fn full(b: impl Into<Bytes>) -> Body {
-    Full::new(b.into())
-        .map_err(|e: Infallible| match e {})
-        .boxed()
+    Full::new(b.into()).map_err(|e: Infallible| match e {}).boxed()
 }
 
 pub fn empty() -> Body {
@@ -39,12 +37,7 @@ where
     let limited = http_body_util::Limited::new(body, limit);
     match limited.collect().await {
         Ok(c) => Ok(c.to_bytes()),
-        Err(e)
-            if e.downcast_ref::<http_body_util::LengthLimitError>()
-                .is_some() =>
-        {
-            Err(bad("Too much data.", 413))
-        }
+        Err(e) if e.downcast_ref::<http_body_util::LengthLimitError>().is_some() => Err(bad("Too much data.", 413)),
         Err(e) => Err(GridError::Upstream(format!("reading the request: {e}"))),
     }
 }
@@ -62,9 +55,7 @@ pub fn parse_body(headers: &HeaderMap, bytes: &[u8]) -> Result<Map<String, Value
             _ => Map::new(),
         });
     }
-    Ok(url::form_urlencoded::parse(bytes)
-        .map(|(k, v)| (k.into_owned(), Value::String(v.into_owned())))
-        .collect())
+    Ok(url::form_urlencoded::parse(bytes).map(|(k, v)| (k.into_owned(), Value::String(v.into_owned()))).collect())
 }
 
 /// A body field as a string ("" when absent or not a string-like value).
@@ -146,17 +137,9 @@ pub struct CookieOptions<'a> {
 /// *.localhost that browsers count as secure), and Partitioned, so it's kept for that one page and
 /// third-party cookie blocking leaves it alone. Previews check Origin on anything but GET.
 pub fn cookie(name: &str, value: &str, o: CookieOptions<'_>) -> String {
-    let mut parts = vec![
-        format!("{name}={}", encode_component(value)),
-        format!("Path={}", o.path.unwrap_or("/")),
-        "HttpOnly".to_owned(),
-    ];
+    let mut parts = vec![format!("{name}={}", encode_component(value)), format!("Path={}", o.path.unwrap_or("/")), "HttpOnly".to_owned()];
     if o.framed {
-        parts.extend([
-            "SameSite=None".to_owned(),
-            "Secure".to_owned(),
-            "Partitioned".to_owned(),
-        ]);
+        parts.extend(["SameSite=None".to_owned(), "Secure".to_owned(), "Partitioned".to_owned()]);
     } else {
         parts.push("SameSite=Lax".to_owned());
         if o.secure {
@@ -169,11 +152,8 @@ pub fn cookie(name: &str, value: &str, o: CookieOptions<'_>) -> String {
     parts.join("; ")
 }
 
-pub const SECURITY: [(&str, &str); 3] = [
-    ("x-content-type-options", "nosniff"),
-    ("referrer-policy", "same-origin"),
-    ("x-frame-options", "DENY"),
-];
+pub const SECURITY: [(&str, &str); 3] =
+    [("x-content-type-options", "nosniff"), ("referrer-policy", "same-origin"), ("x-frame-options", "DENY")];
 
 fn status(code: u16) -> StatusCode {
     StatusCode::from_u16(code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -206,10 +186,7 @@ pub fn respond(code: u16, ct: &str, body: Body, extra: &[(&'static str, String)]
 
 /// An HTML page, with SECURITY's headers (an `extra` value of "" drops one: a shared task may be framed).
 pub fn html(code: u16, body: impl Into<Bytes>, extra: &[(&'static str, String)]) -> Resp {
-    let mut all: Vec<(&'static str, String)> = SECURITY
-        .iter()
-        .map(|(k, v)| (*k, (*v).to_owned()))
-        .collect();
+    let mut all: Vec<(&'static str, String)> = SECURITY.iter().map(|(k, v)| (*k, (*v).to_owned())).collect();
     all.extend_from_slice(extra);
     respond(code, "text/html; charset=utf-8", full(body), &all)
 }
@@ -238,17 +215,13 @@ pub fn add_cookie(r: &mut Resp, value: &str) {
 /// Only paths on the same site: never an absolute URL or //host. Browsers drop tabs and newlines from
 /// a Location before reading it, so "/\t/evil.example" would be //evil.example: no control characters.
 pub fn safe_path<'a>(p: &'a str, default: &'a str) -> &'a str {
-    let ok = p.starts_with('/')
-        && !matches!(p.as_bytes().get(1), Some(b'/' | b'\\'))
-        && !p.bytes().any(|b| b < 0x20 || b == 0x7f);
+    let ok = p.starts_with('/') && !matches!(p.as_bytes().get(1), Some(b'/' | b'\\')) && !p.bytes().any(|b| b < 0x20 || b == 0x7f);
     if ok { p } else { default }
 }
 
 /// A page a browser opened (not a fetch).
 pub fn wants_html(method: &http::Method, h: &HeaderMap) -> bool {
-    method == http::Method::GET
-        && header_str(h, "accept").contains("text/html")
-        && header_str(h, "sec-fetch-dest") != "empty"
+    method == http::Method::GET && header_str(h, "accept").contains("text/html") && header_str(h, "sec-fetch-dest") != "empty"
 }
 
 pub fn is_loopback(ip: &str) -> bool {
@@ -264,12 +237,7 @@ pub fn client_ip(peer: Option<IpAddr>, h: &HeaderMap) -> String {
     if !is_loopback(&at) {
         return at;
     }
-    header_str(h, "x-forwarded-for")
-        .rsplit(',')
-        .next()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map_or(at, str::to_owned)
+    header_str(h, "x-forwarded-for").rsplit(',').next().map(str::trim).filter(|s| !s.is_empty()).map_or(at, str::to_owned)
 }
 
 /// A sliding window per key: n requests in any minute. Refused ones aren't kept, so a key holds n at most.
@@ -283,10 +251,7 @@ pub struct Limiter {
 impl Limiter {
     /// One more hit on `key` at `now` (ms): a 429 past `n` in the last minute.
     pub fn hit(&self, key: &str, n: usize, now: i64) -> Result<()> {
-        let mut hits = self
-            .hits
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut hits = self.hits.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         // Sweep keys whose last hit left the window, now and then, so the map stays small.
         if hits.len() > 4096 {
             hits.retain(|_, at| at.last().is_some_and(|t| now - t < LIMIT_WINDOW));
@@ -316,33 +281,12 @@ mod tests {
 
     #[test]
     fn cookies_round_trip() {
-        let c = cookie(
-            "grid",
-            "a b;c",
-            CookieOptions {
-                secure: true,
-                max_age: Some(60),
-                ..Default::default()
-            },
-        );
-        assert_eq!(
-            c,
-            "grid=a%20b%3Bc; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=60"
-        );
-        let f = cookie(
-            "p",
-            "v",
-            CookieOptions {
-                framed: true,
-                ..Default::default()
-            },
-        );
+        let c = cookie("grid", "a b;c", CookieOptions { secure: true, max_age: Some(60), ..Default::default() });
+        assert_eq!(c, "grid=a%20b%3Bc; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=60");
+        let f = cookie("p", "v", CookieOptions { framed: true, ..Default::default() });
         assert!(f.contains("SameSite=None; Secure; Partitioned"));
         let mut h = HeaderMap::new();
-        h.insert(
-            "cookie",
-            HeaderValue::from_static("grid=a%20b%3Bc; bad=%zz; x=1"),
-        );
+        h.insert("cookie", HeaderValue::from_static("grid=a%20b%3Bc; bad=%zz; x=1"));
         let got = cookies(&h);
         assert_eq!(got["grid"], "a b;c");
         assert!(!got.contains_key("bad"));
@@ -352,10 +296,7 @@ mod tests {
     #[test]
     fn client_ip_behind_caddy() {
         let mut h = HeaderMap::new();
-        h.insert(
-            "x-forwarded-for",
-            HeaderValue::from_static("1.1.1.1, 9.9.9.9"),
-        );
+        h.insert("x-forwarded-for", HeaderValue::from_static("1.1.1.1, 9.9.9.9"));
         assert_eq!(client_ip("127.0.0.1".parse().ok(), &h), "9.9.9.9");
         assert_eq!(client_ip("8.8.8.8".parse().ok(), &h), "8.8.8.8");
     }
@@ -373,10 +314,7 @@ mod tests {
     #[test]
     fn bodies() {
         let mut h = HeaderMap::new();
-        h.insert(
-            "content-type",
-            HeaderValue::from_static("application/x-www-form-urlencoded"),
-        );
+        h.insert("content-type", HeaderValue::from_static("application/x-www-form-urlencoded"));
         let b = parse_body(&h, b"a=1&b=x+y").unwrap();
         assert_eq!(str_of(b.get("b")), "x y");
         h.insert("content-type", HeaderValue::from_static("application/json"));

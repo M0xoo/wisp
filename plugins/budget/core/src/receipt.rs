@@ -84,7 +84,11 @@ pub fn turn_tokens(st: &StatsLike) -> Tokens {
     // leave out: the larger of the two is the turn's.
     let models = models_in(st);
     if !models.is_empty() {
-        let m = models.iter().fold(Tokens::default(), |a, x| Tokens { read: a.read + n(x.input) + n(x.cache_read) + n(x.cache_write), cached: a.cached + n(x.cache_read), output: a.output + n(x.output) });
+        let m = models.iter().fold(Tokens::default(), |a, x| Tokens {
+            read: a.read + n(x.input) + n(x.cache_read) + n(x.cache_write),
+            cached: a.cached + n(x.cache_read),
+            output: a.output + n(x.output),
+        });
         if m.read + m.output > read + n(st.output_tokens) {
             return m;
         }
@@ -157,7 +161,11 @@ pub fn window_name(id: &str) -> String {
 
 /// `w43200m` → 43200.
 fn codex_mins(id: &str) -> i64 {
-    id.strip_prefix('w').and_then(|r| r.strip_suffix('m')).filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit())).and_then(|d| d.parse().ok()).unwrap_or(0)
+    id.strip_prefix('w')
+        .and_then(|r| r.strip_suffix('m'))
+        .filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+        .and_then(|d| d.parse().ok())
+        .unwrap_or(0)
 }
 
 /// A window's length for ordering: with the 5-hour one gone on some plans, the week is what people count.

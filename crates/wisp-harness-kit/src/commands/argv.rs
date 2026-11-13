@@ -1,9 +1,9 @@
 //! The shared vocabulary of the command describer: what a stage's description looks like, and the argv
 //! helpers every per-command table reads its flags and operands with (v1 `commands.js` "argv helpers").
 
+use super::clip;
 use crate::js;
 use crate::paths::{RunPaths, rel};
-use super::clip;
 
 /// One stage's sentence. `weak` ones (`cd x`, `echo ---`) only count when nothing better was found;
 /// `unknown` ones are the raw command echoed back, which the caller may replace with its fallback.
@@ -16,23 +16,13 @@ pub(super) struct Desc {
 
 impl Desc {
     pub fn strong(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            weak: false,
-            unknown: false,
-        }
+        Self { text: text.into(), weak: false, unknown: false }
     }
     pub fn weak(text: impl Into<String>) -> Self {
-        Self {
-            weak: true,
-            ..Self::strong(text)
-        }
+        Self { weak: true, ..Self::strong(text) }
     }
     pub fn unknown(text: impl Into<String>) -> Self {
-        Self {
-            unknown: true,
-            ..Self::strong(text)
-        }
+        Self { unknown: true, ..Self::strong(text) }
     }
 }
 
@@ -94,13 +84,7 @@ pub(super) fn basename(p: &str) -> &str {
 
 /// `/^-[nABCmdeoItLX]$/`: the short options whose value is the next word.
 fn takes_value(a: &str) -> bool {
-    matches!(
-        a.as_bytes(),
-        [
-            b'-',
-            b'n' | b'A' | b'B' | b'C' | b'm' | b'd' | b'e' | b'o' | b'I' | b't' | b'L' | b'X'
-        ]
-    )
+    matches!(a.as_bytes(), [b'-', b'n' | b'A' | b'B' | b'C' | b'm' | b'd' | b'e' | b'o' | b'I' | b't' | b'L' | b'X'])
 }
 
 /// Arguments that aren't flags, skipping the value of `-n 20`-style options.
@@ -114,11 +98,7 @@ pub(super) fn operands<S: AsRef<str>>(args: &[S]) -> Vec<&str> {
             break;
         }
         if a.starts_with('-') {
-            if takes_value(a)
-                && args
-                    .get(i + 1)
-                    .is_some_and(|n| !n.as_ref().starts_with('-'))
-            {
+            if takes_value(a) && args.get(i + 1).is_some_and(|n| !n.as_ref().starts_with('-')) {
                 i += 1;
             }
         } else {
@@ -131,10 +111,7 @@ pub(super) fn operands<S: AsRef<str>>(args: &[S]) -> Vec<&str> {
 
 /// Drop leading flags (and --flag=value) so the subcommand comes first.
 pub(super) fn strip_flags<S: AsRef<str>>(args: &[S]) -> &[S] {
-    let n = args
-        .iter()
-        .take_while(|a| a.as_ref().starts_with('-'))
-        .count();
+    let n = args.iter().take_while(|a| a.as_ref().starts_with('-')).count();
     &args[n..]
 }
 
@@ -184,20 +161,12 @@ pub(super) fn short(p: &str, paths: &RunPaths) -> String {
     if p.is_empty() {
         return String::new();
     }
-    let s = if paths.cwd.is_empty() {
-        p.to_owned()
-    } else {
-        rel(p, paths)
-    };
+    let s = if paths.cwd.is_empty() { p.to_owned() } else { rel(p, paths) };
     if js::len16(&s) <= 48 || super::whole() {
         return s;
     }
     let parts: Vec<&str> = s.split(['\\', '/']).filter(|x| !x.is_empty()).collect();
-    if parts.len() > 2 {
-        format!("…/{}", parts[parts.len() - 2..].join("/"))
-    } else {
-        clip(&s, 48)
-    }
+    if parts.len() > 2 { format!("…/{}", parts[parts.len() - 2..].join("/")) } else { clip(&s, 48) }
 }
 
 /// Up to two paths, then `+N` for the rest: `a.js, b.js +3`.
@@ -212,12 +181,7 @@ pub(super) fn listed(files: &[&str], paths: &RunPaths) -> String {
 
 /// The first two paths, comma separated (v1 `files.map(f).slice(0, 2).join(', ')`).
 pub(super) fn shown(files: &[&str], paths: &RunPaths) -> String {
-    files
-        .iter()
-        .take(2)
-        .map(|p| short(p, paths))
-        .collect::<Vec<_>>()
-        .join(", ")
+    files.iter().take(2).map(|p| short(p, paths)).collect::<Vec<_>>().join(", ")
 }
 
 #[cfg(test)]
@@ -230,10 +194,7 @@ mod tests {
 
     #[test]
     fn operands_skip_flag_values() {
-        assert_eq!(
-            operands(&v(&["-n", "20", "a.js", "--", "-x"])),
-            ["a.js", "-x"]
-        );
+        assert_eq!(operands(&v(&["-n", "20", "a.js", "--", "-x"])), ["a.js", "-x"]);
         assert_eq!(operands(&v(&["-n", "-v", "a"])), ["a"]);
     }
 

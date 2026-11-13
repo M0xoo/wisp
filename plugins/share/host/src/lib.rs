@@ -22,7 +22,10 @@ use base64::engine::general_purpose::STANDARD as B64;
 use ed25519_dalek::{Signature, Signer as _, SigningKey, Verifier as _, VerifyingKey};
 use serde_json::{Value, json};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_share_api::{Bundle, DESTINATION, Destinations, FORMAT, Import, Level, Make, Open, Opened, Outgoing, Preview, PreviewCmd, SendArgs, SendCmd, ShareArgs, Signer};
+use wisp_share_api::{
+    Bundle, DESTINATION, Destinations, FORMAT, Import, Level, Make, Open, Opened, Outgoing, Preview, PreviewCmd, SendArgs, SendCmd,
+    ShareArgs, Signer,
+};
 use wisp_share_core::{Scrub, canonical, counts, scrub, secret_env};
 
 pub use wisp_share_api::PLUGIN_ID;
@@ -62,7 +65,11 @@ fn files_of(steps: &Value, out: &mut Vec<String>) {
     for st in steps.get("items").and_then(Value::as_array).into_iter().flatten() {
         let tool = s(st, "tool");
         let f = s(st, "file");
-        if s(st, "kind") == "tool" && !f.is_empty() && matches!(tool, "edit" | "write" | "multi_edit" | "patch" | "create") && !out.iter().any(|x| x == f) {
+        if s(st, "kind") == "tool"
+            && !f.is_empty()
+            && matches!(tool, "edit" | "write" | "multi_edit" | "patch" | "create")
+            && !out.iter().any(|x| x == f)
+        {
             out.push(f.to_owned());
         }
     }
@@ -96,13 +103,20 @@ async fn preview(ctx: &Ctx, call: &Call, a: &ShareArgs) -> Result<Preview> {
     // the scrub: secrets, this server's secret env values, paths, names the sharer didn't pick
     let mut names: Vec<(String, String)> = Vec::new();
     if let Ok(list) = calls::titles(ctx, call).await {
-        names.extend(list.into_iter().filter(|(id, _)| *id != a.id).map(|(_, title)| (title, "<task>".to_owned())).filter(|(t, _)| t.len() > 3));
+        names.extend(
+            list.into_iter().filter(|(id, _)| *id != a.id).map(|(_, title)| (title, "<task>".to_owned())).filter(|(t, _)| t.len() > 3),
+        );
     }
     let crew = spec.get("crew").and_then(Value::as_str).unwrap_or_default().to_owned();
     if let Ok(list) = calls::crew(ctx, call).await {
         names.extend(list.into_iter().filter(|(id, name)| *name != crew && *id != crew).map(|(_, name)| (name, "<crew>".to_owned())));
     }
-    let scrub_with = Scrub { env: secret_env(std::env::vars()), project: s(&spec, "cwd").to_owned(), home: std::env::var("HOME").unwrap_or_default(), names };
+    let scrub_with = Scrub {
+        env: secret_env(std::env::vars()),
+        project: s(&spec, "cwd").to_owned(),
+        home: std::env::var("HOME").unwrap_or_default(),
+        names,
+    };
     let mut red = Vec::new();
     let title = wisp_share_core::scrub_text(&task.title, &scrub_with, "title", &mut red);
     let spec = scrub(&spec, &scrub_with, "spec", &mut red);
@@ -153,10 +167,14 @@ pub fn verify(b: &Bundle) -> bool {
 
 /// A key's fingerprint people can compare (the first 16 hex of its bytes).
 fn fingerprint(key: &str) -> String {
-    B64.decode(key).map(|b| b.iter().take(8).fold(String::new(), |mut s, x| {
-        let _ = write!(s, "{x:02x}");
-        s
-    })).unwrap_or_default()
+    B64.decode(key)
+        .map(|b| {
+            b.iter().take(8).fold(String::new(), |mut s, x| {
+                let _ = write!(s, "{x:02x}");
+                s
+            })
+        })
+        .unwrap_or_default()
 }
 
 async fn open(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Opened> {
@@ -166,7 +184,15 @@ async fn open(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Opened> {
     let agents = calls::agents(ctx, call).await;
     let have = |h: &str| agents.iter().any(|(id, available)| id == h && *available);
     let missing = b.needs.iter().filter(|n| n.strip_prefix("harness:").is_some_and(|h| !have(h))).cloned().collect();
-    Ok(Opened { verified: verify(&b), fingerprint: fingerprint(&b.from.key), signer: b.from.clone(), level: b.level, title: b.title.clone(), missing, bundle: b })
+    Ok(Opened {
+        verified: verify(&b),
+        fingerprint: fingerprint(&b.from.key),
+        signer: b.from.clone(),
+        level: b.level,
+        title: b.title.clone(),
+        missing,
+        bundle: b,
+    })
 }
 
 async fn import(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Value> {
@@ -190,7 +216,9 @@ async fn import(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Value> {
 
 /// `share.send`: what goes, signed, to the destination named.
 async fn send(ctx: &Ctx, call: &Call, a: SendArgs) -> Result<Value> {
-    let dest = ctx.contributions(&DESTINATION).into_iter().find(|d| d.id() == a.to).ok_or_else(|| WireError::invalid(format!("there's no share destination {} here (wisp Cloud is wisp-cloud, from wisp.grid-client)", a.to)))?;
+    let dest = ctx.contributions(&DESTINATION).into_iter().find(|d| d.id() == a.to).ok_or_else(|| {
+        WireError::invalid(format!("there's no share destination {} here (wisp Cloud is wisp-cloud, from wisp.grid-client)", a.to))
+    })?;
     dest.ready().await.map_err(WireError::invalid)?;
     let kind = a.kind.clone().unwrap_or_else(|| "task".into());
     let (key, title, body) = if kind == "task" {
@@ -206,7 +234,11 @@ async fn send(ctx: &Ctx, call: &Call, a: SendArgs) -> Result<Value> {
         (id, a.title.clone().unwrap_or_else(|| b.title.clone()), body)
     } else {
         let content = a.content.clone().ok_or_else(|| WireError::invalid(format!("a {kind} share needs its content")))?;
-        let key = a.key.clone().filter(|k| !k.is_empty()).ok_or_else(|| WireError::invalid("a key: what it is here, so sharing it again updates the link"))?;
+        let key = a
+            .key
+            .clone()
+            .filter(|k| !k.is_empty())
+            .ok_or_else(|| WireError::invalid("a key: what it is here, so sharing it again updates the link"))?;
         let body = serde_json::to_vec(&content).map_err(|e| WireError::internal(e.to_string()))?;
         (key.clone(), a.title.clone().unwrap_or(key), body)
     };
@@ -264,7 +296,13 @@ mod tests {
     #[test]
     fn a_signed_bundle_verifies_and_a_changed_one_doesnt() {
         let key = SigningKey::from_bytes(&[7u8; 32]);
-        let mut b = Bundle { wisp_task: FORMAT, id: "b".into(), title: "Fix login".into(), spec: json!({ "prompt": "fix it" }), ..Bundle::default() };
+        let mut b = Bundle {
+            wisp_task: FORMAT,
+            id: "b".into(),
+            title: "Fix login".into(),
+            spec: json!({ "prompt": "fix it" }),
+            ..Bundle::default()
+        };
         b.from = Signer { name: "ada".into(), key: B64.encode(key.verifying_key().to_bytes()) };
         b.sig = B64.encode(key.sign(&canonical(&b)).to_bytes());
         assert!(verify(&b));

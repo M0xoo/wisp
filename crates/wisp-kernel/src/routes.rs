@@ -11,10 +11,7 @@ use crate::{BoxFuture, Caller, Code, Kernel, Result, WireError};
 /// Binds `path` against `pattern`, or `None`.
 pub fn bind(pattern: &str, path: &str) -> Option<BTreeMap<String, String>> {
     let mut params = BTreeMap::new();
-    let (mut pp, mut vv) = (
-        pattern.split('/').filter(|s| !s.is_empty()),
-        path.split('/').filter(|s| !s.is_empty()),
-    );
+    let (mut pp, mut vv) = (pattern.split('/').filter(|s| !s.is_empty()), path.split('/').filter(|s| !s.is_empty()));
     loop {
         match (pp.next(), vv.next()) {
             (None, None) => return Some(params),
@@ -38,11 +35,7 @@ pub fn bind(pattern: &str, path: &str) -> Option<BTreeMap<String, String>> {
 
 /// The full path a route answers on: under `/api` unless `raw`.
 pub fn full_pattern(r: &crate::http::Route) -> String {
-    if r.raw {
-        r.pattern.to_owned()
-    } else {
-        format!("/api{}", r.pattern)
-    }
+    if r.raw { r.pattern.to_owned() } else { format!("/api{}", r.pattern) }
 }
 
 fn find(k: &Kernel, method: &str, path: &str) -> Option<(RouteEntry, BTreeMap<String, String>)> {
@@ -50,16 +43,7 @@ fn find(k: &Kernel, method: &str, path: &str) -> Option<(RouteEntry, BTreeMap<St
     let mut all: Vec<(usize, RouteEntry)> = k
         .routes()
         .into_iter()
-        .map(|e| {
-            (
-                e.route
-                    .pattern
-                    .split('/')
-                    .filter(|s| !s.is_empty() && !s.starts_with(':') && *s != "*")
-                    .count(),
-                e,
-            )
-        })
+        .map(|e| (e.route.pattern.split('/').filter(|s| !s.is_empty() && !s.starts_with(':') && *s != "*").count(), e))
         .collect();
     all.sort_by_key(|e| std::cmp::Reverse(e.0));
     all.into_iter()
@@ -67,11 +51,7 @@ fn find(k: &Kernel, method: &str, path: &str) -> Option<(RouteEntry, BTreeMap<St
         .find_map(|(_, e)| bind(&full_pattern(&e.route), path).map(|p| (e, p)))
 }
 
-pub(crate) fn serve(
-    k: Kernel,
-    caller: Caller,
-    mut req: Request,
-) -> BoxFuture<'static, Result<Response>> {
+pub(crate) fn serve(k: Kernel, caller: Caller, mut req: Request) -> BoxFuture<'static, Result<Response>> {
     Box::pin(async move {
         let found = if let Some(f) = find(&k, &req.method, &req.path) {
             Some(f)
@@ -81,37 +61,22 @@ pub(crate) fn serve(
             find(&k, &req.method, &req.path)
         };
         let Some((e, params)) = found else {
-            return Err(WireError::not_found(format!(
-                "no route for {} {}",
-                req.method, req.path
-            )));
+            return Err(WireError::not_found(format!("no route for {} {}", req.method, req.path)));
         };
-        let open = e.route.permission == crate::http::OPEN
-            || e.route.permission == crate::http::OPEN_QUIET;
-        if !open
-            && let Err(why) = crate::caps::explain_in(&k.state.caps, &caller, e.route.permission)
-        {
+        let open = e.route.permission == crate::http::OPEN || e.route.permission == crate::http::OPEN_QUIET;
+        if !open && let Err(why) = crate::caps::explain_in(&k.state.caps, &caller, e.route.permission) {
             let m = format!("{} {} refused: {why}", req.method, req.path);
             return Err(crate::dispatch::refuse(
                 &k.state,
                 Code::Forbidden,
                 m,
                 "edge",
-                vec![format!(
-                    "{}:{} {}",
-                    e.plugin, e.route.method, e.route.pattern
-                )],
+                vec![format!("{}:{} {}", e.plugin, e.route.method, e.route.pattern)],
             ));
         }
         req.params = params;
         k.route_scope(&caller, e.route.pattern, &req.params).await?;
-        let call = CallInner::detached(
-            &k.state,
-            caller,
-            Some(e.ctx.inner.id.clone()),
-            k.state.root.child_token(),
-        )
-        .into_call();
+        let call = CallInner::detached(&k.state, caller, Some(e.ctx.inner.id.clone()), k.state.root.child_token()).into_call();
         let r = (e.route.handler)(e.ctx.clone(), call, req).await;
         if let Err(err) = &r
             && err.status() >= 500
@@ -135,21 +100,11 @@ mod tests {
 
     #[test]
     fn segments() {
-        assert_eq!(
-            bind("/api/sessions/:id", "/api/sessions/abc")
-                .and_then(|p| p.get("id").cloned())
-                .as_deref(),
-            Some("abc")
-        );
+        assert_eq!(bind("/api/sessions/:id", "/api/sessions/abc").and_then(|p| p.get("id").cloned()).as_deref(), Some("abc"));
         assert!(bind("/api/sessions/:id", "/api/sessions").is_none());
         assert!(bind("/api/sessions/:id", "/api/sessions/a/b").is_none());
         assert!(bind("/api/sessions", "/api/sessionsx").is_none());
-        assert_eq!(
-            bind("/p/*", "/p/a/b/c")
-                .and_then(|p| p.get("*").cloned())
-                .as_deref(),
-            Some("a/b/c")
-        );
+        assert_eq!(bind("/p/*", "/p/a/b/c").and_then(|p| p.get("*").cloned()).as_deref(), Some("a/b/c"));
         assert!(bind("/api/x", "/api/x/").is_some());
     }
 }

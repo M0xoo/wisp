@@ -56,19 +56,14 @@ impl Plugins {
         self.slots.iter_mut().find(|s| s.manifest.id == id)
     }
     pub(crate) fn phase(&self, id: &str) -> Option<Phase> {
-        self.slots
-            .iter()
-            .find(|s| s.manifest.id == id)
-            .map(|s| s.phase)
+        self.slots.iter().find(|s| s.manifest.id == id).map(|s| s.phase)
     }
 }
 
 /// Built in: not an exec child, not a user's declarative or untrusted plugin. Anything else is an
 /// override and wins a service contract over built-ins (plan §6.0.3).
 fn builtin(m: &Manifest) -> bool {
-    m.trust.as_deref().is_none_or(|t| t == "trusted")
-        && m.exec().is_none()
-        && !m.id.starts_with("user.")
+    m.trust.as_deref().is_none_or(|t| t == "trusted") && m.exec().is_none() && !m.id.starts_with("user.")
 }
 
 pub(crate) async fn start(app: App) -> Result<Kernel> {
@@ -80,10 +75,7 @@ pub(crate) async fn start(app: App) -> Result<Kernel> {
         for p in app.group.plugins {
             let m = p.manifest();
             if let Some(first) = ps.slots.iter().find(|s| s.manifest.id == m.id) {
-                let reason = format!(
-                    "{} is registered twice: {} is used, {} is not",
-                    m.id, first.manifest.version, m.version
-                );
+                let reason = format!("{} is registered twice: {} is used, {} is not", m.id, first.manifest.version, m.version);
                 ps.dupes.push(PluginStatus {
                     id: m.id.clone(),
                     version: m.version.clone(),
@@ -94,11 +86,9 @@ pub(crate) async fn start(app: App) -> Result<Kernel> {
                 continue;
             }
             if let Err(e) = m.validate() {
-                ps.failed
-                    .insert(m.id.clone(), format!("invalid manifest: {}", e.message));
+                ps.failed.insert(m.id.clone(), format!("invalid manifest: {}", e.message));
             }
-            k.caps
-                .define(&crate::caps::plugin_set(&m.id, &m.permissions));
+            k.caps.define(&crate::caps::plugin_set(&m.id, &m.permissions));
             let b = builtin(&m);
             ps.slots.push(Slot {
                 manifest: m,
@@ -114,10 +104,7 @@ pub(crate) async fn start(app: App) -> Result<Kernel> {
             });
         }
         for d in app.group.disabled {
-            ps.off.insert(
-                d.clone(),
-                format!("{d} is off (disabled in the plugin group)"),
-            );
+            ps.off.insert(d.clone(), format!("{d} is off (disabled in the plugin group)"));
         }
     }
     reconcile(&k).await;
@@ -141,19 +128,13 @@ fn compute(ps: &Plugins) -> Resolution {
         })
         .collect();
     for (d, who) in by {
-        off.entry(d.clone())
-            .or_insert_with(|| format!("{d} is off (disabled by {who})"));
+        off.entry(d.clone()).or_insert_with(|| format!("{d} is off (disabled by {who})"));
     }
     let input = Input {
         manifests: ps.slots.iter().map(|s| &s.manifest).collect(),
         off,
         choices: ps.choices.clone(),
-        overrides: ps
-            .slots
-            .iter()
-            .filter(|s| !s.builtin)
-            .map(|s| s.manifest.id.clone())
-            .collect(),
+        overrides: ps.slots.iter().filter(|s| !s.builtin).map(|s| s.manifest.id.clone()).collect(),
     };
     resolve(&input)
 }
@@ -182,24 +163,11 @@ fn plan(k: &KernelState) -> Option<(Stop, Vec<String>)> {
     let mut ps = k.lock_plugins().ok()?;
     let res = compute(&ps);
     let mut stop: Stop = Vec::new();
-    let off_ids: BTreeSet<String> = ps
-        .off
-        .keys()
-        .cloned()
-        .chain(
-            res.refused
-                .iter()
-                .filter(|(_, w)| w.contains("(disabled by "))
-                .map(|(k, _)| k.clone()),
-        )
-        .collect();
+    let off_ids: BTreeSet<String> =
+        ps.off.keys().cloned().chain(res.refused.iter().filter(|(_, w)| w.contains("(disabled by ")).map(|(k, _)| k.clone())).collect();
     for s in &mut ps.slots {
         let id = s.manifest.id.clone();
-        let to = if off_ids.contains(&id) {
-            Phase::Off
-        } else {
-            Phase::Refused
-        };
+        let to = if off_ids.contains(&id) { Phase::Off } else { Phase::Refused };
         match res.refused.get(&id) {
             Some(why) if matches!(s.phase, Phase::Active | Phase::Starting) => {
                 stop.push((id, why.clone(), to));
@@ -218,11 +186,7 @@ fn plan(k: &KernelState) -> Option<(Stop, Vec<String>)> {
     }
     let start = to_start(&ps, &res);
     if let Ok(mut reg) = k.reg.write() {
-        reg.chosen = res
-            .providers
-            .iter()
-            .map(|(a, b)| (a.clone(), b.clone()))
-            .collect();
+        reg.chosen = res.providers.iter().map(|(a, b)| (a.clone(), b.clone())).collect();
     }
     ps.res = res;
     Some((stop, start))
@@ -231,31 +195,17 @@ fn plan(k: &KernelState) -> Option<(Stop, Vec<String>)> {
 /// Eager plugins that are resolved, and every resolved plugin they need, in resolution order.
 fn to_start(ps: &Plugins, res: &Resolution) -> Vec<String> {
     let resolved = |id: &str| ps.phase(id) == Some(Phase::Resolved);
-    let mut need: BTreeSet<String> = ps
-        .slots
-        .iter()
-        .filter(|s| s.phase == Phase::Resolved && s.manifest.eager())
-        .map(|s| s.manifest.id.clone())
-        .collect();
+    let mut need: BTreeSet<String> =
+        ps.slots.iter().filter(|s| s.phase == Phase::Resolved && s.manifest.eager()).map(|s| s.manifest.id.clone()).collect();
     let mut frontier: Vec<String> = need.iter().cloned().collect();
     while let Some(id) = frontier.pop() {
-        for d in res
-            .deps
-            .get(&id)
-            .into_iter()
-            .chain(res.wants.get(&id))
-            .flatten()
-        {
+        for d in res.deps.get(&id).into_iter().chain(res.wants.get(&id)).flatten() {
             if resolved(d) && need.insert(d.clone()) {
                 frontier.push(d.clone());
             }
         }
     }
-    res.order
-        .iter()
-        .filter(|id| need.contains(*id))
-        .cloned()
-        .collect()
+    res.order.iter().filter(|id| need.contains(*id)).cloned().collect()
 }
 
 fn sync_settings(k: &KernelState) {
@@ -265,14 +215,7 @@ fn sync_settings(k: &KernelState) {
     for s in &ps.slots {
         if on(&s) {
             if let Err(e) = k.settings.declare(&s.manifest.id, s.manifest.settings()) {
-                k.diag.record(
-                    now,
-                    &s.manifest.id,
-                    "setting",
-                    "conflict",
-                    e.message,
-                    Vec::new(),
-                );
+                k.diag.record(now, &s.manifest.id, "setting", "conflict", e.message, Vec::new());
             }
         } else {
             k.settings.undeclare(&s.manifest.id);
@@ -282,14 +225,7 @@ fn sync_settings(k: &KernelState) {
     for s in ps.slots.iter().filter(on) {
         for (key, v) in s.manifest.set_settings() {
             if let Err(e) = k.settings.lock_by(&s.manifest.id, &key, v) {
-                k.diag.record(
-                    now,
-                    &s.manifest.id,
-                    "setting",
-                    "invalid",
-                    e.message,
-                    Vec::new(),
-                );
+                k.diag.record(now, &s.manifest.id, "setting", "invalid", e.message, Vec::new());
             }
         }
     }
@@ -298,25 +234,11 @@ fn sync_settings(k: &KernelState) {
 /// `onSchedule:<every>`: a lazy plugin wakes after that long (on the injected clock).
 fn arm_schedules(k: &Arc<KernelState>) {
     let Ok(mut ps) = k.lock_plugins() else { return };
-    for s in ps
-        .slots
-        .iter_mut()
-        .filter(|s| s.phase == Phase::Resolved && !s.scheduled)
-    {
-        let every = s
-            .manifest
-            .activation
-            .iter()
-            .filter_map(|a| a.strip_prefix("onSchedule:"))
-            .find_map(crate::activation::schedule_ms);
+    for s in ps.slots.iter_mut().filter(|s| s.phase == Phase::Resolved && !s.scheduled) {
+        let every = s.manifest.activation.iter().filter_map(|a| a.strip_prefix("onSchedule:")).find_map(crate::activation::schedule_ms);
         let Some(ms) = every else { continue };
         s.scheduled = true;
-        let (id, weak, sleep, stop) = (
-            s.manifest.id.clone(),
-            Arc::downgrade(k),
-            k.sleep(ms),
-            k.root.clone(),
-        );
+        let (id, weak, sleep, stop) = (s.manifest.id.clone(), Arc::downgrade(k), k.sleep(ms), k.root.clone());
         tokio::spawn(async move {
             tokio::select! {
                 () = stop.cancelled() => {}
@@ -330,20 +252,12 @@ fn arm_schedules(k: &Arc<KernelState>) {
 }
 
 /// Activates every resolved plugin waiting on (`kind`, `name`). Returns how many woke.
-pub(crate) async fn wake(
-    k: &Arc<KernelState>,
-    kind: &str,
-    name: &str,
-    args: Option<&serde_json::Value>,
-) -> usize {
+pub(crate) async fn wake(k: &Arc<KernelState>, kind: &str, name: &str, args: Option<&serde_json::Value>) -> usize {
     let ids: Vec<String> = match k.lock_plugins() {
         Ok(ps) => ps
             .slots
             .iter()
-            .filter(|s| {
-                s.phase == Phase::Resolved
-                    && crate::activation::wakes(&s.manifest, kind, name, args)
-            })
+            .filter(|s| s.phase == Phase::Resolved && crate::activation::wakes(&s.manifest, kind, name, args))
             .map(|s| s.manifest.id.clone())
             .collect(),
         Err(_) => return 0,
@@ -360,10 +274,8 @@ pub(crate) async fn wake(
 /// The off plugin that declares command `cmd`, with why it is off.
 pub(crate) fn off_owner_of(k: &KernelState, cmd: &str) -> Option<(String, String)> {
     let ps = k.lock_plugins().ok()?;
-    let s = ps.slots.iter().find(|s| {
-        matches!(s.phase, Phase::Off | Phase::Refused)
-            && s.manifest.commands().iter().any(|c| c.id == cmd)
-    })?;
+    let s =
+        ps.slots.iter().find(|s| matches!(s.phase, Phase::Off | Phase::Refused) && s.manifest.commands().iter().any(|c| c.id == cmd))?;
     Some((s.manifest.id.clone(), s.reason.clone().unwrap_or_default()))
 }
 
@@ -393,16 +305,10 @@ pub(crate) fn status(k: &KernelState) -> Vec<PluginStatus> {
 }
 
 pub(crate) fn manifests(k: &KernelState) -> Vec<Manifest> {
-    k.lock_plugins()
-        .map(|ps| ps.slots.iter().map(|s| s.manifest.clone()).collect())
-        .unwrap_or_default()
+    k.lock_plugins().map(|ps| ps.slots.iter().map(|s| s.manifest.clone()).collect()).unwrap_or_default()
 }
 
-pub(crate) fn set_enabled(
-    k: Arc<KernelState>,
-    id: String,
-    on: bool,
-) -> BoxFuture<'static, Result<()>> {
+pub(crate) fn set_enabled(k: Arc<KernelState>, id: String, on: bool) -> BoxFuture<'static, Result<()>> {
     Box::pin(async move {
         {
             let mut ps = k.lock_plugins()?;
@@ -411,8 +317,7 @@ pub(crate) fn set_enabled(
             }
             if on {
                 ps.off.remove(&id);
-                ps.failed
-                    .retain(|f, why| f != &id || why.starts_with("invalid manifest"));
+                ps.failed.retain(|f, why| f != &id || why.starts_with("invalid manifest"));
                 if let Some(s) = ps.slot(&id) {
                     s.crashes = 0;
                 }
@@ -493,11 +398,7 @@ pub(crate) fn crashed(k: &Arc<KernelState>, id: &str, why: &str, base_ms: u64, m
             s.crashes += 1;
             let n = s.crashes;
             let wait = base_ms.saturating_mul(1u64 << (n - 1).min(16));
-            let reason = if n > max {
-                format!("{why} (gave up after {max} restarts)")
-            } else {
-                format!("{why}; restarting in {wait} ms")
-            };
+            let reason = if n > max { format!("{why} (gave up after {max} restarts)") } else { format!("{why}; restarting in {wait} ms") };
             ps.off.insert(id.to_owned(), reason.clone());
             (n <= max).then_some((wait, reason))
         }

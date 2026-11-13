@@ -178,7 +178,12 @@ async fn dry_run(c: &Client, name: String, said: &Said, json: bool) -> Result<()
     }
     for t in list {
         let why = line(&t, "why");
-        say(&format!("  {:<22} {}{}", line(&t, "result"), line(&t, "summary"), if why.is_empty() { String::new() } else { format!("  ({why})") }));
+        say(&format!(
+            "  {:<22} {}{}",
+            line(&t, "result"),
+            line(&t, "summary"),
+            if why.is_empty() { String::new() } else { format!("  ({why})") }
+        ));
         let prompt = line(&t, "prompt");
         if !prompt.is_empty() && line(&t, "result") != "not for it" {
             say(&format!("      prompt: {}", prompt.lines().next().unwrap_or("")));
@@ -195,7 +200,9 @@ async fn trigger(c: &Client, p: &Parsed, verb: &str, s: &Said, cwd: &str) -> Res
     match verb {
         "add" => {
             let (name, spec) = spec_of(s, p, cwd).map_err(CliError::said)?;
-            let out = c.cmd("resources.apply", json!({ "resources": [{ "kind": "trigger", "name": name, "spec": spec }], "trust": true })).await?;
+            let out = c
+                .cmd("resources.apply", json!({ "resources": [{ "kind": "trigger", "name": name, "spec": spec }], "trust": true }))
+                .await?;
             let problems = out.pointer("/plan/problems").and_then(Value::as_array).cloned().unwrap_or_default();
             if !problems.is_empty() {
                 for pr in &problems {
@@ -219,7 +226,14 @@ async fn trigger(c: &Client, p: &Parsed, verb: &str, s: &Said, cwd: &str) -> Res
             for t in v.as_array().into_iter().flatten() {
                 let why = line(t, "why");
                 let on = t.pointer("/spec/on").and_then(Value::as_str).unwrap_or("");
-                say(&format!("{:<28} {:<16} {:<12} {:>4} runs{}", line(t, "name"), on, line(t, "state"), t["runs"], if why.is_empty() { String::new() } else { format!("  {why}") }));
+                say(&format!(
+                    "{:<28} {:<16} {:<12} {:>4} runs{}",
+                    line(t, "name"),
+                    on,
+                    line(t, "state"),
+                    t["runs"],
+                    if why.is_empty() { String::new() } else { format!("  {why}") }
+                ));
             }
         }
         "fire" => {
@@ -277,7 +291,10 @@ async fn crew(c: &Client, p: &Parsed, verb: &str, s: &Said) -> Result<i32> {
             } else if let Some(q) = v.get("queued").and_then(Value::as_str) {
                 say(&format!("  ✓ {id} has it queued ({q})"));
             } else {
-                say(&format!("  ✓ {id} is on it{}", v.pointer("/session/id").and_then(Value::as_str).map(|s| format!(" → {s}")).unwrap_or_default()));
+                say(&format!(
+                    "  ✓ {id} is on it{}",
+                    v.pointer("/session/id").and_then(Value::as_str).map(|s| format!(" → {s}")).unwrap_or_default()
+                ));
             }
         }
         "graph" => {
@@ -290,7 +307,8 @@ async fn crew(c: &Client, p: &Parsed, verb: &str, s: &Said) -> Result<i32> {
                 say(&format!("  {} → {}   ({} wakes on {}'s report)", line(e, "from"), line(e, "to"), line(e, "to"), line(e, "from")));
             }
             for (m, ons) in v["wakes"].as_object().into_iter().flatten() {
-                let ons: Vec<&str> = ons.as_array().into_iter().flatten().filter_map(Value::as_str).filter(|o| *o != "crew.reported").collect();
+                let ons: Vec<&str> =
+                    ons.as_array().into_iter().flatten().filter_map(Value::as_str).filter(|o| *o != "crew.reported").collect();
                 if !ons.is_empty() {
                     say(&format!("  {m} wakes on {}", ons.join(", ")));
                 }
@@ -326,7 +344,10 @@ mod tests {
 
     #[test]
     fn trigger_add_reads_its_flags_into_a_spec() {
-        let s = read(&words("nightly schedule review the day --cron 0_2_*_*_* --rate 5/h --match branch=main --approval --users ada,bo -C /w/api")).unwrap();
+        let s = read(&words(
+            "nightly schedule review the day --cron 0_2_*_*_* --rate 5/h --match branch=main --approval --users ada,bo -C /w/api",
+        ))
+        .unwrap();
         let argv: Vec<String> = ["trigger", "add"].iter().map(|s| (*s).to_owned()).chain(words("nightly -C /w/api")).collect();
         let p = crate::args::parse(&argv, None, std::path::Path::new("/h"), std::path::Path::new("/w")).unwrap();
         let (name, spec) = spec_of(&s, &p, "/w/api").unwrap();

@@ -14,18 +14,12 @@ pub struct RunPaths {
 
 impl RunPaths {
     pub fn new(cwd: impl Into<String>, real: impl Into<String>) -> Self {
-        Self {
-            cwd: cwd.into(),
-            real: real.into(),
-        }
+        Self { cwd: cwd.into(), real: real.into() }
     }
     /// One spelling for both (tests, or a folder with no symlink on its way).
     pub fn same(cwd: impl Into<String>) -> Self {
         let cwd = cwd.into();
-        Self {
-            real: cwd.clone(),
-            cwd,
-        }
+        Self { real: cwd.clone(), cwd }
     }
 }
 
@@ -80,11 +74,7 @@ pub fn rel(file: &str, paths: &RunPaths) -> String {
         return String::new();
     }
     let abs = resolve(&paths.cwd, file);
-    let bases: &[&str] = if paths.cwd == paths.real {
-        &[&paths.cwd]
-    } else {
-        &[&paths.cwd, &paths.real]
-    };
+    let bases: &[&str] = if paths.cwd == paths.real { &[&paths.cwd] } else { &[&paths.cwd, &paths.real] };
     for base in bases {
         let r = relative(&normalize_abs(base), &abs);
         if !r.is_empty() && !r.starts_with("..") && !r.starts_with('/') {

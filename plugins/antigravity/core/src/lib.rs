@@ -11,7 +11,9 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value, json};
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::protocol::exit_text;
-use wisp_harness_kit::{Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, json_line, rel_value};
+use wisp_harness_kit::{
+    Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, json_line, rel_value,
+};
 
 /// Headless runs give up after --print-timeout (5m by default); wisp tasks routinely take longer.
 pub const PRINT_TIMEOUT: &str = "24h";
@@ -21,7 +23,8 @@ static EFFORT_SUFFIX: Re = Re::new(r"-(low|medium|high)$");
 static MODEL_LINE: Re = Re::new(r"^([\w.\-]+)(?:\t|\s{2,})\s*(.+)$");
 
 pub fn args(mode: &str, model: &str, effort: &str, resume_id: Option<&str>, attachment_dirs: &[String]) -> Vec<String> {
-    let mut a: Vec<String> = ["--input-format", "stream-json", "--output-format", "stream-json", "--print-timeout", PRINT_TIMEOUT].map(str::to_owned).to_vec();
+    let mut a: Vec<String> =
+        ["--input-format", "stream-json", "--output-format", "stream-json", "--print-timeout", PRINT_TIMEOUT].map(str::to_owned).to_vec();
     match mode {
         "plan" => a.extend(["--mode".into(), "plan".into()]),
         "auto" => a.push("--dangerously-skip-permissions".into()),
@@ -65,7 +68,10 @@ pub fn list_models(out: &str) -> Vec<(String, String, bool)> {
 
 /// Tool parameters are PascalCase (TargetFile, AbsolutePath, CommandLine, …).
 fn file_of(p: &Value) -> Option<&Value> {
-    ["TargetFile", "AbsolutePath", "FilePath", "File", "Path", "path", "file_path"].into_iter().map(|k| &p[k]).find(|v| !v.is_null() && v.as_str() != Some(""))
+    ["TargetFile", "AbsolutePath", "FilePath", "File", "Path", "path", "file_path"]
+        .into_iter()
+        .map(|k| &p[k])
+        .find(|v| !v.is_null() && v.as_str() != Some(""))
 }
 
 #[allow(clippy::many_single_char_names)] // v1 describeTool's own names
@@ -177,7 +183,10 @@ impl AgyParser {
         let has_args = params.as_object().is_some_and(|o| !o.is_empty());
         if !self.shown.contains(&idx) && (done || has_args) {
             self.shown.insert(idx.clone());
-            if editing && !done && let Some(f) = &file {
+            if editing
+                && !done
+                && let Some(f) = &file
+            {
                 out.push(Out::Io(IoStep::Remember { file: f.clone() }));
             }
             out.push(HarnessEvent::Tool(describe_tool(&name, params, &self.paths)).into());
@@ -190,7 +199,12 @@ impl AgyParser {
             let why = [&e["message"], &e["type"]].into_iter().find(|v| truthy(v)).map_or_else(|| "failed".to_owned(), js::string);
             out.push(HarnessEvent::ToolError { name: Some(name.clone()), text: clip(&why, 400), id: None }.into());
             if PERMISSION.is_match(&js::str(&e["type"])) {
-                let d = [&params["CommandLine"]].into_iter().find(|v| !v.is_null()).cloned().or_else(|| file_of(params).cloned()).or_else(|| Some(params["Url"].clone()).filter(|v| !v.is_null()));
+                let d = [&params["CommandLine"]]
+                    .into_iter()
+                    .find(|v| !v.is_null())
+                    .cloned()
+                    .or_else(|| file_of(params).cloned())
+                    .or_else(|| Some(params["Url"].clone()).filter(|v| !v.is_null()));
                 out.push(HarnessEvent::Blocked { tool: name, detail: d.map_or_else(String::new, |v| js::string(&v)), rule: None }.into());
             }
         } else if editing && let Some(f) = file {
@@ -216,7 +230,10 @@ impl LineParser for AgyParser {
                 let text = if ok {
                     js::str(&r["response"])
                 } else {
-                    [&r["error"], &r["response"]].into_iter().find(|v| truthy(v)).map_or_else(|| format!("Antigravity ended with status {}", js::string(&r["status"])), js::string)
+                    [&r["error"], &r["response"]]
+                        .into_iter()
+                        .find(|v| truthy(v))
+                        .map_or_else(|| format!("Antigravity ended with status {}", js::string(&r["status"])), js::string)
                 };
                 let mut stats = Map::new();
                 if let Some(s) = r["duration_seconds"].as_f64() {
@@ -258,7 +275,13 @@ mod tests {
         assert_eq!(describe_tool("read_url_content", &json!({ "Url": "https://x.dev" }), &p).label, "Reading https://x.dev");
         // v1 adapters.test.js "antigravity: detect lists agy models"
         let m = list_models("Fetching models…\ngemini-3-pro-high\tGemini 3 Pro (High)\nclaude-sonnet-4-5   Claude Sonnet 4.5\n");
-        assert_eq!(m, [("gemini-3-pro-high".to_owned(), "Gemini 3 Pro (High)".to_owned(), true), ("claude-sonnet-4-5".to_owned(), "Claude Sonnet 4.5".to_owned(), false)]);
+        assert_eq!(
+            m,
+            [
+                ("gemini-3-pro-high".to_owned(), "Gemini 3 Pro (High)".to_owned(), true),
+                ("claude-sonnet-4-5".to_owned(), "Claude Sonnet 4.5".to_owned(), false)
+            ]
+        );
         assert_eq!(stdin_event("hi"), "{\"event\":\"user\",\"message\":{\"content\":\"hi\"}}\n");
     }
 
@@ -266,9 +289,17 @@ mod tests {
     fn text_is_the_steps_deltas() {
         let mut p = AgyParser::new(RunPaths::same("/w"));
         let mut out = Vec::new();
-        p.line(r#"{"event":"step_update","step_update":{"step_index":4,"state":"ACTIVE","step_type":"agent_response","text_delta":"Fixed "}}"#, 0, &mut out);
+        p.line(
+            r#"{"event":"step_update","step_update":{"step_index":4,"state":"ACTIVE","step_type":"agent_response","text_delta":"Fixed "}}"#,
+            0,
+            &mut out,
+        );
         assert_eq!(out, Vec::<Out>::new());
-        p.line(r#"{"event":"step_update","step_update":{"step_index":4,"state":"DONE","step_type":"agent_response","text_delta":"it."}}"#, 1, &mut out);
+        p.line(
+            r#"{"event":"step_update","step_update":{"step_index":4,"state":"DONE","step_type":"agent_response","text_delta":"it."}}"#,
+            1,
+            &mut out,
+        );
         assert!(matches!(out.last(), Some(Out::Event(HarnessEvent::Text { text })) if text == "Fixed it."));
     }
 }

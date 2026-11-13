@@ -24,15 +24,19 @@ fn run(state: &str, pr: bool) -> (i32, String, String, String) {
     let bin = d.join("bin");
     std::fs::create_dir_all(&bin).unwrap();
     let log = d.join("calls");
-    fake(&bin, "wisp", &format!(
-        r#"echo "wisp $*" >> "{log}"
+    fake(
+        &bin,
+        "wisp",
+        &format!(
+            r#"echo "wisp $*" >> "{log}"
 case "$1" in
   wait) exit 0 ;;
   show) if [ "$3" = "--json" ]; then echo '{{"id":"t1","state":"{state}"}}'; else echo "◌ Fix the test  [{state}]  t1"; echo "Fixed it."; fi ;;
   *) echo '[{{"id":"t1"}}]' ;;
 esac"#,
-        log = log.display()
-    ));
+            log = log.display()
+        ),
+    );
     fake(&bin, "gh", &format!("echo \"gh $*\" >> \"{}\"; cat \"$5\" >> \"{}\"", log.display(), log.display()));
     let event = d.join("event.json");
     std::fs::write(&event, if pr { r#"{"pull_request":{"number":7}}"# } else { "{}" }).unwrap();

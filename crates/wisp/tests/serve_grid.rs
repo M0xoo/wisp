@@ -36,7 +36,15 @@ mod tokio_util_stop {
 async fn grid(dir: &Path) -> Grid {
     let data = dir.join("grid");
     std::fs::create_dir_all(&data).unwrap();
-    let (g, port, stop) = wisp_grid::edge::dev(&data, 0, PathBuf::from(env!("CARGO_BIN_EXE_wisp")), vec![("WISP_WEB_DIR".into(), dir.join("no-web").display().to_string())], 600_000).await.unwrap();
+    let (g, port, stop) = wisp_grid::edge::dev(
+        &data,
+        0,
+        PathBuf::from(env!("CARGO_BIN_EXE_wisp")),
+        vec![("WISP_WEB_DIR".into(), dir.join("no-web").display().to_string())],
+        600_000,
+    )
+    .await
+    .unwrap();
     Grid { port, url: format!("http://wisp.localhost:{port}"), _stop: tokio_util_stop::Stop(Box::new(move || stop.cancel())), _g: g }
 }
 
@@ -56,7 +64,13 @@ async fn approve(g: &Grid, handle: &str, code: &str, allow: bool) {
     let cookie = r.headers().get("set-cookie").unwrap().to_str().unwrap().split(';').next().unwrap().to_owned();
     let page = b.get(format!("{}/activate?code={code}", g.url)).header("cookie", &cookie).send().await.unwrap().text().await.unwrap();
     let csrf = page.split("name=\"csrf\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_owned();
-    let r = b.post(format!("{}/activate", g.url)).header("cookie", &cookie).json(&json!({ "csrf": csrf, "code": code, "answer": if allow { "allow" } else { "deny" } })).send().await.unwrap();
+    let r = b
+        .post(format!("{}/activate", g.url))
+        .header("cookie", &cookie)
+        .json(&json!({ "csrf": csrf, "code": code, "answer": if allow { "allow" } else { "deny" } }))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 200, "{}", r.text().await.unwrap());
 }
 
@@ -80,15 +94,31 @@ async fn sign_in(api: &Api, g: &Grid, handle: &str) -> Value {
 /// The test's own device token for `handle` (as another wisp of theirs would hold).
 async fn device_token(g: &Grid, handle: &str) -> String {
     let b = browser(g.port, &["wisp.localhost"]);
-    let c: Value = b.post(format!("{}/api/device/code", g.url)).json(&json!({ "name": "test" })).send().await.unwrap().json().await.unwrap();
+    let c: Value =
+        b.post(format!("{}/api/device/code", g.url)).json(&json!({ "name": "test" })).send().await.unwrap().json().await.unwrap();
     approve(g, handle, c["user_code"].as_str().unwrap(), true).await;
     tokio::time::sleep(Duration::from_millis(5_100)).await;
-    let t: Value = b.post(format!("{}/api/device/token", g.url)).json(&json!({ "device_code": c["device_code"] })).send().await.unwrap().json().await.unwrap();
+    let t: Value = b
+        .post(format!("{}/api/device/token", g.url))
+        .json(&json!({ "device_code": c["device_code"] }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     t["token"].as_str().unwrap_or_else(|| panic!("{t}")).to_owned()
 }
 
 fn wisp(dir: &Path, cwd: &Path, args: &[&str]) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_wisp")).args(args).env("WISP_HOME", dir.join("home")).env("NO_COLOR", "1").current_dir(cwd).stdin(Stdio::null()).output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_wisp"))
+        .args(args)
+        .env("WISP_HOME", dir.join("home"))
+        .env("NO_COLOR", "1")
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
     (o.status.code().unwrap_or(-1), String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned())
 }
 
@@ -142,7 +172,12 @@ async fn sign_in_share_import_and_update_through_wisp_cloud() {
     sign_in(&b, &g, "bo").await;
 
     // share a setup (a_share_goes_only_after_the_scrub: what goes is the export, secrets as references)
-    let r = a.try_cmd("resources.apply", json!({ "resources": [{ "kind": "agent", "name": "reviewer", "spec": { "harness": "claude", "model": "opus" } }] })).await;
+    let r = a
+        .try_cmd(
+            "resources.apply",
+            json!({ "resources": [{ "kind": "agent", "name": "reviewer", "spec": { "harness": "claude", "model": "opus" } }] }),
+        )
+        .await;
     assert_eq!(r["ok"], true, "{r}");
     let (code, out, err) = wisp(&da, &da.join("proj"), &["share", "agent.reviewer", "--to", "cloud", "--yes", "--publish"]);
     assert_eq!(code, 0, "{out}{err}");
@@ -168,7 +203,11 @@ async fn sign_in_share_import_and_update_through_wisp_cloud() {
     // sharing_again_is_a_new_version + an_import_sees_update_available
     let (code, out, _) = wisp(&da, &da.join("proj"), &["share", "agent.reviewer", "--to", "cloud", "--yes"]);
     assert!(code == 0 && out.contains("v1"), "the same content is the same version: {out}");
-    a.cmd("resources.apply", json!({ "resources": [{ "kind": "agent", "name": "reviewer", "spec": { "harness": "claude", "model": "sonnet" } }] })).await;
+    a.cmd(
+        "resources.apply",
+        json!({ "resources": [{ "kind": "agent", "name": "reviewer", "spec": { "harness": "claude", "model": "sonnet" } }] }),
+    )
+    .await;
     let (code, out, err) = wisp(&da, &da.join("proj"), &["share", "agent.reviewer", "--to", "cloud", "--yes"]);
     assert!(code == 0 && out.contains("v2"), "{out}{err}");
     let (_, out, _) = wisp(&db, &db.join("proj"), &["shares", "--updates"]);
@@ -238,7 +277,9 @@ async fn page_on() -> u16 {
                 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
                 let mut buf = [0u8; 4096];
                 let _ = s.read(&mut buf).await;
-                let _ = s.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello").await;
+                let _ = s
+                    .write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello")
+                    .await;
             });
         }
     });
@@ -266,7 +307,8 @@ async fn a_computer_and_a_box_through_the_grid() {
         assert!(at.elapsed() < Duration::from_secs(20), "the tunnel never came up");
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
-    let made = a.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": da.join("proj"), "agent": "claude", "worktree": false })).await;
+    let made =
+        a.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": da.join("proj"), "agent": "claude", "worktree": false })).await;
     let id = made["id"].as_str().unwrap().to_owned();
     a.until(&id, "the turn ends", |t| t.last().is_some_and(ended)).await;
 
@@ -305,7 +347,12 @@ async fn a_computer_and_a_box_through_the_grid() {
     // a_box_never_gets_a_laptop_token (the grid's side): a Box credential whose secret isn't the running box's proves
     // nobody, so it gets no further than Sign in first (401); a verified box is refused by the trust table (403:
     // apps/grid/tests/box_reach.rs). Either way it reaches no computer.
-    let r = web.get(format!("http://studio--ada.wisp.localhost:{}/api/health", g.port)).header("authorization", "Box ada x").send().await.unwrap();
+    let r = web
+        .get(format!("http://studio--ada.wisp.localhost:{}/api/health", g.port))
+        .header("authorization", "Box ada x")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 401);
     assert!(r.text().await.unwrap().contains("Sign in first"));
     let r = web.get(format!("http://studio--ada.wisp.localhost:{}/api/health", g.port)).bearer_auth(&token).send().await.unwrap();
@@ -313,7 +360,12 @@ async fn a_computer_and_a_box_through_the_grid() {
 
     // the cloud box: asleep, and a passive request leaves it so
     let boxu = format!("http://ada.wisp.localhost:{}", g.port);
-    let state = |w: reqwest::Client, t: String, u: String| async move { w.get(format!("{u}/_grid/state")).bearer_auth(t).send().await.unwrap().json::<Value>().await.unwrap()["state"].as_str().unwrap().to_owned() };
+    let state = |w: reqwest::Client, t: String, u: String| async move {
+        w.get(format!("{u}/_grid/state")).bearer_auth(t).send().await.unwrap().json::<Value>().await.unwrap()["state"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
     assert_eq!(state(web.clone(), token.clone(), boxu.clone()).await, "stopped");
     let r = web.get(format!("{boxu}/api/health")).bearer_auth(&token).header("x-wisp-passive", "1").send().await.unwrap();
     assert_eq!(r.status(), 503);
@@ -323,7 +375,17 @@ async fn a_computer_and_a_box_through_the_grid() {
     assert_eq!(code, 0, "{out}{err}");
     assert_eq!(state(web.clone(), token.clone(), boxu.clone()).await, "running");
     // a_box_never_gets_a_laptop_token (the wisp's side): the box refuses to be a computer
-    let r: Value = web.post(format!("{boxu}/api/cmd")).bearer_auth(&token).header("idempotency-key", "k1").json(&json!({ "cmd": "grid-client.computer", "args": { "on": true } })).send().await.unwrap().json().await.unwrap();
+    let r: Value = web
+        .post(format!("{boxu}/api/cmd"))
+        .bearer_auth(&token)
+        .header("idempotency-key", "k1")
+        .json(&json!({ "cmd": "grid-client.computer", "args": { "on": true } }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     assert_ne!(r["ok"], true, "{r}");
     assert!(r.to_string().contains("laptop token") || r.to_string().contains("grid box"), "{r}");
     // grid_deploy_applies_a_formula_to_a_box: the cloud box by default

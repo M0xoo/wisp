@@ -23,9 +23,7 @@ pub(super) struct Join<'a> {
 /// A provider's logo: its own icon, else the one before a `:` (`oidc:corp`), else a key (dev: code).
 pub(super) fn logo(id: &str) -> &'static str {
     use super::icons::{CODE, KEY, named};
-    named(id)
-        .or_else(|| named(id.split(':').next().unwrap_or_default()))
-        .unwrap_or(if id == "dev" { CODE } else { KEY })
+    named(id).or_else(|| named(id.split(':').next().unwrap_or_default())).unwrap_or(if id == "dev" { CODE } else { KEY })
 }
 
 /// GitHub first, dev last, the rest as the grid lists them; Google left out in an app's browser,
@@ -50,7 +48,8 @@ fn buttons(j: &Join<'_>, wl: bool) -> String {
     for (i, p) in list.iter().enumerate() {
         let first = if i == 0 && !wl && j.in_app.is_none() { " first" } else { "" };
         let label = esc(&p.label);
-        let text = if pair { format!(r#"<span><span class="cw">Continue with </span>{label}</span>"#) } else { format!("Continue with {label}") };
+        let text =
+            if pair { format!(r#"<span><span class="cw">Continue with </span>{label}</span>"#) } else { format!("Continue with {label}") };
         out += &format!(r#"<a class="btn{first}" href="/auth/{}/start{q}">{}{text}</a>"#, encode_component(&p.id), logo(&p.id));
     }
     if pair { format!(r#"<div class="ways">{out}</div>"#) } else { out }

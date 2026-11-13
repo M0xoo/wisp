@@ -16,7 +16,10 @@ use wisp_harness_kit::RunPaths;
 use wisp_harness_kit::detect::{help_efforts, version_in};
 use wisp_harness_kit::protocol::{FileNote, attachment_note};
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
-use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessLogin, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
+use wisp_runtime_api::harness::{
+    ExecReq, HarnessFound, HarnessInfo, HarnessLogin, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions,
+    RunDriver, SetupTip, Stdin,
+};
 use wisp_runtime_api::model::Mode;
 use wisp_runtime_api::{HARNESS, Harness};
 
@@ -26,7 +29,12 @@ pub fn info() -> HarnessInfo {
     HarnessInfo {
         id: "antigravity".into(),
         name: "Antigravity".into(),
-        models: vec![HarnessModel { id: String::new(), label: "Default".into(), hint: Some("Whatever Antigravity is set to".into()), efforts: Vec::new() }],
+        models: vec![HarnessModel {
+            id: String::new(),
+            label: "Default".into(),
+            hint: Some("Whatever Antigravity is set to".into()),
+            efforts: Vec::new(),
+        }],
         efforts: ["low", "medium", "high"].map(str::to_owned).to_vec(),
         ..HarnessInfo::default()
     }
@@ -52,7 +60,8 @@ fn dir_of(p: &str) -> String {
 pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
     let with_path: Vec<_> = run.attachments.iter().filter(|a| a.path.is_some()).collect();
     let dirs: Vec<String> = with_path.iter().filter_map(|a| a.path.as_deref().map(dir_of)).collect();
-    let notes: Vec<FileNote> = with_path.iter().map(|a| FileNote { path: a.path.clone().unwrap_or_default(), mime: a.mime.clone(), size: a.size }).collect();
+    let notes: Vec<FileNote> =
+        with_path.iter().map(|a| FileNote { path: a.path.clone().unwrap_or_default(), mime: a.mime.clone(), size: a.size }).collect();
     let content = format!("{}{}", run.prompt, attachment_note(&notes, None));
     Launch {
         program: bin.to_owned(),
@@ -65,7 +74,8 @@ pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
 }
 
 async fn output(sys: &dyn HarnessSys, bin: &str, args: &[&str]) -> Option<(String, String)> {
-    let req = ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
+    let req =
+        ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
     match sys.exec(req).await {
         Ok(o) if o.code == Some(0) && !o.timed_out => Some((o.stdout, o.stderr)),
         _ => None,
@@ -102,7 +112,12 @@ impl Default for AntigravityHarness {
 
 impl AntigravityHarness {
     fn bin(&self) -> String {
-        self.bin.lock().ok().and_then(|b| b.clone()).or_else(|| std::env::var("WISP_ANTIGRAVITY_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned())
+        self.bin
+            .lock()
+            .ok()
+            .and_then(|b| b.clone())
+            .or_else(|| std::env::var("WISP_ANTIGRAVITY_BIN").ok().filter(|b| !b.is_empty()))
+            .unwrap_or_else(|| DEFAULT_BIN.to_owned())
     }
 }
 
@@ -130,9 +145,20 @@ impl Harness for AntigravityHarness {
             let help = output(sys, &bin, &["--help"]).await.map(|(o, e)| format!("{o}\n{e}")).unwrap_or_default();
             let efforts = help_efforts(&help);
             let mut models = vec![self.info.models[0].clone()];
-            models.extend(list_models(&output(sys, &bin, &["models"]).await.map(|(o, _)| o).unwrap_or_default()).into_iter().map(|(id, label, _)| HarnessModel { hint: Some(id.clone()), id, label, efforts: Vec::new() }));
+            models.extend(
+                list_models(&output(sys, &bin, &["models"]).await.map(|(o, _)| o).unwrap_or_default())
+                    .into_iter()
+                    .map(|(id, label, _)| HarnessModel { hint: Some(id.clone()), id, label, efforts: Vec::new() }),
+            );
             let v = version_in(&line);
-            HarnessFound { available: true, version: Some(if v.is_empty() { line.trim().to_owned() } else { v }), bin: Some(bin), models: Some(models), efforts: (!efforts.is_empty()).then_some(efforts), ..HarnessFound::default() }
+            HarnessFound {
+                available: true,
+                version: Some(if v.is_empty() { line.trim().to_owned() } else { v }),
+                bin: Some(bin),
+                models: Some(models),
+                efforts: (!efforts.is_empty()).then_some(efforts),
+                ..HarnessFound::default()
+            }
         })
     }
 
@@ -166,7 +192,10 @@ impl Harness for AntigravityHarness {
 
     fn auth_failed(&self, text: &str) -> bool {
         let t = text.to_lowercase();
-        text.len() <= 1200 && ["authentication required", "authentication failed or timed out", "authentication timed out", "not logged into antigravity"].iter().any(|w| t.contains(w))
+        text.len() <= 1200
+            && ["authentication required", "authentication failed or timed out", "authentication timed out", "not logged into antigravity"]
+                .iter()
+                .any(|w| t.contains(w))
     }
 
     /// Signing out is only `/logout` in its own TUI: wisp removes the login where agy keeps it (the
@@ -177,7 +206,12 @@ impl Harness for AntigravityHarness {
             let rm = ExecReq { program: "rm".into(), args: vec!["-f".into(), file], timeout_ms: 5_000, ..ExecReq::default() };
             let _ = sys.exec(rm).await;
             if sys.platform() == "darwin" {
-                let k = ExecReq { program: "security".into(), args: ["delete-generic-password", "-s", "gemini", "-a", "antigravity"].map(str::to_owned).to_vec(), timeout_ms: 5_000, ..ExecReq::default() };
+                let k = ExecReq {
+                    program: "security".into(),
+                    args: ["delete-generic-password", "-s", "gemini", "-a", "antigravity"].map(str::to_owned).to_vec(),
+                    timeout_ms: 5_000,
+                    ..ExecReq::default()
+                };
                 let _ = sys.exec(k).await;
             }
             Ok(())
@@ -185,7 +219,11 @@ impl Harness for AntigravityHarness {
     }
 
     fn setup(&self, _platform: &str) -> Option<SetupTip> {
-        Some(SetupTip { tip: "Install the Antigravity CLI (agy) and sign in. The Antigravity app doesn’t include it".into(), command: None, url: Some("https://antigravity.google/docs/cli/headless/".into()) })
+        Some(SetupTip {
+            tip: "Install the Antigravity CLI (agy) and sign in. The Antigravity app doesn’t include it".into(),
+            command: None,
+            url: Some("https://antigravity.google/docs/cli/headless/".into()),
+        })
     }
 
     /// agy has no --trust: `--settings` trusts the folder for this session only.
@@ -218,7 +256,8 @@ impl Plugin for AntigravityPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let h: Arc<dyn Harness> = Arc::new(AntigravityHarness::default());
         s.contribute(&HARNESS, h);
-        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> = Arc::new(crate::sessions::AntigravitySessions::from_env());
+        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> =
+            Arc::new(crate::sessions::AntigravitySessions::from_env());
         s.contribute(&wisp_runtime_api::harness::sessions::SESSIONS, sessions);
         Ok(())
     }
@@ -242,6 +281,9 @@ mod tests {
         assert!(l.args.windows(2).any(|w| w == ["--mode", "plan"]));
         let h = AntigravityHarness::default();
         let o = ResumeOptions { resume_id: Some("c".into()), trusted: true, cwd: "/w".into(), ..ResumeOptions::default() };
-        assert_eq!(h.resume_command(&o).map(|c| c.argv.last().cloned()).unwrap_or_default().as_deref(), Some("{\"trustedWorkspaces\":[\"/w\"]}"));
+        assert_eq!(
+            h.resume_command(&o).map(|c| c.argv.last().cloned()).unwrap_or_default().as_deref(),
+            Some("{\"trustedWorkspaces\":[\"/w\"]}")
+        );
     }
 }

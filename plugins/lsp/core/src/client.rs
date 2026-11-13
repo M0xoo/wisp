@@ -17,10 +17,7 @@ use crate::url::{path_to_file_url, uri_key};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     /// our request `id` was answered: its result, or the server's refusal in words
-    Reply {
-        id: u64,
-        result: Result<Value, String>,
-    },
+    Reply { id: u64, result: Result<Value, String> },
     /// write these bytes to the server (an answer to its request)
     Send(Vec<u8>),
     /// the server published diagnostics for this file (by `uri_key`)
@@ -75,10 +72,7 @@ impl Client {
         self.seq += 1;
         let id = self.seq;
         self.pending.insert(id, method.to_owned());
-        (
-            id,
-            encode(&json!({ "id": id, "method": method, "params": params })),
-        )
+        (id, encode(&json!({ "id": id, "method": method, "params": params })))
     }
 
     pub fn notify(method: &str, params: Option<Value>) -> Vec<u8> {
@@ -91,10 +85,7 @@ impl Client {
     /// `initialize` for a server working in `root`.
     pub fn initialize(&mut self, root: &Path, process_id: u32) -> (u64, Vec<u8>) {
         let uri = path_to_file_url(root);
-        let name = root
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.request(
             "initialize",
             &json!({ "processId": process_id, "rootUri": uri, "workspaceFolders": [{ "uri": uri, "name": name }], "capabilities": capabilities() }),
@@ -170,10 +161,7 @@ impl Client {
             // so it carries on. Configuration gets one null per item: "use your defaults".
             (Some(id), Some(method)) => {
                 let result = if method == "workspace/configuration" {
-                    let n = msg
-                        .pointer("/params/items")
-                        .and_then(Value::as_array)
-                        .map_or(0, Vec::len);
+                    let n = msg.pointer("/params/items").and_then(Value::as_array).map_or(0, Vec::len);
                     Value::Array(vec![Value::Null; n])
                 } else {
                     Value::Null
@@ -186,8 +174,7 @@ impl Client {
                     return;
                 };
                 let key = uri_key(uri);
-                let list =
-                    crate::answer::diagnostics(params.get("diagnostics").unwrap_or(&Value::Null));
+                let list = crate::answer::diagnostics(params.get("diagnostics").unwrap_or(&Value::Null));
                 self.diags.insert(key.clone(), Diags { list, fresh: true });
                 out.push(Action::Diagnostics { uri: key });
             }
@@ -197,10 +184,7 @@ impl Client {
 
     /// Diagnostics published since the editor's copy of `uri` last changed.
     pub fn fresh_diagnostics(&self, uri: &str) -> Option<&[Diagnostic]> {
-        self.diags
-            .get(&uri_key(uri))
-            .filter(|d| d.fresh)
-            .map(|d| d.list.as_slice())
+        self.diags.get(&uri_key(uri)).filter(|d| d.fresh).map(|d| d.list.as_slice())
     }
 
     /// The last diagnostics the server published for `uri`, fresh or not.

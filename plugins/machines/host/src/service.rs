@@ -19,7 +19,14 @@ impl std::fmt::Debug for Service {
 }
 
 /// A JSON call to the peer's API (path under `/api`); a peer's error keeps its status and words.
-pub(crate) async fn json(st: Arc<State>, id: String, method: String, path: String, body: Option<Value>, timeout_ms: Option<u64>) -> Res<Value> {
+pub(crate) async fn json(
+    st: Arc<State>,
+    id: String,
+    method: String,
+    path: String,
+    body: Option<Value>,
+    timeout_ms: Option<u64>,
+) -> Res<Value> {
     let row = st.peer(&id)?;
     let _ = crate::manager::secret_of(&st, &id).await;
     let ch = st.channel(&id)?;
@@ -48,7 +55,15 @@ impl Service {
 }
 
 impl MachinesService for Service {
-    fn json(&self, call: &Call, id: &str, method: &str, path: &str, body: Option<Value>, timeout_ms: Option<u64>) -> BoxFuture<'static, Result<Value>> {
+    fn json(
+        &self,
+        call: &Call,
+        id: &str,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+        timeout_ms: Option<u64>,
+    ) -> BoxFuture<'static, Result<Value>> {
         let st = self.st(call, "machines:call");
         let (id, method, path) = (id.to_owned(), method.to_owned(), path.to_owned());
         Box::pin(async move { json(st?, id, method, path, body, timeout_ms).await.map_err(WireError::from) })

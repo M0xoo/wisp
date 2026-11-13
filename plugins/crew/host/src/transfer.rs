@@ -23,11 +23,15 @@ pub fn export(crew: &[Member], a: &c::ExportArgs) -> Result<c::Exported, WireErr
     if a.gist == Some(true) {
         return Err(WireError::invalid("A gist isn't made from here yet: save the file and share it."));
     }
-    let e = export_crew(crew, &a.ids, &|_| Vec::new(), a.kit.unwrap_or(true), a.notebook.unwrap_or(false), a.team.unwrap_or(false)).map_err(wire)?;
+    let e = export_crew(crew, &a.ids, &|_| Vec::new(), a.kit.unwrap_or(true), a.notebook.unwrap_or(false), a.team.unwrap_or(false))
+        .map_err(wire)?;
     let hits = scan_all(&e.texts);
     if let Some(h) = hits.first() {
         let more = if hits.len() > 1 { format!(" (and {} more)", hits.len() - 1) } else { String::new() };
-        return Err(WireError::invalid(format!("{} looks like it holds {} (line {}){more}: take it out before sharing.", h.place, h.what, h.line)));
+        return Err(WireError::invalid(format!(
+            "{} looks like it holds {} (line {}){more}: take it out before sharing.",
+            h.place, h.what, h.line
+        )));
     }
     Ok(c::Exported { bundle: e.bundle, notes: e.notes, file: e.file, gist: None })
 }
@@ -68,7 +72,15 @@ pub fn import(crew: &[Member], a: &c::ImportArgs, now: i64) -> Result<(c::Import
     let made = import_members(&plan, &checks, &mut NewIds, now).map_err(wire)?;
     let members: Vec<Member> = made.into_iter().map(|(m, _on)| m).collect();
     let rows = members.iter().map(|m| json!({ "id": m.id, "name": m.name })).collect();
-    Ok((c::Imported { members: rows, spell: None, source: Some(src), room: Some(room.saturating_sub(u32::try_from(members.len()).unwrap_or(0))) }, members))
+    Ok((
+        c::Imported {
+            members: rows,
+            spell: None,
+            source: Some(src),
+            room: Some(room.saturating_sub(u32::try_from(members.len()).unwrap_or(0))),
+        },
+        members,
+    ))
 }
 
 /// What a kit can take here: wisp's skills, and the project's AGENTS.md.
@@ -87,7 +99,12 @@ async fn kit(ctx: &Ctx, cwd: &str) -> Vec<LocalKitFile> {
     if !cwd.is_empty() {
         let p = format!("{}/AGENTS.md", cwd.trim_end_matches('/'));
         if tokio::fs::metadata(&p).await.is_ok_and(|m| m.is_file()) {
-            out.push(LocalKitFile { name: "AGENTS.md".into(), description: "this project's instructions".into(), path: p, from: "project".into() });
+            out.push(LocalKitFile {
+                name: "AGENTS.md".into(),
+                description: "this project's instructions".into(),
+                path: p,
+                from: "project".into(),
+            });
         }
     }
     out
@@ -100,8 +117,13 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         async move {
             let crew = lock(&st.saved).crew.clone();
             let out = export(&crew, &a)?;
-            let shared = wisp_crew_api::events::Shared { members: u32::try_from(a.ids.len()).unwrap_or(0), gist: false, notebook: a.notebook.unwrap_or(false) };
-            track(&ctx, "crew_shared", serde_json::json!({ "members": shared.members, "gist": shared.gist, "notebook": shared.notebook })).await;
+            let shared = wisp_crew_api::events::Shared {
+                members: u32::try_from(a.ids.len()).unwrap_or(0),
+                gist: false,
+                notebook: a.notebook.unwrap_or(false),
+            };
+            track(&ctx, "crew_shared", serde_json::json!({ "members": shared.members, "gist": shared.gist, "notebook": shared.notebook }))
+                .await;
             ctx.emit(&call, &shared);
             Ok(out)
         }
@@ -140,7 +162,15 @@ mod tests {
     use super::*;
 
     fn member(name: &str, brief: &str) -> Member {
-        Member { id: format!("id-{name}"), name: name.into(), role: "Reviewer".into(), brief: brief.into(), agent: "claude".into(), parallel: 1, ..Member::default() }
+        Member {
+            id: format!("id-{name}"),
+            name: name.into(),
+            role: "Reviewer".into(),
+            brief: brief.into(),
+            agent: "claude".into(),
+            parallel: 1,
+            ..Member::default()
+        }
     }
 
     /// A shared member's bundle comes back in as the same member, paused, under a free name; the review
@@ -162,6 +192,9 @@ mod tests {
         let leaky = vec![member("Bob", "call the API with sk-ant-api03-abcdefghijklmnopqrstuvwx")];
         assert!(export(&leaky, &c::ExportArgs { ids: vec!["Bob".into()], ..c::ExportArgs::default() }).is_err());
         assert!(import(&crew, &c::ImportArgs { text: Some("nope".into()), ..c::ImportArgs::default() }, 1).is_err(), "not JSON");
-        assert!(import(&crew, &c::ImportArgs { url: Some("https://x".into()), ..c::ImportArgs::default() }, 1).is_err(), "a link isn't fetched here");
+        assert!(
+            import(&crew, &c::ImportArgs { url: Some("https://x".into()), ..c::ImportArgs::default() }, 1).is_err(),
+            "a link isn't fetched here"
+        );
     }
 }

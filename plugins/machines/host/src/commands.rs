@@ -7,7 +7,7 @@ use std::time::Duration;
 use serde_json::Value;
 use wisp_kernel::{Setup, services};
 use wisp_machines_api::commands as c;
-use wisp_machines_api::{AddArgs, Done, LetInOut, PeerRow, PeerState, PeerView, Removed, RemoveOut, SSH, secret_key};
+use wisp_machines_api::{AddArgs, Done, LetInOut, PeerRow, PeerState, PeerView, RemoveOut, Removed, SSH, secret_key};
 use wisp_machines_core::view::{self, DEFAULT_PORT};
 use wisp_machines_core::{conn, route};
 use wisp_store::Writer;
@@ -151,7 +151,9 @@ async fn let_in(st: &Arc<State>, a: c::LetInArgs) -> Res<LetInOut> {
 async fn recheck(st: &Arc<State>, a: c::RecheckArgs) -> Res<Done> {
     let ids = match a.id {
         Some(id) => vec![id],
-        None => st.peers().into_iter().map(|p| p.id).filter(|id| st.with_link(id, |l| l.conn.status.state) == Some(PeerState::Online)).collect(),
+        None => {
+            st.peers().into_iter().map(|p| p.id).filter(|id| st.with_link(id, |l| l.conn.status.state) == Some(PeerState::Online)).collect()
+        }
     };
     let fresh = a.agent.unwrap_or_else(|| "all".into());
     for id in ids {

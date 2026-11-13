@@ -123,40 +123,16 @@ pub struct Row {
 
 impl Row {
     pub fn gap(count: u32) -> Self {
-        Self {
-            op: '…',
-            text: None,
-            a: None,
-            b: None,
-            count: Some(count),
-        }
+        Self { op: '…', text: None, a: None, b: None, count: Some(count) }
     }
     pub fn added(text: impl Into<String>, b: u32) -> Self {
-        Self {
-            op: '+',
-            text: Some(text.into()),
-            a: None,
-            b: Some(b),
-            count: None,
-        }
+        Self { op: '+', text: Some(text.into()), a: None, b: Some(b), count: None }
     }
     pub fn removed(text: impl Into<String>, a: u32) -> Self {
-        Self {
-            op: '-',
-            text: Some(text.into()),
-            a: Some(a),
-            b: None,
-            count: None,
-        }
+        Self { op: '-', text: Some(text.into()), a: Some(a), b: None, count: None }
     }
     pub fn context(text: impl Into<String>, a: u32, b: u32) -> Self {
-        Self {
-            op: ' ',
-            text: Some(text.into()),
-            a: Some(a),
-            b: Some(b),
-            count: None,
-        }
+        Self { op: ' ', text: Some(text.into()), a: Some(a), b: Some(b), count: None }
     }
     pub fn text(&self) -> &str {
         self.text.as_deref().unwrap_or("")

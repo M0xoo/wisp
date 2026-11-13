@@ -56,14 +56,31 @@ pub const VIEW: EntityDef = EntityDef {
     kind: "events_view",
     table: "events_view",
     key: "id",
-    columns: &[("id", Col::Text), ("seq", Col::Int), ("type", Col::Text), ("plugin", Col::Text), ("subject", Col::Text), ("at", Col::Int), ("data", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("seq", Col::Int),
+        ("type", Col::Text),
+        ("plugin", Col::Text),
+        ("subject", Col::Text),
+        ("at", Col::Int),
+        ("data", Col::Text),
+    ],
     json_columns: &["data"],
     parent: None,
     seq: None,
     topics: view_topics,
 };
 
-pub const SINK_STATE: EntityDef = EntityDef { kind: "events_sink", table: "events_sink", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: sink_topics };
+pub const SINK_STATE: EntityDef = EntityDef {
+    kind: "events_sink",
+    table: "events_sink",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: sink_topics,
+};
 
 /// An event as `wisp events tail --json` shows it.
 pub fn view(e: &StoredEvent) -> Value {
@@ -242,7 +259,9 @@ impl Plugin for EventsPlugin {
         s.command::<api::Tail, _, _>(|ctx, call, a| async move { tail(&ctx, &call, a).await });
         s.command::<api::Why, _, _>(|ctx, call, a| async move { why(&ctx, &call, a.seq).await });
         s.command::<api::Retry, _, _>(|ctx, _call, a| async move { Ok(json!({ "delivered": ctx.retry_event(a.seq).await? })) });
-        s.command::<api::ParkedCmd, _, _>(|ctx, _call, _a| async move { Ok(serde_json::to_value(log(&ctx)?.parked().await?).unwrap_or_default()) });
+        s.command::<api::ParkedCmd, _, _>(|ctx, _call, _a| async move {
+            Ok(serde_json::to_value(log(&ctx)?.parked().await?).unwrap_or_default())
+        });
         s.command::<api::Ls, _, _>(|ctx, _call, _a| async move { Ok(catalogue(&ctx)) });
         sinks::register(s);
         s.contribute(&wisp_mcp_api::TOOL_POINT, Arc::new(mcp_tool()));

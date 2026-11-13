@@ -44,7 +44,11 @@ pub async fn run(p: &Parsed, cmd: &str, args: &[String], cwd: &str, port: u16) -
             let task = c.cmd("runtime.get", json!({ "id": id })).await?;
             let pr = c.cmd("ship.ship", json!({ "session": id, "title": s(&task, "title"), "draft": f.draft })).await?;
             let draft = if f.draft { " (draft)" } else { "" };
-            out(f, &pr, &format!("  ✓ shipped{draft}: {}", pr.pointer("/pr/url").or_else(|| pr.get("url")).and_then(Value::as_str).unwrap_or("")));
+            out(
+                f,
+                &pr,
+                &format!("  ✓ shipped{draft}: {}", pr.pointer("/pr/url").or_else(|| pr.get("url")).and_then(Value::as_str).unwrap_or("")),
+            );
             Ok(())
         }
         "merge" => {
@@ -82,7 +86,8 @@ async fn launch(c: &Client, p: &Parsed, args: &[String], cwd: &str) -> Result<()
         }
     } else {
         let mut a = sc::launch_args(f, &prompt, cwd);
-        let home = crate::services::home(std::env::var("WISP_HOME").ok().as_deref(), std::env::var_os("HOME").map(std::path::PathBuf::from));
+        let home =
+            crate::services::home(std::env::var("WISP_HOME").ok().as_deref(), std::env::var_os("HOME").map(std::path::PathBuf::from));
         crate::termctx_cli::attach(c, p, &mut a, &prompt, cwd, &home).await;
         made.push(c.cmd("runtime.create", a).await?);
     }
@@ -115,7 +120,15 @@ async fn recipes(c: &Client, f: &crate::args::Flags) -> Result<()> {
             format!("{:<24}  {:<20}  {prompt}", s(r, "name"), params)
         })
         .collect();
-    out(f, &list, &if lines.is_empty() { "No declared tasks yet: add some under tasks: in a formula (wisp apply -f).".into() } else { lines.join("\n") });
+    out(
+        f,
+        &list,
+        &if lines.is_empty() {
+            "No declared tasks yet: add some under tasks: in a formula (wisp apply -f).".into()
+        } else {
+            lines.join("\n")
+        },
+    );
     Ok(())
 }
 

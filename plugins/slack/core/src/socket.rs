@@ -34,9 +34,9 @@ pub enum Frame {
 impl Frame {
     pub fn envelope_id(&self) -> Option<&str> {
         match self {
-            Self::Events { envelope_id, .. }
-            | Self::Interactive { envelope_id, .. }
-            | Self::Other { envelope_id } => envelope_id.as_deref(),
+            Self::Events { envelope_id, .. } | Self::Interactive { envelope_id, .. } | Self::Other { envelope_id } => {
+                envelope_id.as_deref()
+            }
             Self::Hello | Self::Disconnect { .. } | Self::Junk => None,
         }
     }
@@ -46,39 +46,19 @@ pub fn parse(text: &str) -> Frame {
     let Ok(Value::Object(mut m)) = serde_json::from_str::<Value>(text) else {
         return Frame::Junk;
     };
-    let ty = m
-        .get("type")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
+    let ty = m.get("type").and_then(Value::as_str).unwrap_or_default().to_owned();
     match ty.as_str() {
         "hello" => return Frame::Hello,
         "disconnect" => {
-            return Frame::Disconnect {
-                reason: m
-                    .get("reason")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned(),
-            };
+            return Frame::Disconnect { reason: m.get("reason").and_then(Value::as_str).unwrap_or_default().to_owned() };
         }
         _ => {}
     }
-    let envelope_id = m
-        .get("envelope_id")
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned);
+    let envelope_id = m.get("envelope_id").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned);
     let payload = m.remove("payload").unwrap_or(Value::Null);
     match ty.as_str() {
-        "events_api" => Frame::Events {
-            envelope_id,
-            payload,
-        },
-        "interactive" => Frame::Interactive {
-            envelope_id,
-            payload,
-        },
+        "events_api" => Frame::Events { envelope_id, payload },
+        "interactive" => Frame::Interactive { envelope_id, payload },
         _ => Frame::Other { envelope_id },
     }
 }
@@ -128,10 +108,7 @@ impl Listen {
     /// `ping_ms`: the beat the host keeps; a hello takes no longer than two of them.
     pub fn new(now_ms: i64, ping_ms: u64) -> Self {
         let wait = HELLO_MS.min(ping_ms.saturating_mul(2));
-        Self {
-            hello_by: now_ms.saturating_add(i64::try_from(wait).unwrap_or(i64::MAX)),
-            end: End::default(),
-        }
+        Self { hello_by: now_ms.saturating_add(i64::try_from(wait).unwrap_or(i64::MAX)), end: End::default() }
     }
 
     pub fn frame(&mut self, text: &str) -> Vec<Step> {

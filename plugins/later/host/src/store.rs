@@ -9,23 +9,62 @@ use wisp_store::{Col, EntityDef, Migration, Query, Row, Store, Writer};
 pub const OWNER: &str = "later";
 pub const TOPIC: &str = "plugin:wisp.later:later";
 
-pub const MIGRATIONS: &[Migration] = &[Migration::sql(
-    1,
-    "CREATE TABLE later_entry (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, at INTEGER NOT NULL, body TEXT NOT NULL) STRICT;
+pub const MIGRATIONS: &[Migration] = &[
+    Migration::sql(
+        1,
+        "CREATE TABLE later_entry (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, at INTEGER NOT NULL, body TEXT NOT NULL) STRICT;
      CREATE INDEX later_entry_at ON later_entry (at);
      CREATE TABLE later_plan (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE later_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
-), Migration::sql(2, "CREATE TABLE later_conf (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")];
+    ),
+    Migration::sql(2, "CREATE TABLE later_conf (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
+];
 
 fn topics(_: &Row) -> Vec<String> {
     vec![TOPIC.into()]
 }
 
-pub const ENTRY: EntityDef = EntityDef { kind: "later_entry", table: "later_entry", key: "id", columns: &[("id", Col::Text), ("session_id", Col::Text), ("at", Col::Int), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
-pub const PLAN: EntityDef = EntityDef { kind: "later_plan", table: "later_plan", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
-pub const META: EntityDef = EntityDef { kind: "later_meta", table: "later_meta", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+pub const ENTRY: EntityDef = EntityDef {
+    kind: "later_entry",
+    table: "later_entry",
+    key: "id",
+    columns: &[("id", Col::Text), ("session_id", Col::Text), ("at", Col::Int), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
+pub const PLAN: EntityDef = EntityDef {
+    kind: "later_plan",
+    table: "later_plan",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
+pub const META: EntityDef = EntityDef {
+    kind: "later_meta",
+    table: "later_meta",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
-pub const CONF: EntityDef = EntityDef { kind: "later_conf", table: "later_conf", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+pub const CONF: EntityDef = EntityDef {
+    kind: "later_conf",
+    table: "later_conf",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 pub fn install(store: &Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
@@ -82,7 +121,8 @@ pub async fn load(store: &Store) -> wisp_store::Result<Loaded> {
     store
         .read_async(|r| {
             let body = |row: &Row| row.get("body").cloned().unwrap_or(Value::Null);
-            let entries = r.query(ENTRY.kind, &Query::new().asc("at"))?.iter().filter_map(|x| serde_json::from_value(body(x)).ok()).collect();
+            let entries =
+                r.query(ENTRY.kind, &Query::new().asc("at"))?.iter().filter_map(|x| serde_json::from_value(body(x)).ok()).collect();
             let plans = r.query(PLAN.kind, &Query::new())?.iter().filter_map(|x| serde_json::from_value(body(x)).ok()).collect();
             let metas = r
                 .query(META.kind, &Query::new())?

@@ -45,7 +45,11 @@ impl State {
             if due.get(&account).is_some_and(|d| d.at > t) {
                 continue;
             }
-            let read = ctx.run_json(&ctx.root_call(), "accounts.limits", json!({ "agent": "codex", "account": account })).await.ok().filter(|v| !v.is_null());
+            let read = ctx
+                .run_json(&ctx.root_call(), "accounts.limits", json!({ "agent": "codex", "account": account }))
+                .await
+                .ok()
+                .filter(|v| !v.is_null());
             let report = read.as_ref().and_then(|v| {
                 let banked = codex_banked(v, t);
                 codex_live(v, t).map(|mut r| {

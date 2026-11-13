@@ -89,4 +89,3 @@ fn gone_one(m: &rpc::Message, why: &str) -> Option<String> {
     };
     Some(rpc::result(id, &body))
 }
-

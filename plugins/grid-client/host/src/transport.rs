@@ -12,7 +12,10 @@ use std::time::Duration;
 use futures::StreamExt as _;
 use tokio::sync::mpsc;
 use wisp_kernel::{BoxFuture, CancellationToken, Result, WireError};
-use wisp_machines_api::{AddArgs, AutoStart, Body, Channel, ChannelEnd, ChannelRequest, ChannelResponse, Cleaned, ConnectIo, EndReason, Failing, PeerRow, Probe, Stopped, Transport, TransportFailure};
+use wisp_machines_api::{
+    AddArgs, AutoStart, Body, Channel, ChannelEnd, ChannelRequest, ChannelResponse, Cleaned, ConnectIo, EndReason, Failing, PeerRow, Probe,
+    Stopped, Transport, TransportFailure,
+};
 
 use crate::net;
 
@@ -62,9 +65,11 @@ fn body_of(b: Body) -> Option<reqwest::Body> {
 impl Channel for GridChannel {
     fn request(&self, req: ChannelRequest) -> BoxFuture<'static, Result<ChannelResponse>> {
         let url = format!("{}{}", self.base, req.path);
-        let (client, scope, token, label, end) = (self.client.clone(), self.scope.clone(), self.token.clone(), self.origin.clone(), self.end.clone());
+        let (client, scope, token, label, end) =
+            (self.client.clone(), self.scope.clone(), self.token.clone(), self.origin.clone(), self.end.clone());
         Box::pin(async move {
-            let method = reqwest::Method::from_bytes(req.method.to_ascii_uppercase().as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
+            let method =
+                reqwest::Method::from_bytes(req.method.to_ascii_uppercase().as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
             let mut b = client.request(method, &url);
             if let Some(t) = &token {
                 b = b.bearer_auth(t);
@@ -88,7 +93,12 @@ impl Channel for GridChannel {
             let status = resp.status().as_u16();
             // signed out, or this device revoked: retrying won't change it
             if status == 401 {
-                let e = ChannelEnd { reason: EndReason::Gone, error: Some("The grid doesn't know this device any more: sign in again.".into()), hint: None, give_up: true };
+                let e = ChannelEnd {
+                    reason: EndReason::Gone,
+                    error: Some("The grid doesn't know this device any more: sign in again.".into()),
+                    hint: None,
+                    give_up: true,
+                };
                 let mut g = end.lock().unwrap_or_else(PoisonError::into_inner);
                 if g.is_none() {
                     *g = Some(e);
@@ -118,7 +128,12 @@ impl Channel for GridChannel {
         let (scope, end) = (self.scope.clone(), self.end.clone());
         Box::pin(async move {
             scope.cancelled().await;
-            end.lock().unwrap_or_else(PoisonError::into_inner).clone().unwrap_or(ChannelEnd { reason: EndReason::Closed, error: None, hint: None, give_up: false })
+            end.lock().unwrap_or_else(PoisonError::into_inner).clone().unwrap_or(ChannelEnd {
+                reason: EndReason::Closed,
+                error: None,
+                hint: None,
+                give_up: false,
+            })
         })
     }
     fn close(&self) {
@@ -135,10 +150,28 @@ fn origin(p: &PeerRow) -> Option<String> {
 
 fn clean(input: &AddArgs, prev: Option<&PeerRow>) -> Failing<Cleaned> {
     let url = input.data.get("url").and_then(|v| v.as_str()).map(str::to_owned).or_else(|| prev.and_then(origin));
-    let Some(url) = url else { return Err(TransportFailure { status: Some(400), ..TransportFailure::new("A grid machine comes from signing in: wisp cloud signin") }) };
+    let Some(url) = url else {
+        return Err(TransportFailure {
+            status: Some(400),
+            ..TransportFailure::new("A grid machine comes from signing in: wisp cloud signin")
+        });
+    };
     let (host, port) = crate::peers::host_port(&url);
-    let name = input.name.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(|n| n.chars().take(40).collect()).or_else(|| prev.map(|p| p.name.clone())).unwrap_or_else(|| host.clone());
-    Ok(Cleaned { name: Some(name), address: Some(host), port: Some(port), command: Some(String::new()), auto_connect: Some(input.auto_connect.or(prev.map(|p| p.auto_connect)).unwrap_or(true)) })
+    let name = input
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map(|n| n.chars().take(40).collect())
+        .or_else(|| prev.map(|p| p.name.clone()))
+        .unwrap_or_else(|| host.clone());
+    Ok(Cleaned {
+        name: Some(name),
+        address: Some(host),
+        port: Some(port),
+        command: Some(String::new()),
+        auto_connect: Some(input.auto_connect.or(prev.map(|p| p.auto_connect)).unwrap_or(true)),
+    })
 }
 
 #[derive(Debug)]
@@ -160,7 +193,8 @@ impl Transport for GridTransport {
     fn connect(&self, peer: PeerRow, io: Arc<dyn ConnectIo>, cancel: CancellationToken) -> BoxFuture<'static, Failing<Arc<dyn Channel>>> {
         let client = self.client.clone();
         Box::pin(async move {
-            let o = origin(&peer).ok_or_else(|| TransportFailure::new("This machine has no address on the grid: sign in again.").final_())?;
+            let o =
+                origin(&peer).ok_or_else(|| TransportFailure::new("This machine has no address on the grid: sign in again.").final_())?;
             let ch: Arc<dyn Channel> = GridChannel::new(&o, io.secret(), client, cancel);
             Ok(ch)
         })
@@ -191,12 +225,18 @@ impl Transport for GridTransport {
         let (client, tunnel) = (self.client.clone(), self.tunnel);
         Box::pin(async move {
             if tunnel {
-                return Err(TransportFailure { status: Some(400), ..TransportFailure::new(format!("{} is turned off there, by its owner.", peer.name)) });
+                return Err(TransportFailure {
+                    status: Some(400),
+                    ..TransportFailure::new(format!("{} is turned off there, by its owner.", peer.name))
+                });
             }
             let o = origin(&peer).ok_or_else(|| TransportFailure::new("no address"))?;
             match net::call(&client, "POST", &format!("{o}/_grid/stop"), io.secret().as_deref(), Some(&serde_json::json!({})), &[]).await {
                 Ok((200, _)) => Ok(Stopped::Asleep),
-                Ok((s, v)) => Err(TransportFailure { status: Some(s), ..TransportFailure::new(v.get("error").and_then(serde_json::Value::as_str).unwrap_or("the grid refused")) }),
+                Ok((s, v)) => Err(TransportFailure {
+                    status: Some(s),
+                    ..TransportFailure::new(v.get("error").and_then(serde_json::Value::as_str).unwrap_or("the grid refused"))
+                }),
                 Err(e) => Err(TransportFailure::new(e.message)),
             }
         })

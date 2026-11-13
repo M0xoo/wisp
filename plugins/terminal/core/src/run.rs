@@ -16,7 +16,10 @@ pub fn port_for(id: &str) -> u16 {
 /// The command to offer: `.wisp/worktree.json`'s `run`, else the package manager's `dev` (or `start`) script.
 #[must_use]
 pub fn guess(worktree_json: Option<&str>, package_json: Option<&str>, lock: &dyn Fn(&str) -> bool) -> Option<String> {
-    if let Some(run) = worktree_json.and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()).and_then(|v| v["run"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_owned)) {
+    if let Some(run) = worktree_json
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+        .and_then(|v| v["run"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_owned))
+    {
         return Some(run);
     }
     let pkg: serde_json::Value = serde_json::from_str(package_json?).ok()?;

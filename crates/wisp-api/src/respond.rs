@@ -32,9 +32,7 @@ pub fn empty() -> Body {
 
 /// A body fed by a channel (SSE, terminal output): ends when the sender is dropped.
 pub fn channel(rx: tokio::sync::mpsc::Receiver<Bytes>) -> Body {
-    let s = futures::stream::unfold(rx, |mut rx| async move {
-        rx.recv().await.map(|b| (Ok(Frame::data(b)), rx))
-    });
+    let s = futures::stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|b| (Ok(Frame::data(b)), rx)) });
     StreamBody::new(s).boxed()
 }
 
@@ -54,8 +52,7 @@ impl Encoding {
 }
 
 fn word(list: &str, w: &str) -> bool {
-    list.split(|c: char| c == ',' || c == ';' || c.is_whitespace())
-        .any(|t| t.eq_ignore_ascii_case(w))
+    list.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).any(|t| t.eq_ignore_ascii_case(w))
 }
 
 /// From Accept-Encoding: br (every browser), gzip, or none.
@@ -72,10 +69,7 @@ pub fn encoding_for(h: &HeaderMap) -> Option<Encoding> {
 
 pub fn weak_etag(body: &[u8]) -> String {
     let h = blake3::hash(body);
-    format!(
-        "W/\"{}\"",
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&h.as_bytes()[..18])
-    )
+    format!("W/\"{}\"", base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&h.as_bytes()[..18]))
 }
 
 pub fn compress(enc: Encoding, body: &[u8], quality: u32) -> std::io::Result<Vec<u8>> {
@@ -89,10 +83,7 @@ pub fn compress(enc: Encoding, body: &[u8], quality: u32) -> std::io::Result<Vec
             Ok(out)
         }
         Encoding::Gzip => {
-            let mut e = flate2::write::GzEncoder::new(
-                Vec::with_capacity(body.len() / 3),
-                flate2::Compression::new(quality),
-            );
+            let mut e = flate2::write::GzEncoder::new(Vec::with_capacity(body.len() / 3), flate2::Compression::new(quality));
             e.write_all(body)?;
             e.finish()
         }
@@ -101,10 +92,7 @@ pub fn compress(enc: Encoding, body: &[u8], quality: u32) -> std::io::Result<Vec
 
 /// Compressed on the blocking pool: a full session can be megabytes.
 pub async fn compress_off_thread(enc: Encoding, body: Bytes, quality: u32) -> Option<Bytes> {
-    tokio::task::spawn_blocking(move || compress(enc, &body, quality).ok().map(Bytes::from))
-        .await
-        .ok()
-        .flatten()
+    tokio::task::spawn_blocking(move || compress(enc, &body, quality).ok().map(Bytes::from)).await.ok().flatten()
 }
 
 /// What a JSON answer needs to know about the request.
@@ -157,11 +145,7 @@ impl PreparedCache {
             map.retain(|_, (w, _)| w.strong_count() > 0);
         }
         let json = Bytes::from(serde_json::to_vec(&**v).unwrap_or_default());
-        let k = Arc::new(Mutex::new(Kept {
-            etag: weak_etag(&json),
-            json,
-            out: HashMap::new(),
-        }));
+        let k = Arc::new(Mutex::new(Kept { etag: weak_etag(&json), json, out: HashMap::new() }));
         map.insert(key, (Arc::downgrade(v), k.clone()));
         k
     }
@@ -179,10 +163,7 @@ pub fn not_modified(etag: &str) -> Answer {
     if let Ok(v) = HeaderValue::from_str(etag) {
         r.headers_mut().insert("etag", v);
     }
-    r.headers_mut().insert(
-        "cache-control",
-        HeaderValue::from_static("private, no-cache"),
-    );
+    r.headers_mut().insert("cache-control", HeaderValue::from_static("private, no-cache"));
     r
 }
 
@@ -205,15 +186,11 @@ async fn json_bytes(
         if asked.if_none_match.as_deref() == Some(etag.as_str()) {
             return not_modified(&etag);
         }
-        b = b
-            .header("etag", etag)
-            .header("cache-control", "private, no-cache");
+        b = b.header("etag", etag).header("cache-control", "private, no-cache");
     }
     let enc = if big { asked.enc } else { None };
     let Some(enc) = enc else {
-        return b
-            .body(full(json))
-            .unwrap_or_else(|_| http::Response::new(empty()));
+        return b.body(full(json)).unwrap_or_else(|_| http::Response::new(empty()));
     };
     let cached = kept.and_then(|k| k.lock().ok().and_then(|k| k.out.get(&enc).cloned()));
     let quality = if enc == Encoding::Br { 4 } else { 1 };
@@ -228,9 +205,7 @@ async fn json_bytes(
             {
                 k.out.insert(enc, out.clone());
             }
-            b.header("content-encoding", enc.name())
-                .header("vary", "accept-encoding")
-                .body(full(out))
+            b.header("content-encoding", enc.name()).header("vary", "accept-encoding").body(full(out))
         }
         None => b.body(full(json)),
     }
@@ -242,52 +217,27 @@ pub async fn json(status: u16, body: &Value, asked: &Asked, extra: &[(String, St
     json_bytes(status, bytes, None, asked, extra, None).await
 }
 
-pub async fn prepared(
-    cache: &PreparedCache,
-    status: u16,
-    body: &Arc<Value>,
-    asked: &Asked,
-) -> Answer {
+pub async fn prepared(cache: &PreparedCache, status: u16, body: &Arc<Value>, asked: &Asked) -> Answer {
     let kept = cache.kept(body);
     let (json, etag) = match kept.lock() {
         Ok(k) => (k.json.clone(), k.etag.clone()),
-        Err(_) => (
-            Bytes::from(serde_json::to_vec(&**body).unwrap_or_default()),
-            String::new(),
-        ),
+        Err(_) => (Bytes::from(serde_json::to_vec(&**body).unwrap_or_default()), String::new()),
     };
-    json_bytes(
-        status,
-        json,
-        Some(etag).filter(|e| !e.is_empty()),
-        asked,
-        &[],
-        Some(&kept),
-    )
-    .await
+    json_bytes(status, json, Some(etag).filter(|e| !e.is_empty()), asked, &[], Some(&kept)).await
 }
 
 /// A small JSON answer that never compresses (errors, refusals).
 pub fn plain_json(status: u16, body: &Value) -> Answer {
-    base(status)
-        .body(full(serde_json::to_vec(body).unwrap_or_default()))
-        .unwrap_or_else(|_| http::Response::new(empty()))
+    base(status).body(full(serde_json::to_vec(body).unwrap_or_default())).unwrap_or_else(|_| http::Response::new(empty()))
 }
 
-pub fn text(
-    status: u16,
-    content_type: &str,
-    body: impl Into<Bytes>,
-    extra: &[(String, String)],
-) -> Answer {
-    let mut b = http::Response::builder()
-        .status(StatusCode::from_u16(status).unwrap_or(StatusCode::OK))
-        .header("content-type", content_type);
+pub fn text(status: u16, content_type: &str, body: impl Into<Bytes>, extra: &[(String, String)]) -> Answer {
+    let mut b =
+        http::Response::builder().status(StatusCode::from_u16(status).unwrap_or(StatusCode::OK)).header("content-type", content_type);
     for (k, v) in extra {
         b = b.header(k.as_str(), v.as_str());
     }
-    b.body(full(body))
-        .unwrap_or_else(|_| http::Response::new(empty()))
+    b.body(full(body)).unwrap_or_else(|_| http::Response::new(empty()))
 }
 
 pub fn redirect(status: u16, location: &str) -> Answer {

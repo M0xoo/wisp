@@ -53,9 +53,13 @@ impl MemBlobs {
 impl Blobs for MemBlobs {
     fn put(&self, bytes: Vec<u8>) -> BoxFuture<'static, Result<String>> {
         let h = hash(&bytes);
-        let ok = self.map.write().map(|mut m| {
-            m.entry(h.clone()).or_insert_with(|| Arc::new(bytes));
-        }).is_ok();
+        let ok = self
+            .map
+            .write()
+            .map(|mut m| {
+                m.entry(h.clone()).or_insert_with(|| Arc::new(bytes));
+            })
+            .is_ok();
         Box::pin(async move { if ok { Ok(h) } else { Err(Error::Poisoned) } })
     }
     fn get(&self, hash: &str) -> BoxFuture<'static, Result<Option<Arc<Vec<u8>>>>> {

@@ -13,24 +13,15 @@ pub struct Permission {
 
 fn ns_ok(s: &str) -> bool {
     s == "*"
-        || (s.starts_with(|c: char| c.is_ascii_lowercase())
-            && s.bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
+        || (s.starts_with(|c: char| c.is_ascii_lowercase()) && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
 }
 
 fn action_ok(s: &str) -> bool {
-    !s.is_empty()
-        && s.split('.').all(|p| {
-            !p.is_empty()
-                && p.bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'*' | b'_' | b'-'))
-        })
+    !s.is_empty() && s.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'*' | b'_' | b'-')))
 }
 
 fn key_ok(s: &str) -> bool {
-    s.starts_with(|c: char| c.is_ascii_lowercase())
-        && s.bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+    s.starts_with(|c: char| c.is_ascii_lowercase()) && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
 }
 
 fn value_ok(s: &str) -> bool {
@@ -48,11 +39,7 @@ pub fn parse(s: &str) -> Option<Permission> {
 
 fn parse_inner(s: &str) -> Result<Permission, String> {
     if s == "*" {
-        return Ok(Permission {
-            ns: "*".into(),
-            action: "*".into(),
-            scope: Vec::new(),
-        });
+        return Ok(Permission { ns: "*".into(), action: "*".into(), scope: Vec::new() });
     }
     let (head, body) = match s.find('{') {
         Some(b) => (&s[..b], Some(&s[b + 1..])),
@@ -62,14 +49,10 @@ fn parse_inner(s: &str) -> Result<Permission, String> {
         return Err(format!("\"{s}\" is not ns:action{{k:v,…}} (no ':')"));
     };
     if !ns_ok(ns) {
-        return Err(format!(
-            "\"{ns}\" is not a namespace (lowercase letters, digits, dashes)"
-        ));
+        return Err(format!("\"{ns}\" is not a namespace (lowercase letters, digits, dashes)"));
     }
     if !action_ok(action) {
-        return Err(format!(
-            "\"{action}\" is not an action (letters, digits, dots, *)"
-        ));
+        return Err(format!("\"{action}\" is not an action (letters, digits, dots, *)"));
     }
     let mut scope: Vec<(String, String)> = Vec::new();
     if let Some(body) = body {
@@ -96,11 +79,7 @@ fn parse_inner(s: &str) -> Result<Permission, String> {
             scope.push((k.to_owned(), v.to_owned()));
         }
     }
-    Ok(Permission {
-        ns: ns.to_owned(),
-        action: action.to_owned(),
-        scope,
-    })
+    Ok(Permission { ns: ns.to_owned(), action: action.to_owned(), scope })
 }
 
 impl std::fmt::Display for Permission {
@@ -162,10 +141,7 @@ impl Permission {
     pub fn covers(&self, r: &Self) -> bool {
         glob(&self.ns, &r.ns)
             && glob(&self.action, &r.action)
-            && self
-                .scope
-                .iter()
-                .all(|(k, gv)| r.scope.iter().any(|(rk, rv)| rk == k && glob(gv, rv)))
+            && self.scope.iter().all(|(k, gv)| r.scope.iter().any(|(rk, rv)| rk == k && glob(gv, rv)))
     }
 }
 
@@ -202,24 +178,10 @@ mod tests {
         ] {
             assert_eq!(problem(ok), None, "{ok}");
         }
-        for bad in [
-            "runtime",
-            "Runtime:start",
-            "a:",
-            "a:b{",
-            "a:b{}",
-            "a:b{k}",
-            "a:b{k:}",
-            "a:b{k:1,k:2}",
-            "a:b{K:v}",
-            "a:b..c",
-        ] {
+        for bad in ["runtime", "Runtime:start", "a:", "a:b{", "a:b{}", "a:b{k}", "a:b{k:}", "a:b{k:1,k:2}", "a:b{K:v}", "a:b..c"] {
             assert!(problem(bad).is_some(), "{bad}");
         }
-        assert_eq!(
-            parse("a:b{x:1, y:2}").map(|p| p.to_string()).as_deref(),
-            Some("a:b{x:1,y:2}")
-        );
+        assert_eq!(parse("a:b{x:1, y:2}").map(|p| p.to_string()).as_deref(), Some("a:b{x:1,y:2}"));
     }
 
     #[test]
@@ -228,27 +190,12 @@ mod tests {
         assert!(covers("runtime:*", "runtime:start"));
         assert!(covers("runtime:start", "runtime:start{mode:auto}"));
         assert!(!covers("runtime:start{mode:auto}", "runtime:start"));
-        assert!(covers(
-            "runtime:start{mode:auto}",
-            "runtime:start{mode:auto,harness:claude}"
-        ));
-        assert!(!covers(
-            "runtime:start{mode:auto}",
-            "runtime:start{mode:plan}"
-        ));
+        assert!(covers("runtime:start{mode:auto}", "runtime:start{mode:auto,harness:claude}"));
+        assert!(!covers("runtime:start{mode:auto}", "runtime:start{mode:plan}"));
         assert!(covers("proc:spawn{bin:*}", "proc:spawn{bin:claude}"));
-        assert!(covers(
-            "topic:read{topic:session:*}",
-            "topic:read{topic:session:abc}"
-        ));
-        assert!(!covers(
-            "topic:read{topic:session:*}",
-            "topic:read{topic:list}"
-        ));
-        assert!(covers(
-            "secrets:read{key:claude.*}",
-            "secrets:read{key:claude.token}"
-        ));
+        assert!(covers("topic:read{topic:session:*}", "topic:read{topic:session:abc}"));
+        assert!(!covers("topic:read{topic:session:*}", "topic:read{topic:list}"));
+        assert!(covers("secrets:read{key:claude.*}", "secrets:read{key:claude.token}"));
         assert!(!covers("git:*", "gh:read"));
         assert!(!covers("nonsense", "a:b"));
     }

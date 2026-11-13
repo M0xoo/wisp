@@ -43,5 +43,10 @@ pub fn decide(subject: &RunSubject, hold_of: impl FnOnce(&str, &str) -> Option<P
 /// Who a run is for, from what `before:run` says of it: `by` names the starter (`crew`, `trigger`,
 /// `goal`, `agent`…); anything else, or nothing, is someone at the keyboard.
 pub fn subject_of(agent: &str, account: Option<&str>, by: Option<&str>) -> RunSubject {
-    RunSubject { agent: agent.to_owned(), account: account.unwrap_or_default().to_owned(), attended: !windows::unattended(by), by: by.map(str::to_owned) }
+    RunSubject {
+        agent: agent.to_owned(),
+        account: account.unwrap_or_default().to_owned(),
+        attended: !windows::unattended(by),
+        by: by.map(str::to_owned),
+    }
 }

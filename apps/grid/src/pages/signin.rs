@@ -56,7 +56,16 @@ pub fn sign_in_page(cfg: &PageCfg, p: &SignInPage) -> String {
         format!("{}/signin?return={}", cfg.public_url, encode_component(&p.ret))
     };
     let join = |error: &str, linking: bool| {
-        join_box(&Join { cfg, providers: &p.providers, seats: &p.seats, ret: &p.ret, error, linking, waitlisted: p.waitlisted, in_app: in_app.as_ref() })
+        join_box(&Join {
+            cfg,
+            providers: &p.providers,
+            seats: &p.seats,
+            ret: &p.ret,
+            error,
+            linking,
+            waitlisted: p.waitlisted,
+            in_app: in_app.as_ref(),
+        })
     };
     let top = in_app.as_ref().map(|a| in_app_box(a, &here)).unwrap_or_default() + &join(&p.error, p.linking);
     let title = format!("{} · your agents keep working when your laptop closes", cfg.name);
@@ -111,7 +120,9 @@ fn hero(cfg: &PageCfg, join: &str) -> String {
 
 fn strip() -> String {
     let agents: String = AGENTS.iter().map(|(f, n, c)| format!(r#"<li><img src="{ASSETS}/{f}" alt="" class="{c}">{n}</li>"#)).collect();
-    format!("<div class=\"strip\"><div class=\"wrap\"><span class=\"l\">Signs in with your own accounts</span><ul>\n  {agents}<li>{GITHUB}GitHub</li></ul></div></div>\n\n")
+    format!(
+        "<div class=\"strip\"><div class=\"wrap\"><span class=\"l\">Signs in with your own accounts</span><ul>\n  {agents}<li>{GITHUB}GitHub</li></ul></div></div>\n\n"
+    )
 }
 
 fn how(cfg: &PageCfg, providers: &[Provider]) -> String {
@@ -122,7 +133,8 @@ fn how(cfg: &PageCfg, providers: &[Provider]) -> String {
         format!("With {}. ", esc(&ways.iter().map(|p| p.label.as_str()).collect::<Vec<_>>().join(" or ")))
     };
     let chips: String = ways.iter().map(|p| format!(r#"<span class="chip">{}{}</span>"#, logo(&p.id), esc(&p.label))).collect();
-    let agents: String = AGENTS[..2].iter().map(|(f, n, _)| format!(r#"<span class="chip"><img src="{ASSETS}/{f}" alt="">{n}</span>"#)).collect();
+    let agents: String =
+        AGENTS[..2].iter().map(|(f, n, _)| format!(r#"<span class="chip"><img src="{ASSETS}/{f}" alt="">{n}</span>"#)).collect();
     let domain = esc(&cfg.domain);
     format!(
         r#"<section class="s" id="how"><div class="wrap">

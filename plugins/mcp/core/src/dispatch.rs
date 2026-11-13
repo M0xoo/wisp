@@ -28,7 +28,9 @@ impl Who {
     /// session's flags say. Anyone else is the user's editor.
     pub fn of(set: &str, session: Option<&str>, info: SessionInfo, version: &str) -> Self {
         match session {
-            Some(s) => Self::Agent { session: s.to_owned(), info: SessionInfo { capped: info.capped || set.starts_with("agent:capped"), ..info } },
+            Some(s) => {
+                Self::Agent { session: s.to_owned(), info: SessionInfo { capped: info.capped || set.starts_with("agent:capped"), ..info } }
+            }
             None => Self::User { version: version.to_owned() },
         }
     }
@@ -84,7 +86,10 @@ pub fn plan(text: &str, who: &Who, extras: &[Extra]) -> Plan {
         Incoming::Nothing => Plan { steps: Vec::new(), batch: false },
         Incoming::One(m) => Plan { steps: vec![step(m, who, extras)], batch: false },
         Incoming::Batch(items) if items.is_empty() => Plan { steps: vec![Step::Reply(rpc::invalid_request())], batch: false },
-        Incoming::Batch(items) => Plan { steps: items.into_iter().map(|m| m.map_or_else(|| Step::Reply(rpc::invalid_request()), |m| step(m, who, extras))).collect(), batch: true },
+        Incoming::Batch(items) => Plan {
+            steps: items.into_iter().map(|m| m.map_or_else(|| Step::Reply(rpc::invalid_request()), |m| step(m, who, extras))).collect(),
+            batch: true,
+        },
     }
 }
 
@@ -112,8 +117,14 @@ fn not_found(id: &RawValue, method: &str) -> String {
 fn initialize(m: &Message, who: &Who) -> String {
     let pv = m.protocol_version();
     match who {
-        Who::Agent { .. } => format!("{{\"protocolVersion\":{pv},\"capabilities\":{{\"tools\":{{}}}},\"serverInfo\":{{\"name\":\"wisp\",\"version\":\"{AGENT_SERVER_VERSION}\"}}}}"),
-        Who::User { version } => format!("{{\"protocolVersion\":{pv},\"capabilities\":{{\"tools\":{{}}}},\"serverInfo\":{{\"name\":\"wisp\",\"version\":{}}},\"instructions\":{}}}", rpc::quote(version), rpc::quote(USER_INSTRUCTIONS)),
+        Who::Agent { .. } => format!(
+            "{{\"protocolVersion\":{pv},\"capabilities\":{{\"tools\":{{}}}},\"serverInfo\":{{\"name\":\"wisp\",\"version\":\"{AGENT_SERVER_VERSION}\"}}}}"
+        ),
+        Who::User { version } => format!(
+            "{{\"protocolVersion\":{pv},\"capabilities\":{{\"tools\":{{}}}},\"serverInfo\":{{\"name\":\"wisp\",\"version\":{}}},\"instructions\":{}}}",
+            rpc::quote(version),
+            rpc::quote(USER_INSTRUCTIONS)
+        ),
     }
 }
 
@@ -122,7 +133,14 @@ pub fn tools_list(who: &Who, extras: &[Extra]) -> String {
     let Ok(t) = table::table() else { return "{\"tools\":[]}".into() };
     let (base, own): (std::borrow::Cow<'_, str>, Vec<&str>) = match who {
         Who::User { .. } => (t.user_list().into(), extras.iter().filter(|e| e.for_user()).map(|e| e.raw.as_str()).collect()),
-        Who::Agent { info, .. } => (table::agent_list(t, info), extras.iter().filter(|e| e.for_agent() && table::not_offered(&e.name, info, Some(e.flags)).is_none()).map(|e| e.raw.as_str()).collect()),
+        Who::Agent { info, .. } => (
+            table::agent_list(t, info),
+            extras
+                .iter()
+                .filter(|e| e.for_agent() && table::not_offered(&e.name, info, Some(e.flags)).is_none())
+                .map(|e| e.raw.as_str())
+                .collect(),
+        ),
     };
     let mut s = String::with_capacity(base.len() + own.iter().map(|r| r.len() + 1).sum::<usize>() + 12);
     s.push_str("{\"tools\":[");
@@ -148,7 +166,8 @@ fn call(id: Box<RawValue>, mut m: Message, who: &Who, extras: &[Extra]) -> Step 
                 Some(Refusal::ReadOnly) => return Step::Reply(rpc::result(&id, &rpc::tool_text(words::READ_ONLY, true))),
                 None => {}
             }
-            let builtin = table::table().is_ok_and(|t| name == "delegate" || t.agent_def(&name).is_some()) && table::exists_for(&name, info);
+            let builtin =
+                table::table().is_ok_and(|t| name == "delegate" || t.agent_def(&name).is_some()) && table::exists_for(&name, info);
             if !builtin && extra.is_none() {
                 // v1 fell through every branch to its last line, which names the method, not the tool.
                 return Step::Reply(not_found(&id, "tools/call"));

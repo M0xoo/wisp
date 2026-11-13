@@ -18,15 +18,26 @@ fn forward(req: &Request, rest: &str) -> ChannelRequest {
     let q: Vec<String> = req.query.iter().map(|(k, v)| format!("{k}={}", encode(v))).collect();
     let path = if q.is_empty() { rest.to_owned() } else { format!("{rest}?{}", q.join("&")) };
     let headers = req.headers.iter().filter(|(k, _)| PASS.contains(&k.to_ascii_lowercase().as_str())).cloned().collect();
-    ChannelRequest { method: req.method.clone(), path, headers, body: if req.body.is_empty() { Body::Empty } else { Body::Bytes(req.body.clone()) }, timeout_ms: None, passive: false }
+    ChannelRequest {
+        method: req.method.clone(),
+        path,
+        headers,
+        body: if req.body.is_empty() { Body::Empty } else { Body::Bytes(req.body.clone()) },
+        timeout_ms: None,
+        passive: false,
+    }
 }
 
 fn encode(v: &str) -> String {
-    v.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~,".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
+    v.bytes()
+        .map(|b| if b.is_ascii_alphanumeric() || b"-_.~,".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+        .collect()
 }
 
 pub(crate) fn register(s: &mut Setup, slot: &Slot) {
-    for (method, pattern, rest) in [("GET", "/peer/:id/api/events", "/events"), ("POST", "/peer/:id/api/events", "/events"), ("POST", "/peer/:id/api/cmd", "/cmd")] {
+    for (method, pattern, rest) in
+        [("GET", "/peer/:id/api/events", "/events"), ("POST", "/peer/:id/api/events", "/events"), ("POST", "/peer/:id/api/cmd", "/cmd")]
+    {
         let sl = slot.clone();
         s.route(Route {
             method,
@@ -43,7 +54,11 @@ pub(crate) fn register(s: &mut Setup, slot: &Slot) {
                     let id = req.param("id").unwrap_or_default().to_owned();
                     let ch = st.channel(&id).map_err(WireError::from)?;
                     let mut resp = ch.request(forward(&req, rest)).await?;
-                    let ty = resp.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("content-type")).map_or_else(|| "application/json".to_owned(), |(_, v)| v.clone());
+                    let ty = resp
+                        .headers
+                        .iter()
+                        .find(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+                        .map_or_else(|| "application/json".to_owned(), |(_, v)| v.clone());
                     if ty.starts_with("text/event-stream") {
                         // the stream, as it comes, until the app or the link goes
                         let (tx, out) = Response::stream(ty);

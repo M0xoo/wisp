@@ -78,11 +78,7 @@ fn content_length(head: &[u8]) -> Option<usize> {
         if !name.trim().eq_ignore_ascii_case("content-length") {
             return None;
         }
-        let digits: String = value
-            .trim_start()
-            .chars()
-            .take_while(char::is_ascii_digit)
-            .collect();
+        let digits: String = value.trim_start().chars().take_while(char::is_ascii_digit).collect();
         digits.parse().ok()
     })
 }
@@ -111,31 +107,20 @@ mod tests {
 
     fn decode_all(chunks: &[&[u8]]) -> Vec<Value> {
         let mut d = Decoder::new();
-        chunks
-            .iter()
-            .flat_map(|c| d.push(c))
-            .filter_map(|b| serde_json::from_slice(&b).ok())
-            .collect()
+        chunks.iter().flat_map(|c| d.push(c)).filter_map(|b| serde_json::from_slice(&b).ok()).collect()
     }
 
     #[test]
     fn one_frame() {
         let bytes = encode(&json!({ "id": 1, "result": null }));
         assert!(bytes.starts_with(b"Content-Length: "));
-        assert_eq!(
-            decode_all(&[&bytes]),
-            vec![json!({ "jsonrpc": "2.0", "id": 1, "result": null })]
-        );
+        assert_eq!(decode_all(&[&bytes]), vec![json!({ "jsonrpc": "2.0", "id": 1, "result": null })]);
     }
 
     #[test]
     fn header_name_in_any_case_and_extra_headers() {
         let body = br#"{"id":2}"#;
-        let mut bytes = format!(
-            "content-type: application/vscode-jsonrpc\r\ncontent-length:  {}\r\n\r\n",
-            body.len()
-        )
-        .into_bytes();
+        let mut bytes = format!("content-type: application/vscode-jsonrpc\r\ncontent-length:  {}\r\n\r\n", body.len()).into_bytes();
         bytes.extend_from_slice(body);
         assert_eq!(decode_all(&[&bytes]), vec![json!({ "id": 2 })]);
     }
@@ -172,9 +157,7 @@ mod tests {
         let mut rng = Rng::new(0x15b);
         for round in 0..300 {
             let n = 1 + rng.below(6);
-            let msgs: Vec<Value> = (0..n)
-                .map(|i| json!({ "id": i, "text": "é".repeat(rng.below(40)), "round": round }))
-                .collect();
+            let msgs: Vec<Value> = (0..n).map(|i| json!({ "id": i, "text": "é".repeat(rng.below(40)), "round": round })).collect();
             let bytes = stream(&msgs);
             let mut chunks: Vec<&[u8]> = Vec::new();
             let mut at = 0;

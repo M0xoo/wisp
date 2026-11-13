@@ -4,9 +4,7 @@
 use wisp_stuff_api::{DbSpec, StuffFrom, StuffItem, StuffKind};
 
 use crate::Bad;
-use crate::kind::{
-    EXCERPT, MAX_TEXT, clip, excerpt_of, kind_of, lang_ext, mime_for, safe_name, texty, title_from,
-};
+use crate::kind::{EXCERPT, MAX_TEXT, clip, excerpt_of, kind_of, lang_ext, mime_for, safe_name, texty, title_from};
 
 /// Who saved it and where from: the same for every kind.
 #[derive(Debug, Clone, Default)]
@@ -31,8 +29,7 @@ pub struct FileIn<'a> {
 /// A file's record.
 pub fn file_item(f: &FileIn<'_>, o: &Origin, now: i64) -> StuffItem {
     let kind = kind_of(f.name);
-    let excerpt = (matches!(kind, StuffKind::Doc | StuffKind::Code) && texty(f.name))
-        .then(|| excerpt_of(f.head.unwrap_or_default(), kind));
+    let excerpt = (matches!(kind, StuffKind::Doc | StuffKind::Code) && texty(f.name)).then(|| excerpt_of(f.head.unwrap_or_default(), kind));
     StuffItem {
         id: f.id.to_owned(),
         kind,
@@ -60,10 +57,7 @@ pub fn check_text(text: &str) -> Result<(), Bad> {
         return Err(Bad::new(400, "Nothing to save: the text is empty."));
     }
     if text.len() > MAX_TEXT {
-        return Err(Bad::new(
-            413,
-            "That text is too long for My Stuff (2 MB at most).",
-        ));
+        return Err(Bad::new(413, "That text is too long for My Stuff (2 MB at most)."));
     }
     Ok(())
 }
@@ -79,17 +73,8 @@ pub fn text_name(name: Option<&str>, lang: Option<&str>, title: Option<&str>) ->
         base = format!("{base}.{ext}");
     }
     if base.is_empty() {
-        let from_title = title
-            .map(|t| {
-                safe_name(
-                    &t.split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join("-")
-                        .to_lowercase(),
-                    "",
-                )
-            })
-            .unwrap_or_default();
+        let from_title =
+            title.map(|t| safe_name(&t.split_whitespace().collect::<Vec<_>>().join("-").to_lowercase(), "")).unwrap_or_default();
         let stem = if !from_title.is_empty() {
             from_title
         } else if lang.is_some() {
@@ -110,13 +95,8 @@ pub fn parse_link(url: &str) -> Result<(String, String), Bad> {
         return Err(not());
     };
     let scheme = &u[..colon];
-    let scheme_ok = scheme
-        .chars()
-        .next()
-        .is_some_and(|c| c.is_ascii_alphabetic())
-        && scheme
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c));
+    let scheme_ok = scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+        && scheme.chars().all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c));
     if !scheme_ok {
         return Err(not());
     }
@@ -133,19 +113,10 @@ pub fn parse_link(url: &str) -> Result<(String, String), Bad> {
     } else {
         hostport.split(':').next().unwrap_or_default()
     };
-    if host.is_empty()
-        || u.chars().any(char::is_whitespace)
-        || !host
-            .chars()
-            .all(|c| c.is_alphanumeric() || "-._[]:".contains(c))
-    {
+    if host.is_empty() || u.chars().any(char::is_whitespace) || !host.chars().all(|c| c.is_alphanumeric() || "-._[]:".contains(c)) {
         return Err(not());
     }
-    let tail = if tail.starts_with('/') {
-        tail.to_owned()
-    } else {
-        format!("/{tail}")
-    };
+    let tail = if tail.starts_with('/') { tail.to_owned() } else { format!("/{tail}") };
     let href = format!("{scheme}://{}{tail}", authority.to_lowercase());
     let host = host.to_lowercase();
     let short = host.strip_prefix("www.").unwrap_or(&host).to_owned();
@@ -188,13 +159,7 @@ pub fn app_item(id: &str, f: &AppFacts, o: &Origin, now: i64) -> StuffItem {
         id: id.to_owned(),
         kind: StuffKind::App,
         name: safe_name(&shown, "app"),
-        title: clip(
-            f.name
-                .as_deref()
-                .map_or_else(|| title_from(&f.folder), str::to_owned)
-                .as_str(),
-            140,
-        ),
+        title: clip(f.name.as_deref().map_or_else(|| title_from(&f.folder), str::to_owned).as_str(), 140),
         mime: Some("text/html".into()),
         size: f.size,
         files: Some(f.files),
@@ -217,9 +182,7 @@ pub fn check_entry(entry: &str, exists: bool, src: &str) -> Result<(), Bad> {
     if entry.split(['/', '\\']).any(|s| s == "..") || !exists {
         return Err(Bad::new(
             400,
-            format!(
-                "No {entry} in {src}: build the app first (static files: HTML, JS, CSS), or name its entry in wisp-app.json."
-            ),
+            format!("No {entry} in {src}: build the app first (static files: HTML, JS, CSS), or name its entry in wisp-app.json."),
         ));
     }
     Ok(())

@@ -59,16 +59,8 @@ impl SseParser {
     fn on_line(&mut self, line: &str, out: &mut Vec<SseEvent>) {
         if line.is_empty() {
             if !self.data.is_empty() {
-                let event = if self.event.is_empty() {
-                    "message".to_owned()
-                } else {
-                    std::mem::take(&mut self.event)
-                };
-                out.push(SseEvent {
-                    id: self.id.clone(),
-                    event,
-                    data: self.data.join("\n"),
-                });
+                let event = if self.event.is_empty() { "message".to_owned() } else { std::mem::take(&mut self.event) };
+                out.push(SseEvent { id: self.id.clone(), event, data: self.data.join("\n") });
             }
             self.data.clear();
             self.event.clear();
@@ -77,9 +69,7 @@ impl SseParser {
         if line.starts_with(':') {
             return;
         }
-        let (field, value) = line
-            .split_once(':')
-            .map_or((line, ""), |(f, v)| (f, v.strip_prefix(' ').unwrap_or(v)));
+        let (field, value) = line.split_once(':').map_or((line, ""), |(f, v)| (f, v.strip_prefix(' ').unwrap_or(v)));
         match field {
             "data" => self.data.push(value.to_owned()),
             "event" => value.clone_into(&mut self.event),
@@ -99,22 +89,8 @@ mod tests {
         let bytes = stream.as_bytes();
         let whole = SseParser::new().push(bytes);
         assert_eq!(whole.len(), 2);
-        assert_eq!(
-            whole[0],
-            SseEvent {
-                id: Some("7".into()),
-                event: "sync".into(),
-                data: "[1,\n2]".into()
-            }
-        );
-        assert_eq!(
-            whole[1],
-            SseEvent {
-                id: Some("7".into()),
-                event: "summary".into(),
-                data: "{\"id\":\"é\"}".into()
-            }
-        );
+        assert_eq!(whole[0], SseEvent { id: Some("7".into()), event: "sync".into(), data: "[1,\n2]".into() });
+        assert_eq!(whole[1], SseEvent { id: Some("7".into()), event: "summary".into(), data: "{\"id\":\"é\"}".into() });
         // every split point gives the same events (a CRLF across chunks, a UTF-8 sequence cut)
         for cut in 0..bytes.len() {
             let mut p = SseParser::new();

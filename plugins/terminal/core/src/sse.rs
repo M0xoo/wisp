@@ -29,16 +29,7 @@ pub fn hello(cols: u16, rows: u16, resizable: bool, state: TermState) -> Vec<u8>
         ordered: bool,
         state: TermState,
     }
-    frame(
-        "hello",
-        &Hello {
-            cols,
-            rows,
-            resizable,
-            ordered: true,
-            state,
-        },
-    )
+    frame("hello", &Hello { cols, rows, resizable, ordered: true, state })
 }
 
 pub fn data(text: &str) -> Vec<u8> {
@@ -63,15 +54,8 @@ mod tests {
             s(&hello(90, 33, true, TermState::Starting)),
             "event: hello\ndata: {\"cols\":90,\"rows\":33,\"resizable\":true,\"ordered\":true,\"state\":\"starting\"}\n\n"
         );
-        assert_eq!(
-            s(&data("")),
-            "event: data\ndata: \"\"\n\n",
-            "an empty replay is still sent"
-        );
-        assert_eq!(
-            s(&data("oops\r\n\u{1b}[0m")),
-            "event: data\ndata: \"oops\\r\\n\\u001b[0m\"\n\n"
-        );
+        assert_eq!(s(&data("")), "event: data\ndata: \"\"\n\n", "an empty replay is still sent");
+        assert_eq!(s(&data("oops\r\n\u{1b}[0m")), "event: data\ndata: \"oops\\r\\n\\u001b[0m\"\n\n");
         assert_eq!(s(&exit(Some(0))), "event: exit\ndata: {\"code\":0}\n\n");
         assert_eq!(s(GONE), "event: gone\ndata: {}\n\n");
     }
@@ -82,19 +66,11 @@ mod tests {
     fn a_data_frame_is_one_event_whatever_was_printed() {
         let mut rng = crate::testrand::Rng::new(11);
         for _ in 0..500 {
-            let text: String = (0..rng.below(40))
-                .map(|_| *rng.pick(&['a', '\n', '\r', '"', '\\', '\u{1b}', '✓', ' ', '\0']))
-                .collect();
+            let text: String = (0..rng.below(40)).map(|_| *rng.pick(&['a', '\n', '\r', '"', '\\', '\u{1b}', '✓', ' ', '\0'])).collect();
             let f = s(&data(&text));
-            let body = f
-                .strip_prefix("event: data\ndata: ")
-                .and_then(|x| x.strip_suffix("\n\n"))
-                .unwrap_or_default();
+            let body = f.strip_prefix("event: data\ndata: ").and_then(|x| x.strip_suffix("\n\n")).unwrap_or_default();
             assert!(!body.contains('\n') && !body.contains('\r'));
-            assert_eq!(
-                serde_json::from_str::<String>(body).ok().as_deref(),
-                Some(text.as_str())
-            );
+            assert_eq!(serde_json::from_str::<String>(body).ok().as_deref(), Some(text.as_str()));
         }
     }
 }

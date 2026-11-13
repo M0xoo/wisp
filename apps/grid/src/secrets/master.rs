@@ -50,13 +50,7 @@ pub fn ensure_master(data_dir: &Path) -> Result<bool> {
     }
     let mut keys = BTreeMap::new();
     keys.insert("k1".to_owned(), STANDARD.encode(random_bytes(32)));
-    write_master(
-        &f,
-        &MasterJson {
-            current: "k1".into(),
-            keys,
-        },
-    )?;
+    write_master(&f, &MasterJson { current: "k1".into(), keys })?;
     Ok(true)
 }
 
@@ -72,10 +66,7 @@ pub(super) struct Masters {
 
 impl std::fmt::Debug for Masters {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Masters")
-            .field("current", &self.current)
-            .field("keys", &self.keys.keys())
-            .finish()
+        f.debug_struct("Masters").field("current", &self.current).field("keys", &self.keys.keys()).finish()
     }
 }
 
@@ -88,10 +79,7 @@ fn one_key(b64: &str, kid: &str) -> Result<[u8; 32]> {
 }
 
 pub(super) fn load_masters(data_dir: &Path, env: &Env) -> Result<Masters> {
-    let env_one = |k: [u8; 32]| Masters {
-        current: "env".into(),
-        keys: BTreeMap::from([("env".to_owned(), k)]),
-    };
+    let env_one = |k: [u8; 32]| Masters { current: "env".into(), keys: BTreeMap::from([("env".to_owned(), k)]) };
     if let Some(k) = env.get("GRID_MASTER_KEY").filter(|k| !k.is_empty()) {
         return Ok(env_one(one_key(k, "env")?));
     }
@@ -100,70 +88,40 @@ pub(super) fn load_masters(data_dir: &Path, env: &Env) -> Result<Masters> {
     }
     let f = master_file(data_dir);
     if !f.exists() {
-        return Err(GridError::Config(
-            "No master key: run `wisp grid init`, or set GRID_MASTER_KEY(_FILE).".into(),
-        ));
+        return Err(GridError::Config("No master key: run `wisp grid init`, or set GRID_MASTER_KEY(_FILE).".into()));
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         if std::fs::metadata(&f)?.permissions().mode() & 0o077 != 0 {
-            return Err(GridError::Config(format!(
-                "{} is readable by others: chmod 600 it.",
-                f.display()
-            )));
+            return Err(GridError::Config(format!("{} is readable by others: chmod 600 it.", f.display())));
         }
     }
     let j = read_master_json(&f)?;
-    let keys = j
-        .keys
-        .iter()
-        .map(|(kid, v)| Ok((kid.clone(), one_key(v, kid)?)))
-        .collect::<Result<BTreeMap<_, _>>>()?;
+    let keys = j.keys.iter().map(|(kid, v)| Ok((kid.clone(), one_key(v, kid)?))).collect::<Result<BTreeMap<_, _>>>()?;
     if !keys.contains_key(&j.current) {
-        return Err(GridError::Config(format!(
-            "master.json: the current key \"{}\" isn’t in keys.",
-            j.current
-        )));
+        return Err(GridError::Config(format!("master.json: the current key \"{}\" isn’t in keys.", j.current)));
     }
-    Ok(Masters {
-        current: j.current,
-        keys,
-    })
+    Ok(Masters { current: j.current, keys })
 }
 
 /// `wisp grid rotate-key`: a new current master key; the old ones stay until every DEK is re-wrapped.
 pub fn add_master_key(data_dir: &Path) -> Result<String> {
     let f = master_file(data_dir);
     let mut j = read_master_json(&f)?;
-    let n = j
-        .keys
-        .keys()
-        .filter_map(|k| k.trim_start_matches('k').parse::<u64>().ok())
-        .max()
-        .unwrap_or(0)
-        + 1;
+    let n = j.keys.keys().filter_map(|k| k.trim_start_matches('k').parse::<u64>().ok()).max().unwrap_or(0) + 1;
     let kid = format!("k{n}");
-    j.keys
-        .insert(kid.clone(), STANDARD.encode(random_bytes(32)));
+    j.keys.insert(kid.clone(), STANDARD.encode(random_bytes(32)));
     j.current.clone_from(&kid);
     write_master(&f, &j)?;
     Ok(kid)
 }
 
 /// After rewrap: drop master keys no data key uses any more.
-pub fn prune_master_keys(
-    data_dir: &Path,
-    in_use: &std::collections::HashSet<String, impl std::hash::BuildHasher>,
-) -> Result<Vec<String>> {
+pub fn prune_master_keys(data_dir: &Path, in_use: &std::collections::HashSet<String, impl std::hash::BuildHasher>) -> Result<Vec<String>> {
     let f = master_file(data_dir);
     let mut j = read_master_json(&f)?;
-    let gone: Vec<String> = j
-        .keys
-        .keys()
-        .filter(|k| **k != j.current && !in_use.contains(*k))
-        .cloned()
-        .collect();
+    let gone: Vec<String> = j.keys.keys().filter(|k| **k != j.current && !in_use.contains(*k)).cloned().collect();
     for k in &gone {
         j.keys.remove(k);
     }

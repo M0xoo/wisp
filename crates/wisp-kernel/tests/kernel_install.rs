@@ -22,9 +22,13 @@ fn manager(slot: Arc<Mutex<Option<Ctx>>>) -> common::P {
 }
 
 fn hello() -> Arc<dyn wisp_kernel::Plugin> {
-    Arc::new(common::plugin("user.hello", json!({ "contributes": { "commands": [{ "id": "user.hello.say", "title": "Say hello" }] } }), |s| {
-        s.command::<Hello, _, _>(|_ctx, _call, ()| async { Ok("hello".to_owned()) });
-    }))
+    Arc::new(common::plugin(
+        "user.hello",
+        json!({ "contributes": { "commands": [{ "id": "user.hello.say", "title": "Say hello" }] } }),
+        |s| {
+            s.command::<Hello, _, _>(|_ctx, _call, ()| async { Ok("hello".to_owned()) });
+        },
+    ))
 }
 
 async fn kernel() -> (wisp_kernel::Kernel, Ctx) {

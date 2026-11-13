@@ -116,16 +116,8 @@ impl SseParser {
     fn on_line(&mut self, line: &str, out: &mut Vec<SseEvent>) {
         if line.is_empty() {
             if !self.data.is_empty() {
-                let event = if self.event.is_empty() {
-                    "message".to_owned()
-                } else {
-                    std::mem::take(&mut self.event)
-                };
-                out.push(SseEvent {
-                    id: self.id.clone(),
-                    event,
-                    data: self.data.join("\n"),
-                });
+                let event = if self.event.is_empty() { "message".to_owned() } else { std::mem::take(&mut self.event) };
+                out.push(SseEvent { id: self.id.clone(), event, data: self.data.join("\n") });
             }
             self.data.clear();
             self.event.clear();
@@ -157,10 +149,7 @@ pub fn decode_frame(ev: &SseEvent) -> Option<(Option<u64>, Vec<ServerMessage>)> 
         return None;
     }
     let parsed: Vec<serde_json::Value> = serde_json::from_str(&ev.data).ok()?;
-    let messages = parsed
-        .into_iter()
-        .filter_map(|m| serde_json::from_value(m).ok())
-        .collect();
+    let messages = parsed.into_iter().filter_map(|m| serde_json::from_value(m).ok()).collect();
     let id = ev.id.as_deref().and_then(|s| s.parse::<u64>().ok());
     Some((id, messages))
 }

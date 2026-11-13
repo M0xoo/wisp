@@ -16,10 +16,7 @@ use serde_json::{Value, json};
 use wisp_kernel::Manifest;
 
 fn errors(v: &Value) -> Vec<(String, String)> {
-    Manifest::check(v)
-        .into_iter()
-        .map(|e| (e.path, e.message))
-        .collect()
+    Manifest::check(v).into_iter().map(|e| (e.path, e.message)).collect()
 }
 
 fn ok() -> Value {
@@ -71,24 +68,12 @@ fn every_problem_has_its_path() {
     assert!(has("version", "semver"), "{e:?}");
     assert!(has("permissions[0]", "no ':'"), "{e:?}");
     assert!(has("activation[0]", "not an activation event"), "{e:?}");
-    assert!(
-        has("contributes.settings[0].type", "must be one of"),
-        "{e:?}"
-    );
-    assert!(
-        has("contributes.settings[0].colour", "unknown key"),
-        "{e:?}"
-    );
-    assert!(
-        has("contributes.commands[0].id", "this plugin's prefix"),
-        "{e:?}"
-    );
+    assert!(has("contributes.settings[0].type", "must be one of"), "{e:?}");
+    assert!(has("contributes.settings[0].colour", "unknown key"), "{e:?}");
+    assert!(has("contributes.commands[0].id", "this plugin's prefix"), "{e:?}");
     assert!(has("contributes.ui[0].attachTo", "{id, input}"), "{e:?}");
     assert!(has("contributes.unknown", "unknown key"), "{e:?}");
-    assert!(
-        has("requires.wisp.git.optinal", "did you mean \"optional\""),
-        "{e:?}"
-    );
+    assert!(has("requires.wisp.git.optinal", "did you mean \"optional\""), "{e:?}");
     let err = Manifest::from_value(v).unwrap_err();
     assert_eq!(err.code, wisp_kernel::Code::Invalid);
     assert!(err.details.unwrap()["errors"].as_array().unwrap().len() >= 11);
@@ -103,62 +88,27 @@ fn relations_and_settings_rules() {
         }
         errors(&v)
     };
-    assert!(
-        base(json!({ "kind": "module" }))
-            .iter()
-            .any(|(p, _)| p == "extends")
-    );
-    assert!(
-        base(json!({ "extends": "wisp.runtime" }))
-            .iter()
-            .any(|(p, _)| p == "kind")
-    );
-    assert!(
-        base(json!({ "server": { "exec": [] } }))
-            .iter()
-            .any(|(p, _)| p == "server")
-    );
-    assert_eq!(
-        base(json!({ "server": { "exec": ["bin/x", "--y"] } })),
-        [] as [(std::string::String, std::string::String); 0]
-    );
-    assert!(
-        base(json!({ "provides": { "x.service": { "version": "1" } } }))
-            .iter()
-            .any(|(p, _)| p == "provides.x.service")
-    );
+    assert!(base(json!({ "kind": "module" })).iter().any(|(p, _)| p == "extends"));
+    assert!(base(json!({ "extends": "wisp.runtime" })).iter().any(|(p, _)| p == "kind"));
+    assert!(base(json!({ "server": { "exec": [] } })).iter().any(|(p, _)| p == "server"));
+    assert_eq!(base(json!({ "server": { "exec": ["bin/x", "--y"] } })), [] as [(std::string::String, std::string::String); 0]);
+    assert!(base(json!({ "provides": { "x.service": { "version": "1" } } })).iter().any(|(p, _)| p == "provides.x.service"));
     let s = |d: Value| base(json!({ "contributes": { "settings": [d] } }));
-    assert!(
-        s(json!({ "key": "x.n", "type": "int", "min": 5, "max": 1 }))
-            .iter()
-            .any(|(p, _)| p.ends_with(".min"))
-    );
+    assert!(s(json!({ "key": "x.n", "type": "int", "min": 5, "max": 1 })).iter().any(|(p, _)| p.ends_with(".min")));
     assert!(
         s(json!({ "key": "x.n", "type": "int", "max": 3, "default": 9 }))
             .iter()
             .any(|(p, m)| p.ends_with(".default") && m.contains("at most 3"))
     );
+    assert!(s(json!({ "key": "x.e", "type": "enum" })).iter().any(|(p, _)| p.ends_with(".values")));
+    assert!(s(json!({ "key": "y.n", "type": "int" })).iter().any(|(p, _)| p.ends_with(".key")));
+    assert!(s(json!({ "key": "x.d", "type": "bool", "scope": "phone" })).iter().any(|(p, _)| p.ends_with(".scope")));
+    assert!(base(json!({ "contributes": { "setSettings": { "x.own": 1 } } })).iter().any(|(_, m)| m.contains("own setting")));
     assert!(
-        s(json!({ "key": "x.e", "type": "enum" }))
+        base(json!({ "contributes": { "points": [{ "id": "x.list", "version": 0, "kind": "list" }] } }))
             .iter()
-            .any(|(p, _)| p.ends_with(".values"))
+            .any(|(p, _)| p.ends_with(".version"))
     );
-    assert!(
-        s(json!({ "key": "y.n", "type": "int" }))
-            .iter()
-            .any(|(p, _)| p.ends_with(".key"))
-    );
-    assert!(
-        s(json!({ "key": "x.d", "type": "bool", "scope": "phone" }))
-            .iter()
-            .any(|(p, _)| p.ends_with(".scope"))
-    );
-    assert!(
-        base(json!({ "contributes": { "setSettings": { "x.own": 1 } } }))
-            .iter()
-            .any(|(_, m)| m.contains("own setting"))
-    );
-    assert!(base(json!({ "contributes": { "points": [{ "id": "x.list", "version": 0, "kind": "list" }] } })).iter().any(|(p, _)| p.ends_with(".version")));
     assert!(errors(&json!("nope")).iter().any(|(p, _)| p.is_empty()));
 }
 
@@ -171,7 +121,11 @@ fn an_invalid_embedded_manifest_is_refused_with_why() {
 
 #[test]
 fn a_ui_only_without_a_reason_is_refused() {
-    let with = |u: Value| errors(&json!({ "wispPlugin": 1, "id": "acme.x", "version": "1.0.0", "api": "^1", "contributes": { "commands": [{ "id": "x.pick", "title": "Pick", "uiOnly": u }] } }));
+    let with = |u: Value| {
+        errors(
+            &json!({ "wispPlugin": 1, "id": "acme.x", "version": "1.0.0", "api": "^1", "contributes": { "commands": [{ "id": "x.pick", "title": "Pick", "uiOnly": u }] } }),
+        )
+    };
     assert!(with(json!("")).iter().any(|(p, m)| p == "contributes.commands[0].uiOnly" && m.contains("says why")));
     assert!(with(json!(true)).iter().any(|(p, _)| p == "contributes.commands[0].uiOnly"));
     assert_eq!(with(json!("a drag on the canvas; there's nothing to type")), Vec::new());

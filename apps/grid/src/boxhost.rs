@@ -61,23 +61,13 @@ pub struct BoxUserWire {
 
 impl From<&BoxUser> for BoxUserWire {
     fn from(u: &BoxUser) -> Self {
-        Self {
-            id: u.id.clone(),
-            handle: u.handle.clone(),
-            sandbox: u.sandbox.clone(),
-            owner: u.owner.clone(),
-        }
+        Self { id: u.id.clone(), handle: u.handle.clone(), sandbox: u.sandbox.clone(), owner: u.owner.clone() }
     }
 }
 
 impl From<BoxUserWire> for BoxUser {
     fn from(u: BoxUserWire) -> Self {
-        Self {
-            id: u.id,
-            handle: u.handle,
-            sandbox: u.sandbox,
-            owner: u.owner,
-        }
+        Self { id: u.id, handle: u.handle, sandbox: u.sandbox, owner: u.owner }
     }
 }
 

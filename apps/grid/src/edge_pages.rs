@@ -20,7 +20,10 @@ use super::{COOKIE, Grid, Who, query};
 use crate::boxhost::BoxHost;
 use crate::error::{Result, bad};
 use crate::http::{CookieOptions, Resp, add_cookie, cookie, cookies, encode_component, html, parse_body, redirect};
-use crate::pages::{self, AccountPage, ComputerView, DeviceView, HomePage, IdentityView, InstanceView, MachineView, MessagePage, Offers, PageUser, RouteView, SiteView, Tone};
+use crate::pages::{
+    self, AccountPage, ComputerView, DeviceView, HomePage, IdentityView, InstanceView, MachineView, MessagePage, Offers, PageUser,
+    RouteView, SiteView, Tone,
+};
 use crate::rows::{BoxUser, UserRow};
 
 /// Where a form goes back to, with what happened.
@@ -35,7 +38,15 @@ fn page_user(u: &UserRow) -> PageUser {
 
 impl Grid {
     /// The signed-in pages' routes, or None for any other path.
-    pub(super) async fn pages_route(self: &Arc<Self>, method: &str, parts: &[&str], q: &str, h: &HeaderMap, bytes: &[u8], who: &Who) -> Option<Result<Resp>> {
+    pub(super) async fn pages_route(
+        self: &Arc<Self>,
+        method: &str,
+        parts: &[&str],
+        q: &str,
+        h: &HeaderMap,
+        bytes: &[u8],
+        who: &Who,
+    ) -> Option<Result<Resp>> {
         let user = match who {
             Who::Session(u) => Some(u.clone()),
             _ => None,
@@ -43,7 +54,19 @@ impl Grid {
         let r = match (method, parts) {
             ("GET", []) => match &user {
                 Some(u) => self.home(u, h, q),
-                None => Ok(html(200, pages::message_page(&self.page, &MessagePage { title: self.cfg.name.clone(), text: "Share and reach your wisps from anywhere.".into(), link: Some(("/gallery".into(), "See what people are building".into())), tone: Tone::Plain }), &[])),
+                None => Ok(html(
+                    200,
+                    pages::message_page(
+                        &self.page,
+                        &MessagePage {
+                            title: self.cfg.name.clone(),
+                            text: "Share and reach your wisps from anywhere.".into(),
+                            link: Some(("/gallery".into(), "See what people are building".into())),
+                            tone: Tone::Plain,
+                        },
+                    ),
+                    &[],
+                )),
             },
             ("GET", ["account"]) => match &user {
                 Some(u) => self.account(u, h, q),
@@ -53,7 +76,16 @@ impl Grid {
                 Some(u) => self.go(u, q),
                 None => Ok(redirect("/signin", &[])),
             },
-            ("POST", ["instance", "stop"] | ["computers" | "sites", _, "remove"] | ["devices", _, "revoke"] | ["identities", "unlink"] | ["channels", "route", ..] | ["signout"] | ["account", "delete"]) => match &user {
+            (
+                "POST",
+                ["instance", "stop"]
+                | ["computers" | "sites", _, "remove"]
+                | ["devices", _, "revoke"]
+                | ["identities", "unlink"]
+                | ["channels", "route", ..]
+                | ["signout"]
+                | ["account", "delete"],
+            ) => match &user {
                 Some(u) => self.form(u, parts, q, h, bytes).await,
                 None => Ok(redirect("/signin", &[])),
             },
@@ -72,8 +104,11 @@ impl Grid {
 
     fn devices_of(&self, uid: &str) -> Result<Vec<DeviceView>> {
         self.accounts.db.with(|c| {
-            let mut st = c.prepare("SELECT id, name, created_at, last_seen_at FROM devices WHERE user_id = ?1 AND revoked_at IS NULL ORDER BY created_at")?;
-            let rows = st.query_map([uid], |r| Ok(DeviceView { id: r.get(0)?, name: r.get(1)?, created_at: r.get(2)?, last_seen_at: r.get(3)? }))?;
+            let mut st = c.prepare(
+                "SELECT id, name, created_at, last_seen_at FROM devices WHERE user_id = ?1 AND revoked_at IS NULL ORDER BY created_at",
+            )?;
+            let rows =
+                st.query_map([uid], |r| Ok(DeviceView { id: r.get(0)?, name: r.get(1)?, created_at: r.get(2)?, last_seen_at: r.get(3)? }))?;
             rows.collect()
         })
     }
@@ -91,13 +126,25 @@ impl Grid {
             .accounts
             .computers(uid)?
             .iter()
-            .map(|c| ComputerView { id: c.id.clone(), device_id: c.device_id.clone(), name: c.name.clone(), url: self.cfg.instance_url(&c.label), online: self.tunnels.online(&c.id), last_seen_at: c.last_seen_at })
+            .map(|c| ComputerView {
+                id: c.id.clone(),
+                device_id: c.device_id.clone(),
+                name: c.name.clone(),
+                url: self.cfg.instance_url(&c.label),
+                online: self.tunnels.online(&c.id),
+                last_seen_at: c.last_seen_at,
+            })
             .collect())
     }
 
     /// Your cloud wisp, as the instances table and the box host have it now.
     fn instance_of(&self, uid: &str) -> Result<InstanceView> {
-        let row: Option<(Option<i64>, Option<i64>, Option<i64>)> = self.accounts.db.with(|c| c.query_row("SELECT started_at, stopped_at, next_wake_at FROM instances WHERE user_id = ?1", [uid], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).optional())?;
+        let row: Option<(Option<i64>, Option<i64>, Option<i64>)> = self.accounts.db.with(|c| {
+            c.query_row("SELECT started_at, stopped_at, next_wake_at FROM instances WHERE user_id = ?1", [uid], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })
+            .optional()
+        })?;
         let (started_at, stopped_at, next_wake_at) = row.unwrap_or_default();
         Ok(InstanceView { state: self.boxes.state(uid).as_str().to_owned(), started_at, stopped_at, next_wake_at })
     }
@@ -108,7 +155,13 @@ impl Grid {
             .sites
             .list(&u.id)?
             .iter()
-            .map(|s| SiteView { key: s.key.clone(), title: s.title.clone(), url: self.sites.view(s).get("url").and_then(Value::as_str).unwrap_or_default().to_owned(), files: u32::try_from(s.files).unwrap_or(0), updated_at: Some(s.updated_at) })
+            .map(|s| SiteView {
+                key: s.key.clone(),
+                title: s.title.clone(),
+                url: self.sites.view(s).get("url").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                files: u32::try_from(s.files).unwrap_or(0),
+                updated_at: Some(s.updated_at),
+            })
             .collect();
         let p = HomePage {
             user: page_user(u),
@@ -134,7 +187,10 @@ impl Grid {
             Some(RouteView {
                 set: v["set"].as_bool().unwrap_or(false),
                 bot: v["bot"].as_str().filter(|b| !b.is_empty()).map(str::to_owned),
-                senders: v["senders"].as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_owned).or_else(|| s.as_i64().map(|n| n.to_string()))).collect()).unwrap_or_default(),
+                senders: v["senders"]
+                    .as_array()
+                    .map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_owned).or_else(|| s.as_i64().map(|n| n.to_string()))).collect())
+                    .unwrap_or_default(),
                 moved: v["moved"].as_bool().unwrap_or(false),
                 shared: v["shared"].as_bool().unwrap_or(false),
             })
@@ -176,11 +232,19 @@ impl Grid {
         match parts {
             ["instance", "stop"] => {
                 let was = self.boxes.stop(&u.id, "user").await?;
-                Ok(back("/", if was { "Your cloud wisp went to sleep. Opening it wakes it." } else { "Your cloud wisp was already asleep." }, false))
+                Ok(back(
+                    "/",
+                    if was { "Your cloud wisp went to sleep. Opening it wakes it." } else { "Your cloud wisp was already asleep." },
+                    false,
+                ))
             }
             ["computers", id, "remove"] => {
                 let n = self.accounts.db.with(|c| c.execute("DELETE FROM computers WHERE id = ?1 AND user_id = ?2", params![id, u.id]))?;
-                Ok(back("/", if n > 0 { "Taken off the grid. wisp on it keeps running." } else { "That computer was already off the grid." }, n == 0))
+                Ok(back(
+                    "/",
+                    if n > 0 { "Taken off the grid. wisp on it keeps running." } else { "That computer was already off the grid." },
+                    n == 0,
+                ))
             }
             ["sites", key, "remove"] => {
                 let gone = self.sites.remove(&u.id, key)?;
@@ -196,11 +260,17 @@ impl Grid {
                 if ways < 2 {
                     return Ok(back("/account", "That's your only way in: link another before you disconnect it.", true));
                 }
-                self.accounts.db.with(|c| c.execute("DELETE FROM identities WHERE user_id = ?1 AND provider = ?2", params![u.id, provider]))?;
+                self.accounts
+                    .db
+                    .with(|c| c.execute("DELETE FROM identities WHERE user_id = ?1 AND provider = ?2", params![u.id, provider]))?;
                 Ok(redirect("/account", &[]))
             }
             ["channels", "route"] => match self.routes.set(u, &field("token"), &field("senders")).await {
-                Ok(name) => Ok(back("/account", &if name.is_empty() { "Your bot is connected.".to_owned() } else { format!("@{name} is connected.") }, false)),
+                Ok(name) => Ok(back(
+                    "/account",
+                    &if name.is_empty() { "Your bot is connected.".to_owned() } else { format!("@{name} is connected.") },
+                    false,
+                )),
                 Err(e) if e.status() == 400 || e.status() == 404 => Ok(back("/account", &e.to_string(), true)),
                 Err(e) => {
                     tracing::warn!("grid: route for {}: {e}", u.handle);

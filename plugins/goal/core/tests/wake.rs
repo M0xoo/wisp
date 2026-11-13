@@ -1,7 +1,7 @@
 //! v1 #775: a goal is checked only once its agent is done, not while it waits for its own wake-up.
 #![allow(clippy::unwrap_used)]
 
-use wisp_goal_core::{Scheduled, WakeGone, wake_gone, waits_for_wake};
+use wisp_goal_core::{Scheduled, WakeGone, waits_for_wake, wake_gone};
 
 fn entry(id: &str, by: &str, remind: bool, set_at: i64) -> Scheduled {
     Scheduled { id: id.into(), by: by.into(), remind, set_at }

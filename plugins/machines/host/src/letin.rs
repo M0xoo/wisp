@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use wisp_kernel::Ctx;
 use wisp_kernel::services::Paths;
-use wisp_machines_api::{Failing, LetInOut, PeerRow, PLUGIN, TransportFailure};
+use wisp_machines_api::{Failing, LetInOut, PLUGIN, PeerRow, TransportFailure};
 use wisp_machines_core::ssh::{self, LetInVerdict};
 use wisp_proc::{Env, ExecOpts, Proc};
 
@@ -29,7 +29,10 @@ async fn key(proc: &Proc, ssh_dir: &Path) -> Failing<(String, bool)> {
     tokio::fs::create_dir_all(ssh_dir).await.map_err(|e| fail(500, e.to_string()))?;
     let file = ssh_dir.join(ssh::KEYS[0]);
     let host = std::env::var("HOSTNAME").unwrap_or_else(|_| "wisp".into());
-    let r = proc.exec("ssh-keygen", &ssh::keygen_args(&file.display().to_string(), &host), ExecOpts::default()).await.map_err(|e| fail(500, e.to_string()))?;
+    let r = proc
+        .exec("ssh-keygen", &ssh::keygen_args(&file.display().to_string(), &host), ExecOpts::default())
+        .await
+        .map_err(|e| fail(500, e.to_string()))?;
     if !r.exit.success() {
         return Err(fail(500, format!("Couldn’t make an SSH key: {}", r.stderr_text().trim())));
     }
@@ -61,8 +64,15 @@ pub async fn let_in(ctx: Ctx, peer: PeerRow, password: String) -> Failing<LetInO
     let helper = askpass(&ctx).await?.display().to_string();
     let env = ssh::askpass_env(&helper, &password, std::env::var("DISPLAY").ok().as_deref());
     for (i, method) in ["password", "keyboard-interactive"].into_iter().enumerate() {
-        let opts = ExecOpts { env: Env { set: env.clone(), ..Env::default() }, input: Some(format!("{pubkey}\n").into_bytes()), timeout: Some(Duration::from_secs(40)), scope: Some(ctx.scope().clone()), ..ExecOpts::default() };
-        let r = proc.exec(crate::ssh::SSH_BIN, &ssh::let_in_args(&peer.address, method), opts).await.map_err(|e| fail(502, e.to_string()))?;
+        let opts = ExecOpts {
+            env: Env { set: env.clone(), ..Env::default() },
+            input: Some(format!("{pubkey}\n").into_bytes()),
+            timeout: Some(Duration::from_secs(40)),
+            scope: Some(ctx.scope().clone()),
+            ..ExecOpts::default()
+        };
+        let r =
+            proc.exec(crate::ssh::SSH_BIN, &ssh::let_in_args(&peer.address, method), opts).await.map_err(|e| fail(502, e.to_string()))?;
         let out = format!("{}{}", r.stdout_text(), r.stderr_text());
         match ssh::let_in_verdict((!r.timed_out).then_some(r.exit.code).flatten(), &out, i == 0) {
             LetInVerdict::Ok => return Ok(LetInOut { ok: true, made_key, machine: None }),

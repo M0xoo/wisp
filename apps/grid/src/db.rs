@@ -33,18 +33,14 @@ fn quote(p: &Path) -> String {
 
 fn schema_of(conn: &Connection) -> Result<usize> {
     conn.execute_batch("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")?;
-    let v: Option<String> = conn
-        .query_row("SELECT v FROM meta WHERE k = 'schema'", [], |r| r.get(0))
-        .optional()?;
+    let v: Option<String> = conn.query_row("SELECT v FROM meta WHERE k = 'schema'", [], |r| r.get(0)).optional()?;
     Ok(v.and_then(|s| s.parse().ok()).unwrap_or(0))
 }
 
 fn migrate(conn: &mut Connection, dir: Option<&Path>, now_ms: i64) -> Result<()> {
     let at = schema_of(conn)?;
     if at > MIGRATIONS.len() {
-        let hint = dir.map_or_else(String::new, |d| {
-            format!(", or restore a copy from {}", backups_dir(d).display())
-        });
+        let hint = dir.map_or_else(String::new, |d| format!(", or restore a copy from {}", backups_dir(d).display()));
         return Err(GridError::Config(format!(
             "grid.db has schema v{at}, but this grid only knows up to v{}: a newer grid wrote it. Update{hint}.",
             MIGRATIONS.len()
@@ -62,19 +58,14 @@ fn migrate(conn: &mut Connection, dir: Option<&Path>, now_ms: i64) -> Result<()>
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(at) {
         let tx = conn.transaction()?;
         tx.execute_batch(sql)?;
-        tx.execute(
-            "INSERT INTO meta (k, v) VALUES ('schema', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
-            [(i + 1).to_string()],
-        )?;
+        tx.execute("INSERT INTO meta (k, v) VALUES ('schema', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v", [(i + 1).to_string()])?;
         tx.commit()?;
     }
     Ok(())
 }
 
 fn pragmas(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
-        "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;",
-    )?;
+    conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
     Ok(())
 }
 
@@ -85,10 +76,7 @@ impl Db {
         let mut conn = Connection::open(data_dir.join("grid.db"))?;
         pragmas(&conn)?;
         migrate(&mut conn, Some(data_dir), now_ms)?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-            dir: Some(data_dir.to_path_buf()),
-        })
+        Ok(Self { conn: Mutex::new(conn), dir: Some(data_dir.to_path_buf()) })
     }
 
     /// A private in-memory grid.db, for tests.
@@ -96,18 +84,13 @@ impl Db {
         let mut conn = Connection::open_in_memory()?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         migrate(&mut conn, None, 0)?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-            dir: None,
-        })
+        Ok(Self { conn: Mutex::new(conn), dir: None })
     }
 
     fn lock(&self) -> MutexGuard<'_, Connection> {
         // A panic while holding the lock leaves SQLite itself consistent (statements are atomic), so a
         // poisoned lock is still safe to use.
-        self.conn
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.conn.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Run queries on the connection. Use `prepare_cached`: every query in the grid is a literal.
@@ -136,8 +119,7 @@ impl Db {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e.into()),
         }
-        self.lock()
-            .execute_batch(&format!("VACUUM INTO '{}'", quote(file)))?;
+        self.lock().execute_batch(&format!("VACUUM INTO '{}'", quote(file)))?;
         Ok(())
     }
 

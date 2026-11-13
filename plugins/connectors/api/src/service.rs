@@ -70,10 +70,7 @@ pub struct Where {
 
 impl Where {
     pub fn var(&self, k: &str) -> Option<&str> {
-        self.env
-            .get(k)
-            .map(String::as_str)
-            .filter(|v| !v.is_empty())
+        self.env.get(k).map(String::as_str).filter(|v| !v.is_empty())
     }
 }
 

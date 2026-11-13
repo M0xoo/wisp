@@ -33,50 +33,21 @@ async fn a_v1_folder_imports_once_and_again_when_v1_rewrites_a_file() {
     let rows = r.rt.list(&ListArgs::default());
     assert_eq!(rows.len(), 2);
     let row = rows.iter().find(|x| x.id.as_str() == "aaa111").unwrap();
-    assert_eq!(
-        (
-            row.title.as_str(),
-            row.preview.as_str(),
-            row.status.as_str()
-        ),
-        ("First", "it works", "done")
-    );
+    assert_eq!((row.title.as_str(), row.preview.as_str(), row.status.as_str()), ("First", "it works", "done"));
     let s = r.rt.get("aaa111").await.unwrap();
     assert_eq!(s.ext["v1"]["goal"]["text"], "green");
-    let t =
-        r.rt.turns("aaa111", None, None)
-            .await
-            .unwrap()
-            .pop()
-            .unwrap();
+    let t = r.rt.turns("aaa111", None, None).await.unwrap().pop().unwrap();
     assert_eq!(t.status, TurnStatus::Done);
     let steps = r.rt.activity(t.id.as_str(), None).await.unwrap().items;
-    assert!(
-        matches!(&steps[0].activity, Activity::Tool { label, call_id: Some(c), .. } if label == "npm test" && c == "c1")
-    );
+    assert!(matches!(&steps[0].activity, Activity::Tool { label, call_id: Some(c), .. } if label == "npm test" && c == "c1"));
     // the stored presentation came from v1's parser: it is rebuilt from the answer on first read
     assert!(r.rt.presentation("aaa111", None).await.unwrap().unwrap().v >= 1);
     // unchanged files are skipped; a file v1 rewrote imports again, over its old rows
     assert_eq!(r.rt.import_v1(Some(dir.clone())).await.unwrap().imported, 0);
     std::thread::sleep(std::time::Duration::from_millis(20));
-    std::fs::write(
-        dir.join("aaa111.json"),
-        v1("aaa111", "First, renamed in v1").to_string(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("aaa111.json"), v1("aaa111", "First, renamed in v1").to_string()).unwrap();
     assert_eq!(r.rt.import_v1(Some(dir.clone())).await.unwrap().imported, 1);
-    assert_eq!(
-        r.rt.get("aaa111").await.unwrap().title,
-        "First, renamed in v1"
-    );
-    assert_eq!(
-        r.rt.activity(t.id.as_str(), None)
-            .await
-            .unwrap()
-            .items
-            .len(),
-        2,
-        "its log was replaced, not doubled"
-    );
+    assert_eq!(r.rt.get("aaa111").await.unwrap().title, "First, renamed in v1");
+    assert_eq!(r.rt.activity(t.id.as_str(), None).await.unwrap().items.len(), 2, "its log was replaced, not doubled");
     let _ = std::fs::remove_dir_all(&dir);
 }

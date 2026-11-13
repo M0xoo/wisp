@@ -5,9 +5,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde_json::Map;
 use wisp_machine_api::this_mac::{
-    BatteryState, CpuInfo, CrewUse, DiskInfo, Facts, Guard, HistoryPoint, Hold, Leftover,
-    LeftoverGroup, LoadReading, MachineView, MemInfo, MemoryPer, ReclaimGroup, Res, TaskUse,
-    WispUse,
+    BatteryState, CpuInfo, CrewUse, DiskInfo, Facts, Guard, HistoryPoint, Hold, Leftover, LeftoverGroup, LoadReading, MachineView, MemInfo,
+    MemoryPer, ReclaimGroup, Res, TaskUse, WispUse,
 };
 
 use super::attribute::Placed;
@@ -83,27 +82,16 @@ fn moved(a: f64, b: f64) -> bool {
 /// A heavy run's summary carries `res`; it changes only when it moved 20% (or went light, or ended).
 /// Returns the tasks whose summary to send again.
 #[allow(clippy::cast_precision_loss)] // bytes compared as a share
-pub fn settle_res<S: std::hash::BuildHasher>(
-    rows: &BTreeMap<String, Usage>,
-    res: &mut HashMap<String, Res, S>,
-) -> Vec<String> {
+pub fn settle_res<S: std::hash::BuildHasher>(rows: &BTreeMap<String, Usage>, res: &mut HashMap<String, Res, S>) -> Vec<String> {
     let mut changed = Vec::new();
     for (id, r) in rows {
         let heavy = r.rss > RES_RSS || r.cpu > RES_CPU;
         match res.get(id) {
-            Some(prev)
-                if heavy && !moved(prev.rss as f64, r.rss as f64) && !moved(prev.cpu, r.cpu) =>
-            {
+            Some(prev) if heavy && !moved(prev.rss as f64, r.rss as f64) && !moved(prev.cpu, r.cpu) => {
                 continue;
             }
             _ if heavy => {
-                res.insert(
-                    id.clone(),
-                    Res {
-                        rss: r.rss,
-                        cpu: r.cpu,
-                    },
-                );
+                res.insert(id.clone(), Res { rss: r.rss, cpu: r.cpu });
             }
             Some(_) => {
                 res.remove(id);
@@ -112,11 +100,7 @@ pub fn settle_res<S: std::hash::BuildHasher>(
         }
         changed.push(id.clone());
     }
-    let gone: Vec<String> = res
-        .keys()
-        .filter(|id| !rows.contains_key(*id))
-        .cloned()
-        .collect();
+    let gone: Vec<String> = res.keys().filter(|id| !rows.contains_key(*id)).cloned().collect();
     for id in gone {
         res.remove(&id);
         changed.push(id);
@@ -127,12 +111,8 @@ pub fn settle_res<S: std::hash::BuildHasher>(
 /// Groups of folders Clean up can take, each a list for `POST /worktrees/clean`: merged or closed PRs,
 /// Done tasks, finished crew jobs, and leftover folders that hold nothing of their own. Only idle ones.
 pub fn reclaim(wt: Option<&WtView>, task: &dyn Fn(&str) -> Option<TaskInfo>) -> Vec<ReclaimGroup> {
-    let mut groups: [(&str, Vec<String>, u64); 4] = [
-        ("merged", vec![], 0),
-        ("done", vec![], 0),
-        ("crew", vec![], 0),
-        ("leftover", vec![], 0),
-    ];
+    let mut groups: [(&str, Vec<String>, u64); 4] =
+        [("merged", vec![], 0), ("done", vec![], 0), ("crew", vec![], 0), ("leftover", vec![], 0)];
     let Some(wt) = wt else { return Vec::new() };
     for it in wt.items.iter().filter(|it| it.idle) {
         let Some(s) = task(&it.id) else { continue };
@@ -167,23 +147,10 @@ pub fn reclaim(wt: Option<&WtView>, task: &dyn Fn(&str) -> Option<TaskInfo>) -> 
 }
 
 /// What File a fix asks for, word for word v1's.
-pub fn fix_prompt(
-    g: &LeftoverGroup,
-    task: Option<&TaskInfo>,
-    project: Option<&str>,
-    leftovers: &[Leftover],
-    now: i64,
-) -> String {
+pub fn fix_prompt(g: &LeftoverGroup, task: Option<&TaskInfo>, project: Option<&str>, leftovers: &[Leftover], now: i64) -> String {
     const MB: f64 = 1024.0 * 1024.0;
     #[allow(clippy::cast_precision_loss)]
-    let mins = |since: i64| {
-        format!(
-            "{} min",
-            round((now - since) as f64 / 60_000.0, 0)
-                .unwrap_or(0.0)
-                .max(1.0)
-        )
-    };
+    let mins = |since: i64| format!("{} min", round((now - since) as f64 / 60_000.0, 0).unwrap_or(0.0).max(1.0));
     #[allow(clippy::cast_precision_loss)]
     let mb = |b: u64| format!("{} MB", round(b as f64 / MB, 0).unwrap_or(0.0));
     let n = g.count;
@@ -197,31 +164,15 @@ pub fn fix_prompt(
         match task {
             Some(s) => {
                 let title = if s.title.is_empty() { &s.id } else { &s.title };
-                format!(
-                    "From the task \"{title}\" ({}){}.",
-                    s.id,
-                    project.map(|p| format!(", in {p}")).unwrap_or_default()
-                )
+                format!("From the task \"{title}\" ({}){}.", s.id, project.map(|p| format!(", in {p}")).unwrap_or_default())
             }
             None => "No task is known for them: their folder is under wisp’s worktrees.".to_owned(),
         },
         format!("Started by: {}", g.command),
         "Still running:".to_owned(),
     ];
-    let rows = g
-        .pids
-        .iter()
-        .filter_map(|pid| leftovers.iter().find(|l| l.pid == *pid))
-        .take(20);
-    out.extend(rows.map(|l| {
-        format!(
-            "- pid {}, {}, up {}: {}",
-            l.pid,
-            mb(l.rss),
-            mins(l.since),
-            l.command
-        )
-    }));
+    let rows = g.pids.iter().filter_map(|pid| leftovers.iter().find(|l| l.pid == *pid)).take(20);
+    out.extend(rows.map(|l| format!("- pid {}, {}, up {}: {}", l.pid, mb(l.rss), mins(l.since), l.command)));
     out.push(String::new());
     out.push("Find what starts these (a test helper, a QA script, a dev server a script forgets) and make it kill what it spawns, even when the run is stopped or fails: spawn in a process group of its own (detached) and kill the group on exit, SIGINT and SIGTERM, and in the tests' after() hooks. Don't stop these processes yourself: the user does that from This Mac. Say which file and what you changed.".to_owned());
     out.join("\n")
@@ -230,11 +181,7 @@ pub fn fix_prompt(
 /// Where a fix for `task`'s leftovers is filed: its project, else its folder.
 pub fn project_of(task: Option<&TaskInfo>) -> Option<String> {
     let s = task?;
-    s.facts
-        .project
-        .clone()
-        .filter(|p| !p.is_empty())
-        .or_else(|| (!s.cwd.is_empty()).then(|| s.cwd.clone()))
+    s.facts.project.clone().filter(|p| !p.is_empty()).or_else(|| (!s.cwd.is_empty()).then(|| s.cwd.clone()))
 }
 
 /// Everything `GET /machine` is made of.
@@ -262,10 +209,8 @@ pub struct ViewInput<'a> {
 }
 
 fn tasks_and_crew(v: &ViewInput<'_>) -> (Vec<TaskUse>, Vec<CrewUse>) {
-    let sizes: HashMap<&str, Option<u64>> = v
-        .worktrees
-        .map(|w| w.items.iter().map(|x| (x.id.as_str(), x.size)).collect())
-        .unwrap_or_default();
+    let sizes: HashMap<&str, Option<u64>> =
+        v.worktrees.map(|w| w.items.iter().map(|x| (x.id.as_str(), x.size)).collect()).unwrap_or_default();
     let mut tasks: Vec<TaskUse> = v
         .rows
         .iter()
@@ -287,18 +232,8 @@ fn tasks_and_crew(v: &ViewInput<'_>) -> (Vec<TaskUse>, Vec<CrewUse>) {
     for t in &tasks {
         let Some(c) = &t.crew else { continue };
         let i = crew.iter().position(|x| &x.id == c).unwrap_or_else(|| {
-            let name = v
-                .tasks
-                .get(&t.id)
-                .and_then(|s| s.facts.crew_name.clone())
-                .unwrap_or_default();
-            crew.push(CrewUse {
-                id: c.clone(),
-                name,
-                rss: 0,
-                cpu: 0.0,
-                jobs: 0,
-            });
+            let name = v.tasks.get(&t.id).and_then(|s| s.facts.crew_name.clone()).unwrap_or_default();
+            crew.push(CrewUse { id: c.clone(), name, rss: 0, cpu: 0.0, jobs: 0 });
             crew.len() - 1
         });
         if let Some(x) = crew.get_mut(i) {
@@ -321,16 +256,8 @@ pub fn build(v: ViewInput<'_>, mut reclaim: Vec<ReclaimGroup>) -> MachineView {
     let wt = v.worktrees;
     MachineView {
         at: v.now,
-        mem: MemInfo {
-            total: v.mem_total,
-            free_pct: r.mem_free_pct.and_then(|n| round(n, 1)),
-            pressure: r.pressure,
-            per: v.memory,
-        },
-        cpu: CpuInfo {
-            pct: r.cpu.and_then(|n| round(n, 1)),
-            cores: v.cores,
-        },
+        mem: MemInfo { total: v.mem_total, free_pct: r.mem_free_pct.and_then(|n| round(n, 1)), pressure: r.pressure, per: v.memory },
+        cpu: CpuInfo { pct: r.cpu.and_then(|n| round(n, 1)), cores: v.cores },
         disk: DiskInfo {
             free: wt.and_then(|w| w.disk).map(|d| d.0),
             total: wt.and_then(|w| w.disk).map(|d| d.1),
@@ -346,11 +273,7 @@ pub fn build(v: ViewInput<'_>, mut reclaim: Vec<ReclaimGroup>) -> MachineView {
             max_runs: r.limits.max_runs,
             runs: r.runs,
             paused_until: v.paused_until,
-            battery: v.battery.map(|b| BatteryState {
-                pct: b.pct,
-                charging: b.charging,
-                hold: v.battery_hold,
-            }),
+            battery: v.battery.map(|b| BatteryState { pct: b.pct, charging: b.charging, hold: v.battery_hold }),
         },
         tasks,
         crew,

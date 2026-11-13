@@ -7,9 +7,8 @@
 use ts_rs::{Config, TS};
 
 use crate::{
-    Ack, ClientMessage, CommandError, CommandRequest, CommandResponse, EntityOp, Hello, Mutate,
-    Notice, Patch, PatchOp, PeerInfo, PeerPlugin, Reject, Resync, Row, Rows, ServerMessage,
-    Snapshot, Sub, Topic, Unsub, Welcome, Window,
+    Ack, ClientMessage, CommandError, CommandRequest, CommandResponse, EntityOp, Hello, Mutate, Notice, Patch, PatchOp, PeerInfo,
+    PeerPlugin, Reject, Resync, Row, Rows, ServerMessage, Snapshot, Sub, Topic, Unsub, Welcome, Window,
 };
 
 const HEADER: &str = "// Generated from crates/wisp-protocol by `cargo test -p wisp-protocol export_bindings` (ts-rs).\n// Do not edit: change the Rust types and run it again.\n";
@@ -88,33 +87,16 @@ mod tests {
     #[test]
     fn the_typescript_proto_constants_match() {
         let index = std::fs::read_to_string(protocol_dir().join("index.ts")).unwrap();
-        assert!(
-            index.contains(&format!("export const PROTO = {};", crate::PROTO)),
-            "PROTO differs in index.ts"
-        );
-        assert!(
-            index.contains(&format!("export const PROTO_MIN = {};", crate::PROTO_MIN)),
-            "PROTO_MIN differs in index.ts"
-        );
+        assert!(index.contains(&format!("export const PROTO = {};", crate::PROTO)), "PROTO differs in index.ts");
+        assert!(index.contains(&format!("export const PROTO_MIN = {};", crate::PROTO_MIN)), "PROTO_MIN differs in index.ts");
     }
 
     #[test]
     fn every_type_is_declared_once_with_no_imports() {
         let ts = super::typescript();
         assert!(!ts.contains("import "), "{ts}");
-        for name in [
-            "Topic",
-            "EntityOp",
-            "Welcome",
-            "ServerMessage",
-            "ClientMessage",
-            "CommandResponse",
-        ] {
-            assert_eq!(
-                ts.matches(&format!("export type {name} =")).count(),
-                1,
-                "{name}"
-            );
+        for name in ["Topic", "EntityOp", "Welcome", "ServerMessage", "ClientMessage", "CommandResponse"] {
+            assert_eq!(ts.matches(&format!("export type {name} =")).count(), 1, "{name}");
         }
         assert!(!ts.contains("bigint"));
     }

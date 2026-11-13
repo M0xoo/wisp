@@ -9,10 +9,10 @@ mod kinds;
 
 use std::sync::Arc;
 
+use calls::{pick_of, put, quick, scheduled, spec_of, state_of, task_of, turns_of, warn_put};
 use serde_json::{Value, json};
 use wisp_goal_api::{GoalState, PLUGIN};
-use wisp_goal_core::{MAX_ROUNDS, Next, WakeGone, judge_prompt, next, verdict, wake_gone, waits_for_wake};
-use calls::{pick_of, put, quick, scheduled, spec_of, state_of, task_of, turns_of, warn_put};
+use wisp_goal_core::{MAX_ROUNDS, Next, WakeGone, judge_prompt, next, verdict, waits_for_wake, wake_gone};
 use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_runtime_api::commands as rt;
 use wisp_runtime_api::events::TurnEnded;
@@ -37,10 +37,25 @@ pub struct Goal {
 
 pub fn goal_of(spec: &Value, d: &kinds::GoalSpec) -> Option<Goal> {
     let g = spec.get("goal")?;
-    let text = g.as_str().map(str::to_owned).or_else(|| g.get("text").and_then(Value::as_str).map(str::to_owned)).filter(|t| !t.trim().is_empty())?;
-    let list = |v: Option<&Value>| v.and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect::<Vec<_>>()).filter(|a| !a.is_empty());
-    let judges = list(g.get("judges")).or_else(|| Some(d.judges.clone()).filter(|j| !j.is_empty())).unwrap_or_else(|| vec![spec.get("agent").and_then(Value::as_str).filter(|a| !a.is_empty()).unwrap_or("claude").to_owned()]);
-    let vote = g.get("vote").and_then(Value::as_str).map(str::to_owned).or_else(|| Some(d.vote.clone()).filter(|v| !v.is_empty())).unwrap_or_else(|| "majority".into());
+    let text = g
+        .as_str()
+        .map(str::to_owned)
+        .or_else(|| g.get("text").and_then(Value::as_str).map(str::to_owned))
+        .filter(|t| !t.trim().is_empty())?;
+    let list = |v: Option<&Value>| {
+        v.and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect::<Vec<_>>())
+            .filter(|a| !a.is_empty())
+    };
+    let judges = list(g.get("judges"))
+        .or_else(|| Some(d.judges.clone()).filter(|j| !j.is_empty()))
+        .unwrap_or_else(|| vec![spec.get("agent").and_then(Value::as_str).filter(|a| !a.is_empty()).unwrap_or("claude").to_owned()]);
+    let vote = g
+        .get("vote")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| Some(d.vote.clone()).filter(|v| !v.is_empty()))
+        .unwrap_or_else(|| "majority".into());
     let max_rounds = g.get("maxRounds").and_then(Value::as_u64).and_then(|n| u32::try_from(n).ok()).or(d.max_rounds).unwrap_or(MAX_ROUNDS);
     let sandbox = g.get("sandbox").and_then(Value::as_bool).unwrap_or(false);
     Some(Goal { text, judges, vote, max_rounds, sandbox })
@@ -66,7 +81,11 @@ async fn set(ctx: &Ctx, a: &wisp_goal_api::SetArgs) -> Result<Value> {
     let call = ctx.root_call();
     let task = task_of(ctx, &call, &a.id).await?;
     let text = a.text.trim();
-    let st = if text.is_empty() { GoalState { state: "cleared".into(), ..GoalState::default() } } else { GoalState { text: text.to_owned(), ..GoalState::default() } };
+    let st = if text.is_empty() {
+        GoalState { state: "cleared".into(), ..GoalState::default() }
+    } else {
+        GoalState { text: text.to_owned(), ..GoalState::default() }
+    };
     put(ctx, &call, &a.id, &st).await?;
     Ok(view_of(&spec_of(&task), Some(&st), task.created_at, task.updated_at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
 }
@@ -114,16 +133,33 @@ async fn judge(ctx: &Ctx, g: &Goal, task: &Session, answer: &str) -> Vec<wisp_go
     let mut out = Vec::new();
     // judges in a sandbox: one for this task's judges (made once, reused every round), the task's folder in it
     let place = if g.sandbox {
-        let a = wisp_sandbox_api::PlaceArgs { owner: json!({ "judges": task.id.as_str() }), cwd: (!cwd.is_empty()).then(|| cwd.to_owned()) };
+        let a =
+            wisp_sandbox_api::PlaceArgs { owner: json!({ "judges": task.id.as_str() }), cwd: (!cwd.is_empty()).then(|| cwd.to_owned()) };
         match ctx.run::<wisp_sandbox_api::Place>(&ctx.root_call(), a).await {
             Ok(p) => Some((p.machine, p.cwd)),
-            Err(e) => return g.judges.iter().map(|j| wisp_goal_core::Verdict { judge: j.clone(), met: false, why: format!("{j} couldn't judge in a sandbox: {}", e.message) }).collect(),
+            Err(e) => {
+                return g
+                    .judges
+                    .iter()
+                    .map(|j| wisp_goal_core::Verdict {
+                        judge: j.clone(),
+                        met: false,
+                        why: format!("{j} couldn't judge in a sandbox: {}", e.message),
+                    })
+                    .collect();
+            }
         }
     } else {
         None
     };
     for j in &g.judges {
-        let a = rt::QuickArgs { prompt: judge_prompt(&g.text, &task.title, answer), cwd: place.as_ref().map_or(cwd, |p| p.1.as_str()).to_owned(), pick: Some(pick_of(ctx, j).await), timeout_ms: Some(300_000), json: false };
+        let a = rt::QuickArgs {
+            prompt: judge_prompt(&g.text, &task.title, answer),
+            cwd: place.as_ref().map_or(cwd, |p| p.1.as_str()).to_owned(),
+            pick: Some(pick_of(ctx, j).await),
+            timeout_ms: Some(300_000),
+            json: false,
+        };
         let said = quick(ctx, place.as_ref().map(|p| p.0.as_str()), a).await;
         out.push(match said {
             Ok(text) => verdict(j, &text),
@@ -211,13 +247,21 @@ async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, turn_id: &s
     // the verdict as a durable fact (ADR-0043: `goal.met` and `goal.failed` start triggers and wake crew)
     match &step {
         Next::Met => ctx.emit(&call, &wisp_goal_api::GoalMet { session_id: id.to_owned(), goal: g.text.clone(), rounds: st.rounds }),
-        Next::Stall(why) => ctx.emit(&call, &wisp_goal_api::GoalFailed { session_id: id.to_owned(), goal: g.text.clone(), rounds: st.rounds, why: why.clone() }),
+        Next::Stall(why) => ctx.emit(
+            &call,
+            &wisp_goal_api::GoalFailed { session_id: id.to_owned(), goal: g.text.clone(), rounds: st.rounds, why: why.clone() },
+        ),
         Next::Again(_) => {}
     }
     let out = match step {
         Next::Met => Ok(()),
-        Next::Again(text) => ctx.run::<rt::FollowUp>(&call, rt::FollowUpArgs { id: id.into(), text, by: Some(BY.into()), ..rt::FollowUpArgs::default() }).await.map(|_| ()),
-        Next::Stall(q) => ctx.run::<rt::Ask>(&call, rt::AskArgs { id: id.into(), question: q, options: Vec::new(), details: None }).await.map(|_| ()),
+        Next::Again(text) => ctx
+            .run::<rt::FollowUp>(&call, rt::FollowUpArgs { id: id.into(), text, by: Some(BY.into()), ..rt::FollowUpArgs::default() })
+            .await
+            .map(|_| ()),
+        Next::Stall(q) => {
+            ctx.run::<rt::Ask>(&call, rt::AskArgs { id: id.into(), question: q, options: Vec::new(), details: None }).await.map(|_| ())
+        }
     };
     if let Err(err) = out {
         tracing::warn!(task = %id, "goal: {}", err.message);
@@ -269,7 +313,12 @@ impl wisp_runtime_api::points::SummaryField for Summary {
     fn plugin(&self) -> &str {
         PLUGIN
     }
-    fn fields(&self, session: &wisp_runtime_api::model::Session, _last: Option<&wisp_runtime_api::model::Turn>, out: &mut std::collections::BTreeMap<String, Value>) {
+    fn fields(
+        &self,
+        session: &wisp_runtime_api::model::Session,
+        _last: Option<&wisp_runtime_api::model::Turn>,
+        out: &mut std::collections::BTreeMap<String, Value>,
+    ) {
         let spec = session.ext.get("wisp.runtime").and_then(|r| r.get("spec")).cloned().unwrap_or_default();
         let st: Option<GoalState> = session.ext.get(PLUGIN).and_then(|v| serde_json::from_value(v.clone()).ok());
         let d = self.defaults.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
@@ -338,14 +387,33 @@ mod tests {
         assert_eq!(view_of(&json!({ "prompt": "x" }), None, 1, 2, &d), None, "no goal: no field");
         let spec = json!({ "goal": { "text": "a.txt says hello!" }, "agent": "claude" });
         let fresh = view_of(&spec, None, 10, 20, &d).unwrap_or_default();
-        assert_eq!((fresh["text"].clone(), fresh["status"].clone(), fresh["round"].clone(), fresh["setAt"].clone()), (json!("a.txt says hello!"), json!("working"), json!(0), json!(10)));
+        assert_eq!(
+            (fresh["text"].clone(), fresh["status"].clone(), fresh["round"].clone(), fresh["setAt"].clone()),
+            (json!("a.txt says hello!"), json!("working"), json!(0), json!(10))
+        );
         assert_eq!(fresh["judges"][0]["name"], "claude");
-        let st = GoalState { state: "again".into(), rounds: 2, verdicts: vec![json!({ "judge": "claude", "met": false, "why": "no exclamation mark" })], ..GoalState::default() };
+        let st = GoalState {
+            state: "again".into(),
+            rounds: 2,
+            verdicts: vec![json!({ "judge": "claude", "met": false, "why": "no exclamation mark" })],
+            ..GoalState::default()
+        };
         let again = view_of(&spec, Some(&st), 10, 20, &d).unwrap_or_default();
-        assert_eq!((again["round"].clone(), again["checks"][0]["verdict"].clone(), again["last"]["why"].clone(), again["last"]["tally"].clone()), (json!(2), json!("not_yet"), json!("no exclamation mark"), json!("0/1")));
-        let met = view_of(&spec, Some(&GoalState { state: "met".into(), rounds: 3, ..GoalState::default() }), 10, 20, &d).unwrap_or_default();
+        assert_eq!(
+            (again["round"].clone(), again["checks"][0]["verdict"].clone(), again["last"]["why"].clone(), again["last"]["tally"].clone()),
+            (json!(2), json!("not_yet"), json!("no exclamation mark"), json!("0/1"))
+        );
+        let met =
+            view_of(&spec, Some(&GoalState { state: "met".into(), rounds: 3, ..GoalState::default() }), 10, 20, &d).unwrap_or_default();
         assert_eq!(met["status"], "met");
-        let out = view_of(&spec, Some(&GoalState { state: "stalled".into(), rounds: 5, why: "past 5 rounds".into(), ..GoalState::default() }), 10, 20, &d).unwrap_or_default();
+        let out = view_of(
+            &spec,
+            Some(&GoalState { state: "stalled".into(), rounds: 5, why: "past 5 rounds".into(), ..GoalState::default() }),
+            10,
+            20,
+            &d,
+        )
+        .unwrap_or_default();
         assert_eq!((out["status"].clone(), out["why"].clone()), (json!("out"), json!("past 5 rounds")));
     }
 
@@ -358,7 +426,11 @@ mod tests {
         let g = goal_with(&spec, Some(&changed), &d).unwrap_or_else(|| unreachable!());
         assert_eq!((g.text.as_str(), g.judges), ("tests and lint pass", vec!["reviewer".to_owned()]), "the judges stay the spec's");
         let set_later = goal_with(&json!({ "agent": "codex" }), Some(&changed), &d).unwrap_or_else(|| unreachable!());
-        assert_eq!((set_later.text.as_str(), set_later.judges), ("tests and lint pass", vec!["codex".to_owned()]), "a task without a goal gets one");
+        assert_eq!(
+            (set_later.text.as_str(), set_later.judges),
+            ("tests and lint pass", vec!["codex".to_owned()]),
+            "a task without a goal gets one"
+        );
         let cleared = GoalState { state: "cleared".into(), ..GoalState::default() };
         assert_eq!(goal_with(&spec, Some(&cleared), &d), None);
         assert_eq!(view_of(&spec, Some(&cleared), 1, 2, &d), None, "the band goes");

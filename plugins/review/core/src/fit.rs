@@ -31,37 +31,25 @@ pub fn split_at(text: &str, mark: &str) -> Vec<String> {
         at.push(from + i + 1);
         from += i + 1;
     }
-    at.iter()
-        .enumerate()
-        .map(|(n, &s)| text[s..at.get(n + 1).copied().unwrap_or(text.len())].to_owned())
-        .collect()
+    at.iter().enumerate().map(|(n, &s)| text[s..at.get(n + 1).copied().unwrap_or(text.len())].to_owned()).collect()
 }
 
 fn unquote(p: &str) -> &str {
-    p.strip_prefix('"')
-        .and_then(|x| x.strip_suffix('"'))
-        .unwrap_or(p)
+    p.strip_prefix('"').and_then(|x| x.strip_suffix('"')).unwrap_or(p)
 }
 
 /// `a/x` → `x` (and `"a/x"` → `x`): git's optional one-letter prefixes (diff.mnemonicPrefix too).
 fn unprefix(p: &str) -> &str {
     let p = unquote(p);
     let b = p.as_bytes();
-    if b.len() > 2 && b[0].is_ascii_lowercase() && b[1] == b'/' {
-        &p[2..]
-    } else {
-        p
-    }
+    if b.len() > 2 && b[0].is_ascii_lowercase() && b[1] == b'/' { &p[2..] } else { p }
 }
 
 /// The path a section is about: the new name of a rename or copy, else the header's (both halves
 /// the same). A path git still quotes keeps its escapes: it won't match `files`, the safe way round.
 pub fn section_path(text: &str) -> String {
     for line in text.lines() {
-        if let Some(p) = line
-            .strip_prefix("rename to ")
-            .or_else(|| line.strip_prefix("copy to "))
-        {
+        if let Some(p) = line.strip_prefix("rename to ").or_else(|| line.strip_prefix("copy to ")) {
             return unquote(p).to_owned();
         }
     }
@@ -84,20 +72,8 @@ fn hunk_text(rows: &[Row], status: char, out: &mut String) {
     });
     let ns_seen = rows.iter().find_map(|r| r.b);
     let os_seen = rows.iter().find_map(|r| r.a);
-    let ns = if nc == 0 || status == 'D' {
-        os_seen.unwrap_or(1).saturating_sub(1)
-    } else {
-        ns_seen.unwrap_or(1)
-    };
-    let os = if oc == 0 || status == 'A' {
-        if status == 'A' {
-            0
-        } else {
-            ns.saturating_sub(1)
-        }
-    } else {
-        os_seen.unwrap_or(1)
-    };
+    let ns = if nc == 0 || status == 'D' { os_seen.unwrap_or(1).saturating_sub(1) } else { ns_seen.unwrap_or(1) };
+    let os = if oc == 0 || status == 'A' { if status == 'A' { 0 } else { ns.saturating_sub(1) } } else { os_seen.unwrap_or(1) };
     let _ = writeln!(out, "@@ -{os},{oc} +{ns},{nc} @@");
     for r in rows {
         let _ = writeln!(out, "{}{}", r.op, r.text());
@@ -113,18 +89,10 @@ pub fn render(f: &FileDiff) -> String {
             let _ = write!(t, "new file mode 100644\n--- /dev/null\n+++ b/{}\n", f.path);
         }
         'D' => {
-            let _ = write!(
-                t,
-                "deleted file mode 100644\n--- a/{}\n+++ /dev/null\n",
-                f.path
-            );
+            let _ = write!(t, "deleted file mode 100644\n--- a/{}\n+++ /dev/null\n", f.path);
         }
         'R' => {
-            let _ = write!(
-                t,
-                "rename from {from}\nrename to {}\n--- a/{from}\n+++ b/{}\n",
-                f.path, f.path
-            );
+            let _ = write!(t, "rename from {from}\nrename to {}\n--- a/{from}\n+++ b/{}\n", f.path, f.path);
         }
         _ => {
             let _ = write!(t, "--- a/{}\n+++ b/{}\n", f.path, f.path);
@@ -158,14 +126,7 @@ fn no_change(path: &str) -> bool {
 /// One section per changed file, and every changed path (a linked `node_modules` is no change).
 pub fn sections_of(files: &[FileDiff]) -> (Vec<Section>, Vec<String>) {
     let kept: Vec<&FileDiff> = files.iter().filter(|f| !no_change(&f.path)).collect();
-    let sections = kept
-        .iter()
-        .map(|f| Section {
-            path: f.path.clone(),
-            text: render(f),
-            cut: f.more > 0,
-        })
-        .collect();
+    let sections = kept.iter().map(|f| Section { path: f.path.clone(), text: render(f), cut: f.more > 0 }).collect();
     (sections, kept.iter().map(|f| f.path.clone()).collect())
 }
 
@@ -223,30 +184,15 @@ pub fn fit_diff(sections: &[Section], files: &[String], max: usize) -> (String, 
     }
     let mut all: Vec<&str> = Vec::new();
     let mut seen_set = HashSet::new();
-    for p in files
-        .iter()
-        .map(String::as_str)
-        .chain(sections.iter().map(|s| s.path.as_str()))
-    {
+    for p in files.iter().map(String::as_str).chain(sections.iter().map(|s| s.path.as_str())) {
         if seen_set.insert(p) {
             all.push(p);
         }
     }
-    let is = |p: &str, g: Got| {
-        of.get(p)
-            .map_or(g == Got::Missing, |v| v.iter().all(|x| *x == g))
-    };
+    let is = |p: &str, g: Got| of.get(p).map_or(g == Got::Missing, |v| v.iter().all(|x| *x == g));
     let seen = all.iter().filter(|p| is(p, Got::Seen)).count();
-    let none: Vec<String> = all
-        .iter()
-        .filter(|p| is(p, Got::Missing))
-        .map(|p| (*p).to_owned())
-        .collect();
-    let cut: Vec<String> = all
-        .iter()
-        .filter(|p| !is(p, Got::Seen) && !is(p, Got::Missing))
-        .map(|p| (*p).to_owned())
-        .collect();
+    let none: Vec<String> = all.iter().filter(|p| is(p, Got::Missing)).map(|p| (*p).to_owned()).collect();
+    let cut: Vec<String> = all.iter().filter(|p| !is(p, Got::Seen) && !is(p, Got::Missing)).map(|p| (*p).to_owned()).collect();
     let more = (cut.len() + none.len()).saturating_sub(MAX_NAMES);
     let diff: String = parts.concat();
     let to = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
@@ -255,10 +201,7 @@ pub fn fit_diff(sections: &[Section], files: &[String], max: usize) -> (String, 
         seen: to(seen),
         chars: sections.iter().map(|s| len(&s.text) as u64).sum(),
         seen_chars: len(&diff) as u64,
-        missing: none
-            .into_iter()
-            .take(MAX_NAMES.saturating_sub(cut.len()))
-            .collect(),
+        missing: none.into_iter().take(MAX_NAMES.saturating_sub(cut.len())).collect(),
         cut: cut.into_iter().take(MAX_NAMES).collect(),
         more: (more > 0).then(|| to(more)),
     };

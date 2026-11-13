@@ -13,11 +13,25 @@ fn rows(v: Value) -> Vec<Row> {
 #[test]
 fn a_snapshot_replaces_and_touches_only_what_differs() {
     let mut m = Mirror::new();
-    let t = m.snapshot("p", &Topic::list(), rows(json!([{"e": "session", "id": "a", "v": {"t": 1}}, {"e": "session", "id": "b", "v": {"t": 2}}])));
+    let t = m.snapshot(
+        "p",
+        &Topic::list(),
+        rows(json!([{"e": "session", "id": "a", "v": {"t": 1}}, {"e": "session", "id": "b", "v": {"t": 2}}])),
+    );
     assert_eq!(t.len(), 2);
     m.take_dirty();
-    let t = m.snapshot("p", &Topic::list(), rows(json!([{"e": "session", "id": "a", "v": {"t": 1}}, {"e": "session", "id": "c", "v": {"t": 3}}])));
-    assert_eq!(t, [Touched { peer: "p".into(), op: RemoteOp::Del, id: "b".into() }, Touched { peer: "p".into(), op: RemoteOp::Upsert, id: "c".into() }]);
+    let t = m.snapshot(
+        "p",
+        &Topic::list(),
+        rows(json!([{"e": "session", "id": "a", "v": {"t": 1}}, {"e": "session", "id": "c", "v": {"t": 3}}])),
+    );
+    assert_eq!(
+        t,
+        [
+            Touched { peer: "p".into(), op: RemoteOp::Del, id: "b".into() },
+            Touched { peer: "p".into(), op: RemoteOp::Upsert, id: "c".into() }
+        ]
+    );
     let d = m.take_dirty();
     assert_eq!(d, [("p".into(), "session".into(), "b".into(), None), ("p".into(), "session".into(), "c".into(), Some(json!({"t": 3})))]);
     assert!(m.take_dirty().is_empty(), "one write per flush, not one per change");
@@ -26,13 +40,16 @@ fn a_snapshot_replaces_and_touches_only_what_differs() {
 #[test]
 fn ops_apply_in_order_and_a_patch_that_misses_drifts_the_topic() {
     let mut m = Mirror::new();
-    let (t, drift) = m.apply("p", ops(json!([
-        {"topic": "list", "e": "session", "id": "a", "op": "upsert", "v": {"state": "running", "n": 1}},
-        {"topic": "list", "e": "session", "id": "a", "op": "patch", "ops": [{"op": "replace", "path": "/n", "value": 2}]},
-        {"topic": "list", "e": "session", "id": "zz", "op": "patch", "ops": [{"op": "replace", "path": "/n", "value": 2}]},
-        {"topic": "session:a", "e": "event", "id": "e1", "op": "append", "v": [1]},
-        {"topic": "session:a", "e": "event", "id": "e1", "op": "append", "v": [2]}
-    ])));
+    let (t, drift) = m.apply(
+        "p",
+        ops(json!([
+            {"topic": "list", "e": "session", "id": "a", "op": "upsert", "v": {"state": "running", "n": 1}},
+            {"topic": "list", "e": "session", "id": "a", "op": "patch", "ops": [{"op": "replace", "path": "/n", "value": 2}]},
+            {"topic": "list", "e": "session", "id": "zz", "op": "patch", "ops": [{"op": "replace", "path": "/n", "value": 2}]},
+            {"topic": "session:a", "e": "event", "id": "e1", "op": "append", "v": [1]},
+            {"topic": "session:a", "e": "event", "id": "e1", "op": "append", "v": [2]}
+        ])),
+    );
     assert_eq!(t.len(), 2);
     assert_eq!(drift, [Topic::list()]);
     assert_eq!(m.get("p", "session", "a"), Some(&json!({"state": "running", "n": 2})));

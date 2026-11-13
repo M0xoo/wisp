@@ -39,26 +39,15 @@ fn captured(cx: &Context<'_>, file: &str) -> Option<Vec<(String, String)>> {
         return None;
     }
     let tail = |a: &str, b: &str| a.ends_with(&format!("/{b}"));
-    let c = cx.changes.iter().find(|c| c.file == file).or_else(|| {
-        cx.changes
-            .iter()
-            .find(|c| tail(&c.file, file) || tail(file, &c.file))
-    })?;
-    Some(
-        c.edits
-            .iter()
-            .map(|e| (e.before.clone(), e.after.clone()))
-            .collect(),
-    )
+    let c =
+        cx.changes.iter().find(|c| c.file == file).or_else(|| cx.changes.iter().find(|c| tail(&c.file, file) || tail(file, &c.file)))?;
+    Some(c.edits.iter().map(|e| (e.before.clone(), e.after.clone())).collect())
 }
 
 pub(super) fn diff(b: Fields<'_>, cx: &Context<'_>) -> String {
     let file = js::str_of(js::or(b.get("file"), b.get("path")));
     let edits = if b.get("before").is_some() || b.get("after").is_some() {
-        Some(vec![(
-            js::str_of(b.get("before")),
-            js::str_of(b.get("after")),
-        )])
+        Some(vec![(js::str_of(b.get("before")), js::str_of(b.get("after")))])
     } else {
         captured(cx, &file)
     };
@@ -74,31 +63,14 @@ pub(super) fn tests(b: Fields<'_>) -> Out {
         let x = js::to_number(b.get(k));
         if x.is_nan() { 0.0 } else { x }
     };
-    let skipped = if n("skipped") == 0.0 {
-        String::new()
-    } else {
-        format!(", {} skipped", js::number(n("skipped")))
-    };
-    let took = if b.has("durationMs") {
-        format!(" ({}s)", js::to_fixed(n("durationMs") / 1000.0, 1))
-    } else {
-        String::new()
-    };
-    let head = format!(
-        "**Tests** `{}` — {} passed, {} failed{skipped}{took}",
-        b.s("command"),
-        js::number(n("passed")),
-        js::number(n("failed"))
-    );
+    let skipped = if n("skipped") == 0.0 { String::new() } else { format!(", {} skipped", js::number(n("skipped"))) };
+    let took = if b.has("durationMs") { format!(" ({}s)", js::to_fixed(n("durationMs") / 1000.0, 1)) } else { String::new() };
+    let head =
+        format!("**Tests** `{}` — {} passed, {} failed{skipped}{took}", b.s("command"), js::number(n("passed")), js::number(n("failed")));
     let mut out = vec![head];
     for f in list(b.get("failures")) {
         let x = Fields::item(Some(f))?;
-        out.push(format!(
-            "- ❌ {}{}{}",
-            x.s("name"),
-            x.opt("message", ": ", ""),
-            x.opt("file", " (`", "`)")
-        ));
+        out.push(format!("- ❌ {}{}{}", x.s("name"), x.opt("message", ": ", ""), x.opt("file", " (`", "`)")));
     }
     Ok(out.join("\n"))
 }
@@ -122,24 +94,13 @@ pub(super) fn commits(b: Fields<'_>) -> Out {
         };
         Ok(format!("- `{}` {}{counts}", short_hash(x), x.s("message")))
     })?;
-    Ok(format!(
-        "{}{items}",
-        b.opt("branch", "**Branch** `", "`\n\n")
-    ))
+    Ok(format!("{}{items}", b.opt("branch", "**Branch** `", "`\n\n")))
 }
 
 fn graph_head(b: Fields<'_>) -> String {
     let title = truthy_s(b, "title").unwrap_or_else(|| "Branches".to_owned());
-    let into = if b.has("into") {
-        format!(" → `{}`{}", b.s("into"), b.opt("merge", " (", ")"))
-    } else {
-        String::new()
-    };
-    format!(
-        "**{title}**{}{}{into}",
-        b.opt("ref", " ", ""),
-        b.opt("state", " · ", "")
-    )
+    let into = if b.has("into") { format!(" → `{}`{}", b.s("into"), b.opt("merge", " (", ")")) } else { String::new() };
+    format!("**{title}**{}{}{into}", b.opt("ref", " ", ""), b.opt("state", " · ", ""))
 }
 
 fn conflict(i: usize, c: &Value) -> String {
@@ -153,11 +114,7 @@ fn conflict(i: usize, c: &Value) -> String {
         _ => Fields(None),
     };
     let at = js::or(o.get("line"), o.get("lines"));
-    let at = if js::truthy(at) {
-        format!(":{}", js::str_of(at))
-    } else {
-        String::new()
-    };
+    let at = if js::truthy(at) { format!(":{}", js::str_of(at)) } else { String::new() };
     format!(
         "{}. `{}{at}`{}{}{}{}",
         i + 1,
@@ -173,23 +130,10 @@ pub(super) fn graph(b: Fields<'_>) -> Out {
     let commits = lines(list(b.get("commits")), |_, c| {
         let x = Fields::item(Some(c))?;
         let warn = if x.has("conflict") { "⚠️ " } else { "" };
-        let who = if x.has("author") {
-            format!(" — {}{}", x.s("author"), x.opt("when", ", ", ""))
-        } else {
-            String::new()
-        };
-        Ok(format!(
-            "- {warn}`{}` {}{}{who}",
-            short_hash(x),
-            x.s("message"),
-            x.opt("branch", " [", "]")
-        ))
+        let who = if x.has("author") { format!(" — {}{}", x.s("author"), x.opt("when", ", ", "")) } else { String::new() };
+        Ok(format!("- {warn}`{}` {}{}{who}", short_hash(x), x.s("message"), x.opt("branch", " [", "]")))
     })?;
-    let conflicts: Vec<String> = list(b.get("conflicts"))
-        .iter()
-        .enumerate()
-        .map(|(i, c)| conflict(i, c))
-        .collect();
+    let conflicts: Vec<String> = list(b.get("conflicts")).iter().enumerate().map(|(i, c)| conflict(i, c)).collect();
     let mut checks = Vec::new();
     for c in list(b.get("checks")) {
         let x = Fields::item(Some(c))?;
@@ -198,29 +142,11 @@ pub(super) fn graph(b: Fields<'_>) -> Out {
             Some("pending") => "⏳",
             _ => "✅",
         };
-        checks.push(format!(
-            "{mark} {}{}",
-            js::str_of(js::or(x.get("label"), Some(c))),
-            x.opt("value", " ", "")
-        ));
+        checks.push(format!("{mark} {}{}", js::str_of(js::or(x.get("label"), Some(c))), x.opt("value", " ", "")));
     }
-    let conflicts = if conflicts.is_empty() {
-        String::new()
-    } else {
-        format!("**Conflicts**\n{}", conflicts.join("\n"))
-    };
-    let parts = [
-        graph_head(b),
-        commits,
-        conflicts,
-        checks.join(" · "),
-        truthy_s(b, "summary").unwrap_or_default(),
-    ];
-    Ok(parts
-        .into_iter()
-        .filter(|p| !p.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n"))
+    let conflicts = if conflicts.is_empty() { String::new() } else { format!("**Conflicts**\n{}", conflicts.join("\n")) };
+    let parts = [graph_head(b), commits, conflicts, checks.join(" · "), truthy_s(b, "summary").unwrap_or_default()];
+    Ok(parts.into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join("\n\n"))
 }
 
 /// `[a, z, l]` destructured from an edge, as JavaScript does (a string gives its characters).
@@ -243,33 +169,19 @@ pub(super) fn flow(b: Fields<'_>) -> Out {
         }
     }
     let label = |id: Option<&Value>| {
-        let found = nodes
-            .iter()
-            .find(|n| js::strict_eq(n.get("id"), id))
-            .and_then(|n| n.get("label"));
-        if js::truthy(found) {
-            js::str_of(found)
-        } else {
-            js::tpl(id)
-        }
+        let found = nodes.iter().find(|n| js::strict_eq(n.get("id"), id)).and_then(|n| n.get("label"));
+        if js::truthy(found) { js::str_of(found) } else { js::tpl(id) }
     };
     let given = list(b.get("edges"));
     let edges: Vec<[Option<Value>; 3]> = if given.is_empty() {
-        nodes
-            .windows(2)
-            .map(|w| [w[0].get("id").cloned(), w[1].get("id").cloned(), None])
-            .collect()
+        nodes.windows(2).map(|w| [w[0].get("id").cloned(), w[1].get("id").cloned(), None]).collect()
     } else {
         given.iter().map(edge_parts).collect::<Result<_, _>>()?
     };
     let items: Vec<String> = edges
         .iter()
         .map(|[a, z, l]| {
-            let note = if js::truthy(l.as_ref()) {
-                format!(" _({})_", js::tpl(l.as_ref()))
-            } else {
-                String::new()
-            };
+            let note = if js::truthy(l.as_ref()) { format!(" _({})_", js::tpl(l.as_ref())) } else { String::new() };
             format!("- {} → {}{note}", label(a.as_ref()), label(z.as_ref()))
         })
         .collect();
@@ -284,58 +196,29 @@ pub(super) fn map(b: Fields<'_>) -> Out {
     if ps.iter().any(|p| p.torn) {
         return Err(Thrown);
     }
-    let route = if b.has("route") {
-        route_url(&ps)
-            .map(|r| format!(" · [Route]({r})"))
-            .unwrap_or_default()
-    } else {
-        String::new()
-    };
+    let route = if b.has("route") { route_url(&ps).map(|r| format!(" · [Route]({r})")).unwrap_or_default() } else { String::new() };
     let items: Vec<String> = ps
         .iter()
         .enumerate()
         .map(|(i, p)| {
-            let name = if p.name.is_empty() {
-                String::new()
-            } else {
-                format!("**{}** — ", p.name)
-            };
-            let addr = if p.address.is_empty() {
-                &p.q
-            } else {
-                &p.address
-            };
-            let note = if p.note.is_empty() {
-                String::new()
-            } else {
-                format!(" — {}", p.note)
-            };
+            let name = if p.name.is_empty() { String::new() } else { format!("**{}** — ", p.name) };
+            let addr = if p.address.is_empty() { &p.q } else { &p.address };
+            let note = if p.note.is_empty() { String::new() } else { format!(" — {}", p.note) };
             format!("{}. {name}[{addr}]({}){note}", i + 1, open_url(p))
         })
         .collect();
     let title = truthy_s(b, "title").unwrap_or_else(|| "Places".to_owned());
-    Ok(format!(
-        "**📍 {title}**{route}\n{}{}",
-        items.join("\n"),
-        b.opt("caption", "\n\n", "")
-    ))
+    Ok(format!("**📍 {title}**{route}\n{}{}", items.join("\n"), b.opt("caption", "\n\n", "")))
 }
 
 /// An interactive page only runs in wisp's page: its fallback blocks stand in for it here.
 pub(super) fn app(b: Fields<'_>, cx: &Context<'_>) -> String {
     let fb: Vec<Value> = list(b.get("fallback"))
         .iter()
-        .filter(|x| {
-            js::truthy(x.get("type")) && x.get("type").and_then(Value::as_str) != Some("app")
-        })
+        .filter(|x| js::truthy(x.get("type")) && x.get("type").and_then(Value::as_str) != Some("app"))
         .cloned()
         .collect();
-    let rest = if fb.is_empty() {
-        String::new()
-    } else {
-        format!("\n\n{}", blocks_to_markdown(&fb, cx))
-    };
+    let rest = if fb.is_empty() { String::new() } else { format!("\n\n{}", blocks_to_markdown(&fb, cx)) };
     let title = truthy_s(b, "title").unwrap_or_else(|| "Interactive".to_owned());
     format!("**🧩 {title}** _(interactive: open it in wisp)_{rest}")
 }
-

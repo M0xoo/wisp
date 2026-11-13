@@ -64,14 +64,8 @@ pub fn sections(text: &str) -> Vec<Value> {
         let rest = &chars[start..];
         let mut cut = rest.len();
         if cut > MAX_SECTION {
-            let line = rest[..=MAX_SECTION]
-                .iter()
-                .rposition(|c| *c == '\n')
-                .unwrap_or(0);
-            let amp = rest[..MAX_SECTION]
-                .iter()
-                .rposition(|c| *c == '&')
-                .unwrap_or(0);
+            let line = rest[..=MAX_SECTION].iter().rposition(|c| *c == '\n').unwrap_or(0);
+            let amp = rest[..MAX_SECTION].iter().rposition(|c| *c == '&').unwrap_or(0);
             cut = if line > MAX_SECTION / 2 {
                 line
             } else if amp > MAX_SECTION - 5 {

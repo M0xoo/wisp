@@ -19,7 +19,9 @@ fn window(lines: &[&str]) -> Option<Value> {
 }
 
 fn result(usage: &str) -> String {
-    format!(r#"{{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"s1","usage":{{"output_tokens":5}},"modelUsage":{usage}}}"#)
+    format!(
+        r#"{{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"s1","usage":{{"output_tokens":5}},"modelUsage":{usage}}}"#
+    )
 }
 
 #[test]

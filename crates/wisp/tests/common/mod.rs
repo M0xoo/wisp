@@ -59,7 +59,8 @@ pub fn fake_bins() -> (PathBuf, PathBuf) {
     BUILT.call_once(|| {
         let target = dir.parent().unwrap();
         let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-        cmd.args(["build", "--quiet", "-p", "wisp-testkit", "--bin", "wisp-fake-agent", "--bin", "wisp-fake-gh", "--target-dir"]).arg(target);
+        cmd.args(["build", "--quiet", "-p", "wisp-testkit", "--bin", "wisp-fake-agent", "--bin", "wisp-fake-gh", "--target-dir"])
+            .arg(target);
         if dir.ends_with("release") {
             cmd.arg("--release");
         }
@@ -102,10 +103,18 @@ pub fn start_with(dir: &Path, env: &[(&str, &str)]) -> (Serve, u16) {
     let serve = Serve { child, dir: dir.to_owned(), keep: false };
     let at = Instant::now();
     loop {
-        if let Some(port) = std::fs::read(home.join("server.json")).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).and_then(|v| v["port"].as_u64()) {
+        if let Some(port) = std::fs::read(home.join("server.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+            .and_then(|v| v["port"].as_u64())
+        {
             return (serve, u16::try_from(port).unwrap());
         }
-        assert!(at.elapsed() < Duration::from_secs(30), "wisp serve never advertised its port: {}", std::fs::read_to_string(dir.join("serve.log")).unwrap_or_default());
+        assert!(
+            at.elapsed() < Duration::from_secs(30),
+            "wisp serve never advertised its port: {}",
+            std::fs::read_to_string(dir.join("serve.log")).unwrap_or_default()
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
 }
@@ -123,7 +132,6 @@ pub async fn cmd(http: &reqwest::Client, port: u16, key: &str, name: &str, args:
     assert_eq!(v["ok"], true, "{name}: {v}");
     v["result"].clone()
 }
-
 
 pub fn temp(name: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
@@ -148,7 +156,15 @@ impl Api {
     /// The raw answer, for a command that may be refused.
     pub async fn try_cmd(&self, name: &str, args: Value) -> Value {
         let n = self.n.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let r = self.http.post(format!("http://127.0.0.1:{}/api/cmd", self.port)).header("content-type", "application/json").header("idempotency-key", format!("{name}-{n}")).body(json!({ "cmd": name, "args": args }).to_string()).send().await.unwrap();
+        let r = self
+            .http
+            .post(format!("http://127.0.0.1:{}/api/cmd", self.port))
+            .header("content-type", "application/json")
+            .header("idempotency-key", format!("{name}-{n}"))
+            .body(json!({ "cmd": name, "args": args }).to_string())
+            .send()
+            .await
+            .unwrap();
         serde_json::from_slice(&r.bytes().await.unwrap()).unwrap()
     }
 
@@ -174,10 +190,10 @@ pub fn ended(t: &Value) -> bool {
     t["status"] != "running" && t["status"] != "held"
 }
 
-
 /// Runs one task on `agent` to its end and returns (the turn, the task). The project has `math.js`.
 pub async fn run_task(api: &Api, dir: &Path, agent: &str) -> (Value, Value) {
-    let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug TOPIC[Fix add]", "cwd": dir.join("proj"), "agent": agent })).await;
+    let made =
+        api.cmd("runtime.create", json!({ "prompt": "fix the add bug TOPIC[Fix add]", "cwd": dir.join("proj"), "agent": agent })).await;
     let id = made["id"].as_str().unwrap().to_owned();
     let turns = api.until(&id, "the turn ends", |t| t.last().is_some_and(ended)).await;
     let task = api.cmd("runtime.get", json!({ "id": id })).await;
@@ -193,7 +209,10 @@ pub fn record_text(path: &Path) -> String {
 
 /// The complete records in a fake's `FAKE_RECORD` file, parsed, in order.
 pub fn records(path: &Path) -> Vec<Value> {
-    record_text(path).lines().map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("a complete record line that isn't JSON ({e}): {l}"))).collect()
+    record_text(path)
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("a complete record line that isn't JSON ({e}): {l}")))
+        .collect()
 }
 
 /// The argv of one record.

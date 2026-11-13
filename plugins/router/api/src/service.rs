@@ -7,9 +7,7 @@
 use serde::{Deserialize, Serialize};
 use wisp_kernel::{Call, Result, Service};
 
-use crate::types::{
-    AgentInfo, ChooseArgs, Limit, Pick, Route, Signals, StoredRoute, SummaryLike, Window,
-};
+use crate::types::{AgentInfo, ChooseArgs, Limit, Pick, Route, Signals, StoredRoute, SummaryLike, Window};
 
 /// The permission `pick` and `classify` require.
 pub const PERM_READ: &str = "router:read";
@@ -46,11 +44,7 @@ pub struct RunError {
 /// What happened, for the router to learn from (v1 index.js:315-330, services/auto.js signals,
 /// pipeline.js moveOn, feedback.js, sessions.js rollback).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Outcome {
     /// A launch went out with Auto's route.
     Launched { id: String, route: StoredRoute },

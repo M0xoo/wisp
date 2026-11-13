@@ -38,13 +38,19 @@ pub fn shell_exe(dir: &Path, os: &str) -> PathBuf {
 
 /// The rolling nightly is tagged `nightly`, every other release v<version>; `WISP_SHELL_URL` stands in.
 pub fn release_url(version: &str, over: Option<&str>) -> String {
-    over.map_or_else(|| format!("{RELEASES}/{}", if version.contains("-nightly.") { "nightly".to_owned() } else { format!("v{version}") }), str::to_owned).trim_end_matches('/').to_owned()
+    over.map_or_else(
+        || format!("{RELEASES}/{}", if version.contains("-nightly.") { "nightly".to_owned() } else { format!("v{version}") }),
+        str::to_owned,
+    )
+    .trim_end_matches('/')
+    .to_owned()
 }
 
 pub fn sum_for(sums: &str, name: &str) -> Option<String> {
     sums.lines().find_map(|l| {
         let (hash, file) = l.trim().split_once(char::is_whitespace)?;
-        (hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()) && file.trim().trim_start_matches('*') == name).then(|| hash.to_ascii_lowercase())
+        (hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit()) && file.trim().trim_start_matches('*') == name)
+            .then(|| hash.to_ascii_lowercase())
     })
 }
 
@@ -93,8 +99,19 @@ fn unpack(part: &Path, name: &str, body: &[u8], os: &str) -> Result<(), String> 
     std::fs::create_dir_all(part).map_err(|e| e.to_string())?;
     std::fs::write(part.join(name), body).map_err(|e| e.to_string())?;
     // from inside the folder: Git Bash's GNU tar takes C:\ for a host name
-    let tar = if os == "windows" { std::env::var("SystemRoot").map_or_else(|_| PathBuf::from(r"C:\Windows\System32\tar.exe"), |r| Path::new(&r).join(r"System32\tar.exe")) } else { PathBuf::from("tar") };
-    let ok = std::process::Command::new(tar).args(["-xzf", name]).current_dir(part).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map_err(|e| format!("couldn't unpack {name}: {e}"))?;
+    let tar = if os == "windows" {
+        std::env::var("SystemRoot")
+            .map_or_else(|_| PathBuf::from(r"C:\Windows\System32\tar.exe"), |r| Path::new(&r).join(r"System32\tar.exe"))
+    } else {
+        PathBuf::from("tar")
+    };
+    let ok = std::process::Command::new(tar)
+        .args(["-xzf", name])
+        .current_dir(part)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| format!("couldn't unpack {name}: {e}"))?;
     if !ok.success() {
         return Err(format!("couldn't unpack {name}"));
     }
@@ -109,7 +126,11 @@ fn unpack(part: &Path, name: &str, body: &[u8], os: &str) -> Result<(), String> 
 pub fn launch(exe: &Path, port: u16) -> std::io::Result<()> {
     let me = std::env::current_exe()?;
     let mut cmd = std::process::Command::new(exe);
-    cmd.env("WISP_PORT", port.to_string()).env("WISP_BIN", me).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    cmd.env("WISP_PORT", port.to_string())
+        .env("WISP_BIN", me)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     cmd.spawn().map(drop)
@@ -132,7 +153,10 @@ mod tests {
         assert_eq!(release_url("2.1.0-nightly.3", None), format!("{RELEASES}/nightly"));
         assert_eq!(release_url("2.0.0", Some("http://x/y/")), "http://x/y");
         let h = "a".repeat(64);
-        assert_eq!(sum_for(&format!("{h}  wisp-shell-mac-arm64.tar.gz\n{}  other", "b".repeat(64)), "wisp-shell-mac-arm64.tar.gz"), Some(h.clone()));
+        assert_eq!(
+            sum_for(&format!("{h}  wisp-shell-mac-arm64.tar.gz\n{}  other", "b".repeat(64)), "wisp-shell-mac-arm64.tar.gz"),
+            Some(h.clone())
+        );
         assert_eq!(sum_for(&format!("{h} *x.tar.gz"), "x.tar.gz"), Some(h));
         assert_eq!(sum_for("zz  x.tar.gz", "x.tar.gz"), None);
     }

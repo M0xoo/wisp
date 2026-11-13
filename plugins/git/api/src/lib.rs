@@ -71,10 +71,7 @@ pub const PERMISSIONS: &[(&str, &str)] = &[
 
 /// The permission `method` requires, or None for a method that isn't part of the service.
 pub fn permission(method: &str) -> Option<&'static str> {
-    PERMISSIONS
-        .iter()
-        .find(|(m, _)| *m == method)
-        .map(|(_, p)| *p)
+    PERMISSIONS.iter().find(|(m, _)| *m == method).map(|(_, p)| *p)
 }
 
 pub type Fut<T> = BoxFuture<'static, Result<T>>;
@@ -174,12 +171,7 @@ pub trait Repo: Send + Sync + std::fmt::Debug + 'static {
         Box::pin(async { Err(wisp_kernel::WireError::invalid("this repo can't restore a checkpoint")) })
     }
 
-    fn on_change(
-        &self,
-        call: &Call,
-        owner: &CancellationToken,
-        cb: ChangeFn,
-    ) -> Result<Subscription>;
+    fn on_change(&self, call: &Call, owner: &CancellationToken, cb: ChangeFn) -> Result<Subscription>;
     /// Something outside the service changed the repo (a turn ended): drop caches, tell subscribers.
     fn touch(&self, call: &Call, kind: &str) -> Result<()>;
 }

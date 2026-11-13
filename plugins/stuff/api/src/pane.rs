@@ -5,23 +5,11 @@
 
 /// What an app may ask for, with the words the Allow card shows.
 pub const PANE_USES: &[(&str, &str)] = &[
-    (
-        "tasks:read",
-        "See your tasks: title, state, project, branch, PR and the one-line summary of the last answer (not the conversation)",
-    ),
-    (
-        "tasks:write",
-        "Ask to start tasks and send follow-ups (you confirm each one), and mark tasks done",
-    ),
+    ("tasks:read", "See your tasks: title, state, project, branch, PR and the one-line summary of the last answer (not the conversation)"),
+    ("tasks:write", "Ask to start tasks and send follow-ups (you confirm each one), and mark tasks done"),
     ("prs:read", "See your tasks’ pull requests"),
-    (
-        "crew:read",
-        "See your crew: names, roles and what they’re doing",
-    ),
-    (
-        "usage:read",
-        "See your usage windows: how much of each is gone, when it resets, and what each period cost",
-    ),
+    ("crew:read", "See your crew: names, roles and what they’re doing"),
+    ("usage:read", "See your usage windows: how much of each is gone, when it resets, and what each period cost"),
 ];
 
 /// Each call the frame can make, and the scope it needs.
@@ -45,11 +33,7 @@ pub const CALL_DOCS: &[(&str, &str, &str)] = &[
         "wisp.tasks.list()",
         "[Task], every task that isn't archived. Task: { id, title, state: \"running\"|\"waiting\"|\"review\"|\"done\", status, project, agent, harness (its name), account, machine, model, mode, branch, summary, live, unread, archived, asks, crew: { id, name } | absent, pr: { number, url, state, draft, checks, review, conflict } | null, createdAt, updatedAt }",
     ),
-    (
-        "tasks.get",
-        "wisp.tasks.get(id)",
-        "Task; rejects if there is no such task",
-    ),
+    ("tasks.get", "wisp.tasks.get(id)", "Task; rejects if there is no such task"),
     (
         "tasks.watch",
         "wisp.on('tasks', fn)",
@@ -60,22 +44,14 @@ pub const CALL_DOCS: &[(&str, &str, &str)] = &[
         "wisp.tasks.launch({ prompt, project })",
         "Task, or { queued: true }. project: a project's name, or leave it out for no project. Harness and mode are the user's defaults. Opens wisp's card; rejects if they cancel",
     ),
-    (
-        "tasks.followUp",
-        "wisp.tasks.followUp(id, text)",
-        "true. Opens wisp's card; rejects if they cancel",
-    ),
+    ("tasks.followUp", "wisp.tasks.followUp(id, text)", "true. Opens wisp's card; rejects if they cancel"),
     ("tasks.done", "wisp.tasks.done(id)", "true. No card"),
     (
         "prs.list",
         "wisp.prs.list()",
         "[{ number, url, state, draft, checks, review, conflict, repo, task (id), title }], each task's pull requests",
     ),
-    (
-        "crew.list",
-        "wisp.crew.list()",
-        "[{ id, name, role, busy, nextAt }]",
-    ),
+    ("crew.list", "wisp.crew.list()", "[{ id, name, role, busy, nextAt }]"),
     (
         "usage.accounts",
         "wisp.usage.accounts()",
@@ -100,10 +76,7 @@ pub fn is_write(s: &str) -> bool {
 
 /// The scope a call needs, or None when wisp has no such call.
 pub fn call_scope(method: &str) -> Option<&'static str> {
-    PANE_CALLS
-        .iter()
-        .find(|(m, _)| *m == method)
-        .map(|(_, s)| *s)
+    PANE_CALLS.iter().find(|(m, _)| *m == method).map(|(_, s)| *s)
 }
 
 /// What a grant may hold: only what the app asks for, each once, in the order asked.
@@ -119,10 +92,7 @@ pub fn grant_of(uses: &[String], want: &[String]) -> Vec<String> {
 
 /// What the app asks for that you haven't allowed yet.
 pub fn missing_of(uses: &[String], allowed: &[String]) -> Vec<String> {
-    uses.iter()
-        .filter(|u| !allowed.contains(u))
-        .cloned()
-        .collect()
+    uses.iter().filter(|u| !allowed.contains(u)).cloned().collect()
 }
 
 /// What a grant holds now: `{ allowed, changed }`.
@@ -138,15 +108,9 @@ pub struct Grant {
 pub fn effective_grant(allowed: &[String], grant_hash: &str, hash_now: &str) -> Grant {
     let tied = allowed.iter().any(|x| is_write(x));
     if !tied || (!grant_hash.is_empty() && grant_hash == hash_now) {
-        return Grant {
-            allowed: allowed.to_vec(),
-            changed: false,
-        };
+        return Grant { allowed: allowed.to_vec(), changed: false };
     }
-    Grant {
-        allowed: allowed.iter().filter(|x| !is_write(x)).cloned().collect(),
-        changed: true,
-    }
+    Grant { allowed: allowed.iter().filter(|x| !is_write(x)).cloned().collect(), changed: true }
 }
 
 /// Why a call is refused, or None when it may go.
@@ -154,17 +118,12 @@ pub fn refusal(method: &str, allowed: &[String]) -> Option<String> {
     let Some(need) = call_scope(method) else {
         let name: String = method.chars().take(60).collect();
         let calls: Vec<&str> = PANE_CALLS.iter().map(|(m, _)| *m).collect();
-        return Some(format!(
-            "wisp has no {name}(). Panes can call: {}.",
-            calls.join(", ")
-        ));
+        return Some(format!("wisp has no {name}(). Panes can call: {}.", calls.join(", ")));
     };
     if allowed.iter().any(|a| a == need) {
         return None;
     }
-    Some(format!(
-        "Not allowed: {method}() needs \"{need}\". Add it to \"uses\" in wisp-app.json, then allow it when you pin the app."
-    ))
+    Some(format!("Not allowed: {method}() needs \"{need}\". Add it to \"uses\" in wisp-app.json, then allow it when you pin the app."))
 }
 
 /// A task the app may not gain a scope under: it runs in Full auto, nobody is reading cards.
@@ -198,23 +157,14 @@ pub fn parse_panes(v: &str) -> Vec<Pin> {
         .map(str::trim)
         .filter(|x| !x.is_empty())
         .map(|x| match x.rfind('@') {
-            Some(i) if i > 0 => Pin {
-                app: x[..i].trim().to_owned(),
-                r#where: x[i + 1..].trim().to_owned(),
-            },
-            _ => Pin {
-                app: x.to_owned(),
-                r#where: "task".to_owned(),
-            },
+            Some(i) if i > 0 => Pin { app: x[..i].trim().to_owned(), r#where: x[i + 1..].trim().to_owned() },
+            _ => Pin { app: x.to_owned(), r#where: "task".to_owned() },
         })
         .collect()
 }
 
 pub fn panes_string(pins: &[Pin]) -> String {
-    pins.iter()
-        .map(|p| format!("{}@{}", p.app, p.r#where))
-        .collect::<Vec<_>>()
-        .join(",")
+    pins.iter().map(|p| format!("{}@{}", p.app, p.r#where)).collect::<Vec<_>>().join(",")
 }
 
 /// Why a `panes` value can't be kept, or None.
@@ -229,15 +179,7 @@ pub fn panes_problem(v: &serde_json::Value) -> Option<String> {
     if pins.len() > MAX_PANES {
         return Some(format!("At most {MAX_PANES} panes."));
     }
-    let bad = pins.iter().find(|p| {
-        !PANE_WHERE.contains(&p.r#where.as_str())
-            || p.app.is_empty()
-            || p.app.contains([',', '@', '<', '>', '"'])
-    });
-    bad.map(|p| {
-        format!(
-            "panes: \"{}@{}\" should be <app id or name>@task or @home.",
-            p.app, p.r#where
-        )
-    })
+    let bad =
+        pins.iter().find(|p| !PANE_WHERE.contains(&p.r#where.as_str()) || p.app.is_empty() || p.app.contains([',', '@', '<', '>', '"']));
+    bad.map(|p| format!("panes: \"{}@{}\" should be <app id or name>@task or @home.", p.app, p.r#where))
 }

@@ -7,8 +7,8 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use wisp_router_api::{
-    Added, AgentInfo, GOALS, GoalInfo, Hero, NoPreview, Outcome, Pick, PickBrief, Preview, PreviewResult, RouterPatch, Scout, Settings, SettingsView, Signals, StoredRoute,
-    SummaryLike, TYPES, arm_key, is_goal,
+    Added, AgentInfo, GOALS, GoalInfo, Hero, NoPreview, Outcome, Pick, PickBrief, Preview, PreviewResult, RouterPatch, Scout, Settings,
+    SettingsView, Signals, StoredRoute, SummaryLike, TYPES, arm_key, is_goal,
 };
 
 use crate::Error;
@@ -33,11 +33,23 @@ pub fn goal_of<'a>(model: Option<&'a str>, s: &'a Settings) -> &'a str {
 }
 
 pub fn settings_view(s: &Settings) -> SettingsView {
-    SettingsView { explore: s.explore, allowed: s.allowed.clone().filter(|a| !a.is_empty()), blocked: s.blocked.clone(), prefer: s.prefer.clone(), habits: s.habits, escalate: s.escalate, best2: s.best2, scout: s.scout }
+    SettingsView {
+        explore: s.explore,
+        allowed: s.allowed.clone().filter(|a| !a.is_empty()),
+        blocked: s.blocked.clone(),
+        prefer: s.prefer.clone(),
+        habits: s.habits,
+        escalate: s.escalate,
+        best2: s.best2,
+        scout: s.scout,
+    }
 }
 
 pub fn goals() -> BTreeMap<String, GoalInfo> {
-    GOALS.iter().map(|(id, label, value, hint)| ((*id).to_owned(), GoalInfo { label: (*label).into(), value: *value, hint: (*hint).into() })).collect()
+    GOALS
+        .iter()
+        .map(|(id, label, value, hint)| ((*id).to_owned(), GoalInfo { label: (*label).into(), value: *value, hint: (*hint).into() }))
+        .collect()
 }
 
 fn rule_re() -> Option<&'static Regex> {
@@ -57,7 +69,10 @@ fn rules(k: &str, v: &serde_json::Value, harness: &dyn Fn(&str) -> bool) -> Resu
         });
         let Some(s) = ok else {
             let shown = x.as_str().map_or_else(|| x.to_string(), str::to_owned);
-            return Err(Error::Invalid(format!("{k}: \"{shown}\" isn't a harness, harness:model or harness:model:level (optionally @kind, one of {})", TYPES.join(", "))));
+            return Err(Error::Invalid(format!(
+                "{k}: \"{shown}\" isn't a harness, harness:model or harness:model:level (optionally @kind, one of {})",
+                TYPES.join(", ")
+            )));
         };
         if !out.iter().any(|o| o == s) {
             out.push(s.to_owned());
@@ -111,7 +126,11 @@ pub fn apply_patch(s: &mut Settings, p: &RouterPatch, harness: &dyn Fn(&str) -> 
 /// The preview's v1 shape: the pick and why, or why there is none (v1 services/auto.js:155-161).
 pub fn preview_of(pick: Option<Pick>, place: &str) -> PreviewResult {
     let Some(p) = pick else {
-        let why = if place.is_empty() { "Nothing Auto may use can run right now".to_owned() } else { format!("Nothing Auto may use is signed in on {place}") };
+        let why = if place.is_empty() {
+            "Nothing Auto may use can run right now".to_owned()
+        } else {
+            format!("Nothing Auto may use is signed in on {place}")
+        };
         return PreviewResult::Nothing(NoPreview { pick: None, why });
     };
     let r = p.route;
@@ -132,7 +151,11 @@ pub fn preview_of(pick: Option<Pick>, place: &str) -> PreviewResult {
 
 /// The error a launch with Auto gets when nothing can run (v1 services/auto.js:143).
 pub fn no_pick_message(place: &str) -> String {
-    if place.is_empty() { "Auto found no installed harness to run this on.".into() } else { format!("Auto found no harness installed and signed in on {place}. Sign in to one there (Run with → pick it).") }
+    if place.is_empty() {
+        "Auto found no installed harness to run this on.".into()
+    } else {
+        format!("Auto found no harness installed and signed in on {place}. Sign in to one there (Run with → pick it).")
+    }
 }
 
 fn flag<'a>(v: Option<&'a serde_json::Value>, k: &str) -> Option<&'a serde_json::Value> {
@@ -157,7 +180,14 @@ fn apply_summary(r: &mut Router, sum: &SummaryLike, now: i64) {
         _ => None,
     };
     let followups = sum.followups.unwrap_or_else(|| sum.turn_count.unwrap_or(1).max(1) - 1);
-    let patch = Signals { hero, followups: Some(followups), merged: (pr == Some("MERGED")).then_some(true), closed: (pr == Some("CLOSED")).then_some(true), switched: switched.then_some(true), ..Signals::default() };
+    let patch = Signals {
+        hero,
+        followups: Some(followups),
+        merged: (pr == Some("MERGED")).then_some(true),
+        closed: (pr == Some("CLOSED")).then_some(true),
+        switched: switched.then_some(true),
+        ..Signals::default()
+    };
     let Some(route) = r.signal(&sum.id, &patch, now) else { return };
     let agent = sum.agent.as_deref().unwrap_or_default();
     if switched && !route.manual && route.signals.switched_to.is_none() && !agent.is_empty() && agent != "auto" {

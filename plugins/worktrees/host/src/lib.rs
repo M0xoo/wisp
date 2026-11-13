@@ -11,13 +11,13 @@ pub mod cleanup;
 pub mod done;
 pub mod engine;
 pub mod error;
+mod files;
 pub mod fsx;
 pub mod pane;
 pub mod ports;
-mod files;
+pub mod prepare;
 mod runtime_port;
 mod source;
-pub mod prepare;
 pub mod trust;
 
 use std::sync::Arc;
@@ -25,9 +25,7 @@ use std::sync::Arc;
 use serde_json::Value;
 use tokio::sync::OnceCell;
 use wisp_git_api::GitServiceV1;
-use wisp_kernel::{
-    Ctx, Failure, Hook, InterceptOpts, Manifest, Plugin, Result as WireResult, Setup, WireError,
-};
+use wisp_kernel::{Ctx, Failure, Hook, InterceptOpts, Manifest, Plugin, Result as WireResult, Setup, WireError};
 use wisp_worktrees_api as api;
 use wisp_worktrees_core::sweep::{self, DiskLimits};
 
@@ -53,10 +51,7 @@ pub struct WorktreesPlugin {
 
 impl WorktreesPlugin {
     pub fn new(home: impl Into<String>, user_home: impl Into<String>) -> Self {
-        Self {
-            home: home.into(),
-            user_home: user_home.into(),
-        }
+        Self { home: home.into(), user_home: user_home.into() }
     }
 }
 
@@ -75,9 +70,7 @@ pub struct State {
 
 impl std::fmt::Debug for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("State")
-            .field("plugin", &self.plugin)
-            .finish_non_exhaustive()
+        f.debug_struct("State").field("plugin", &self.plugin).finish_non_exhaustive()
     }
 }
 
@@ -91,21 +84,11 @@ pub fn platform() -> &'static str {
 
 impl State {
     pub fn new(plugin: WorktreesPlugin) -> Arc<Self> {
-        Arc::new(Self {
-            plugin,
-            built: OnceCell::new(),
-            cap_pending: false.into(),
-            offers: tokio::sync::Mutex::new(Vec::new()),
-        })
+        Arc::new(Self { plugin, built: OnceCell::new(), cap_pending: false.into(), offers: tokio::sync::Mutex::new(Vec::new()) })
     }
 
     /// For tests and installs that wire the parts themselves.
-    pub fn with(
-        plugin: WorktreesPlugin,
-        engine: Arc<Engine>,
-        cleanup: Arc<Cleanup>,
-        port: Arc<dyn Port>,
-    ) -> Arc<Self> {
+    pub fn with(plugin: WorktreesPlugin, engine: Arc<Engine>, cleanup: Arc<Cleanup>, port: Arc<dyn Port>) -> Arc<Self> {
         Arc::new(Self {
             plugin,
             built: OnceCell::new_with(Some((engine, cleanup, port))),
@@ -173,11 +156,7 @@ impl Plugin for WorktreesPlugin {
         files::register(s);
         let hook_st = st.clone();
         s.intercept::<BeforeRunView, _, _>(
-            InterceptOpts {
-                priority: 50,
-                failure: Failure::Closed,
-                timeout_ms: 1000,
-            },
+            InterceptOpts { priority: 50, failure: Failure::Closed, timeout_ms: 1000 },
             move |ctx, _call, hctx| {
                 let st = hook_st.clone();
                 async move {
@@ -186,14 +165,7 @@ impl Plugin for WorktreesPlugin {
                     };
                     let set = port.settings().await;
                     let hooks = trust::hooks_of(&ctx, hctx.get("agent").and_then(serde_json::Value::as_str).unwrap_or_default());
-                    trust::before_run(
-                        &set.trust,
-                        set.project_ask.as_deref(),
-                        &engine.user_home,
-                        hooks.as_ref(),
-                        hctx,
-                    )
-                    .await
+                    trust::before_run(&set.trust, set.project_ask.as_deref(), &engine.user_home, hooks.as_ref(), hctx).await
                 }
             },
         );
@@ -251,12 +223,23 @@ mod tests {
     fn worktree_settings_are_in_the_registry() {
         let p = super::WorktreesPlugin::new("/tmp/h", "/tmp/u");
         let m = wisp_kernel::Plugin::manifest(&p);
-        let keys: Vec<String> = m.contributes.get("settings").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(|s| s.get("key").and_then(serde_json::Value::as_str).map(str::to_owned)).collect();
+        let keys: Vec<String> = m
+            .contributes
+            .get("settings")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|s| s.get("key").and_then(serde_json::Value::as_str).map(str::to_owned))
+            .collect();
         for k in ["worktrees.cleanup", "worktrees.max", "worktrees.onDone", "worktrees.projectAsk"] {
             assert!(keys.iter().any(|x| x == k), "{k} in {keys:?}");
         }
         // cleanup has no default: unset is "never chosen", and its clock starts at the upgrade (v1)
-        let cleanup = m.contributes["settings"].as_array().and_then(|a| a.iter().find(|s| s["key"] == "worktrees.cleanup")).cloned().unwrap_or_default();
+        let cleanup = m.contributes["settings"]
+            .as_array()
+            .and_then(|a| a.iter().find(|s| s["key"] == "worktrees.cleanup"))
+            .cloned()
+            .unwrap_or_default();
         assert!(cleanup.get("default").is_none());
         // and v1's names import to them
         assert_eq!(wisp_settings_api::key_of("worktreeMax"), "worktrees.max");

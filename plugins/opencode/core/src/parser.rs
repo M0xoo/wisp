@@ -7,7 +7,9 @@
 use serde_json::{Map, Value, json};
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::protocol::exit_text;
-use wisp_harness_kit::{Change, Edit, Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, TurnResult, clip_value, json_line, rel_value};
+use wisp_harness_kit::{
+    Change, Edit, Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, TurnResult, clip_value, json_line, rel_value,
+};
 
 use crate::describe::describe_tool;
 
@@ -51,7 +53,19 @@ pub struct OpencodeParser {
 
 impl OpencodeParser {
     pub fn new(o: OpencodeOptions) -> Self {
-        Self { o, session: None, last_msg: None, text: Vec::new(), error: None, tokens: (0.0, 0.0), cost: 0.0, limit_at: None, limited: false, carry: String::new(), started: None }
+        Self {
+            o,
+            session: None,
+            last_msg: None,
+            text: Vec::new(),
+            error: None,
+            tokens: (0.0, 0.0),
+            cost: 0.0,
+            limit_at: None,
+            limited: false,
+            carry: String::new(),
+            started: None,
+        }
     }
 
     fn tick(&mut self, now: i64, out: &mut Vec<Out>) {
@@ -103,16 +117,30 @@ impl OpencodeParser {
             out.push(Out::Io(IoStep::Sync { file: file.clone() })); // keep the tracker current for later writes
             let after_v = if input["newString"].is_null() { &input["new_string"] } else { &input["newString"] };
             let after = after_v.as_str().map_or_else(|| if after_v.is_null() { String::new() } else { js::string(after_v) }, str::to_owned);
-            out.push(HarnessEvent::Change(Change { file, op: "edit".into(), edits: vec![Edit { before: js::str(before), after }], early: None, before_file: None }).into());
+            out.push(
+                HarnessEvent::Change(Change {
+                    file,
+                    op: "edit".into(),
+                    edits: vec![Edit { before: js::str(before), after }],
+                    early: None,
+                    before_file: None,
+                })
+                .into(),
+            );
             return;
         }
         let mut paths: Vec<String> = Vec::new();
         if matches!(tool, "write" | "edit" | "multiedit") && !file.is_empty() {
             paths.push(file);
         } else if matches!(tool, "patch" | "apply_patch") {
-            let listed = js::arr(&meta["files"]).iter().filter_map(|x| if let Some(s) = x.as_str() { Some(s.to_owned()) } else { js::or(&x["filePath"], &x["file"]).as_str().map(str::to_owned) });
+            let listed = js::arr(&meta["files"]).iter().filter_map(|x| {
+                if let Some(s) = x.as_str() { Some(s.to_owned()) } else { js::or(&x["filePath"], &x["file"]).as_str().map(str::to_owned) }
+            });
             let text = js::str(js::or(&input["patchText"], &input["patch"]));
-            let named = PATCH_PATH.get().map(|re| re.captures_iter(&text).filter_map(|c| c.get(1).map(|m| js::trim(m.as_str()).to_owned())).collect::<Vec<_>>()).unwrap_or_default();
+            let named = PATCH_PATH
+                .get()
+                .map(|re| re.captures_iter(&text).filter_map(|c| c.get(1).map(|m| js::trim(m.as_str()).to_owned())).collect::<Vec<_>>())
+                .unwrap_or_default();
             for p in listed.chain(named) {
                 if !paths.contains(&p) {
                     paths.push(p);
@@ -180,8 +208,16 @@ impl LineParser for OpencodeParser {
         if let Some(re) = REJECTED.get() {
             for c in re.captures_iter(&joined) {
                 let permission = c.get(1).map_or("", |m| m.as_str()).to_owned();
-                let patterns: Vec<String> = c.get(2).map_or("", |m| m.as_str()).split(", ").filter(|p| !p.is_empty()).map(str::to_owned).collect();
-                out.push(HarnessEvent::Blocked { tool: permission.clone(), detail: patterns.join(", "), rule: Some(json!({ "permission": permission, "patterns": patterns })) }.into());
+                let patterns: Vec<String> =
+                    c.get(2).map_or("", |m| m.as_str()).split(", ").filter(|p| !p.is_empty()).map(str::to_owned).collect();
+                out.push(
+                    HarnessEvent::Blocked {
+                        tool: permission.clone(),
+                        detail: patterns.join(", "),
+                        rule: Some(json!({ "permission": permission, "patterns": patterns })),
+                    }
+                    .into(),
+                );
             }
         }
         if self.limit_at.is_none() && !self.limited && RATE_LIMITED.is_match(text) {
@@ -194,18 +230,35 @@ impl LineParser for OpencodeParser {
             let which = if self.o.model.is_empty() { "opencode’s default model".to_owned() } else { format!("`{}`", self.o.model) };
             #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
             let secs = (self.o.rate_limit_grace_ms as f64 / 1000.0).round() as i64;
-            let text = format!("{which} is rate-limited right now: opencode kept retrying for {secs}s without an answer. Try again in a few minutes, pick another model, or connect your own provider with `opencode auth login`.");
+            let text = format!(
+                "{which} is rate-limited right now: opencode kept retrying for {secs}s without an answer. Try again in a few minutes, pick another model, or connect your own provider with `opencode auth login`."
+            );
             let mut stats = Map::new();
             stats.insert("durationMs".into(), self.duration(now_ms));
-            out.push(HarnessEvent::Result(TurnResult { stats: serde_json::from_value(Value::Object(stats)).ok().map(Box::new), ..TurnResult::error(text) }).into());
+            out.push(
+                HarnessEvent::Result(TurnResult {
+                    stats: serde_json::from_value(Value::Object(stats)).ok().map(Box::new),
+                    ..TurnResult::error(text)
+                })
+                .into(),
+            );
             return;
         }
         let ok = exit.code == Some(0) && self.error.is_none();
         let text = if ok {
             self.text.join("\n")
         } else {
-            let logged = LOGGED.get().and_then(|re| re.captures_iter(&exit.stderr).last()).and_then(|c| c.get(1)).map(|m| m.as_str().to_owned()).filter(|s| !s.is_empty());
-            self.error.clone().or(logged).or_else(|| Some(exit.stderr.clone()).filter(|s| !s.is_empty())).unwrap_or_else(|| exit_text("opencode", exit.code, exit.signal.as_deref()))
+            let logged = LOGGED
+                .get()
+                .and_then(|re| re.captures_iter(&exit.stderr).last())
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str().to_owned())
+                .filter(|s| !s.is_empty());
+            self.error
+                .clone()
+                .or(logged)
+                .or_else(|| Some(exit.stderr.clone()).filter(|s| !s.is_empty()))
+                .unwrap_or_else(|| exit_text("opencode", exit.code, exit.signal.as_deref()))
         };
         let mut stats = Map::new();
         stats.insert("durationMs".into(), self.duration(now_ms));
@@ -215,7 +268,9 @@ impl LineParser for OpencodeParser {
         stats.insert("inputTokens".into(), js::json_num(self.tokens.0));
         stats.insert("outputTokens".into(), js::json_num(self.tokens.1));
         let stats: Option<Box<Stats>> = serde_json::from_value(Value::Object(stats)).ok().map(Box::new);
-        out.push(HarnessEvent::Result(TurnResult { text, is_error: !ok, stopped: Some(exit.stopped), stats, ..TurnResult::default() }).into());
+        out.push(
+            HarnessEvent::Result(TurnResult { text, is_error: !ok, stopped: Some(exit.stopped), stats, ..TurnResult::default() }).into(),
+        );
     }
 }
 
@@ -237,7 +292,11 @@ mod tests {
     #[test]
     fn a_rate_limited_run_is_stopped_after_the_grace_and_says_what_to_do() {
         // v1 adapters.test.js "opencode: a rate-limited run is stopped and explained"
-        let mut p = OpencodeParser::new(OpencodeOptions { model: "opencode/big-pickle".into(), rate_limit_grace_ms: 300, ..OpencodeOptions::default() });
+        let mut p = OpencodeParser::new(OpencodeOptions {
+            model: "opencode/big-pickle".into(),
+            rate_limit_grace_ms: 300,
+            ..OpencodeOptions::default()
+        });
         let mut out = Vec::new();
         p.stderr("level=ERROR error.error=\"AI_APICallError: Rate limit exceeded.\"\n", 0, &mut out);
         p.stderr("retrying\n", 100, &mut out);

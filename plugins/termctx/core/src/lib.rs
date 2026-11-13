@@ -67,7 +67,10 @@ pub fn read_argv(src: &str, env: &dyn Env, lines: usize) -> Option<Vec<String>> 
         "iterm2" => {
             let sid = env.var("ITERM_SESSION_ID")?;
             let uuid = sid.split_once(':').map_or(sid.as_str(), |(_, u)| u).to_owned();
-            let script = format!("tell application \"iTerm2\" to repeat with w in windows\n repeat with t in tabs of w\n repeat with s in sessions of t\n if unique id of s is \"{}\" then return contents of s\n end repeat\n end repeat\n end repeat", uuid.replace('"', ""));
+            let script = format!(
+                "tell application \"iTerm2\" to repeat with w in windows\n repeat with t in tabs of w\n repeat with s in sessions of t\n if unique id of s is \"{}\" then return contents of s\n end repeat\n end repeat\n end repeat",
+                uuid.replace('"', "")
+            );
             Some(vec![v("osascript"), v("-e"), script])
         }
         "apple-terminal" => {
@@ -189,7 +192,22 @@ pub fn history_tail(shell: &str, text: &str, n: usize) -> Vec<Cmd> {
 /// Whether a prompt asks about what just happened in the terminal.
 pub fn wants_context(prompt: &str) -> bool {
     let p = prompt.to_lowercase();
-    ["above", "that error", "this error", "the error", "what i just ran", "what just happened", "last command", "the output", "just failed", "it failed", "failing command", "scrollback"].iter().any(|w| p.contains(w))
+    [
+        "above",
+        "that error",
+        "this error",
+        "the error",
+        "what i just ran",
+        "what just happened",
+        "last command",
+        "the output",
+        "just failed",
+        "it failed",
+        "failing command",
+        "scrollback",
+    ]
+    .iter()
+    .any(|w| p.contains(w))
 }
 
 /// What the context holds.

@@ -8,9 +8,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::channel::Channel;
-use crate::install::{
-    DOWNLOADS, Install, Method, PKG, Platform, REGISTRY, RELEASES, TAP, asset_name,
-};
+use crate::install::{DOWNLOADS, Install, Method, PKG, Platform, REGISTRY, RELEASES, TAP, asset_name};
 use crate::version::{find_version, newer, newest};
 
 pub const DAY_MS: i64 = 24 * 3600 * 1000;
@@ -96,10 +94,7 @@ pub enum InstallStep {
     /// npx: nothing to install, it fetches on relaunch
     Nothing,
     /// npm or brew: run this shell command with these extra env vars
-    Run {
-        cmd: String,
-        env: Vec<(String, String)>,
-    },
+    Run { cmd: String, env: Vec<(String, String)> },
     /// the desktop app: download `asset` and swap it in
     DownloadApp { asset: Asset },
 }
@@ -135,12 +130,7 @@ pub struct Updater {
 }
 
 fn falsy(v: Option<&str>) -> bool {
-    v.is_some_and(|v| {
-        matches!(
-            v.to_ascii_lowercase().as_str(),
-            "0" | "false" | "no" | "off"
-        )
-    })
+    v.is_some_and(|v| matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off"))
 }
 
 /// `JSON.stringify` of a string: how v1 quoted paths in shell commands.
@@ -150,9 +140,7 @@ pub fn json_quote(s: &str) -> String {
 
 impl Updater {
     pub fn new(install: Install, platform: Platform, current: &str, port: u16, env: Env) -> Self {
-        let enabled = install.method != Method::Git
-            && !falsy(env.update_check.as_deref())
-            && env.ci.as_deref().is_none_or(str::is_empty);
+        let enabled = install.method != Method::Git && !falsy(env.update_check.as_deref()) && env.ci.as_deref().is_none_or(str::is_empty);
         Self {
             install,
             platform,
@@ -179,11 +167,7 @@ impl Updater {
 
     /// Homebrew's tap only follows stable releases.
     pub fn channel(&self, pref: &str) -> Channel {
-        if self.method() == Method::Brew {
-            Channel::Stable
-        } else {
-            Channel::of(pref)
-        }
+        if self.method() == Method::Brew { Channel::Stable } else { Channel::of(pref) }
     }
 
     /// At most once a day, however long wisp stays open (or asleep).
@@ -208,10 +192,7 @@ impl Updater {
     /// What installs the latest version; shown to copy if it fails. A clone has none.
     pub fn command(&self) -> Option<String> {
         match self.method() {
-            Method::Brew => Some(format!(
-                "{} upgrade {TAP}",
-                json_quote(&self.platform.join(self.brew(), &["bin", "brew"]))
-            )),
+            Method::Brew => Some(format!("{} upgrade {TAP}", json_quote(&self.platform.join(self.brew(), &["bin", "brew"])))),
             Method::App => Some(self.release.clone().unwrap_or_else(|| DOWNLOADS.to_owned())),
             Method::Global => Some(format!("npm install -g {PKG}@{}", self.tag)),
             Method::Npx => Some(format!("npx -y {PKG}@{}", self.tag)),
@@ -227,10 +208,7 @@ impl Updater {
     /// keeps opt/wisp-agents pointing at the current one.
     pub fn home(&self) -> String {
         if self.method() == Method::Brew {
-            return self.platform.join(
-                self.brew(),
-                &["opt", "wisp-agents", "libexec", "lib", "node_modules", PKG],
-            );
+            return self.platform.join(self.brew(), &["opt", "wisp-agents", "libexec", "lib", "node_modules", PKG]);
         }
         self.install.root.clone()
     }
@@ -247,15 +225,7 @@ impl Updater {
             (true, Channel::Stable) => format!("{RELEASES}/latest"),
             (true, _) => format!("{RELEASES}?per_page=30"),
         };
-        CheckRequest {
-            url,
-            accept: if app {
-                "application/vnd.github+json"
-            } else {
-                "application/json"
-            },
-            channel,
-        }
+        CheckRequest { url, accept: if app { "application/vnd.github+json" } else { "application/json" }, channel }
     }
 
     /// The check's answer. `body` is None when the fetch failed or wasn't 2xx (offline: next round).
@@ -263,15 +233,9 @@ impl Updater {
     pub fn end_check(&mut self, req: &CheckRequest, body: Option<&Value>) -> bool {
         let Some(body) = body else { return false };
         let channel = req.channel;
-        let version = if self.method() == Method::App {
-            self.pick_release(channel, body)
-        } else {
-            self.pick_tag(channel, body)
-        };
-        let available = self.method() != Method::Git
-            && version.as_deref().is_some_and(|v| newer(v, &self.current));
-        let changed =
-            version != self.latest || available != self.available || channel != self.last_channel;
+        let version = if self.method() == Method::App { self.pick_release(channel, body) } else { self.pick_tag(channel, body) };
+        let available = self.method() != Method::Git && version.as_deref().is_some_and(|v| newer(v, &self.current));
+        let changed = version != self.latest || available != self.available || channel != self.last_channel;
         if changed {
             self.latest = version;
             self.available = available;
@@ -282,23 +246,14 @@ impl Updater {
 
     fn pick_tag(&mut self, channel: Channel, body: &Value) -> Option<String> {
         let tags = channel.tags();
-        let vals: Vec<&str> = tags
-            .iter()
-            .map(|t| body.get(*t).and_then(Value::as_str).unwrap_or(""))
-            .collect();
+        let vals: Vec<&str> = tags.iter().map(|t| body.get(*t).and_then(Value::as_str).unwrap_or("")).collect();
         let version = newest(vals.iter().copied()).map(str::to_owned);
-        tags.iter()
-            .zip(&vals)
-            .find(|(_, v)| Some(**v) == version.as_deref())
-            .map_or("latest", |(t, _)| *t)
-            .clone_into(&mut self.tag);
+        tags.iter().zip(&vals).find(|(_, v)| Some(**v) == version.as_deref()).map_or("latest", |(t, _)| *t).clone_into(&mut self.tag);
         version
     }
 
     fn pick_release(&mut self, channel: Channel, body: &Value) -> Option<String> {
-        let list: Vec<&Value> = body
-            .as_array()
-            .map_or_else(|| vec![body], |a| a.iter().collect());
+        let list: Vec<&Value> = body.as_array().map_or_else(|| vec![body], |a| a.iter().collect());
         let flag = |r: &Value, k: &str| r.get(k).and_then(Value::as_bool).unwrap_or(false);
         let ok = |r: &&Value| {
             let nightly_tag = r.get("tag_name").and_then(Value::as_str) == Some("nightly");
@@ -310,39 +265,21 @@ impl Updater {
                 }
         };
         let list: Vec<&Value> = list.into_iter().filter(ok).collect();
-        let versions: Vec<String> = list
-            .iter()
-            .map(|r| release_version(r).unwrap_or_default())
-            .collect();
+        let versions: Vec<String> = list.iter().map(|r| release_version(r).unwrap_or_default()).collect();
         let version = newest(versions.iter().map(String::as_str)).map(str::to_owned);
-        let pick = list
-            .iter()
-            .zip(&versions)
-            .find(|(_, v)| Some(v.as_str()) == version.as_deref())
-            .map(|(r, _)| *r);
+        let pick = list.iter().zip(&versions).find(|(_, v)| Some(v.as_str()) == version.as_deref()).map(|(r, _)| *r);
         let want = asset_name(&self.platform, self.env.appimage.as_deref());
         self.asset = pick.and_then(|r| {
-            r.get("assets")?
-                .as_array()?
-                .iter()
-                .find(|a| a.get("name").and_then(Value::as_str) == want.as_deref())
-                .and_then(asset_of)
+            r.get("assets")?.as_array()?.iter().find(|a| a.get("name").and_then(Value::as_str) == want.as_deref()).and_then(asset_of)
         });
-        self.release = if channel == Channel::Stable {
-            None
-        } else {
-            pick.and_then(|r| r.get("html_url")?.as_str())
-                .map(str::to_owned)
-        };
+        self.release = if channel == Channel::Stable { None } else { pick.and_then(|r| r.get("html_url")?.as_str()).map(str::to_owned) };
         version
     }
 
     /// Starts an install, or refuses it.
     pub fn begin_install(&mut self) -> Result<InstallStep, Refusal> {
         if self.method() == Method::Git {
-            return Err(Refusal::Invalid(
-                "This copy of wisp is a git clone, so it does not update itself.".into(),
-            ));
+            return Err(Refusal::Invalid("This copy of wisp is a git clone, so it does not update itself.".into()));
         }
         if self.status == Status::Installing {
             return Err(Refusal::Conflict("Already updating.".into()));
@@ -350,10 +287,7 @@ impl Updater {
         let step = match self.method() {
             Method::App => {
                 let Some(asset) = self.asset.clone() else {
-                    let m = format!(
-                        "There's no automatic update for this copy of wisp. {}",
-                        self.later()
-                    );
+                    let m = format!("There's no automatic update for this copy of wisp. {}", self.later());
                     self.error = Some(m.clone());
                     return Err(Refusal::Invalid(m));
                 };
@@ -361,14 +295,10 @@ impl Updater {
             }
             Method::Npx => InstallStep::Nothing,
             // Old kegs stay until brew's own periodic cleanup: this process still runs from one.
-            Method::Brew => InstallStep::Run {
-                cmd: self.command().unwrap_or_default(),
-                env: vec![("HOMEBREW_NO_INSTALL_CLEANUP".into(), "1".into())],
-            },
-            Method::Global | Method::Git => InstallStep::Run {
-                cmd: self.command().unwrap_or_default(),
-                env: Vec::new(),
-            },
+            Method::Brew => {
+                InstallStep::Run { cmd: self.command().unwrap_or_default(), env: vec![("HOMEBREW_NO_INSTALL_CLEANUP".into(), "1".into())] }
+            }
+            Method::Global | Method::Git => InstallStep::Run { cmd: self.command().unwrap_or_default(), env: Vec::new() },
         };
         self.status = Status::Installing;
         self.error = None;
@@ -382,15 +312,9 @@ impl Updater {
             return Ok(());
         }
         Err(if self.method() == Method::Brew {
-            format!(
-                "Homebrew doesn't have wisp {} yet. Try again later.",
-                self.latest.as_deref().unwrap_or("?")
-            )
+            format!("Homebrew doesn't have wisp {} yet. Try again later.", self.latest.as_deref().unwrap_or("?"))
         } else {
-            format!(
-                "npm installed wisp somewhere else: this copy is still {}.",
-                got.unwrap_or(&self.current)
-            )
+            format!("npm installed wisp somewhere else: this copy is still {}.", got.unwrap_or(&self.current))
         })
     }
 
@@ -413,16 +337,15 @@ impl Updater {
             return None;
         }
         // let the answer reach the page first, then stop and wait for the port to be free
-        let script = format!("sleep 1; kill -TERM {pid} 2>/dev/null; for i in $(seq 300); do kill -0 {pid} 2>/dev/null || break; sleep 0.1; done; {cmd}");
+        let script = format!(
+            "sleep 1; kill -TERM {pid} 2>/dev/null; for i in $(seq 300); do kill -0 {pid} 2>/dev/null || break; sleep 0.1; done; {cmd}"
+        );
         Some(vec!["-c".to_owned(), script])
     }
 
     /// "Download it from …": the tail of every app update failure.
     pub fn later(&self) -> String {
-        format!(
-            "Download it from {}",
-            self.release.as_deref().unwrap_or(DOWNLOADS)
-        )
+        format!("Download it from {}", self.release.as_deref().unwrap_or(DOWNLOADS))
     }
 
     /// The command that starts the new version once this process has let go of the port. Same port as now
@@ -435,31 +358,16 @@ impl Updater {
             // NSIS: /S installs silently over this copy, then /R starts the new one.
             return match &self.swap {
                 Some(Swap::Windows { installer }) => format!("{} /S /R", q(installer)),
-                Some(Swap::Mac { open, remove }) => format!(
-                    "rm -rf {}; {}open {}",
-                    q(remove),
-                    if tauri {
-                        self.shell_gone()
-                    } else {
-                        String::new()
-                    },
-                    q(open)
-                ),
+                Some(Swap::Mac { open, remove }) => {
+                    format!("rm -rf {}; {}open {}", q(remove), if tauri { self.shell_gone() } else { String::new() }, q(open))
+                }
                 Some(Swap::Linux { open }) => format!("{} >/dev/null 2>&1", q(open)),
                 None => String::new(),
             };
         }
-        let args = format!(
-            "{} --port {}",
-            if desktop { "" } else { " --browser --no-open" },
-            self.port
-        );
+        let args = format!("{} --port {}", if desktop { "" } else { " --browser --no-open" }, self.port);
         // A shell started by bin/wisp.js holds the same lock: the new `wisp` would hand over to it and go.
-        let wait = if tauri && !self.platform.windows() {
-            self.shell_gone()
-        } else {
-            String::new()
-        };
+        let wait = if tauri && !self.platform.windows() { self.shell_gone() } else { String::new() };
         if self.method() == Method::Npx {
             return format!("{wait}npx -y {PKG}@{}{args}", self.tag);
         }
@@ -471,10 +379,7 @@ impl Updater {
     /// Tauri's shell is this process's parent and outlives it by a moment, holding the single-instance
     /// lock: a new app opened meanwhile hands over to the old one and quits, and nothing comes back.
     fn shell_gone(&self) -> String {
-        format!(
-            "for i in $(seq 100); do kill -0 {} 2>/dev/null || break; sleep 0.1; done; ",
-            self.env.ppid
-        )
+        format!("for i in $(seq 100); do kill -0 {} 2>/dev/null || break; sleep 0.1; done; ", self.env.ppid)
     }
 }
 
@@ -482,8 +387,7 @@ impl Updater {
 pub fn release_version(r: &Value) -> Option<String> {
     let tag = r.get("tag_name").and_then(Value::as_str).unwrap_or("");
     if tag == "nightly" {
-        return find_version(r.get("name").and_then(Value::as_str).unwrap_or(""))
-            .map(str::to_owned);
+        return find_version(r.get("name").and_then(Value::as_str).unwrap_or("")).map(str::to_owned);
     }
     Some(tag.strip_prefix('v').unwrap_or(tag).to_owned())
 }
@@ -491,11 +395,7 @@ pub fn release_version(r: &Value) -> Option<String> {
 fn asset_of(a: &Value) -> Option<Asset> {
     Some(Asset {
         name: a.get("name")?.as_str()?.to_owned(),
-        url: a
-            .get("browser_download_url")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_owned(),
+        url: a.get("browser_download_url").and_then(Value::as_str).unwrap_or("").to_owned(),
         digest: a.get("digest").and_then(Value::as_str).map(str::to_owned),
     })
 }

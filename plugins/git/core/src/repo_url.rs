@@ -15,29 +15,15 @@ pub struct RepoUrl {
 
 fn strip(p: &str) -> &str {
     let p = p.trim_end_matches('/');
-    if p.len() >= 4 && p[p.len() - 4..].eq_ignore_ascii_case(".git") {
-        &p[..p.len() - 4]
-    } else {
-        p
-    }
+    if p.len() >= 4 && p[p.len() - 4..].eq_ignore_ascii_case(".git") { &p[..p.len() - 4] } else { p }
 }
 
 fn of(url: String, host: &str, repo_path: &str) -> Option<RepoUrl> {
-    let parts: Vec<&str> = strip(repo_path)
-        .split('/')
-        .filter(|s| !s.is_empty())
-        .collect();
+    let parts: Vec<&str> = strip(repo_path).split('/').filter(|s| !s.is_empty()).collect();
     let last = *parts.last()?;
-    let gh =
-        (host == "github.com" && parts.len() >= 2).then(|| format!("{}/{}", parts[0], parts[1]));
+    let gh = (host == "github.com" && parts.len() >= 2).then(|| format!("{}/{}", parts[0], parts[1]));
     let name = if gh.is_some() { parts[1] } else { last }.to_owned();
-    Some(RepoUrl {
-        url,
-        host: host.to_owned(),
-        name,
-        gh,
-        path: parts.join("/"),
-    })
+    Some(RepoUrl { url, host: host.to_owned(), name, gh, path: parts.join("/") })
 }
 
 fn word(c: char) -> bool {
@@ -47,31 +33,20 @@ fn word(c: char) -> bool {
 /// `scheme://[user@]host[:port]/path` → (scheme lowercased, host, path).
 fn split_url(s: &str) -> Option<(String, String, String)> {
     let (scheme, rest) = s.split_once("://")?;
-    let (auth, path) = rest
-        .find('/')
-        .map_or((rest, ""), |i| (&rest[..i], &rest[i..]));
+    let (auth, path) = rest.find('/').map_or((rest, ""), |i| (&rest[..i], &rest[i..]));
     let host_port = auth.rsplit_once('@').map_or(auth, |(_, h)| h);
     let host = if host_port.starts_with('[') {
-        host_port
-            .split_once(']')
-            .map_or(host_port, |(h, _)| h)
-            .trim_start_matches('[')
+        host_port.split_once(']').map_or(host_port, |(h, _)| h).trim_start_matches('[')
     } else {
         host_port.split(':').next().unwrap_or("")
     };
     let path = path.split(['?', '#']).next().unwrap_or("");
-    Some((
-        scheme.to_ascii_lowercase(),
-        host.to_ascii_lowercase(),
-        path.to_owned(),
-    ))
+    Some((scheme.to_ascii_lowercase(), host.to_ascii_lowercase(), path.to_owned()))
 }
 
 fn is_url(s: &str) -> bool {
     let low = s.to_ascii_lowercase();
-    ["http://", "https://", "ssh://", "git://", "file://"]
-        .iter()
-        .any(|p| low.starts_with(p))
+    ["http://", "https://", "ssh://", "git://", "file://"].iter().any(|p| low.starts_with(p))
         || low.starts_with("github.com/")
         || low.starts_with("www.github.com/")
 }
@@ -79,11 +54,7 @@ fn is_url(s: &str) -> bool {
 pub fn parse_repo(input: &str, shorthand: bool) -> Option<RepoUrl> {
     let s = input.trim();
     if is_url(s) {
-        let full = if s.contains("://") {
-            s.to_owned()
-        } else {
-            format!("https://{s}")
-        };
+        let full = if s.contains("://") { s.to_owned() } else { format!("https://{s}") };
         let (scheme, host, path) = split_url(&full)?;
         let host = host.strip_prefix("www.").unwrap_or(&host).to_owned();
         if scheme == "file" {
@@ -95,18 +66,10 @@ pub fn parse_repo(input: &str, shorthand: bool) -> Option<RepoUrl> {
         if host == "github.com" {
             let mut seg = path.split('/').filter(|x| !x.is_empty());
             let (o, r) = (seg.next()?, seg.next()?);
-            return of(
-                format!("https://github.com/{o}/{}.git", strip(r)),
-                &host,
-                &format!("{o}/{r}"),
-            );
+            return of(format!("https://github.com/{o}/{}.git", strip(r)), &host, &format!("{o}/{r}"));
         }
         let segments = path.split('/').filter(|x| !x.is_empty()).count();
-        return if segments >= 2 || scheme != "https" {
-            of(s.to_owned(), &host, &path)
-        } else {
-            None
-        };
+        return if segments >= 2 || scheme != "https" { of(s.to_owned(), &host, &path) } else { None };
     }
     if let Some(r) = scp(s) {
         return Some(r);
@@ -116,11 +79,7 @@ pub fn parse_repo(input: &str, shorthand: bool) -> Option<RepoUrl> {
         let ok_o = !o.is_empty() && o.chars().all(|c| word(c) || c == '-');
         let ok_r = !r.is_empty() && r.chars().all(|c| word(c) || c == '-' || c == '.');
         if ok_o && ok_r {
-            return of(
-                format!("https://github.com/{o}/{}.git", strip(r)),
-                "github.com",
-                &format!("{o}/{r}"),
-            );
+            return of(format!("https://github.com/{o}/{}.git", strip(r)), "github.com", &format!("{o}/{r}"));
         }
     }
     None
@@ -139,23 +98,13 @@ fn scp(s: &str) -> Option<RepoUrl> {
 
 /// `parse_repo`, plus a plain absolute path to a repo on disk (an origin can be one).
 pub fn repo_of(u: &str) -> Option<RepoUrl> {
-    parse_repo(u, false).or_else(|| {
-        u.starts_with('/')
-            .then(|| parse_repo(&format!("file://{u}"), false))
-            .flatten()
-    })
+    parse_repo(u, false).or_else(|| u.starts_with('/').then(|| parse_repo(&format!("file://{u}"), false)).flatten())
 }
 
 /// The same repo however it was spelled (https vs ssh, .git or not, the host's case).
 pub fn same_repo(a: &str, b: &str) -> bool {
-    let key = |u: &str| {
-        repo_of(u).map(|r| {
-            r.gh.map_or_else(
-                || format!("{}/{}", r.host, r.path),
-                |g| format!("github.com/{}", g.to_lowercase()),
-            )
-        })
-    };
+    let key =
+        |u: &str| repo_of(u).map(|r| r.gh.map_or_else(|| format!("{}/{}", r.host, r.path), |g| format!("github.com/{}", g.to_lowercase())));
     matches!((key(a), key(b)), (Some(x), Some(y)) if x == y)
 }
 
@@ -180,9 +129,7 @@ mod tests {
         }
         assert_eq!(gh("WispAgents/wisp", true).as_deref(), Some("WispAgents/wisp"));
         assert_eq!(
-            parse_repo("https://github.com/WispAgents/wisp/pull/3", false)
-                .map(|r| r.url)
-                .as_deref(),
+            parse_repo("https://github.com/WispAgents/wisp/pull/3", false).map(|r| r.url).as_deref(),
             Some("https://github.com/WispAgents/wisp.git")
         );
     }
@@ -190,49 +137,23 @@ mod tests {
     #[test]
     fn other_hosts_and_ssh() {
         let r = parse_repo("https://gitlab.com/group/sub/app.git", false);
-        assert_eq!(
-            r.map(|r| (r.host, r.name, r.gh)),
-            Some(("gitlab.com".into(), "app".into(), None))
-        );
-        assert_eq!(
-            parse_repo("ssh://git@example.org:2222/team/tool.git", false)
-                .map(|r| r.name)
-                .as_deref(),
-            Some("tool")
-        );
-        assert_eq!(
-            parse_repo("file:///srv/git/proj.git", false).map(|r| (r.host, r.name)),
-            Some((String::new(), "proj".into()))
-        );
+        assert_eq!(r.map(|r| (r.host, r.name, r.gh)), Some(("gitlab.com".into(), "app".into(), None)));
+        assert_eq!(parse_repo("ssh://git@example.org:2222/team/tool.git", false).map(|r| r.name).as_deref(), Some("tool"));
+        assert_eq!(parse_repo("file:///srv/git/proj.git", false).map(|r| (r.host, r.name)), Some((String::new(), "proj".into())));
     }
 
     #[test]
     fn paths_are_not_repos() {
-        for p in [
-            "~/code/app",
-            "/Users/me/app",
-            "./app",
-            "app",
-            "WispAgents/wisp",
-            "https://github.com/M0xoo",
-            "C:\\code\\app",
-            "",
-        ] {
+        for p in ["~/code/app", "/Users/me/app", "./app", "app", "WispAgents/wisp", "https://github.com/M0xoo", "C:\\code\\app", ""] {
             assert_eq!(parse_repo(p, false), None, "{p}");
         }
     }
 
     #[test]
     fn same_repo_across_spellings() {
-        assert!(same_repo(
-            "https://github.com/M0xoo/Wisp.git",
-            "git@github.com:m0xoo/wisp"
-        ));
+        assert!(same_repo("https://github.com/M0xoo/Wisp.git", "git@github.com:m0xoo/wisp"));
         assert!(same_repo("/srv/git/proj.git", "file:///srv/git/proj"));
-        assert!(!same_repo(
-            "https://github.com/a/b",
-            "https://github.com/a/c"
-        ));
+        assert!(!same_repo("https://github.com/a/b", "https://github.com/a/c"));
         assert!(!same_repo("not a repo", "not a repo"));
     }
 }

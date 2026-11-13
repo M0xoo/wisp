@@ -31,7 +31,8 @@ const TOPICS: [&str; 4] = ["list", "session:a", "session:b", "machines"];
 
 fn value(r: &mut Rng) -> Value {
     let n = r.below(4);
-    let mut v = json!({ "title": format!("t{}", r.below(5)), "n": r.below(3), "tags": (0..n).map(|i| format!("x{i}")).collect::<Vec<_>>() });
+    let mut v =
+        json!({ "title": format!("t{}", r.below(5)), "n": r.below(3), "tags": (0..n).map(|i| format!("x{i}")).collect::<Vec<_>>() });
     if r.next() < 0.5 {
         v["extra"] = json!({ "deep": if r.next() < 0.5 { json!(1) } else { json!("a/b~c") } });
     }
@@ -43,11 +44,7 @@ fn change(r: &mut Rng) -> TestChange {
     let id = format!("r{}", r.below(5));
     let k = r.next();
     let (e, id, op) = if k < 0.15 {
-        (
-            "log",
-            "l0".to_owned(),
-            Op::Append(vec![json!(r.below(100))]),
-        )
+        ("log", "l0".to_owned(), Op::Append(vec![json!(r.below(100))]))
     } else if k < 0.3 {
         ("row", id, Op::Del)
     } else if k < 0.45 {
@@ -55,12 +52,7 @@ fn change(r: &mut Rng) -> TestChange {
     } else {
         ("row", id, Op::Set(value(r)))
     };
-    TestChange {
-        topic: t,
-        e: e.into(),
-        id,
-        op,
-    }
+    TestChange { topic: t, e: e.into(), id, op }
 }
 
 #[derive(Debug, Default)]
@@ -91,23 +83,10 @@ fn setup(seed: u32) -> World {
     let mut r = Rng::new(seed);
     let store = FakeStore::default();
     let flush = 20 + r.below(60) as u64;
-    let opts = SimOpts {
-        async_answers: true,
-        wire: true,
-        chunked: r.next() < 0.5,
-    };
+    let opts = SimOpts { async_answers: true, wire: true, chunked: r.next() < 0.5 };
     let server = server_for(&store, 1, flush);
-    let clients = ["A", "B", "C"]
-        .iter()
-        .map(|n| SimClient::new(n, None))
-        .collect();
-    let mut sim = Sim::new(
-        store,
-        server,
-        clients,
-        Rng::new(seed.wrapping_mul(7919)),
-        opts,
-    );
+    let clients = ["A", "B", "C"].iter().map(|n| SimClient::new(n, None)).collect();
+    let mut sim = Sim::new(store, server, clients, Rng::new(seed.wrapping_mul(7919)), opts);
     let mut subs = Vec::new();
     for ci in 0..3 {
         let mine: BTreeSet<Topic> = [topic("list"), topic(TOPICS[1 + r.below(3)])].into();
@@ -118,13 +97,7 @@ fn setup(seed: u32) -> World {
         sim.open(ci);
         subs.push(mine);
     }
-    World {
-        r,
-        sim,
-        subs,
-        flush,
-        epoch: 1,
-    }
+    World { r, sim, subs, flush, epoch: 1 }
 }
 
 /// One random thing happens.
@@ -185,10 +158,7 @@ fn settle(w: &mut World) {
     for ci in 0..3 {
         sim.clients[ci].backlog = 0;
         match sim.clients[ci].conn {
-            Some(conn) => sim.server_in(Input::Drained {
-                conn,
-                buffered_bytes: 0,
-            }),
+            Some(conn) => sim.server_in(Input::Drained { conn, buffered_bytes: 0 }),
             None => sim.open(ci),
         }
     }
@@ -238,9 +208,6 @@ fn any_interleaving_leaves_every_client_equal_to_the_store() {
         run(seed, &mut seen);
     }
     // every path was taken, and no op ever failed to apply (a drift heals itself, so it would hide a bug)
-    assert!(
-        seen.resyncs > 100 && seen.resumes > 500 && seen.resets > 500,
-        "{seen:?}"
-    );
+    assert!(seen.resyncs > 100 && seen.resumes > 500 && seen.resets > 500, "{seen:?}");
     assert_eq!(seen.drifts, 0, "{seen:?}");
 }

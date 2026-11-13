@@ -20,9 +20,7 @@ pub struct Binding {
 
 impl std::fmt::Debug for Binding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Binding")
-            .field("spec", &self.spec)
-            .finish_non_exhaustive()
+        f.debug_struct("Binding").field("spec", &self.spec).finish_non_exhaustive()
     }
 }
 
@@ -81,10 +79,7 @@ impl Backend for Kernel {
     }
 
     fn wake_route(&self, method: &str, path: &str) -> BoxFuture<'static, bool> {
-        let fut = self.wake(
-            &format!("onRoute:{} {path}", method.to_ascii_uppercase()),
-            None,
-        );
+        let fut = self.wake(&format!("onRoute:{} {path}", method.to_ascii_uppercase()), None);
         Box::pin(async move { fut.await > 0 })
     }
 

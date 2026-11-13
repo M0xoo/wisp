@@ -32,7 +32,16 @@ fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.update:state".into()]
 }
 
-const STATE: EntityDef = EntityDef { kind: "update.state", table: "update_state", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+const STATE: EntityDef = EntityDef {
+    kind: "update.state",
+    table: "update_state",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PeerArgs {
@@ -72,12 +81,32 @@ impl St {
     fn new() -> Self {
         let platform = Platform::from_rust(std::env::consts::OS, std::env::consts::ARCH);
         let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
-        let env = up::Env { update_check: std::env::var("WISP_UPDATE_CHECK").ok(), ci: std::env::var("CI").ok(), desktop: std::env::var("WISP_DESKTOP").ok(), appimage: std::env::var("APPIMAGE").ok(), node: std::env::var("WISP_NODE").ok(), ppid: 0 };
+        let env = up::Env {
+            update_check: std::env::var("WISP_UPDATE_CHECK").ok(),
+            ci: std::env::var("CI").ok(),
+            desktop: std::env::var("WISP_DESKTOP").ok(),
+            appimage: std::env::var("APPIMAGE").ok(),
+            node: std::env::var("WISP_NODE").ok(),
+            ppid: 0,
+        };
         // a build in a clone: its target/ in the clone, or (a shared CARGO_TARGET_DIR) a debug build of one
-        let clone = install::cargo_clone(&exe).or_else(|| cfg!(debug_assertions).then(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().find(|d| d.join(".git").exists()).map(|d| d.to_string_lossy().into_owned())).flatten());
+        let clone = install::cargo_clone(&exe).or_else(|| {
+            cfg!(debug_assertions)
+                .then(|| {
+                    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .ancestors()
+                        .find(|d| d.join(".git").exists())
+                        .map(|d| d.to_string_lossy().into_owned())
+                })
+                .flatten()
+        });
         let inst = install::detect(&exe, &platform, env.appimage.as_deref(), env.desktop.as_deref() == Some("tauri"), clone.as_deref());
         let port = std::env::var("WISP_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(4477);
-        Self { up: Mutex::new(Updater::new(inst, platform, env!("CARGO_PKG_VERSION"), port, env)), checked_at: Mutex::new(None), checking: Mutex::new(false) }
+        Self {
+            up: Mutex::new(Updater::new(inst, platform, env!("CARGO_PKG_VERSION"), port, env)),
+            checked_at: Mutex::new(None),
+            checking: Mutex::new(false),
+        }
     }
 }
 
@@ -91,7 +120,12 @@ async fn row(ctx: &Ctx, st: &St) -> Value {
     v["checked_at"] = json!(*lock(&st.checked_at));
     v["checking"] = json!(*lock(&st.checking));
     let list = ctx.run_json(&ctx.root_call(), "runtime.list", json!({})).await.unwrap_or_default();
-    let running = list.as_array().into_iter().flatten().filter(|s| matches!(s.get("state").and_then(Value::as_str), Some("running" | "queued"))).count();
+    let running = list
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|s| matches!(s.get("state").and_then(Value::as_str), Some("running" | "queued")))
+        .count();
     v["running"] = json!(running);
     v
 }
@@ -124,7 +158,13 @@ async fn check(ctx: &Ctx, st: &St) -> Value {
     publish(ctx, st).await;
     let body = match wisp_kernel::services::net(ctx) {
         Ok(net) => net
-            .fetch(wisp_kernel::services::NetRequest { method: "GET".into(), url: req.url.clone(), headers: vec![("accept".into(), req.accept.into()), ("user-agent".into(), "wisp".into())], body: Vec::new(), timeout_ms: up::CHECK_TIMEOUT_MS })
+            .fetch(wisp_kernel::services::NetRequest {
+                method: "GET".into(),
+                url: req.url.clone(),
+                headers: vec![("accept".into(), req.accept.into()), ("user-agent".into(), "wisp".into())],
+                body: Vec::new(),
+                timeout_ms: up::CHECK_TIMEOUT_MS,
+            })
             .await
             .ok()
             .filter(|r| (200..300).contains(&r.status))
@@ -140,12 +180,16 @@ async fn check(ctx: &Ctx, st: &St) -> Value {
 /// `sh -c` (or `cmd /C`) through the proc service.
 async fn shell(ctx: &Ctx, cmd: &str, env: &[(String, String)]) -> std::result::Result<(), String> {
     let proc = ctx.service::<wisp_proc::Proc>().map_err(|e| e.message)?;
-    let (bin, args) = if cfg!(windows) { ("cmd", vec!["/C".to_owned(), cmd.to_owned()]) } else { ("sh", vec!["-c".to_owned(), cmd.to_owned()]) };
+    let (bin, args) =
+        if cfg!(windows) { ("cmd", vec!["/C".to_owned(), cmd.to_owned()]) } else { ("sh", vec!["-c".to_owned(), cmd.to_owned()]) };
     let mut e = wisp_proc::Env::default();
     for (k, v) in env {
         e.set.push((k.clone(), v.clone()));
     }
-    let r = proc.exec(bin, &args, wisp_proc::ExecOpts { env: e, timeout: Some(Duration::from_secs(600)), ..wisp_proc::ExecOpts::default() }).await.map_err(|e| up::run_failed(cmd, &e.to_string()))?;
+    let r = proc
+        .exec(bin, &args, wisp_proc::ExecOpts { env: e, timeout: Some(Duration::from_secs(600)), ..wisp_proc::ExecOpts::default() })
+        .await
+        .map_err(|e| up::run_failed(cmd, &e.to_string()))?;
     if r.timed_out {
         return Err(up::run_failed(cmd, "it didn't finish in 10 minutes"));
     }
@@ -190,16 +234,29 @@ async fn install(ctx: &Ctx, st: &St) -> Result<Value> {
         Err(m) => lock(&st.up).install_failed(&m),
     }
     if ok {
-        let (from, to, method) = { let u = lock(&st.up); (u.current.clone(), u.latest.clone(), u.method().name()) };
+        let (from, to, method) = {
+            let u = lock(&st.up);
+            (u.current.clone(), u.latest.clone(), u.method().name())
+        };
         let c = ctx.clone();
         ctx.spawn(async move {
-            let _ = c.run_json(&c.root_call(), "telemetry.track", json!({ "event": "update", "props": { "from": from, "to": to, "method": method } })).await;
+            let _ = c
+                .run_json(
+                    &c.root_call(),
+                    "telemetry.track",
+                    json!({ "event": "update", "props": { "from": from, "to": to, "method": method } }),
+                )
+                .await;
         });
     }
     let mut v = publish(ctx, st).await;
     if v["status"] == "restarting" {
         let latest = v["latest"].as_str().unwrap_or("the new version").to_owned();
-        v["next"] = json!(if relaunch(ctx, st) { format!("wisp restarts on {latest} now.") } else { format!("Restart wisp to use {latest} (quit it and run `wisp` again).") });
+        v["next"] = json!(if relaunch(ctx, st) {
+            format!("wisp restarts on {latest} now.")
+        } else {
+            format!("Restart wisp to use {latest} (quit it and run `wisp` again).")
+        });
     }
     Ok(v)
 }

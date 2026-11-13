@@ -136,7 +136,12 @@ mod tests {
 
     #[test]
     fn a_rows_own_numbers_read_back_as_they_were_put_v1_785() {
-        let own = Own { tokens: 1050, plan: BTreeMap::from([("seven_day".to_owned(), 0.04)]), plan_on: ["claude default".to_owned()].into(), ..Own::default() };
+        let own = Own {
+            tokens: 1050,
+            plan: BTreeMap::from([("seven_day".to_owned(), 0.04)]),
+            plan_on: ["claude default".to_owned()].into(),
+            ..Own::default()
+        };
         let mut row = Summary::default();
         put(&mut row.fields, &own, &[]);
         assert_eq!(own_of_row(&row), own);

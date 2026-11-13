@@ -63,14 +63,10 @@ pub struct NetResponse {
 
 impl NetResponse {
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case(name))
-            .map(|(_, v)| v.as_str())
+        self.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
     }
     pub fn json<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
-        serde_json::from_slice(&self.body)
-            .map_err(|e| crate::WireError::invalid(format!("response body: {e}")))
+        serde_json::from_slice(&self.body).map_err(|e| crate::WireError::invalid(format!("response body: {e}")))
     }
 }
 

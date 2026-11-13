@@ -6,7 +6,6 @@ use std::fmt;
 use serde_json::Value;
 use wisp_protocol::{Change, Notice, PeerInfo, Row, Topic};
 
-
 /// One connection (one `GET /api/events` stream), numbered by the host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ConnId(pub u64);
@@ -203,13 +202,7 @@ pub struct SyncOptions<C> {
 
 impl<C> SyncOptions<C> {
     /// The plan's numbers: flush 50 ms, high water 1 MB, heartbeat 15 s, load buffer 4 MB, v1 ping 25 s.
-    pub fn new(
-        epoch: impl Into<String>,
-        peer: PeerInfo,
-        head_seq: u64,
-        oldest_seq: u64,
-        can_read: CanRead<C>,
-    ) -> Self {
+    pub fn new(epoch: impl Into<String>, peer: PeerInfo, head_seq: u64, oldest_seq: u64, can_read: CanRead<C>) -> Self {
         Self {
             epoch: epoch.into(),
             peer,

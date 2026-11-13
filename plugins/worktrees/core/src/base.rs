@@ -33,20 +33,10 @@ pub struct Base {
 pub fn choose(found: &[(String, Option<String>)], head: Option<(&str, &str)>) -> Option<Base> {
     if let Some((r, Some(sha))) = found.iter().find(|(_, s)| s.is_some()) {
         let branch = r.strip_prefix("origin/").unwrap_or(r).to_owned();
-        return Some(Base {
-            reference: r.clone(),
-            branch,
-            remote: Some("origin".into()),
-            sha: sha.clone(),
-        });
+        return Some(Base { reference: r.clone(), branch, remote: Some("origin".into()), sha: sha.clone() });
     }
     let (sha, branch) = head?;
-    (!sha.is_empty()).then(|| Base {
-        reference: sha.to_owned(),
-        branch: branch.to_owned(),
-        remote: None,
-        sha: sha.to_owned(),
-    })
+    (!sha.is_empty()).then(|| Base { reference: sha.to_owned(), branch: branch.to_owned(), remote: None, sha: sha.to_owned() })
 }
 
 /// Is a fetch made at `at` still good at `now`?
@@ -60,56 +50,27 @@ mod tests {
     use crate::testrand::Rng;
 
     fn found(list: &[(&str, Option<&str>)]) -> Vec<(String, Option<String>)> {
-        list.iter()
-            .map(|(r, s)| ((*r).to_owned(), s.map(str::to_owned)))
-            .collect()
+        list.iter().map(|(r, s)| ((*r).to_owned(), s.map(str::to_owned))).collect()
     }
 
     #[test]
     fn origin_head_then_main_then_master() {
-        assert_eq!(
-            candidates(true, Some("origin/trunk")),
-            ["origin/trunk", "origin/main", "origin/master"]
-        );
-        assert_eq!(
-            candidates(true, Some("origin/main")),
-            ["origin/main", "origin/master"],
-            "no repeat"
-        );
+        assert_eq!(candidates(true, Some("origin/trunk")), ["origin/trunk", "origin/main", "origin/master"]);
+        assert_eq!(candidates(true, Some("origin/main")), ["origin/main", "origin/master"], "no repeat");
         assert_eq!(candidates(true, None), ["origin/main", "origin/master"]);
-        assert!(
-            candidates(false, Some("origin/main")).is_empty(),
-            "no origin: HEAD"
-        );
-        let b = choose(
-            &found(&[
-                ("origin/trunk", None),
-                ("origin/main", None),
-                ("origin/master", Some("abc")),
-            ]),
-            Some(("def", "dev")),
-        )
-        .unwrap();
-        assert_eq!(
-            (b.reference.as_str(), b.branch.as_str(), b.remote.as_deref()),
-            ("origin/master", "master", Some("origin"))
-        );
+        assert!(candidates(false, Some("origin/main")).is_empty(), "no origin: HEAD");
+        let b =
+            choose(&found(&[("origin/trunk", None), ("origin/main", None), ("origin/master", Some("abc"))]), Some(("def", "dev"))).unwrap();
+        assert_eq!((b.reference.as_str(), b.branch.as_str(), b.remote.as_deref()), ("origin/master", "master", Some("origin")));
     }
 
     #[test]
     fn head_with_no_remote_and_none_without_commits() {
         let b = choose(&[], Some(("def", "dev"))).unwrap();
-        assert_eq!(
-            (b.reference.as_str(), b.branch.as_str(), b.remote),
-            ("def", "dev", None)
-        );
+        assert_eq!((b.reference.as_str(), b.branch.as_str(), b.remote), ("def", "dev", None));
         let detached = choose(&[], Some(("def", ""))).unwrap();
         assert_eq!(detached.branch, "");
-        assert_eq!(
-            choose(&found(&[("origin/main", None)]), None),
-            None,
-            "a repo with no commits gets no worktree"
-        );
+        assert_eq!(choose(&found(&[("origin/main", None)]), None), None, "a repo with no commits gets no worktree");
         assert_eq!(choose(&[], Some(("", ""))), None);
     }
 
@@ -118,10 +79,7 @@ mod tests {
         assert!(fetch_fresh(Some(1_000), 1_000 + 59_999));
         assert!(!fetch_fresh(Some(1_000), 1_000 + 60_000));
         assert!(!fetch_fresh(None, 5));
-        assert!(
-            !fetch_fresh(Some(10), 5),
-            "a clock that went back fetches again"
-        );
+        assert!(!fetch_fresh(Some(10), 5), "a clock that went back fetches again");
     }
 
     #[test]
@@ -129,9 +87,7 @@ mod tests {
         let mut r = Rng::new(3);
         for _ in 0..1000 {
             let n = r.below(4);
-            let list: Vec<(String, Option<String>)> = (0..n)
-                .map(|i| (format!("origin/b{i}"), r.bool().then(|| format!("s{i}"))))
-                .collect();
+            let list: Vec<(String, Option<String>)> = (0..n).map(|i| (format!("origin/b{i}"), r.bool().then(|| format!("s{i}")))).collect();
             let head = r.bool().then_some(("h", "main"));
             let got = choose(&list, head);
             match list.iter().position(|(_, s)| s.is_some()) {

@@ -150,7 +150,13 @@ impl Plugin for GridClientPlugin {
 
 pub(crate) fn status(st: &St) -> api::Status {
     let a = st.account();
-    api::Status { signed_in: a.is_some(), grid: a.as_ref().map(|a| a.grid.clone()).unwrap_or_default(), handle: a.as_ref().map(|a| a.handle.clone()).unwrap_or_default(), machine: a.map(|a| a.machine).unwrap_or_default(), computer: computer::view(st) }
+    api::Status {
+        signed_in: a.is_some(),
+        grid: a.as_ref().map(|a| a.grid.clone()).unwrap_or_default(),
+        handle: a.as_ref().map(|a| a.handle.clone()).unwrap_or_default(),
+        machine: a.map(|a| a.machine).unwrap_or_default(),
+        computer: computer::view(st),
+    }
 }
 
 #[cfg(test)]

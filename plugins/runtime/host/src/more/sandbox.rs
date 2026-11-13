@@ -15,7 +15,14 @@ use crate::runtime::Runtime;
 impl Runtime {
     /// A member whose place is a sandbox: its sandbox (made once, the lead's work in it), and its task there, new or
     /// followed up. → `<machine>|<task>`.
-    pub(super) async fn sandbox_member(self: &Arc<Self>, lead: &Session, m: &Value, slot_name: &str, existing: Option<String>, prompt: &str) -> Result<String> {
+    pub(super) async fn sandbox_member(
+        self: &Arc<Self>,
+        lead: &Session,
+        m: &Value,
+        slot_name: &str,
+        existing: Option<String>,
+        prompt: &str,
+    ) -> Result<String> {
         let wire = |e: wisp_kernel::WireError| RuntimeError::Invalid(e.message);
         if let Some((machine, id)) = existing.as_deref().and_then(|k| k.split_once('|')) {
             self.route(machine, "runtime.followUp", json!({ "id": id, "text": prompt, "queue": true })).await.map_err(wire)?;
@@ -38,7 +45,12 @@ impl Runtime {
     /// Runtime command `cmd` on sandbox `machine` (`machines.route`, typed; the routed command stays by name: it is
     /// this plugin's own, run by the wisp over there).
     async fn route(&self, machine: &str, cmd: &str, args: Value) -> wisp_kernel::Result<Value> {
-        let a = wisp_machines_api::RouteArgs { id: Some(machine.to_owned()), cmd: cmd.to_owned(), args, mid: format!("dlg-{}", wisp_kernel::ids::uuid7()) };
+        let a = wisp_machines_api::RouteArgs {
+            id: Some(machine.to_owned()),
+            cmd: cmd.to_owned(),
+            args,
+            mid: format!("dlg-{}", wisp_kernel::ids::uuid7()),
+        };
         crate::calls::run::<wisp_machines_api::Route>(&*self.host, a).await
     }
 
@@ -52,7 +64,8 @@ impl Runtime {
         let turns = route("runtime.turns", json!({ "id": id })).await.ok().unwrap_or_default();
         let last = turns.as_array().and_then(|t| t.last()).cloned().unwrap_or_default();
         let mut text = str_at(&last, "text");
-        let brought = slot(lead).and_then(|m| m.get("brought")).and_then(Value::as_array).is_some_and(|b| b.iter().any(|x| x.as_str() == Some(key)));
+        let brought =
+            slot(lead).and_then(|m| m.get("brought")).and_then(Value::as_array).is_some_and(|b| b.iter().any(|x| x.as_str() == Some(key)));
         if done && !brought {
             let bring = wisp_sandbox_api::BringArgs { machine: machine.to_owned(), from: str_at(&s, "cwd"), into: lead.cwd.clone() };
             let note = match crate::calls::run::<wisp_sandbox_api::Bring>(&*self.host, bring).await {
@@ -71,6 +84,13 @@ impl Runtime {
             }
         }
         let cost = last.pointer("/stats/costUsd").and_then(Value::as_f64);
-        Some(Report { id: SessionId(key.to_owned()), subagent: str_at(&s, "title").split(" · ").next().unwrap_or_default().to_owned(), state, done, text, cost_usd: cost })
+        Some(Report {
+            id: SessionId(key.to_owned()),
+            subagent: str_at(&s, "title").split(" · ").next().unwrap_or_default().to_owned(),
+            state,
+            done,
+            text,
+            cost_usd: cost,
+        })
     }
 }

@@ -22,8 +22,7 @@ pub enum Own {
 }
 
 /// A plugin route's handler with its owner's context bound; the backend makes the root call.
-pub type Invoke =
-    Arc<dyn Fn(Caller, Request) -> BoxFuture<'static, Result<Response>> + Send + Sync>;
+pub type Invoke = Arc<dyn Fn(Caller, Request) -> BoxFuture<'static, Result<Response>> + Send + Sync>;
 
 #[derive(Clone)]
 pub enum Target {
@@ -65,10 +64,7 @@ enum Seg {
 
 impl Entry {
     fn literals(&self) -> usize {
-        self.segs
-            .iter()
-            .filter(|s| matches!(s, Seg::Lit(_)))
-            .count()
+        self.segs.iter().filter(|s| matches!(s, Seg::Lit(_))).count()
     }
     fn rest(&self) -> bool {
         matches!(self.segs.last(), Some(Seg::Rest))
@@ -125,28 +121,15 @@ impl Table {
     /// Adds a route; refuses one that names no permission (default deny) or a malformed pattern.
     pub fn add(&mut self, spec: Spec, target: Target) -> std::result::Result<(), String> {
         if !spec.pattern.starts_with('/') {
-            return Err(format!(
-                "{}: route pattern \"{}\" must start with /",
-                spec.owner, spec.pattern
-            ));
+            return Err(format!("{}: route pattern \"{}\" must start with /", spec.owner, spec.pattern));
         }
         if spec.permission.is_empty() {
-            return Err(format!(
-                "{}: {} {} names no permission (default deny)",
-                spec.owner, spec.method, spec.pattern
-            ));
+            return Err(format!("{}: {} {} names no permission (default deny)", spec.owner, spec.method, spec.pattern));
         }
         let path = if spec.raw || spec.pattern.starts_with("/api/") {
             spec.pattern.clone()
         } else {
-            format!(
-                "/api{}",
-                if spec.pattern == "/" {
-                    ""
-                } else {
-                    &spec.pattern
-                }
-            )
+            format!("/api{}", if spec.pattern == "/" { "" } else { &spec.pattern })
         };
         let segs: Vec<Seg> = split(&path)
             .map(|s| match s.strip_prefix(':') {
@@ -156,10 +139,7 @@ impl Table {
             })
             .collect();
         if segs.iter().rev().skip(1).any(|s| *s == Seg::Rest) {
-            return Err(format!(
-                "{}: {} {}: `*` only goes last",
-                spec.owner, spec.method, spec.pattern
-            ));
+            return Err(format!("{}: {} {}: `*` only goes last", spec.owner, spec.method, spec.pattern));
         }
         let entry = Arc::new(Entry {
             method: spec.method,
@@ -175,9 +155,7 @@ impl Table {
         let list = if entry.rest() {
             self.rests.entry(entry.method.clone()).or_default()
         } else {
-            self.buckets
-                .entry((entry.method.clone(), entry.segs.len()))
-                .or_default()
+            self.buckets.entry((entry.method.clone(), entry.segs.len())).or_default()
         };
         list.push(entry.clone());
         // stable: equal literal counts keep the order they were added
@@ -189,29 +167,15 @@ impl Table {
     /// The first route that matches, its captures decoded; HEAD falls back to GET.
     pub fn find(&self, method: &str, path: &str) -> Option<(Arc<Entry>, Params)> {
         let parts: Vec<&str> = split(path).collect();
-        self.find_in(method, &parts).or_else(|| {
-            if method == "HEAD" {
-                self.find_in("GET", &parts)
-            } else {
-                None
-            }
-        })
+        self.find_in(method, &parts).or_else(|| if method == "HEAD" { self.find_in("GET", &parts) } else { None })
     }
 
     fn find_in(&self, method: &str, parts: &[&str]) -> Option<(Arc<Entry>, Params)> {
         let exact = self
             .buckets
             .get(&(method.to_owned(), parts.len()))
-            .and_then(|list| {
-                list.iter()
-                    .find_map(|e| captures(&e.segs, parts).map(|p| (e.clone(), p)))
-            });
-        exact.or_else(|| {
-            self.rests
-                .get(method)?
-                .iter()
-                .find_map(|e| captures(&e.segs, parts).map(|p| (e.clone(), p)))
-        })
+            .and_then(|list| list.iter().find_map(|e| captures(&e.segs, parts).map(|p| (e.clone(), p))));
+        exact.or_else(|| self.rests.get(method)?.iter().find_map(|e| captures(&e.segs, parts).map(|p| (e.clone(), p))))
     }
 
     /// Every route, in the order added (`OpenAPI` and its test read it).
@@ -234,8 +198,7 @@ fn captures(segs: &[Seg], parts: &[&str]) -> Option<Params> {
                 out.insert(name.clone(), percent_decode(parts[i])?);
             }
             Seg::Rest => {
-                let tail: Option<Vec<String>> =
-                    parts[i..].iter().map(|p| percent_decode(p)).collect();
+                let tail: Option<Vec<String>> = parts[i..].iter().map(|p| percent_decode(p)).collect();
                 out.insert("*".into(), tail?.join("/"));
             }
         }

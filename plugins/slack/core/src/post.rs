@@ -15,11 +15,7 @@ pub fn body(chat: &str, ts: &str, text: &str) -> Value {
 
 /// The same post with its buttons under the words.
 pub fn with_buttons(mut body: Value, buttons: Vec<Value>) -> Value {
-    let text = body
-        .get("text")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
+    let text = body.get("text").and_then(Value::as_str).unwrap_or_default().to_owned();
     let mut blocks = sections(&text);
     blocks.push(json!({ "type": "actions", "elements": Value::Array(buttons) }));
     if let Some(o) = body.as_object_mut() {
@@ -44,11 +40,7 @@ pub fn ephemeral(chat: &str, user: &str, ts: &str, text: &str) -> Value {
 
 /// `chat.update` of a clicked message: its buttons gone, and a line that says what and who.
 pub fn clicked(chat: &str, ts: &str, text: &str, blocks: &[Value], line: &str) -> Value {
-    let mut kept: Vec<Value> = blocks
-        .iter()
-        .filter(|b| b.get("type").and_then(Value::as_str) != Some("actions"))
-        .cloned()
-        .collect();
+    let mut kept: Vec<Value> = blocks.iter().filter(|b| b.get("type").and_then(Value::as_str) != Some("actions")).cloned().collect();
     kept.push(json!({ "type": "context", "elements": [{ "type": "mrkdwn", "text": line, "verbatim": true }] }));
     json!({ "channel": chat, "ts": ts, "text": text, "blocks": kept, "parse": "none", "link_names": false })
 }
@@ -88,32 +80,14 @@ pub fn titled(title: &str, by: Option<&str>) -> String {
 
 /// A report: title, text, the choices in words (all an app without buttons has), and how to answer.
 /// `dm`: replies in a DM's thread reach wisp; in a channel only a mention does.
-pub fn report(
-    title: &str,
-    text: &str,
-    choices: &[String],
-    by: Option<&str>,
-    dm: bool,
-    me: Option<&str>,
-) -> String {
+pub fn report(title: &str, text: &str, choices: &[String], by: Option<&str>, dm: bool, me: Option<&str>) -> String {
     let here = if dm {
         "Reply in this thread to answer or follow up.".to_owned()
     } else {
-        format!(
-            "Mention {} in this thread to answer or follow up.",
-            me.filter(|m| !m.is_empty()).unwrap_or("wisp")
-        )
+        format!("Mention {} in this thread to answer or follow up.", me.filter(|m| !m.is_empty()).unwrap_or("wisp"))
     };
-    let choices = if choices.is_empty() {
-        String::new()
-    } else {
-        format!("Choices: {}", choices.join(" · "))
-    };
-    [titled(title, by), text.to_owned(), choices, here]
-        .into_iter()
-        .filter(|p| !p.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n")
+    let choices = if choices.is_empty() { String::new() } else { format!("Choices: {}", choices.join(" · ")) };
+    [titled(title, by), text.to_owned(), choices, here].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join("\n\n")
 }
 
 /// The app to create at api.slack.com/apps → From a manifest: Socket Mode, so no URLs, the two

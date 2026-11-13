@@ -80,11 +80,7 @@ pub enum BillingKind {
 /// Normalised events every harness emits (v1 server/adapters/index.js), field for field (camelCase on
 /// the wire, `type` tag), so recorded v1 transcripts replay as goldens.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(
-    tag = "type",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
+#[serde(tag = "type", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum HarnessEvent {
     /// the agent-side conversation id (resumes follow-ups)
     Session {
@@ -215,7 +211,6 @@ impl HarnessEvent {
 
     /// From v1's event JSON (what wisp-harness-kit's `HarnessEvent::to_json` and v1's goldens hold).
     pub fn from_v1(v: Value) -> Result<Self> {
-        serde_json::from_value(v)
-            .map_err(|e| wisp_kernel::WireError::invalid(format!("harness event: {e}")))
+        serde_json::from_value(v).map_err(|e| wisp_kernel::WireError::invalid(format!("harness event: {e}")))
     }
 }

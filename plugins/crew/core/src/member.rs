@@ -36,7 +36,9 @@ impl std::fmt::Debug for Checks<'_> {
 /// v1 `NAME`: up to 24 letters, digits, spaces, dots, dashes or underscores, starting with a letter or digit.
 pub fn is_name(s: &str) -> bool {
     let mut it = s.chars();
-    it.next().is_some_and(char::is_alphanumeric) && s.chars().count() <= 24 && it.all(|c| c.is_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-'))
+    it.next().is_some_and(char::is_alphanumeric)
+        && s.chars().count() <= 24
+        && it.all(|c| c.is_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-'))
 }
 
 fn is_word_ascii(c: char) -> bool {
@@ -95,7 +97,16 @@ pub fn normalize_team(list: &Value) -> Result<Vec<TeamRow>> {
                 let name = unique(if base.is_empty() { "crew" } else { &base }, &mut taken);
                 let label = Some(text(m, "label", 24)).filter(|l| !l.is_empty()).unwrap_or_else(|| name.clone());
                 let agent = if known(&agent) { agent } else { "auto".into() };
-                return Ok(TeamRow { name, agent, crew: Some(crew.to_owned()), label: Some(label), role: Some(text(m, "role", 60)), use_: text(m, "use", 300), count: 1, ..TeamRow::default() });
+                return Ok(TeamRow {
+                    name,
+                    agent,
+                    crew: Some(crew.to_owned()),
+                    label: Some(label),
+                    role: Some(text(m, "role", 60)),
+                    use_: text(m, "use", 300),
+                    count: 1,
+                    ..TeamRow::default()
+                });
             }
             if !known(&agent) && agent != "auto" {
                 return Err(bad(format!("unknown subagent harness: {agent}")));
@@ -105,7 +116,15 @@ pub fn normalize_team(list: &Value) -> Result<Vec<TeamRow>> {
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped to 1..=5
             let count = m.get("count").and_then(Value::as_f64).map_or(1, |c| c.floor().clamp(1.0, 5.0) as u32);
             let effort = str_of(m.get("effort"));
-            Ok(TeamRow { name, agent, model: m.get("model").and_then(Value::as_str).map(|s| clip(s, 120)).unwrap_or_default(), effort: if !effort.is_empty() && is_effort(&effort) { effort } else { String::new() }, use_: text(m, "use", 300), count, ..TeamRow::default() })
+            Ok(TeamRow {
+                name,
+                agent,
+                model: m.get("model").and_then(Value::as_str).map(|s| clip(s, 120)).unwrap_or_default(),
+                effort: if !effort.is_empty() && is_effort(&effort) { effort } else { String::new() },
+                use_: text(m, "use", 300),
+                count,
+                ..TeamRow::default()
+            })
         })
         .collect()
 }
@@ -132,7 +151,9 @@ fn place(body: &MemberBody, prev: Option<&Member>, c: &Checks) -> Result<(String
     let agent = pick(body.agent.as_ref(), prev.map(|p| p.agent.as_str()), "auto");
     let agent = if agent.is_empty() { "auto".to_owned() } else { agent };
     if !sandbox.is_empty() && agent != "auto" && agent != "claude" {
-        return Err(bad("Only Claude Code signs in to sandboxes so far: pick Claude Code or Auto for a member whose jobs run in a sandbox."));
+        return Err(bad(
+            "Only Claude Code signs in to sandboxes so far: pick Claude Code or Auto for a member whose jobs run in a sandbox.",
+        ));
     }
     let cwd = pick(body.cwd.as_ref(), prev.map(|p| p.cwd.as_str()), "");
     if !cwd.is_empty() && machine.is_empty() && !(c.exists)(&cwd) {
@@ -174,12 +195,17 @@ pub fn normalize_member(body: &MemberBody, prev: Option<&Member>, c: &Checks, id
     }
     let cron = read_schedule(&pick(body.cron.as_ref(), prev.map(|p| p.cron.as_str()), ""), c.words)?;
     let color = pick(body.color.as_ref(), prev.map(|p| p.color.as_str()), "");
-    let color = if CREW_COLORS.contains(&color.as_str()) { color } else { prev.map(|p| p.color.clone()).filter(|c| !c.is_empty()).unwrap_or_else(|| CREW_COLORS[c.taken.len() % CREW_COLORS.len()].to_owned()) };
+    let color = if CREW_COLORS.contains(&color.as_str()) {
+        color
+    } else {
+        prev.map(|p| p.color.clone()).filter(|c| !c.is_empty()).unwrap_or_else(|| CREW_COLORS[c.taken.len() % CREW_COLORS.len()].to_owned())
+    };
     let kit = match &body.kit {
         Some(k) => normalize_kit(k, c.exists, ids)?,
         None => prev.map(|p| p.kit.clone()).unwrap_or_default(),
     };
-    let team_src = body.team.clone().unwrap_or_else(|| serde_json::to_value(prev.map(|p| p.team.clone()).unwrap_or_default()).unwrap_or(Value::Null));
+    let team_src =
+        body.team.clone().unwrap_or_else(|| serde_json::to_value(prev.map(|p| p.team.clone()).unwrap_or_default()).unwrap_or(Value::Null));
     // Not itself: a member never delegates to itself.
     let team_src = match (team_src, prev_id) {
         (Value::Array(a), Some(id)) => Value::Array(a.into_iter().filter(|x| x.get("crew").and_then(Value::as_str) != Some(id)).collect()),

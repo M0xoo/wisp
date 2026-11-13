@@ -115,7 +115,11 @@ impl<W> Asks<W> {
 
     /// The asks shown now, one per session.
     pub fn shown(&self, session: Option<&str>) -> Vec<Ask> {
-        self.queues.iter().filter(|(s, _)| session.is_none_or(|x| x == s.as_str())).filter_map(|(_, q)| q.front().map(|e| e.ask.clone())).collect()
+        self.queues
+            .iter()
+            .filter(|(s, _)| session.is_none_or(|x| x == s.as_str()))
+            .filter_map(|(_, q)| q.front().map(|e| e.ask.clone()))
+            .collect()
     }
 
     pub fn is_empty(&self) -> bool {

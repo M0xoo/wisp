@@ -39,27 +39,15 @@ fn fake_gh(state: GhState) -> SimProc {
         let st = state.0.lock().unwrap().clone();
         async move {
             if st["signedOut"] == true {
-                io.eprint(b"To get started with GitHub CLI, please run:  gh auth login\n")
-                    .await;
-                return Exit {
-                    code: Some(4),
-                    signal: None,
-                };
+                io.eprint(b"To get started with GitHub CLI, please run:  gh auth login\n").await;
+                return Exit { code: Some(4), signal: None };
             }
-            let q = io
-                .args
-                .iter()
-                .position(|a| a == "--search")
-                .map(|i| io.args[i + 1].to_lowercase());
+            let q = io.args.iter().position(|a| a == "--search").map(|i| io.args[i + 1].to_lowercase());
             let out = match &st["issues"] {
                 Value::String(s) => s.clone(),
                 Value::Array(list) => Value::Array(
                     list.iter()
-                        .filter(|i| {
-                            q.as_ref().is_none_or(|q| {
-                                i["title"].as_str().unwrap().to_lowercase().contains(q)
-                            })
-                        })
+                        .filter(|i| q.as_ref().is_none_or(|q| i["title"].as_str().unwrap().to_lowercase().contains(q)))
                         .cloned()
                         .collect(),
                 )
@@ -67,10 +55,7 @@ fn fake_gh(state: GhState) -> SimProc {
                 _ => "[]".into(),
             };
             io.print(out.as_bytes()).await;
-            Exit {
-                code: Some(0),
-                signal: None,
-            }
+            Exit { code: Some(0), signal: None }
         }
     })
 }
@@ -87,18 +72,8 @@ struct FakeProjects;
 impl Projects for FakeProjects {
     fn project(&self, _call: &Call, id: &str) -> BoxFuture<'static, Result<Option<ProjectRef>>> {
         let p = match id {
-            "p1" => Some(ProjectRef {
-                id: "p1".into(),
-                name: "repo".into(),
-                repo: String::new(),
-                dir: Some("/repo".into()),
-            }),
-            "bare" => Some(ProjectRef {
-                id: "bare".into(),
-                name: String::new(),
-                repo: String::new(),
-                dir: Some("/bare".into()),
-            }),
+            "p1" => Some(ProjectRef { id: "p1".into(), name: "repo".into(), repo: String::new(), dir: Some("/repo".into()) }),
+            "bare" => Some(ProjectRef { id: "bare".into(), name: String::new(), repo: String::new(), dir: Some("/bare".into()) }),
             _ => None,
         };
         Box::pin(async move { Ok(p) })
@@ -109,45 +84,36 @@ impl Projects for FakeProjects {
 #[derive(Default)]
 struct FakeLinear(Mutex<Vec<(String, Value)>>);
 impl Http for FakeLinear {
-    fn send(
-        &self,
-        req: HttpRequest,
-    ) -> BoxFuture<'static, std::result::Result<HttpResponse, String>> {
+    fn send(&self, req: HttpRequest) -> BoxFuture<'static, std::result::Result<HttpResponse, String>> {
         let body: Value = serde_json::from_slice(req.body.as_deref().unwrap_or(b"{}")).unwrap();
-        let auth = req
-            .headers
-            .iter()
-            .find(|(k, _)| k == "authorization")
-            .map(|(_, v)| v.clone())
-            .unwrap_or_default();
+        let auth = req.headers.iter().find(|(k, _)| k == "authorization").map(|(_, v)| v.clone()).unwrap_or_default();
         self.0.lock().unwrap().push((auth.clone(), body.clone()));
         let reply = if auth == "lin_api_good" {
             let nodes = json!([
                 { "id": "u1", "identifier": "ENG-7", "title": "Login loops on Safari", "url": "https://linear.app/acme/issue/ENG-7", "description": "Steps:\n1. Open Safari", "updatedAt": "2026-11-01T10:00:00Z", "labels": { "nodes": [{ "name": "Bug" }] }, "assignee": { "name": "ada", "displayName": "Ada" } },
                 { "id": "u2", "identifier": "ENG-9", "title": "Dark mode for settings", "url": "https://linear.app/acme/issue/ENG-9", "description": null, "updatedAt": "2026-10-30T10:00:00Z", "labels": { "nodes": [] }, "assignee": null },
             ]);
-            let q = body["variables"]["filter"]["title"]["containsIgnoreCase"]
-                .as_str()
-                .map(str::to_lowercase);
+            let q = body["variables"]["filter"]["title"]["containsIgnoreCase"].as_str().map(str::to_lowercase);
             let nodes: Vec<Value> = nodes
                 .as_array()
                 .unwrap()
                 .iter()
-                .filter(|n| {
-                    q.as_ref()
-                        .is_none_or(|q| n["title"].as_str().unwrap().to_lowercase().contains(q))
-                })
+                .filter(|n| q.as_ref().is_none_or(|q| n["title"].as_str().unwrap().to_lowercase().contains(q)))
                 .cloned()
                 .collect();
             HttpResponse {
                 status: 200,
                 status_text: "OK".into(),
-                body: json!({ "data": { "viewer": { "assignedIssues": { "nodes": nodes } } } })
+                body: json!({ "data": { "viewer": { "assignedIssues": { "nodes": nodes } } } }).to_string().into_bytes(),
+            }
+        } else {
+            HttpResponse {
+                status: 401,
+                status_text: "Unauthorized".into(),
+                body: json!({ "errors": [{ "message": "Authentication required", "extensions": { "code": "AUTHENTICATION_ERROR" } }] })
                     .to_string()
                     .into_bytes(),
             }
-        } else {
-            HttpResponse { status: 401, status_text: "Unauthorized".into(), body: json!({ "errors": [{ "message": "Authentication required", "extensions": { "code": "AUTHENTICATION_ERROR" } }] }).to_string().into_bytes() }
         };
         Box::pin(async move { Ok(reply) })
     }
@@ -178,13 +144,7 @@ fn world(connectors: Vec<Connector>, gh_bin: &str) -> World {
         linear_api: "http://linear.test/graphql".into(),
         now: Arc::new(move || c.load(Ordering::SeqCst)),
     });
-    World {
-        lister,
-        gh,
-        sim,
-        linear,
-        clock,
-    }
+    World { lister, gh, sim, linear, clock }
 }
 
 impl World {
@@ -192,12 +152,7 @@ impl World {
         *self.gh.0.lock().unwrap() = v;
     }
     fn gh_calls(&self) -> Vec<Vec<String>> {
-        self.sim
-            .spawned()
-            .into_iter()
-            .filter(|s| s.args.first().is_some_and(|a| a == "issue"))
-            .map(|s| s.args)
-            .collect()
+        self.sim.spawned().into_iter().filter(|s| s.args.first().is_some_and(|a| a == "issue")).map(|s| s.args).collect()
     }
     async fn get(&self, query: &[(&str, &str)]) -> (u16, Value) {
         // what the picker sends to issues.list
@@ -205,7 +160,11 @@ impl World {
         let Some(source) = Source::parse(q("source").unwrap_or("github")) else {
             return (400, json!({ "error": "source is github, linear or jira" }));
         };
-        let args = ListArgs { source, project: q("project").filter(|p| !p.is_empty()).map(str::to_owned), q: q("q").unwrap_or_default().to_owned() };
+        let args = ListArgs {
+            source,
+            project: q("project").filter(|p| !p.is_empty()).map(str::to_owned),
+            q: q("q").unwrap_or_default().to_owned(),
+        };
         match self.lister.list(&Call::new_root(Caller::user()), args).await {
             Ok(list) => (200, serde_json::to_value(list).unwrap()),
             Err(e) if e.status() == 404 => (404, json!({ "error": e.message })),
@@ -222,12 +181,7 @@ fn issues() -> Value {
 }
 
 fn refs(v: &Value) -> Vec<String> {
-    v["issues"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|i| i["ref"].as_str().unwrap().to_owned())
-        .collect()
+    v["issues"].as_array().unwrap().iter().map(|i| i["ref"].as_str().unwrap().to_owned()).collect()
 }
 
 #[tokio::test]
@@ -236,36 +190,19 @@ async fn a_projects_open_github_issues_from_its_origin_remote() {
     w.set_gh(json!({ "issues": issues() }));
     let (status, body) = w.get(&[("project", "p1")]).await;
     assert_eq!(status, 200);
-    assert_eq!(
-        (
-            body["source"].as_str(),
-            body["repo"].as_str(),
-            body.get("error")
-        ),
-        (Some("github"), Some("acme/repo"), None)
-    );
+    assert_eq!((body["source"].as_str(), body["repo"].as_str(), body.get("error")), (Some("github"), Some("acme/repo"), None));
     assert_eq!(
         body["issues"][0],
         json!({ "id": "12", "ref": "#12", "number": 12, "title": "Users get logged out after a refresh", "url": "https://github.com/acme/repo/issues/12", "labels": ["bug", "auth"], "assignee": "lena", "body": "It happens on every refresh.\n\nSee the logs.", "updatedAt": "2026-11-01T09:00:00Z" })
     );
     assert_eq!(body["issues"][1]["assignee"], "");
-    assert_eq!(
-        body["issues"][1]["body"].as_str().unwrap().chars().count(),
-        4000
-    );
+    assert_eq!(body["issues"][1]["body"].as_str().unwrap().chars().count(), 4000);
     let call = w.gh_calls().pop().unwrap();
-    assert_eq!(
-        call[..6],
-        ["issue", "list", "--repo", "acme/repo", "--state", "open"]
-    );
+    assert_eq!(call[..6], ["issue", "list", "--repo", "acme/repo", "--state", "open"]);
     // gh never prompts and never nags about updates
     let spawned = w.sim.spawned();
     let env = &spawned.last().unwrap().env;
-    for k in [
-        "GH_PROMPT_DISABLED",
-        "GH_NO_UPDATE_NOTIFIER",
-        "GIT_TERMINAL_PROMPT",
-    ] {
+    for k in ["GH_PROMPT_DISABLED", "GH_NO_UPDATE_NOTIFIER", "GIT_TERMINAL_PROMPT"] {
         assert!(env.iter().any(|(e, _)| e == k), "{k}");
     }
 }
@@ -279,10 +216,7 @@ async fn a_search_goes_to_gh_and_a_list_is_kept_for_a_minute() {
     assert_eq!(w.gh_calls().last().unwrap().last().unwrap(), "docs");
     let n = w.gh_calls().len();
     w.set_gh(json!({ "issues": [] }));
-    assert_eq!(
-        refs(&w.get(&[("project", "p1"), ("q", "docs")]).await.1),
-        ["#9"]
-    );
+    assert_eq!(refs(&w.get(&[("project", "p1"), ("q", "docs")]).await.1), ["#9"]);
     assert_eq!(w.gh_calls().len(), n);
     // a minute later it asks again
     w.clock.fetch_add(60_000, Ordering::SeqCst);
@@ -295,50 +229,20 @@ async fn each_problem_says_what_fixes_it_and_isnt_kept() {
     let w = world(vec![], "gh");
     w.set_gh(json!({ "signedOut": true }));
     let (status, body) = w.get(&[("project", "p1"), ("q", "signed-out")]).await;
-    assert_eq!(
-        (status, body["issues"].clone(), body["fix"].as_str()),
-        (200, json!([]), Some("signin"))
-    );
-    assert!(
-        body["error"]
-            .as_str()
-            .unwrap()
-            .contains("Sign in to GitHub")
-    );
+    assert_eq!((status, body["issues"].clone(), body["fix"].as_str()), (200, json!([]), Some("signin")));
+    assert!(body["error"].as_str().unwrap().contains("Sign in to GitHub"));
     w.set_gh(json!({ "issues": issues() }));
-    assert!(
-        w.get(&[("project", "p1"), ("q", "signed-out")])
-            .await
-            .1
-            .get("error")
-            .is_none()
-    );
+    assert!(w.get(&[("project", "p1"), ("q", "signed-out")]).await.1.get("error").is_none());
 
     let (_, body) = w.get(&[("project", "bare")]).await;
     assert_eq!(body["fix"], "remote");
-    assert!(
-        body["error"]
-            .as_str()
-            .unwrap()
-            .contains("has no GitHub remote")
-    );
+    assert!(body["error"].as_str().unwrap().contains("has no GitHub remote"));
     assert_eq!(w.get(&[]).await.1["fix"], "project");
     w.set_gh(json!({ "issues": "not json" }));
-    assert!(
-        w.get(&[("project", "p1"), ("q", "broken")]).await.1["error"]
-            .as_str()
-            .unwrap()
-            .contains("isn’t a list of issues")
-    );
+    assert!(w.get(&[("project", "p1"), ("q", "broken")]).await.1["error"].as_str().unwrap().contains("isn’t a list of issues"));
     assert_eq!(w.get(&[("project", "nope")]).await.0, 404);
-    assert_eq!(
-        w.get(&[("project", "p1"), ("source", "gitlab")]).await.0,
-        400
-    );
-    assert_eq!(
-        w.get(&[("project", "none"), ("source", "github")]).await.1["fix"],
-        "project"
-    );
+    assert_eq!(w.get(&[("project", "p1"), ("source", "gitlab")]).await.0, 400);
+    assert_eq!(w.get(&[("project", "none"), ("source", "github")]).await.1["fix"], "project");
 }
 
 #[tokio::test]
@@ -365,10 +269,7 @@ fn linear(key: &str) -> Connector {
 async fn linear_without_a_connector_says_connect_with_its_key_your_open_issues() {
     let w = world(vec![], "gh");
     let (_, body) = w.get(&[("source", "linear")]).await;
-    assert_eq!(
-        (body["linear"].as_bool(), body["fix"].as_str()),
-        (Some(false), Some("linear"))
-    );
+    assert_eq!((body["linear"].as_bool(), body["fix"].as_str()), (Some(false), Some("linear")));
     assert!(body["error"].as_str().unwrap().contains("Connect Linear"));
     w.set_gh(json!({ "issues": [] }));
     assert_eq!(w.get(&[("project", "p1")]).await.1["linear"], false);
@@ -376,12 +277,7 @@ async fn linear_without_a_connector_says_connect_with_its_key_your_open_issues()
     let w = world(vec![linear("lin_api_bad")], "gh");
     let (_, body) = w.get(&[("source", "linear")]).await;
     assert_eq!(body["fix"], "linear");
-    assert!(
-        body["error"]
-            .as_str()
-            .unwrap()
-            .contains("refused the connector’s API key")
-    );
+    assert!(body["error"].as_str().unwrap().contains("refused the connector’s API key"));
 
     let w = world(vec![linear("lin_api_good")], "gh");
     let (_, body) = w.get(&[("source", "linear")]).await;
@@ -396,10 +292,7 @@ async fn linear_without_a_connector_says_connect_with_its_key_your_open_issues()
         w.linear.0.lock().unwrap().last().unwrap().1["variables"]["filter"],
         json!({ "state": { "type": { "nin": ["completed", "canceled"] } } })
     );
-    assert_eq!(
-        refs(&w.get(&[("source", "linear"), ("q", "dark")]).await.1),
-        ["ENG-9"]
-    );
+    assert_eq!(refs(&w.get(&[("source", "linear"), ("q", "dark")]).await.1), ["ENG-9"]);
     w.set_gh(json!({ "issues": [] }));
     assert_eq!(w.get(&[("project", "p1")]).await.1["linear"], true);
 }
@@ -408,18 +301,12 @@ async fn linear_without_a_connector_says_connect_with_its_key_your_open_issues()
 async fn jira_without_its_connector_says_connect_it() {
     let w = world(vec![], "gh");
     let (_, body) = w.get(&[("source", "jira")]).await;
-    assert_eq!(
-        (body["fix"].as_str(), body["jira"].as_bool()),
-        (Some("jira"), Some(false))
-    );
+    assert_eq!((body["fix"].as_str(), body["jira"].as_bool()), (Some("jira"), Some(false)));
 }
 
 #[test]
 fn why_of_prefers_fatal_and_error_lines_else_the_tail() {
-    assert_eq!(
-        why_of("hint: x\nfatal: no such remote\nmore"),
-        "fatal: no such remote"
-    );
+    assert_eq!(why_of("hint: x\nfatal: no such remote\nmore"), "fatal: no such remote");
     assert_eq!(why_of("a\nb\nc\nd\n"), "b c d");
     assert_eq!(why_of(""), "");
     assert_eq!(why_of("errors happen\nlast"), "errors happen last");

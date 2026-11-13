@@ -47,16 +47,9 @@ pub(crate) struct CallInner {
 
 impl CallInner {
     /// A call that runs no command yet (the edge, a plugin's own timer): its first command is a root.
-    pub(crate) fn detached(
-        k: &Arc<KernelState>,
-        caller: Caller,
-        via: Option<Arc<str>>,
-        cancel: CancellationToken,
-    ) -> Self {
+    pub(crate) fn detached(k: &Arc<KernelState>, caller: Caller, via: Option<Arc<str>>, cancel: CancellationToken) -> Self {
         let set = k.caps.get(&caller.set);
-        let via_set = via
-            .as_ref()
-            .and_then(|v| k.caps.get(&format!("plugin:{v}")));
+        let via_set = via.as_ref().and_then(|v| k.caps.get(&format!("plugin:{v}")));
         Self {
             root: crate::ids::uuid7(),
             depth: 0,
@@ -75,9 +68,7 @@ impl CallInner {
     }
 
     pub(crate) fn into_call(self) -> Call {
-        Call {
-            inner: Arc::new(self),
-        }
+        Call { inner: Arc::new(self) }
     }
 }
 
@@ -102,9 +93,7 @@ pub(crate) fn check_sets(
         let Some(vs) = vs else {
             return Err(forbidden(format!("{v} has no capability set")));
         };
-        return vs
-            .explain(p)
-            .map_err(|why| forbidden(format!("{v} doesn't declare {p} in its manifest ({why})")));
+        return vs.explain(p).map_err(|why| forbidden(format!("{v} doesn't declare {p} in its manifest ({why})")));
     }
     let Some(set) = caller else {
         return Err(forbidden(format!("{caller_id} is not a capability set")));
@@ -116,32 +105,19 @@ pub(crate) fn check_sets(
         let Some(vs) = vs else {
             return Err(forbidden(format!("{via} has no capability set")));
         };
-        vs.explain(p).map_err(|why| {
-            forbidden(format!("{via} doesn't declare {p} in its manifest ({why})"))
-        })?;
+        vs.explain(p).map_err(|why| forbidden(format!("{via} doesn't declare {p} in its manifest ({why})")))?;
     }
     Ok(())
 }
 
 pub(crate) fn check(call: &CallInner, p: &crate::perm::Permission) -> Result<()> {
-    let set = call.set.clone().or_else(|| {
-        call.kernel
-            .upgrade()
-            .and_then(|k| k.caps.get(&call.caller.set))
-    });
-    check_sets(
-        set.as_deref(),
-        &call.caller.set,
-        call.via.as_deref().map(|v| (v, call.via_set.as_deref())),
-        p,
-    )
+    let set = call.set.clone().or_else(|| call.kernel.upgrade().and_then(|k| k.caps.get(&call.caller.set)));
+    check_sets(set.as_deref(), &call.caller.set, call.via.as_deref().map(|v| (v, call.via_set.as_deref())), p)
 }
 
 pub(crate) fn require(call: &CallInner, permission: &str) -> Result<()> {
     let Some(p) = crate::perm::parse(permission) else {
-        return Err(WireError::invalid(format!(
-            "\"{permission}\" is not a permission"
-        )));
+        return Err(WireError::invalid(format!("\"{permission}\" is not a permission")));
     };
     check(call, &p)
 }
@@ -151,9 +127,7 @@ impl Call {
     /// methods that change something start with it. Added in v2.0 (additive).
     pub fn require_write(&self, permission: &str) -> Result<()> {
         if self.inner.read_only {
-            return Err(WireError::forbidden(format!(
-                "{permission} writes, and an interceptor may only read"
-            )));
+            return Err(WireError::forbidden(format!("{permission} writes, and an interceptor may only read")));
         }
         require(&self.inner, permission)
     }

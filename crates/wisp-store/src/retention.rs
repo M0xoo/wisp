@@ -15,22 +15,10 @@ impl Store {
     pub async fn rotate_epoch(&self) -> Result<String> {
         let epoch = (self.shared.make_epoch)();
         let e = epoch.clone();
-        self.thread
-            .run_raw_async(move |db| crate::writer::write_meta(db, "epoch", Some(&e)))
-            .await?;
-        self.shared
-            .epoch
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone_from(&epoch);
-        let listeners: Vec<EpochListener> = self
-            .shared
-            .epoch_listeners
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .iter()
-            .map(|(_, f)| f.clone())
-            .collect();
+        self.thread.run_raw_async(move |db| crate::writer::write_meta(db, "epoch", Some(&e))).await?;
+        self.shared.epoch.write().unwrap_or_else(PoisonError::into_inner).clone_from(&epoch);
+        let listeners: Vec<EpochListener> =
+            self.shared.epoch_listeners.read().unwrap_or_else(PoisonError::into_inner).iter().map(|(_, f)| f.clone()).collect();
         for f in listeners {
             crate::thread::call_listener(|| f(&epoch));
         }
@@ -51,21 +39,13 @@ fn prune(db: &Connection, r: Retention, now: i64) -> Result<PruneResult> {
         let head = crate::changes::head_seq(db)?;
         // the newest seq to drop: beyond the row cap, or the run of oldest rows past the age limit
         // (scanned from the oldest, stopping at the first row young enough to keep)
-        let first_kept: Option<i64> = db
-            .query_row(
-                "SELECT seq FROM change WHERE at >= ? ORDER BY seq LIMIT 1",
-                [now - r.change_ms],
-                |row| row.get(0),
-            )
-            .optional()?;
+        let first_kept: Option<i64> =
+            db.query_row("SELECT seq FROM change WHERE at >= ? ORDER BY seq LIMIT 1", [now - r.change_ms], |row| row.get(0)).optional()?;
         let by_age = first_kept.map_or(head, |s| s - 1);
         let upto = by_age.max(head - r.change_rows);
         let changes = prune_changes(db, upto)?;
         let mutations = db.execute("DELETE FROM mutation WHERE at < ?", [now - r.mutation_ms])?;
-        Ok(PruneResult {
-            changes,
-            mutations: mutations as u64,
-        })
+        Ok(PruneResult { changes, mutations: mutations as u64 })
     };
     match run() {
         Ok(out) => {

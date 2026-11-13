@@ -51,7 +51,11 @@ pub fn install_dir(real: &str) -> String {
 }
 
 pub fn classify(pin: &Fingerprint, now: &Fingerprint) -> ChangeKind {
-    if version_up(&pin.version, &now.version) && install_dir(&pin.real) == install_dir(&now.real) { ChangeKind::Update } else { ChangeKind::Warn }
+    if version_up(&pin.version, &now.version) && install_dir(&pin.real) == install_dir(&now.real) {
+        ChangeKind::Update
+    } else {
+        ChangeKind::Warn
+    }
 }
 
 /// Without hashing: whether `size`/`mtime` at `real` may not be the pinned program.
@@ -107,8 +111,16 @@ pub fn view(w: &Watched) -> WatchView {
 pub fn change_line(name: &str, c: &WatchChange, date: &str) -> String {
     let label = |x: &Fingerprint| if x.version.is_empty() { x.path.clone() } else { x.version.clone() };
     let from = label(&c.from);
-    let to = if c.kind == ChangeKind::Update || c.from.real == c.to.real || c.from.path == c.to.path { label(&c.to) } else { format!("{} at {}", label(&c.to), c.to.path) };
-    let what = if from == to { format!("{from} (other bytes: {}…)", c.to.sha256.chars().take(12).collect::<String>()) } else { format!("{from} → {to}") };
+    let to = if c.kind == ChangeKind::Update || c.from.real == c.to.real || c.from.path == c.to.path {
+        label(&c.to)
+    } else {
+        format!("{} at {}", label(&c.to), c.to.path)
+    };
+    let what = if from == to {
+        format!("{from} (other bytes: {}…)", c.to.sha256.chars().take(12).collect::<String>())
+    } else {
+        format!("{from} → {to}")
+    };
     format!("{name} changed since {date}: {what}")
 }
 
@@ -117,7 +129,15 @@ mod tests {
     use super::*;
 
     fn fp(real: &str, sha: &str, version: &str) -> Fingerprint {
-        Fingerprint { path: "/usr/local/bin/codex".into(), real: real.into(), size: 10, sha256: sha.into(), version: version.into(), mtime_ms: Some(1.0), at: None }
+        Fingerprint {
+            path: "/usr/local/bin/codex".into(),
+            real: real.into(),
+            size: 10,
+            sha256: sha.into(),
+            version: version.into(),
+            mtime_ms: Some(1.0),
+            at: None,
+        }
     }
 
     #[test]

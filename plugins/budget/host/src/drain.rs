@@ -67,9 +67,17 @@ impl State {
             .find(|h| h.info().id == e.agent)
             .map_or_else(|| e.agent.clone(), |h| h.info().name.clone());
         let label = if account == "default" { "" } else { account.as_str() };
-        let note = DrainNoted { agent: e.agent.clone(), account: account.clone(), title: drain_title(&d, &name), text: drain_why(&d, &name, label, in_usd, offset_min(at)), drain: d };
+        let note = DrainNoted {
+            agent: e.agent.clone(),
+            account: account.clone(),
+            title: drain_title(&d, &name),
+            text: drain_why(&d, &name, label, in_usd, offset_min(at)),
+            drain: d,
+        };
         ctx.emit(&ctx.root_call(), &note);
-        if let Err(err) = ctx.run_json(&ctx.root_call(), "channels.send", json!({ "msg": { "title": note.title, "text": note.text } })).await {
+        if let Err(err) =
+            ctx.run_json(&ctx.root_call(), "channels.send", json!({ "msg": { "title": note.title, "text": note.text } })).await
+        {
             tracing::debug!(%err, "Drain watch: no phone to tell");
         }
         Some(note)

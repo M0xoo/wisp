@@ -46,11 +46,11 @@ fn each_kind_matches_what_v1_matched() {
 fn near_misses_are_not_secrets() {
     let a40 = "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0";
     let misses = [
-        j(&["ghp_", &a40[..29]]),           // too short
-        j(&["xghp_", &a40[..36]]),          // no word boundary before
+        j(&["ghp_", &a40[..29]]),          // too short
+        j(&["xghp_", &a40[..36]]),         // no word boundary before
         j(&["ghp_", &a40[..36], "_more"]), // no boundary after the run
-        j(&["AKIA", "IOSFODNN7EXAMPLE1"]),  // 17, not 16
-        j(&["npm_", &a40[..37]]),           // 37, not 36
+        j(&["AKIA", "IOSFODNN7EXAMPLE1"]), // 17, not 16
+        j(&["npm_", &a40[..37]]),          // 37, not 36
         "token = <your token here>".into(),
         "password: ${PASSWORD_FROM_ENV_VAR}".into(),
         "api_key = $API_KEY_FROM_SOMEWHERE".into(),
@@ -101,7 +101,31 @@ impl Rng {
 
 #[test]
 fn model_random_text_never_panics_redaction_is_idempotent_and_a_planted_token_goes() {
-    let bits = ["a", " ", "\n", "-", "_", ":", "=", "\"", "@", "/", "sk-", "ghp_", "AKIA", "eyJ", "é", "→", "BEGIN ", "-----", "PRIVATE KEY", "://", "x:y@", "token", "0123456789"];
+    let bits = [
+        "a",
+        " ",
+        "\n",
+        "-",
+        "_",
+        ":",
+        "=",
+        "\"",
+        "@",
+        "/",
+        "sk-",
+        "ghp_",
+        "AKIA",
+        "eyJ",
+        "é",
+        "→",
+        "BEGIN ",
+        "-----",
+        "PRIVATE KEY",
+        "://",
+        "x:y@",
+        "token",
+        "0123456789",
+    ];
     let planted = j(&["ghp_", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"]);
     let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
     for _ in 0..3000 {

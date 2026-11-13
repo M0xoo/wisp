@@ -25,10 +25,7 @@ pub struct Entries(pub Vec<(String, Value)>);
 
 impl Entries {
     pub fn get(&self, key: &str) -> &Value {
-        self.0
-            .iter()
-            .find(|(k, _)| k == key)
-            .map_or(&NULL, |(_, v)| v)
+        self.0.iter().find(|(k, _)| k == key).map_or(&NULL, |(_, v)| v)
     }
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -54,10 +51,7 @@ impl<'de> Deserialize<'de> for Entries {
                 }
                 Ok(Entries(out))
             }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> Result<Entries, A::Error> {
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Entries, A::Error> {
                 while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                 Ok(Entries::default())
             }
@@ -113,10 +107,7 @@ impl<'de> Deserialize<'de> for ToolUseResult {
                 }
                 Ok(out)
             }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> Result<ToolUseResult, A::Error> {
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<ToolUseResult, A::Error> {
                 while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                 Ok(ToolUseResult::default())
             }

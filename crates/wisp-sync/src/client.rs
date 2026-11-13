@@ -41,7 +41,16 @@ pub struct Options {
 
 impl Options {
     pub fn new(peer: impl Into<String>, client_id: impl Into<String>, build: impl Into<String>) -> Self {
-        Self { peer: peer.into(), client_id: client_id.into(), build: build.into(), proto_min: PROTO_MIN, proto_max: PROTO, saved: None, retry_base_ms: 500, retry_max_ms: 30_000 }
+        Self {
+            peer: peer.into(),
+            client_id: client_id.into(),
+            build: build.into(),
+            proto_min: PROTO_MIN,
+            proto_max: PROTO,
+            saved: None,
+            retry_base_ms: 500,
+            retry_max_ms: 30_000,
+        }
     }
 }
 
@@ -67,35 +76,90 @@ pub enum Update {
 pub enum Input {
     Open,
     /// one decoded SSE frame: its `id:` (the cursor) and its messages
-    Frame { id: Option<u64>, messages: Vec<ServerMessage> },
+    Frame {
+        id: Option<u64>,
+        messages: Vec<ServerMessage>,
+    },
     /// the stream ended or failed
     Lost,
-    Subscribe { topic: String, passive: bool },
-    Unsubscribe { topic: String, passive: bool },
-    Mutate { mid: String, cmd: String, args: Value, base_seq: Option<u64> },
-    Window { req: String, topic: String, before_seq: u64, limit: u32 },
+    Subscribe {
+        topic: String,
+        passive: bool,
+    },
+    Unsubscribe {
+        topic: String,
+        passive: bool,
+    },
+    Mutate {
+        mid: String,
+        cmd: String,
+        args: Value,
+        base_seq: Option<u64>,
+    },
+    Window {
+        req: String,
+        topic: String,
+        before_seq: u64,
+        limit: u32,
+    },
     /// the client store couldn't apply an op on this topic: start it over
-    Drifted { topic: String },
+    Drifted {
+        topic: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Output {
     /// open `GET /api/events` with these query parameters
-    Request { params: BTreeMap<String, String> },
+    Request {
+        params: BTreeMap<String, String>,
+    },
     /// POST this to the connection (sub, unsub, window, mutate)
     Send(ClientMessage),
-    Reset { peer: String },
-    Snapshot { peer: String, topic: String, rows: Vec<Row> },
-    EntityOps { peer: String, ops: Vec<EntityOp> },
-    Rows { peer: String, req: String, rows: Vec<Row>, done: bool },
-    Ack { mid: String, seq: u64, result: Option<Value> },
-    Reject { mid: String, code: String, message: String },
-    NeedResubscribe { topic: String },
-    Denied { topic: String, code: String },
+    Reset {
+        peer: String,
+    },
+    Snapshot {
+        peer: String,
+        topic: String,
+        rows: Vec<Row>,
+    },
+    EntityOps {
+        peer: String,
+        ops: Vec<EntityOp>,
+    },
+    Rows {
+        peer: String,
+        req: String,
+        rows: Vec<Row>,
+        done: bool,
+    },
+    Ack {
+        mid: String,
+        seq: u64,
+        result: Option<Value>,
+    },
+    Reject {
+        mid: String,
+        code: String,
+        message: String,
+    },
+    NeedResubscribe {
+        topic: String,
+    },
+    Denied {
+        topic: String,
+        code: String,
+    },
     Notice(Notice),
-    State { state: State, update: Option<Update> },
+    State {
+        state: State,
+        update: Option<Update>,
+    },
     /// reconnect at this time (the host owns the timer)
-    Retry { at: i64 },
+    Retry {
+        at: i64,
+    },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -135,7 +199,8 @@ fn unsub_msg(topic: &str) -> Option<ClientMessage> {
 impl SyncClient {
     pub fn new(o: Options) -> Self {
         let saved = o.saved.clone().unwrap_or_default();
-        let mut held: Vec<(String, u64)> = saved.cursor.map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect()).unwrap_or_default();
+        let mut held: Vec<(String, u64)> =
+            saved.cursor.map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect()).unwrap_or_default();
         for (t, s) in &saved.held {
             if let Some(h) = held.iter_mut().find(|(x, _)| x == t) {
                 h.1 = *s;
@@ -143,7 +208,19 @@ impl SyncClient {
                 held.push((t.clone(), *s));
             }
         }
-        Self { peer: o.peer.clone(), state: State::Idle, epoch: saved.epoch, cursor: saved.cursor, topics: Vec::new(), held, pending: saved.pending, hello: Vec::new(), attempt: 0, out: Vec::new(), o }
+        Self {
+            peer: o.peer.clone(),
+            state: State::Idle,
+            epoch: saved.epoch,
+            cursor: saved.cursor,
+            topics: Vec::new(),
+            held,
+            pending: saved.pending,
+            hello: Vec::new(),
+            attempt: 0,
+            out: Vec::new(),
+            o,
+        }
     }
 
     pub fn state(&self) -> State {
@@ -241,7 +318,11 @@ impl SyncClient {
             }
             let resumed = can_resume && (s.synced || held.is_some());
             self.hello.push((t.clone(), resumed));
-            if resumed { topics.push(t.clone()) } else { fresh.push(t.clone()) }
+            if resumed {
+                topics.push(t.clone());
+            } else {
+                fresh.push(t.clone());
+            }
             if s.active_refs == 0 {
                 passive.push(t.clone());
             }
@@ -298,7 +379,8 @@ impl SyncClient {
         self.set_state(State::Live, None);
         // subscribed while the hello was in flight (or held as of an older seq): a held topic resumes
         // from its seq instead of taking the whole topic
-        let late: Vec<String> = self.topics.iter().filter(|(t, s)| !hello.iter().any(|(x, _)| x == t) && !s.denied).map(|(t, _)| t.clone()).collect();
+        let late: Vec<String> =
+            self.topics.iter().filter(|(t, s)| !hello.iter().any(|(x, _)| x == t) && !s.denied).map(|(t, _)| t.clone()).collect();
         for t in late {
             let m = self.sub_first(&t);
             self.send_opt(m);
@@ -370,7 +452,8 @@ impl SyncClient {
             }
             ServerMessage::Patch(p) => {
                 // a topic waiting for its snapshot takes no ops: the snapshot replaces them
-                let ops: Vec<EntityOp> = p.ops.into_iter().filter(|op| self.topics.iter().any(|(t, s)| t == op.topic.as_str() && s.synced)).collect();
+                let ops: Vec<EntityOp> =
+                    p.ops.into_iter().filter(|op| self.topics.iter().any(|(t, s)| t == op.topic.as_str() && s.synced)).collect();
                 if !ops.is_empty() {
                     self.out.push(Output::EntityOps { peer: self.peer.clone(), ops });
                 }

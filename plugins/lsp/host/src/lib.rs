@@ -78,12 +78,25 @@ impl State {
         if let Some(s) = lock(&self.servers).get(&key).filter(|s| s.handle.running()) {
             return Ok(Some(s.clone()));
         }
-        let search = Search { override_cmd: std::env::var(Search::override_var(lang)).ok(), path: std::env::var("PATH").ok(), windows: cfg!(windows) };
+        let search = Search {
+            override_cmd: std::env::var(Search::override_var(lang)).ok(),
+            path: std::env::var("PATH").ok(),
+            windows: cfg!(windows),
+        };
         let Some(cmd) = find_server(lang, root, self.home.as_deref(), &search, Path::is_file) else { return Ok(None) };
         let Some((prog, args)) = cmd.split_first() else { return Ok(None) };
-        let child = self.proc.spawn(prog, args, SpawnOpts { cwd: Some(root.to_owned()), ..SpawnOpts::default() }).map_err(|e| WireError::invalid(e.to_string()))?;
+        let child = self
+            .proc
+            .spawn(prog, args, SpawnOpts { cwd: Some(root.to_owned()), ..SpawnOpts::default() })
+            .map_err(|e| WireError::invalid(e.to_string()))?;
         let (handle, mut rx) = child.split();
-        let server = Arc::new(Server { name: spec(lang).name, client: Mutex::new(Client::new()), handle, pending: Mutex::new(HashMap::new()), diags: Notify::new() });
+        let server = Arc::new(Server {
+            name: spec(lang).name,
+            client: Mutex::new(Client::new()),
+            handle,
+            pending: Mutex::new(HashMap::new()),
+            diags: Notify::new(),
+        });
         let s2 = server.clone();
         ctx.spawn(async move {
             while let Some(o) = rx.recv().await {
@@ -241,7 +254,18 @@ impl Plugin for LspPlugin {
                 }
                 let _ = tokio::fs::create_dir_all(&plan.dir).await;
                 let npm = std::env::var("WISP_NPM").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "npm".into());
-                let r = st.proc.exec(&npm, &plan.args, wisp_proc::ExecOpts { cwd: Some(plan.dir.clone()), timeout: Some(Duration::from_secs(300)), ..wisp_proc::ExecOpts::default() }).await;
+                let r = st
+                    .proc
+                    .exec(
+                        &npm,
+                        &plan.args,
+                        wisp_proc::ExecOpts {
+                            cwd: Some(plan.dir.clone()),
+                            timeout: Some(Duration::from_secs(300)),
+                            ..wisp_proc::ExecOpts::default()
+                        },
+                    )
+                    .await;
                 *lock(&st.installing) = false;
                 match r {
                     Ok(r) if r.exit.code == Some(0) => Ok(Installed { ok: true }),
@@ -275,7 +299,9 @@ impl Plugin for LspPlugin {
             summary: "Install npm's language server for a language into wisp's folder",
             raw: false,
             max_body: None,
-            handler: Arc::new(|ctx, call, req| Box::pin(async move { Response::ok(ctx.run_json(&call, "lsp.install", req.json()?).await?) })),
+            handler: Arc::new(|ctx, call, req| {
+                Box::pin(async move { Response::ok(ctx.run_json(&call, "lsp.install", req.json()?).await?) })
+            }),
         });
         let start = slot;
         s.on_start(move |ctx| async move {
@@ -299,8 +325,14 @@ mod tests {
         let t = tmp.to_string_lossy();
         assert_eq!(task_root(&json!({ "cwd": t })).unwrap(), tmp);
         assert_eq!(task_root(&json!({ "cwd": t, "ext": { "wisp.worktrees": { "path": t } } })).unwrap(), tmp);
-        assert_eq!(task_root(&json!({ "cwd": t, "ext": { "wisp.worktrees": { "path": "/gone/wisp-lsp" } } })).unwrap(), tmp, "a gone worktree: the folder");
-        for s in [json!({}), json!({ "cwd": "" }), json!({ "cwd": "src" }), json!({ "cwd": "", "ext": { "wisp.worktrees": { "path": "src" } } })] {
+        assert_eq!(
+            task_root(&json!({ "cwd": t, "ext": { "wisp.worktrees": { "path": "/gone/wisp-lsp" } } })).unwrap(),
+            tmp,
+            "a gone worktree: the folder"
+        );
+        for s in
+            [json!({}), json!({ "cwd": "" }), json!({ "cwd": "src" }), json!({ "cwd": "", "ext": { "wisp.worktrees": { "path": "src" } } })]
+        {
             assert!(task_root(&s).is_none(), "{s}");
         }
     }

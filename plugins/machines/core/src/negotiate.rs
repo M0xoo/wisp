@@ -22,7 +22,11 @@ pub fn choose(ours: (u32, u32), theirs: (u32, u32)) -> Feed {
 
 /// The card's words for an incompatible peer (plan §7.3.2: "Update wisp on <computer>").
 pub fn update_words(name: &str, update_peer: bool) -> String {
-    if update_peer { format!("Update wisp on {name}: it speaks an older protocol than this one.") } else { format!("Update wisp here: {name} runs a newer one this wisp can’t speak to.") }
+    if update_peer {
+        format!("Update wisp on {name}: it speaks an older protocol than this one.")
+    } else {
+        format!("Update wisp here: {name} runs a newer one this wisp can’t speak to.")
+    }
 }
 
 #[cfg(test)]

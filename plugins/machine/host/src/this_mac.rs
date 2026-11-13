@@ -43,7 +43,16 @@ impl std::fmt::Debug for Guard {
 
 impl Guard {
     pub fn new(mac: bool) -> Self {
-        Self { load: Mutex::default(), knobs: Mutex::default(), total: Mutex::new(0), runs: Mutex::new(0), battery: Mutex::new(None), tz: Mutex::new(0), now: Mutex::new(0), mac }
+        Self {
+            load: Mutex::default(),
+            knobs: Mutex::default(),
+            total: Mutex::new(0),
+            runs: Mutex::new(0),
+            battery: Mutex::new(None),
+            tz: Mutex::new(0),
+            now: Mutex::new(0),
+            mac,
+        }
     }
 
     pub(crate) fn with<T>(&self, f: impl FnOnce(&mut Load, &Against<'_>, Option<Hold>) -> T) -> T {
@@ -81,7 +90,10 @@ impl MachineApi for Guard {
 
 pub(crate) async fn run(proc: &wisp_proc::Proc, bin: &str, args: &[&str]) -> Option<String> {
     let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
-    let r = proc.exec(bin, &args, wisp_proc::ExecOpts { timeout: Some(Duration::from_secs(5)), ..wisp_proc::ExecOpts::default() }).await.ok()?;
+    let r = proc
+        .exec(bin, &args, wisp_proc::ExecOpts { timeout: Some(Duration::from_secs(5)), ..wisp_proc::ExecOpts::default() })
+        .await
+        .ok()?;
     r.exit.success().then(|| r.stdout_text())
 }
 
@@ -109,7 +121,11 @@ async fn total_memory(proc: &wisp_proc::Proc, mac: bool) -> u64 {
     if mac {
         return run(proc, "sysctl", &["-n", "hw.memsize"]).await.and_then(|t| t.trim().parse().ok()).unwrap_or(0);
     }
-    tokio::fs::read_to_string("/proc/meminfo").await.ok().and_then(|t| t.lines().find_map(|l| l.strip_prefix("MemTotal:").and_then(|r| r.split_whitespace().next()?.parse::<u64>().ok()))).map_or(0, |kb| kb * 1024)
+    tokio::fs::read_to_string("/proc/meminfo")
+        .await
+        .ok()
+        .and_then(|t| t.lines().find_map(|l| l.strip_prefix("MemTotal:").and_then(|r| r.split_whitespace().next()?.parse::<u64>().ok())))
+        .map_or(0, |kb| kb * 1024)
 }
 
 fn knob(ctx: &Ctx, key: &str) -> Option<String> {
@@ -118,7 +134,13 @@ fn knob(ctx: &Ctx, key: &str) -> Option<String> {
 
 /// The knobs as set now (a changed one counts at the next sample).
 fn read_knobs(ctx: &Ctx, paused: Option<i64>) -> Knobs {
-    Knobs { memory_floor: knob(ctx, "machine.memoryFloor"), cpu_ceiling: knob(ctx, "machine.cpuCeiling"), max_runs: knob(ctx, "machine.maxRuns"), battery_hold: knob(ctx, "machine.batteryHold"), automations_paused_until: paused }
+    Knobs {
+        memory_floor: knob(ctx, "machine.memoryFloor"),
+        cpu_ceiling: knob(ctx, "machine.cpuCeiling"),
+        max_runs: knob(ctx, "machine.maxRuns"),
+        battery_hold: knob(ctx, "machine.batteryHold"),
+        automations_paused_until: paused,
+    }
 }
 
 async fn tick(ctx: &Ctx, g: &Guard, proc: &wisp_proc::Proc, procs: &crate::procs::Procs) {
@@ -127,7 +149,8 @@ async fn tick(ctx: &Ctx, g: &Guard, proc: &wisp_proc::Proc, procs: &crate::procs
     let paused = lock(&g.knobs).automations_paused_until;
     *lock(&g.knobs) = read_knobs(ctx, paused);
     let list = crate::calls::tasks(ctx, &ctx.root_call(), None).await;
-    *lock(&g.runs) = u32::try_from(list.iter().filter(|s| s.state == wisp_runtime_api::model::SessionState::Running).count()).unwrap_or(u32::MAX);
+    *lock(&g.runs) =
+        u32::try_from(list.iter().filter(|s| s.state == wisp_runtime_api::model::SessionState::Running).count()).unwrap_or(u32::MAX);
     if g.mac {
         *lock(&g.battery) = run(proc, "pmset", &["-g", "batt"]).await.and_then(|t| parse::parse_batt(&t));
     }
@@ -203,7 +226,10 @@ mod tests {
         assert!(!g.feed(Sample { mem_free_pct: Some(40.0), cpu: Some(10.0), pressure: None }));
         assert!(!g.feed(Sample { mem_free_pct: Some(9.0), cpu: Some(10.0), pressure: None }), "held, not lifted");
         assert!(g.with(Load::hold).is_some());
-        assert!(!g.feed(Sample { mem_free_pct: Some(17.0), cpu: Some(10.0), pressure: None }), "over the floor, under the margin: still held");
+        assert!(
+            !g.feed(Sample { mem_free_pct: Some(17.0), cpu: Some(10.0), pressure: None }),
+            "over the floor, under the margin: still held"
+        );
         assert!(g.feed(Sample { mem_free_pct: Some(25.0), cpu: Some(10.0), pressure: None }), "freed: held work goes");
         // a pause holds whatever the readings say
         *lock(&g.knobs) = Knobs { automations_paused_until: Some(10_000), ..Knobs::default() };

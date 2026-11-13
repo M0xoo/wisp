@@ -60,11 +60,7 @@ pub struct LoadReading {
     #[serde(serialize_with = "super::num::opt")]
     pub cpu: Option<f64>,
     /// Linux PSI `some avg10`, when the kernel has it
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "super::num::opt"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "super::num::opt")]
     #[ts(optional)]
     pub pressure: Option<f64>,
     /// when it was sampled (ms); 0 before the first sample

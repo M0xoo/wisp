@@ -16,7 +16,35 @@ use crate::term::{self, DIM, paint};
 /// The block types wisp's protocol documents (plugins/runtime/core `BUILTIN_BLOCKS`; a test keeps
 /// them in step).
 pub const BUILTIN: &[&str] = &[
-    "hero", "markdown", "steps", "stats", "files", "diff", "tests", "commits", "graph", "tree", "code", "compare", "flow", "chart", "terminal", "checklist", "callout", "image", "video", "preview", "map", "doc", "task", "stuff", "question", "blocked", "actions", "next", "app",
+    "hero",
+    "markdown",
+    "steps",
+    "stats",
+    "files",
+    "diff",
+    "tests",
+    "commits",
+    "graph",
+    "tree",
+    "code",
+    "compare",
+    "flow",
+    "chart",
+    "terminal",
+    "checklist",
+    "callout",
+    "image",
+    "video",
+    "preview",
+    "map",
+    "doc",
+    "task",
+    "stuff",
+    "question",
+    "blocked",
+    "actions",
+    "next",
+    "app",
 ];
 
 /// A line the host replaces with an inline image (it reads the file; the renderers do no IO):
@@ -104,7 +132,8 @@ impl TermBlock for Builtin {
 /// A block type this build doesn't know: its title and a summary, never JSON.
 pub fn unknown(b: &Value, st: &Style) -> Vec<String> {
     let ty = s(b, "type");
-    let name = ["title", "label", "name"].iter().map(|k| s(b, k)).find(|x| !x.is_empty()).unwrap_or(if ty.is_empty() { "a block" } else { ty });
+    let name =
+        ["title", "label", "name"].iter().map(|k| s(b, k)).find(|x| !x.is_empty()).unwrap_or(if ty.is_empty() { "a block" } else { ty });
     let summary = ["summary", "text", "caption", "note"].iter().map(|k| s(b, k)).find(|x| !x.is_empty()).unwrap_or("");
     let mut out = term::wrap(&format!("▪ {}", term::bold(st, name)), st.width);
     if !summary.is_empty() {

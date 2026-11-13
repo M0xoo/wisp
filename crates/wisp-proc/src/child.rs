@@ -49,20 +49,8 @@ impl fmt::Debug for ChildHandle {
 
 impl ChildHandle {
     /// For proc implementations: `exit` holds `Some` once the child has exited and its output drained.
-    pub fn new(
-        pid: u32,
-        pty: bool,
-        grace: Duration,
-        control: Arc<dyn ChildControl>,
-        exit: watch::Receiver<Option<Exit>>,
-    ) -> Self {
-        Self {
-            pid,
-            pty,
-            grace,
-            control,
-            exit,
-        }
+    pub fn new(pid: u32, pty: bool, grace: Duration, control: Arc<dyn ChildControl>, exit: watch::Receiver<Option<Exit>>) -> Self {
+        Self { pid, pty, grace, control, exit }
     }
     pub fn pid(&self) -> u32 {
         self.pid

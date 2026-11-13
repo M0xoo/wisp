@@ -35,37 +35,20 @@ pub(crate) fn query(db: &Connection, k: &Kind, q: &Query) -> Result<Vec<Row>> {
 
 pub(crate) fn count(db: &Connection, k: &Kind, q: &Query) -> Result<u64> {
     let c = compile(k, q, true)?;
-    let n: i64 = db
-        .prepare_cached(&c.sql)?
-        .query_row(params_from_iter(c.params), |r| r.get(0))?;
+    let n: i64 = db.prepare_cached(&c.sql)?.query_row(params_from_iter(c.params), |r| r.get(0))?;
     Ok(u64::try_from(n).unwrap_or(0))
 }
 
 /// A page of an event log, newest first: the `limit` rows of `parent` whose seq is below `before`.
-pub(crate) fn window(
-    db: &Connection,
-    k: &Kind,
-    parent: &str,
-    before: Option<i64>,
-    limit: u32,
-) -> Result<Vec<Row>> {
+pub(crate) fn window(db: &Connection, k: &Kind, parent: &str, before: Option<i64>, limit: u32) -> Result<Vec<Row>> {
     let (Some(p), Some(seq)) = (k.def.parent, k.def.seq) else {
-        return Err(invalid(format!(
-            "{}: window needs an event log (parent and seq columns)",
-            k.name()
-        )));
+        return Err(invalid(format!("{}: window needs an event log (parent and seq columns)", k.name())));
     };
     if limit == 0 || limit > changes::MAX_LIMIT {
-        return Err(invalid(format!(
-            "window: limit must be 1…{}",
-            changes::MAX_LIMIT
-        )));
+        return Err(invalid(format!("window: limit must be 1…{}", changes::MAX_LIMIT)));
     }
     let mut params = vec![Sql::Text(parent.to_owned())];
-    let mut sql = format!(
-        "SELECT {} FROM \"{}\" WHERE \"{p}\" = ?",
-        k.select_list, k.def.table
-    );
+    let mut sql = format!("SELECT {} FROM \"{}\" WHERE \"{p}\" = ?", k.select_list, k.def.table);
     if let Some(b) = before {
         let _ = write!(sql, " AND \"{seq}\" < ?");
         params.push(Sql::Integer(b));
@@ -83,10 +66,7 @@ pub(crate) fn window(
 }
 
 pub(crate) fn get_meta(db: &Connection, key: &str) -> Result<Option<String>> {
-    Ok(db
-        .prepare_cached("SELECT value FROM meta WHERE key = ?")?
-        .query_row([key], |r| r.get(0))
-        .optional()?)
+    Ok(db.prepare_cached("SELECT value FROM meta WHERE key = ?")?.query_row([key], |r| r.get(0)).optional()?)
 }
 
 /// A consistent view of the store: every read through one `Reader` sees the same committed state.
@@ -123,22 +103,11 @@ impl Reader<'_> {
         crate::json_out::query_json(self.db, &*self.shared.kind(kind)?, q)
     }
     /// Newest first: the client sends `before` = the oldest event seq it holds (none for the latest page).
-    pub fn window(
-        &self,
-        kind: &str,
-        parent: &str,
-        before: Option<i64>,
-        limit: u32,
-    ) -> Result<Vec<Row>> {
+    pub fn window(&self, kind: &str, parent: &str, before: Option<i64>, limit: u32) -> Result<Vec<Row>> {
         window(self.db, &*self.shared.kind(kind)?, parent, before, limit)
     }
     /// Committed changes after `seq`, oldest first; only those on `topics` when given (≤ 10,000 per call).
-    pub fn changes_since(
-        &self,
-        seq: i64,
-        topics: Option<&[&str]>,
-        limit: u32,
-    ) -> Result<Vec<ChangeRow>> {
+    pub fn changes_since(&self, seq: i64, topics: Option<&[&str]>, limit: u32) -> Result<Vec<ChangeRow>> {
         changes::read(self.db, seq, topics, limit)
     }
     /// The rows on `topic` changed after `since`, as they are now; `None` when retention dropped part of
@@ -160,12 +129,7 @@ impl Reader<'_> {
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
         get_meta(self.db, key)
     }
-    pub fn search(
-        &self,
-        text: &str,
-        kinds: Option<&[&str]>,
-        limit: u32,
-    ) -> Result<Vec<crate::search::SearchHit>> {
+    pub fn search(&self, text: &str, kinds: Option<&[&str]>, limit: u32) -> Result<Vec<crate::search::SearchHit>> {
         crate::search::search(self.db, self.shared, text, kinds, limit)
     }
     pub fn blob(&self, hash: &str) -> Result<Option<Vec<u8>>> {
@@ -194,21 +158,10 @@ impl crate::store::Store {
     pub fn query_json(&self, kind: &str, q: &Query) -> Result<String> {
         self.read(|r| r.query_json(kind, q))
     }
-    pub fn window(
-        &self,
-        kind: &str,
-        parent: &str,
-        before: Option<i64>,
-        limit: u32,
-    ) -> Result<Vec<Row>> {
+    pub fn window(&self, kind: &str, parent: &str, before: Option<i64>, limit: u32) -> Result<Vec<Row>> {
         self.read(|r| r.window(kind, parent, before, limit))
     }
-    pub fn changes_since(
-        &self,
-        seq: i64,
-        topics: Option<&[&str]>,
-        limit: u32,
-    ) -> Result<Vec<ChangeRow>> {
+    pub fn changes_since(&self, seq: i64, topics: Option<&[&str]>, limit: u32) -> Result<Vec<ChangeRow>> {
         self.read(|r| r.changes_since(seq, topics, limit))
     }
     pub fn changed_since(&self, topic: &str, since: i64) -> Result<Option<Delta>> {
@@ -229,18 +182,12 @@ impl crate::store::Store {
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
         self.read(|r| r.get_meta(key))
     }
-    pub fn search(
-        &self,
-        text: &str,
-        kinds: Option<&[&str]>,
-        limit: u32,
-    ) -> Result<Vec<crate::search::SearchHit>> {
+    pub fn search(&self, text: &str, kinds: Option<&[&str]>, limit: u32) -> Result<Vec<crate::search::SearchHit>> {
         self.read(|r| r.search(text, kinds, limit))
     }
     /// Owners' bookkeeping outside an entity write (`Writer::set_meta` inside one).
     pub async fn set_meta(&self, key: &str, value: Option<&str>) -> Result<()> {
         let (key, value) = (key.to_owned(), value.map(str::to_owned));
-        self.write(move |w| w.set_meta(&key, value.as_deref()))
-            .await
+        self.write(move |w| w.set_meta(&key, value.as_deref())).await
     }
 }

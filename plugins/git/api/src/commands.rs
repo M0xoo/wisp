@@ -63,14 +63,10 @@ mod double_option {
 
     #[allow(clippy::ref_option, clippy::option_option)]
     pub fn serialize<S: Serializer>(v: &Option<Option<String>>, s: S) -> Result<S::Ok, S::Error> {
-        v.as_ref()
-            .map_or(Ok(None::<String>), |x| Ok(x.clone()))?
-            .serialize(s)
+        v.as_ref().map_or(Ok(None::<String>), |x| Ok(x.clone()))?.serialize(s)
     }
     #[allow(clippy::option_option)]
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        d: D,
-    ) -> Result<Option<Option<String>>, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<String>>, D::Error> {
         Option::<String>::deserialize(d).map(Some)
     }
 }
@@ -132,47 +128,12 @@ macro_rules! command {
     };
 }
 
-command!(
-    GetStatus,
-    "git.status",
-    "git:status",
-    true,
-    PathArgs,
-    Status
-);
-command!(
-    GetChanges,
-    "git.changes",
-    "git:diff",
-    true,
-    ChangesArgs,
-    Option<Changes>
-);
-command!(
-    Revert,
-    "git.revert",
-    "git:revert",
-    false,
-    RevertArgs,
-    Reverted
-);
+command!(GetStatus, "git.status", "git:status", true, PathArgs, Status);
+command!(GetChanges, "git.changes", "git:diff", true, ChangesArgs, Option<Changes>);
+command!(Revert, "git.revert", "git:revert", false, RevertArgs, Reverted);
 command!(Stage, "git.stage", "git:stage", false, StageArgs, Done);
-command!(
-    Commit,
-    "git.commit",
-    "git:commit",
-    false,
-    CommitArgs,
-    Committed
-);
+command!(Commit, "git.commit", "git:commit", false, CommitArgs, Committed);
 command!(GetTools, "git.tools", "git:read", true, (), Tools);
 command!(GetOrigin, "git.origin", "git:read", true, crate::OriginArgs, crate::Origin);
 command!(Checkout, "git.checkout", "git:clone", false, crate::CheckoutArgs, Cloned);
-command!(
-    Clone,
-    "git.clone",
-    "git:clone",
-    false,
-    crate::CloneRequest,
-    Cloned
-);
+command!(Clone, "git.clone", "git:clone", false, crate::CloneRequest, Cloned);

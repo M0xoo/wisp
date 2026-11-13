@@ -126,7 +126,14 @@ pub fn code(b: &Value, st: &Style) -> Vec<String> {
         _ => file.to_owned(),
     };
     let first = b.get("line").and_then(Value::as_u64).unwrap_or(1);
-    let hl: Vec<usize> = b.get("highlight").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_u64).filter_map(|h| usize::try_from(h.saturating_sub(first.saturating_sub(1))).ok()).collect();
+    let hl: Vec<usize> = b
+        .get("highlight")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_u64)
+        .filter_map(|h| usize::try_from(h.saturating_sub(first.saturating_sub(1))).ok())
+        .collect();
     let body = s(b, "code");
     let lines: Vec<&str> = body.lines().collect();
     let mut out = crate::md::code(st, s(b, "language"), &at, &lines, &hl);
@@ -165,12 +172,23 @@ pub fn callout(b: &Value, st: &Style) -> Vec<String> {
 
 /// Numbered choices: `1. label`.
 fn numbered(st: &Style, labels: &[String]) -> Vec<String> {
-    labels.iter().enumerate().flat_map(|(n, l)| term::hang(&format!("  {} ", paint(st, BOLD, &format!("{}.", n + 1))), l, st.width)).collect()
+    labels
+        .iter()
+        .enumerate()
+        .flat_map(|(n, l)| term::hang(&format!("  {} ", paint(st, BOLD, &format!("{}.", n + 1))), l, st.width))
+        .collect()
 }
 
 pub fn question(b: &Value, st: &Style) -> Vec<String> {
     let mut out = term::wrap(&format!("{} {}", paint(st, YELLOW, "?"), paint(st, BOLD, s(b, "question"))), st.width);
-    let labels: Vec<String> = b.get("options").and_then(Value::as_array).into_iter().flatten().map(|o| s(o, "label").to_owned()).filter(|l| !l.is_empty()).collect();
+    let labels: Vec<String> = b
+        .get("options")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|o| s(o, "label").to_owned())
+        .filter(|l| !l.is_empty())
+        .collect();
     out.extend(numbered(st, &labels));
     out
 }

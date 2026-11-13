@@ -94,7 +94,10 @@ fn check(root: &Value, s: &Value, v: &Value, at: &str, out: &mut Vec<String>) {
                 (Some(ps), _) => check(root, ps, x, &p, out),
                 (None, Some(Value::Bool(false))) => {
                     let known: Vec<&String> = props.map(|p| p.keys().collect()).unwrap_or_default();
-                    out.push(format!("{p}: unknown field (fields: {})", known.into_iter().map(String::as_str).collect::<Vec<_>>().join(", ")));
+                    out.push(format!(
+                        "{p}: unknown field (fields: {})",
+                        known.into_iter().map(String::as_str).collect::<Vec<_>>().join(", ")
+                    ));
                 }
                 (None, Some(more)) if more.is_object() => check(root, more, x, &p, out),
                 _ => {}
@@ -154,7 +157,8 @@ pub fn formula(kinds: &[KindInfo]) -> Value {
         let section = if k.map_form {
             json!({ "type": "object", "description": k.doc, "additionalProperties": one })
         } else {
-            let named = json!({ "allOf": [one, { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } }] });
+            let named =
+                json!({ "allOf": [one, { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } }] });
             json!({ "description": k.doc, "anyOf": [{ "type": "array", "items": named }, { "type": "object", "additionalProperties": one }] })
         };
         sections.insert(k.section.clone(), section);
@@ -175,8 +179,20 @@ mod tests {
         let s = json!({ "type": "object", "required": ["harness"], "additionalProperties": false,
             "properties": { "harness": { "type": "string" }, "effort": { "$ref": "#/$defs/Effort" }, "n": { "type": ["integer", "null"], "minimum": 0 }, "tags": { "type": "array", "items": { "type": "string" } } },
             "$defs": { "Effort": { "type": "string", "enum": ["low", "high"] } } });
-        assert_eq!(validate(&s, &json!({ "harness": "codex", "effort": "high", "n": 2, "tags": ["a"] }), "agents.reviewer"), Vec::<String>::new());
+        assert_eq!(
+            validate(&s, &json!({ "harness": "codex", "effort": "high", "n": 2, "tags": ["a"] }), "agents.reviewer"),
+            Vec::<String>::new()
+        );
         let got = validate(&s, &json!({ "effort": "max", "n": -1, "tags": [3], "modle": "x" }), "agents.reviewer");
-        assert_eq!(got, ["agents.reviewer: needs harness", "agents.reviewer.effort: one of \"low\", \"high\", not \"max\"", "agents.reviewer.modle: unknown field (fields: effort, harness, n, tags)", "agents.reviewer.n: at least 0", "agents.reviewer.tags[0]: should be string, not 3"]);
+        assert_eq!(
+            got,
+            [
+                "agents.reviewer: needs harness",
+                "agents.reviewer.effort: one of \"low\", \"high\", not \"max\"",
+                "agents.reviewer.modle: unknown field (fields: effort, harness, n, tags)",
+                "agents.reviewer.n: at least 0",
+                "agents.reviewer.tags[0]: should be string, not 3"
+            ]
+        );
     }
 }

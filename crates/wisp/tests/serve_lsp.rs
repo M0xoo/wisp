@@ -25,7 +25,13 @@ async fn the_editor_asks_the_tasks_language_server() {
     let ask = |body: Value| {
         let (http, id) = (api.http.clone(), id.clone());
         async move {
-            let r = http.post(format!("http://127.0.0.1:{port}/api/sessions/{id}/lsp")).header("content-type", "application/json").body(body.to_string()).send().await.unwrap();
+            let r = http
+                .post(format!("http://127.0.0.1:{port}/api/sessions/{id}/lsp"))
+                .header("content-type", "application/json")
+                .body(body.to_string())
+                .send()
+                .await
+                .unwrap();
             serde_json::from_slice::<Value>(&r.bytes().await.unwrap()).unwrap()
         }
     };

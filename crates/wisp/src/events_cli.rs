@@ -82,7 +82,13 @@ pub async fn run(c: &Client, argv: &[String], json: bool) -> Result<i32> {
         "parked" => {
             let v = c.cmd("events.parked", json!({})).await?;
             for p in v.as_array().into_iter().flatten() {
-                say(&format!("#{:<6} {}/{}  {}", p["seq"], p["plugin"].as_str().unwrap_or(""), p["name"].as_str().unwrap_or(""), p["why"].as_str().unwrap_or("")));
+                say(&format!(
+                    "#{:<6} {}/{}  {}",
+                    p["seq"],
+                    p["plugin"].as_str().unwrap_or(""),
+                    p["name"].as_str().unwrap_or(""),
+                    p["why"].as_str().unwrap_or("")
+                ));
             }
             Ok(0)
         }

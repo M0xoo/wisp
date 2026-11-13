@@ -74,7 +74,9 @@ pub fn paths_in(prompt: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for w in prompt.split(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | '(' | ')' | '`' | '"' | '\'')) {
         let w = w.trim_end_matches(['.', ':', '!', '?']).trim_start_matches("./");
-        let ext = w.rsplit_once('.').is_some_and(|(a, e)| !a.is_empty() && (1..=5).contains(&e.len()) && e.chars().all(|c| c.is_ascii_alphanumeric()));
+        let ext = w
+            .rsplit_once('.')
+            .is_some_and(|(a, e)| !a.is_empty() && (1..=5).contains(&e.len()) && e.chars().all(|c| c.is_ascii_alphanumeric()));
         if (w.contains('/') || ext) && !w.contains("://") && w.len() > 2 && !out.contains(&w.to_owned()) {
             out.push(w.to_owned());
         }
@@ -86,7 +88,10 @@ pub fn paths_in(prompt: &str) -> Vec<String> {
 /// first, at most `max` (none when the prompt names no path).
 pub fn relevant<'a>(all: &'a [Doc], prompt: &str, max: usize) -> Vec<&'a Doc> {
     let paths = paths_in(prompt);
-    let mut hits: Vec<&Doc> = all.iter().filter(|d| d.files().iter().any(|f| paths.iter().any(|p| f.starts_with(p.trim_end_matches('/')) || f.ends_with(&format!("/{p}"))))).collect();
+    let mut hits: Vec<&Doc> = all
+        .iter()
+        .filter(|d| d.files().iter().any(|f| paths.iter().any(|p| f.starts_with(p.trim_end_matches('/')) || f.ends_with(&format!("/{p}")))))
+        .collect();
     hits.sort_by_key(|d| std::cmp::Reverse(d.doc.get("createdAt").and_then(Value::as_i64).unwrap_or(0)));
     hits.truncate(max);
     hits
@@ -109,13 +114,21 @@ pub fn inject_text(docs: &[&Doc]) -> String {
 /// The prompt of a task that carries on from an earlier one (`wisp resume`, an approved resume request).
 pub fn resume_prompt(title: &str, asked: &str, report: &str) -> String {
     let report: String = report.chars().take(6000).collect();
-    format!("Carry on with an earlier task: \"{title}\".\n\nWhat was asked then:\n{asked}\n\nWhat happened (its report):\n{report}\n\nPick it up from there, on the code as it is today.")
+    format!(
+        "Carry on with an earlier task: \"{title}\".\n\nWhat was asked then:\n{asked}\n\nWhat happened (its report):\n{report}\n\nPick it up from there, on the code as it is today."
+    )
 }
 
 /// The task files of `id` among the `.wisp/`-relative paths `all` (its task file, report, transcripts).
 pub fn files_of(all: &[String], id: &str) -> Vec<String> {
     let short = repo::short(id);
-    all.iter().filter(|p| (p.starts_with("tasks/") && p.rsplit('/').next().is_some_and(|n| n.starts_with(&format!("{short}-")))) || p.starts_with(&format!("history/{id}."))).cloned().collect()
+    all.iter()
+        .filter(|p| {
+            (p.starts_with("tasks/") && p.rsplit('/').next().is_some_and(|n| n.starts_with(&format!("{short}-"))))
+                || p.starts_with(&format!("history/{id}."))
+        })
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -125,7 +138,10 @@ mod tests {
     use serde_json::json;
 
     fn d(id: &str, files: &[&str], commits: &[&str], at: i64) -> Doc {
-        Doc { path: format!(".wisp/tasks/{id}.task.yml"), doc: json!({ "id": id, "title": format!("T {id}"), "files": files, "commits": commits, "createdAt": at, "spec": { "prompt": "do it" } }) }
+        Doc {
+            path: format!(".wisp/tasks/{id}.task.yml"),
+            doc: json!({ "id": id, "title": format!("T {id}"), "files": files, "commits": commits, "createdAt": at, "spec": { "prompt": "do it" } }),
+        }
     }
 
     #[test]
@@ -184,14 +200,17 @@ pub fn repo_list(all: &[Doc], path: Option<&str>, agent: Option<&str>, grep: Opt
         .filter(|d| path.as_deref().is_none_or(|p| d.files().iter().any(|f| f.starts_with(p.trim_end_matches('/')))))
         .filter(|d| agent.as_deref().is_none_or(|a| d.doc.pointer("/spec/agent").and_then(Value::as_str) == Some(a)))
         .filter(|d| {
-            grep.as_deref().is_none_or(|g| format!("{} {}", d.title(), d.doc.pointer("/spec/prompt").and_then(Value::as_str).unwrap_or_default()).to_lowercase().contains(g))
+            grep.as_deref().is_none_or(|g| {
+                format!("{} {}", d.title(), d.doc.pointer("/spec/prompt").and_then(Value::as_str).unwrap_or_default())
+                    .to_lowercase()
+                    .contains(g)
+            })
         })
         .map(repo_task)
         .collect();
     out.sort_by_key(|t| std::cmp::Reverse(t.created_at));
     out
 }
-
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
@@ -200,12 +219,19 @@ mod repo_list_tests {
     use serde_json::json;
 
     fn doc(id: &str, at: i64, agent: &str, prompt: &str, files: &[&str]) -> Doc {
-        Doc { path: format!(".wisp/tasks/{id}.task.yml"), doc: json!({ "id": id, "title": format!("task {id}"), "createdAt": at, "level": "report", "trackedBy": "ada", "spec": { "agent": agent, "prompt": prompt }, "commits": ["a1", "b2"], "pr": "#12", "files": files }) }
+        Doc {
+            path: format!(".wisp/tasks/{id}.task.yml"),
+            doc: json!({ "id": id, "title": format!("task {id}"), "createdAt": at, "level": "report", "trackedBy": "ada", "spec": { "agent": agent, "prompt": prompt }, "commits": ["a1", "b2"], "pr": "#12", "files": files }),
+        }
     }
 
     #[test]
     fn the_repo_tab_lists_the_repos_tracked_tasks_newest_first_with_the_clis_filters() {
-        let all = [doc("t1", 10, "claude", "fix the login", &["auth/login.ts"]), doc("t2", 30, "codex", "add search", &["web/search.ts"]), doc("t3", 20, "claude", "rename auth", &["auth/a.ts", "web/b.ts"])];
+        let all = [
+            doc("t1", 10, "claude", "fix the login", &["auth/login.ts"]),
+            doc("t2", 30, "codex", "add search", &["web/search.ts"]),
+            doc("t3", 20, "claude", "rename auth", &["auth/a.ts", "web/b.ts"]),
+        ];
         let ids = |l: Vec<wisp_history_api::RepoTask>| l.into_iter().map(|t| t.id).collect::<Vec<_>>();
         assert_eq!(ids(repo_list(&all, None, None, None)), ["t2", "t3", "t1"]);
         assert_eq!(ids(repo_list(&all, Some("auth/"), None, None)), ["t3", "t1"]);

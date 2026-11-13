@@ -73,8 +73,27 @@ pub fn whole_from(n: usize) -> usize {
 /// What a stub's body keeps: its folded row (prompt, who, when, status, mode, harness and model), Fork and
 /// the checkpoint (in `ext`), and what the usage card sums (`stats`).
 const KEEP: &[&str] = &[
-    "id", "sessionId", "idx", "prompt", "agent", "model", "effort", "account", "mode", "attachments", "by", "status", "startedAt",
-    "endedAt", "held", "stats", "isError", "changedFiles", "refusal", "limit", "nEvents",
+    "id",
+    "sessionId",
+    "idx",
+    "prompt",
+    "agent",
+    "model",
+    "effort",
+    "account",
+    "mode",
+    "attachments",
+    "by",
+    "status",
+    "startedAt",
+    "endedAt",
+    "held",
+    "stats",
+    "isError",
+    "changedFiles",
+    "refusal",
+    "limit",
+    "nEvents",
 ];
 
 /// A turn row (`{id, session_id, idx, status, started_at, ended_at, prompt, answer, body}`) as a stub: the
@@ -82,7 +101,8 @@ const KEEP: &[&str] = &[
 /// (its folded row says what it did), and every plugin's `ext` but runtime's edits (`ext["wisp.runtime"].changes`,
 /// most of a turn's bytes). `body.stub` says it is one.
 pub fn stub_row(row: &Map<String, Value>) -> Map<String, Value> {
-    let mut out: Map<String, Value> = row.iter().filter(|(k, _)| k.as_str() != "body" && k.as_str() != "answer").map(|(k, v)| (k.clone(), v.clone())).collect();
+    let mut out: Map<String, Value> =
+        row.iter().filter(|(k, _)| k.as_str() != "body" && k.as_str() != "answer").map(|(k, v)| (k.clone(), v.clone())).collect();
     out.insert("body".into(), Value::Object(stub_body(row.get("body").and_then(Value::as_object))));
     out
 }
@@ -191,7 +211,9 @@ mod tests {
 
     #[test]
     fn a_compact_now_stub_keeps_what_it_did() {
-        let r = row(json!({ "id": "t", "body": { "by": "compact", "presentation": { "blocks": [{ "type": "markdown", "text": "Compacted 80k to 12k" }, { "type": "code", "code": "x" }] } } }));
+        let r = row(
+            json!({ "id": "t", "body": { "by": "compact", "presentation": { "blocks": [{ "type": "markdown", "text": "Compacted 80k to 12k" }, { "type": "code", "code": "x" }] } } }),
+        );
         assert_eq!(stub_row(&r)["body"]["presentation"], json!({ "blocks": [{ "type": "markdown", "text": "Compacted 80k to 12k" }] }));
     }
 

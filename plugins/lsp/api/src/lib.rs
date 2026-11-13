@@ -30,7 +30,11 @@ impl Command for Ask {
     const ID: &'static str = "lsp.ask";
     type Args = AskArgs;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <AskArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <AskArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <AskArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <AskArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
     type Out = LspAnswer;
 }
@@ -42,7 +46,11 @@ impl Command for Install {
     const ID: &'static str = "lsp.install";
     type Args = InstallArgs;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <InstallArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <InstallArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <InstallArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <InstallArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
     type Out = Installed;
 }
@@ -54,62 +62,25 @@ mod tests {
 
     #[test]
     fn answers_are_v1_json() {
-        let none = LspAnswer::NoServer {
-            lsp: (),
-            lang: Some(Lang::Py),
-            install: Some("Python".into()),
-        };
-        assert_eq!(
-            serde_json::to_value(&none).ok(),
-            Some(json!({ "lsp": null, "lang": "py", "install": "Python" }))
-        );
-        let none = LspAnswer::NoServer {
-            lsp: (),
-            lang: None,
-            install: None,
-        };
-        assert_eq!(
-            serde_json::to_value(&none).ok(),
-            Some(json!({ "lsp": null, "lang": null, "install": null }))
-        );
-        let hits = LspAnswer::Hits {
-            lsp: "TypeScript".into(),
-            hits: vec![Hit {
-                path: "a.js".into(),
-                line: 1,
-                col: 17,
-                text: "x".into(),
-            }],
-        };
+        let none = LspAnswer::NoServer { lsp: (), lang: Some(Lang::Py), install: Some("Python".into()) };
+        assert_eq!(serde_json::to_value(&none).ok(), Some(json!({ "lsp": null, "lang": "py", "install": "Python" })));
+        let none = LspAnswer::NoServer { lsp: (), lang: None, install: None };
+        assert_eq!(serde_json::to_value(&none).ok(), Some(json!({ "lsp": null, "lang": null, "install": null })));
+        let hits =
+            LspAnswer::Hits { lsp: "TypeScript".into(), hits: vec![Hit { path: "a.js".into(), line: 1, col: 17, text: "x".into() }] };
         assert_eq!(
             serde_json::to_value(&hits).ok(),
-            Some(
-                json!({ "lsp": "TypeScript", "hits": [{ "path": "a.js", "line": 1, "col": 17, "text": "x" }] })
-            )
+            Some(json!({ "lsp": "TypeScript", "hits": [{ "path": "a.js", "line": 1, "col": 17, "text": "x" }] }))
         );
-        let ren = LspAnswer::Renamed {
-            lsp: "Go".into(),
-            files: vec!["a.go".into()],
-            count: 2,
-        };
-        assert_eq!(
-            serde_json::to_value(&ren).ok(),
-            Some(json!({ "lsp": "Go", "files": ["a.go"], "count": 2 }))
-        );
+        let ren = LspAnswer::Renamed { lsp: "Go".into(), files: vec!["a.go".into()], count: 2 };
+        assert_eq!(serde_json::to_value(&ren).ok(), Some(json!({ "lsp": "Go", "files": ["a.go"], "count": 2 })));
         let d = LspAnswer::Diagnostics {
             lsp: "Rust".into(),
-            diagnostics: vec![Diagnostic {
-                line: 2,
-                col: 3,
-                severity: Severity::Warning,
-                message: "m".into(),
-            }],
+            diagnostics: vec![Diagnostic { line: 2, col: 3, severity: Severity::Warning, message: "m".into() }],
         };
         assert_eq!(
             serde_json::to_value(&d).ok(),
-            Some(
-                json!({ "lsp": "Rust", "diagnostics": [{ "line": 2, "col": 3, "severity": "warning", "message": "m" }] })
-            )
+            Some(json!({ "lsp": "Rust", "diagnostics": [{ "line": 2, "col": 3, "severity": "warning", "message": "m" }] }))
         );
     }
 
@@ -130,21 +101,15 @@ mod tests {
 
     #[test]
     fn ask_args_flatten_the_route_body() {
-        let a: Option<AskArgs> = serde_json::from_value(json!({ "id": "s1", "op": "rename", "path": "a.ts", "line": 2, "col": 3, "newName": "sum" })).ok();
+        let a: Option<AskArgs> =
+            serde_json::from_value(json!({ "id": "s1", "op": "rename", "path": "a.ts", "line": 2, "col": 3, "newName": "sum" })).ok();
         let a = a.map(|a| (a.id, a.request.op, a.request.line(), a.request.new_name));
         assert_eq!(a, Some(("s1".into(), Op::Rename, 2, Some("sum".into()))));
     }
 
     #[test]
     fn positions_default_to_one() {
-        let r = LspRequest {
-            op: Op::Hover,
-            path: "a".into(),
-            text: None,
-            line: Some(0),
-            col: None,
-            new_name: None,
-        };
+        let r = LspRequest { op: Op::Hover, path: "a".into(), text: None, line: Some(0), col: None, new_name: None };
         assert_eq!((r.line(), r.col()), (1, 1));
     }
 

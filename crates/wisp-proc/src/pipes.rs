@@ -15,9 +15,7 @@ use tokio::task::JoinHandle;
 use crate::child::{ChildControl, ChildHandle};
 use crate::resolve::Resolved;
 use crate::tree::{self, Tree};
-use crate::{
-    Child, Exit, KillReport, Output, ProcError, PtySize, Result, Signal, SpawnOpts, Stream, sys,
-};
+use crate::{Child, Exit, KillReport, Output, ProcError, PtySize, Result, Signal, SpawnOpts, Stream, sys};
 
 const CHUNK: usize = 64 * 1024;
 /// After the child exits, how long a read of its output may wait with nothing coming before the reader
@@ -41,14 +39,7 @@ pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts) -> Result<Child> 
         cmd.env_remove(k);
     }
     cmd.envs(opts.env.set.iter().map(|(k, v)| (k, v)));
-    cmd.stdin(if opts.no_stdin {
-        Stdio::null()
-    } else {
-        Stdio::piped()
-    })
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .kill_on_drop(false);
+    cmd.stdin(if opts.no_stdin { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(false);
     own_group(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| ProcError::from_spawn(bin, &e))?;
     let pid = child.id().ok_or_else(|| ProcError::spawn(bin, "no pid"))?;
@@ -79,22 +70,9 @@ pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts) -> Result<Child> 
         tracing::debug!(pid, code = ?exit.code, signal = ?exit.signal, "exit");
         let _ = exit_tx.send(Some(exit));
     });
-    let control = PipeControl {
-        input: Mutex::new(input),
-        tree,
-        alive,
-    };
-    let handle = ChildHandle::new(
-        pid,
-        false,
-        opts.grace.unwrap_or(crate::KILL_GRACE),
-        Arc::new(control),
-        exit_rx,
-    );
-    Ok(Child {
-        handle,
-        output: out_rx,
-    })
+    let control = PipeControl { input: Mutex::new(input), tree, alive };
+    let handle = ChildHandle::new(pid, false, opts.grace.unwrap_or(crate::KILL_GRACE), Arc::new(control), exit_rx);
+    Ok(Child { handle, output: out_rx })
 }
 
 /// Output first, then the exit: the last lines arrive before `exited` resolves. Each reader stops at the
@@ -139,13 +117,7 @@ pub(crate) async fn pump(mut s: impl AsyncRead + Unpin, stream: Stream, tx: mpsc
             None | Some(Ok(0) | Err(_)) => break,
             // Nobody reads any more: keep draining so the child never blocks on a full pipe.
             Some(Ok(n)) if listening => {
-                listening = tx
-                    .send(Output {
-                        stream,
-                        data: buf[..n].to_vec(),
-                    })
-                    .await
-                    .is_ok();
+                listening = tx.send(Output { stream, data: buf[..n].to_vec() }).await.is_ok();
             }
             Some(Ok(_)) => {}
         }
@@ -154,12 +126,7 @@ pub(crate) async fn pump(mut s: impl AsyncRead + Unpin, stream: Stream, tx: mpsc
 
 async fn feed(mut stdin: tokio::process::ChildStdin, mut rx: mpsc::UnboundedReceiver<Vec<u8>>) {
     while let Some(bytes) = rx.recv().await {
-        if stdin
-            .write_all(&bytes)
-            .await
-            .and(stdin.flush().await)
-            .is_err()
-        {
+        if stdin.write_all(&bytes).await.and(stdin.flush().await).is_err() {
             break; // it closed its input or exited
         }
     }
@@ -171,16 +138,10 @@ pub(crate) fn exit_of(status: std::process::ExitStatus) -> Exit {
     {
         use std::os::unix::process::ExitStatusExt as _;
         if let Some(sig) = status.signal() {
-            return Exit {
-                code: None,
-                signal: Some(sys::signal_name(sig)),
-            };
+            return Exit { code: None, signal: Some(sys::signal_name(sig)) };
         }
     }
-    Exit {
-        code: status.code(),
-        signal: None,
-    }
+    Exit { code: status.code(), signal: None }
 }
 
 #[cfg(unix)]
@@ -222,17 +183,8 @@ pub(crate) fn sig_number(sig: Signal) -> i32 {
 }
 
 /// `tree::kill` polls with sleeps: off the runtime's workers.
-pub(crate) fn kill_tree(
-    tree: Tree,
-    alive: bool,
-    sig: Signal,
-    grace: Duration,
-) -> BoxFuture<'static, KillReport> {
-    Box::pin(async move {
-        tokio::task::spawn_blocking(move || tree::kill(&tree, alive, sig_number(sig), grace))
-            .await
-            .unwrap_or_default()
-    })
+pub(crate) fn kill_tree(tree: Tree, alive: bool, sig: Signal, grace: Duration) -> BoxFuture<'static, KillReport> {
+    Box::pin(async move { tokio::task::spawn_blocking(move || tree::kill(&tree, alive, sig_number(sig), grace)).await.unwrap_or_default() })
 }
 
 struct PipeControl {
@@ -244,17 +196,10 @@ struct PipeControl {
 impl ChildControl for PipeControl {
     fn write(&self, data: Vec<u8>) -> Result<()> {
         let guard = self.input.lock().unwrap_or_else(PoisonError::into_inner);
-        guard
-            .as_ref()
-            .ok_or(ProcError::StdinClosed)?
-            .send(data)
-            .map_err(|_| ProcError::Exited)
+        guard.as_ref().ok_or(ProcError::StdinClosed)?.send(data).map_err(|_| ProcError::Exited)
     }
     fn close_stdin(&self) {
-        self.input
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
+        self.input.lock().unwrap_or_else(PoisonError::into_inner).take();
     }
     fn resize(&self, _size: PtySize) -> Result<()> {
         Err(ProcError::Unsupported("resize without a pty"))
@@ -263,12 +208,7 @@ impl ChildControl for PipeControl {
         signal_tree(&self.tree, &self.alive, sig, whole)
     }
     fn kill(&self, sig: Signal, grace: Duration) -> BoxFuture<'static, KillReport> {
-        kill_tree(
-            self.tree.clone(),
-            self.alive.load(Ordering::SeqCst),
-            sig,
-            grace,
-        )
+        kill_tree(self.tree.clone(), self.alive.load(Ordering::SeqCst), sig, grace)
     }
 }
 

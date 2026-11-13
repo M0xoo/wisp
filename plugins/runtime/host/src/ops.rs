@@ -6,13 +6,9 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use wisp_runtime_api::commands::{
-    ActivityPage, CardArgs, Created, FollowedUp, ListArgs, QueueEditArgs,
-};
+use wisp_runtime_api::commands::{ActivityPage, CardArgs, Created, FollowedUp, ListArgs, QueueEditArgs};
 use wisp_runtime_api::events::SessionDeleted;
-use wisp_runtime_api::model::{
-    Activity, Presentation, Session, SessionState, Step, Summary, Tone, Turn, TurnStatus,
-};
+use wisp_runtime_api::model::{Activity, Presentation, Session, SessionState, Step, Summary, Tone, Turn, TurnStatus};
 use wisp_runtime_api::{SessionId, TurnId};
 use wisp_runtime_core::blocks::{PARSER_VERSION, presentation};
 use wisp_runtime_core::land;
@@ -25,11 +21,7 @@ use crate::runtime::Runtime;
 
 impl Runtime {
     /// Loads the task under its lock, lets `f` change it, writes it.
-    pub(crate) async fn edit(
-        self: &Arc<Self>,
-        id: &str,
-        f: impl FnOnce(&mut Session) -> Result<()>,
-    ) -> Result<Session> {
+    pub(crate) async fn edit(self: &Arc<Self>, id: &str, f: impl FnOnce(&mut Session) -> Result<()>) -> Result<Session> {
         let _guard = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
         f(&mut s)?;
@@ -44,10 +36,7 @@ impl Runtime {
         }
         self.edit(id, |s| {
             s.title = title;
-            s.ext.insert(
-                "wisp.runtime".into(),
-                serde_json::json!({ "titleAuto": false }),
-            );
+            s.ext.insert("wisp.runtime".into(), serde_json::json!({ "titleAuto": false }));
             Ok(())
         })
         .await
@@ -154,9 +143,7 @@ impl Runtime {
         let running = self.run_state(id) != queue::Run::Idle;
         self.edit(id, |s| {
             if running && state != SessionState::Running {
-                return Err(RuntimeError::Conflict(
-                    "it is still working: stop it first".into(),
-                ));
+                return Err(RuntimeError::Conflict("it is still working: stop it first".into()));
             }
             s.state = state;
             s.unread = false;
@@ -184,13 +171,7 @@ impl Runtime {
         .map(drop)
     }
 
-    pub async fn turn_set_ext(
-        self: &Arc<Self>,
-        id: &str,
-        turn: &str,
-        plugin: &str,
-        value: Value,
-    ) -> Result<()> {
+    pub async fn turn_set_ext(self: &Arc<Self>, id: &str, turn: &str, plugin: &str, value: Value) -> Result<()> {
         let _guard = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
         let mut t = self.repo.turn(turn).await?;
@@ -229,9 +210,15 @@ impl Runtime {
         }
         let s = self.repo.session(id).await?;
         // a task with no folder has nowhere to run it: never the server's own folder
-        let dir = wisp_runtime_api::paths::Folder::of(&s.cwd).map_err(|e| RuntimeError::Invalid(format!("This task has no folder to run a command in ({e}).")))?;
-        let opts = wisp_proc::ExecOpts { cwd: Some(dir.into_path()), timeout: Some(std::time::Duration::from_secs(120)), ..wisp_proc::ExecOpts::default() };
-        let r = self.proc.exec("sh", &["-c".to_owned(), command.to_owned()], opts).await.map_err(|e| RuntimeError::Invalid(e.to_string()))?;
+        let dir = wisp_runtime_api::paths::Folder::of(&s.cwd)
+            .map_err(|e| RuntimeError::Invalid(format!("This task has no folder to run a command in ({e}).")))?;
+        let opts = wisp_proc::ExecOpts {
+            cwd: Some(dir.into_path()),
+            timeout: Some(std::time::Duration::from_secs(120)),
+            ..wisp_proc::ExecOpts::default()
+        };
+        let r =
+            self.proc.exec("sh", &["-c".to_owned(), command.to_owned()], opts).await.map_err(|e| RuntimeError::Invalid(e.to_string()))?;
         let mut out = r.stdout_text();
         out.push_str(&r.stderr_text());
         let cut = out.len().saturating_sub(64 * 1024);
@@ -244,11 +231,7 @@ impl Runtime {
         let _guard = self.task_lock(id).await;
         let key = id.to_owned();
         // turns, events and queue items go with the row (ON DELETE CASCADE): one change row for the task
-        let gone = self
-            .repo
-            .store
-            .write(move |w| w.del("session", key.as_str()))
-            .await?;
+        let gone = self.repo.store.write(move |w| w.del("session", key.as_str())).await?;
         if !gone {
             return Err(RuntimeError::NoTask(id.to_owned()));
         }
@@ -265,9 +248,7 @@ impl Runtime {
         {
             let _ = tokio::fs::remove_dir_all(shots.join(id)).await;
         }
-        self.host.emit(Emitted::Deleted(SessionDeleted {
-            id: SessionId::from(id),
-        }));
+        self.host.emit(Emitted::Deleted(SessionDeleted { id: SessionId::from(id) }));
         Ok(())
     }
 
@@ -277,21 +258,14 @@ impl Runtime {
         let s = self
             .edit(a.id.as_str(), |s| {
                 let mut held = s.queue_held;
-                let mut q = Queue {
-                    items: &mut s.queue,
-                    held: &mut held,
-                };
+                let mut q = Queue { items: &mut s.queue, held: &mut held };
                 for id in &a.remove {
                     queue::remove(&mut q, id);
                 }
                 let ids: Vec<String> = a.items.iter().map(|i| i.id.clone()).collect();
                 queue::reorder(&mut q, &ids);
                 for i in &a.items {
-                    let before = q
-                        .items
-                        .iter()
-                        .find(|x| x.id == i.id)
-                        .map(|x| x.text.clone());
+                    let before = q.items.iter().find(|x| x.id == i.id).map(|x| x.text.clone());
                     if before.is_some_and(|b| b != i.text) {
                         queue::edit_text(&mut q, &i.id, &i.text);
                     }
@@ -316,16 +290,8 @@ impl Runtime {
     pub async fn queue_merge(self: &Arc<Self>, id: &str, ids: &[String]) -> Result<()> {
         self.edit(id, |s| {
             let mut held = s.queue_held;
-            if !queue::merge(
-                &mut Queue {
-                    items: &mut s.queue,
-                    held: &mut held,
-                },
-                ids,
-            ) {
-                return Err(RuntimeError::Invalid(
-                    "pick two or more of your queued follow-ups".into(),
-                ));
+            if !queue::merge(&mut Queue { items: &mut s.queue, held: &mut held }, ids) {
+                return Err(RuntimeError::Invalid("pick two or more of your queued follow-ups".into()));
             }
             Ok(())
         })
@@ -336,17 +302,8 @@ impl Runtime {
     pub async fn queue_text(self: &Arc<Self>, id: &str, item: &str, text: &str) -> Result<()> {
         self.edit(id, |s| {
             let mut held = s.queue_held;
-            if !queue::edit_text(
-                &mut Queue {
-                    items: &mut s.queue,
-                    held: &mut held,
-                },
-                item,
-                text,
-            ) {
-                return Err(RuntimeError::Invalid(
-                    "no such follow-up of yours in the queue".into(),
-                ));
+            if !queue::edit_text(&mut Queue { items: &mut s.queue, held: &mut held }, item, text) {
+                return Err(RuntimeError::Invalid("no such follow-up of yours in the queue".into()));
             }
             Ok(())
         })
@@ -361,15 +318,8 @@ impl Runtime {
         let s = self
             .edit(id, |s| {
                 let mut held = s.queue_held;
-                let (plan, _) = queue::send_now(
-                    &mut Queue {
-                        items: &mut s.queue,
-                        held: &mut held,
-                    },
-                    run,
-                    item,
-                )
-                .ok_or_else(|| RuntimeError::Invalid("no such queued follow-up".into()))?;
+                let (plan, _) = queue::send_now(&mut Queue { items: &mut s.queue, held: &mut held }, run, item)
+                    .ok_or_else(|| RuntimeError::Invalid("no such queued follow-up".into()))?;
                 s.queue_held = held;
                 match plan {
                     SendNow::Start(i) => start = Some(i),
@@ -381,14 +331,8 @@ impl Runtime {
             })
             .await?;
         match start {
-            Some(i) => Ok(FollowedUp {
-                turn_id: Some(self.start_turn(s, i).await?),
-                queued: None,
-            }),
-            None => Ok(FollowedUp {
-                turn_id: None,
-                queued: Some(item.to_owned()),
-            }),
+            Some(i) => Ok(FollowedUp { turn_id: Some(self.start_turn(s, i).await?), queued: None }),
+            None => Ok(FollowedUp { turn_id: None, queued: Some(item.to_owned()) }),
         }
     }
 
@@ -405,21 +349,9 @@ impl Runtime {
             return self.kick(s).await.map(drop);
         }
         let held = t.held.clone();
-        let harness = self
-            .harness(&t.agent)
-            .map(|h| h.info().name.clone())
-            .unwrap_or_default();
-        let label = held
-            .as_ref()
-            .and_then(|h| h.data.get("label"))
-            .and_then(Value::as_str)
-            .unwrap_or("Its usage")
-            .to_owned();
-        t.presentation = Some(land::skipped(
-            held.as_ref().map_or("", |h| h.kind.as_str()),
-            &label,
-            &harness,
-        ));
+        let harness = self.harness(&t.agent).map(|h| h.info().name.clone()).unwrap_or_default();
+        let label = held.as_ref().and_then(|h| h.data.get("label")).and_then(Value::as_str).unwrap_or("Its usage").to_owned();
+        t.presentation = Some(land::skipped(held.as_ref().map_or("", |h| h.kind.as_str()), &label, &harness));
         t.status = TurnStatus::Stopped;
         t.ended_at = Some(self.now());
         s.state = SessionState::Done;
@@ -428,27 +360,12 @@ impl Runtime {
     }
 
     /// A line in a turn's activity from wisp itself (Auto's check, a repair, a hand-over).
-    pub async fn note(
-        self: &Arc<Self>,
-        id: &str,
-        turn: Option<&str>,
-        label: &str,
-        tone: Option<Tone>,
-    ) -> Result<()> {
+    pub async fn note(self: &Arc<Self>, id: &str, turn: Option<&str>, label: &str, tone: Option<Tone>) -> Result<()> {
         let tid = match turn {
             Some(t) => t.to_owned(),
-            None => self
-                .repo
-                .turns(id, None, Some(1))
-                .await?
-                .pop()
-                .map(|t| t.id.0)
-                .ok_or_else(|| RuntimeError::NoTurn("last".into()))?,
+            None => self.repo.turns(id, None, Some(1)).await?.pop().map(|t| t.id.0).ok_or_else(|| RuntimeError::NoTurn("last".into()))?,
         };
-        let a = Activity::Notice {
-            text: label.chars().take(300).collect(),
-            tone,
-        };
+        let a = Activity::Notice { text: label.chars().take(300).collect(), tone };
         self.add_row(id, &tid, a).await
     }
 
@@ -456,21 +373,13 @@ impl Runtime {
     pub(crate) async fn add_row(self: &Arc<Self>, id: &str, tid: &str, a: Activity) -> Result<()> {
         let seq = self.alloc_seq(id).await?;
         let row = rows::event_row(id, tid, seq, self.now(), &a)?;
-        self.repo
-            .store
-            .write(move |w| w.append("event", vec![row]).map(drop))
-            .await?;
-        let step = Step {
-            seq,
-            t: self.now(),
-            activity: a,
-        };
-        self.host
-            .emit(Emitted::Activity(wisp_runtime_api::events::TurnActivity {
-                session_id: id.into(),
-                turn_id: tid.into(),
-                items: vec![step],
-            }));
+        self.repo.store.write(move |w| w.append("event", vec![row]).map(drop)).await?;
+        let step = Step { seq, t: self.now(), activity: a };
+        self.host.emit(Emitted::Activity(wisp_runtime_api::events::TurnActivity {
+            session_id: id.into(),
+            turn_id: tid.into(),
+            items: vec![step],
+        }));
         Ok(())
     }
 
@@ -490,12 +399,7 @@ impl Runtime {
             is_error: t.status == TurnStatus::Error,
         };
         let Some(l) = land::settle(running, quiet, sub, || {
-            last.as_ref().and_then(|t| {
-                steps
-                    .iter()
-                    .find(|a| a.wants(&s, t, end(t)))
-                    .map(|a| a.id().to_owned())
-            })
+            last.as_ref().and_then(|t| steps.iter().find(|a| a.wants(&s, t, end(t))).map(|a| a.id().to_owned()))
         }) else {
             return Ok(());
         };
@@ -505,14 +409,13 @@ impl Runtime {
         if l.notify
             && let Some(t) = last
         {
-            self.host
-                .emit(Emitted::Finished(wisp_runtime_api::events::TurnFinished {
-                    session_id: s.id.clone(),
-                    turn_id: t.id,
-                    status: t.status,
-                    interrupted: false,
-                    summary: (*summary).clone(),
-                }));
+            self.host.emit(Emitted::Finished(wisp_runtime_api::events::TurnFinished {
+                session_id: s.id.clone(),
+                turn_id: t.id,
+                status: t.status,
+                interrupted: false,
+                summary: (*summary).clone(),
+            }));
         }
         Ok(())
     }
@@ -532,11 +435,7 @@ impl Runtime {
             ext: a.ext,
             ..Session::default()
         };
-        let p = Presentation {
-            blocks: a.blocks,
-            v: PARSER_VERSION,
-            ..Presentation::default()
-        };
+        let p = Presentation { blocks: a.blocks, v: PARSER_VERSION, ..Presentation::default() };
         let t = Turn {
             id: TurnId::new(),
             session_id: s.id.clone(),
@@ -550,14 +449,8 @@ impl Runtime {
         };
         let tid = t.id.clone();
         let summary = self.persist(&mut s, vec![t]).await?;
-        self.host
-            .emit(Emitted::Created(wisp_runtime_api::events::SessionCreated {
-                session: (*summary).clone(),
-            }));
-        Ok(Created {
-            id: s.id,
-            turn_id: Some(tid),
-        })
+        self.host.emit(Emitted::Created(wisp_runtime_api::events::SessionCreated { session: (*summary).clone() }));
+        Ok(Created { id: s.id, turn_id: Some(tid) })
     }
 
     // ---------- reads ----------
@@ -568,12 +461,8 @@ impl Runtime {
 
     /// The list, newest first, from memory (rows are rebuilt on write, never per read).
     pub fn list(&self, a: &ListArgs) -> Vec<Arc<Summary>> {
-        let mut rows: Vec<Arc<Summary>> = self
-            .lock_list()
-            .values()
-            .filter(|s| a.archived.is_none_or(|x| s.archived == x))
-            .cloned()
-            .collect();
+        let mut rows: Vec<Arc<Summary>> =
+            self.lock_list().values().filter(|s| a.archived.is_none_or(|x| s.archived == x)).cloned().collect();
         rows.sort_unstable_by_key(|x| std::cmp::Reverse(x.updated_at));
         if let Some(n) = a.limit {
             rows.truncate(n as usize);
@@ -581,12 +470,7 @@ impl Runtime {
         rows
     }
 
-    pub async fn turns(
-        &self,
-        id: &str,
-        before: Option<u32>,
-        limit: Option<u32>,
-    ) -> Result<Vec<Turn>> {
+    pub async fn turns(&self, id: &str, before: Option<u32>, limit: Option<u32>) -> Result<Vec<Turn>> {
         self.repo.turns(id, before, limit).await
     }
 
@@ -603,59 +487,34 @@ impl Runtime {
 
     pub async fn activity(&self, turn: &str, since: Option<u64>) -> Result<ActivityPage> {
         let items = self.repo.steps(turn, since).await?;
-        Ok(ActivityPage {
-            seq: items.last().map_or(since.unwrap_or(0), |s| s.seq),
-            items,
-        })
+        Ok(ActivityPage { seq: items.last().map_or(since.unwrap_or(0), |s| s.seq), items })
     }
 
     /// A turn's presentation; one made by an older parser is rebuilt from its answer (plan §4.2).
-    pub async fn presentation(
-        self: &Arc<Self>,
-        id: &str,
-        idx: Option<u32>,
-    ) -> Result<Option<Presentation>> {
+    pub async fn presentation(self: &Arc<Self>, id: &str, idx: Option<u32>) -> Result<Option<Presentation>> {
         let turns = self.repo.turns(id, idx.map(|i| i + 1), Some(1)).await?;
         let Some(mut t) = turns.into_iter().last() else {
             return Ok(None);
         };
-        let stale = t
-            .presentation
-            .as_ref()
-            .is_some_and(|p| p.v < PARSER_VERSION)
-            && t.status == TurnStatus::Done;
+        let stale = t.presentation.as_ref().is_some_and(|p| p.v < PARSER_VERSION) && t.status == TurnStatus::Done;
         if let (true, Some(text)) = (stale, t.text.clone()) {
             t.presentation = Some(presentation(&text, &self.host.blocks()));
             let row = t.clone();
             self.repo
                 .store
-                .write(move |w| {
-                    crate::repo::save_turn(w, &row)
-                        .map_err(|e| wisp_store::StoreError::Internal(e.to_string()))
-                })
+                .write(move |w| crate::repo::save_turn(w, &row).map_err(|e| wisp_store::StoreError::Internal(e.to_string())))
                 .await?;
         }
         Ok(t.presentation)
     }
 
-    pub async fn search(
-        &self,
-        q: &str,
-        limit: u32,
-    ) -> Result<Vec<wisp_runtime_api::model::SearchHit>> {
+    pub async fn search(&self, q: &str, limit: u32) -> Result<Vec<wisp_runtime_api::model::SearchHit>> {
         let text = q.to_owned();
-        let hits = self
-            .repo
-            .store
-            .read_async(move |r| r.search(&text, Some(&["session", "turn"]), limit))
-            .await?;
+        let hits = self.repo.store.read_async(move |r| r.search(&text, Some(&["session", "turn"]), limit)).await?;
         let mut out = Vec::new();
         for h in hits {
             let (sid, tid) = if h.kind == "turn" {
-                (
-                    self.repo.turn(&h.id).await.ok().map(|t| t.session_id.0),
-                    Some(h.id.clone()),
-                )
+                (self.repo.turn(&h.id).await.ok().map(|t| t.session_id.0), Some(h.id.clone()))
             } else {
                 (Some(h.id.clone()), None)
             };

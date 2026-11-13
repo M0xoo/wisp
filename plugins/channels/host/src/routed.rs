@@ -62,7 +62,12 @@ impl Conversation for Door {
         Ok(json!({}))
     }
     async fn thread(&self, _p: &Parsed) -> Option<Thread> {
-        Some(Thread { channel: "routed".into(), reference: Some(self.thread.clone()), session: None, more: std::collections::BTreeMap::new() })
+        Some(Thread {
+            channel: "routed".into(),
+            reference: Some(self.thread.clone()),
+            session: None,
+            more: std::collections::BTreeMap::new(),
+        })
     }
     /// the first reply went: the task keeps its thread, for the chat's follow-ups
     fn acked(&self, thread: Option<&Thread>, _sent: &Value) {
@@ -92,9 +97,19 @@ pub async fn handle(ctx: &Ctx, hub: Arc<dyn ChannelHub>, a: &Value) -> Result<Ht
     let s = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
     let thread = s("thread");
     let phone = hub.phone();
-    let door = Door { ctx: phone.context().await?, phone, name: s("name"), sender: s("sender"), thread: thread.clone(), said: Mutex::default(), hub: hub.clone() };
+    let door = Door {
+        ctx: phone.context().await?,
+        phone,
+        name: s("name"),
+        sender: s("sender"),
+        thread: thread.clone(),
+        said: Mutex::default(),
+        hub: hub.clone(),
+    };
     // a follow-up in that chat: the task its thread belongs to
-    let session = (a.get("follow") == Some(&Value::Bool(true))).then(|| hub.find_remote(&|r, _| r.get("routed").and_then(Value::as_str) == Some(thread.as_str())).into_iter().next()).flatten();
+    let session = (a.get("follow") == Some(&Value::Bool(true)))
+        .then(|| hub.find_remote(&|r, _| r.get("routed").and_then(Value::as_str) == Some(thread.as_str())).into_iter().next())
+        .flatten();
     if a.get("follow") == Some(&Value::Bool(true)) && session.is_none() {
         return Ok(HttpOut { status: 404, body: json!({ "reply": "That task isn’t here any more, so this wasn’t sent." }) });
     }

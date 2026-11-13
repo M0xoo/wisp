@@ -140,7 +140,17 @@ pub fn hold_for(windows: &[Win]) -> Option<Hold> {
         if at < line || out.as_ref().is_some_and(|(o, _)| at <= *o) {
             continue;
         }
-        out = Some((at, Hold { id: w.id.clone(), label: w.label.clone(), used: w.used, to: [(w.used + w.est[0]).min(1.0), (w.used + w.est[2]).min(1.0)], resets_at: w.resets_at, line }));
+        out = Some((
+            at,
+            Hold {
+                id: w.id.clone(),
+                label: w.label.clone(),
+                used: w.used,
+                to: [(w.used + w.est[0]).min(1.0), (w.used + w.est[2]).min(1.0)],
+                resets_at: w.resets_at,
+                line,
+            },
+        ));
     }
     out.map(|(_, h)| h)
 }
@@ -170,7 +180,11 @@ pub fn message(h: &Hold) -> String {
         let to = hold_to(h);
         format!("is at {}; this would likely take it {}", pct(h.used), if to == "past the limit" { to } else { format!("to {to}") })
     };
-    format!("{} usage window {where_}, past your {} line (Settings → Usage → Ask near the limit). Send it again with confirmLimit: true (the CLI: --yes) to go ahead anyway, only if the user agreed.", h.label, pct(h.line))
+    format!(
+        "{} usage window {where_}, past your {} line (Settings → Usage → Ask near the limit). Send it again with confirmLimit: true (the CLI: --yes) to go ahead anyway, only if the user agreed.",
+        h.label,
+        pct(h.line)
+    )
 }
 
 /// When a held run goes by itself: its window's reset, or in an hour when that isn't known.
@@ -179,7 +193,14 @@ pub fn until(h: &Hold, now: i64) -> i64 {
 }
 
 /// The windows for the rule: each with its line after any yes (`acked`), and est = (units + running) × rate.
-pub fn windows(list: &[WindowNow], line: Option<f64>, units: Option<[f64; 3]>, running_units: f64, rate: &dyn Fn(&WindowNow) -> Option<f64>, acked: &dyn Fn(&WindowNow) -> f64) -> Vec<Win> {
+pub fn windows(
+    list: &[WindowNow],
+    line: Option<f64>,
+    units: Option<[f64; 3]>,
+    running_units: f64,
+    rate: &dyn Fn(&WindowNow) -> Option<f64>,
+    acked: &dyn Fn(&WindowNow) -> f64,
+) -> Vec<Win> {
     list.iter()
         .map(|w| {
             let est = rate(w).map_or([0.0; 3], |r| units.unwrap_or([0.0; 3]).map(|x| (x + running_units) * r));
@@ -204,7 +225,14 @@ mod tests {
         assert_eq!(next_line(Some(0.9), 0.9), Some(0.95));
         assert_eq!(next_line(Some(0.9), 0.95), Some(0.99));
         assert_eq!(next_line(Some(0.9), 0.99), None, "then not until the reset");
-        let w = |id: &str, used: f64, mid: f64| Win { id: id.into(), label: id.into(), used, resets_at: Some(9), line: Some(0.9), est: [mid / 2.0, mid, mid * 2.0] };
+        let w = |id: &str, used: f64, mid: f64| Win {
+            id: id.into(),
+            label: id.into(),
+            used,
+            resets_at: Some(9),
+            line: Some(0.9),
+            est: [mid / 2.0, mid, mid * 2.0],
+        };
         assert!(hold_for(&[w("5h", 0.5, 0.1)]).is_none(), "60%: under the line");
         let h = hold_for(&[w("5h", 0.85, 0.06), w("week", 0.88, 0.04)]).unwrap();
         assert_eq!(h.id, "week", "the one nearest its limit");
@@ -217,13 +245,25 @@ mod tests {
 
     #[test]
     fn the_estimate_is_what_runs_like_this_took_and_a_follow_up_at_least_this_tasks_median() {
-        let runs: Vec<Run> = [1.0, 2.0, 3.0, 4.0].into_iter().map(|u| run(u, true)).chain([run(0.5, false), Run { inner: true, ..run(50.0, false) }]).collect();
+        let runs: Vec<Run> = [1.0, 2.0, 3.0, 4.0]
+            .into_iter()
+            .map(|u| run(u, true))
+            .chain([run(0.5, false), Run { inner: true, ..run(50.0, false) }])
+            .collect();
         assert_eq!(units(&runs, Kind::First, &[]), Some([3.0, 4.0, 4.0]));
-        assert_eq!(units(&runs, Kind::FollowUp, &[]), Some([3.0, 4.0, 4.0]), "too few follow-ups: the first runs'; a subagent's never counts");
+        assert_eq!(
+            units(&runs, Kind::FollowUp, &[]),
+            Some([3.0, 4.0, 4.0]),
+            "too few follow-ups: the first runs'; a subagent's never counts"
+        );
         assert_eq!(units(&runs, Kind::FollowUp, &[6.0]), Some([3.0, 6.0, 6.0]), "this task's runs are big");
         assert_eq!(units(&runs[..2], Kind::First, &[]), None, "nothing to go on yet");
         let w = WindowNow { id: "5h".into(), label: "5-hour".into(), used: 0.5, resets_at: Some(10), ms: Some(10) };
-        assert_eq!(rate(Some(0.2), &w, &runs, "default"), Some(0.2f64.min(0.5 / 60.5)), "never more than the window's use over wisp's units");
+        assert_eq!(
+            rate(Some(0.2), &w, &runs, "default"),
+            Some(0.2f64.min(0.5 / 60.5)),
+            "never more than the window's use over wisp's units"
+        );
         assert_eq!(rate(None, &w, &runs, "default"), None);
         let ws = windows(&[w], Some(0.9), Some([1.0, 2.0, 3.0]), 1.0, &|_| Some(0.1), &|_| 0.0);
         assert!(ws[0].est.iter().zip([0.2, 0.3, 0.4]).all(|(a, b)| (a - b).abs() < 1e-9), "{:?}", ws[0].est);

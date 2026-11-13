@@ -18,15 +18,8 @@ use crate::writer::Writer;
 /// One buffered write, as the error callback sees it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Buffered {
-    Append {
-        kind: String,
-        rows: Vec<Row>,
-    },
-    Patch {
-        kind: String,
-        id: Id,
-        ops: Vec<PatchOp>,
-    },
+    Append { kind: String, rows: Vec<Row> },
+    Patch { kind: String, id: Id, ops: Vec<PatchOp> },
 }
 
 pub type OnError = Arc<dyn Fn(&StoreError, &Buffered) + Send + Sync>;
@@ -39,20 +32,13 @@ pub struct CoalescerOptions {
 
 impl Default for CoalescerOptions {
     fn default() -> Self {
-        Self {
-            interval_ms: 250,
-            on_error: Arc::new(
-                |e, item| tracing::warn!(error = %e, ?item, "a coalesced write was refused"),
-            ),
-        }
+        Self { interval_ms: 250, on_error: Arc::new(|e, item| tracing::warn!(error = %e, ?item, "a coalesced write was refused")) }
     }
 }
 
 impl std::fmt::Debug for CoalescerOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CoalescerOptions")
-            .field("interval_ms", &self.interval_ms)
-            .finish_non_exhaustive()
+        f.debug_struct("CoalescerOptions").field("interval_ms", &self.interval_ms).finish_non_exhaustive()
     }
 }
 
@@ -84,9 +70,7 @@ pub struct Coalescer {
 
 impl std::fmt::Debug for Coalescer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Coalescer")
-            .field("buffered", &self.len())
-            .finish_non_exhaustive()
+        f.debug_struct("Coalescer").field("buffered", &self.len()).finish_non_exhaustive()
     }
 }
 
@@ -123,10 +107,7 @@ impl Coalescer {
                 Buffered::Append { rows: had, .. } => had.extend(rows),
                 Buffered::Patch { .. } => {}
             },
-            |rows| Buffered::Append {
-                kind: kind.to_owned(),
-                rows,
-            },
+            |rows| Buffered::Append { kind: kind.to_owned(), rows },
         )
     }
 
@@ -143,11 +124,7 @@ impl Coalescer {
                 Buffered::Patch { ops: had, .. } => had.extend(ops),
                 Buffered::Append { .. } => {}
             },
-            |ops| Buffered::Patch {
-                kind: kind.to_owned(),
-                id,
-                ops,
-            },
+            |ops| Buffered::Patch { kind: kind.to_owned(), id, ops },
         )
     }
 
@@ -209,13 +186,7 @@ impl Coalescer {
             return;
         }
         let all = batch.clone();
-        if self
-            .inner
-            .store
-            .write(move |w| all.iter().try_for_each(|item| write(w, item)))
-            .await
-            .is_ok()
-        {
+        if self.inner.store.write(move |w| all.iter().try_for_each(|item| write(w, item))).await.is_ok() {
             return;
         }
         for item in batch {
@@ -233,10 +204,7 @@ impl Coalescer {
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Buf> {
-        self.inner
-            .buf
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.inner.buf.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 

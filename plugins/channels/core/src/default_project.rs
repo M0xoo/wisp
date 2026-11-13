@@ -93,7 +93,11 @@ mod tests {
         let added_dot = [p("repo", "/w/repo/./")];
         assert_eq!(project_of("/w/repo", &added_dot).unwrap().id, "repo", "`wisp add .` kept /repo/.");
         let used = with_last_used(ps, &[task("/w/mono/ui/src", 7), task("/w/monolith", 3), task("/w/mono/ui", 4)]);
-        assert_eq!(used.iter().map(|p| p.last_used_at).collect::<Vec<_>>(), [None, Some(7), Some(3)], "its newest task, not its latest-listed");
+        assert_eq!(
+            used.iter().map(|p| p.last_used_at).collect::<Vec<_>>(),
+            [None, Some(7), Some(3)],
+            "its newest task, not its latest-listed"
+        );
         assert_eq!(default_project(&used, None).unwrap().id, "ui");
     }
 }

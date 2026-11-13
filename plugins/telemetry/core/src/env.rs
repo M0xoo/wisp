@@ -21,10 +21,7 @@ fn get<'a>(env: &'a Env, k: &str) -> Option<&'a str> {
 }
 
 fn off_word(v: &str) -> bool {
-    matches!(
-        v.to_ascii_lowercase().as_str(),
-        "0" | "false" | "no" | "off"
-    )
+    matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off")
 }
 
 /// v1 `truthy`: set, non-empty and not 0/false/no/off.
@@ -39,9 +36,7 @@ pub fn falsy(v: Option<&str>) -> bool {
 
 /// Usage stats are off (v1 `envDisabled`, less its "no key": the key is the `PostHog` sink's, ADR-0021).
 pub fn env_disabled(env: &Env) -> bool {
-    truthy(get(env, "DO_NOT_TRACK"))
-        || falsy(get(env, "WISP_TELEMETRY"))
-        || truthy(get(env, "CI"))
+    truthy(get(env, "DO_NOT_TRACK")) || falsy(get(env, "WISP_TELEMETRY")) || truthy(get(env, "CI"))
 }
 
 pub fn feedback_available(env: &Env) -> bool {

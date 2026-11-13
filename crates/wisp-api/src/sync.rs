@@ -15,36 +15,16 @@ use wisp_kernel::services::Notify;
 use wisp_kernel::{BoxFuture, Caller, Result, WireError};
 
 /// The query keys that make GET /api/events a v2 hello (packages/sync `HelloQuery`).
-pub const HELLO_KEYS: [&str; 9] = [
-    "proto_min",
-    "proto_max",
-    "client_id",
-    "build",
-    "epoch",
-    "cursor",
-    "topics",
-    "fresh",
-    "passive",
-];
+pub const HELLO_KEYS: [&str; 9] = ["proto_min", "proto_max", "client_id", "build", "epoch", "cursor", "topics", "fresh", "passive"];
 /// Command results remembered for a retry over a flaky tunnel.
 const IDEM_KEPT: usize = 10_000;
 
 /// What wisp-sync provides to the edge.
 pub trait SyncMount: Send + Sync + 'static {
     /// The v2 stream for a hello (the query) and its `Last-Event-ID`: SSE bytes, frame by frame.
-    fn events(
-        &self,
-        caller: Caller,
-        query: Vec<(String, String)>,
-        last_event_id: Option<String>,
-    ) -> Result<mpsc::Receiver<Bytes>>;
+    fn events(&self, caller: Caller, query: Vec<(String, String)>, last_event_id: Option<String>) -> Result<mpsc::Receiver<Bytes>>;
     /// A client message (sub, unsub, window, mutate) for the open stream `client`.
-    fn message(
-        &self,
-        caller: Caller,
-        client: String,
-        body: Bytes,
-    ) -> BoxFuture<'static, Result<()>>;
+    fn message(&self, caller: Caller, client: String, body: Bytes) -> BoxFuture<'static, Result<()>>;
     fn notice(&self, kind: &str, data: &Value, topic: Option<&str>);
     /// v2 streams with a non-passive subscription (a passive one never keeps a box awake)
     fn looking(&self) -> usize;
@@ -63,9 +43,7 @@ pub struct Hub {
 
 impl std::fmt::Debug for Hub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Hub")
-            .field("mounted", &self.mounted().is_some())
-            .finish_non_exhaustive()
+        f.debug_struct("Hub").field("mounted", &self.mounted().is_some()).finish_non_exhaustive()
     }
 }
 
@@ -142,10 +120,9 @@ impl Idempotency {
 pub fn command_answer(out: Result<Value>, seq: i64) -> Done {
     match out {
         Ok(result) => (200, json!({"ok": true, "seq": seq, "result": result})),
-        Err(e) => (
-            e.status(),
-            json!({"ok": false, "error": {"code": e.code, "message": e.message, "retry": e.retry}, "message": e.message}),
-        ),
+        Err(e) => {
+            (e.status(), json!({"ok": false, "error": {"code": e.code, "message": e.message, "retry": e.retry}, "message": e.message}))
+        }
     }
 }
 
@@ -185,10 +162,7 @@ mod tests {
     #[test]
     fn command_answers() {
         let (s, v) = command_answer(Ok(json!({"id": "x"})), 7);
-        assert_eq!(
-            (s, v["ok"].clone(), v["seq"].clone()),
-            (200, json!(true), json!(7))
-        );
+        assert_eq!((s, v["ok"].clone(), v["seq"].clone()), (200, json!(true), json!(7)));
         let (s, v) = command_answer(Err(WireError::forbidden("no")), 7);
         assert_eq!((s, v["error"]["code"].clone()), (403, json!("forbidden")));
     }

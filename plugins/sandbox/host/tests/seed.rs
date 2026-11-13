@@ -39,7 +39,10 @@ fn project() -> (PathBuf, serde_json::Value) {
     git(&p, &["bundle", "create", bundle.to_str().unwrap(), "--all"]);
     let b = base64::engine::general_purpose::STANDARD.encode(std::fs::read(&bundle).unwrap());
     let patch = git(&p, &["diff", "HEAD", "--binary"]);
-    (p, json!({ "name": "my app", "bundle": b, "patch": patch, "branch": "fix", "origin": "git@github.com:me/app.git", "authorName": "Ada", "authorEmail": "ada@example.com" }))
+    (
+        p,
+        json!({ "name": "my app", "bundle": b, "patch": patch, "branch": "fix", "origin": "git@github.com:me/app.git", "authorName": "Ada", "authorEmail": "ada@example.com" }),
+    )
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -47,7 +50,8 @@ async fn only_a_sandbox_takes_a_seed_and_its_setup_runs_once() {
     let home = dir("home");
     let (_p, args) = project();
     // a computer refuses: a seed would write into its ~/code
-    let here = TestApp::new().with(SandboxPlugin { inside: Some(false), home: Some(home.clone()) }).service(wisp_proc::local()).start().await;
+    let here =
+        TestApp::new().with(SandboxPlugin { inside: Some(false), home: Some(home.clone()) }).service(wisp_proc::local()).start().await;
     let no = here.call(Caller::user(), "sandbox.seed", args.clone()).await.unwrap_err();
     assert!(no.message.contains("Only a sandbox"), "{no:?}");
     let sb = TestApp::new().with(SandboxPlugin { inside: Some(true), home: Some(home.clone()) }).service(wisp_proc::local()).start().await;

@@ -17,11 +17,7 @@ impl Rng {
     }
     /// 0..n
     pub fn below(&mut self, n: usize) -> usize {
-        if n == 0 {
-            0
-        } else {
-            usize::try_from(self.next() % n as u64).unwrap_or(0)
-        }
+        if n == 0 { 0 } else { usize::try_from(self.next() % n as u64).unwrap_or(0) }
     }
     pub fn pick<'a, T>(&mut self, items: &'a [T]) -> &'a T {
         &items[self.below(items.len())]

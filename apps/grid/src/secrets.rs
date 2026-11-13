@@ -44,11 +44,10 @@ pub fn sha256_hex(s: impl AsRef<[u8]>) -> String {
 
 pub fn hex(b: &[u8]) -> String {
     use std::fmt::Write;
-    b.iter()
-        .fold(String::with_capacity(b.len() * 2), |mut s, x| {
-            let _ = write!(s, "{x:02x}");
-            s
-        })
+    b.iter().fold(String::with_capacity(b.len() * 2), |mut s, x| {
+        let _ = write!(s, "{x:02x}");
+        s
+    })
 }
 
 /// `n` random bytes.
@@ -73,13 +72,7 @@ fn gcm(key: &[u8; 32], plain: &[u8], aad: &str) -> Result<String> {
     let iv = random_bytes(12);
     let c = Aes256Gcm::new(key.into());
     let mut out = c
-        .encrypt(
-            Nonce::from_slice(&iv),
-            Payload {
-                msg: plain,
-                aad: aad.as_bytes(),
-            },
-        )
+        .encrypt(Nonce::from_slice(&iv), Payload { msg: plain, aad: aad.as_bytes() })
         .map_err(|_| GridError::Crypto("Can’t seal a secret.".into()))?;
     // aes-gcm appends the 16-byte tag; v1's format keeps it apart: iv.tag.ct
     let tag = out.split_off(out.len() - 16);
@@ -89,24 +82,14 @@ fn gcm(key: &[u8; 32], plain: &[u8], aad: &str) -> Result<String> {
 fn ungcm(key: &[u8; 32], sealed: &str, aad: &str) -> Result<Vec<u8>> {
     let damaged = || GridError::Crypto("A sealed secret is damaged.".into());
     let mut parts = sealed.split('.').map(unb64u);
-    let (Some(Some(iv)), Some(Some(tag)), Some(Some(mut ct))) =
-        (parts.next(), parts.next(), parts.next())
-    else {
+    let (Some(Some(iv)), Some(Some(tag)), Some(Some(mut ct))) = (parts.next(), parts.next(), parts.next()) else {
         return Err(damaged());
     };
     if iv.len() != 12 || tag.len() != 16 {
         return Err(damaged());
     }
     ct.extend_from_slice(&tag);
-    Aes256Gcm::new(key.into())
-        .decrypt(
-            Nonce::from_slice(&iv),
-            Payload {
-                msg: &ct,
-                aad: aad.as_bytes(),
-            },
-        )
-        .map_err(|_| damaged())
+    Aes256Gcm::new(key.into()).decrypt(Nonce::from_slice(&iv), Payload { msg: &ct, aad: aad.as_bytes() }).map_err(|_| damaged())
 }
 
 mod master;
@@ -123,9 +106,7 @@ pub struct Secrets {
 
 impl std::fmt::Debug for Secrets {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Secrets")
-            .field("kid", &self.master.current)
-            .finish_non_exhaustive()
+        f.debug_struct("Secrets").field("kid", &self.master.current).finish_non_exhaustive()
     }
 }
 
@@ -138,30 +119,17 @@ impl Secrets {
 
     /// For tests: one fixed master key.
     pub fn for_test(db: Arc<Db>, key: [u8; 32]) -> Result<Self> {
-        Self::with_masters(
-            db,
-            Masters {
-                current: "k1".into(),
-                keys: BTreeMap::from([("k1".to_owned(), key)]),
-            },
-        )
+        Self::with_masters(db, Masters { current: "k1".into(), keys: BTreeMap::from([("k1".to_owned(), key)]) })
     }
 
     fn with_masters(db: Arc<Db>, master: Masters) -> Result<Self> {
-        let kek = *master
-            .keys
-            .get(&master.current)
-            .ok_or_else(|| GridError::Crypto("no current master key".into()))?;
+        let kek = *master.keys.get(&master.current).ok_or_else(|| GridError::Crypto("no current master key".into()))?;
         // Keys derived from the master for one job each: cookie signatures, CSRF tokens.
         let mut sign_key = [0u8; 32];
         hkdf::Hkdf::<Sha256>::new(Some(&[]), &kek)
             .expand(b"wisp-grid sign", &mut sign_key)
             .map_err(|_| GridError::Crypto("hkdf".into()))?;
-        Ok(Self {
-            db,
-            master,
-            sign_key,
-        })
+        Ok(Self { db, master, sign_key })
     }
 
     /// The current master key's id.
@@ -170,11 +138,11 @@ impl Secrets {
     }
 
     fn kek(&self, kid: &str) -> Result<[u8; 32]> {
-        self.master.keys.get(kid).copied().ok_or_else(|| {
-            GridError::Crypto(format!(
-                "The master key \"{kid}\" that wrapped this data key is gone."
-            ))
-        })
+        self.master
+            .keys
+            .get(kid)
+            .copied()
+            .ok_or_else(|| GridError::Crypto(format!("The master key \"{kid}\" that wrapped this data key is gone.")))
     }
 
     fn dek(&self, user_id: &str, create: bool) -> Result<Option<[u8; 32]>> {
@@ -186,9 +154,7 @@ impl Secrets {
         let aad = format!("dek|{user_id}");
         if let Some((kid, wrapped)) = row {
             let k = ungcm(&self.kek(&kid)?, &wrapped, &aad)?;
-            return Ok(Some(<[u8; 32]>::try_from(k).map_err(|_| {
-                GridError::Crypto("A data key is damaged.".into())
-            })?));
+            return Ok(Some(<[u8; 32]>::try_from(k).map_err(|_| GridError::Crypto("A data key is damaged.".into()))?));
         }
         if !create {
             return Ok(None);
@@ -197,8 +163,11 @@ impl Secrets {
         rand::rng().fill_bytes(&mut k);
         let wrapped = gcm(&self.kek(&self.master.current)?, &k, &aad)?;
         self.db.with(|c| {
-            c.prepare_cached("INSERT INTO keys (user_id, kid, wrapped) VALUES (?1, ?2, ?3)")?
-                .execute([user_id, &self.master.current, &wrapped])
+            c.prepare_cached("INSERT INTO keys (user_id, kid, wrapped) VALUES (?1, ?2, ?3)")?.execute([
+                user_id,
+                &self.master.current,
+                &wrapped,
+            ])
         })?;
         Ok(Some(k))
     }
@@ -217,9 +186,7 @@ impl Secrets {
     }
 
     pub fn seal(&self, user_id: &str, purpose: &str, plain: &str) -> Result<()> {
-        let k = self
-            .dek(user_id, true)?
-            .ok_or_else(|| GridError::Crypto("No data key.".into()))?;
+        let k = self.dek(user_id, true)?.ok_or_else(|| GridError::Crypto("No data key.".into()))?;
         let sealed = gcm(&k, plain.as_bytes(), &format!("{user_id}|{purpose}"))?;
         self.db.with(|c| {
             c.prepare_cached(
@@ -248,10 +215,7 @@ impl Secrets {
     }
 
     pub fn drop_secret(&self, user_id: &str, purpose: &str) -> Result<()> {
-        self.db.with(|c| {
-            c.prepare_cached("DELETE FROM user_secrets WHERE user_id = ?1 AND purpose = ?2")?
-                .execute([user_id, purpose])
-        })?;
+        self.db.with(|c| c.prepare_cached("DELETE FROM user_secrets WHERE user_id = ?1 AND purpose = ?2")?.execute([user_id, purpose]))?;
         Ok(())
     }
 
@@ -260,16 +224,8 @@ impl Secrets {
         self.ensure_with(user_id, purpose, || token("", 32))
     }
 
-    pub fn ensure_with(
-        &self,
-        user_id: &str,
-        purpose: &str,
-        make: impl FnOnce() -> String,
-    ) -> Result<String> {
-        if let Some(have) = self
-            .open_secret(user_id, purpose)?
-            .filter(|s| !s.is_empty())
-        {
+    pub fn ensure_with(&self, user_id: &str, purpose: &str, make: impl FnOnce() -> String) -> Result<String> {
+        if let Some(have) = self.open_secret(user_id, purpose)?.filter(|s| !s.is_empty()) {
             return Ok(have);
         }
         let v = make();
@@ -281,9 +237,7 @@ impl Secrets {
     pub fn rewrap(&self) -> Result<usize> {
         let rows: Vec<(String, String, String)> = self.db.with(|c| {
             c.prepare_cached("SELECT user_id, kid, wrapped FROM keys WHERE kid != ?1")?
-                .query_map([&self.master.current], |r| {
-                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-                })?
+                .query_map([&self.master.current], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
                 .collect()
         })?;
         let cur = self.kek(&self.master.current)?;
@@ -292,8 +246,7 @@ impl Secrets {
             let k = ungcm(&self.kek(kid)?, wrapped, &aad)?;
             let again = gcm(&cur, &k, &aad)?;
             self.db.with(|c| {
-                c.prepare_cached("UPDATE keys SET kid = ?1, wrapped = ?2 WHERE user_id = ?3")?
-                    .execute([&self.master.current, &again, user])
+                c.prepare_cached("UPDATE keys SET kid = ?1, wrapped = ?2 WHERE user_id = ?3")?.execute([&self.master.current, &again, user])
             })?;
         }
         Ok(rows.len())
@@ -302,10 +255,8 @@ impl Secrets {
     /// Crypto-shred: the user's data key and everything sealed with it.
     pub fn forget(&self, user_id: &str) -> Result<()> {
         self.db.with(|c| {
-            c.prepare_cached("DELETE FROM user_secrets WHERE user_id = ?1")?
-                .execute([user_id])?;
-            c.prepare_cached("DELETE FROM keys WHERE user_id = ?1")?
-                .execute([user_id])
+            c.prepare_cached("DELETE FROM user_secrets WHERE user_id = ?1")?.execute([user_id])?;
+            c.prepare_cached("DELETE FROM keys WHERE user_id = ?1")?.execute([user_id])
         })?;
         Ok(())
     }

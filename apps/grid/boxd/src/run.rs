@@ -21,7 +21,17 @@ pub struct Container {
 
 impl Default for Container {
     fn default() -> Self {
-        Self { image: "wisp-grid-user".into(), runtime: "runsc".into(), network: "wisp-users".into(), memory: "1536m".into(), memory_swap: "3g".into(), cpus: 1.5, pids: 512, uid: 1000, dns: vec!["1.1.1.1".into(), "9.9.9.9".into()] }
+        Self {
+            image: "wisp-grid-user".into(),
+            runtime: "runsc".into(),
+            network: "wisp-users".into(),
+            memory: "1536m".into(),
+            memory_swap: "3g".into(),
+            cpus: 1.5,
+            pids: 512,
+            uid: 1000,
+            dns: vec!["1.1.1.1".into(), "9.9.9.9".into()],
+        }
     }
 }
 
@@ -50,7 +60,8 @@ pub fn is_id(id: &str) -> bool {
 
 /// `<user>-sb-<8 hex>` (grid/sandboxes.js): a user's own box is never a sandbox.
 fn is_sandbox_id(id: &str) -> bool {
-    id.rsplit_once("-sb-").is_some_and(|(u, h)| !u.is_empty() && h.len() == 8 && h.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+    id.rsplit_once("-sb-")
+        .is_some_and(|(u, h)| !u.is_empty() && h.len() == 8 && h.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
 }
 
 fn is_env_key(k: &str) -> bool {
@@ -92,7 +103,11 @@ pub fn check_run(req: &J, d: &Container) -> Result<Run, String> {
     if !is_id(&id) {
         return Err("run: a user id (letters, digits, - and _), please.".into());
     }
-    let port = req.get("port").and_then(J::num).filter(|p| p.fract() == 0.0 && (1024.0..=65535.0).contains(p)).ok_or("run: a port from 1024 to 65535.")?;
+    let port = req
+        .get("port")
+        .and_then(J::num)
+        .filter(|p| p.fract() == 0.0 && (1024.0..=65535.0).contains(p))
+        .ok_or("run: a port from 1024 to 65535.")?;
     let env: Vec<(String, String)> = match req.get("env") {
         Some(J::Obj(o)) => o.iter().map(|(k, v)| (k.clone(), v.text())).collect(),
         _ => Vec::new(),
@@ -111,7 +126,10 @@ pub fn check_run(req: &J, d: &Container) -> Result<Run, String> {
         return Err(format!("run: memorySwap \"{memory_swap}\" isn't a size like 1536m."));
     }
     let cpus = lim("cpus").map_or(Some(d.cpus), J::num).filter(|c| *c > 0.0 && *c <= 256.0).ok_or("run: cpus isn't a number of CPUs.")?;
-    let pids = lim("pids").map_or(Some(f64::from(u32::try_from(d.pids).unwrap_or(u32::MAX))), J::num).filter(|p| p.fract() == 0.0 && (16.0..=1_000_000.0).contains(p)).ok_or("run: pids isn't a process limit.")?;
+    let pids = lim("pids")
+        .map_or(Some(f64::from(u32::try_from(d.pids).unwrap_or(u32::MAX))), J::num)
+        .filter(|p| p.fract() == 0.0 && (16.0..=1_000_000.0).contains(p))
+        .ok_or("run: pids isn't a process limit.")?;
     let dns: Vec<String> = match req.get("dns") {
         Some(J::Arr(a)) => a.iter().map(J::text).collect(),
         Some(_) => return Err("run: dns is a list of 1 to 4 IP addresses.".into()),
@@ -143,7 +161,16 @@ pub fn container_run(c: &Container, r: &Run, resolv: &str, env_file: &str, home:
     a.extend(["-v".into(), format!("{resolv}:/etc/resolv.conf:ro")]);
     // only this box's loopback reaches it, on the same port inside, so Host headers match
     a.extend(["-p".into(), format!("127.0.0.1:{0}:{0}", r.port)]);
-    a.extend(["--memory".into(), r.memory.clone(), "--memory-swap".into(), r.memory_swap.clone(), "--cpus".into(), r.cpus.to_string(), "--pids-limit".into(), r.pids.to_string()]);
+    a.extend([
+        "--memory".into(),
+        r.memory.clone(),
+        "--memory-swap".into(),
+        r.memory_swap.clone(),
+        "--cpus".into(),
+        r.cpus.to_string(),
+        "--pids-limit".into(),
+        r.pids.to_string(),
+    ]);
     if root {
         // root in a sandbox still goes without raw sockets, device nodes and the audit log
         for cap in ["NET_RAW", "MKNOD", "AUDIT_WRITE"] {
@@ -159,7 +186,14 @@ pub fn container_run(c: &Container, r: &Run, resolv: &str, env_file: &str, home:
     a.extend(["-v".into(), format!("{home}:/home/wisp"), "-w".into(), "/home/wisp".into()]);
     // its secrets come from a 0600 file, never the command line, which `ps` shows everyone
     a.extend(["--env-file".into(), env_file.to_owned()]);
-    a.extend(["-e".into(), "HOME=/home/wisp".into(), "-e".into(), "WISP_HOST=0.0.0.0".into(), "-e".into(), format!("WISP_PORT={}", r.port)]);
+    a.extend([
+        "-e".into(),
+        "HOME=/home/wisp".into(),
+        "-e".into(),
+        "WISP_HOST=0.0.0.0".into(),
+        "-e".into(),
+        format!("WISP_PORT={}", r.port),
+    ]);
     if root {
         a.extend(["--user".into(), "0".into()]);
     }
@@ -205,7 +239,10 @@ mod tests {
         }
         // a sandbox only by its id's shape
         assert!(check_run(&req(r#"{"id":"u1-sb-0a1b2c3d","port":4100,"sandbox":true}"#), &d).is_ok_and(|r| r.sandbox));
-        assert!(check_run(&req(r#"{"id":"u1","port":4100,"sandbox":true}"#), &d).is_ok_and(|r| !r.sandbox), "a user's own box is never a sandbox");
+        assert!(
+            check_run(&req(r#"{"id":"u1","port":4100,"sandbox":true}"#), &d).is_ok_and(|r| !r.sandbox),
+            "a user's own box is never a sandbox"
+        );
         assert_eq!(env_file_text(&[("A".into(), "1".into()), ("B".into(), "x y".into())]).as_deref(), Ok("A=1\nB=x y\n"));
     }
 
@@ -214,13 +251,27 @@ mod tests {
         let c = Container::default();
         let r = check_run(&req(r#"{"id":"u1","port":4100}"#), &c).unwrap_or_else(|e| panic!("{e}"));
         let a = container_run(&c, &r, "/b/u1/resolv.conf", "/b/u1/env", "/b/u1/home").join(" ");
-        for want in ["--rm", "--runtime runsc", "--network wisp-users", "-p 127.0.0.1:4100:4100", "--cap-drop ALL", "no-new-privileges", "--user 1000:1000", "--env-file /b/u1/env", "-v /b/u1/home:/home/wisp", "--pids-limit 512", "wisp-grid-user wisp serve --port 4100"] {
+        for want in [
+            "--rm",
+            "--runtime runsc",
+            "--network wisp-users",
+            "-p 127.0.0.1:4100:4100",
+            "--cap-drop ALL",
+            "no-new-privileges",
+            "--user 1000:1000",
+            "--env-file /b/u1/env",
+            "-v /b/u1/home:/home/wisp",
+            "--pids-limit 512",
+            "wisp-grid-user wisp serve --port 4100",
+        ] {
             assert!(a.contains(want), "{want} in {a}");
         }
         assert!(!a.contains("SECRET"), "no secret on the command line");
         let sb = check_run(&req(r#"{"id":"u1-sb-0a1b2c3d","port":4101,"sandbox":true}"#), &c).unwrap_or_else(|e| panic!("{e}"));
         let a = container_run(&c, &sb, "r", "e", "h").join(" ");
-        assert!(a.contains("--user 0") && a.contains("wisp-sandbox-init") && a.contains("--cap-drop NET_RAW") && !a.contains("--cap-drop ALL"));
+        assert!(
+            a.contains("--user 0") && a.contains("wisp-sandbox-init") && a.contains("--cap-drop NET_RAW") && !a.contains("--cap-drop ALL")
+        );
         // under runc a sandbox is locked down like any box
         let runc = Container { runtime: String::new(), ..Container::default() };
         let a = container_run(&runc, &sb, "r", "e", "h").join(" ");

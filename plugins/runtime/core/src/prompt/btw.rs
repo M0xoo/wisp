@@ -21,9 +21,7 @@ const LIVE_ACTS: usize = 40;
 /// The question in "/btw did you …", or None when the text isn't a /btw.
 pub fn btw_question(text: &str) -> Option<String> {
     let t = trim(text);
-    BTW_CMD
-        .is_match(t)
-        .then(|| trim(&BTW_CMD.replace(t, "")).to_owned())
+    BTW_CMD.is_match(t).then(|| trim(&BTW_CMD.replace(t, "")).to_owned())
 }
 
 /// Marks the run as a side question (the system prompt, where the harness takes one).
@@ -59,11 +57,7 @@ fn act_label(a: &Activity) -> Option<&str> {
 fn minutes_since(now_ms: i64, started_ms: i64) -> i64 {
     // Math.max(1, Math.round(ms / 60_000))
     let d = now_ms.saturating_sub(started_ms);
-    if d <= 0 {
-        1
-    } else {
-        (d.saturating_add(30_000) / 60_000).max(1)
-    }
+    if d <= 0 { 1 } else { (d.saturating_add(30_000) / 60_000).max(1) }
 }
 
 fn running_text(t: &PastTurn<'_>, n: usize, now_ms: i64) -> String {
@@ -75,26 +69,15 @@ fn running_text(t: &PastTurn<'_>, n: usize, now_ms: i64) -> String {
     });
     let files: Vec<String> = t.files.iter().map(|f| format!("`{f}`")).collect();
     let parts = [
-        format!(
-            "### Turn {n} · {} · still running (started {} min ago)",
-            t.name,
-            minutes_since(now_ms, t.turn.started_at)
-        ),
+        format!("### Turn {n} · {} · still running (started {} min ago)", t.name, minutes_since(now_ms, t.turn.started_at)),
         format!("**User:** {}", text_mentions(&t.turn.prompt)),
         if acts.is_empty() {
             String::new()
         } else {
             let lines: Vec<String> = acts.iter().map(|a| format!("- {}", clip(a, 160))).collect();
-            format!(
-                "**What it has done so far (oldest first):**\n{}",
-                lines.join("\n")
-            )
+            format!("**What it has done so far (oldest first):**\n{}", lines.join("\n"))
         },
-        if files.is_empty() {
-            String::new()
-        } else {
-            format!("**Files it edited so far:** {}", files.join(", "))
-        },
+        if files.is_empty() { String::new() } else { format!("**Files it edited so far:** {}", files.join(", ")) },
         match said.filter(|s| !s.is_empty()) {
             Some(s) => format!("**Its latest message:** {}", truncate(s, 1200)),
             None => String::new(),
@@ -109,49 +92,29 @@ pub fn btw_digest(turns: &[PastTurn<'_>], now_ms: i64, render: Render<'_>) -> St
     let from = turns.len().saturating_sub(DIGEST_TURNS);
     let mut parts: Vec<String> = Vec::with_capacity(DIGEST_TURNS + 1);
     if from > 0 {
-        parts.push(format!(
-            "_{from} earlier turn{} left out._",
-            if from > 1 { "s" } else { "" }
-        ));
+        parts.push(format!("_{from} earlier turn{} left out._", if from > 1 { "s" } else { "" }));
     }
     for (i, t) in turns.iter().enumerate().skip(from) {
-        parts.push(if t.turn.status == TurnStatus::Running {
-            running_text(t, i + 1, now_ms)
-        } else {
-            turn_text(t, i + 1, render)
-        });
+        parts.push(if t.turn.status == TurnStatus::Running { running_text(t, i + 1, now_ms) } else { turn_text(t, i + 1, render) });
     }
     parts.join("\n\n")
 }
 
 /// The side question's prompt. `forked`: the run resumes a copy of the conversation, so it already
 /// knows the task.
-pub fn btw_prompt(
-    turns: &[PastTurn<'_>],
-    question: &str,
-    forked: bool,
-    now_ms: i64,
-    render: Render<'_>,
-) -> String {
+pub fn btw_prompt(turns: &[PastTurn<'_>], question: &str, forked: bool, now_ms: i64, render: Render<'_>) -> String {
     let head = rules(forked);
     if forked {
         return format!("{head}\n\n## Side question\n\n{question}");
     }
-    format!(
-        "{head}\n\n## The task so far\n\n{}\n\n---\n\n## Side question\n\n{question}",
-        btw_digest(turns, now_ms, render)
-    )
+    format!("{head}\n\n## The task so far\n\n{}\n\n---\n\n## Side question\n\n{question}", btw_digest(turns, now_ms, render))
 }
 
 /// The reply as markdown. `rendered`: the reply's wisp block as markdown (its notes and blocks), when
 /// the agent ended with one anyway; None when the parse fell back to the text.
 pub fn btw_answer(text: &str, rendered: Option<&str>) -> String {
     let md = rendered.map_or_else(|| trim(text).to_owned(), str::to_owned);
-    if md.is_empty() {
-        "_No answer._".to_owned()
-    } else {
-        md
-    }
+    if md.is_empty() { "_No answer._".to_owned() } else { md }
 }
 
 #[cfg(test)]

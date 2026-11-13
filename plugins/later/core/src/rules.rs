@@ -6,9 +6,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wisp_later_api::{
-    AGENT_MAX_MS, AddArgs, BY_USER, BY_WISP, CHAIN_MAX, EditArgs, EditPlanArgs, FILES_MAX,
-    ForLater, LaterEntry, LaterExt, LaterView, Lost, MAX_MS, Origin, PER_TASK, ParkArgs, Plan,
-    PlanArgs, PlanKind, Reminder, SentMeta, TEXT_MAX, TaskRef,
+    AGENT_MAX_MS, AddArgs, BY_USER, BY_WISP, CHAIN_MAX, EditArgs, EditPlanArgs, FILES_MAX, ForLater, LaterEntry, LaterExt, LaterView, Lost,
+    MAX_MS, Origin, PER_TASK, ParkArgs, Plan, PlanArgs, PlanKind, Reminder, SentMeta, TEXT_MAX, TaskRef,
 };
 
 use crate::decide::{Task, TaskState};
@@ -69,15 +68,7 @@ pub fn title_of(prompt: &str) -> String {
 }
 
 /// A new entry on `task` (v1 later.add). `pending`: entries it has now.
-pub fn new_entry(
-    id: String,
-    task: &Task,
-    meta: &TaskMeta,
-    pending: usize,
-    a: &AddArgs,
-    now: i64,
-    tz: i32,
-) -> Result<LaterEntry> {
+pub fn new_entry(id: String, task: &Task, meta: &TaskMeta, pending: usize, a: &AddArgs, now: i64, tz: i32) -> Result<LaterEntry> {
     if task.sub {
         return Err(bad("A subagent can’t schedule follow-ups: its lead can."));
     }
@@ -85,14 +76,10 @@ pub fn new_entry(
         return Err(bad("That’s a reminder: snooze it instead."));
     }
     if task.tour {
-        return Err(bad(
-            "This is the tour — launch a real wisp to schedule things.",
-        ));
+        return Err(bad("This is the tour — launch a real wisp to schedule things."));
     }
     if pending >= PER_TASK {
-        return Err(bad(format!(
-            "A task can have {PER_TASK} follow-ups scheduled at most. Cancel one first."
-        )));
+        return Err(bad(format!("A task can have {PER_TASK} follow-ups scheduled at most. Cancel one first.")));
     }
     let by = a.by.clone().unwrap_or_else(|| BY_USER.to_owned());
     let agent = by != BY_USER;
@@ -102,24 +89,12 @@ pub fn new_entry(
         )));
     }
     let at = when_of(&a.when, now, if agent { AGENT_MAX_MS } else { MAX_MS }, tz)?;
-    let text = text_of(
-        a.text.as_deref(),
-        if a.remind {
-            "What to remind you about"
-        } else {
-            "The follow-up"
-        },
-    )?;
+    let text = text_of(a.text.as_deref(), if a.remind { "What to remind you about" } else { "The follow-up" })?;
     let wisp = by == BY_WISP;
     let attachments = if a.remind {
         Vec::new()
     } else {
-        a.attachments
-            .iter()
-            .filter(|v| v.is_object() || v.is_string())
-            .take(FILES_MAX)
-            .cloned()
-            .collect()
+        a.attachments.iter().filter(|v| v.is_object() || v.is_string()).take(FILES_MAX).cloned().collect()
     };
     Ok(LaterEntry {
         id,
@@ -157,30 +132,16 @@ pub fn done_split(entries: Vec<LaterEntry>) -> (Vec<LaterEntry>, Vec<LaterEntry>
 
 /// For later (routes/sessions.js:296-333), applied after state and archived so Undo can send
 /// `{state: 'review', forLater: <the old time>}`. → the task's new For later.
-pub fn park(
-    task: &Task,
-    current: Option<&ForLater>,
-    a: &ParkArgs,
-    now: i64,
-) -> Result<Option<ForLater>> {
-    let n = a
-        .for_later
-        .as_ref()
-        .and_then(Value::as_f64)
-        .filter(|f| f.is_finite());
+pub fn park(task: &Task, current: Option<&ForLater>, a: &ParkArgs, now: i64) -> Result<Option<ForLater>> {
+    let n = a.for_later.as_ref().and_then(Value::as_f64).filter(|f| f.is_finite());
     let park = a.for_later == Some(Value::Bool(true)) || n.is_some_and(|f| f > 0.0);
     if park && !task.free() {
-        return Err(LaterError::Conflict(
-            "Still working — save it for later once it’s finished.".into(),
-        ));
+        return Err(LaterError::Conflict("Still working — save it for later once it’s finished.".into()));
     }
     if park && !task.archived {
         #[allow(clippy::cast_possible_truncation)] // a time in ms, finite
         let at = n.map_or(now, |f| f.round() as i64).min(now); // never in the future
-        return Ok(Some(ForLater {
-            at,
-            by: a.by.clone().unwrap_or_else(|| BY_USER.to_owned()),
-        }));
+        return Ok(Some(ForLater { at, by: a.by.clone().unwrap_or_else(|| BY_USER.to_owned()) }));
     }
     let out = a.for_later == Some(Value::Bool(false)) || a.state.is_some() || task.archived;
     Ok(if out { None } else { current.cloned() })
@@ -191,11 +152,7 @@ pub fn park(
 /// reminder and takes the task out of For later. → (new meta, the meta the turn records)
 pub fn on_turn(meta: &TaskMeta, by: Option<&str>) -> (TaskMeta, Option<SentMeta>) {
     let mut next = meta.clone();
-    let sent = if by == Some("later") {
-        next.sent.take()
-    } else {
-        None
-    };
+    let sent = if by == Some("later") { next.sent.take() } else { None };
     match &sent {
         Some(s) if s.by != BY_USER => next.chain += 1,
         Some(_) => next.chain = 0,
@@ -210,44 +167,16 @@ pub fn on_turn(meta: &TaskMeta, by: Option<&str>) -> (TaskMeta, Option<SentMeta>
 }
 
 /// A reminder comes due: the task comes back to Needs you (v1 fire with remind). → (reminder, new state)
-pub fn reminder_of(
-    task: &Task,
-    l: &LaterEntry,
-    text: String,
-    missed: bool,
-) -> (Reminder, TaskState) {
+pub fn reminder_of(task: &Task, l: &LaterEntry, text: String, missed: bool) -> (Reminder, TaskState) {
     let running = task.state == TaskState::Running;
-    let was = if running {
-        TaskState::Review
-    } else {
-        task.state
-    };
-    let reminder = Reminder {
-        text,
-        at: l.at,
-        set_at: l.set_at,
-        by: l.by.clone(),
-        was: Some(was.as_str().to_owned()),
-        from: None,
-        missed,
-    };
-    (
-        reminder,
-        if running {
-            TaskState::Running
-        } else {
-            TaskState::Review
-        },
-    )
+    let was = if running { TaskState::Review } else { task.state };
+    let reminder = Reminder { text, at: l.at, set_at: l.set_at, by: l.by.clone(), was: Some(was.as_str().to_owned()), from: None, missed };
+    (reminder, if running { TaskState::Running } else { TaskState::Review })
 }
 
 /// v1 later.js:428: a follow-up a day late lands in Needs you, unsent.
 pub fn missed_text(l: &LaterEntry, now: i64, tz: i32) -> String {
-    format!(
-        "Missed follow-up (due at {}, wisp was off): {}",
-        clock(l.at, now, tz),
-        l.text
-    )
+    format!("Missed follow-up (due at {}, wisp was off): {}", clock(l.at, now, tz), l.text)
 }
 
 /// The note the agent reads ahead of a follow-up it (or the user) scheduled (v1 laterNote).
@@ -276,22 +205,8 @@ pub fn late_note(l: &SentMeta, now: i64, tz: i32) -> String {
 /// What `resume_later` answers the agent (v1 internal.js:93-95).
 pub fn scheduled_text(l: &LaterEntry, others: &[LaterEntry], now: i64, tz: i32) -> String {
     let mins = (l.at - now + 30_000).div_euclid(60_000);
-    let list: Vec<String> = others
-        .iter()
-        .map(|x| {
-            format!(
-                "- {} at {}: {}",
-                x.id,
-                short(x.at, tz),
-                clip_dots(&x.text, 80)
-            )
-        })
-        .collect();
-    let also = if list.is_empty() {
-        String::new()
-    } else {
-        format!("\nAlso pending on this task:\n{}", list.join("\n"))
-    };
+    let list: Vec<String> = others.iter().map(|x| format!("- {} at {}: {}", x.id, short(x.at, tz), clip_dots(&x.text, 80))).collect();
+    let also = if list.is_empty() { String::new() } else { format!("\nAlso pending on this task:\n{}", list.join("\n")) };
     format!(
         "Scheduled (id {}) for {}, in {mins} min. Finish your turn now with your report, saying what you'll check then; wisp resumes this conversation at that time with your message.{also}",
         l.id,
@@ -300,11 +215,7 @@ pub fn scheduled_text(l: &LaterEntry, others: &[LaterEntry], now: i64, tz: i32) 
 }
 
 fn clip_dots(s: &str, n: usize) -> String {
-    if s.chars().count() > n {
-        format!("{}…", clip(s, n - 1))
-    } else {
-        s.to_owned()
-    }
+    if s.chars().count() > n { format!("{}…", clip(s, n - 1)) } else { s.to_owned() }
 }
 
 /// `at` from an agent must carry its offset (v1 internal.js:89).
@@ -313,11 +224,7 @@ pub fn agent_at_ok(at: &str) -> bool {
     t.ends_with('Z') || {
         let b = t.as_bytes();
         let tail = |n: usize| {
-            b.len() > n
-                && matches!(b[b.len() - n - 1], b'+' | b'-')
-                && b[b.len() - n..]
-                    .iter()
-                    .all(|c| c.is_ascii_digit() || *c == b':')
+            b.len() > n && matches!(b[b.len() - n - 1], b'+' | b'-') && b[b.len() - n..].iter().all(|c| c.is_ascii_digit() || *c == b':')
         };
         (tail(5) && b[b.len() - 3] == b':') || tail(4)
     }
@@ -331,25 +238,12 @@ pub fn after_id(after: &Value) -> Result<String> {
         _ => "",
     }
     .trim();
-    let ok = (6..=64).contains(&id.len())
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
-    if ok {
-        Ok(id.to_owned())
-    } else {
-        Err(bad("Say which task it waits for: its id."))
-    }
+    let ok = (6..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
+    if ok { Ok(id.to_owned()) } else { Err(bad("Say which task it waits for: its id.")) }
 }
 
 /// A new plan (v1 later.plan). `after`: the task it waits for, already looked up (None: not here).
-pub fn new_plan(
-    id: String,
-    a: &PlanArgs,
-    after: Option<(&Task, bool)>,
-    now: i64,
-    tz: i32,
-) -> Result<Plan> {
+pub fn new_plan(id: String, a: &PlanArgs, after: Option<(&Task, bool)>, now: i64, tz: i32) -> Result<Plan> {
     if (a.draft || a.after.is_some()) && a.kind != PlanKind::Task {
         return Err(bad("Only a task can be a draft, or wait for another task."));
     }
@@ -371,18 +265,12 @@ pub fn new_plan(
     } else if let Some(v) = &a.after {
         let wanted = after_id(v)?;
         let Some((t, card)) = after else {
-            return Err(LaterError::NotFound(
-                "No task with that id here: /after waits for a task on this computer.".into(),
-            ));
+            return Err(LaterError::NotFound("No task with that id here: /after waits for a task on this computer.".into()));
         };
         if card {
             return Err(bad("That’s a reminder, not a task to wait for."));
         }
-        let title = if t.title.is_empty() {
-            "Untitled task".to_owned()
-        } else {
-            clip(&t.title, 200)
-        };
+        let title = if t.title.is_empty() { "Untitled task".to_owned() } else { clip(&t.title, 200) };
         p.after = Some(TaskRef { id: wanted, title });
     } else {
         p.at = Some(when_of(&a.when, now, MAX_MS, tz)?);
@@ -401,14 +289,8 @@ pub fn new_plan(
         PlanKind::Reminder => {
             p.text = Some(text_of(a.text.as_deref(), "What to remind you about")?);
             p.from = a.from.as_ref().and_then(|f| {
-                let id = f
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .filter(|s| !s.is_empty())?;
-                Some(TaskRef {
-                    id: clip(id, 60),
-                    title: clip(f.get("title").and_then(Value::as_str).unwrap_or(""), 200),
-                })
+                let id = f.get("id").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+                Some(TaskRef { id: clip(id, 60), title: clip(f.get("title").and_then(Value::as_str).unwrap_or(""), 200) })
             });
         }
     }
@@ -427,9 +309,7 @@ pub fn edit_plan(p: &Plan, a: &EditPlanArgs, now: i64, tz: i32) -> Result<Plan> 
     if let (Some(t), PlanKind::Reminder) = (a.text.as_deref(), p.kind) {
         p.text = Some(text_of(Some(t), "text")?);
     }
-    if let (Some(pr), PlanKind::Task, Some(Value::Object(body))) =
-        (a.prompt.as_deref(), p.kind, p.body.as_mut())
-    {
+    if let (Some(pr), PlanKind::Task, Some(Value::Object(body))) = (a.prompt.as_deref(), p.kind, p.body.as_mut()) {
         let prompt = text_of(Some(pr), "prompt")?;
         p.title = Some(title_of(&prompt));
         body.insert("prompt".into(), Value::String(prompt));
@@ -442,11 +322,7 @@ pub fn lose(p: &Plan, why: &str) -> Plan {
     let mut p = p.clone();
     if let Some(after) = p.after.take() {
         p.draft = true;
-        p.lost = Some(Lost {
-            id: after.id,
-            title: after.title,
-            why: why.to_owned(),
-        });
+        p.lost = Some(Lost { id: after.id, title: after.title, why: why.to_owned() });
     }
     p
 }
@@ -458,11 +334,7 @@ pub fn origin_of(p: &Plan) -> Origin {
         (None, true) => "Draft".to_owned(),
         (None, false) => "Scheduled".to_owned(),
     };
-    Origin {
-        kind: "later".into(),
-        id: p.id.clone(),
-        name,
-    }
+    Origin { kind: "later".into(), id: p.id.clone(), name }
 }
 
 /// A task plan that couldn't start: why, where the user will see it (v1 later.js:298-300).
@@ -491,11 +363,7 @@ pub fn card_summary(p: &Plan, failed: bool, now: i64, tz: i32) -> String {
     if failed {
         return String::new();
     }
-    let from = p
-        .from
-        .as_ref()
-        .map(|f| format!(" in “{}”", f.title))
-        .unwrap_or_default();
+    let from = p.from.as_ref().map(|f| format!(" in “{}”", f.title)).unwrap_or_default();
     format!("A reminder you set at {}{from}.", clock(p.set_at, now, tz))
 }
 

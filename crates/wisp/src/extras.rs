@@ -6,7 +6,6 @@
 //! - `wisp desktop`: the desktop window (desktop.rs).
 use std::path::{Path, PathBuf};
 
-
 use crate::args::Flags;
 use crate::client::{CliError, Result};
 use crate::scripted::say;
@@ -64,8 +63,6 @@ pub fn grid(argv: &[String]) -> Result<i32> {
     let status = std::process::Command::new(bin).args(&argv[at..]).status()?;
     Ok(status.code().unwrap_or(1))
 }
-
-
 
 #[cfg(test)]
 mod tests {

@@ -37,11 +37,29 @@ async fn rig(name: &str, extra: serde_json::Value) -> Rig {
     let clock = wisp_grid::clock::system();
     let db = Arc::new(wisp_grid::db::Db::open(&dir, clock.now_ms()).unwrap());
     let url_cfg = cfg.clone();
-    let boxes = wisp_grid::hostd::ProcessHost::new(wisp_grid::hostd::ProcessOptions { bin: "wisp".into(), data: dir.clone(), idle_ms: 60_000, check_ms: 1000, start_ms: 30_000, max_running: 1, env: Vec::new(), url_of: Arc::new(move |h| url_cfg.instance_url(h)), boxd: None }, clock.clone());
+    let boxes = wisp_grid::hostd::ProcessHost::new(
+        wisp_grid::hostd::ProcessOptions {
+            bin: "wisp".into(),
+            data: dir.clone(),
+            idle_ms: 60_000,
+            check_ms: 1000,
+            start_ms: 30_000,
+            max_running: 1,
+            env: Vec::new(),
+            url_of: Arc::new(move |h| url_cfg.instance_url(h)),
+            boxd: None,
+        },
+        clock.clone(),
+    );
     let grid = wisp_grid::edge::Grid::new(cfg, db, clock, boxes);
     let stop = CancellationToken::new();
     tokio::spawn(wisp_grid::edge::serve(grid.clone(), listener, stop.clone()));
-    let c = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).resolve("wisp.localhost", ([127, 0, 0, 1], port).into()).build().unwrap();
+    let c = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve("wisp.localhost", ([127, 0, 0, 1], port).into())
+        .build()
+        .unwrap();
     Rig { c, root: format!("http://wisp.localhost:{port}"), stop, dir }
 }
 
@@ -49,7 +67,8 @@ async fn rig(name: &str, extra: serde_json::Value) -> Rig {
 async fn sign_in(r: &Rig, handle: &str) -> String {
     let res = r.c.get(format!("{}/auth/dev?handle={handle}&next=/", r.root)).send().await.unwrap();
     assert_eq!(res.status(), 302);
-    let session = res.headers().get_all("set-cookie").iter().map(|v| v.to_str().unwrap().to_owned()).find(|c| c.starts_with("wisp_grid=")).unwrap();
+    let session =
+        res.headers().get_all("set-cookie").iter().map(|v| v.to_str().unwrap().to_owned()).find(|c| c.starts_with("wisp_grid=")).unwrap();
     session.split(';').next().unwrap().to_owned()
 }
 
@@ -78,20 +97,47 @@ async fn a_signed_in_person_sees_home_and_account_and_their_forms_work() {
     let csrf = csrf_in(&account);
 
     // a stale form is refused; deleting with the wrong handle says what to type
-    let r = c.post(format!("{root}/signout")).header("cookie", &cookie).header("content-type", FORM).body("csrf=stale").send().await.unwrap();
+    let r =
+        c.post(format!("{root}/signout")).header("cookie", &cookie).header("content-type", FORM).body("csrf=stale").send().await.unwrap();
     assert_eq!(r.status(), 403);
-    let r = c.post(format!("{root}/account/delete")).header("cookie", &cookie).header("content-type", FORM).body(format!("csrf={csrf}&confirm=bob")).send().await.unwrap();
+    let r = c
+        .post(format!("{root}/account/delete"))
+        .header("cookie", &cookie)
+        .header("content-type", FORM)
+        .body(format!("csrf={csrf}&confirm=bob"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 302);
     assert!(r.headers()["location"].to_str().unwrap().starts_with("/account?m=Type%20ada"), "{:?}", r.headers()["location"]);
     // the cloud wisp asleep already: Sleep says so
-    let r = c.post(format!("{root}/instance/stop")).header("cookie", &cookie).header("content-type", FORM).body(format!("csrf={csrf}")).send().await.unwrap();
+    let r = c
+        .post(format!("{root}/instance/stop"))
+        .header("cookie", &cookie)
+        .header("content-type", FORM)
+        .body(format!("csrf={csrf}"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 302);
     assert!(r.headers()["location"].to_str().unwrap().contains("already%20asleep"));
 
     // sign out: the session goes and its cookie is cleared; the pages send you to sign in again
-    let r = c.post(format!("{root}/signout")).header("cookie", &cookie).header("content-type", FORM).body(format!("csrf={csrf}")).send().await.unwrap();
+    let r = c
+        .post(format!("{root}/signout"))
+        .header("cookie", &cookie)
+        .header("content-type", FORM)
+        .body(format!("csrf={csrf}"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 302);
-    assert!(r.headers().get_all("set-cookie").iter().any(|v| v.to_str().unwrap().starts_with("wisp_grid=;") && v.to_str().unwrap().contains("Max-Age=0")));
+    assert!(
+        r.headers()
+            .get_all("set-cookie")
+            .iter()
+            .any(|v| v.to_str().unwrap().starts_with("wisp_grid=;") && v.to_str().unwrap().contains("Max-Age=0"))
+    );
     let r = c.get(format!("{root}/account")).header("cookie", &cookie).send().await.unwrap();
     assert_eq!(r.status(), 302);
     rig.stop.cancel();
@@ -104,10 +150,22 @@ async fn the_account_page_offers_the_telegram_routing_form_and_says_what_was_wro
     let (c, root) = (&rig.c, &rig.root);
     let cookie = sign_in(&rig, "ada").await;
     let account = c.get(format!("{root}/account")).header("cookie", &cookie).send().await.unwrap().text().await.unwrap();
-    assert!(account.contains("Telegram to your computers") && account.contains(r#"action="/channels/route""#) && account.contains("Who may send"), "{account}");
+    assert!(
+        account.contains("Telegram to your computers")
+            && account.contains(r#"action="/channels/route""#)
+            && account.contains("Who may send"),
+        "{account}"
+    );
     let csrf = csrf_in(&account);
     // not a bot token: back to the form with BotFather's shape, nothing kept
-    let r = c.post(format!("{root}/channels/route")).header("cookie", &cookie).header("content-type", FORM).body(format!("csrf={csrf}&token=nope&senders=4242")).send().await.unwrap();
+    let r = c
+        .post(format!("{root}/channels/route"))
+        .header("cookie", &cookie)
+        .header("content-type", FORM)
+        .body(format!("csrf={csrf}&token=nope&senders=4242"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 302);
     let to = r.headers()["location"].to_str().unwrap().to_owned();
     assert!(to.starts_with("/account?m=") && to.contains("BotFather") && to.ends_with("&tone=bad"), "{to}");

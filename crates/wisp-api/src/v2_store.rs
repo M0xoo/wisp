@@ -35,9 +35,7 @@ pub struct TopicSource {
 
 impl std::fmt::Debug for TopicSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TopicSource")
-            .field("kind", &self.kind)
-            .finish_non_exhaustive()
+        f.debug_struct("TopicSource").field("kind", &self.kind).finish_non_exhaustive()
     }
 }
 
@@ -169,41 +167,21 @@ fn id_text(v: Option<&Value>) -> String {
     }
 }
 
-fn wire_rows(
-    rows: Vec<(String, Map<String, Value>)>,
-    key_of: impl Fn(&str) -> Option<&'static str>,
-) -> Vec<Row> {
+fn wire_rows(rows: Vec<(String, Map<String, Value>)>, key_of: impl Fn(&str) -> Option<&'static str>) -> Vec<Row> {
     rows.into_iter()
         .map(|(e, v)| {
             let id = key_of(&e).map_or_else(|| id_text(v.get("id")), |k| id_text(v.get(k)));
-            Row {
-                e,
-                id,
-                v: Value::Object(v),
-            }
+            Row { e, id, v: Value::Object(v) }
         })
         .collect()
 }
 
 fn delta_read(d: Delta, full: bool, key_of: impl Fn(&str) -> Option<&'static str>) -> Read {
-    Read {
-        seq: seq(d.head),
-        rows: wire_rows(d.rows, key_of),
-        full,
-        deleted: d
-            .deleted
-            .into_iter()
-            .map(|(e, id)| Gone { e, id })
-            .collect(),
-    }
+    Read { seq: seq(d.head), rows: wire_rows(d.rows, key_of), full, deleted: d.deleted.into_iter().map(|(e, id)| Gone { e, id }).collect() }
 }
 
 /// Every source's rows for `topic`, from the JSON the store writes.
-fn full_rows(
-    r: &Reader<'_>,
-    sources: &[TopicSource],
-    topic: &str,
-) -> wisp_store::Result<Option<Vec<Row>>> {
+fn full_rows(r: &Reader<'_>, sources: &[TopicSource], topic: &str) -> wisp_store::Result<Option<Vec<Row>>> {
     let mine: Vec<&TopicSource> = sources.iter().filter(|s| (s.matches)(topic)).collect();
     if mine.is_empty() {
         return Ok(None);
@@ -215,13 +193,9 @@ fn full_rows(
             continue;
         }
         let text = r.query_json(s.kind, &(s.query)(topic))?;
-        let rows: Vec<Map<String, Value>> = serde_json::from_str(&text)
-            .map_err(|e| wisp_store::StoreError::Internal(format!("{}: {e}", s.kind)))?;
-        out.extend(rows.into_iter().map(|v| Row {
-            e: s.kind.to_owned(),
-            id: id_text(v.get(s.key)),
-            v: Value::Object(v),
-        }));
+        let rows: Vec<Map<String, Value>> =
+            serde_json::from_str(&text).map_err(|e| wisp_store::StoreError::Internal(format!("{}: {e}", s.kind)))?;
+        out.extend(rows.into_iter().map(|v| Row { e: s.kind.to_owned(), id: id_text(v.get(s.key)), v: Value::Object(v) }));
     }
     Ok(Some(out))
 }
@@ -246,33 +220,16 @@ fn read_topic(
     let head = r.head_seq()?;
     if let Some(reader) = readers.iter().find(|x| (x.matches)(topic)) {
         let rows = (reader.read)(r, topic)?.into_iter().map(|(e, id, v)| Row { e, id, v: Value::Object(v) }).collect();
-        return Ok(Read {
-            seq: seq(head),
-            rows,
-            full: true,
-            deleted: Vec::new(),
-        });
+        return Ok(Read { seq: seq(head), rows, full: true, deleted: Vec::new() });
     }
     if let Some(rows) = full_rows(r, sources, topic)? {
-        return Ok(Read {
-            seq: seq(head),
-            rows,
-            full: true,
-            deleted: Vec::new(),
-        });
+        return Ok(Read { seq: seq(head), rows, full: true, deleted: Vec::new() });
     }
     if let Some(d) = r.changed_since(topic, 0)? {
         return Ok(delta_read(d, true, key_of));
     }
-    tracing::warn!(
-        topic,
-        "no snapshot source and the change feed was pruned: the topic reads empty"
-    );
-    Ok(Read {
-        seq: seq(head),
-        full: true,
-        ..Read::default()
-    })
+    tracing::warn!(topic, "no snapshot source and the change feed was pruned: the topic reads empty");
+    Ok(Read { seq: seq(head), full: true, ..Read::default() })
 }
 
 impl Snapshots for StoreSnapshots {
@@ -287,59 +244,31 @@ impl Snapshots for StoreSnapshots {
         self.store.read(oldest_of).map_or(0, seq)
     }
     fn snapshot(&self, topic: &Topic, since: Option<u64>) -> BoxFuture<'static, Read> {
-        let (store, sources, readers, topic) = (
-            self.store.clone(),
-            self.sources.clone(),
-            self.readers.clone(),
-            topic.as_str().to_owned(),
-        );
+        let (store, sources, readers, topic) = (self.store.clone(), self.sources.clone(), self.readers.clone(), topic.as_str().to_owned());
         let views = self.views.clone();
         Box::pin(async move {
             let t = topic.clone();
-            let mut read = store
-                .read_async(move |r| read_topic(r, &sources, &readers, &t, since))
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::warn!(topic, "snapshot failed: {e}");
-                    Read {
-                        full: since.is_none(),
-                        ..Read::default()
-                    }
-                });
+            let mut read = store.read_async(move |r| read_topic(r, &sources, &readers, &t, since)).await.unwrap_or_else(|e| {
+                tracing::warn!(topic, "snapshot failed: {e}");
+                Read { full: since.is_none(), ..Read::default() }
+            });
             egress::rows(&views.views(), &mut read.rows);
             read
         })
     }
-    fn window(
-        &self,
-        topic: &Topic,
-        before_seq: u64,
-        limit: u32,
-    ) -> BoxFuture<'static, (Vec<Row>, bool)> {
+    fn window(&self, topic: &Topic, before_seq: u64, limit: u32) -> BoxFuture<'static, (Vec<Row>, bool)> {
         let t = topic.as_str();
-        let found = self.windows.iter().find_map(|w| {
-            t.strip_prefix(w.prefix)
-                .map(|parent| (w.kind, parent.to_owned()))
-        });
+        let found = self.windows.iter().find_map(|w| t.strip_prefix(w.prefix).map(|parent| (w.kind, parent.to_owned())));
         let (store, views) = (self.store.clone(), self.views.clone());
         Box::pin(async move {
             let Some((kind, parent)) = found else {
                 return (Vec::new(), true);
             };
             let before = (before_seq > 0).then(|| i64::try_from(before_seq).unwrap_or(i64::MAX));
-            let rows = store
-                .read_async(move |r| r.window(kind, &parent, before, limit))
-                .await
-                .unwrap_or_default();
+            let rows = store.read_async(move |r| r.window(kind, &parent, before, limit)).await.unwrap_or_default();
             let done = rows.len() < limit as usize;
-            let mut rows: Vec<Row> = rows
-                .into_iter()
-                .map(|v| Row {
-                    e: kind.to_owned(),
-                    id: id_text(v.get("id")),
-                    v: Value::Object(v),
-                })
-                .collect();
+            let mut rows: Vec<Row> =
+                rows.into_iter().map(|v| Row { e: kind.to_owned(), id: id_text(v.get("id")), v: Value::Object(v) }).collect();
             egress::rows(&views.views(), &mut rows);
             (rows, done)
         })
@@ -353,17 +282,12 @@ pub fn to_wire(c: &wisp_store::ChangeRow) -> Vec<ChangeRow> {
         ChangeOp::Patch => match serde_json::from_value::<Vec<PatchOp>>(c.patch.clone()) {
             Ok(ops) => Change::Patch { ops },
             Err(e) => {
-                tracing::warn!(
-                    entity = c.entity,
-                    "a change row's patch isn't RFC 6902: {e}"
-                );
+                tracing::warn!(entity = c.entity, "a change row's patch isn't RFC 6902: {e}");
                 return Vec::new();
             }
         },
         ChangeOp::Del => Change::Del,
-        ChangeOp::Append => Change::Append {
-            v: c.patch.as_array().cloned().unwrap_or_default(),
-        },
+        ChangeOp::Append => Change::Append { v: c.patch.as_array().cloned().unwrap_or_default() },
     };
     c.topics
         .iter()

@@ -2,8 +2,8 @@
 //! It keeps nothing itself: values live in the registry, saved through the store. A v1 install's settings
 //! come in through `wisp import` (ADR-0031), not here.
 
-mod ui;
 mod kind;
+mod ui;
 
 use std::sync::Arc;
 

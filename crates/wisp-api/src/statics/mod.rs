@@ -42,15 +42,7 @@ pub(crate) struct Entry {
 
 impl Entry {
     pub(crate) fn new(body: Bytes, etag: String, text: bool) -> Self {
-        Self {
-            size: body.len() as u64,
-            body,
-            etag,
-            mtime: None,
-            text,
-            gz: OnceLock::new(),
-            br: OnceLock::new(),
-        }
+        Self { size: body.len() as u64, body, etag, mtime: None, text, gz: OnceLock::new(), br: OnceLock::new() }
     }
 }
 
@@ -97,10 +89,7 @@ impl StaticFiles {
 
     /// Read (or the cached copy while its mtime and size hold: a rebuild shows at once).
     async fn read(&self, file: &Path) -> Option<Arc<Entry>> {
-        let st = tokio::fs::metadata(file)
-            .await
-            .ok()
-            .filter(std::fs::Metadata::is_file)?;
+        let st = tokio::fs::metadata(file).await.ok().filter(std::fs::Metadata::is_file)?;
         let mtime = st.modified().ok();
         if let Some(had) = self.files.lock().ok()?.get(file).cloned()
             && had.mtime == mtime
@@ -109,20 +98,12 @@ impl StaticFiles {
             return Some(had);
         }
         if st.len() > MAX_CACHED {
-            return Some(Arc::new(Entry {
-                mtime,
-                size: st.len(),
-                ..Entry::new(Bytes::new(), String::new(), false)
-            }));
+            return Some(Arc::new(Entry { mtime, size: st.len(), ..Entry::new(Bytes::new(), String::new(), false) }));
         }
         let body = Bytes::from(tokio::fs::read(file).await.ok()?);
         let ext = file.extension().and_then(|e| e.to_str()).unwrap_or("");
         let text = html::is_text(ext) && body.len() > 1024;
-        let e = Arc::new(Entry {
-            mtime,
-            size: st.len(),
-            ..Entry::new(body.clone(), format!("\"{}\"", hash(&body)), text)
-        });
+        let e = Arc::new(Entry { mtime, size: st.len(), ..Entry::new(body.clone(), format!("\"{}\"", hash(&body)), text) });
         if text {
             let _ = self.queue.send((e.clone(), 22));
         }
@@ -152,10 +133,7 @@ impl StaticFiles {
 
     fn url(&self, file: &Path) -> String {
         let rel = file.strip_prefix(&self.dir).unwrap_or(file);
-        let parts: Vec<String> = rel
-            .components()
-            .map(|c| c.as_os_str().to_string_lossy().into_owned())
-            .collect();
+        let parts: Vec<String> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
         format!("/{}", parts.join("/"))
     }
 
@@ -187,11 +165,7 @@ impl StaticFiles {
             let _ = self.queue.send((e.clone(), 11));
             e
         };
-        let page = Arc::new(Page {
-            normal: make(normal, format!("\"{build}\"")),
-            boot: make(boot, format!("\"{build}-boot\"")),
-            build,
-        });
+        let page = Arc::new(Page { normal: make(normal, format!("\"{build}\"")), boot: make(boot, format!("\"{build}-boot\"")), build });
         *slot = Some((Instant::now(), page.clone()));
         Some(page)
     }
@@ -215,13 +189,7 @@ impl StaticFiles {
         (full != self.index()).then_some(full)
     }
 
-    pub async fn serve(
-        &self,
-        method: &Method,
-        pathname: &str,
-        query: Option<&str>,
-        h: &HeaderMap,
-    ) -> Answer {
+    pub async fn serve(&self, method: &Method, pathname: &str, query: Option<&str>, h: &HeaderMap) -> Answer {
         if pathname == "/_pack" {
             return pack::serve(self, method, query, h).await;
         }
@@ -235,22 +203,18 @@ impl StaticFiles {
             if e.size > MAX_CACHED {
                 return pack::stream_file(f, mime(ext), e.size, method, h).await;
             }
-            let for_good = f.file_name().and_then(|n| n.to_str()).is_some_and(hashed)
-                && f.components().any(|c| c.as_os_str() == "assets");
+            let for_good = f.file_name().and_then(|n| n.to_str()).is_some_and(hashed) && f.components().any(|c| c.as_os_str() == "assets");
             return answer(method, h, e, mime(ext), for_good, None);
         }
         // a path with an extension that isn't here is a 404, not the app (a stale chunk must fail loudly);
         // the app's own routes are always the app, dots and all: a plugin view is `/view/stuff.page`
         let last = pathname.rsplit('/').next().unwrap_or("");
-        if !app_route(pathname) && last.rsplit_once('.').is_some_and(|(_, ext)| {
-            !ext.is_empty() && ext.bytes().all(|b| b.is_ascii_alphanumeric()) && ext != "html"
-        }) {
-            return respond::text(
-                404,
-                "text/plain; charset=utf-8",
-                "not found",
-                &[("cache-control".into(), "no-cache".into())],
-            );
+        if !app_route(pathname)
+            && last
+                .rsplit_once('.')
+                .is_some_and(|(_, ext)| !ext.is_empty() && ext.bytes().all(|b| b.is_ascii_alphanumeric()) && ext != "html")
+        {
+            return respond::text(404, "text/plain; charset=utf-8", "not found", &[("cache-control".into(), "no-cache".into())]);
         }
         let Some(page) = self.index_page().await else {
             return respond::text(
@@ -261,14 +225,7 @@ impl StaticFiles {
             );
         };
         let boot = wants_boot(header(h, "user-agent"), h.contains_key("x-wisp-sw"));
-        answer(
-            method,
-            h,
-            if boot { &page.boot } else { &page.normal },
-            mime("html"),
-            false,
-            Some(&page.build),
-        )
+        answer(method, h, if boot { &page.boot } else { &page.normal }, mime("html"), false, Some(&page.build))
     }
 
     pub(crate) async fn pack_for(&self, have: &[String]) -> Option<(String, Arc<Entry>)> {
@@ -285,50 +242,23 @@ fn app_route(pathname: &str) -> bool {
     ["/view/", "/crew/", "/s/"].iter().any(|p| pathname.starts_with(p))
 }
 
-fn answer(
-    method: &Method,
-    h: &HeaderMap,
-    f: &Entry,
-    content_type: &str,
-    for_good: bool,
-    build: Option<&str>,
-) -> Answer {
+fn answer(method: &Method, h: &HeaderMap, f: &Entry, content_type: &str, for_good: bool, build: Option<&str>) -> Answer {
     let mut b = http::Response::builder()
         .header("content-type", content_type)
-        .header(
-            "cache-control",
-            if for_good {
-                "public, max-age=31536000, immutable"
-            } else {
-                "no-cache"
-            },
-        )
+        .header("cache-control", if for_good { "public, max-age=31536000, immutable" } else { "no-cache" })
         .header("etag", f.etag.as_str());
     if let Some(build) = build {
         b = b.header("x-wisp-build", build);
     }
     if f.text {
-        b = b.header(
-            "vary",
-            if build.is_some() {
-                "accept-encoding, x-wisp-sw"
-            } else {
-                "accept-encoding"
-            },
-        );
+        b = b.header("vary", if build.is_some() { "accept-encoding, x-wisp-sw" } else { "accept-encoding" });
     }
     if header(h, "if-none-match") == Some(f.etag.as_str()) {
-        return b
-            .status(304)
-            .body(respond::empty())
-            .unwrap_or_else(|_| http::Response::new(respond::empty()));
+        return b.status(304).body(respond::empty()).unwrap_or_else(|_| http::Response::new(respond::empty()));
     }
     let (enc, body) = match encoding_for(h) {
         Some(Encoding::Br) if f.br.get().is_some() => (Some("br"), f.br.get().cloned()),
-        Some(Encoding::Br | Encoding::Gzip)
-            if f.gz.get().is_some()
-                && header(h, "accept-encoding").is_some_and(|a| a.contains("gzip")) =>
-        {
+        Some(Encoding::Br | Encoding::Gzip) if f.gz.get().is_some() && header(h, "accept-encoding").is_some_and(|a| a.contains("gzip")) => {
             (Some("gzip"), f.gz.get().cloned())
         }
         _ => (None, None),
@@ -338,12 +268,6 @@ fn answer(
         b = b.header("content-encoding", enc);
     }
     b = b.header("content-length", body.len());
-    let body = if method == Method::HEAD {
-        respond::empty()
-    } else {
-        respond::full(body)
-    };
-    b.status(200)
-        .body(body)
-        .unwrap_or_else(|_| http::Response::new(respond::empty()))
+    let body = if method == Method::HEAD { respond::empty() } else { respond::full(body) };
+    b.status(200).body(body).unwrap_or_else(|_| http::Response::new(respond::empty()))
 }

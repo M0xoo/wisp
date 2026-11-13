@@ -13,7 +13,10 @@ async fn read(file: &str) -> Result<Map<String, Value>, WireError> {
         Err(e) => Err(WireError::invalid(e.to_string())),
         Ok(t) if t.trim().is_empty() => Ok(Map::new()),
         // never overwrite a file we can't read: it holds the user's other providers' logins too
-        Ok(t) => serde_json::from_str::<Value>(&t).ok().and_then(|v| v.as_object().cloned()).ok_or_else(|| WireError::conflict(format!("wisp can’t read {file}: fix or remove it, then try again."))),
+        Ok(t) => serde_json::from_str::<Value>(&t)
+            .ok()
+            .and_then(|v| v.as_object().cloned())
+            .ok_or_else(|| WireError::conflict(format!("wisp can’t read {file}: fix or remove it, then try again."))),
     }
 }
 
@@ -23,12 +26,18 @@ pub async fn view(agent: &str, k: &HarnessKeys) -> Result<KeysView, WireError> {
         agent: agent.into(),
         url: k.url.clone(),
         env: if std::env::var(&k.env).is_ok_and(|v| !v.is_empty()) { k.env.clone() } else { String::new() },
-        providers: k.providers.iter().map(|p| KeyProviderView { id: p.id.clone(), name: p.name.clone(), set: auth.contains_key(&p.id) }).collect(),
+        providers: k
+            .providers
+            .iter()
+            .map(|p| KeyProviderView { id: p.id.clone(), name: p.name.clone(), set: auth.contains_key(&p.id) })
+            .collect(),
     })
 }
 
 fn provider<'a>(k: &'a HarnessKeys, pid: &str) -> Result<&'a str, WireError> {
-    k.providers.iter().find(|p| p.id == pid).map(|p| p.id.as_str()).ok_or_else(|| WireError::invalid(format!("Pick one of {}.", k.providers.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", "))))
+    k.providers.iter().find(|p| p.id == pid).map(|p| p.id.as_str()).ok_or_else(|| {
+        WireError::invalid(format!("Pick one of {}.", k.providers.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ")))
+    })
 }
 
 pub async fn set(agent: &str, k: &HarnessKeys, pid: &str, key: &str) -> Result<KeysView, WireError> {
@@ -65,7 +74,12 @@ mod tests {
         let file = dir.join("opencode/auth.json");
         tokio::fs::create_dir_all(file.parent().unwrap_or(&dir)).await.unwrap_or_default();
         tokio::fs::write(&file, r#"{"anthropic":{"type":"oauth"}}"#).await.unwrap_or_default();
-        let k = HarnessKeys { env: "WISP_TEST_NO_SUCH_KEY".into(), url: "https://opencode.ai/auth".into(), providers: vec![KeyProvider { id: "opencode".into(), name: "Zen".into() }], file: file.to_string_lossy().into_owned() };
+        let k = HarnessKeys {
+            env: "WISP_TEST_NO_SUCH_KEY".into(),
+            url: "https://opencode.ai/auth".into(),
+            providers: vec![KeyProvider { id: "opencode".into(), name: "Zen".into() }],
+            file: file.to_string_lossy().into_owned(),
+        };
         let v = set("opencode", &k, "opencode", " sk-123 ").await.unwrap_or_else(|e| panic!("{e:?}"));
         assert!(v.providers[0].set);
         let saved: Value = serde_json::from_str(&tokio::fs::read_to_string(&file).await.unwrap_or_default()).unwrap_or_default();

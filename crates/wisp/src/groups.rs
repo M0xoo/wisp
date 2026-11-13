@@ -19,11 +19,76 @@ pub struct Where {
 }
 
 pub const DEFAULT: [&str; 49] = [
-    "cli", "events", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update", "termctx", "sandbox",
+    "cli",
+    "events",
+    "resources",
+    "workflows",
+    "share",
+    "history",
+    "settings",
+    "runtime",
+    "claude",
+    "codex",
+    "cursor",
+    "opencode",
+    "copilot",
+    "grok",
+    "antigravity",
+    "accounts",
+    "git",
+    "worktrees",
+    "ship",
+    "review",
+    "issues",
+    "terminal",
+    "lsp",
+    "machine",
+    "machines",
+    "grid-client",
+    "crew",
+    "goal",
+    "later",
+    "budget",
+    "router",
+    "automations",
+    "learn",
+    "channels",
+    "telegram",
+    "slack",
+    "discord",
+    "github",
+    "email",
+    "ntfy",
+    "mcp",
+    "connectors",
+    "stuff",
+    "plugins",
+    "telemetry",
+    "posthog",
+    "update",
+    "termctx",
+    "sandbox",
 ];
 /// A grid box serves the web frontend only (ADR-0024).
 pub const BOX_OFF: [&str; 3] = ["machines", "update", "cli"];
-pub const HEADLESS: [&str; 16] = ["cli", "resources", "workflows", "share", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "git", "worktrees", "mcp"];
+pub const HEADLESS: [&str; 16] = [
+    "cli",
+    "resources",
+    "workflows",
+    "share",
+    "settings",
+    "runtime",
+    "claude",
+    "codex",
+    "cursor",
+    "opencode",
+    "copilot",
+    "grok",
+    "antigravity",
+    "git",
+    "worktrees",
+    "mcp",
+];
 pub const MINIMAL: [&str; 5] = ["cli", "resources", "settings", "runtime", "claude"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -261,7 +326,12 @@ mod tests {
     #[test]
     fn every_built_in_plugins_manifest_validates() {
         let at = Where { home: std::env::temp_dir().join("wisp-groups-test"), user_home: std::env::temp_dir() };
-        let bad: Vec<String> = Group::Default.build(&at).manifests().iter().filter_map(|m| m.validate().err().map(|e| format!("{}: {}", m.id, e.message))).collect();
+        let bad: Vec<String> = Group::Default
+            .build(&at)
+            .manifests()
+            .iter()
+            .filter_map(|m| m.validate().err().map(|e| format!("{}: {}", m.id, e.message)))
+            .collect();
         assert_eq!(bad, Vec::<String>::new());
     }
 

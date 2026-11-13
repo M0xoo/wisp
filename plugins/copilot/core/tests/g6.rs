@@ -20,7 +20,11 @@ fn dir() -> std::path::PathBuf {
 }
 
 fn names() -> Vec<String> {
-    let mut n: Vec<String> = std::fs::read_dir(dir()).unwrap().filter_map(Result::ok).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned)).collect();
+    let mut n: Vec<String> = std::fs::read_dir(dir())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned))
+        .collect();
     n.sort();
     n
 }
@@ -60,7 +64,8 @@ fn every_fixture_builds_v1s_argv() {
         let m = meta(&name);
         let o = &m["opts"];
         let grants: Vec<String> = o["grants"].as_array().map(|g| g.iter().map(Value::to_string).collect()).unwrap_or_default();
-        let mcp: BTreeMap<String, Value> = o["mcpServers"].as_object().map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()).unwrap_or_default();
+        let mcp: BTreeMap<String, Value> =
+            o["mcpServers"].as_object().map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()).unwrap_or_default();
         let a = CopilotArgs {
             mode: if o["mode"].is_string() { s(&o["mode"]) } else { "edits" },
             model: s(&o["model"]),
@@ -73,9 +78,18 @@ fn every_fixture_builds_v1s_argv() {
             ..CopilotArgs::default()
         };
         // v1's usage file had a random temp name
-        let want: Vec<String> = m["argv"].as_array().unwrap().iter().map(|x| if s(x).ends_with("/usage.json") { "USAGE".to_owned() } else { s(x).to_owned() }).collect();
+        let want: Vec<String> = m["argv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| if s(x).ends_with("/usage.json") { "USAGE".to_owned() } else { s(x).to_owned() })
+            .collect();
         // the MCP config is JSON: compared as JSON (key order is the serializer's)
-        let norm = |v: Vec<String>| v.into_iter().map(|x| serde_json::from_str::<Value>(&x).ok().filter(Value::is_object).map_or(x, |j| j.to_string())).collect::<Vec<_>>();
+        let norm = |v: Vec<String>| {
+            v.into_iter()
+                .map(|x| serde_json::from_str::<Value>(&x).ok().filter(Value::is_object).map_or(x, |j| j.to_string()))
+                .collect::<Vec<_>>()
+        };
         assert_eq!(norm(args(&a)), norm(want), "{name}");
     }
 }

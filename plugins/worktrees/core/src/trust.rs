@@ -15,12 +15,7 @@ use sha2::{Digest, Sha256};
 use wisp_worktrees_api::{Pending, TrustItem, TrustKind};
 
 /// Claude Code settings keys whose value is a program it runs (besides hooks).
-pub const HELPERS: &[&str] = &[
-    "apiKeyHelper",
-    "awsAuthRefresh",
-    "awsCredentialExport",
-    "otelHeadersHelper",
-];
+pub const HELPERS: &[&str] = &["apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "otelHeadersHelper"];
 pub const SETTINGS_FILES: &[&str] = &[".claude/settings.json", ".claude/settings.local.json"];
 pub const MCP_FILE: &str = ".mcp.json";
 
@@ -35,54 +30,28 @@ fn kind_name(k: TrustKind) -> &'static str {
 }
 
 /// `sha256(JSON.stringify([kind, file, name, command, extra || null]))[..24]`.
-pub fn item_id(
-    kind: TrustKind,
-    file: Option<&str>,
-    name: &str,
-    command: &str,
-    extra: Option<&[String]>,
-) -> String {
+pub fn item_id(kind: TrustKind, file: Option<&str>, name: &str, command: &str, extra: Option<&[String]>) -> String {
     let arr = Value::Array(vec![
         Value::from(kind_name(kind)),
         file.map_or(Value::Null, Value::from),
         Value::from(name),
         Value::from(command),
-        extra.map_or(Value::Null, |e| {
-            Value::Array(e.iter().map(|s| Value::from(s.as_str())).collect())
-        }),
+        extra.map_or(Value::Null, |e| Value::Array(e.iter().map(|s| Value::from(s.as_str())).collect())),
     ]);
-    let hex: String =
-        Sha256::digest(arr.to_string().as_bytes())
-            .iter()
-            .fold(String::new(), |mut s, b| {
-                let _ = write!(s, "{b:02x}");
-                s
-            });
+    let hex: String = Sha256::digest(arr.to_string().as_bytes()).iter().fold(String::new(), |mut s, b| {
+        let _ = write!(s, "{b:02x}");
+        s
+    });
     hex[..24].to_owned()
 }
 
-pub fn item(
-    kind: TrustKind,
-    file: Option<&str>,
-    name: &str,
-    command: &str,
-    extra: Option<Vec<String>>,
-) -> TrustItem {
+pub fn item(kind: TrustKind, file: Option<&str>, name: &str, command: &str, extra: Option<Vec<String>>) -> TrustItem {
     let id = item_id(kind, file, name, command, extra.as_deref());
-    TrustItem {
-        kind,
-        file: file.map(str::to_owned),
-        name: name.to_owned(),
-        command: command.to_owned(),
-        extra,
-        id,
-    }
+    TrustItem { kind, file: file.map(str::to_owned), name: name.to_owned(), command: command.to_owned(), extra, id }
 }
 
 fn parse(text: Option<&str>) -> Option<Value> {
-    serde_json::from_str::<Value>(text?.trim_start_matches('\u{feff}'))
-        .ok()
-        .filter(Value::is_object)
+    serde_json::from_str::<Value>(text?.trim_start_matches('\u{feff}')).ok().filter(Value::is_object)
 }
 
 fn str_of<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
@@ -96,21 +65,11 @@ pub fn settings_items(text: Option<&str>, rel: &str) -> Vec<TrustItem> {
         return Vec::new();
     };
     let mut out = Vec::new();
-    for (event, groups) in json
-        .get("hooks")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flatten()
-    {
+    for (event, groups) in json.get("hooks").and_then(Value::as_object).into_iter().flatten() {
         for g in groups.as_array().into_iter().flatten() {
             let matcher = str_of(g, "matcher").filter(|m| !m.is_empty());
             let name = matcher.map_or_else(|| event.clone(), |m| format!("{event} ({m})"));
-            for h in g
-                .get("hooks")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-            {
+            for h in g.get("hooks").and_then(Value::as_array).into_iter().flatten() {
                 let command = str_of(h, "command")
                     .or_else(|| str_of(h, "prompt"))
                     .or_else(|| str_of(h, "url"))
@@ -127,20 +86,9 @@ pub fn settings_items(text: Option<&str>, rel: &str) -> Vec<TrustItem> {
     if let Some(c) = json.get("statusLine").and_then(|s| str_of(s, "command")) {
         out.push(item(TrustKind::Command, Some(rel), "statusLine", c, None));
     }
-    for (name, on) in json
-        .get("enabledPlugins")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flatten()
-    {
+    for (name, on) in json.get("enabledPlugins").and_then(Value::as_object).into_iter().flatten() {
         if truthy(on) {
-            out.push(item(
-                TrustKind::Plugin,
-                Some(rel),
-                name,
-                &format!("plugin {name}"),
-                None,
-            ));
+            out.push(item(TrustKind::Plugin, Some(rel), name, &format!("plugin {name}"), None));
         }
     }
     out
@@ -162,33 +110,19 @@ pub fn mcp_items(text: Option<&str>, rel: &str) -> Vec<TrustItem> {
         return Vec::new();
     };
     let mut out = Vec::new();
-    for (name, s) in json
-        .get("mcpServers")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flatten()
-    {
+    for (name, s) in json.get("mcpServers").and_then(Value::as_object).into_iter().flatten() {
         if !s.is_object() {
             continue;
         }
         let command = match (str_of(s, "command"), str_of(s, "url")) {
             (Some(c), _) => std::iter::once(c)
-                .chain(
-                    s.get("args")
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_str),
-                )
+                .chain(s.get("args").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str))
                 .collect::<Vec<_>>()
                 .join(" "),
             (None, Some(u)) => u.to_owned(),
             (None, None) => s.to_string(),
         };
-        let extra = s
-            .get("env")
-            .and_then(Value::as_object)
-            .map(|e| e.keys().cloned().collect::<Vec<_>>());
+        let extra = s.get("env").and_then(Value::as_object).map(|e| e.keys().cloned().collect::<Vec<_>>());
         out.push(item(TrustKind::Mcp, Some(rel), name, &command, extra));
     }
     out
@@ -196,11 +130,7 @@ pub fn mcp_items(text: Option<&str>, rel: &str) -> Vec<TrustItem> {
 
 /// The setup steps a new worktree would run, as the card lists them.
 pub fn setup_items(file: Option<&str>, commands: &[String]) -> Vec<TrustItem> {
-    commands
-        .iter()
-        .enumerate()
-        .map(|(i, c)| item(TrustKind::Setup, file, &format!("step {}", i + 1), c, None))
-        .collect()
+    commands.iter().enumerate().map(|(i, c)| item(TrustKind::Setup, file, &format!("step {}", i + 1), c, None)).collect()
 }
 
 /// Does trust ask at all? Not with `projectAsk: off`, and never in Full auto.
@@ -214,9 +144,7 @@ pub fn relative(from: &str, to: &str) -> String {
     let b: Vec<&str> = to.split('/').filter(|s| !s.is_empty()).collect();
     let common = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
     let ups = std::iter::repeat_n("..", a.len() - common);
-    ups.chain(b[common..].iter().copied())
-        .collect::<Vec<_>>()
-        .join("/")
+    ups.chain(b[common..].iter().copied()).collect::<Vec<_>>().join("/")
 }
 
 /// The folders whose Claude files count for a run in `at` inside checkout `top`: both, once, never home.
@@ -245,24 +173,15 @@ pub struct TrustState {
 
 impl TrustState {
     pub fn trusted(&self, key: &str, id: &str) -> bool {
-        self.repos
-            .get(key)
-            .is_some_and(|r| r.ids.iter().any(|x| x == id))
+        self.repos.get(key).is_some_and(|r| r.ids.iter().any(|x| x == id))
     }
 
     /// The items not trusted yet (each once), or None. `changed`: something here was trusted before.
     pub fn untrusted(&self, key: &str, items: Vec<TrustItem>) -> Option<Pending> {
         let mut seen = std::collections::HashSet::new();
-        let open: Vec<TrustItem> = items
-            .into_iter()
-            .filter(|x| seen.insert(x.id.clone()) && !self.trusted(key, &x.id))
-            .collect();
+        let open: Vec<TrustItem> = items.into_iter().filter(|x| seen.insert(x.id.clone()) && !self.trusted(key, &x.id)).collect();
         let changed = self.repos.get(key).is_some_and(|r| !r.ids.is_empty());
-        (!open.is_empty()).then(|| Pending {
-            key: key.to_owned(),
-            items: open,
-            changed,
-        })
+        (!open.is_empty()).then(|| Pending { key: key.to_owned(), items: open, changed })
     }
 
     pub fn trust(&mut self, key: &str, ids: &[String], now: i64) {

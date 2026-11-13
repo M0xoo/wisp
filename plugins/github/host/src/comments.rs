@@ -66,14 +66,19 @@ impl Gh {
     async fn gh(&self, args: &[&str]) -> std::result::Result<String, String> {
         let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
         let out = self.hub.exec().run("gh", &args, None, 30_000).await.map_err(|e| e.message)?;
-        if out.code == 0 { Ok(out.stdout) } else { Err(if out.stderr.trim().is_empty() { out.stdout } else { out.stderr }.trim().to_owned()) }
+        if out.code == 0 {
+            Ok(out.stdout)
+        } else {
+            Err(if out.stderr.trim().is_empty() { out.stdout } else { out.stderr }.trim().to_owned())
+        }
     }
 
     async fn whoami(&self) -> std::result::Result<String, String> {
         if let Some((id, _)) = lock(&self.me).clone() {
             return Ok(id);
         }
-        let u: Value = serde_json::from_str(&self.gh(&["api", "user"]).await?).map_err(|_| "gh api user said something unreadable".to_owned())?;
+        let u: Value =
+            serde_json::from_str(&self.gh(&["api", "user"]).await?).map_err(|_| "gh api user said something unreadable".to_owned())?;
         let id = u["id"].as_u64().map(|n| n.to_string()).ok_or("gh api user gave no id")?;
         *lock(&self.me) = Some((id.clone(), u["login"].as_str().unwrap_or_default().to_owned()));
         Ok(id)
@@ -81,7 +86,8 @@ impl Gh {
 
     /// The repos of this computer's projects, most recently used first.
     async fn repos(&self) -> Vec<(String, ProjectView)> {
-        let mut here: Vec<ProjectView> = self.hub.phone().projects().await.unwrap_or_default().into_iter().filter(|p| p.machine.is_none()).collect();
+        let mut here: Vec<ProjectView> =
+            self.hub.phone().projects().await.unwrap_or_default().into_iter().filter(|p| p.machine.is_none()).collect();
         here.sort_by_key(|p| std::cmp::Reverse(p.last_used_at.or(p.added_at).unwrap_or(0)));
         let mut out: Vec<(String, ProjectView)> = Vec::new();
         for p in here {
@@ -95,7 +101,13 @@ impl Gh {
             }
             let origin = match p.repo.clone() {
                 Some(r) => r,
-                None => self.hub.exec().run("git", &["-C".into(), p.path.clone(), "remote".into(), "get-url".into(), "origin".into()], None, 5_000).await.map(|o| o.stdout).unwrap_or_default(),
+                None => self
+                    .hub
+                    .exec()
+                    .run("git", &["-C".into(), p.path.clone(), "remote".into(), "get-url".into(), "origin".into()], None, 5_000)
+                    .await
+                    .map(|o| o.stdout)
+                    .unwrap_or_default(),
             };
             if let Some(r) = gc::parse_repo(&origin).filter(|r| !out.iter().any(|(x, _)| x == r)) {
                 out.push((r, p));
@@ -110,7 +122,12 @@ impl Gh {
             let _ = at;
             return p;
         }
-        let p = self.gh(&["api", &format!("repos/{repo}")]).await.ok().and_then(|o| serde_json::from_str::<Value>(&o).ok()).is_some_and(|v| v["private"] == true);
+        let p = self
+            .gh(&["api", &format!("repos/{repo}")])
+            .await
+            .ok()
+            .and_then(|o| serde_json::from_str::<Value>(&o).ok())
+            .is_some_and(|v| v["private"] == true);
         lock(&self.private).insert(repo.to_owned(), (p, now));
         p
     }
@@ -123,7 +140,10 @@ impl Gh {
     pub(crate) async fn post(&self, repo: &str, number: u64, text: &str) -> Result<()> {
         let clean = defuse(&no_media(&scrub_out(text, true).text));
         let body = format!("body={}", gc::body_out(&clean));
-        self.gh(&["api", &format!("repos/{repo}/issues/{number}/comments"), "-f", &body]).await.map(drop).map_err(|e| WireError::unavailable(format!("GitHub: {e}")))
+        self.gh(&["api", &format!("repos/{repo}/issues/{number}/comments"), "-f", &body])
+            .await
+            .map(drop)
+            .map_err(|e| WireError::unavailable(format!("GitHub: {e}")))
     }
 
     fn cursor(&self, repo: &str) -> Option<Cursor> {
@@ -197,7 +217,13 @@ impl Gh {
         let root = project.path.trim_end_matches('/');
         // "" is a prefix of every folder: a project with none follows no task
         wisp_runtime_api::paths::Folder::of(&project.path).ok()?;
-        let mut leads: Vec<_> = phone.sessions().await.ok()?.into_iter().filter(|s| s.parent_id.is_none() && s.cwd.as_deref().is_some_and(|c| c.starts_with(root))).collect();
+        let mut leads: Vec<_> = phone
+            .sessions()
+            .await
+            .ok()?
+            .into_iter()
+            .filter(|s| s.parent_id.is_none() && s.cwd.as_deref().is_some_and(|c| c.starts_with(root)))
+            .collect();
         leads.sort_by_key(|s| std::cmp::Reverse(s.created_at.unwrap_or(0)));
         // the list rows have no branch: read the newest few in full
         let mut full = Vec::new();
@@ -206,7 +232,20 @@ impl Gh {
                 full.push(v);
             }
         }
-        gc::follows_branch(full.iter().map(|s| (s.id.as_str(), s.parent_id.is_some(), s.delegated, s.cwd.as_deref().unwrap_or_default(), s.branch.as_deref(), s.created_at.unwrap_or(0))), &head, &project.path)
+        gc::follows_branch(
+            full.iter().map(|s| {
+                (
+                    s.id.as_str(),
+                    s.parent_id.is_some(),
+                    s.delegated,
+                    s.cwd.as_deref().unwrap_or_default(),
+                    s.branch.as_deref(),
+                    s.created_at.unwrap_or(0),
+                )
+            }),
+            &head,
+            &project.path,
+        )
     }
 
     async fn comment(self: &Arc<Self>, repo: &str, project: &ProjectView, cur: &mut Cursor, c: &Comment) -> Result<()> {
@@ -221,7 +260,14 @@ impl Gh {
         let seen_first = cur.first(&c.id);
         let g = if seen_first {
             let mut limit = lock(&self.limit);
-            gate(GateArgs { sender: c.mine.then_some(c.user_id.as_str()), senders: std::slice::from_ref(&me), at_s: Some(c.created_s), limit: Some(&mut limit), now_ms: self.hub.now_ms(), ..GateArgs::default() })
+            gate(GateArgs {
+                sender: c.mine.then_some(c.user_id.as_str()),
+                senders: std::slice::from_ref(&me),
+                at_s: Some(c.created_s),
+                limit: Some(&mut limit),
+                now_ms: self.hub.now_ms(),
+                ..GateArgs::default()
+            })
         } else {
             return Ok(()); // the cursor's own second comes back on every look
         };
@@ -239,13 +285,34 @@ impl Gh {
         let mut ctx = phone.context().await?;
         // its project first: a comment on a repo runs there unless it says otherwise
         ctx.projects.sort_by_key(|p| p.id != project.id);
-        let text = wisp_channels_api::markup::strip_formatting(&if cmd.to_lowercase().starts_with("new ") || cmd.eq_ignore_ascii_case("new") { format!("/{cmd}") } else if cmd.is_empty() { "help".into() } else { cmd }, wisp_channels_api::markup::Markup::Plain, "");
+        let text = wisp_channels_api::markup::strip_formatting(
+            &if cmd.to_lowercase().starts_with("new ") || cmd.eq_ignore_ascii_case("new") {
+                format!("/{cmd}")
+            } else if cmd.is_empty() {
+                "help".into()
+            } else {
+                cmd
+            },
+            wisp_channels_api::markup::Markup::Plain,
+            "",
+        );
         let key = format!("{repo}#{number}");
         let mut session = self.hub.find_remote(&|r, _| r.get("gh").and_then(Value::as_str) == Some(key.as_str())).into_iter().next();
         if session.is_none() && c.pr {
             session = self.branch_task(repo, number, project).await;
         }
-        let conv = GhConv { gh: self.clone(), phone, ctx, repo: repo.to_owned(), number, key, login: c.login.clone(), sender: c.user_id.clone(), about: gc::about(repo, number, c.pr), open };
+        let conv = GhConv {
+            gh: self.clone(),
+            phone,
+            ctx,
+            repo: repo.to_owned(),
+            number,
+            key,
+            login: c.login.clone(),
+            sender: c.user_id.clone(),
+            about: gc::about(repo, number, c.pr),
+            open,
+        };
         self.hub.converse(&conv, &text, session.as_deref(), None).await.map(drop)
     }
 }
@@ -410,7 +477,10 @@ impl Transport for Gh {
     }
 
     fn reports(&self, s: Option<&SessionView>) -> bool {
-        s.is_some_and(|s| self.hub.started_from(&s.id).is_some_and(|(c, _)| c == NAME) || self.hub.remote_of(&s.id).is_some_and(|r| r.contains_key("ghOnce")))
+        s.is_some_and(|s| {
+            self.hub.started_from(&s.id).is_some_and(|(c, _)| c == NAME)
+                || self.hub.remote_of(&s.id).is_some_and(|r| r.contains_key("ghOnce"))
+        })
     }
 
     /// Only for a task started here, or one turn of one followed up here.
@@ -424,7 +494,9 @@ impl Transport for Gh {
             self.hub.set_remote(&sv.id, r.clone());
         }
         let Some(key) = r.get("gh").or(once.as_ref()).and_then(Value::as_str).map(str::to_owned) else { return Ok(()) };
-        let Some((repo, number)) = key.rsplit_once('#').and_then(|(r, n)| Some((r.to_owned(), n.parse::<u64>().ok()?))) else { return Ok(()) };
+        let Some((repo, number)) = key.rsplit_once('#').and_then(|(r, n)| Some((r.to_owned(), n.parse::<u64>().ok()?))) else {
+            return Ok(());
+        };
         let open = self.open(&repo).await;
         let failed = sv.state == "error";
         let by = self.hub.started_from(&sv.id).and_then(|(_, by)| by);

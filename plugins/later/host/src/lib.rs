@@ -128,7 +128,8 @@ impl State {
     async fn add(&self, ctx: &Ctx, call: &Call, a: &c::AddArgs) -> Result<LaterEntry> {
         let task = need_task(ctx, call, &a.session_id, "No such task.").await?;
         let pending = self.of_task(&a.session_id).len();
-        let l = rules::new_entry(wisp_kernel::ids::uuid7(), &task, &self.meta(&a.session_id), pending, a, now(ctx), self.tz(now(ctx))).map_err(wire)?;
+        let l = rules::new_entry(wisp_kernel::ids::uuid7(), &task, &self.meta(&a.session_id), pending, a, now(ctx), self.tz(now(ctx)))
+            .map_err(wire)?;
         lock(&self.entries).push(l.clone());
         self.write(store::Ops { entries: vec![l.clone()], ..store::Ops::default() }).await?;
         self.mirror(ctx, call, &a.session_id).await;
@@ -149,7 +150,8 @@ impl State {
         let mut m = self.meta(&l.session_id);
         m.sent = Some(sent);
         lock(&self.metas).insert(l.session_id.clone(), m.clone());
-        self.write(store::Ops { drop_entries: vec![l.id.clone()], metas: vec![(l.session_id.clone(), m)], ..store::Ops::default() }).await?;
+        self.write(store::Ops { drop_entries: vec![l.id.clone()], metas: vec![(l.session_id.clone(), m)], ..store::Ops::default() })
+            .await?;
         let text = format!("{note}\n\n{}", l.text);
         calls::follow_up(ctx, call, &l.session_id, text, &l.attachments).await
     }
@@ -160,7 +162,8 @@ impl State {
         let mut m = self.meta(&l.session_id);
         m.reminder = Some(reminder);
         lock(&self.metas).insert(l.session_id.clone(), m.clone());
-        self.write(store::Ops { drop_entries: vec![l.id.clone()], metas: vec![(l.session_id.clone(), m)], ..store::Ops::default() }).await?;
+        self.write(store::Ops { drop_entries: vec![l.id.clone()], metas: vec![(l.session_id.clone(), m)], ..store::Ops::default() })
+            .await?;
         calls::note(ctx, call, &l.session_id, l.text.clone()).await;
         Ok(())
     }
@@ -301,7 +304,11 @@ fn commands(s: &mut Setup, slot: &Slot) {
     on!(s, slot, c::Add, |st, ctx, call, a| st.add(&ctx, &call, &a).await);
     on!(s, slot, c::List, |st, _ctx, _call, a| Ok(st.of_task(&a.session_id)));
     on!(s, slot, c::Edit, |st, ctx, call, a| {
-        let l = st.of_task(&a.session_id).into_iter().find(|l| l.id == a.item).ok_or_else(|| WireError::not_found("Nothing scheduled with that id."))?;
+        let l = st
+            .of_task(&a.session_id)
+            .into_iter()
+            .find(|l| l.id == a.item)
+            .ok_or_else(|| WireError::not_found("Nothing scheduled with that id."))?;
         if a.now {
             st.take(std::slice::from_ref(&l.id));
             let sent = st.fire(&ctx, &call, &l, false).await?;
@@ -316,7 +323,12 @@ fn commands(s: &mut Setup, slot: &Slot) {
         Ok(c::Edited::Entry(next))
     });
     on!(s, slot, c::Cancel, |st, ctx, call, a| {
-        let ids: Vec<String> = st.of_task(&a.session_id).into_iter().filter(|l| a.item.as_deref().is_none_or(|i| i == l.id) && (!a.goal_round || l.goal.is_some())).map(|l| l.id).collect();
+        let ids: Vec<String> = st
+            .of_task(&a.session_id)
+            .into_iter()
+            .filter(|l| a.item.as_deref().is_none_or(|i| i == l.id) && (!a.goal_round || l.goal.is_some()))
+            .map(|l| l.id)
+            .collect();
         let gone = st.take(&ids);
         st.write(store::Ops { drop_entries: ids, ..store::Ops::default() }).await?;
         st.mirror(&ctx, &call, &a.session_id).await;
@@ -340,10 +352,16 @@ fn commands(s: &mut Setup, slot: &Slot) {
             // Undo after Mark done puts the task's state back
             calls::set_state(&ctx, &call, &a.session_id, state).await?;
         }
-        Ok(c::Parked { for_later: at.filter(|_| on).map(|at| wisp_later_api::ForLater { at, by: a.by.clone().unwrap_or_else(|| "you".into()) }) })
+        Ok(c::Parked {
+            for_later: at.filter(|_| on).map(|at| wisp_later_api::ForLater { at, by: a.by.clone().unwrap_or_else(|| "you".into()) }),
+        })
     });
     on!(s, slot, c::Plans, |st, _ctx, _call, _a| Ok(lock(&st.plans).clone()));
-    on!(s, slot, c::GetPlan, |st, _ctx, _call, a| lock(&st.plans).iter().find(|p| p.id == a.id).cloned().ok_or_else(|| WireError::not_found("No such plan.")));
+    on!(s, slot, c::GetPlan, |st, _ctx, _call, a| lock(&st.plans)
+        .iter()
+        .find(|p| p.id == a.id)
+        .cloned()
+        .ok_or_else(|| WireError::not_found("No such plan.")));
     on!(s, slot, c::MakePlan, |st, ctx, call, a| {
         let after = match &a.after {
             Some(v) => {
@@ -352,7 +370,14 @@ fn commands(s: &mut Setup, slot: &Slot) {
             }
             None => None,
         };
-        let p = rules::new_plan(wisp_kernel::ids::uuid7(), &a, after.as_ref().map(|t| (t, t.state == TaskState::Done)), now(&ctx), st.tz(now(&ctx))).map_err(wire)?;
+        let p = rules::new_plan(
+            wisp_kernel::ids::uuid7(),
+            &a,
+            after.as_ref().map(|t| (t, t.state == TaskState::Done)),
+            now(&ctx),
+            st.tz(now(&ctx)),
+        )
+        .map_err(wire)?;
         lock(&st.plans).push(p.clone());
         st.write(store::Ops { plans: vec![p.clone()], ..store::Ops::default() }).await?;
         Ok(p)
@@ -398,7 +423,14 @@ fn commands(s: &mut Setup, slot: &Slot) {
     on!(s, slot, c::Tick, |st, ctx, call, _a| Ok(c::Ticked { fired: st.tick(&ctx, &call).await }));
     on!(s, slot, c::WaitAtLimit, |st, ctx, call, a| {
         // the carry-on at a usage limit: a follow-up of wisp's own at the reset
-        let add = c::AddArgs { session_id: a.session_id.clone(), text: Some(wisp_later_api::LIMIT_CARRY_ON.into()), when: c::When { at: Some(json!(a.at.max(now(&ctx) + wisp_later_api::MIN_MS))), in_min: None }, by: Some(wisp_later_api::BY_WISP.into()), limit: a.agent.clone().map(|agent| wisp_later_api::LimitRef { agent, account: String::new() }), ..c::AddArgs::default() };
+        let add = c::AddArgs {
+            session_id: a.session_id.clone(),
+            text: Some(wisp_later_api::LIMIT_CARRY_ON.into()),
+            when: c::When { at: Some(json!(a.at.max(now(&ctx) + wisp_later_api::MIN_MS))), in_min: None },
+            by: Some(wisp_later_api::BY_WISP.into()),
+            limit: a.agent.clone().map(|agent| wisp_later_api::LimitRef { agent, account: String::new() }),
+            ..c::AddArgs::default()
+        };
         Ok(st.add(&ctx, &call, &add).await.ok())
     });
     on!(s, slot, c::AgentSchedule, |st, ctx, call, a| {
@@ -416,9 +448,18 @@ fn commands(s: &mut Setup, slot: &Slot) {
         if let Some(at) = a.at.as_deref()
             && !rules::agent_at_ok(at)
         {
-            return Ok(c::ScheduleOut { text: None, error: Some("`at` must be an ISO time with its offset (2026-11-08T17:00:00Z).".into()) });
+            return Ok(c::ScheduleOut {
+                text: None,
+                error: Some("`at` must be an ISO time with its offset (2026-11-08T17:00:00Z).".into()),
+            });
         }
-        let add = c::AddArgs { session_id: a.session.clone(), text: a.message.clone(), when: c::When { at: a.at.clone().map(Value::String), in_min: a.minutes.clone() }, by: Some(BY_AGENT.into()), ..c::AddArgs::default() };
+        let add = c::AddArgs {
+            session_id: a.session.clone(),
+            text: a.message.clone(),
+            when: c::When { at: a.at.clone().map(Value::String), in_min: a.minutes.clone() },
+            by: Some(BY_AGENT.into()),
+            ..c::AddArgs::default()
+        };
         match st.add(&ctx, &call, &add).await {
             Ok(l) => {
                 let task = task_of(&ctx, &call, &a.session).await;
@@ -450,7 +491,13 @@ impl Plugin for LaterPlugin {
             store::install(&store).map_err(WireError::from)?;
             let (entries, plans, metas) = store::load(&store).await.map_err(WireError::from)?;
             let zone = store::load_conf(&store).await.map_err(WireError::from)?.get("zone").and_then(Value::as_str).map(str::to_owned);
-            let st = Arc::new(State { store, entries: Mutex::new(entries), plans: Mutex::new(plans), metas: Mutex::new(metas.into_iter().collect()), zone: Mutex::new(zone) });
+            let st = Arc::new(State {
+                store,
+                entries: Mutex::new(entries),
+                plans: Mutex::new(plans),
+                metas: Mutex::new(metas.into_iter().collect()),
+                zone: Mutex::new(zone),
+            });
             let _ = start.set(st.clone());
             // the zone the client sent with its settings wins over the one later kept
             let zone_of = |v: Option<Value>| v.and_then(|v| v.as_str().map(str::to_owned)).filter(|z| !z.is_empty());

@@ -23,11 +23,7 @@ pub async fn work_in_progress(disk: &dyn Disk, cwd: &str) -> Option<String> {
     let head = trimmed(disk.git(cwd, &["rev-parse", "--verify", "HEAD"]).await)?;
     let git_dir = trimmed(disk.git(cwd, &["rev-parse", "--absolute-git-dir"]).await)?;
     // in the checkout's own git dir (as git's stash puts `index.stash.<pid>`): same disk, always writable
-    let index = format!(
-        "{git_dir}/wisp-wip-{}-{}.index",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    );
+    let index = format!("{git_dir}/wisp-wip-{}-{}.index", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed));
     let out = through(disk, cwd, &head, &git_dir, &index).await;
     disk.remove(&index).await;
     disk.remove(&format!("{index}.lock")).await;
@@ -41,26 +37,17 @@ async fn through(disk: &dyn Disk, cwd: &str, head: &str, git_dir: &str, index: &
     // seeded from the user's index (a plain read, no lock): its stat cache spares `add` re-hashing
     // every tracked file, and its staged adds and removals come along. A copy git can't read (a
     // missing index, a disk that can't copy) falls back to HEAD's tree, re-hashed whole.
-    let seeded = disk.copy(&format!("{git_dir}/index"), index).await
-        && tmp(&["add", "--update"]).await.is_some();
+    let seeded = disk.copy(&format!("{git_dir}/index"), index).await && tmp(&["add", "--update"]).await.is_some();
     if !seeded {
         disk.remove(index).await;
         tmp(&["read-tree", "HEAD"]).await?;
         tmp(&["add", "--update"]).await?;
     }
     let tree = trimmed(tmp(&["write-tree"]).await)?;
-    if trimmed(disk.git(cwd, &["rev-parse", "HEAD^{tree}"]).await).as_deref() == Some(tree.as_str())
-    {
+    if trimmed(disk.git(cwd, &["rev-parse", "HEAD^{tree}"]).await).as_deref() == Some(tree.as_str()) {
         return None;
     }
-    let commit = [
-        "commit-tree",
-        tree.as_str(),
-        "-p",
-        head,
-        "-m",
-        "wisp: work in progress",
-    ];
+    let commit = ["commit-tree", tree.as_str(), "-p", head, "-m", "wisp: work in progress"];
     trimmed(disk.git_env(cwd, &commit, &env).await)
 }
 

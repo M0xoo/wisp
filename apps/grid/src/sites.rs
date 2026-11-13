@@ -46,10 +46,14 @@ pub fn private_file(rel: &str) -> bool {
     let secret = env_name(&name)
         || name.ends_with(".env")
         || name == ".envrc"
-        || name.trim_start_matches('.').starts_with("credentials") && (name.trim_start_matches('.') == "credentials" || ends(&[".json", ".yml", ".yaml", ".toml", ".ini", ".txt", ".csv", ".xml"]))
+        || name.trim_start_matches('.').starts_with("credentials")
+            && (name.trim_start_matches('.') == "credentials"
+                || ends(&[".json", ".yml", ".yaml", ".toml", ".ini", ".txt", ".csv", ".xml"]))
         || name.starts_with("client_secret") && name.ends_with(".json")
-        || (name.starts_with("service-account") || name.starts_with("service_account") || name.starts_with("serviceaccount")) && name.ends_with(".json")
-        || ["secret.json", "secrets.json", "secret.yml", "secrets.yml", "secret.yaml", "secrets.yaml", "secret.toml", "secrets.toml"].contains(&name.as_str())
+        || (name.starts_with("service-account") || name.starts_with("service_account") || name.starts_with("serviceaccount"))
+            && name.ends_with(".json")
+        || ["secret.json", "secrets.json", "secret.yml", "secrets.yml", "secret.yaml", "secrets.yaml", "secret.toml", "secrets.toml"]
+            .contains(&name.as_str())
         || [".npmrc", ".netrc", ".pgpass", ".pypirc", ".htpasswd", ".git-credentials", ".dockercfg"].contains(&name.as_str())
         || ends(&[".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".ppk", ".map"])
         || ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"].contains(&name.as_str());
@@ -84,7 +88,9 @@ pub fn unpack(buf: &[u8], dir: &Path, skip: &dyn Fn(&str) -> bool) -> std::resul
         at += n;
         let raw = head.get("path").and_then(Value::as_str).unwrap_or_default();
         let len = head.get("size").and_then(Value::as_u64).and_then(|l| usize::try_from(l).ok());
-        let (Some(rel), Some(len)) = (bundle_path(raw), len) else { return Err(format!("The bundle has a bad file: {}", raw.chars().take(80).collect::<String>())) };
+        let (Some(rel), Some(len)) = (bundle_path(raw), len) else {
+            return Err(format!("The bundle has a bad file: {}", raw.chars().take(80).collect::<String>()));
+        };
         if at + len > buf.len() {
             return Err(format!("The bundle has a bad file: {}", rel.chars().take(80).collect::<String>()));
         }
@@ -272,7 +278,13 @@ fn hex(n: usize) -> String {
 }
 
 impl Sites {
-    pub fn new(db: Arc<Db>, clock: SharedClock, data_dir: &Path, cfg: Option<&crate::config::FeatureConfig>, url_of: Arc<dyn Fn(&str) -> String + Send + Sync>) -> Self {
+    pub fn new(
+        db: Arc<Db>,
+        clock: SharedClock,
+        data_dir: &Path,
+        cfg: Option<&crate::config::FeatureConfig>,
+        url_of: Arc<dyn Fn(&str) -> String + Send + Sync>,
+    ) -> Self {
         Self {
             db,
             clock,
@@ -293,11 +305,19 @@ impl Sites {
     }
 
     pub fn list(&self, user_id: &str) -> Result<Vec<SiteRow>> {
-        self.db.with(|c| c.prepare_cached("SELECT * FROM sites WHERE user_id = ?1 ORDER BY updated_at DESC")?.query_map([user_id], SiteRow::from_row)?.collect())
+        self.db.with(|c| {
+            c.prepare_cached("SELECT * FROM sites WHERE user_id = ?1 ORDER BY updated_at DESC")?
+                .query_map([user_id], SiteRow::from_row)?
+                .collect()
+        })
     }
 
     fn own(&self, user_id: &str, key: &str) -> Result<Option<SiteRow>> {
-        self.db.with(|c| c.prepare_cached("SELECT * FROM sites WHERE user_id = ?1 AND key = ?2")?.query_row(params![user_id, key], SiteRow::from_row).optional())
+        self.db.with(|c| {
+            c.prepare_cached("SELECT * FROM sites WHERE user_id = ?1 AND key = ?2")?
+                .query_row(params![user_id, key], SiteRow::from_row)
+                .optional()
+        })
     }
 
     pub fn by_label(&self, label: &str) -> Result<Option<SiteRow>> {
@@ -320,12 +340,16 @@ impl Sites {
         }
         let name: String = title.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(140).collect();
         let name = if name.is_empty() { "App".to_owned() } else { name };
-        let start = if entry.trim_start_matches('/').is_empty() { "index.html".to_owned() } else { entry.trim_start_matches('/').to_owned() };
+        let start =
+            if entry.trim_start_matches('/').is_empty() { "index.html".to_owned() } else { entry.trim_start_matches('/').to_owned() };
         let have = self.own(&user.id, key)?;
         if have.is_none() {
             let n: i64 = self.db.with(|c| c.query_row("SELECT count(*) FROM sites WHERE user_id = ?1", [&user.id], |r| r.get(0)))?;
             if n >= self.per_user {
-                return Err(bad(format!("You have {} published apps, as many as this grid keeps. Unpublish one first.", self.per_user), 409));
+                return Err(bad(
+                    format!("You have {} published apps, as many as this grid keeps. Unpublish one first.", self.per_user),
+                    409,
+                ));
             }
         }
         let id = have.as_ref().map_or_else(|| hex(6), |h| h.id.clone());
@@ -355,7 +379,12 @@ impl Sites {
         let t = self.clock.now_ms();
         let (files, size) = (i64::try_from(got.0).unwrap_or(i64::MAX), i64::try_from(got.1).unwrap_or(i64::MAX));
         if let Some(h) = have {
-            self.db.with(|c| c.execute("UPDATE sites SET title = ?1, entry = ?2, files = ?3, size = ?4, updated_at = ?5 WHERE id = ?6", params![name, start, files, size, t, id]))?;
+            self.db.with(|c| {
+                c.execute(
+                    "UPDATE sites SET title = ?1, entry = ?2, files = ?3, size = ?4, updated_at = ?5 WHERE id = ?6",
+                    params![name, start, files, size, t, id],
+                )
+            })?;
             return Ok(self.view(&SiteRow { title: name, entry: start, files, size, updated_at: t, ..h }));
         }
         let slug = site_slug(&name);
@@ -365,7 +394,19 @@ impl Sites {
             label = format!("{slug}-{k}--app--{}", user.handle);
             k += 1;
         }
-        let row = SiteRow { id, user_id: user.id.clone(), key: key.to_owned(), label, title: name, entry: start, files, size, db: None, created_at: t, updated_at: t };
+        let row = SiteRow {
+            id,
+            user_id: user.id.clone(),
+            key: key.to_owned(),
+            label,
+            title: name,
+            entry: start,
+            files,
+            size,
+            db: None,
+            created_at: t,
+            updated_at: t,
+        };
         self.db.with(|c| {
             c.execute(
                 "INSERT INTO sites (id, user_id, key, label, title, entry, files, size, db, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, ?9, ?9)",
@@ -395,7 +436,11 @@ impl Sites {
     /// Anyone's request to a published app: its files, read-only.
     pub fn serve(&self, method: &str, path: &str, s: &SiteRow) -> Served {
         // kept out of search engines; the edge sets no cookie on a site's origin
-        let mut headers = vec![("x-content-type-options", "nosniff".to_owned()), ("referrer-policy", "strict-origin-when-cross-origin".to_owned()), ("x-robots-tag", "noindex, nofollow".to_owned())];
+        let mut headers = vec![
+            ("x-content-type-options", "nosniff".to_owned()),
+            ("referrer-policy", "strict-origin-when-cross-origin".to_owned()),
+            ("x-robots-tag", "noindex, nofollow".to_owned()),
+        ];
         if method != "GET" && method != "HEAD" {
             headers.push(("allow", "GET, HEAD".into()));
             return Served { status: 405, headers, body: Vec::new() };

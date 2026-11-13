@@ -2,13 +2,7 @@
 //! `cargo test --release -p wisp-kernel --test kernel_bench -- --ignored --nocapture`
 //! Dispatch overhead: a no-op command through the permission check and the trace, typed (in-process)
 //! and JSON (the edge). Event throughput: one command emitting N events to one subscriber.
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::cast_precision_loss,
-    clippy::print_stderr
-)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::cast_precision_loss, clippy::print_stderr)]
 mod common;
 
 use std::sync::Arc;
@@ -38,19 +32,15 @@ fn plugins(got: Arc<AtomicU64>) -> PluginGroup {
         });
     });
     // a second plugin calling into the first: the permission check runs on both sets
-    let c = common::plugin(
-        "wisp.caller",
-        json!({ "permissions": ["bench:noop"] }),
-        move |s| {
+    let c = common::plugin("wisp.caller", json!({ "permissions": ["bench:noop"] }), move |s| {
+        let got = got.clone();
+        s.on::<Tick, _, _>(move |_, _| {
             let got = got.clone();
-            s.on::<Tick, _, _>(move |_, _| {
-                let got = got.clone();
-                async move {
-                    got.fetch_add(1, Ordering::Relaxed);
-                }
-            });
-        },
-    );
+            async move {
+                got.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+    });
     PluginGroup::new().add(b).add(c)
 }
 
@@ -72,16 +62,12 @@ async fn bench_dispatch_and_events() {
     let typed = t.elapsed().as_nanos() as f64 / f64::from(n);
     let t = Instant::now();
     for _ in 0..n {
-        k.call(Caller::user(), "bench.noop", serde_json::Value::Null)
-            .await
-            .unwrap();
+        k.call(Caller::user(), "bench.noop", serde_json::Value::Null).await.unwrap();
     }
     let edge = t.elapsed().as_nanos() as f64 / f64::from(n);
     let events = 500_000u64;
     let t = Instant::now();
-    k.call(Caller::user(), "bench.burst", json!(events))
-        .await
-        .unwrap();
+    k.call(Caller::user(), "bench.burst", json!(events)).await.unwrap();
     k.idle().await;
     let secs = t.elapsed().as_secs_f64();
     // the subscriber drains while the burst is published: it gets at least the cap, the rest lags
@@ -93,16 +79,12 @@ async fn bench_dispatch_and_events() {
     let t = Instant::now();
     let rounds = 2_000u64;
     for _ in 0..rounds {
-        k.call(Caller::user(), "bench.burst", json!(50))
-            .await
-            .unwrap();
+        k.call(Caller::user(), "bench.burst", json!(50)).await.unwrap();
     }
     k.idle().await;
     let steady = (rounds * 50) as f64 / t.elapsed().as_secs_f64();
     assert_eq!(got.load(Ordering::Relaxed), rounds * 50);
-    eprintln!(
-        "dispatch, typed nested (plugin → plugin, 2 permission sets + trace): {typed:.0} ns/call"
-    );
+    eprintln!("dispatch, typed nested (plugin → plugin, 2 permission sets + trace): {typed:.0} ns/call");
     eprintln!("dispatch, edge JSON (user:full, args/result as JSON): {edge:.0} ns/call");
     eprintln!(
         "publish, one burst of {events} (cap {}): {:.0} events/s published, {delivered} delivered, rest lagging",

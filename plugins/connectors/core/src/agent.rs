@@ -4,7 +4,9 @@
 //! the user fills them in on a card.
 
 use serde_json::Value;
-use wisp_connectors_api::{AgentAddArgs, AskConnector, AskKey, AskKind, ConnectorBody, KeyField, SecretField, SecretInput, SigninAsk, Transport};
+use wisp_connectors_api::{
+    AgentAddArgs, AskConnector, AskKey, AskKind, ConnectorBody, KeyField, SecretField, SecretInput, SigninAsk, Transport,
+};
 
 use crate::error::{ConnectorError, Result};
 use crate::model::missing;
@@ -13,7 +15,8 @@ use wisp_connectors_api::Connector;
 
 pub const READY: &str = "Tasks get it from their next turn: harnesses load MCP servers when a turn starts, so this turn can’t call it yet.";
 pub const NONE_YET: &str = "The user has no connectors yet. Add one with wisp_connector_add.";
-pub const ONLY_THE_USER: &str = "Only a task the user started can change their connectors; a subagent or a crew member’s job can’t. Tell the user what to add instead.";
+pub const ONLY_THE_USER: &str =
+    "Only a task the user started can change their connectors; a subagent or a crew member’s job can’t. Tell the user what to add instead.";
 
 /// v1 capped.js `cappedRefusal('read or change the user\'s connectors')`.
 pub fn capped_refusal() -> String {
@@ -44,7 +47,11 @@ pub fn state(x: &Connector, has: &dyn Fn(&str) -> bool) -> String {
         Some(t) if t.ok => {
             let n = t.count.unwrap_or(0);
             let tools = t.tools.as_deref().unwrap_or_default();
-            let shown = if tools.is_empty() { String::new() } else { format!(" ({}{})", tools.iter().take(8).cloned().collect::<Vec<_>>().join(", "), if n > 8 { ", …" } else { "" }) };
+            let shown = if tools.is_empty() {
+                String::new()
+            } else {
+                format!(" ({}{})", tools.iter().take(8).cloned().collect::<Vec<_>>().join(", "), if n > 8 { ", …" } else { "" })
+            };
             format!("works: {n} tool{}{shown}", plural(n))
         }
         Some(t) if t.auth => "needs the user to sign in (wisp_connector_signin)".into(),
@@ -91,7 +98,9 @@ fn names(field: &str, v: Option<&Value>) -> Result<Option<SecretInput>> {
     match v {
         None | Some(Value::Null) => Ok(None),
         // Names only: a value here would sit in this task's transcript.
-        Some(Value::Array(a)) => Ok(Some(SecretInput::List(a.iter().map(|k| SecretField { key: k.as_str().map_or_else(|| k.to_string(), str::to_owned), value: Value::Null }).collect()))),
+        Some(Value::Array(a)) => Ok(Some(SecretInput::List(
+            a.iter().map(|k| SecretField { key: k.as_str().map_or_else(|| k.to_string(), str::to_owned), value: Value::Null }).collect(),
+        ))),
         Some(Value::String(s)) if s.is_empty() => Ok(None),
         Some(_) => Err(ConnectorError::invalid(format!(
             "{field}: give the names only, like [\"API_KEY\"]. The user types the values on the card wisp_connector_signin shows, so they never pass through you."
@@ -114,14 +123,17 @@ pub fn add_body(a: &AgentAddArgs) -> Result<ConnectorBody> {
 }
 
 pub fn added_text(x: &Connector, has: &dyn Fn(&str) -> bool) -> String {
-    let next = if state(x, has).contains("needs") { "Next: call wisp_connector_signin so the user can sign in or give the keys." } else { READY };
+    let next =
+        if state(x, has).contains("needs") { "Next: call wisp_connector_signin so the user can sign in or give the keys." } else { READY };
     format!("Added {} to the user's connectors (Settings → Connectors).\n\n{}\n\n{next}", x.name, line(x, has))
 }
 
 /// The connector an agent names, by name or id.
 pub fn named<'a>(all: &'a [Connector], name: &str) -> Result<&'a Connector> {
     let want = name.trim().to_lowercase();
-    all.iter().find(|y| y.name == want || y.id == want).ok_or_else(|| ConnectorError::invalid(format!("No connector called “{name}”. List them with wisp_connectors.")))
+    all.iter()
+        .find(|y| y.name == want || y.id == want)
+        .ok_or_else(|| ConnectorError::invalid(format!("No connector called “{name}”. List them with wisp_connectors.")))
 }
 
 /// What `wisp_connector_signin` answers.
@@ -144,9 +156,14 @@ pub fn signin(x: &Connector, why: &str, has: &dyn Fn(&str) -> bool) -> Signin {
     let kind = if keys.is_empty() { AskKind::Signin } else { AskKind::Keys };
     let names: Vec<&str> = keys.iter().map(|k| k.split_once(':').map_or(k.as_str(), |(_, n)| n)).collect();
     let all = x.env.iter().map(|k| (k, KeyField::Env, "env")).chain(x.headers.iter().map(|k| (k, KeyField::Headers, "header")));
-    let ask_keys = all.map(|(key, field, prefix)| AskKey { key: key.clone(), field, set: !keys.contains(&format!("{prefix}:{key}")) }).collect();
+    let ask_keys =
+        all.map(|(key, field, prefix)| AskKey { key: key.clone(), field, set: !keys.contains(&format!("{prefix}:{key}")) }).collect();
     Signin::Ask(SigninAsk {
-        question: if kind == AskKind::Signin { format!("Sign in to {}", x.name) } else { format!("{} needs {}", x.name, names.join(" and ")) },
+        question: if kind == AskKind::Signin {
+            format!("Sign in to {}", x.name)
+        } else {
+            format!("{} needs {}", x.name, names.join(" and "))
+        },
         context: why.chars().take(400).collect(),
         options: vec!["Skip".into()],
         connector: AskConnector { id: x.id.clone(), name: x.name.clone(), kind, keys: ask_keys },

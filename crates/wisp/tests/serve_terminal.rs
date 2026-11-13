@@ -12,7 +12,14 @@ use common::*;
 use serde_json::{Value, json};
 
 async fn post(api: &Api, path: &str, body: Value) -> (u16, Value) {
-    let r = api.http.post(format!("http://127.0.0.1:{}/api{path}", api.port)).header("content-type", "application/json").body(body.to_string()).send().await.unwrap();
+    let r = api
+        .http
+        .post(format!("http://127.0.0.1:{}/api{path}", api.port))
+        .header("content-type", "application/json")
+        .body(body.to_string())
+        .send()
+        .await
+        .unwrap();
     let st = r.status().as_u16();
     (st, serde_json::from_slice(&r.bytes().await.unwrap()).unwrap_or(Value::Null))
 }
@@ -51,7 +58,14 @@ async fn a_tasks_shell_streams_what_it_is_typed() {
     let info = api.cmd("terminal.get", json!({ "kind": "shell", "id": id })).await;
     assert_eq!((info["state"].as_str(), info["clients"].as_u64()), (Some("running"), Some(1)), "{info}");
     // hung up: the page hears the end
-    let r = api.http.delete(format!("http://127.0.0.1:{port}/api/sessions/{id}/shell")).header("content-type", "application/json").body("{}").send().await.unwrap();
+    let r = api
+        .http
+        .delete(format!("http://127.0.0.1:{port}/api/sessions/{id}/shell"))
+        .header("content-type", "application/json")
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status().as_u16(), 200);
     let mut rest = String::new();
     while let Ok(Ok(Some(c))) = tokio::time::timeout(Duration::from_secs(5), stream.chunk()).await {
@@ -74,7 +88,8 @@ async fn a_terminal_task_runs_in_the_harnesss_own_cli_and_a_follow_up_resumes_it
     let dir = temp("serve-terminal-task");
     let (serve, port) = start_with(&dir, &[]);
     let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
-    let made = api.cmd("runtime.create", json!({ "prompt": "/terminal fix the add bug", "cwd": dir.join("proj"), "agent": "claude" })).await;
+    let made =
+        api.cmd("runtime.create", json!({ "prompt": "/terminal fix the add bug", "cwd": dir.join("proj"), "agent": "claude" })).await;
     let id = made["id"].as_str().unwrap().to_owned();
     assert!(made["turnId"].is_null(), "no headless turn: {made}");
     let info = api.cmd("terminal.get", json!({ "kind": "takeover", "id": id })).await;

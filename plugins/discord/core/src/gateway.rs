@@ -43,7 +43,10 @@ pub enum Step {
     /// `/wisp`, a keystroke in it, or a press on a button (`INTERACTION_CREATE`'s `d`)
     Interaction(Value),
     /// close now; `again`: Discord asked for a new connection; `wait_ms`: not before this
-    Close { again: bool, wait_ms: u64 },
+    Close {
+        again: bool,
+        wait_ms: u64,
+    },
 }
 
 /// One connection's state, plus the session it may resume.
@@ -86,7 +89,10 @@ impl Conn {
                 let every = m["d"]["heartbeat_interval"].as_u64().unwrap_or(41_250);
                 let hello = match &self.session {
                     Some(s) => op(RESUME, &json!({ "token": self.token, "session_id": s.id, "seq": s.seq })),
-                    None => op(IDENTIFY, &json!({ "token": self.token, "intents": INTENTS, "properties": { "os": self.os, "browser": "wisp", "device": "wisp" } })),
+                    None => op(
+                        IDENTIFY,
+                        &json!({ "token": self.token, "intents": INTENTS, "properties": { "os": self.os, "browser": "wisp", "device": "wisp" } }),
+                    ),
                 };
                 vec![Step::Beat(every), Step::Send(hello)]
             }
@@ -117,7 +123,11 @@ impl Conn {
         match t {
             "READY" => {
                 self.session = Some(Session { id: s(&d["session_id"]), url: s(&d["resume_gateway_url"]), seq });
-                vec![Step::Ready(Me { id: s(&d["user"]["id"]), name: s(&d["user"]["username"]), app_id: d["application"]["id"].as_str().map(str::to_owned) })]
+                vec![Step::Ready(Me {
+                    id: s(&d["user"]["id"]),
+                    name: s(&d["user"]["username"]),
+                    app_id: d["application"]["id"].as_str().map(str::to_owned),
+                })]
             }
             "RESUMED" => vec![Step::Resumed],
             "MESSAGE_CREATE" => vec![Step::Message(d.clone())],
@@ -158,7 +168,11 @@ mod tests {
         assert_eq!(ready, vec![Step::Ready(Me { id: "B".into(), name: "wisp".into(), app_id: Some("A".into()) })]);
         assert_eq!(c.session.as_ref().map(|s| (s.id.as_str(), s.seq)), Some(("S", Some(1))));
         c.frame(r#"{"op":0,"t":"MESSAGE_CREATE","s":7,"d":{}}"#, 0);
-        assert_eq!(c.beat().map(|b| serde_json::from_str::<Value>(&b).unwrap()["d"].clone()), Some(json!(7)), "the beat carries the last seq");
+        assert_eq!(
+            c.beat().map(|b| serde_json::from_str::<Value>(&b).unwrap()["d"].clone()),
+            Some(json!(7)),
+            "the beat carries the last seq"
+        );
         assert_eq!(c.beat(), None, "no ack since the last beat: gone");
         c.frame(r#"{"op":11}"#, 0);
         assert!(c.beat().is_some());

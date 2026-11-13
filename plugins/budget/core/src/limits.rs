@@ -63,7 +63,13 @@ pub fn claude_limits(info: &Value) -> Option<LimitsReport> {
         if windows.iter().any(|x| x.id == id) {
             return;
         }
-        windows.push(LimitWindow { id: id.to_owned(), used: clamp(used), resets_at: to_ms(w.get("resetsAt")), ms: known_ms(id), slot: None });
+        windows.push(LimitWindow {
+            id: id.to_owned(),
+            used: clamp(used),
+            resets_at: to_ms(w.get("resetsAt")),
+            ms: known_ms(id),
+            slot: None,
+        });
     };
     if let Some(unified) = obj(info.get("unifiedWindows")) {
         for (id, w) in unified {
@@ -81,7 +87,8 @@ pub fn claude_limits(info: &Value) -> Option<LimitsReport> {
         return overage.then(|| LimitsReport { overage, ..LimitsReport::default() });
     }
     let kind = info.get("rateLimitType");
-    let rejected = (rejected && kind.and_then(Value::as_str) != Some("overage")).then(|| kind.and_then(Value::as_str).unwrap_or_default().to_owned());
+    let rejected =
+        (rejected && kind.and_then(Value::as_str) != Some("overage")).then(|| kind.and_then(Value::as_str).unwrap_or_default().to_owned());
     Some(LimitsReport { windows, complete, rejected, overage, ..LimitsReport::default() })
 }
 
@@ -117,10 +124,17 @@ pub fn codex_limits(rl: &Value, now: i64) -> Option<LimitsReport> {
             continue;
         }
         let resets_at = to_ms(w.get("resets_at")).or_else(|| fin(w.get("resets_in_seconds")).map(|s| now + (s * 1000.0).round() as i64));
-        windows.push(LimitWindow { id, used: clamp(pct / 100.0), resets_at, ms: Some((mins * 60_000.0).round() as i64), slot: Some(slot.to_owned()) });
+        windows.push(LimitWindow {
+            id,
+            used: clamp(pct / 100.0),
+            resets_at,
+            ms: Some((mins * 60_000.0).round() as i64),
+            slot: Some(slot.to_owned()),
+        });
     }
     // credits: the balance Codex bills past the plan's windows (a string in its snapshot).
-    let credits = obj(rl.get("credits")).filter(|c| !truthy(c.get("unlimited"))).and_then(|c| js_number(c.get("balance"))).filter(|c| c.is_finite());
+    let credits =
+        obj(rl.get("credits")).filter(|c| !truthy(c.get("unlimited"))).and_then(|c| js_number(c.get("balance"))).filter(|c| c.is_finite());
     let first = windows.first()?.id.clone();
     let full = windows.iter().find(|w| w.used >= 1.0).map(|w| w.id.clone());
     let rejected = (truthy(rl.get("rate_limit_reached_type")) || full.is_some()).then(|| full.unwrap_or(first));
@@ -147,7 +161,10 @@ fn limits_of_live(rl: Option<&Value>, now: i64) -> Option<LimitsReport> {
 
 fn limits_of_obj(rl: &Obj, now: i64) -> Option<LimitsReport> {
     let reached = rl.get("rateLimitReachedType").filter(|v| truthy(Some(v))).cloned().unwrap_or(Value::Null);
-    codex_limits(&serde_json::json!({ "primary": live_window(rl.get("primary")), "secondary": live_window(rl.get("secondary")), "rate_limit_reached_type": reached }), now)
+    codex_limits(
+        &serde_json::json!({ "primary": live_window(rl.get("primary")), "secondary": live_window(rl.get("secondary")), "rate_limit_reached_type": reached }),
+        now,
+    )
 }
 
 fn resets_of(rl: &Obj) -> Vec<i64> {
@@ -184,7 +201,10 @@ pub fn codex_live(res: &Value, now: i64) -> Option<LimitsReport> {
             candidates.push((id.as_str(), rl));
         }
     }
-    let mut next: Vec<(&str, &Obj)> = candidates.into_iter().filter(|(id, rl)| *id != "codex" && !side(id, rl) && !frozen(rl, now) && limits_of_obj(rl, now).is_some()).collect();
+    let mut next: Vec<(&str, &Obj)> = candidates
+        .into_iter()
+        .filter(|(id, rl)| *id != "codex" && !side(id, rl) && !frozen(rl, now) && limits_of_obj(rl, now).is_some())
+        .collect();
     let latest = |rl: &Obj| resets_of(rl).into_iter().max().unwrap_or(0).max(0);
     next.sort_by_key(|(_, rl)| std::cmp::Reverse(latest(rl)));
     match next.first() {
@@ -259,7 +279,13 @@ pub fn report_from_value(v: &Value) -> Option<LimitsReport> {
                 let id = w.get("id")?.as_str()?.to_owned();
                 let used = fin(w.get("used"))?;
                 let num = |k: &str| fin(w.get(k)).filter(|x| *x > 0.0).map(|x| x.round() as i64);
-                Some(LimitWindow { id, used, resets_at: num("resetsAt"), ms: num("ms"), slot: w.get("slot").and_then(Value::as_str).map(str::to_owned) })
+                Some(LimitWindow {
+                    id,
+                    used,
+                    resets_at: num("resetsAt"),
+                    ms: num("ms"),
+                    slot: w.get("slot").and_then(Value::as_str).map(str::to_owned),
+                })
             })
             .collect()
     });
@@ -270,5 +296,13 @@ pub fn report_from_value(v: &Value) -> Option<LimitsReport> {
     };
     let flag = |k: &str| o.get(k) == Some(&Value::Bool(true));
     let banked = o.get("banked").and_then(|b| serde_json::from_value::<Banked>(b.clone()).ok());
-    Some(LimitsReport { windows: windows.unwrap_or_default(), complete: flag("complete"), rejected, overage: flag("overage"), credits: fin(o.get("credits")), read: flag("read"), banked })
+    Some(LimitsReport {
+        windows: windows.unwrap_or_default(),
+        complete: flag("complete"),
+        rejected,
+        overage: flag("overage"),
+        credits: fin(o.get("credits")),
+        read: flag("read"),
+        banked,
+    })
 }

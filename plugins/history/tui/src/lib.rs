@@ -32,7 +32,11 @@ impl TuiView for Blame {
         Some('b')
     }
     fn source(&self) -> Source {
-        Source::Command { id: "history.blame".into(), args: json!({ "target": "{?File}", "repo": "{cwd}", "byLine": true }), rows: "/byLine".into() }
+        Source::Command {
+            id: "history.blame".into(),
+            args: json!({ "target": "{?File}", "repo": "{cwd}", "byLine": true }),
+            rows: "/byLine".into(),
+        }
     }
     fn columns(&self) -> Vec<Column> {
         vec![
@@ -63,7 +67,9 @@ impl TuiView for Blame {
     /// The gutter's title in the accent, "by hand" and the run's rule muted; line numbers muted.
     fn style(&self, row: &Value, column: &Column, th: &Theme) -> Option<Style> {
         match column.pointer.as_str() {
-            "/gutter" if row.get("task").and_then(Value::as_str).is_some() && s(row, "gutter") != "│" => Some(th.accent().add_modifier(Modifier::BOLD)),
+            "/gutter" if row.get("task").and_then(Value::as_str).is_some() && s(row, "gutter") != "│" => {
+                Some(th.accent().add_modifier(Modifier::BOLD))
+            }
             "/gutter" | "/n" => Some(th.dim()),
             _ => None,
         }
@@ -71,9 +77,16 @@ impl TuiView for Blame {
     fn detail(&self, row: &Value, _width: u16, th: &Theme) -> Vec<Line<'static>> {
         let commit = s(row, "commit").to_owned();
         if row.get("task").and_then(Value::as_str).is_none() {
-            return vec![Line::from(vec![Span::styled("Written by hand", th.strong()), Span::styled(format!("  commit {commit}"), th.dim())])];
+            return vec![Line::from(vec![
+                Span::styled("Written by hand", th.strong()),
+                Span::styled(format!("  commit {commit}"), th.dim()),
+            ])];
         }
-        let mut out = vec![Line::from(vec![Span::styled(s(row, "title").to_owned(), th.strong()), Span::styled(format!("  task {}", s(row, "task").chars().take(12).collect::<String>()), th.dim()), Span::styled(format!("  commit {commit}"), th.dim())])];
+        let mut out = vec![Line::from(vec![
+            Span::styled(s(row, "title").to_owned(), th.strong()),
+            Span::styled(format!("  task {}", s(row, "task").chars().take(12).collect::<String>()), th.dim()),
+            Span::styled(format!("  commit {commit}"), th.dim()),
+        ])];
         let why = s(row, "why");
         if !why.is_empty() {
             out.push(Line::from(Span::styled("Asked", th.dim().add_modifier(Modifier::BOLD))));
@@ -102,7 +115,17 @@ mod tests {
         let mut r = Registry::default();
         register(&mut r);
         let v = r.find("blame").unwrap();
-        assert_eq!((v.goto(), wisp_tui_api::asks(&match v.source() { Source::Command { args, .. } => args, Source::Topic { .. } => Value::Null }).as_deref()), (Some('b'), Some("File")));
+        assert_eq!(
+            (
+                v.goto(),
+                wisp_tui_api::asks(&match v.source() {
+                    Source::Command { args, .. } => args,
+                    Source::Topic { .. } => Value::Null,
+                })
+                .as_deref()
+            ),
+            (Some('b'), Some("File"))
+        );
         let d = v.detail(&json!({ "task": "t1abcdef", "title": "Fix", "why": "make login work", "commit": "abc" }), 80, &Theme::DARK);
         assert!(d.iter().any(|l| l.spans.iter().any(|s| s.content == "make login work")));
     }

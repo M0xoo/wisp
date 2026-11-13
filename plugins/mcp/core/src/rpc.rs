@@ -80,7 +80,9 @@ impl Message {
             None => "undefined".into(),
             Some(Value::String(s)) => s.clone(),
             Some(Value::Object(_)) => "[object Object]".into(),
-            Some(Value::Array(a)) => a.iter().map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned)).collect::<Vec<_>>().join(","),
+            Some(Value::Array(a)) => {
+                a.iter().map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned)).collect::<Vec<_>>().join(",")
+            }
             Some(v) => v.to_string(),
         }
     }
@@ -162,7 +164,8 @@ pub fn batch(replies: &[String]) -> Option<String> {
 
 /// A tool's result: `{"content":[{"type":"text","text":…}]}`, with `"isError":true` first when it failed.
 pub fn tool_text(text: &str, is_error: bool) -> String {
-    let head = if is_error { "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":" } else { "{\"content\":[{\"type\":\"text\",\"text\":" };
+    let head =
+        if is_error { "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":" } else { "{\"content\":[{\"type\":\"text\",\"text\":" };
     let mut s = String::with_capacity(head.len() + text.len() + 8);
     s.push_str(head);
     s.push_str(&quote(text));

@@ -54,7 +54,8 @@ fn from(q: &[char], l: &[char], start: usize) -> Option<i64> {
 
 /// The best matches, best first (ties keep their order).
 pub fn filter<'a>(items: &'a [Item], query: &str, max: usize) -> Vec<&'a Item> {
-    let mut v: Vec<(i64, usize, &Item)> = items.iter().enumerate().filter_map(|(i, it)| score(query, &it.label).map(|s| (s, i, it))).collect();
+    let mut v: Vec<(i64, usize, &Item)> =
+        items.iter().enumerate().filter_map(|(i, it)| score(query, &it.label).map(|s| (s, i, it))).collect();
     v.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
     v.into_iter().take(max).map(|x| x.2).collect()
 }

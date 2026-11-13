@@ -9,7 +9,11 @@ use wisp_kernel::BoxFuture;
 use wisp_runtime_api::harness::sessions::{HarnessSessions, OutsideSession, SessionTurn, content_text, iso_ms};
 
 pub fn store() -> PathBuf {
-    std::env::var("CODEX_HOME").ok().filter(|d| !d.is_empty()).map_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".codex"), PathBuf::from).join("sessions")
+    std::env::var("CODEX_HOME")
+        .ok()
+        .filter(|d| !d.is_empty())
+        .map_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".codex"), PathBuf::from)
+        .join("sessions")
 }
 
 /// A rollout file read: the session and its turns.
@@ -117,7 +121,8 @@ impl HarnessSessions for CodexSessions {
                 return true;
             }
             let dir = store().join("restored");
-            tokio::fs::create_dir_all(&dir).await.is_ok() && tokio::fs::write(dir.join(format!("rollout-restored-{id}.jsonl")), raw).await.is_ok()
+            tokio::fs::create_dir_all(&dir).await.is_ok()
+                && tokio::fs::write(dir.join(format!("rollout-restored-{id}.jsonl")), raw).await.is_ok()
         })
     }
     fn read(&self, id: &str) -> BoxFuture<'static, Option<(OutsideSession, Vec<SessionTurn>)>> {

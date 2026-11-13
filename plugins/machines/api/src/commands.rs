@@ -184,41 +184,11 @@ command!(
     Done
 );
 command!(RecheckAgents, "machines.recheckAgents", RecheckArgs, Done);
-command!(
-    List,
-    "machines.list",
-    NoArgs,
-    Vec<PeerView>,
-    read_only = true
-);
+command!(List, "machines.list", NoArgs, Vec<PeerView>, read_only = true);
 command!(Get, "machines.get", IdArgs, PeerView, read_only = true);
-command!(
-    Sessions,
-    "machines.sessions",
-    SessionsArgs,
-    Vec<MirrorRow>,
-    read_only = true
-);
-command!(
-    Hosts,
-    "machines.hosts",
-    NoArgs,
-    Vec<SshHost>,
-    read_only = true
-);
-command!(
-    Discover,
-    "machines.discover",
-    NoArgs,
-    Vec<FoundHost>,
-    read_only = true
-);
-command!(
-    Reachable,
-    "machines.reachable",
-    NoArgs,
-    Reachability,
-    read_only = true
-);
+command!(Sessions, "machines.sessions", SessionsArgs, Vec<MirrorRow>, read_only = true);
+command!(Hosts, "machines.hosts", NoArgs, Vec<SshHost>, read_only = true);
+command!(Discover, "machines.discover", NoArgs, Vec<FoundHost>, read_only = true);
+command!(Reachable, "machines.reachable", NoArgs, Reachability, read_only = true);
 command!(CallPeer, "machines.call", CallArgs, Value);
 command!(Route, "machines.route", RouteArgs, Value);

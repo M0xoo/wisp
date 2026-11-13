@@ -11,9 +11,7 @@ static SIDE_CMD: Re = Re::new(concat!("(?i)^/side(?:", js_s!(), "+|$)"));
 /// The opening message in "/side why …" ('' for a bare /side), or None when the text isn't a /side.
 pub fn side_ask(text: &str) -> Option<String> {
     let t = trim(text);
-    SIDE_CMD
-        .is_match(t)
-        .then(|| trim(&SIDE_CMD.replace(t, "")).to_owned())
+    SIDE_CMD.is_match(t).then(|| trim(&SIDE_CMD.replace(t, "")).to_owned())
 }
 
 /// What a write refused on a side discussion that can't ask before a write says.
@@ -21,16 +19,8 @@ pub const SIDE_DENIED: &str = "This is a read-only side discussion: this harness
 
 /// What a write the user turned down at a clash says. `other`: the clash was with another side discussion.
 pub fn side_kept(words: &str, other: bool) -> String {
-    let (whose, there) = if other {
-        ("other side discussion", "that side discussion")
-    } else {
-        ("main task", "the main task")
-    };
-    let said = if words.is_empty() {
-        String::new()
-    } else {
-        format!(" They said: {words}")
-    };
+    let (whose, there) = if other { ("other side discussion", "that side discussion") } else { ("main task", "the main task") };
+    let said = if words.is_empty() { String::new() } else { format!(" They said: {words}") };
     format!(
         "The user kept the {whose}'s version: nothing was changed.{said} Do not retry this change. Say what the user could tell {there} instead (a follow-up they can send there)."
     )
@@ -47,11 +37,7 @@ pub struct SideOf<'a> {
 /// `wisp_session` ('' without wisp's tools). `edits`: it may edit behind the gate; else it only reads,
 /// and `name` (its harness's) is why.
 pub fn side_note(of: SideOf<'_>, session_tool: &str, edits: bool, name: &str) -> String {
-    let tool = if session_tool.is_empty() {
-        String::new()
-    } else {
-        format!("`{session_tool}` with id {} reads its whole record.", of.id)
-    };
+    let tool = if session_tool.is_empty() { String::new() } else { format!("`{session_tool}` with id {} reads its whole record.", of.id) };
     let read = format!("`git status`, `git diff`, `git log` show what it changed. {tool}");
     let open = format!(
         "\n\n# wisp side discussion\n\nThis task is a side discussion about another wisp task, the main task “{}” (wisp task {}). Another agent run does the main task's work; here you talk it over with the user: explain what it did and why, review it, weigh options, plan what to ask it next.\n",
@@ -86,19 +72,16 @@ pub struct MainTask<'a> {
 }
 
 /// What goes before each of the user's messages: the main task as it stands now (None once it's gone).
-pub fn side_prompt(
-    main: Option<MainTask<'_>>,
-    text: &str,
-    now_ms: i64,
-    render: Render<'_>,
-) -> String {
+pub fn side_prompt(main: Option<MainTask<'_>>, text: &str, now_ms: i64, render: Render<'_>) -> String {
     let head = match main {
         Some(m) => {
             let digest = btw_digest(m.turns, now_ms, render);
             let digest = if digest.is_empty() { "_Nothing has run on it yet._".to_owned() } else { digest };
             format!("## The main task now: “{}”\n\n{digest}", m.title)
         }
-        None => "## The main task now\n\n_The main task was deleted: only what was said here, and its folder as it is, are left._".to_owned(),
+        None => {
+            "## The main task now\n\n_The main task was deleted: only what was said here, and its folder as it is, are left._".to_owned()
+        }
     };
     format!("{head}\n\n---\n\n## The user, in this side discussion\n\n{text}")
 }

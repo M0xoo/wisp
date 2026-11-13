@@ -181,7 +181,15 @@ mod tests {
             let Ok(text) = std::fs::read_to_string(e.path().join("host/wisp-plugin.json")) else { continue };
             let m: Value = serde_json::from_str(&text).unwrap();
             for c in m["contributes"]["commands"].as_array().into_iter().flatten() {
-                out.push(wisp_kernel::CommandInfo { id: c["id"].as_str().unwrap().to_owned(), plugin: m["id"].as_str().unwrap().to_owned(), title: c["title"].as_str().map(str::to_owned), read_only: false, permission: String::new(), args: None, ui_only: c["uiOnly"].as_str().map(str::to_owned) });
+                out.push(wisp_kernel::CommandInfo {
+                    id: c["id"].as_str().unwrap().to_owned(),
+                    plugin: m["id"].as_str().unwrap().to_owned(),
+                    title: c["title"].as_str().map(str::to_owned),
+                    read_only: false,
+                    permission: String::new(),
+                    args: None,
+                    ui_only: c["uiOnly"].as_str().map(str::to_owned),
+                });
             }
         }
         out
@@ -219,13 +227,25 @@ mod tests {
         for v in &cat.verbs {
             let mut words = vec![v.plugin.clone()];
             words.extend(v.words.iter().cloned());
-            assert_eq!(cat.resolve(&words).map(|(x, _)| x.info.id.clone()), Some(v.info.id.clone()), "wisp {} doesn't reach {}", words.join(" "), v.info.id);
+            assert_eq!(
+                cat.resolve(&words).map(|(x, _)| x.info.id.clone()),
+                Some(v.info.id.clone()),
+                "wisp {} doesn't reach {}",
+                words.join(" "),
+                v.info.id
+            );
         }
         let calls = ui_calls();
         assert!(calls.len() > 20, "the UI's commands were found: {calls:?}");
         let missing: BTreeSet<String> = calls.iter().filter(|id| cat.by_id(id).is_none()).cloned().collect();
         // the known gaps (UI written ahead of its host): the list only shrinks
-        let known: BTreeSet<String> = std::fs::read_to_string(root().join("plugins/cli/parity-gaps.txt")).unwrap().lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_owned).collect();
+        let known: BTreeSet<String> = std::fs::read_to_string(root().join("plugins/cli/parity-gaps.txt"))
+            .unwrap()
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(str::to_owned)
+            .collect();
         let new: Vec<&String> = missing.difference(&known).collect();
         assert!(new.is_empty(), "the UI calls commands no manifest declares, so the CLI can't reach them: {new:?}");
         let closed: Vec<&String> = known.difference(&missing).collect();

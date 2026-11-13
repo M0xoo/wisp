@@ -23,10 +23,7 @@ use tokio_util::sync::CancellationToken;
 use crate::BoxFuture;
 
 use crate::child::{ChildControl, ChildHandle, tie_to_scope};
-use crate::{
-    Child, ExecOpts, ExecResult, Exit, KillReport, Output, ProcError, ProcService, PtySize, Result,
-    Signal, SpawnOpts, Stream,
-};
+use crate::{Child, ExecOpts, ExecResult, Exit, KillReport, Output, ProcError, ProcService, PtySize, Result, Signal, SpawnOpts, Stream};
 
 type Program = Arc<dyn Fn(SimIo) -> BoxFuture<'static, Exit> + Send + Sync>;
 
@@ -52,22 +49,10 @@ pub struct SimIo {
 
 impl SimIo {
     pub async fn print(&self, bytes: &[u8]) {
-        let _ = self
-            .out
-            .send(Output {
-                stream: Stream::Stdout,
-                data: bytes.to_vec(),
-            })
-            .await;
+        let _ = self.out.send(Output { stream: Stream::Stdout, data: bytes.to_vec() }).await;
     }
     pub async fn eprint(&self, bytes: &[u8]) {
-        let _ = self
-            .out
-            .send(Output {
-                stream: Stream::Stderr,
-                data: bytes.to_vec(),
-            })
-            .await;
+        let _ = self.out.send(Output { stream: Stream::Stderr, data: bytes.to_vec() }).await;
     }
 }
 
@@ -98,18 +83,13 @@ pub struct SimProc {
 
 impl fmt::Debug for SimProc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SimProc")
-            .field("live", &self.live.load(Ordering::SeqCst))
-            .finish_non_exhaustive()
+        f.debug_struct("SimProc").field("live", &self.live.load(Ordering::SeqCst)).finish_non_exhaustive()
     }
 }
 
 impl SimProc {
     pub fn new() -> Self {
-        Self {
-            next_pid: Arc::new(AtomicU32::new(1000)),
-            ..Self::default()
-        }
+        Self { next_pid: Arc::new(AtomicU32::new(1000)), ..Self::default() }
     }
 
     /// Registers `name` (as found by `which` and run by `spawn`/`exec`).
@@ -132,10 +112,7 @@ impl SimProc {
             let out = out.clone();
             async move {
                 io.print(out.as_bytes()).await;
-                Exit {
-                    code: Some(code),
-                    signal: None,
-                }
+                Exit { code: Some(code), signal: None }
             }
         })
     }
@@ -149,13 +126,7 @@ impl SimProc {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn record(
-        &self,
-        bin: &str,
-        args: &[String],
-        opts: &SpawnOpts,
-        detached: bool,
-    ) -> Option<Program> {
+    fn record(&self, bin: &str, args: &[String], opts: &SpawnOpts, detached: bool) -> Option<Program> {
         let mut st = self.lock();
         st.spawned.push(Spawned {
             bin: bin.to_owned(),
@@ -188,10 +159,7 @@ impl ChildControl for SimControl {
         tx.send(data).map_err(|_| ProcError::Exited)
     }
     fn close_stdin(&self) {
-        self.stdin
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
+        self.stdin.lock().unwrap_or_else(PoisonError::into_inner).take();
     }
     fn resize(&self, size: PtySize) -> Result<()> {
         self.size.send_replace(Some(size));
@@ -211,32 +179,19 @@ impl ChildControl for SimControl {
             let _ = tokio::time::timeout(grace, exit.wait_for(Option::is_some)).await;
             killed.cancel();
             let _ = exit.wait_for(Option::is_some).await;
-            KillReport {
-                signalled: 1,
-                survivors: 0,
-            }
+            KillReport { signalled: 1, survivors: 0 }
         })
     }
 }
 
 impl ProcService for SimProc {
-    fn which(
-        &self,
-        bin: &str,
-        _env: Option<Vec<(String, String)>>,
-    ) -> BoxFuture<'static, Option<PathBuf>> {
-        let found = self
-            .lock()
-            .programs
-            .contains_key(base_name(bin))
-            .then(|| PathBuf::from(format!("/sim/bin/{}", base_name(bin))));
+    fn which(&self, bin: &str, _env: Option<Vec<(String, String)>>) -> BoxFuture<'static, Option<PathBuf>> {
+        let found = self.lock().programs.contains_key(base_name(bin)).then(|| PathBuf::from(format!("/sim/bin/{}", base_name(bin))));
         Box::pin(async move { found })
     }
 
     fn spawn(&self, bin: &str, args: &[String], opts: SpawnOpts) -> Result<Child> {
-        let program = self
-            .record(bin, args, &opts, false)
-            .ok_or_else(|| ProcError::NotFound(bin.to_owned()))?;
+        let program = self.record(bin, args, &opts, false).ok_or_else(|| ProcError::NotFound(bin.to_owned()))?;
         let (stdin_tx, stdin_rx) = mpsc::unbounded_channel();
         let (out_tx, out_rx) = crate::output_channel();
         let (size_tx, size_rx) = watch::channel(opts.pty);
@@ -263,13 +218,7 @@ impl ProcService for SimProc {
             exit: exit_rx.clone(),
         };
         let pid = self.next_pid.fetch_add(1, Ordering::SeqCst);
-        let handle = ChildHandle::new(
-            pid,
-            opts.pty.is_some(),
-            opts.grace.unwrap_or(crate::KILL_GRACE),
-            Arc::new(control),
-            exit_rx,
-        );
+        let handle = ChildHandle::new(pid, opts.pty.is_some(), opts.grace.unwrap_or(crate::KILL_GRACE), Arc::new(control), exit_rx);
         let live = self.live.clone();
         live.fetch_add(1, Ordering::SeqCst);
         tokio::spawn(async move {
@@ -281,27 +230,14 @@ impl ProcService for SimProc {
             let _ = exit_tx.send(Some(exit));
         });
         tie_to_scope(&handle, opts.scope);
-        Ok(Child {
-            handle,
-            output: out_rx,
-        })
+        Ok(Child { handle, output: out_rx })
     }
 
-    fn exec(
-        &self,
-        bin: &str,
-        args: &[String],
-        opts: ExecOpts,
-    ) -> BoxFuture<'static, Result<ExecResult>> {
+    fn exec(&self, bin: &str, args: &[String], opts: ExecOpts) -> BoxFuture<'static, Result<ExecResult>> {
         let spawned = self.spawn(
             bin,
             args,
-            SpawnOpts {
-                cwd: opts.cwd.clone(),
-                env: opts.env.clone(),
-                scope: opts.scope.clone(),
-                ..SpawnOpts::default()
-            },
+            SpawnOpts { cwd: opts.cwd.clone(), env: opts.env.clone(), scope: opts.scope.clone(), ..SpawnOpts::default() },
         );
         Box::pin(async move { crate::local::collect(spawned?, opts).await })
     }

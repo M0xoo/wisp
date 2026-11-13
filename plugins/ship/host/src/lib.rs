@@ -73,9 +73,7 @@ fn sink(ctx: &Ctx) -> ship::Sink {
 }
 
 fn get(slot: &Slot) -> Result<Arc<Ship>> {
-    slot.get()
-        .cloned()
-        .ok_or_else(|| wisp_kernel::WireError::unavailable("wisp.ship is starting"))
+    slot.get().cloned().ok_or_else(|| wisp_kernel::WireError::unavailable("wisp.ship is starting"))
 }
 
 fn commands(s: &mut Setup, slot: &Slot) {
@@ -132,11 +130,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
             get(&sl)?
                 .fix_conflicts(&call, &a.session, true)
                 .await?
-                .ok_or_else(|| {
-                    wisp_kernel::WireError::conflict(
-                        "Could not start the fix: try again in a moment.",
-                    )
-                })
+                .ok_or_else(|| wisp_kernel::WireError::conflict("Could not start the fix: try again in a moment."))
         }
     });
     let sl = slot.clone();
@@ -191,8 +185,7 @@ fn start_timers(ctx: &Ctx, ship: &Arc<Ship>) -> Result<()> {
     ctx.spawn(async move {
         c.sleep(BOOT_DELAY_MS).await;
         let sleeper = c.clone();
-        boot.boot(&call, Arc::new(move |ms| sleeper.sleep(ms)))
-            .await;
+        boot.boot(&call, Arc::new(move |ms| sleeper.sleep(ms))).await;
     });
     let (poller, call, cx) = (ship.clone(), ctx.root_call(), ctx.clone());
     ctx.spawn(async move {

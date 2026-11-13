@@ -57,19 +57,11 @@ pub fn bare(id: &str, extra: Value) -> P {
 }
 
 pub async fn start(group: PluginGroup) -> Kernel {
-    App::new()
-        .plugins(group)
-        .start()
-        .await
-        .expect("kernel starts")
+    App::new().plugins(group).start().await.expect("kernel starts")
 }
 
 pub fn state(k: &Kernel, id: &str) -> (String, Option<String>) {
-    let s = k
-        .status()
-        .into_iter()
-        .find(|s| s.id == id)
-        .expect("plugin in status");
+    let s = k.status().into_iter().find(|s| s.id == id).expect("plugin in status");
     (s.state, s.reason)
 }
 

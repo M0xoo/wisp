@@ -1,24 +1,8 @@
 //! wisp-worktrees-core: wisp.worktrees's pure logic (sans-IO: no tokio, fs, net or clock). The host reads
 //! files and asks git.service; these functions decide. Each v1 behaviour and `docs/v1-edge-cases.md` Git
 //! bullet for worktrees is a test here (property tests use a seeded PRNG, no dependency).
-#![cfg_attr(
-    test,
-    allow(
-        clippy::assert_is_empty,
-        clippy::option_option,
-        clippy::doc_markdown,
-        clippy::map_unwrap_or
-    )
-)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::panic,
-        clippy::indexing_slicing
-    )
-)]
+#![cfg_attr(test, allow(clippy::assert_is_empty, clippy::option_option, clippy::doc_markdown, clippy::map_unwrap_or))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]
 
 pub mod base;
 pub mod changes;

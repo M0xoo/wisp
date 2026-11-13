@@ -68,7 +68,10 @@ async fn copy_fitting(from: &Path, to: &Path, max: u64) -> bool {
         return false;
     }
     let mut head = Vec::with_capacity(SNIFF_LEN);
-    if (&mut file).take(SNIFF_LEN as u64).read_to_end(&mut head).await.is_err() || !content_fits(from, &head) || file.rewind().await.is_err() {
+    if (&mut file).take(SNIFF_LEN as u64).read_to_end(&mut head).await.is_err()
+        || !content_fits(from, &head)
+        || file.rewind().await.is_err()
+    {
         return false;
     }
     let Ok(mut out) = tokio::fs::File::create(to).await else { return false };
@@ -147,7 +150,8 @@ impl Runtime {
             f.source.unwrap_or(f.path)
         } else {
             let s = self.repo.session(id).await?;
-            let blocks: Vec<Value> = self.repo.turns(id, None, None).await?.into_iter().filter_map(|t| t.presentation).flat_map(|p| p.blocks).collect();
+            let blocks: Vec<Value> =
+                self.repo.turns(id, None, None).await?.into_iter().filter_map(|t| t.presentation).flat_map(|p| p.blocks).collect();
             let dir = PathBuf::from(&s.cwd);
             let at = resolve(&dir, asked);
             let is = at.is_absolute() && tokio::fs::metadata(&at).await.is_ok_and(|m| m.is_file());
@@ -173,10 +177,19 @@ async fn serve(slot: Slot, req: Request) -> WireResult<Response> {
     }
     let ty = mime(&f.path).to_owned();
     let size = data.len() as u64;
-    let mut headers = vec![("accept-ranges".into(), "bytes".into()), ("x-content-type-options".into(), "nosniff".into()), ("content-security-policy".into(), MEDIA_CSP.into())];
+    let mut headers = vec![
+        ("accept-ranges".into(), "bytes".into()),
+        ("x-content-type-options".into(), "nosniff".into()),
+        ("content-security-policy".into(), MEDIA_CSP.into()),
+    ];
     Ok(match range(req.header("range"), size) {
         Span::Whole => Response::Bytes { status: 200, content_type: ty, body: data, headers },
-        Span::Unsatisfiable => Response::Bytes { status: 416, content_type: "text/plain".into(), body: Vec::new(), headers: vec![("content-range".into(), format!("bytes */{size}"))] },
+        Span::Unsatisfiable => Response::Bytes {
+            status: 416,
+            content_type: "text/plain".into(),
+            body: Vec::new(),
+            headers: vec![("content-range".into(), format!("bytes */{size}"))],
+        },
         Span::Part(a, b) => {
             headers.push(("content-range".into(), format!("bytes {a}-{b}/{size}")));
             let (a, b) = (usize::try_from(a).unwrap_or(0), usize::try_from(b).unwrap_or(0));

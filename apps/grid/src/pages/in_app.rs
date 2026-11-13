@@ -96,9 +96,15 @@ mod tests {
         let hit = |app, os| Some(InApp { app, os });
         assert_eq!(in_app_browser(X_IPHONE), hit("X", Os::Ios));
         assert_eq!(in_app_browser(X_ANDROID), hit("X", Os::Android));
-        assert_eq!(in_app_browser("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/22A3354 Instagram 350.0"), hit("Instagram", Os::Ios));
+        assert_eq!(
+            in_app_browser("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/22A3354 Instagram 350.0"),
+            hit("Instagram", Os::Ios)
+        );
         assert_eq!(in_app_browser("Mozilla/5.0 (iPhone) Mobile/15E148 [FBAN/FBIOS;FBAV/480.0]"), hit("Facebook", Os::Ios));
-        assert_eq!(in_app_browser("Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36"), hit("this app", Os::Android));
+        assert_eq!(
+            in_app_browser("Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36"),
+            hit("this app", Os::Android)
+        );
         for real in [
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
             "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36",
@@ -107,7 +113,10 @@ mod tests {
         ] {
             assert_eq!(in_app_browser(real), None, "{real}");
         }
-        assert_eq!(open_outside("https://grid.example.com/signin?return=%2F", Os::Ios), "x-safari-https://grid.example.com/signin?return=%2F");
+        assert_eq!(
+            open_outside("https://grid.example.com/signin?return=%2F", Os::Ios),
+            "x-safari-https://grid.example.com/signin?return=%2F"
+        );
         assert_eq!(
             open_outside("https://grid.example.com/", Os::Android),
             "intent://grid.example.com/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fgrid.example.com%2F;end"

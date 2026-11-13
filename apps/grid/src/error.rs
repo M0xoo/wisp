@@ -42,12 +42,7 @@ pub enum GridError {
     /// v1's `bad()`. `full`/`waitlisted`: why a sign-up was turned away, so the sign-in page can offer
     /// the waitlist.
     #[error("{message}")]
-    Http {
-        status: u16,
-        message: String,
-        full: bool,
-        waitlisted: bool,
-    },
+    Http { status: u16, message: String, full: bool, waitlisted: bool },
     #[error("grid.db: {0}")]
     Db(#[from] rusqlite::Error),
     #[error("{0}")]
@@ -69,12 +64,7 @@ pub type Result<T, E = GridError> = std::result::Result<T, E>;
 
 /// v1's `bad(message, status)`.
 pub fn bad(message: impl Into<String>, status: u16) -> GridError {
-    GridError::Http {
-        status,
-        message: message.into(),
-        full: false,
-        waitlisted: false,
-    }
+    GridError::Http { status, message: message.into(), full: false, waitlisted: false }
 }
 
 impl GridError {
@@ -90,14 +80,8 @@ impl GridError {
     /// (the details go to the log, never to the caller).
     pub fn public_message(&self) -> String {
         match self {
-            Self::Http {
-                status, message, ..
-            } if *status < 500 => message.clone(),
-            Self::Http {
-                message,
-                status: 503,
-                ..
-            } => message.clone(),
+            Self::Http { status, message, .. } if *status < 500 => message.clone(),
+            Self::Http { message, status: 503, .. } => message.clone(),
             _ => "Something went wrong on the grid.".to_owned(),
         }
     }
@@ -137,10 +121,7 @@ mod tests {
         let io = GridError::Io(std::io::Error::other("disk"));
         assert_eq!(io.status(), 500);
         assert_eq!(io.public_message(), "Something went wrong on the grid.");
-        assert_eq!(
-            bad("Too many requests. Wait a minute.", 429).to_wire().code,
-            Code::Unavailable
-        );
+        assert_eq!(bad("Too many requests. Wait a minute.", 429).to_wire().code, Code::Unavailable);
         assert!(bad("busy", 503).to_wire().retry);
         let j = serde_json::to_value(bad("Too much data.", 413).to_wire()).unwrap();
         assert_eq!(j, serde_json::json!({ "code": "too_large", "message": "Too much data." }));

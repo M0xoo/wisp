@@ -97,7 +97,8 @@ impl Command for Tool {
 struct Mcp;
 impl Plugin for Mcp {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.mcp", "version": "1.0.0", "api": "^1", "permissions": ["stuff:save"] })).unwrap()
+        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.mcp", "version": "1.0.0", "api": "^1", "permissions": ["stuff:save"] }))
+            .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.command::<Tool, _, _>(|ctx, call, a| async move { ctx.run_json(&call, "notes.add", json!({ "sessionId": a["of"] })).await });
@@ -110,7 +111,14 @@ fn agent() -> Caller {
 }
 
 fn get(path: &str) -> Request {
-    Request { method: "GET".into(), path: path.into(), params: std::collections::BTreeMap::default(), query: Vec::new(), headers: Vec::new(), body: Vec::new() }
+    Request {
+        method: "GET".into(),
+        path: path.into(),
+        params: std::collections::BTreeMap::default(),
+        query: Vec::new(),
+        headers: Vec::new(),
+        body: Vec::new(),
+    }
 }
 
 #[tokio::test]

@@ -45,7 +45,9 @@ impl Grid {
                     return Ok(json(403, &json!({ "error": "This grid doesn’t publish apps." })));
                 }
                 let cap = usize::try_from(self.sites.max_bytes).unwrap_or(usize::MAX);
-                let body = read_bytes(req.into_body(), cap).await.map_err(|_| bad(format!("That app is too big to publish here ({} MB at most).", self.sites.max_bytes / 1024 / 1024), 413))?;
+                let body = read_bytes(req.into_body(), cap).await.map_err(|_| {
+                    bad(format!("That app is too big to publish here ({} MB at most).", self.sites.max_bytes / 1024 / 1024), 413)
+                })?;
                 let title = query(q, "title").unwrap_or_default();
                 let entry = query(q, "entry").unwrap_or_default();
                 Ok(json(200, &self.sites.publish(&user, k, &body, &title, &entry)?))

@@ -36,7 +36,14 @@ pub fn describe_tool(name: &str, a: &Value, paths: &RunPaths) -> Tool {
         "list_bash" | "list_powershell" => t(ToolKind::Run, "Checking running commands"),
         "grep" => t(ToolKind::Search, format!("Searching for “{}”", clip_value(&a["pattern"], 40))),
         "glob" => t(ToolKind::Search, format!("Finding {}", clip_value(&a["pattern"], 50))),
-        "search_code_subagent" => t(ToolKind::Search, if truthy(&a["query"]) { format!("Searching the codebase: {}", clip_value(&a["query"], 50)) } else { "Searching the codebase".into() }),
+        "search_code_subagent" => t(
+            ToolKind::Search,
+            if truthy(&a["query"]) {
+                format!("Searching the codebase: {}", clip_value(&a["query"], 50))
+            } else {
+                "Searching the codebase".into()
+            },
+        ),
         "web_fetch" => t(ToolKind::Web, format!("Reading {}", clip_value(&a["url"], 60))),
         "web_search" => t(ToolKind::Web, format!("Searching the web: {}", clip_value(&a["query"], 50))),
         "task" => t(ToolKind::Agent, format!("Delegating: {}", clip_value(js::or(&a["description"], &a["prompt"]), 60))),
@@ -65,7 +72,9 @@ pub fn describe_mcp(server: &str, tool: &str, input: &Value) -> Tool {
             Tool::new(ToolKind::Agent, format!("Delegating to {}", clip(if who.is_empty() { "subagents" } else { &who }, 60)))
         }
         "subagent_results" => Tool::new(ToolKind::Agent, "Waiting on subagents"),
-        _ => wisp_tool_label(bare, input).or_else(|| crew_tool_label(tool, input)).unwrap_or_else(|| Tool::new(ToolKind::Tool, format!("Using wisp · {tool}"))),
+        _ => wisp_tool_label(bare, input)
+            .or_else(|| crew_tool_label(tool, input))
+            .unwrap_or_else(|| Tool::new(ToolKind::Tool, format!("Using wisp · {tool}"))),
     }
 }
 
@@ -73,21 +82,34 @@ pub fn describe_mcp(server: &str, tool: &str, input: &Value) -> Tool {
 pub fn blocked_of(ask: &Value, paths: &RunPaths) -> HarnessEvent {
     let (tool, detail, rule): (String, String, Option<Value>) = match js::str_ref(&ask["kind"]) {
         "shell" => {
-            let ids: Vec<String> = js::arr(&ask["commands"]).iter().filter_map(|c| c.as_str().map(str::to_owned).or_else(|| c["identifier"].as_str().map(str::to_owned))).filter(|s| !s.is_empty()).collect();
+            let ids: Vec<String> = js::arr(&ask["commands"])
+                .iter()
+                .filter_map(|c| c.as_str().map(str::to_owned).or_else(|| c["identifier"].as_str().map(str::to_owned)))
+                .filter(|s| !s.is_empty())
+                .collect();
             let detail = if ask["fullCommandText"].is_null() { ids.join(" && ") } else { js::string(&ask["fullCommandText"]) };
             let rule = (!ids.is_empty()).then(|| json!(ids.iter().map(|c| format!("shell({c})")).collect::<Vec<_>>()));
             ("shell".into(), detail, rule)
         }
-        "write" => ("write".into(), rel_value(&ask["fileName"], paths), truthy(&ask["fileName"]).then(|| json!([format!("write({})", js::string(&ask["fileName"]))]))),
+        "write" => (
+            "write".into(),
+            rel_value(&ask["fileName"], paths),
+            truthy(&ask["fileName"]).then(|| json!([format!("write({})", js::string(&ask["fileName"]))])),
+        ),
         "url" => ("url".into(), js::str(&ask["url"]), truthy(&ask["url"]).then(|| json!([format!("url({})", js::string(&ask["url"]))]))),
         "mcp" => {
             let server = if truthy(&ask["serverName"]) { js::string(&ask["serverName"]) } else { "mcp".into() };
-            let rule = (truthy(&ask["serverName"]) && truthy(&ask["toolName"])).then(|| json!([format!("{}({})", js::string(&ask["serverName"]), js::string(&ask["toolName"]))]));
+            let rule = (truthy(&ask["serverName"]) && truthy(&ask["toolName"]))
+                .then(|| json!([format!("{}({})", js::string(&ask["serverName"]), js::string(&ask["toolName"]))]));
             (server, js::str(&ask["toolName"]), rule)
         }
         other => {
             let p = rel_value(&ask["path"], paths);
-            (if other.is_empty() { "tool".into() } else { other.to_owned() }, if p.is_empty() { js::str(&ask["toolName"]) } else { p }, None)
+            (
+                if other.is_empty() { "tool".into() } else { other.to_owned() },
+                if p.is_empty() { js::str(&ask["toolName"]) } else { p },
+                None,
+            )
         }
     };
     HarnessEvent::Blocked { tool, detail, rule }
@@ -138,7 +160,11 @@ mod tests {
     #[test]
     fn a_refusal_names_the_rule_that_allows_it() {
         let p = RunPaths::same("/w");
-        let HarnessEvent::Blocked { rule, detail, .. } = blocked_of(&json!({ "kind": "shell", "fullCommandText": "npm publish", "commands": [{ "identifier": "npm publish" }] }), &p) else { panic!() };
+        let HarnessEvent::Blocked { rule, detail, .. } =
+            blocked_of(&json!({ "kind": "shell", "fullCommandText": "npm publish", "commands": [{ "identifier": "npm publish" }] }), &p)
+        else {
+            panic!()
+        };
         assert_eq!((detail.as_str(), rule), ("npm publish", Some(json!(["shell(npm publish)"]))));
         let HarnessEvent::Blocked { rule, .. } = blocked_of(&json!({ "kind": "write", "fileName": "/etc/x" }), &p) else { panic!() };
         assert_eq!(rule, Some(json!(["write(/etc/x)"])));

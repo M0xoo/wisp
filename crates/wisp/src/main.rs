@@ -5,6 +5,8 @@
 
 mod args;
 mod attach;
+#[cfg(test)]
+mod ci_tests;
 mod cli;
 mod client;
 mod cloud_cli;
@@ -12,24 +14,22 @@ mod code;
 mod commands;
 mod desktop;
 mod events_cli;
-#[cfg(test)]
-mod ci_tests;
-mod hook_cli;
-mod termctx_cli;
-mod trigger_cli;
-mod tui;
 mod extras;
 mod folder;
-mod repo_cli;
 mod groups;
 mod history_cli;
+mod hook_cli;
 mod plugin_cmd;
+mod repo_cli;
 mod scripted;
 mod serve;
 mod services;
 mod settings_store;
 mod share_cli;
 mod tasks_cli;
+mod termctx_cli;
+mod trigger_cli;
+mod tui;
 mod v1_formula;
 
 use std::io::IsTerminal;
@@ -127,11 +127,17 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
         Some("plugin" | "plugins") if rest.first().map(String::as_str) == Some("new") => {
             let name = scripted::need(rest.get(1), "a plugin name")?;
             let dir = plugin_cmd::new_plugin(&home, name)?;
-            say(&format!("  ✓ {}\n    edit wisp-plugin.json, then: wisp plugin enable user.{}", dir.display(), dir.file_name().map(|n| n.to_string_lossy()).unwrap_or_default()));
+            say(&format!(
+                "  ✓ {}\n    edit wisp-plugin.json, then: wisp plugin enable user.{}",
+                dir.display(),
+                dir.file_name().map(|n| n.to_string_lossy()).unwrap_or_default()
+            ));
         }
         Some("add") => add(&home, port, p.words.get(1), cwd).await?,
         Some(cmd) => commands::run(p, cmd, rest, &cwd_s, port).await?,
-        None if !p.words.is_empty() && (f.json || f.wait || !f.tries.is_empty() || f.compare.is_some()) => commands::run(p, "launch", &p.words, &cwd_s, port).await?,
+        None if !p.words.is_empty() && (f.json || f.wait || !f.tries.is_empty() || f.compare.is_some()) => {
+            commands::run(p, "launch", &p.words, &cwd_s, port).await?;
+        }
         None if !p.words.is_empty() => return launch_and_open(p, &home, port, &cwd_s).await,
         None => open(&home, f.port, f.open, f.browser).await?,
     }
@@ -140,7 +146,9 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
 
 /// Whether `word` could be a plugin's first word (`crew`, `runtime`, `grid-client`).
 fn plugin_word(word: &str) -> bool {
-    word.len() <= 32 && word.bytes().next().is_some_and(|b| b.is_ascii_lowercase()) && word.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+    word.len() <= 32
+        && word.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
+        && word.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
 /// The commands that follow a topic or read the catalogue (ADR-0022); None: not one of them.
@@ -154,58 +162,49 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
     }
     let start = p.argv.iter().position(|a| a == first).map_or(0, |i| i + 1);
     let o = code::opts(&p.argv[start.min(p.argv.len())..]);
-    let o = code::Opts { json: o.json || p.flags.json, yes: o.yes || p.flags.yes, dry_run: o.dry_run || p.flags.dry_run, wait: o.wait || p.flags.wait, ..o };
+    let o = code::Opts {
+        json: o.json || p.flags.json,
+        yes: o.yes || p.flags.yes,
+        dry_run: o.dry_run || p.flags.dry_run,
+        wait: o.wait || p.flags.wait,
+        ..o
+    };
     if let Some(code) = areas(first, p, &o, port, cwd).await? {
+        return Ok(Some(code));
+    }
+    if let Some(code) = shared_and_cloud(first, p, &o, port, cwd).await? {
         return Ok(Some(code));
     }
     let connect = || Client::connect(port, true);
     let code = match first {
-        "apply" | "diff" | "validate" | "plan" | "destroy" if !o.files.is_empty() || folder::folder(&o, cwd).is_some() => code::apply(&connect().await?, first, &o, cwd).await?,
+        "apply" | "diff" | "validate" | "plan" | "destroy" if !o.files.is_empty() || folder::folder(&o, cwd).is_some() => {
+            code::apply(&connect().await?, first, &o, cwd).await?
+        }
         "init" if o.words.len() <= 1 => folder::init(cwd, &o)?,
         "track" if o.words.len() == 1 => repo_cli::track(&connect().await?, &o, cwd).await?,
         "untrack" if o.words.len() == 1 => repo_cli::untrack_cmd(Client::connect(port, false).await.ok().as_ref(), &o, cwd).await?,
         "blame" if o.words.len() == 1 => repo_cli::blame_any(Client::connect(port, false).await.ok().as_ref(), &o, cwd).await?,
         "log" if o.words.len() <= 1 => repo_cli::log(&p.argv, &o, cwd)?,
-        "tasks" if p.argv.iter().any(|a| a == "--touching" || a == "--tracked") => repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?,
-        "ls" | "list" if p.argv.iter().any(|a| a == "--repo") => repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?,
+        "tasks" if p.argv.iter().any(|a| a == "--touching" || a == "--tracked") => {
+            repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?
+        }
+        "ls" | "list" if p.argv.iter().any(|a| a == "--repo") => {
+            repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?
+        }
         "resume" if o.words.len() == 1 => repo_cli::resume(&connect().await?, &o, cwd).await?,
         "adopt" => repo_cli::adopt(&connect().await?, &p.argv, &o, cwd).await?,
         "fmt" if o.words.is_empty() => folder::fmt_cmd(&o, cwd)?,
         "workspace" => folder::workspace_cmd(&folder::folder(&o, cwd).unwrap_or_else(|| cwd.join(".wisp")), &o.words)?,
-        "output" | "graph" | "mv" if folder::folder(&o, cwd).is_some() => {
-            let c = connect().await?;
-            let ks = code::kinds(&c).await?;
-            let dir = folder::folder(&o, cwd).unwrap_or_default();
-            let cfg = folder::config(&o, &ks, &dir)?;
-            match first {
-                "output" => folder::output(&cfg, &o),
-                "graph" => folder::graph(&cfg),
-                _ => match o.words.as_slice() {
-                    [from, to] => {
-                        let (stored, kind) = folder::stored_name(&cfg, from).ok_or_else(|| CliError::said(format!("{from} isn't declared here")))?;
-                        if folder::stored_name(&cfg, to).is_some() {
-                            return Err(CliError::said(format!("{to} is declared already")));
-                        }
-                        let new_name = format!("{}{}", stored.strip_suffix(from.split_once('.').map_or("", |(_, n)| n)).unwrap_or_default(), to.split_once('.').map_or("", |(_, n)| n));
-                        let has = c.cmd("resources.export", serde_json::json!({ "kinds": [kind] })).await.is_ok_and(|l| l.as_array().is_some_and(|a| a.iter().any(|r| r["name"] == stored.as_str())));
-                        if has {
-                            c.cmd("resources.rename", serde_json::json!({ "kind": kind, "from": stored, "to": new_name })).await?;
-                        }
-                        let n = folder::mv(&dir, &cfg, from, to)?;
-                        scripted::say(&format!("  ✓ {from} → {to} in {n} file{}{}", if n == 1 { "" } else { "s" }, if has { " and in wisp" } else { "" }));
-                        0
-                    }
-                    _ => return Err(CliError::said("wisp mv <kind>.<name> <kind>.<new name>")),
-                },
-            }
-        }
+        "output" | "graph" | "mv" if folder::folder(&o, cwd).is_some() => folder_view(first, &o, port, cwd).await?,
         "import" if o.words.len() == 1 && o.words[0].contains('.') && !o.words[0].contains('/') && !o.words[0].starts_with('.') => {
             let c = connect().await?;
             let ks = code::kinds(&c).await?;
             folder::import_address(&c, &ks, &folder::folder(&o, cwd).unwrap_or_else(|| cwd.join(".wisp")), &o.words[0]).await?
         }
         "schema" if o.words.is_empty() => code::schema(&connect().await?).await?,
-        "export" if o.words.iter().any(|w| w.contains('.')) && o.words.iter().all(|w| !w.contains(' ')) => code::export_cmd(&connect().await?, &o).await?,
+        "export" if o.words.iter().any(|w| w.contains('.')) && o.words.iter().all(|w| !w.contains(' ')) => {
+            code::export_cmd(&connect().await?, &o).await?
+        }
         "export" if o.words.iter().all(|w| w.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')) => {
             let c = connect().await?;
             if !code::kind_words(&o.words, &code::kinds(&c).await?) {
@@ -213,22 +212,9 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
             }
             code::export_cmd(&c, &o).await?
         }
-        "task" if matches!(o.words.first().map(String::as_str), Some("spec" | "export" | "formula" | "setup")) && o.words.len() >= 2 => tasks_cli::task(&connect().await?, &o).await?,
-        "task" if o.words.first().map(String::as_str) == Some("history") && o.words.len() == 2 => history_cli::task_history(&connect().await?, &o.words[1], o.json).await?,
         "ls" | "list" if history_cli::wants_history(&o) && !p.flags.watch => history_cli::ls(&connect().await?, &o, cwd).await?,
         "history" if o.words.first().map(String::as_str) == Some("export") => history_cli::export(&connect().await?, &o, cwd).await?,
         "import" if o.words.len() <= 1 => history_cli::import(&connect().await?, &o, home).await?,
-        "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
-        "share" if o.words.len() == 1 && o.words[0].split_once('.').is_some_and(|(k, n)| !k.is_empty() && !n.is_empty() && !n.contains(' ')) => cloud_cli::share_setup(&connect().await?, &o).await?,
-        "events" if matches!(o.words.first().map(String::as_str), None | Some("tail" | "why" | "retry" | "parked" | "ls")) => events_cli::run(&connect().await?, &p.argv, o.json).await?,
-        "shares" if o.words.is_empty() => cloud_cli::shares(&connect().await?, &o).await?,
-        "cloud" if o.words.len() <= 2 && matches!(o.words.first().map(String::as_str), None | Some("signin" | "login" | "signout" | "logout" | "status")) => cloud_cli::cloud(&connect().await?, &o).await?,
-        "computer" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("on" | "off" | "status")) => cloud_cli::computer(&connect().await?, &o).await?,
-        // `wisp grid deploy -f <file> [--on <box>]`: the formula applied on a box (the cloud box by default)
-        "grid" if o.words.first().map(String::as_str) == Some("deploy") && !o.files.is_empty() => grid_deploy(port, p.flags.on.is_some(), o, cwd).await?,
-        "open" if o.words.len() == 1 && cloud_cli::is_link(&o.words[0]) => cloud_cli::open_link(&connect().await?, &o, cwd).await?,
-        "open" if o.words.len() == 1 && (o.words[0].ends_with(".wisp-task") || o.words[0].starts_with("http") || o.words[0].starts_with("gist:")) => share_cli::open(&connect().await?, &o, cwd).await?,
-        "open" if o.words.len() == 1 => repo_cli::open_task(&connect().await?, &p.argv, &o, cwd).await?,
         "rerun" if (o.words.len() == 1 && args::session_id(&o.words[0])) || o.last.is_some() => {
             let o = code::Opts { words: std::iter::once("rerun".to_owned()).chain(o.words.clone()).collect(), ..o };
             tasks_cli::rerun(&connect().await?, &o, cwd).await?
@@ -244,12 +230,107 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
     Ok(Some(code))
 }
 
+/// `wisp output`, `wisp graph` and `wisp mv` over the declared folder.
+async fn folder_view(first: &str, o: &code::Opts, port: u16, cwd: &Path) -> Result<i32> {
+    let c = Client::connect(port, true).await?;
+    let ks = code::kinds(&c).await?;
+    let dir = folder::folder(o, cwd).unwrap_or_default();
+    let cfg = folder::config(o, &ks, &dir)?;
+    Ok(match first {
+        "output" => folder::output(&cfg, o),
+        "graph" => folder::graph(&cfg),
+        _ => match o.words.as_slice() {
+            [from, to] => {
+                let (stored, kind) =
+                    folder::stored_name(&cfg, from).ok_or_else(|| CliError::said(format!("{from} isn't declared here")))?;
+                if folder::stored_name(&cfg, to).is_some() {
+                    return Err(CliError::said(format!("{to} is declared already")));
+                }
+                let new_name = format!(
+                    "{}{}",
+                    stored.strip_suffix(from.split_once('.').map_or("", |(_, n)| n)).unwrap_or_default(),
+                    to.split_once('.').map_or("", |(_, n)| n)
+                );
+                let has = c
+                    .cmd("resources.export", serde_json::json!({ "kinds": [kind] }))
+                    .await
+                    .is_ok_and(|l| l.as_array().is_some_and(|a| a.iter().any(|r| r["name"] == stored.as_str())));
+                if has {
+                    c.cmd("resources.rename", serde_json::json!({ "kind": kind, "from": stored, "to": new_name })).await?;
+                }
+                let n = folder::mv(&dir, &cfg, from, to)?;
+                scripted::say(&format!(
+                    "  ✓ {from} → {to} in {n} file{}{}",
+                    if n == 1 { "" } else { "s" },
+                    if has { " and in wisp" } else { "" }
+                ));
+                0
+            }
+            _ => return Err(CliError::said("wisp mv <kind>.<name> <kind>.<new name>")),
+        },
+    })
+}
+
+/// `wisp task spec|export|formula|setup|history`, `wisp share`, `wisp events`, `wisp shares`, `wisp cloud`,
+/// `wisp computer`, `wisp grid deploy` and `wisp open`. None: the words aren't one of them.
+async fn shared_and_cloud(first: &str, p: &Parsed, o: &code::Opts, port: u16, cwd: &Path) -> Result<Option<i32>> {
+    let connect = || Client::connect(port, true);
+    let o = o.clone();
+    let code = match first {
+        "task" if matches!(o.words.first().map(String::as_str), Some("spec" | "export" | "formula" | "setup")) && o.words.len() >= 2 => {
+            tasks_cli::task(&connect().await?, &o).await?
+        }
+        "task" if o.words.first().map(String::as_str) == Some("history") && o.words.len() == 2 => {
+            history_cli::task_history(&connect().await?, &o.words[1], o.json).await?
+        }
+        "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
+        "share"
+            if o.words.len() == 1
+                && o.words[0].split_once('.').is_some_and(|(k, n)| !k.is_empty() && !n.is_empty() && !n.contains(' ')) =>
+        {
+            cloud_cli::share_setup(&connect().await?, &o).await?
+        }
+        "events" if matches!(o.words.first().map(String::as_str), None | Some("tail" | "why" | "retry" | "parked" | "ls")) => {
+            events_cli::run(&connect().await?, &p.argv, o.json).await?
+        }
+        "shares" if o.words.is_empty() => cloud_cli::shares(&connect().await?, &o).await?,
+        "cloud"
+            if o.words.len() <= 2
+                && matches!(o.words.first().map(String::as_str), None | Some("signin" | "login" | "signout" | "logout" | "status")) =>
+        {
+            cloud_cli::cloud(&connect().await?, &o).await?
+        }
+        "computer" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("on" | "off" | "status")) => {
+            cloud_cli::computer(&connect().await?, &o).await?
+        }
+        // `wisp grid deploy -f <file> [--on <box>]`: the formula applied on a box (the cloud box by default)
+        "grid" if o.words.first().map(String::as_str) == Some("deploy") && !o.files.is_empty() => {
+            grid_deploy(port, p.flags.on.is_some(), o, cwd).await?
+        }
+        "open" if o.words.len() == 1 && cloud_cli::is_link(&o.words[0]) => cloud_cli::open_link(&connect().await?, &o, cwd).await?,
+        "open"
+            if o.words.len() == 1
+                && (o.words[0].ends_with(".wisp-task") || o.words[0].starts_with("http") || o.words[0].starts_with("gist:")) =>
+        {
+            share_cli::open(&connect().await?, &o, cwd).await?
+        }
+        "open" if o.words.len() == 1 => repo_cli::open_task(&connect().await?, &p.argv, &o, cwd).await?,
+        _ => return Ok(None),
+    };
+    Ok(Some(code))
+}
+
 /// `wisp shell-init`, `wisp trigger …`, `wisp crew wake|graph`, `wisp sandbox …`, `wisp team …` (ADR-0023, 0043, 0041).
 async fn areas(first: &str, p: &Parsed, o: &code::Opts, port: u16, cwd: &Path) -> Result<Option<i32>> {
     let connect = || Client::connect(port, true);
     let o = o.clone();
     let code = match first {
-        "hook" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("install" | "uninstall" | "remove" | "status")) => hook_cli::run(&o.words, cwd)?,
+        "hook"
+            if o.words.len() <= 1
+                && matches!(o.words.first().map(String::as_str), None | Some("install" | "uninstall" | "remove" | "status")) =>
+        {
+            hook_cli::run(&o.words, cwd)?
+        }
         "tui" if o.words.is_empty() => tui::run(&connect().await?, &cwd.display().to_string()).await?,
         "shell-init" if o.words.len() == 1 => match termctx_cli::shell_init(&o.words[0]) {
             Ok(script) => {
@@ -258,10 +339,30 @@ async fn areas(first: &str, p: &Parsed, o: &code::Opts, port: u16, cwd: &Path) -
             }
             Err(e) => return Err(CliError::said(e)),
         },
-        "trigger" | "triggers" if matches!(o.words.first().map(String::as_str), None | Some("add" | "ls" | "list" | "rm" | "remove" | "fire" | "test" | "log" | "resume" | "approve" | "sources")) => trigger_cli::run(&connect().await?, p, first, &cwd.display().to_string()).await?,
-        "crew" if matches!(o.words.first().map(String::as_str), Some("wake" | "graph")) => trigger_cli::run(&connect().await?, p, "crew", &cwd.display().to_string()).await?,
-        "sandbox" | "sandboxes" if matches!(o.words.first().map(String::as_str), None | Some("new" | "add" | "ls" | "list" | "rm" | "remove" | "delete")) => cloud_cli::sandbox(&connect().await?, &o).await?,
-        "team" | "teams" if matches!(o.words.first().map(String::as_str), None | Some("ls" | "list" | "new" | "create" | "show" | "add" | "rm" | "remove")) => cloud_cli::team(&connect().await?, &o).await?,
+        "trigger" | "triggers"
+            if matches!(
+                o.words.first().map(String::as_str),
+                None | Some("add" | "ls" | "list" | "rm" | "remove" | "fire" | "test" | "log" | "resume" | "approve" | "sources")
+            ) =>
+        {
+            trigger_cli::run(&connect().await?, p, first, &cwd.display().to_string()).await?
+        }
+        "crew" if matches!(o.words.first().map(String::as_str), Some("wake" | "graph")) => {
+            trigger_cli::run(&connect().await?, p, "crew", &cwd.display().to_string()).await?
+        }
+        "sandbox" | "sandboxes"
+            if matches!(o.words.first().map(String::as_str), None | Some("new" | "add" | "ls" | "list" | "rm" | "remove" | "delete")) =>
+        {
+            cloud_cli::sandbox(&connect().await?, &o).await?
+        }
+        "team" | "teams"
+            if matches!(
+                o.words.first().map(String::as_str),
+                None | Some("ls" | "list" | "new" | "create" | "show" | "add" | "rm" | "remove")
+            ) =>
+        {
+            cloud_cli::team(&connect().await?, &o).await?
+        }
         _ => return Ok(None),
     };
     Ok(Some(code))
@@ -379,7 +480,10 @@ async fn add(_home: &Path, port: u16, what: Option<&String>, cwd: &Path) -> Resu
         cloned.get("dir").and_then(Value::as_str).unwrap_or_default().to_owned()
     } else {
         // `wisp add .` is the folder itself, never "/repo/." (and no `\\?\` on Windows): canonical before it's sent
-        wisp_runtime_api::paths::canonical_project_path(&args::expand(if w.is_empty() { "." } else { w }, cwd, cwd).display().to_string(), None)
+        wisp_runtime_api::paths::canonical_project_path(
+            &args::expand(if w.is_empty() { "." } else { w }, cwd, cwd).display().to_string(),
+            None,
+        )
     };
     let name = Path::new(&path).file_name().map_or_else(|| "project".into(), |n| n.to_string_lossy().to_lowercase().replace(' ', "-"));
     c.cmd("resources.apply", json!({ "resources": [{ "kind": "project", "name": name, "spec": { "path": path } }] })).await?;
@@ -396,11 +500,21 @@ async fn launch_and_open(p: &Parsed, home: &Path, port: u16, cwd: &str) -> Resul
     termctx_cli::attach(&c, p, &mut args, &prompt, cwd, home).await;
     let made = c.cmd("runtime.create", args).await?;
     let id = made.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
-    let title = c.cmd("runtime.get", json!({ "id": id })).await.ok().and_then(|t| t.get("title").and_then(Value::as_str).map(str::to_owned)).unwrap_or_default();
+    let title = c
+        .cmd("runtime.get", json!({ "id": id }))
+        .await
+        .ok()
+        .and_then(|t| t.get("title").and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or_default();
     let tty = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
     if tty && !p.flags.detach && !id.is_empty() {
         let st = cli::style();
-        say(&format!("{} {}  {}", wisp_cli_core::term::paint(&st, wisp_cli_core::term::BLUE, "◌"), wisp_cli_core::term::bold(&st, &title), wisp_cli_core::term::dim(&st, &id)));
+        say(&format!(
+            "{} {}  {}",
+            wisp_cli_core::term::paint(&st, wisp_cli_core::term::BLUE, "◌"),
+            wisp_cli_core::term::bold(&st, &title),
+            wisp_cli_core::term::dim(&st, &id)
+        ));
         return attach::attach(&c, home, &id, attach::Mode { interactive: true, until_idle: false, fresh: true }).await;
     }
     say(&format!("  ◌ launched: {title}  ({id})\n    wisp attach {id}"));

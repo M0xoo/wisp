@@ -18,7 +18,11 @@ pub fn brief_text(brief: &Value) -> String {
     if !skills.is_empty() {
         out.push_str("\n## Skills you have\n");
         for k in skills {
-            let (n, d, b) = (k.get("name").and_then(Value::as_str).unwrap_or(""), k.get("description").and_then(Value::as_str).unwrap_or(""), k.get("body").and_then(Value::as_str).unwrap_or(""));
+            let (n, d, b) = (
+                k.get("name").and_then(Value::as_str).unwrap_or(""),
+                k.get("description").and_then(Value::as_str).unwrap_or(""),
+                k.get("body").and_then(Value::as_str).unwrap_or(""),
+            );
             let _ = write!(out, "\n### {n}\n{d}\n\n{}\n", b.trim());
         }
     }

@@ -38,7 +38,8 @@ impl Plugin for PostHogPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        let env: Env = ["WISP_POSTHOG_KEY", "WISP_POSTHOG_HOST"].iter().filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v))).collect();
+        let env: Env =
+            ["WISP_POSTHOG_KEY", "WISP_POSTHOG_HOST"].iter().filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v))).collect();
         let http = reqwest::Client::builder().timeout(Duration::from_millis(3000)).build().unwrap_or_default();
         s.contribute(&SINK, Arc::new(PostHog { env, http }) as Arc<dyn Sink>);
         Ok(())

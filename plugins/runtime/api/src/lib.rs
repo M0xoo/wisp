@@ -18,19 +18,7 @@ pub mod spec;
 /// Kernel-style branded ids (`wisp_kernel::id_type!`), plus `ts_rs::TS` as a plain string for the UI.
 macro_rules! ts_id {
     ($name:ident) => {
-        #[derive(
-            Debug,
-            Clone,
-            PartialEq,
-            Eq,
-            Hash,
-            PartialOrd,
-            Ord,
-            Default,
-            serde::Serialize,
-            serde::Deserialize,
-            ts_rs::TS,
-        )]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, serde::Serialize, serde::Deserialize, ts_rs::TS)]
         #[serde(transparent)]
         #[ts(type = "string")]
         pub struct $name(pub String);
@@ -74,10 +62,6 @@ pub fn session_topic(id: &str) -> String {
 }
 
 pub use harness::{
-    Exit, HARNESS, Harness, HarnessEvent, HarnessParser, HarnessRun, HarnessSys, Launch,
-    ParserInput, ParserOutput, RunDriver, pure,
+    Exit, HARNESS, Harness, HarnessEvent, HarnessParser, HarnessRun, HarnessSys, Launch, ParserInput, ParserOutput, RunDriver, pure,
 };
-pub use model::{
-    Activity, Attachment, Mode, Presentation, QueueItem, Session, SessionState, Summary, Turn,
-    TurnStatus,
-};
+pub use model::{Activity, Attachment, Mode, Presentation, QueueItem, Session, SessionState, Summary, Turn, TurnStatus};

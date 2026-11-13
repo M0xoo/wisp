@@ -11,9 +11,7 @@ use ts_rs::TS;
 /// `Option<Option<T>>` from JSON: absent is `None`, `null` is `Some(None)` (it clears or overrides).
 pub mod nullable {
     use super::{Deserialize, Deserializer};
-    pub fn deserialize<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
-        d: D,
-    ) -> Result<Option<Option<T>>, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Option<Option<T>>, D::Error> {
         Option::<T>::deserialize(d).map(Some)
     }
 }
@@ -182,10 +180,7 @@ pub struct Signals {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub followups: Option<u32>,
-    #[serde(
-        deserialize_with = "nullable::deserialize",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(deserialize_with = "nullable::deserialize", skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "Feedback | null")]
     pub feedback: Option<Option<Feedback>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -195,10 +190,7 @@ pub struct Signals {
     #[ts(optional)]
     pub closed: Option<bool>,
     /// null: a rollback restored
-    #[serde(
-        deserialize_with = "nullable::deserialize",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(deserialize_with = "nullable::deserialize", skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "boolean | null")]
     pub rolled_back: Option<Option<bool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -232,22 +224,7 @@ impl Signals {
         macro_rules! take {
             ($($f:ident),*) => { $(if p.$f.is_some() { self.$f.clone_from(&p.$f); })* };
         }
-        take!(
-            hero,
-            error,
-            followups,
-            feedback,
-            merged,
-            closed,
-            rolled_back,
-            switched,
-            switched_to,
-            check,
-            repaired,
-            picked,
-            cost_usd,
-            ms
-        );
+        take!(hero, error, followups, feedback, merged, closed, rolled_back, switched, switched_to, check, repaired, picked, cost_usd, ms);
     }
 }
 
@@ -302,10 +279,7 @@ pub struct StoredRoute {
 impl StoredRoute {
     /// A full route as recorded at launch: its signals and reward start empty.
     pub fn from_route(route: &Route) -> Self {
-        let mut s = serde_json::to_value(route)
-            .ok()
-            .and_then(|v| serde_json::from_value::<StoredRoute>(v).ok())
-            .unwrap_or_default();
+        let mut s = serde_json::to_value(route).ok().and_then(|v| serde_json::from_value::<StoredRoute>(v).ok()).unwrap_or_default();
         s.signals = Signals::default();
         s.r = None;
         s
@@ -397,10 +371,7 @@ pub struct ChooseArgs {
     /// the lead of a team must be a harness that can delegate
     pub need_delegate: bool,
     /// absent: Settings; null: any harness
-    #[serde(
-        deserialize_with = "nullable::deserialize",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(deserialize_with = "nullable::deserialize", skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "Array<string> | null")]
     pub allowed: Option<Option<Vec<String>>>,
     #[serde(skip_serializing_if = "Option::is_none")]

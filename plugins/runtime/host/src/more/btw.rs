@@ -23,7 +23,14 @@ impl Runtime {
         }
         let s = self.repo.session(a.id.as_str()).await?;
         let h = self.harness(&s.agent)?;
-        let entry = BtwEntry { id: wisp_kernel::ids::uuid7(), question: a.question.clone(), answer: String::new(), at: self.now(), pending: true, error: None };
+        let entry = BtwEntry {
+            id: wisp_kernel::ids::uuid7(),
+            question: a.question.clone(),
+            answer: String::new(),
+            at: self.now(),
+            pending: true,
+            error: None,
+        };
         self.put_btw(a.id.as_str(), &entry).await?;
         let fork = h.info().fork && s.resume_id.is_some();
         let run = HarnessRun {

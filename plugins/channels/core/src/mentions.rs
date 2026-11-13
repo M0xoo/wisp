@@ -58,7 +58,8 @@ fn page_form(c: &[char], i: usize) -> Option<(String, usize)> {
 }
 
 fn starts_with_ci(c: &[char], i: usize, needle: &[char]) -> bool {
-    needle.len() <= c.len().saturating_sub(i) && c[i..i + needle.len()].iter().zip(needle).all(|(a, b)| a.to_lowercase().eq(b.to_lowercase()))
+    needle.len() <= c.len().saturating_sub(i)
+        && c[i..i + needle.len()].iter().zip(needle).all(|(a, b)| a.to_lowercase().eq(b.to_lowercase()))
 }
 
 /// A plain `@name` (or its handle) in `c`, not inside a word on either side, nor inside a longer name already

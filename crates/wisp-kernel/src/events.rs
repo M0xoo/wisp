@@ -85,7 +85,20 @@ pub(crate) enum Logged {
 impl Pending {
     /// An ephemeral event (the kernel's own, a vetoed notice).
     pub(crate) fn plain(ty: &str, plugin: Arc<str>, data: Payload) -> Self {
-        Self { ty: ty.to_owned(), plugin, data, durable: false, subject: None, key: None, cause: None, depth: 0, root: String::new(), at: 0, written: Logged::Not, taken: false }
+        Self {
+            ty: ty.to_owned(),
+            plugin,
+            data,
+            durable: false,
+            subject: None,
+            key: None,
+            cause: None,
+            depth: 0,
+            root: String::new(),
+            at: 0,
+            written: Logged::Not,
+            taken: false,
+        }
     }
 }
 
@@ -125,11 +138,7 @@ impl EventEnvelope {
     /// The payload as `E`: a clone when it was emitted as `E` in this process, else parsed.
     pub fn get<E: Event>(&self) -> Option<E> {
         match &self.data {
-            Payload::Typed(t) => t
-                .any()
-                .downcast_ref::<E>()
-                .cloned()
-                .or_else(|| serde_json::from_value(t.json()).ok()),
+            Payload::Typed(t) => t.any().downcast_ref::<E>().cloned().or_else(|| serde_json::from_value(t.json()).ok()),
             Payload::Json(v) => serde_json::from_value((**v).clone()).ok(),
         }
     }
@@ -154,8 +163,7 @@ impl serde::Serialize for EventEnvelope {
     }
 }
 
-pub(crate) type SubFn =
-    Arc<dyn Fn(Ctx, Arc<EventEnvelope>) -> BoxFuture<'static, Result<()>> + Send + Sync>;
+pub(crate) type SubFn = Arc<dyn Fn(Ctx, Arc<EventEnvelope>) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct Sub {
@@ -206,11 +214,7 @@ impl Bus {
     fn reindex(&self, queues: &HashMap<Arc<str>, Arc<Queue>>) {
         let mut ix = Index::default();
         for q in queues.values() {
-            let subs = q
-                .subs
-                .read()
-                .map(|s| s.iter().map(|x| x.pattern.clone()).collect::<Vec<_>>())
-                .unwrap_or_default();
+            let subs = q.subs.read().map(|s| s.iter().map(|x| x.pattern.clone()).collect::<Vec<_>>()).unwrap_or_default();
             let mut seen: Vec<String> = Vec::new();
             for p in subs {
                 if seen.contains(&p) {
@@ -230,13 +234,7 @@ impl Bus {
     }
 
     /// Adds a subscription for `owner`; its queue and worker start on the first one.
-    pub(crate) fn subscribe(
-        &self,
-        k: &Arc<KernelState>,
-        owner: &Arc<str>,
-        sub: Sub,
-        scope: &CancellationToken,
-    ) {
+    pub(crate) fn subscribe(&self, k: &Arc<KernelState>, owner: &Arc<str>, sub: Sub, scope: &CancellationToken) {
         let Ok(mut qs) = self.queues.lock() else {
             return;
         };
@@ -266,21 +264,14 @@ impl Bus {
         let Some(q) = qs.remove(owner) else { return 0 };
         q.stop.cancel();
         let n = q.subs.read().map_or(0, |s| s.len());
-        let queued = q
-            .items
-            .lock()
-            .map_or(0, |mut i| std::mem::take(&mut *i).len());
+        let queued = q.items.lock().map_or(0, |mut i| std::mem::take(&mut *i).len());
         self.work.done(queued);
         self.reindex(&qs);
         n
     }
 
     pub(crate) fn subscriptions(&self, owner: &str) -> usize {
-        self.queues
-            .lock()
-            .ok()
-            .and_then(|qs| qs.get(owner).map(|q| q.subs.read().map_or(0, |s| s.len())))
-            .unwrap_or(0)
+        self.queues.lock().ok().and_then(|qs| qs.get(owner).map(|q| q.subs.read().map_or(0, |s| s.len()))).unwrap_or(0)
     }
 
     pub(crate) fn lagging(&self, owner: &str) -> Option<u64> {
@@ -290,11 +281,7 @@ impl Bus {
     }
 
     pub(crate) fn caught_up(&self, owner: &str) {
-        if let Some(q) = self
-            .queues
-            .lock()
-            .ok()
-            .and_then(|qs| qs.get(owner).cloned())
+        if let Some(q) = self.queues.lock().ok().and_then(|qs| qs.get(owner).cloned())
             && let Ok(mut l) = q.lagging.lock()
         {
             *l = None;
@@ -320,13 +307,7 @@ impl Bus {
     }
 
     /// Publishes one committed event to every queue that wants it. Returns its envelope.
-    pub(crate) fn publish(
-        &self,
-        k: &KernelState,
-        root: &str,
-        cursor: Option<u64>,
-        p: Pending,
-    ) -> Arc<EventEnvelope> {
+    pub(crate) fn publish(&self, k: &KernelState, root: &str, cursor: Option<u64>, p: Pending) -> Arc<EventEnvelope> {
         let seq = self.seq.fetch_add(1, Ordering::Relaxed) + 1;
         let env = Arc::new(EventEnvelope {
             seq,
@@ -353,12 +334,7 @@ impl Bus {
         }
         for (pat, q) in &ix.patterns {
             // a queue matched exactly already has it
-            if glob(pat, &env.ty)
-                && !ix
-                    .exact
-                    .get(&env.ty)
-                    .is_some_and(|l| l.iter().any(|x| Arc::ptr_eq(x, q)))
-            {
+            if glob(pat, &env.ty) && !ix.exact.get(&env.ty).is_some_and(|l| l.iter().any(|x| Arc::ptr_eq(x, q))) {
                 self.enqueue(k, q, &env);
             }
         }
@@ -403,25 +379,11 @@ async fn worker(q: Arc<Queue>, k: Weak<KernelState>, work: Arc<Work>) {
                 () = q.wake.notified() => continue,
             }
         };
-        let subs: Vec<Sub> = q
-            .subs
-            .read()
-            .map(|s| {
-                s.iter()
-                    .filter(|x| glob(&x.pattern, &env.ty))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
+        let subs: Vec<Sub> = q.subs.read().map(|s| s.iter().filter(|x| glob(&x.pattern, &env.ty)).cloned().collect()).unwrap_or_default();
         for s in subs {
             deliver(&q, &k, &s, &env).await;
         }
-        let popped = q
-            .items
-            .lock()
-            .ok()
-            .and_then(|mut i| i.pop_front())
-            .is_some();
+        let popped = q.items.lock().ok().and_then(|mut i| i.pop_front()).is_some();
         if popped {
             work.done(1);
         }
@@ -447,14 +409,7 @@ async fn deliver(q: &Queue, k: &Weak<KernelState>, s: &Sub, env: &Arc<EventEnvel
             && let Some(k) = k.upgrade()
         {
             tracing::warn!(plugin = %q.owner, ty = %env.ty, seq = env.seq, "subscriber failed {ATTEMPTS} times: {why}");
-            k.diag.record(
-                k.now_ms(),
-                &q.owner,
-                "event",
-                "internal",
-                format!("{} (seq {}): {why}", env.ty, env.seq),
-                Vec::new(),
-            );
+            k.diag.record(k.now_ms(), &q.owner, "event", "internal", format!("{} (seq {}): {why}", env.ty, env.seq), Vec::new());
         }
     }
 }

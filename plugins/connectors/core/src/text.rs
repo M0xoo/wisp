@@ -30,7 +30,9 @@ pub fn valid_name(s: &str) -> bool {
 pub fn valid_key(s: &str) -> bool {
     let b = s.as_bytes();
     match b.first() {
-        Some(f) if f.is_ascii_alphabetic() || *f == b'_' => b.len() <= 64 && b[1..].iter().all(|c| c.is_ascii_alphanumeric() || *c == b'_' || *c == b'-'),
+        Some(f) if f.is_ascii_alphabetic() || *f == b'_' => {
+            b.len() <= 64 && b[1..].iter().all(|c| c.is_ascii_alphanumeric() || *c == b'_' || *c == b'-')
+        }
         _ => false,
     }
 }

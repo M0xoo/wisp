@@ -40,8 +40,26 @@ fn on_links(_: &Row) -> Vec<String> {
 
 const DOC: &[(&str, Col)] = &[("id", Col::Text), ("body", Col::Text)];
 
-pub const PEER: EntityDef = EntityDef { kind: "machines_peer", table: "machines_peer", key: "id", columns: DOC, json_columns: &["body"], parent: None, seq: None, topics: on_machines };
-pub const STATUS: EntityDef = EntityDef { kind: "machines_status", table: "machines_status", key: "id", columns: DOC, json_columns: &["body"], parent: None, seq: None, topics: on_machines };
+pub const PEER: EntityDef = EntityDef {
+    kind: "machines_peer",
+    table: "machines_peer",
+    key: "id",
+    columns: DOC,
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: on_machines,
+};
+pub const STATUS: EntityDef = EntityDef {
+    kind: "machines_status",
+    table: "machines_status",
+    key: "id",
+    columns: DOC,
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: on_machines,
+};
 pub const MIRROR: EntityDef = EntityDef {
     kind: "machines_mirror",
     table: "machines_mirror",
@@ -52,7 +70,16 @@ pub const MIRROR: EntityDef = EntityDef {
     seq: None,
     topics: on_remote,
 };
-pub const SYNC: EntityDef = EntityDef { kind: "machines_sync", table: "machines_sync", key: "id", columns: DOC, json_columns: &["body"], parent: None, seq: None, topics: on_links };
+pub const SYNC: EntityDef = EntityDef {
+    kind: "machines_sync",
+    table: "machines_sync",
+    key: "id",
+    columns: DOC,
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: on_links,
+};
 
 /// A link's resume point: the client id the peer knows this wisp by, and `PeerClient::save()`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -167,7 +194,18 @@ mod tests {
     use super::*;
 
     fn row(id: &str, at: i64) -> PeerRow {
-        PeerRow { id: id.into(), peer: None, name: id.into(), transport: "loopback".into(), address: "127.0.0.1".into(), port: 4999, command: String::new(), auto_connect: true, added_at: at, data: BTreeMap::new() }
+        PeerRow {
+            id: id.into(),
+            peer: None,
+            name: id.into(),
+            transport: "loopback".into(),
+            address: "127.0.0.1".into(),
+            port: 4999,
+            command: String::new(),
+            auto_connect: true,
+            added_at: at,
+            data: BTreeMap::new(),
+        }
     }
 
     #[tokio::test]
@@ -182,7 +220,13 @@ mod tests {
                 put_peer(w, &b)?;
                 put_status(w, &PeerStatus::off("aa11bb"))?;
                 put_sync(w, "aa11bb", &SyncRow { client_id: "machines-1".into(), saved: Saved { cursor: Some(7), ..Saved::default() } })?;
-                put_mirror(w, vec![("aa11bb".into(), "session".into(), "s1".into(), Some(json!({"state": "running"}))), ("cc22dd".into(), "session".into(), "s2".into(), Some(json!({})))])
+                put_mirror(
+                    w,
+                    vec![
+                        ("aa11bb".into(), "session".into(), "s1".into(), Some(json!({"state": "running"}))),
+                        ("cc22dd".into(), "session".into(), "s2".into(), Some(json!({}))),
+                    ],
+                )
             })
             .await
             .unwrap();

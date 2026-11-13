@@ -36,11 +36,7 @@ pub struct CheckGate {
 impl CheckGate {
     pub fn begin(&mut self, id: &str, lazy: bool, live: bool, now: i64) -> Begin {
         let busy = self.checks.contains_key(id);
-        if lazy
-            && (live
-                || busy
-                || now - self.checked_at.get(id).copied().unwrap_or(i64::MIN / 2) < SHIP_RECHECK_MS)
-        {
+        if lazy && (live || busy || now - self.checked_at.get(id).copied().unwrap_or(i64::MIN / 2) < SHIP_RECHECK_MS) {
             return Begin::Skip;
         }
         if busy {
@@ -77,10 +73,7 @@ pub struct BootTask {
 
 /// Which tasks the boot recheck visits, newest first (they're the ones on screen).
 pub fn boot_order(tasks: &[BootTask]) -> Vec<String> {
-    let mut due: Vec<&BootTask> = tasks
-        .iter()
-        .filter(|t| t.has_trees && !t.child && !t.archived && !t.merged)
-        .collect();
+    let mut due: Vec<&BootTask> = tasks.iter().filter(|t| t.has_trees && !t.child && !t.archived && !t.merged).collect();
     due.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
     due.into_iter().map(|t| t.id.clone()).collect()
 }
@@ -94,16 +87,8 @@ mod tests {
         let mut g = CheckGate::default();
         assert_eq!(g.begin("a", false, false, 0), Begin::Run);
         assert_eq!(g.begin("a", false, false, 1), Begin::Queued);
-        assert_eq!(
-            g.begin("a", false, false, 2),
-            Begin::Queued,
-            "many asks: one more run"
-        );
-        assert_eq!(
-            g.begin("b", false, false, 2),
-            Begin::Run,
-            "tasks don't wait on each other"
-        );
+        assert_eq!(g.begin("a", false, false, 2), Begin::Queued, "many asks: one more run");
+        assert_eq!(g.begin("b", false, false, 2), Begin::Run, "tasks don't wait on each other");
         assert!(g.end("a"));
         assert_eq!(g.begin("a", false, false, 3), Begin::Run);
         assert!(!g.end("a"));
@@ -119,40 +104,19 @@ mod tests {
         assert_eq!(g.begin("a", true, false, 4_999), Begin::Skip);
         assert_eq!(g.begin("a", true, false, 5_000), Begin::Run);
         g.end("a");
-        assert_eq!(
-            g.begin("a", false, true, 5_001),
-            Begin::Run,
-            "a non-lazy check ignores both"
-        );
+        assert_eq!(g.begin("a", false, true, 5_001), Begin::Run, "a non-lazy check ignores both");
     }
 
     #[test]
     fn boot_visits_open_worktree_tasks_newest_first() {
-        let t = |id: &str, at: i64| BootTask {
-            id: id.into(),
-            has_trees: true,
-            updated_at: at,
-            ..BootTask::default()
-        };
+        let t = |id: &str, at: i64| BootTask { id: id.into(), has_trees: true, updated_at: at, ..BootTask::default() };
         let tasks = [
             t("old", 1),
             t("new", 9),
-            BootTask {
-                archived: true,
-                ..t("arch", 5)
-            },
-            BootTask {
-                merged: true,
-                ..t("merged", 6)
-            },
-            BootTask {
-                has_trees: false,
-                ..t("flat", 7)
-            },
-            BootTask {
-                child: true,
-                ..t("sub", 8)
-            },
+            BootTask { archived: true, ..t("arch", 5) },
+            BootTask { merged: true, ..t("merged", 6) },
+            BootTask { has_trees: false, ..t("flat", 7) },
+            BootTask { child: true, ..t("sub", 8) },
             t("mid", 5),
         ];
         assert_eq!(boot_order(&tasks), ["new", "mid", "old"]);

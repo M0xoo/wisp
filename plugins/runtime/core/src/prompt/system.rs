@@ -1,9 +1,7 @@
 //! The system prompt every task's agent gets (v1 `server/protocol.js` `systemPrompt`, `blockDocs`). The
 //! text is a contract (plan §6.9): `tests/goldens/system-prompt*.txt` pin it byte for byte.
 
-use super::protocol_text::{
-    APP_BLOCK, ASK_BLOCK, ASK_TOOL, GRAPH_BLOCK, PLAIN_FINAL, PROTOCOL, WATCH_TOOL,
-};
+use super::protocol_text::{APP_BLOCK, ASK_BLOCK, ASK_TOOL, GRAPH_BLOCK, PLAIN_FINAL, PROTOCOL, WATCH_TOOL};
 use super::text::is_js_space;
 
 /// v1's default ask tool name (Claude Code's view of wisp's injected MCP server).
@@ -36,14 +34,7 @@ pub struct SystemOpts {
 
 impl Default for SystemOpts {
     fn default() -> Self {
-        Self {
-            ask_tool: Some(DEFAULT_ASK_TOOL.to_owned()),
-            ask: None,
-            extra_blocks: Vec::new(),
-            apps: false,
-            watch: false,
-            blocks: true,
-        }
+        Self { ask_tool: Some(DEFAULT_ASK_TOOL.to_owned()), ask: None, extra_blocks: Vec::new(), apps: false, watch: false, blocks: true }
     }
 }
 
@@ -57,13 +48,7 @@ fn sibling(tool: &str, name: &str) -> String {
 
 fn ask_tool_text(tool: &str, watch: bool) -> String {
     let mut out = ASK_TOOL.replace("{tool}", tool);
-    for name in [
-        "resume_later",
-        "wisp_tag",
-        "wisp_pr",
-        "wisp_session",
-        "wisp_save",
-    ] {
+    for name in ["resume_later", "wisp_tag", "wisp_pr", "wisp_session", "wisp_save"] {
         out = out.replace(&format!("{{{name}}}"), &sibling(tool, name));
     }
     if watch {
@@ -97,11 +82,7 @@ fn shape_first(doc: &str) -> String {
 
 fn extra_doc(b: &BlockDoc) -> String {
     let doc = b.doc.trim_matches(is_js_space);
-    let body = if doc.starts_with('{') {
-        shape_first(doc)
-    } else {
-        format!("{{\"type\":\"{}\"}} {}", b.type_name, b.doc)
-    };
+    let body = if doc.starts_with('{') { shape_first(doc) } else { format!("{{\"type\":\"{}\"}} {}", b.type_name, b.doc) };
     format!("- {body}\n  (From the user's spell {}.)", b.from)
 }
 
@@ -114,14 +95,8 @@ fn plain(out: &str) -> String {
     };
     for (from, to) in [
         ("end with a \"question\" block instead", "end by asking it"),
-        (
-            "end with a \"question\" block (2–4 options)",
-            "end by asking it, with 2–4 options",
-        ),
-        (
-            "\n  Show each task you name in the answer as a \"task\" block so the user can open it.",
-            "",
-        ),
+        ("end with a \"question\" block (2–4 options)", "end by asking it, with 2–4 options"),
+        ("\n  Show each task you name in the answer as a \"task\" block so the user can open it.", ""),
         (" and show its \"stuff\" block", ""),
     ] {
         s = s.replacen(from, to, 1);
@@ -139,19 +114,9 @@ pub fn system_prompt(o: &SystemOpts) -> String {
         (None, Some(t)) => ask_tool_text(t, o.watch),
         (None, None) => ASK_BLOCK.to_owned(),
     };
-    let graph = tools.map_or_else(
-        || GRAPH_BLOCK.to_owned(),
-        |t| {
-            stub(
-                "graph",
-                "Branch graph: merge conflicts, a rebase, where branches diverged.",
-                t,
-            )
-        },
-    );
-    let out = PROTOCOL
-        .replacen("{{ASK}}", &ask_text, 1)
-        .replacen("{{GRAPH}}", &graph, 1);
+    let graph = tools
+        .map_or_else(|| GRAPH_BLOCK.to_owned(), |t| stub("graph", "Branch graph: merge conflicts, a rebase, where branches diverged.", t));
+    let out = PROTOCOL.replacen("{{ASK}}", &ask_text, 1).replacen("{{GRAPH}}", &graph, 1);
     if !o.blocks {
         return plain(&out);
     }
@@ -166,11 +131,7 @@ pub fn system_prompt(o: &SystemOpts) -> String {
     if docs.is_empty() {
         return out;
     }
-    out.replacen(
-        "\nStrings must be valid JSON",
-        &format!("\n{}\n\nStrings must be valid JSON", docs.join("\n")),
-        1,
-    )
+    out.replacen("\nStrings must be valid JSON", &format!("\n{}\n\nStrings must be valid JSON", docs.join("\n")), 1)
 }
 
 /// What `wisp_blocks` answers: the full docs of the block types asked for.
@@ -187,18 +148,13 @@ pub fn block_docs(types: &[String]) -> String {
         "app" => Some(APP_BLOCK),
         _ => None,
     };
-    let mut docs: Vec<String> = want
-        .iter()
-        .filter_map(|t| full(t))
-        .map(str::to_owned)
-        .collect();
-    let rest: Vec<String> = want
-        .iter()
-        .filter(|t| full(t).is_none())
-        .map(|t| format!("\"{t}\""))
-        .collect();
+    let mut docs: Vec<String> = want.iter().filter_map(|t| full(t)).map(str::to_owned).collect();
+    let rest: Vec<String> = want.iter().filter(|t| full(t).is_none()).map(|t| format!("\"{t}\"")).collect();
     if !rest.is_empty() {
-        docs.push(format!("No long docs for {}: graph and app have them; the others are described in full in your instructions.", rest.join(", ")));
+        docs.push(format!(
+            "No long docs for {}: graph and app have them; the others are described in full in your instructions.",
+            rest.join(", ")
+        ));
     }
     docs.join("\n\n")
 }

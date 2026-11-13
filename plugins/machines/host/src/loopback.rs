@@ -35,7 +35,8 @@ impl Transport for LoopbackTransport {
     fn connect(&self, peer: PeerRow, _io: Arc<dyn ConnectIo>, cancel: CancellationToken) -> BoxFuture<'static, Failing<Arc<dyn Channel>>> {
         Box::pin(async move {
             let host = url_host(&peer.address);
-            let ch: Arc<dyn Channel> = HttpChannel::new(format!("http://{host}:{}/api", peer.port), format!("{host}:{}", peer.port), cancel);
+            let ch: Arc<dyn Channel> =
+                HttpChannel::new(format!("http://{host}:{}/api", peer.port), format!("{host}:{}", peer.port), cancel);
             Ok(ch)
         })
     }

@@ -129,9 +129,20 @@ pub enum Effect {
     Quit,
     /// watch this task's topic (None: none)
     Watch(Option<String>),
-    Cmd { id: String, args: Value, then: Then },
+    Cmd {
+        id: String,
+        args: Value,
+        then: Then,
+    },
     /// a new task or a follow-up, with its attachments (paths: the loop reads their size)
-    Send { task: Option<String>, text: String, attachments: Vec<String>, mode: Mode, queue: bool, local: String },
+    Send {
+        task: Option<String>,
+        text: String,
+        attachments: Vec<String>,
+        mode: Mode,
+        queue: bool,
+        local: String,
+    },
     /// the composer's text in `$EDITOR`; what's saved comes back with [`App::edited`]
     Editor(String),
     /// Open in <harness>: the terminal handed to `wisp open <task>` (the harness resumes the task there), then back
@@ -281,7 +292,12 @@ impl App {
     /// The tasks in the order the sidebar shows them.
     pub fn order(&self) -> Vec<String> {
         let q = self.search.as_ref().filter(|_| self.focus == Zone::List).map(|q| q.to_lowercase()).unwrap_or_default();
-        self.tasks.ordered().into_iter().filter(|(_, _, t)| q.is_empty() || s(t, "title").to_lowercase().contains(&q)).map(|(_, id, _)| id.clone()).collect()
+        self.tasks
+            .ordered()
+            .into_iter()
+            .filter(|(_, _, t)| q.is_empty() || s(t, "title").to_lowercase().contains(&q))
+            .map(|(_, id, _)| id.clone())
+            .collect()
     }
 
     fn index(&self) -> Option<usize> {
@@ -337,7 +353,10 @@ impl App {
         if st.is_empty() {
             return;
         }
-        let i = self.cursor.and_then(|c| st.iter().position(|x| *x == c)).map_or(st.len() - 1, |i| i.saturating_add_signed(by).min(st.len() - 1));
+        let i = self
+            .cursor
+            .and_then(|c| st.iter().position(|x| *x == c))
+            .map_or(st.len() - 1, |i| i.saturating_add_signed(by).min(st.len() - 1));
         self.cursor = Some(st[i]);
     }
 
@@ -504,7 +523,15 @@ impl App {
                 if let Some(a) = v.actions().into_iter().find(|a| a.key == c) {
                     let args = wisp_tui_api::fill(&a.args, &row);
                     if a.confirm {
-                        self.overlay = Some(Overlay::Confirm(format!("{} {}?", a.label, wisp_tui_api::cell(&row, &v.columns().first().map(|c| c.pointer.clone()).unwrap_or_default())), a.command, args));
+                        self.overlay = Some(Overlay::Confirm(
+                            format!(
+                                "{} {}?",
+                                a.label,
+                                wisp_tui_api::cell(&row, &v.columns().first().map(|c| c.pointer.clone()).unwrap_or_default())
+                            ),
+                            a.command,
+                            args,
+                        ));
                         return Vec::new();
                     }
                     return vec![Effect::Cmd { id: a.command, args, then: Then::View(id.to_owned()) }];
@@ -586,7 +613,9 @@ impl App {
                 Vec::new()
             }
             // o: Open in <harness> (v1's Take over): the terminal goes to `wisp open <task>` until it's done
-            KeyCode::Char('o') => self.sel.clone().filter(|id| !id.starts_with("local-")).map_or_else(Vec::new, |id| vec![Effect::OpenIn(id)]),
+            KeyCode::Char('o') => {
+                self.sel.clone().filter(|id| !id.starts_with("local-")).map_or_else(Vec::new, |id| vec![Effect::OpenIn(id)])
+            }
             KeyCode::Char(' ') => {
                 if let (Some(c), Some(t)) = (self.cursor, self.open.as_mut()) {
                     t.toggle(c);
@@ -711,7 +740,10 @@ impl App {
         let local = self.local();
         if task.is_none() {
             // the new task shows at once, at the top, selected; the real one replaces it
-            self.tasks.rows.insert(local.clone(), json!({ "id": local, "title": text.lines().next().unwrap_or_default(), "state": "starting", "updated_at": i64::MAX }));
+            self.tasks.rows.insert(
+                local.clone(),
+                json!({ "id": local, "title": text.lines().next().unwrap_or_default(), "state": "starting", "updated_at": i64::MAX }),
+            );
             let fx = self.select(Some(local.clone()));
             drop(fx);
             self.new_task = false;
@@ -736,7 +768,8 @@ impl App {
                 return Some(Vec::new());
             }
             w if self.catalogue.iter().any(|(c, _)| c == w) => {
-                let a = serde_json::from_str::<Value>(args).unwrap_or_else(|_| if args.is_empty() { json!({ "id": id }) } else { json!({ "id": id, "text": args }) });
+                let a = serde_json::from_str::<Value>(args)
+                    .unwrap_or_else(|_| if args.is_empty() { json!({ "id": id }) } else { json!({ "id": id, "text": args }) });
                 Effect::Cmd { id: w.to_owned(), args: a, then: Then::Nothing }
             }
             _ => return None,
@@ -745,20 +778,53 @@ impl App {
     }
 
     fn palette(&mut self) {
-        let mut items: Vec<Item> = self.order().into_iter().map(|id| Item { label: s(&self.tasks.rows[&id], "title").to_owned(), kind: "task".into(), pick: Pick::OpenTask(id) }).collect();
-        items.extend(self.reg.views.iter().map(|v| Item { label: v.title().to_owned(), kind: "view".into(), pick: Pick::View(v.id().to_owned()) }));
-        items.extend(self.catalogue.iter().map(|(id, title)| Item { label: if title.is_empty() { id.clone() } else { format!("{title} · {id}") }, kind: "command".into(), pick: Pick::Command(id.clone()) }));
+        let mut items: Vec<Item> = self
+            .order()
+            .into_iter()
+            .map(|id| Item { label: s(&self.tasks.rows[&id], "title").to_owned(), kind: "task".into(), pick: Pick::OpenTask(id) })
+            .collect();
+        items.extend(self.reg.views.iter().map(|v| Item {
+            label: v.title().to_owned(),
+            kind: "view".into(),
+            pick: Pick::View(v.id().to_owned()),
+        }));
+        items.extend(self.catalogue.iter().map(|(id, title)| Item {
+            label: if title.is_empty() { id.clone() } else { format!("{title} · {id}") },
+            kind: "command".into(),
+            pick: Pick::Command(id.clone()),
+        }));
         if let Some(rows) = self.views.get("settings") {
-            items.extend(rows.rows.iter().map(|r| Item { label: s(r, "key").to_owned(), kind: "setting".into(), pick: Pick::Setting(s(r, "key").to_owned()) }));
+            items.extend(rows.rows.iter().map(|r| Item {
+                label: s(r, "key").to_owned(),
+                kind: "setting".into(),
+                pick: Pick::Setting(s(r, "key").to_owned()),
+            }));
         }
         self.overlay = Some(Overlay::Palette(Palette::new("Go to", items), For::Everything));
     }
 
     fn picker(&mut self, f: For) -> Vec<Effect> {
-        let items: Vec<Item> = if f == For::Slash { ["btw", "fork", "stop", "help"].iter().map(|c| Item { label: (*c).to_owned(), kind: "wisp".into(), pick: Pick::Insert(format!("/{c} ")) }).chain(self.catalogue.iter().map(|(id, t)| Item { label: id.clone(), kind: t.clone(), pick: Pick::Insert(format!("/{id} ")) })).collect()
+        let items: Vec<Item> = if f == For::Slash {
+            ["btw", "fork", "stop", "help"]
+                .iter()
+                .map(|c| Item { label: (*c).to_owned(), kind: "wisp".into(), pick: Pick::Insert(format!("/{c} ")) })
+                .chain(self.catalogue.iter().map(|(id, t)| Item {
+                    label: id.clone(),
+                    kind: t.clone(),
+                    pick: Pick::Insert(format!("/{id} ")),
+                }))
+                .collect()
         } else {
-                let mut v: Vec<Item> = self.order().into_iter().map(|id| Item { label: s(&self.tasks.rows[&id], "title").to_owned(), kind: "task".into(), pick: Pick::Insert(format!("@[{}](task:{id}) ", s(&self.tasks.rows[&id], "title"))) }).collect();
-                v.extend(self.mentions.values().flatten().cloned());
+            let mut v: Vec<Item> = self
+                .order()
+                .into_iter()
+                .map(|id| Item {
+                    label: s(&self.tasks.rows[&id], "title").to_owned(),
+                    kind: "task".into(),
+                    pick: Pick::Insert(format!("@[{}](task:{id}) ", s(&self.tasks.rows[&id], "title"))),
+                })
+                .collect();
+            v.extend(self.mentions.values().flatten().cloned());
             v
         };
         self.overlay = Some(Overlay::Palette(Palette::new(if f == For::Slash { "Command" } else { "Mention" }, items), f));
@@ -1000,7 +1066,11 @@ impl App {
             (Then::Catalogue, Ok(v)) => {
                 self.catalogue = v.as_array().into_iter().flatten().map(|c| (s(c, "id").to_owned(), s(c, "title").to_owned())).collect();
                 if let Some(Overlay::Palette(p, For::Slash)) = &mut self.overlay {
-                    p.items.extend(self.catalogue.iter().map(|(id, t)| Item { label: id.clone(), kind: t.clone(), pick: Pick::Insert(format!("/{id} ")) }));
+                    p.items.extend(self.catalogue.iter().map(|(id, t)| Item {
+                        label: id.clone(),
+                        kind: t.clone(),
+                        pick: Pick::Insert(format!("/{id} ")),
+                    }));
                 }
             }
             (Then::Mentions(kind), Ok(v)) => {
@@ -1012,7 +1082,8 @@ impl App {
                         if let Some(path) = r.as_str() {
                             return Item { label: path.to_owned(), kind: kind.clone(), pick: Pick::Insert(format!("@{path} ")) };
                         }
-                        let name = [s(r, "name"), s(r, "title"), s(r, "id")].into_iter().find(|x| !x.is_empty()).unwrap_or_default().to_owned();
+                        let name =
+                            [s(r, "name"), s(r, "title"), s(r, "id")].into_iter().find(|x| !x.is_empty()).unwrap_or_default().to_owned();
                         Item { label: name.clone(), kind: kind.clone(), pick: Pick::Insert(format!("@[{name}]({kind}:{}) ", s(r, "id"))) }
                     })
                     .collect();
@@ -1027,7 +1098,10 @@ impl App {
                     Ok(v) => {
                         let id = s(&v, "id").to_owned();
                         if !self.tasks.rows.contains_key(&id) {
-                            self.tasks.rows.insert(id.clone(), json!({ "id": id, "title": s(&v, "title"), "state": "starting", "updated_at": i64::MAX - 1 }));
+                            self.tasks.rows.insert(
+                                id.clone(),
+                                json!({ "id": id, "title": s(&v, "title"), "state": "starting", "updated_at": i64::MAX - 1 }),
+                            );
                         }
                         self.sel = None;
                         return self.select(Some(id));

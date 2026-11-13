@@ -36,7 +36,8 @@ pub fn login_id(agent: &str, acc: &str) -> String {
 }
 
 fn spec(h: &dyn Harness) -> Result<&HarnessLogin, WireError> {
-    h.login().ok_or_else(|| WireError::invalid(format!("wisp can’t sign in to {} for you yet: run its login in a terminal.", h.info().name)))
+    h.login()
+        .ok_or_else(|| WireError::invalid(format!("wisp can’t sign in to {} for you yet: run its login in a terminal.", h.info().name)))
 }
 
 fn bin(l: &HarnessLogin) -> String {
@@ -77,7 +78,18 @@ pub async fn status(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
         return Ok(out);
     }
     let env = env_of(st, h, acc).await?;
-    let r = st.proc.exec(&bin(l), &l.status, ExecOpts { env: Env { clear: false, set: env, remove: Vec::new() }, timeout: Some(std::time::Duration::from_secs(8)), ..ExecOpts::default() }).await;
+    let r = st
+        .proc
+        .exec(
+            &bin(l),
+            &l.status,
+            ExecOpts {
+                env: Env { clear: false, set: env, remove: Vec::new() },
+                timeout: Some(std::time::Duration::from_secs(8)),
+                ..ExecOpts::default()
+            },
+        )
+        .await;
     let (text, code) = match r {
         Ok(r) => (login::clean(&format!("{}{}", r.stdout_text(), String::from_utf8_lossy(&r.stderr))), r.exit.code),
         Err(e) => (e.to_string(), Some(-1)),
@@ -137,7 +149,10 @@ pub async fn start(ctx: &Ctx, st: &Arc<State>, h: Arc<dyn Harness>, acc: &str) -
     env.extend(l.extra_env.iter().map(|(k, v)| (k.clone(), v.clone())));
     env.extend([("BROWSER", "false"), ("TERM", "dumb"), ("COLUMNS", "400")].map(|(k, v)| (k.to_owned(), v.to_owned())));
     let (program, argv) = argv_of(&l);
-    let child = st.proc.spawn(&program, &argv, SpawnOpts { env: Env { clear: false, set: env, remove: Vec::new() }, ..SpawnOpts::default() }).map_err(|e| WireError::invalid(format!("Couldn’t run {}: {e}", l.bin)))?;
+    let child = st
+        .proc
+        .spawn(&program, &argv, SpawnOpts { env: Env { clear: false, set: env, remove: Vec::new() }, ..SpawnOpts::default() })
+        .map_err(|e| WireError::invalid(format!("Couldn’t run {}: {e}", l.bin)))?;
     let (handle, mut rx) = child.split();
     let mut v = LoginView::idle(&agent, account_key(acc));
     v.state = LoginState::Running;
@@ -183,10 +198,15 @@ pub async fn start(ctx: &Ctx, st: &Arc<State>, h: Arc<dyn Harness>, acc: &str) -
         }
         let exit = handle.exited().await;
         // trust the CLI's own status over its exit code when it has one
-        let ok = if l.status.is_empty() { exit.code == Some(0) } else { status(&ctx2, &st2, h.as_ref(), &acc2).await.ok().and_then(|s| s.signed_in) == Some(true) };
+        let ok = if l.status.is_empty() {
+            exit.code == Some(0)
+        } else {
+            status(&ctx2, &st2, h.as_ref(), &acc2).await.ok().and_then(|s| s.signed_in) == Some(true)
+        };
         let why = (!ok).then(|| {
             let out = lock(&st2.flows.0).get(&id).map(|f| f.out.clone()).unwrap_or_default();
-            last_line(&out).unwrap_or_else(|| format!("{} exited ({}).", l.bin, exit.code.map_or_else(|| "signal".into(), |c| c.to_string())))
+            last_line(&out)
+                .unwrap_or_else(|| format!("{} exited ({}).", l.bin, exit.code.map_or_else(|| "signal".into(), |c| c.to_string())))
         });
         finish(&ctx2, &st2, &id, &agent, &acc2, if ok { LoginState::Done } else { LoginState::Failed }, why).await;
     });
@@ -209,10 +229,17 @@ async fn finish(ctx: &Ctx, st: &State, id: &str, agent: &str, acc: &str, state: 
         LoginState::Cancelled => "cancelled",
         _ => "failed",
     };
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "agent_login", "props": { "agent": agent, "step": step } })).await;
+    let _ = ctx
+        .run_json(
+            &ctx.root_call(),
+            "telemetry.track",
+            serde_json::json!({ "event": "agent_login", "props": { "agent": agent, "step": step } }),
+        )
+        .await;
     if state == LoginState::Done {
         // the turn a sign-in card waits on runs again
-        let _ = ctx.run_json(&ctx.root_call(), "runtime.signInDone", serde_json::json!({ "agent": agent, "account": account_key(acc) })).await;
+        let _ =
+            ctx.run_json(&ctx.root_call(), "runtime.signInDone", serde_json::json!({ "agent": agent, "account": account_key(acc) })).await;
     }
 }
 
@@ -264,10 +291,28 @@ pub async fn logout(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
         if status(ctx, st, h, acc).await.ok().and_then(|s| s.signed_in) == Some(true) {
             return Err(WireError::invalid(format!("{} is still signed in: run {} in a terminal and type /logout.", l.bin, l.bin)));
         }
-        return Ok(LoginStatus { agent: h.info().id.clone(), account: account_key(acc).to_owned(), signed_in: Some(false), email: None, plan: None });
+        return Ok(LoginStatus {
+            agent: h.info().id.clone(),
+            account: account_key(acc).to_owned(),
+            signed_in: Some(false),
+            email: None,
+            plan: None,
+        });
     }
     let env = env_of(st, h, acc).await?;
-    let r = st.proc.exec(&bin(l), &l.logout, ExecOpts { env: Env { clear: false, set: env, remove: Vec::new() }, timeout: Some(std::time::Duration::from_secs(15)), ..ExecOpts::default() }).await.map_err(|e| WireError::invalid(e.to_string()))?;
+    let r = st
+        .proc
+        .exec(
+            &bin(l),
+            &l.logout,
+            ExecOpts {
+                env: Env { clear: false, set: env, remove: Vec::new() },
+                timeout: Some(std::time::Duration::from_secs(15)),
+                ..ExecOpts::default()
+            },
+        )
+        .await
+        .map_err(|e| WireError::invalid(e.to_string()))?;
     if r.exit.code != Some(0) {
         let out = format!("{}{}", r.stdout_text(), String::from_utf8_lossy(&r.stderr));
         return Err(WireError::invalid(last_line(&out).unwrap_or_else(|| format!("{} exited ({:?}).", l.bin, r.exit.code))));
@@ -302,7 +347,13 @@ mod tests {
     }
 
     fn agy() -> HarnessLogin {
-        HarnessLogin { bin: "agy".into(), bin_env: "WISP_TEST_NO_AGY_BIN".into(), args: v(&["-p", "Reply with OK."]), tty: true, ..HarnessLogin::default() }
+        HarnessLogin {
+            bin: "agy".into(),
+            bin_env: "WISP_TEST_NO_AGY_BIN".into(),
+            args: v(&["-p", "Reply with OK."]),
+            tty: true,
+            ..HarnessLogin::default()
+        }
     }
 
     #[test]

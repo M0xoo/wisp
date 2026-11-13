@@ -104,10 +104,20 @@ fn the_hello_carries_the_window_cursor_resumed_fresh_and_passive_topics() {
     c.handle(passive("machines"), 0);
     let outs = c.handle(Input::Open, 0);
     let Some(Output::Request { params }) = outs.iter().find(|o| matches!(o, Output::Request { .. })) else { panic!("no request") };
-    let want: BTreeMap<String, String> = [("proto_min", "2"), ("proto_max", "2"), ("client_id", "tab1"), ("build", "b1"), ("epoch", "E1"), ("cursor", "42"), ("topics", "list"), ("fresh", "session:a,machines"), ("passive", "machines")]
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v.to_owned()))
-        .collect();
+    let want: BTreeMap<String, String> = [
+        ("proto_min", "2"),
+        ("proto_max", "2"),
+        ("client_id", "tab1"),
+        ("build", "b1"),
+        ("epoch", "E1"),
+        ("cursor", "42"),
+        ("topics", "list"),
+        ("fresh", "session:a,machines"),
+        ("passive", "machines"),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_owned(), v.to_owned()))
+    .collect();
     assert_eq!(params, &want);
     // a resumed welcome keeps the rows; the cursor moves to the frame's id
     let outs = c.handle(frame(42, vec![welcome(json!({ "resume": true }))]), 0);
@@ -123,7 +133,10 @@ fn resume_false_or_a_new_epoch_drops_the_caches_for_this_peer() {
     assert!(kinds(&live(&mut c, json!({ "resume": false }), 10)).contains(&"reset"));
     let mut d = with(|o| o.saved = Some(saved_e1()));
     d.handle(sub("list"), 0);
-    assert!(kinds(&live(&mut d, json!({ "resume": true, "epoch": "E2" }), 10)).contains(&"reset"), "a resume from another epoch is not trusted");
+    assert!(
+        kinds(&live(&mut d, json!({ "resume": true, "epoch": "E2" }), 10)).contains(&"reset"),
+        "a resume from another epoch is not trusted"
+    );
     assert_eq!(d.epoch(), Some("E2"));
 }
 
@@ -131,26 +144,44 @@ fn resume_false_or_a_new_epoch_drops_the_caches_for_this_peer() {
 fn pending_mutations_go_again_after_welcome_with_the_same_mid_until_ack_or_reject() {
     let mut c = client();
     c.handle(Input::Mutate { mid: "m1".into(), cmd: "session.followUp".into(), args: json!({ "text": "hi" }), base_seq: None }, 0);
-    assert_eq!(sent(&live(&mut c, json!({}), 10)), [json!({ "t": "mutate", "mid": "m1", "cmd": "session.followUp", "args": { "text": "hi" } })]);
+    assert_eq!(
+        sent(&live(&mut c, json!({}), 10)),
+        [json!({ "t": "mutate", "mid": "m1", "cmd": "session.followUp", "args": { "text": "hi" } })]
+    );
     c.handle(Input::Lost, 0);
     let again = sent(&live(&mut c, json!({}), 10));
     assert_eq!(again.iter().map(|m| m["mid"].clone()).collect::<Vec<_>>(), [json!("m1")], "a flaky tunnel: same key, never run twice");
     // the ack comes after the frame's ops, so base has the effect before the optimistic patch goes
     c.handle(sub("list"), 0);
     c.handle(frame(11, vec![msg(json!({ "t": "snapshot", "topic": "list", "seq": 11, "rows": [] }))]), 0);
-    let outs = c.handle(frame(12, vec![msg(json!({ "t": "ack", "mid": "m1", "seq": 12 })), msg(json!({ "t": "patch", "seq": 12, "ops": [{ "topic": "list", "e": "s", "id": "1", "op": "upsert", "v": 1 }] }))]), 0);
+    let outs = c.handle(
+        frame(
+            12,
+            vec![
+                msg(json!({ "t": "ack", "mid": "m1", "seq": 12 })),
+                msg(json!({ "t": "patch", "seq": 12, "ops": [{ "topic": "list", "e": "s", "id": "1", "op": "upsert", "v": 1 }] })),
+            ],
+        ),
+        0,
+    );
     assert_eq!(kinds(&outs), ["entityOps", "ack"]);
     assert_eq!(c.save().pending, Vec::new());
     c.handle(Input::Mutate { mid: "m2".into(), cmd: "x".into(), args: Value::Null, base_seq: None }, 0);
     let rej = c.handle(frame(12, vec![msg(json!({ "t": "reject", "mid": "m2", "code": "forbidden", "message": "no" }))]), 0);
-    assert_eq!(rej.into_iter().filter(|o| matches!(o, Output::Reject { .. })).collect::<Vec<_>>(), [Output::Reject { mid: "m2".into(), code: "forbidden".into(), message: "no".into() }]);
+    assert_eq!(
+        rej.into_iter().filter(|o| matches!(o, Output::Reject { .. })).collect::<Vec<_>>(),
+        [Output::Reject { mid: "m2".into(), code: "forbidden".into(), message: "no".into() }]
+    );
 }
 
 #[test]
 fn version_window_outside_it_the_older_side_must_update() {
     let mut old = with(|o| (o.proto_min, o.proto_max) = (1, 1));
     let outs = live(&mut old, json!({}), 10);
-    assert_eq!(outs.into_iter().filter(|o| matches!(o, Output::State { state: State::Incompatible, .. })).collect::<Vec<_>>(), [Output::State { state: State::Incompatible, update: Some(Update::Client) }]);
+    assert_eq!(
+        outs.into_iter().filter(|o| matches!(o, Output::State { state: State::Incompatible, .. })).collect::<Vec<_>>(),
+        [Output::State { state: State::Incompatible, update: Some(Update::Client) }]
+    );
     assert_eq!(old.state(), State::Incompatible);
     assert_eq!(old.handle(Input::Lost, 0), Vec::new(), "no retry loop against a peer it cannot speak to");
     let mut ahead = with(|o| (o.proto_min, o.proto_max) = (5, 7));
@@ -160,7 +191,10 @@ fn version_window_outside_it_the_older_side_must_update() {
     // overlapping windows speak the highest both know
     let mut both = with(|o| (o.proto_min, o.proto_max) = (2, 4));
     let outs = live(&mut both, json!({}), 10);
-    assert_eq!(outs.into_iter().filter(|o| matches!(o, Output::State { .. })).collect::<Vec<_>>(), [Output::State { state: State::Live, update: None }]);
+    assert_eq!(
+        outs.into_iter().filter(|o| matches!(o, Output::State { .. })).collect::<Vec<_>>(),
+        [Output::State { state: State::Live, update: None }]
+    );
 }
 
 #[test]
@@ -198,7 +232,8 @@ fn resync_a_synced_topic_resubscribes_from_the_cursor_one_never_synced_starts_fr
     c.handle(sub("list"), 0);
     c.handle(sub("session:a"), 0);
     c.handle(frame(15, vec![msg(json!({ "t": "snapshot", "topic": "list", "seq": 15, "rows": [] }))]), 0);
-    let outs = c.handle(frame(14, vec![msg(json!({ "t": "resync", "topic": "list" })), msg(json!({ "t": "resync", "topic": "session:a" }))]), 0);
+    let outs =
+        c.handle(frame(14, vec![msg(json!({ "t": "resync", "topic": "list" })), msg(json!({ "t": "resync", "topic": "session:a" }))]), 0);
     assert_eq!(kinds(&outs), ["needResubscribe", "send", "needResubscribe", "send"]);
     // the frame's id is the watermark, even when it is lower than the last one
     assert_eq!(sent(&outs), [json!({ "t": "sub", "topic": "list", "since": 14 }), json!({ "t": "sub", "topic": "session:a" })]);
@@ -210,7 +245,16 @@ fn denied_topics_are_reported_and_left_out_of_the_next_hello() {
     let mut c = client();
     c.handle(sub("session:secret"), 0);
     live(&mut c, json!({}), 10);
-    let outs = c.handle(frame(10, vec![msg(json!({ "t": "notice", "kind": "denied", "data": { "topic": "session:secret", "code": "forbidden" } })), msg(json!({ "t": "notice", "kind": "toast", "data": "hi" }))]), 0);
+    let outs = c.handle(
+        frame(
+            10,
+            vec![
+                msg(json!({ "t": "notice", "kind": "denied", "data": { "topic": "session:secret", "code": "forbidden" } })),
+                msg(json!({ "t": "notice", "kind": "toast", "data": "hi" })),
+            ],
+        ),
+        0,
+    );
     assert_eq!(kinds(&outs), ["denied", "notice"]);
     assert_eq!(outs[0], Output::Denied { topic: "session:secret".into(), code: "forbidden".into() });
     assert!(matches!(&outs[1], Output::Notice(n) if n.kind == "toast" && n.data == json!("hi")));
@@ -250,7 +294,10 @@ fn a_drifted_topic_starts_over_unsub_then_a_fresh_sub() {
     let mut c = client();
     live(&mut c, json!({}), 10);
     c.handle(sub("list"), 0);
-    assert_eq!(sent(&c.handle(Input::Drifted { topic: "list".into() }, 0)), [json!({ "t": "unsub", "topic": "list" }), json!({ "t": "sub", "topic": "list" })]);
+    assert_eq!(
+        sent(&c.handle(Input::Drifted { topic: "list".into() }, 0)),
+        [json!({ "t": "unsub", "topic": "list" }), json!({ "t": "sub", "topic": "list" })]
+    );
 }
 
 #[test]
@@ -260,7 +307,9 @@ fn a_topic_held_at_an_older_seq_resumes_from_it_after_the_welcome() {
     let mut c = with(|o| o.saved = Some(saved));
     c.handle(sub("session:a"), 0);
     let outs = c.handle(Input::Open, 0);
-    assert!(outs.iter().any(|o| matches!(o, Output::Request { params } if !params.contains_key("topics") && !params.contains_key("fresh"))));
+    assert!(
+        outs.iter().any(|o| matches!(o, Output::Request { params } if !params.contains_key("topics") && !params.contains_key("fresh")))
+    );
     let outs = c.handle(frame(42, vec![welcome(json!({ "resume": true }))]), 0);
     assert_eq!(sent(&outs), [json!({ "t": "sub", "topic": "session:a", "since": 30 })]);
     // the store still holds `list` (not subscribed now) as of the cursor

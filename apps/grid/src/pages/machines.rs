@@ -26,7 +26,14 @@ pub struct Wish {
 /// key, icon, name, short name, what it is, and how a sentence says it.
 const WANTS: [(&str, &str, &str, &str, &str, &str); 3] = [
     ("more", "stack", "More machines", "More", "Several cloud wisps side by side: one per project, or one per teammate.", "more machines"),
-    ("bigger", "bolt", "A bigger machine", "Bigger", "More CPU and memory, for big repos, long builds and full test suites.", "a bigger machine"),
+    (
+        "bigger",
+        "bolt",
+        "A bigger machine",
+        "Bigger",
+        "More CPU and memory, for big repos, long builds and full test suites.",
+        "a bigger machine",
+    ),
     ("gpu", "gpu", "GPUs", "GPU", "Run local models, fine-tune, or let your agents use CUDA.", "GPUs"),
 ];
 
@@ -92,7 +99,11 @@ pub(super) fn spec(m: &MachineView, memory_word: bool) -> String {
 /// The cloud section's last row.
 pub(super) fn add_machine_row(wish: Option<&Wish>) -> String {
     let wants: &[String] = wish.map_or(&[], |w| &w.wants);
-    let pill = if wish.is_some() { format!(r#"<span class="pill listed">{CHECK}On the list</span>"#) } else { r#"<span class="pill soon">Soon</span>"#.into() };
+    let pill = if wish.is_some() {
+        format!(r#"<span class="pill listed">{CHECK}On the list</span>"#)
+    } else {
+        r#"<span class="pill soon">Soon</span>"#.into()
+    };
     format!(
         r#"<button type="button" class="w add-m" data-open="machines" aria-haspopup="dialog">
       <span class="w-ic">{PLUS}</span>
@@ -106,7 +117,12 @@ pub(super) fn add_machine_row(wish: Option<&Wish>) -> String {
 pub(super) fn machines_dialog(machine: &MachineView, user: &PageUser, hidden: &str) -> String {
     let wish = machine.wish.as_ref();
     let has = |k: &str| wish.is_some_and(|w| w.wants.iter().any(|x| x == k));
-    let slots: String = WANTS.iter().map(|(k, ic, _, short, ..)| format!(r#"<div class="slot{}" data-slot="{k}">{}{short}</div>"#, if has(k) { " on" } else { "" }, icon(ic))).collect();
+    let slots: String = WANTS
+        .iter()
+        .map(|(k, ic, _, short, ..)| {
+            format!(r#"<div class="slot{}" data-slot="{k}">{}{short}</div>"#, if has(k) { " on" } else { "" }, icon(ic))
+        })
+        .collect();
     let opts: String = WANTS
         .iter()
         .map(|(k, ic, name, _, text, _)| {
@@ -166,7 +182,9 @@ fn js(s: &str) -> String {
 pub(super) fn machines_js() -> String {
     let w: Vec<String> = WANTS.iter().map(|(k, _, name, ..)| format!("[{},{}]", js(k), js(name))).collect();
     let mut text = String::new();
-    for set in [&[][..], &["more"], &["bigger"], &["gpu"], &["more", "bigger"], &["more", "gpu"], &["bigger", "gpu"], &["more", "bigger", "gpu"]] {
+    for set in
+        [&[][..], &["more"], &["bigger"], &["gpu"], &["more", "bigger"], &["more", "gpu"], &["bigger", "gpu"], &["more", "bigger", "gpu"]]
+    {
         let _ = write!(text, "{}{}:{}", if text.is_empty() { "" } else { "," }, js(&set.join(",")), js(&wish_line(set)));
     }
     let icons: Vec<String> = WANTS.iter().map(|(k, ic, ..)| format!("{k}:{}", js(icon(ic)))).collect();
@@ -211,7 +229,10 @@ mod tests {
     fn the_wish_line_names_what_you_are_waiting_for_in_v1s_order() {
         assert_eq!(wish_line::<&str>(&[]), "One comes with your account for now. More machines, bigger ones and GPUs are on the way.");
         assert_eq!(wish_line(&["gpu", "bigger"]), "On the waitlist for a bigger machine and GPUs. We’ll write when it’s ready.");
-        assert_eq!(wish_line(&["gpu", "more", "bigger"]), "On the waitlist for more machines, a bigger machine and GPUs. We’ll write when it’s ready.");
+        assert_eq!(
+            wish_line(&["gpu", "more", "bigger"]),
+            "On the waitlist for more machines, a bigger machine and GPUs. We’ll write when it’s ready."
+        );
     }
 
     #[test]

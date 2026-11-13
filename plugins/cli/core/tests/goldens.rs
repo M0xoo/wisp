@@ -29,7 +29,12 @@ fn every_block_type_has_terminal_goldens() {
     for b in samples() {
         let ty = b["type"].as_str().unwrap().to_owned();
         let mut text = String::new();
-        for (name, st) in [("80 plain", Style::plain(80)), ("40 plain", Style::plain(40)), ("80 colour", Style::color(80)), ("40 colour", Style::color(40))] {
+        for (name, st) in [
+            ("80 plain", Style::plain(80)),
+            ("40 plain", Style::plain(40)),
+            ("80 colour", Style::color(80)),
+            ("40 colour", Style::color(40)),
+        ] {
             let lines = r.block(&b, &st);
             assert!(!lines.is_empty(), "{ty} {name}: draws something");
             for l in &lines {

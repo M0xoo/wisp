@@ -18,7 +18,8 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 use wisp_connectors_api::{
-    self as api, Connector, ConnectorBody, ConnectorView, ConnectorsView, FoundServer, HarnessMcp, ImportView, KeyState, OAuthMeta, ProbeResult, SecretInput, SignedIn, SignedInName, SigninUrl, Skipped, Transport, Where, secrets_ns,
+    self as api, Connector, ConnectorBody, ConnectorView, ConnectorsView, FoundServer, HarnessMcp, ImportView, KeyState, OAuthMeta,
+    ProbeResult, SecretInput, SignedIn, SignedInName, SigninUrl, Skipped, Transport, Where, secrets_ns,
 };
 use wisp_connectors_core::harness::{Found, Source, builtins, found, own_names};
 use wisp_connectors_core::oauth::{self, PendingSignins};
@@ -75,13 +76,32 @@ pub const FOUND: EntityDef = EntityDef {
     kind: "connectors.found",
     table: "connectors_found",
     key: "id",
-    columns: &[("id", Col::Text), ("name", Col::Text), ("from", Col::Text), ("transport", Col::Text), ("command", Col::Text), ("args", Col::Text), ("url", Col::Text), ("env", Col::Text), ("headers", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("name", Col::Text),
+        ("from", Col::Text),
+        ("transport", Col::Text),
+        ("command", Col::Text),
+        ("args", Col::Text),
+        ("url", Col::Text),
+        ("env", Col::Text),
+        ("headers", Col::Text),
+    ],
     json_columns: &["from", "args", "env", "headers"],
     parent: None,
     seq: None,
     topics,
 };
-pub const REACH: EntityDef = EntityDef { kind: "connectors.reach", table: "connectors_reach", key: "id", columns: &[("id", Col::Text), ("harnesses", Col::Text)], json_columns: &["harnesses"], parent: None, seq: None, topics };
+pub const REACH: EntityDef = EntityDef {
+    kind: "connectors.reach",
+    table: "connectors_reach",
+    key: "id",
+    columns: &[("id", Col::Text), ("harnesses", Col::Text)],
+    json_columns: &["harnesses"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 pub fn install(store: &Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
@@ -122,7 +142,13 @@ fn pairs(input: &SecretInput) -> Vec<(String, String)> {
     }
 }
 
-fn secrets_of(id: &str, field: &str, input: Option<&SecretInput>, prev: &BTreeMap<String, String>, plan: &mut Plan) -> std::result::Result<BTreeMap<String, String>, WireError> {
+fn secrets_of(
+    id: &str,
+    field: &str,
+    input: Option<&SecretInput>,
+    prev: &BTreeMap<String, String>,
+    plan: &mut Plan,
+) -> std::result::Result<BTreeMap<String, String>, WireError> {
     let Some(input) = input else { return Ok(prev.clone()) };
     let mut out = BTreeMap::new();
     for (k, v) in pairs(input) {
@@ -154,7 +180,13 @@ pub fn plan_of(id: &str, b: &ConnectorBody, prev: Option<&ConnectorSpec>) -> std
         Some(t) => return Err(WireError::invalid(format!("transport: local or remote, not {t}"))),
         None => !was.url.is_empty(),
     };
-    let mut spec = ConnectorSpec { enabled: b.enabled.or(was.enabled), oauth: was.oauth, agents: was.agents.clone(), modes: was.modes.clone(), ..ConnectorSpec::default() };
+    let mut spec = ConnectorSpec {
+        enabled: b.enabled.or(was.enabled),
+        oauth: was.oauth,
+        agents: was.agents.clone(),
+        modes: was.modes.clone(),
+        ..ConnectorSpec::default()
+    };
     if remote {
         let url = b.url.clone().unwrap_or(was.url.clone()).trim().to_owned();
         if !(url.starts_with("https://") || url.starts_with("http://")) {
@@ -191,7 +223,14 @@ pub fn plan_of(id: &str, b: &ConnectorBody, prev: Option<&ConnectorSpec>) -> std
 }
 
 /// What the page shows of a connector.
-pub fn view_of(name: &str, c: &ConnectorSpec, test: Option<ProbeResult>, testing: bool, signed_in: Option<SignedIn>, own: Vec<String>) -> ConnectorView {
+pub fn view_of(
+    name: &str,
+    c: &ConnectorSpec,
+    test: Option<ProbeResult>,
+    testing: bool,
+    signed_in: Option<SignedIn>,
+    own: Vec<String>,
+) -> ConnectorView {
     let keys = |m: &BTreeMap<String, String>| m.iter().map(|(k, v)| KeyState { key: k.clone(), set: !v.is_empty() }).collect();
     ConnectorView {
         id: name.to_owned(),
@@ -288,7 +327,12 @@ impl Pane {
     }
 
     async fn spec(&self, id: &str) -> Result<ConnectorSpec> {
-        self.specs().await.into_iter().find(|(n, _)| n == id).map(|(_, s)| s).ok_or_else(|| WireError::not_found(format!("No connector called {id}")))
+        self.specs()
+            .await
+            .into_iter()
+            .find(|(n, _)| n == id)
+            .map(|(_, s)| s)
+            .ok_or_else(|| WireError::not_found(format!("No connector called {id}")))
     }
 
     async fn oauth_of(ctx: &Ctx, id: &str) -> Option<OAuthMeta> {
@@ -300,7 +344,8 @@ impl Pane {
         let srcs = sources().await;
         let own = own_names(&srcs);
         let specs = self.specs().await;
-        let list: Vec<Connector> = specs.iter().map(|(n, _)| Connector { id: n.clone(), name: n.clone(), ..Connector::default() }).collect();
+        let list: Vec<Connector> =
+            specs.iter().map(|(n, _)| Connector { id: n.clone(), name: n.clone(), ..Connector::default() }).collect();
         let tests = lock(&self.tests).clone();
         let testing = lock(&self.testing).clone();
         let mut connectors = Vec::new();
@@ -326,7 +371,8 @@ impl Pane {
             let r = store
                 .write(move |w| {
                     for (def, want) in all {
-                        let keep: HashSet<String> = want.iter().filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_owned)).collect();
+                        let keep: HashSet<String> =
+                            want.iter().filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_owned)).collect();
                         for old in w.query(def.kind, &wisp_store::Query::default())? {
                             if let Some(id) = old.get("id").and_then(Value::as_str).filter(|id| !keep.contains(*id)) {
                                 w.del(def.kind, id.to_owned())?;
@@ -360,7 +406,12 @@ impl Pane {
     async fn apply(&self, ctx: &Ctx, op: OpKind, name: &str, spec: &ConnectorSpec, before: Option<&ConnectorSpec>) -> Result<()> {
         let spec = serde_json::to_value(spec).map_err(|e| WireError::internal(e.to_string()))?;
         let before = before.map(|b| serde_json::to_value(b).unwrap_or(Value::Null));
-        self.connectors.apply(&ctx.root_call(), &Op { op, kind: "connector".into(), name: name.to_owned(), spec, id: None, changes: Vec::new(), before }).await
+        self.connectors
+            .apply(
+                &ctx.root_call(),
+                &Op { op, kind: "connector".into(), name: name.to_owned(), spec, id: None, changes: Vec::new(), before },
+            )
+            .await
     }
 
     pub async fn add(self: &Arc<Self>, ctx: &Ctx, b: &ConnectorBody) -> Result<ConnectorsView> {
@@ -380,7 +431,11 @@ impl Pane {
 
     pub async fn update(self: &Arc<Self>, ctx: &Ctx, id: &str, b: &ConnectorBody) -> Result<ConnectorsView> {
         let prev = self.spec(id).await?;
-        let plan = if b.edits() { plan_of(id, b, Some(&prev))? } else { Plan { spec: ConnectorSpec { enabled: b.enabled.or(prev.enabled), ..prev.clone() }, ..Plan::default() } };
+        let plan = if b.edits() {
+            plan_of(id, b, Some(&prev))?
+        } else {
+            Plan { spec: ConnectorSpec { enabled: b.enabled.or(prev.enabled), ..prev.clone() }, ..Plan::default() }
+        };
         Self::write_plan(ctx, &plan).await?;
         self.apply(ctx, OpKind::Update, id, &plan.spec, Some(&prev)).await?;
         if b.edits() {
@@ -433,7 +488,8 @@ impl Pane {
 
     pub async fn import(self: &Arc<Self>, ctx: &Ctx, names: &[String], dismiss: &[String]) -> Result<ImportView> {
         lock(&self.dismissed).extend(dismiss.iter().cloned());
-        let list: Vec<Connector> = self.specs().await.into_iter().map(|(n, _)| Connector { id: n.clone(), name: n, ..Connector::default() }).collect();
+        let list: Vec<Connector> =
+            self.specs().await.into_iter().map(|(n, _)| Connector { id: n.clone(), name: n, ..Connector::default() }).collect();
         let all: Vec<Found> = found(&sources().await, &list);
         let mut skipped = Vec::new();
         for n in names {
@@ -458,9 +514,31 @@ impl Pane {
         let n = net(ctx)?;
         let get = |url: String| {
             let n = n.clone();
-            async move { n.fetch(NetRequest { method: "GET".into(), url, headers: vec![("accept".into(), "application/json".into())], ..NetRequest::default() }).await.ok().filter(|r| r.status < 300).and_then(|r| r.json::<serde_json::Map<String, Value>>().ok()) }
+            async move {
+                n.fetch(NetRequest {
+                    method: "GET".into(),
+                    url,
+                    headers: vec![("accept".into(), "application/json".into())],
+                    ..NetRequest::default()
+                })
+                .await
+                .ok()
+                .filter(|r| r.status < 300)
+                .and_then(|r| r.json::<serde_json::Map<String, Value>>().ok())
+            }
         };
-        let hello = n.fetch(NetRequest { method: "POST".into(), url: spec.url.clone(), headers: vec![("content-type".into(), "application/json".into()), ("accept".into(), "application/json, text/event-stream".into())], body: initialize(env!("CARGO_PKG_VERSION")).into_bytes(), timeout_ms: 15_000 }).await?;
+        let hello = n
+            .fetch(NetRequest {
+                method: "POST".into(),
+                url: spec.url.clone(),
+                headers: vec![
+                    ("content-type".into(), "application/json".into()),
+                    ("accept".into(), "application/json, text/event-stream".into()),
+                ],
+                body: initialize(env!("CARGO_PKG_VERSION")).into_bytes(),
+                timeout_ms: 15_000,
+            })
+            .await?;
         let prm_url = hello.header("www-authenticate").and_then(|w| oauth::resource_metadata(w, &spec.url));
         let prm = match prm_url {
             Some(u) => get(u).await,
@@ -482,7 +560,16 @@ impl Pane {
         } else {
             {
                 let reg = found.register.clone().ok_or_else(|| WireError::from(oauth::no_registration(&issuer)))?;
-                let r = n.fetch(NetRequest { method: "POST".into(), url: reg, headers: vec![("content-type".into(), "application/json".into())], body: oauth::registration_body(&redirect).to_string().into_bytes(), timeout_ms: 15_000 }).await.ok();
+                let r = n
+                    .fetch(NetRequest {
+                        method: "POST".into(),
+                        url: reg,
+                        headers: vec![("content-type".into(), "application/json".into())],
+                        body: oauth::registration_body(&redirect).to_string().into_bytes(),
+                        timeout_ms: 15_000,
+                    })
+                    .await
+                    .ok();
                 let body = r.as_ref().and_then(|r| r.json::<Value>().ok());
                 let (client_id, secret) = oauth::registered(&issuer, r.as_ref().map(|r| r.status), body.as_ref())?;
                 if let Some(sc) = secret {
@@ -511,13 +598,25 @@ impl Pane {
         let o = Self::oauth_of(ctx, &p.id).await.ok_or_else(|| WireError::invalid("Start the sign-in again from Settings → Connectors"))?;
         let secret = s.get(&format!("{}:client_secret", secrets_ns(&p.id))).await.ok().flatten();
         let form = oauth::form_encode(&oauth::code_form(&o, code, &p, secret.as_deref()));
-        let r = net(ctx)?.fetch(NetRequest { method: "POST".into(), url: o.token.clone(), headers: vec![("content-type".into(), "application/x-www-form-urlencoded".into()), ("accept".into(), "application/json".into())], body: form.into_bytes(), timeout_ms: 15_000 }).await?;
+        let r = net(ctx)?
+            .fetch(NetRequest {
+                method: "POST".into(),
+                url: o.token.clone(),
+                headers: vec![
+                    ("content-type".into(), "application/x-www-form-urlencoded".into()),
+                    ("accept".into(), "application/json".into()),
+                ],
+                body: form.into_bytes(),
+                timeout_ms: 15_000,
+            })
+            .await?;
         let t = oauth::token_reply(r.status, &String::from_utf8_lossy(&r.body))?;
         s.set(&format!("{}:token", secrets_ns(&p.id)), &t.access).await?;
         if let Some(rf) = &t.refresh {
             s.set(&format!("{}:refresh", secrets_ns(&p.id)), rf).await?;
         }
-        s.set(&format!("{}:oauth", secrets_ns(&p.id)), &serde_json::to_string(&oauth::after_tokens(&o, &t, at)).unwrap_or_default()).await?;
+        s.set(&format!("{}:oauth", secrets_ns(&p.id)), &serde_json::to_string(&oauth::after_tokens(&o, &t, at)).unwrap_or_default())
+            .await?;
         let prev = self.spec(&p.id).await?;
         self.apply(ctx, OpKind::Update, &p.id, &ConnectorSpec { oauth: Some(true), ..prev.clone() }, Some(&prev)).await?;
         let _ = self.test(ctx, &p.id).await;
@@ -539,7 +638,9 @@ impl Pane {
 /// A local server, started as a run would start it, asked for its tools.
 async fn probe_local(ctx: &Ctx, id: &str, c: &ConnectorSpec, at: i64) -> ProbeResult {
     let mut probe = Probe::new(id);
-    let Ok(proc) = ctx.service::<wisp_proc::Proc>() else { return probe.result(Outcome::Failed("wisp can't start programs here".into()), at) };
+    let Ok(proc) = ctx.service::<wisp_proc::Proc>() else {
+        return probe.result(Outcome::Failed("wisp can't start programs here".into()), at);
+    };
     let mut env = wisp_proc::Env::default();
     for (k, v) in &c.env {
         env = env.with(k.clone(), v.clone());
@@ -570,7 +671,8 @@ async fn probe_local(ctx: &Ctx, id: &str, c: &ConnectorSpec, at: i64) -> ProbeRe
         }
         Outcome::Failed(exited_reason(handle.exited().await.code.unwrap_or(-1)))
     };
-    let outcome = tokio::time::timeout(Duration::from_millis(PROBE_MS), talk).await.unwrap_or_else(|_| Outcome::Failed(TIMEOUT_REASON.into()));
+    let outcome =
+        tokio::time::timeout(Duration::from_millis(PROBE_MS), talk).await.unwrap_or_else(|_| Outcome::Failed(TIMEOUT_REASON.into()));
     let _ = handle.kill().await;
     probe.result(outcome, at)
 }
@@ -599,7 +701,10 @@ async fn probe_remote(ctx: &Ctx, id: &str, c: &ConnectorSpec, at: i64) -> ProbeR
         if let Some(s) = &session {
             h.push(("mcp-session-id".into(), s.clone()));
         }
-        let r = match n.fetch(NetRequest { method: "POST".into(), url: c.url.clone(), headers: h, body: body.into_bytes(), timeout_ms: 30_000 }).await {
+        let r = match n
+            .fetch(NetRequest { method: "POST".into(), url: c.url.clone(), headers: h, body: body.into_bytes(), timeout_ms: 30_000 })
+            .await
+        {
             Ok(r) => r,
             Err(e) => return probe.result(Outcome::Failed(e.message), at),
         };
@@ -622,7 +727,9 @@ async fn probe_remote(ctx: &Ctx, id: &str, c: &ConnectorSpec, at: i64) -> ProbeR
                 if let Some(sid) = &session {
                     h.push(("mcp-session-id".into(), sid.clone()));
                 }
-                let _ = n.fetch(NetRequest { method: "POST".into(), url: c.url.clone(), headers: h, body: s.into_bytes(), timeout_ms: 10_000 }).await;
+                let _ = n
+                    .fetch(NetRequest { method: "POST".into(), url: c.url.clone(), headers: h, body: s.into_bytes(), timeout_ms: 10_000 })
+                    .await;
             } else {
                 send.push(s);
             }
@@ -632,7 +739,14 @@ async fn probe_remote(ctx: &Ctx, id: &str, c: &ConnectorSpec, at: i64) -> ProbeR
 }
 
 pub(crate) fn register(s: &mut Setup, kind: Arc<StoredKind>, connectors: Arc<dyn ResourceKind>) {
-    let pane = Arc::new(Pane { kind, connectors, tests: Mutex::default(), testing: Mutex::default(), dismissed: Mutex::default(), pending: Mutex::default() });
+    let pane = Arc::new(Pane {
+        kind,
+        connectors,
+        tests: Mutex::default(),
+        testing: Mutex::default(),
+        dismissed: Mutex::default(),
+        pending: Mutex::default(),
+    });
     macro_rules! on {
         ($C:ty, |$p:ident, $ctx:ident, $a:ident| $body:expr) => {{
             let pane = pane.clone();
@@ -668,7 +782,11 @@ pub(crate) fn register(s: &mut Setup, kind: Arc<StoredKind>, connectors: Arc<dyn
                     Ok(n) => wisp_connectors_core::page::signed_in(&n.name),
                     Err(e) => wisp_connectors_core::page::failed(&e.message),
                 };
-                Ok(wisp_kernel::http::Response::Text { status: 200, content_type: "text/html; charset=utf-8".into(), body: wisp_connectors_core::page::callback_page(&title, &text) })
+                Ok(wisp_kernel::http::Response::Text {
+                    status: 200,
+                    content_type: "text/html; charset=utf-8".into(),
+                    body: wisp_connectors_core::page::callback_page(&title, &text),
+                })
             })
         }),
     });
@@ -698,7 +816,12 @@ mod tests {
     /// saved one, a key left out goes; the command line splits; remote needs a URL, local a command.
     #[test]
     fn a_connector_form_keeps_secrets_out_of_its_spec() {
-        let b = ConnectorBody { name: Some("gh".into()), command: Some("npx -y @mcp/github".into()), env: Some(SecretInput::List(vec![field("TOKEN", "ghp_x"), field("EMPTY", "")])), ..ConnectorBody::default() };
+        let b = ConnectorBody {
+            name: Some("gh".into()),
+            command: Some("npx -y @mcp/github".into()),
+            env: Some(SecretInput::List(vec![field("TOKEN", "ghp_x"), field("EMPTY", "")])),
+            ..ConnectorBody::default()
+        };
         let p = plan_of("gh", &b, None).unwrap();
         assert_eq!(p.spec.command, "npx");
         assert_eq!(p.spec.args, ["-y", "@mcp/github"]);
@@ -706,16 +829,36 @@ mod tests {
         assert!(!p.spec.env.contains_key("EMPTY"), "nothing saved, nothing typed: no key");
         assert_eq!(p.set, vec![("connector:gh:env:TOKEN".to_owned(), "ghp_x".to_owned())]);
         // the edit: the token kept (empty value), a new key typed
-        let edit = ConnectorBody { env: Some(SecretInput::List(vec![field("TOKEN", ""), field("ORG", "acme")])), ..ConnectorBody::default() };
+        let edit =
+            ConnectorBody { env: Some(SecretInput::List(vec![field("TOKEN", ""), field("ORG", "acme")])), ..ConnectorBody::default() };
         let q = plan_of("gh", &edit, Some(&p.spec)).unwrap();
         assert_eq!(q.spec.env["TOKEN"], "${secret:connector:gh:env:TOKEN}");
         assert_eq!(q.set, vec![("connector:gh:env:ORG".to_owned(), "acme".to_owned())]);
         assert_eq!(q.drop, Vec::<String>::new());
-        let gone = plan_of("gh", &ConnectorBody { env: Some(SecretInput::List(vec![])), ..ConnectorBody::default() }, Some(&q.spec)).unwrap();
+        let gone =
+            plan_of("gh", &ConnectorBody { env: Some(SecretInput::List(vec![])), ..ConnectorBody::default() }, Some(&q.spec)).unwrap();
         assert_eq!(gone.drop.len(), 2, "both keys and their secrets go");
-        assert!(plan_of("x", &ConnectorBody { transport: Some("remote".into()), url: Some("ftp://x".into()), ..ConnectorBody::default() }, None).is_err());
+        assert!(
+            plan_of(
+                "x",
+                &ConnectorBody { transport: Some("remote".into()), url: Some("ftp://x".into()), ..ConnectorBody::default() },
+                None
+            )
+            .is_err()
+        );
         assert!(plan_of("x", &ConnectorBody { command: Some("  ".into()), ..ConnectorBody::default() }, None).is_err());
-        assert!(plan_of("x", &ConnectorBody { command: Some("x".into()), env: Some(SecretInput::List(vec![field("bad key", "v")])), ..ConnectorBody::default() }, None).is_err());
+        assert!(
+            plan_of(
+                "x",
+                &ConnectorBody {
+                    command: Some("x".into()),
+                    env: Some(SecretInput::List(vec![field("bad key", "v")])),
+                    ..ConnectorBody::default()
+                },
+                None
+            )
+            .is_err()
+        );
     }
 
     /// The pane reads flat rows: key names with whether they're set (never a value), snake-case columns for
@@ -724,8 +867,23 @@ mod tests {
     async fn the_connectors_pane_rows_carry_key_names_never_values() {
         let db = Store::open(wisp_store::Location::Memory, Arc::new(wisp_store::SystemClock)).unwrap();
         install(&db).unwrap();
-        let spec = ConnectorSpec { url: "https://mcp.linear.app/mcp".into(), headers: [("Authorization".to_owned(), "${secret:connector:linear:headers:Authorization}".to_owned())].into(), ..ConnectorSpec::default() };
-        let v = ConnectorsView { connectors: vec![view_of("linear", &spec, None, true, Some(SignedIn { host: "linear.app".into(), at: Some(4) }), vec!["claude".into()])], found: Vec::new(), reach: vec!["claude".into()] };
+        let spec = ConnectorSpec {
+            url: "https://mcp.linear.app/mcp".into(),
+            headers: [("Authorization".to_owned(), "${secret:connector:linear:headers:Authorization}".to_owned())].into(),
+            ..ConnectorSpec::default()
+        };
+        let v = ConnectorsView {
+            connectors: vec![view_of(
+                "linear",
+                &spec,
+                None,
+                true,
+                Some(SignedIn { host: "linear.app".into(), at: Some(4) }),
+                vec!["claude".into()],
+            )],
+            found: Vec::new(),
+            reach: vec!["claude".into()],
+        };
         let all = rows(&v);
         db.write(move |w| {
             for (def, rs) in all {

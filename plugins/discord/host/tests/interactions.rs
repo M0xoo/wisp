@@ -15,13 +15,19 @@ use wisp_channels_api::{ChannelHub, InboundOpts, MemberView, ProjectView, Transp
 const ID: &str = "1173000000000000000";
 
 fn hub(senders: &[&str], on_box: bool, key: &str) -> Arc<TestHub> {
-    let mut h = TestHub { reply: Some("✓ On it.".into()), start_as: Some("t1".into()), ..TestHub::default() }.with_cfg("discord", json!({ "enabled": true, "token": "bot-tok", "senders": senders, "linkCode": "ab12cd", "publicKey": key, "appId": "777" }));
+    let mut h = TestHub { reply: Some("✓ On it.".into()), start_as: Some("t1".into()), ..TestHub::default() }.with_cfg(
+        "discord",
+        json!({ "enabled": true, "token": "bot-tok", "senders": senders, "linkCode": "ab12cd", "publicKey": key, "appId": "777" }),
+    );
     if on_box {
         h.on_box = Some(BoxGrid { grid: "https://grid.test".into(), auth: "Box pia s".into() });
     }
     *h.now.lock().unwrap() = wisp_discord_core::message::snowflake_ms(ID).unwrap();
     let p = Arc::get_mut(&mut h.phone).unwrap();
-    p.ctx.projects = vec![ProjectView { id: "p1".into(), name: "web".into(), path: "/w".into(), ..ProjectView::default() }, ProjectView { id: "p2".into(), name: "api".into(), path: "/a".into(), ..ProjectView::default() }];
+    p.ctx.projects = vec![
+        ProjectView { id: "p1".into(), name: "web".into(), path: "/w".into(), ..ProjectView::default() },
+        ProjectView { id: "p2".into(), name: "api".into(), path: "/a".into(), ..ProjectView::default() },
+    ];
     p.ctx.crew = vec![MemberView { id: "m1".into(), name: "Ada Lovelace".into(), agent: "claude".into(), ..MemberView::default() }];
     h.net.replies.lock().unwrap().extend([
         Reply::json("/gateway/bot", json!({ "url": "wss://gateway.discord.gg" })),
@@ -37,7 +43,9 @@ fn hub(senders: &[&str], on_box: bool, key: &str) -> Arc<TestHub> {
 fn frames(d: &Value) -> Vec<WsFrame> {
     vec![
         ScriptWs::text(&json!({ "op": 10, "d": { "heartbeat_interval": 41_250 } })),
-        ScriptWs::text(&json!({ "op": 0, "t": "READY", "s": 1, "d": { "session_id": "S1", "resume_gateway_url": "wss://r", "user": { "id": "900", "username": "wisp" }, "application": { "id": "777" } } })),
+        ScriptWs::text(
+            &json!({ "op": 0, "t": "READY", "s": 1, "d": { "session_id": "S1", "resume_gateway_url": "wss://r", "user": { "id": "900", "username": "wisp" }, "application": { "id": "777" } } }),
+        ),
         ScriptWs::text(&json!({ "op": 0, "t": "INTERACTION_CREATE", "s": 2, "d": d })),
         WsFrame::Close(4004, String::new()),
     ]
@@ -49,7 +57,13 @@ fn start(h: &Arc<TestHub>) -> Arc<dyn Transport> {
 }
 
 fn calls(h: &TestHub) -> Vec<(String, String, Value)> {
-    h.net.requests.lock().unwrap().iter().map(|r| (r.method.clone(), r.url.clone(), serde_json::from_slice(&r.body).unwrap_or(Value::Null))).collect()
+    h.net
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|r| (r.method.clone(), r.url.clone(), serde_json::from_slice(&r.body).unwrap_or(Value::Null)))
+        .collect()
 }
 
 fn slash(user: &str, guild: bool) -> Value {
@@ -107,11 +121,21 @@ async fn a_strangers_slash_in_a_server_gets_silence_and_their_keystroke_an_empty
 #[tokio::test]
 async fn a_reports_choices_are_buttons_and_a_signed_press_answers_the_task() {
     let h = hub(&["U1"], false, "");
-    h.remotes.lock().unwrap().insert("t1".into(), [("discord".to_owned(), json!({ "channel": "TH1", "thread": true, "ids": [] }))].into_iter().collect());
+    h.remotes
+        .lock()
+        .unwrap()
+        .insert("t1".into(), [("discord".to_owned(), json!({ "channel": "TH1", "thread": true, "ids": [] }))].into_iter().collect());
     h.started.lock().unwrap().insert("t1".into(), ("discord".into(), None));
     let t = start(&h);
     let sv = SessionView { id: "t1".into(), ..SessionView::default() };
-    let msg = Msg { title: "Pick one".into(), text: "Which way?".into(), actions: vec![Action { kind: ActionKind::Answer, label: "Left".into(), reference: "q1".into(), index: 0 }, Action { kind: ActionKind::Done, label: "Done".into(), reference: String::new(), index: 0 }] };
+    let msg = Msg {
+        title: "Pick one".into(),
+        text: "Which way?".into(),
+        actions: vec![
+            Action { kind: ActionKind::Answer, label: "Left".into(), reference: "q1".into(), index: 0 },
+            Action { kind: ActionKind::Done, label: "Done".into(), reference: String::new(), index: 0 },
+        ],
+    };
     t.publish(&msg, Some(&sv)).await.unwrap();
     let post = calls(&h).into_iter().find(|(_, u, _)| u.ends_with("/channels/TH1/messages")).unwrap().2;
     let button = &post["components"][0]["components"][0];
@@ -125,15 +149,26 @@ async fn a_reports_choices_are_buttons_and_a_signed_press_answers_the_task() {
     h.run_spawned().await;
     let c = calls(&h);
     assert!(c.iter().any(|(_, u, b)| u.contains("/interactions/1173000000000000005/P/callback") && b["type"] == 6), "seen at once");
-    assert!(c.iter().any(|(m, u, b)| m == "PATCH" && u.ends_with("/webhooks/777/P/messages/@original") && b["components"] == json!([])), "the buttons go");
-    let said: Vec<String> = c.iter().filter(|(m, u, _)| m == "POST" && u.ends_with("/channels/TH1/messages")).map(|(_, _, b)| b["content"].as_str().unwrap_or_default().to_owned()).collect();
+    assert!(
+        c.iter().any(|(m, u, b)| m == "PATCH" && u.ends_with("/webhooks/777/P/messages/@original") && b["components"] == json!([])),
+        "the buttons go"
+    );
+    let said: Vec<String> = c
+        .iter()
+        .filter(|(m, u, _)| m == "POST" && u.ends_with("/channels/TH1/messages"))
+        .map(|(_, _, b)| b["content"].as_str().unwrap_or_default().to_owned())
+        .collect();
     assert_eq!(said.last().map(String::as_str), Some("✓ Done."), "{said:?}");
     // a forged one does nothing but say so
     let forged = good.replace(":0:", ":1:");
     h.ws.push(frames(&press("1173000000000000006", &forged)));
     t.start(h.stop.clone()).await;
     h.run_spawned().await;
-    let said: Vec<String> = calls(&h).iter().filter(|(m, u, _)| m == "POST" && u.ends_with("/channels/TH1/messages")).map(|(_, _, b)| b["content"].as_str().unwrap_or_default().to_owned()).collect();
+    let said: Vec<String> = calls(&h)
+        .iter()
+        .filter(|(m, u, _)| m == "POST" && u.ends_with("/channels/TH1/messages"))
+        .map(|(_, _, b)| b["content"].as_str().unwrap_or_default().to_owned())
+        .collect();
     assert!(said.last().unwrap().contains("doesn’t work any more"), "{said:?}");
 }
 
@@ -162,7 +197,10 @@ async fn on_a_cloud_wisp_a_held_interaction_is_checked_by_its_signature_and_runs
     let c = calls(&h);
     assert!(c.iter().all(|(_, u, _)| !u.contains("/callback")), "the grid answered it: nothing answers again");
     assert_eq!(h.conversed().len(), 1);
-    assert!(c.iter().any(|(m, u, b)| m == "PATCH" && u.ends_with("/webhooks/777/TOK/messages/@original") && b["content"] == "✓ On it."), "its thinking reply is what's edited");
+    assert!(
+        c.iter().any(|(m, u, b)| m == "PATCH" && u.ends_with("/webhooks/777/TOK/messages/@original") && b["content"] == "✓ On it."),
+        "its thinking reply is what's edited"
+    );
     let again = t.inbound(&body, &signed(&k, &body), InboundOpts::default()).await;
     assert_eq!((again.status, again.body["duplicate"].clone(), again.after.is_none()), (200, json!(true), true), "a repeat runs nothing");
     let stranger = slash("U9", true).to_string().replace(ID, "1173000000000000009").into_bytes();

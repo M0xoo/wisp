@@ -73,9 +73,26 @@ impl Registry {
         }
         let (cols, rows) = (clamp(a.cols, COLS, COLS.default), clamp(a.rows, ROWS, ROWS.default));
         let at = now(ctx);
-        let mut info = TermInfo { id: a.id.clone(), kind: a.kind, state: step(TermState::Idle, FlowEvent::Start), cols, rows, resizable: true, code: None, started_at: at, used_at: at, clients: 0, tui: a.tui };
+        let mut info = TermInfo {
+            id: a.id.clone(),
+            kind: a.kind,
+            state: step(TermState::Idle, FlowEvent::Start),
+            cols,
+            rows,
+            resizable: true,
+            code: None,
+            started_at: at,
+            used_at: at,
+            clients: 0,
+            tui: a.tui,
+        };
         let patch = wisp_terminal_core::env::term_env(a.kind == TermKind::Takeover);
-        let opts = SpawnOpts { cwd: Some(a.cwd.clone().into()), env: Env { clear: false, set: patch.set.clone(), remove: patch.remove.clone() }, pty: Some(PtySize { cols, rows }), ..SpawnOpts::default() };
+        let opts = SpawnOpts {
+            cwd: Some(a.cwd.clone().into()),
+            env: Env { clear: false, set: patch.set.clone(), remove: patch.remove.clone() },
+            pty: Some(PtySize { cols, rows }),
+            ..SpawnOpts::default()
+        };
         let mut replay = Replay::new(KEEP);
         // "" or a relative folder would start it in the server's own folder
         let no_dir = wisp_runtime_api::paths::Folder::of(&a.cwd).err();
@@ -89,11 +106,15 @@ impl Registry {
             info.code = Some(127);
             let why = no_dir.map_or_else(String::new, |e| format!(" ({e})"));
             replay.push(&format!("wisp: couldn't start {}{why}\r\n", a.argv.first().map_or("", String::as_str)));
-            lock(&self.map).insert(key, Term { info: info.clone(), handle: None, replay, clients: Vec::new(), order: order::InputOrder::new() });
+            lock(&self.map)
+                .insert(key, Term { info: info.clone(), handle: None, replay, clients: Vec::new(), order: order::InputOrder::new() });
             return info;
         };
         let (handle, mut rx) = child.split();
-        lock(&self.map).insert(key.clone(), Term { info: info.clone(), handle: Some(handle.clone()), replay, clients: Vec::new(), order: order::InputOrder::new() });
+        lock(&self.map).insert(
+            key.clone(),
+            Term { info: info.clone(), handle: Some(handle.clone()), replay, clients: Vec::new(), order: order::InputOrder::new() },
+        );
         let map = self.map.clone();
         // a slow start says so (#440)
         if let Ok(clock) = ctx.clock() {
@@ -139,7 +160,10 @@ impl Registry {
             };
             // ended on its own (a take over's CLI quit): whoever owns the task hears it
             if let Some(state) = ended {
-                ectx.emit(&ectx.root_call(), &wisp_terminal_api::Changed { kind: key.0, id: key.1.clone(), state, code: Some(code), gone: false });
+                ectx.emit(
+                    &ectx.root_call(),
+                    &wisp_terminal_api::Changed { kind: key.0, id: key.1.clone(), state, code: Some(code), gone: false },
+                );
                 // the app exited by itself: its row says Run app again
                 if key.0 == TermKind::Run {
                     crate::mark_run(&ectx, &ectx.root_call(), &key.1, false).await;

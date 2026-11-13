@@ -65,7 +65,15 @@ pub(crate) async fn fingerprint(st: &State, bin: &str) -> Option<Fingerprint> {
         lock(&st.hashes).insert(key.clone(), (m.len(), mtime, h.clone()));
         h
     };
-    Some(Fingerprint { path: path.to_string_lossy().into_owned(), real: key, size: m.len(), sha256: sha, version: String::new(), mtime_ms: Some(mtime), at: None })
+    Some(Fingerprint {
+        path: path.to_string_lossy().into_owned(),
+        real: key,
+        size: m.len(),
+        sha256: sha,
+        version: String::new(),
+        mtime_ms: Some(mtime),
+        at: None,
+    })
 }
 
 /// Looks at harness `agent`'s program now and records what the watch makes of it.
@@ -106,7 +114,12 @@ pub(crate) async fn before_run(ctx: &Ctx, _call: &Call, st: &std::sync::Arc<Stat
         if st.ask() {
             if let Some(change) = observe(ctx, st, &c.agent, &bin).await {
                 let line = watch::change_line(&h.info().name, &change, "the pin");
-                c.hold = Some(Held { by: PLUGIN_ID.into(), kind: HOLD_KIND.into(), until: None, data: json!({ "agent": c.agent, "change": change, "line": line }) });
+                c.hold = Some(Held {
+                    by: PLUGIN_ID.into(),
+                    kind: HOLD_KIND.into(),
+                    until: None,
+                    data: json!({ "agent": c.agent, "change": change, "line": line }),
+                });
                 lock(&st.held).entry(c.agent.clone()).or_default().push((c.session_id.0.clone(), c.turn_id.0.clone()));
                 changed = true;
             }

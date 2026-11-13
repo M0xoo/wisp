@@ -21,19 +21,12 @@ pub enum ProcError {
 
 impl ProcError {
     pub(crate) fn spawn(bin: &str, e: impl std::fmt::Display) -> Self {
-        Self::Spawn {
-            bin: bin.to_owned(),
-            message: e.to_string(),
-        }
+        Self::Spawn { bin: bin.to_owned(), message: e.to_string() }
     }
 
     /// A std spawn error: a missing program is `NotFound`, the rest say what happened.
     pub(crate) fn from_spawn(bin: &str, e: &std::io::Error) -> Self {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            Self::NotFound(bin.to_owned())
-        } else {
-            Self::spawn(bin, e)
-        }
+        if e.kind() == std::io::ErrorKind::NotFound { Self::NotFound(bin.to_owned()) } else { Self::spawn(bin, e) }
     }
 }
 

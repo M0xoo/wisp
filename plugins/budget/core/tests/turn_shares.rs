@@ -7,7 +7,10 @@ use wisp_budget_core::Budget;
 use wisp_budget_core::where_went::add_share;
 
 fn report(used: f64) -> LimitsReport {
-    LimitsReport { windows: vec![LimitWindow { id: "five_hour".into(), used, resets_at: Some(10_000_000), ms: None, slot: None }], ..LimitsReport::default() }
+    LimitsReport {
+        windows: vec![LimitWindow { id: "five_hour".into(), used, resets_at: Some(10_000_000), ms: None, slot: None }],
+        ..LimitsReport::default()
+    }
 }
 
 #[test]

@@ -9,8 +9,7 @@
 
 use serde_json::{Map, Value};
 use wisp_runtime_api::model::{
-    Attachment, ChangeOp, Edit, FileChange, Held, Mode, Presentation, QueueItem, Session,
-    SessionState, Turn, TurnStats, TurnStatus,
+    Attachment, ChangeOp, Edit, FileChange, Held, Mode, Presentation, QueueItem, Session, SessionState, Turn, TurnStats, TurnStatus,
 };
 use wisp_runtime_api::{SessionId, TurnId};
 
@@ -74,16 +73,10 @@ pub struct Imported {
 }
 
 fn s(o: &Map<String, Value>, k: &str) -> String {
-    o.get(k)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned()
+    o.get(k).and_then(Value::as_str).unwrap_or_default().to_owned()
 }
 fn opt(o: &Map<String, Value>, k: &str) -> Option<String> {
-    o.get(k)
-        .and_then(Value::as_str)
-        .filter(|x| !x.is_empty())
-        .map(str::to_owned)
+    o.get(k).and_then(Value::as_str).filter(|x| !x.is_empty()).map(str::to_owned)
 }
 /// A ms timestamp; v1 sometimes wrote one as a float.
 fn int(o: &Map<String, Value>, k: &str) -> Option<i64> {
@@ -98,15 +91,11 @@ fn flag(o: &Map<String, Value>, k: &str) -> bool {
     o.get(k).and_then(Value::as_bool).unwrap_or(false)
 }
 fn parse<T: serde::de::DeserializeOwned + Default>(v: Option<&Value>) -> T {
-    v.and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    v.and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default()
 }
 
 fn leftovers(o: &Map<String, Value>, own: &[&str]) -> Map<String, Value> {
-    o.iter()
-        .filter(|(k, _)| !own.contains(&k.as_str()))
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect()
+    o.iter().filter(|(k, _)| !own.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect()
 }
 
 fn mode(o: &Map<String, Value>) -> Mode {
@@ -142,12 +131,7 @@ fn held(v: Option<&Value>) -> Option<Held> {
     } else {
         ("wisp.guard", "limit")
     };
-    Some(Held {
-        by: by.into(),
-        kind: kind.into(),
-        until: int(h, "until"),
-        data: Value::Object(h.clone()),
-    })
+    Some(Held { by: by.into(), kind: kind.into(), until: int(h, "until"), data: Value::Object(h.clone()) })
 }
 
 fn stats(v: Option<&Value>) -> Option<TurnStats> {
@@ -157,10 +141,7 @@ fn stats(v: Option<&Value>) -> Option<TurnStats> {
         (None, None) => None,
         (read, write) => Some(read.unwrap_or(0) + write.unwrap_or(0)),
     };
-    let models = o
-        .get("models")
-        .and_then(Value::as_object)
-        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+    let models = o.get("models").and_then(Value::as_object).map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
     Some(TurnStats {
         cost_usd: o.get("costUsd").and_then(Value::as_f64),
         input_tokens: num("inputTokens"),
@@ -189,41 +170,22 @@ fn changes(v: Option<&Value>) -> Vec<FileChange> {
     let list = v.and_then(Value::as_array).map_or(&[][..], Vec::as_slice);
     list.iter()
         .filter_map(Value::as_object)
-        .map(|c| FileChange {
-            file: s(c, "file"),
-            op: change_op(&s(c, "op")),
-            edits: parse::<Vec<Edit>>(c.get("edits")),
-        })
+        .map(|c| FileChange { file: s(c, "file"), op: change_op(&s(c, "op")), edits: parse::<Vec<Edit>>(c.get("edits")) })
         .collect()
 }
 
 /// A stored v1 presentation keeps `v = 0`: the current parser rebuilds it from the turn's text lazily.
 fn presentation(v: Option<&Value>) -> Option<Presentation> {
     let o = v?.as_object()?;
-    let blocks = o
-        .get("blocks")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    Some(Presentation {
-        blocks,
-        v: 0,
-        dropped: Vec::new(),
-        topic: opt(o, "topic"),
-        notes: opt(o, "notes"),
-        fallback: flag(o, "fallback"),
-    })
+    let blocks = o.get("blocks").and_then(Value::as_array).cloned().unwrap_or_default();
+    Some(Presentation { blocks, v: 0, dropped: Vec::new(), topic: opt(o, "topic"), notes: opt(o, "notes"), fallback: flag(o, "fallback") })
 }
 
 fn turn(sid: &SessionId, idx: u32, o: &Map<String, Value>) -> ImportedTurn {
     let steps = o
         .get("activity")
         .and_then(Value::as_array)
-        .map_or_else(Vec::new, |a| {
-            a.iter()
-                .map(|x| (x.get("t").and_then(Value::as_i64).unwrap_or(0), x.clone()))
-                .collect()
-        });
+        .map_or_else(Vec::new, |a| a.iter().map(|x| (x.get("t").and_then(Value::as_i64).unwrap_or(0), x.clone())).collect());
     let changes = changes(o.get("changes"));
     let st = status(&s(o, "status"));
     let started = int(o, "startedAt").unwrap_or(0);
@@ -259,11 +221,7 @@ fn turn(sid: &SessionId, idx: u32, o: &Map<String, Value>) -> ImportedTurn {
         n_events: u32::try_from(steps.len()).unwrap_or(u32::MAX),
         ext: ext.into_iter().collect(),
     };
-    ImportedTurn {
-        turn,
-        steps,
-        changes,
-    }
+    ImportedTurn { turn, steps, changes }
 }
 
 fn queue(v: Option<&Value>) -> Vec<QueueItem> {
@@ -271,10 +229,7 @@ fn queue(v: Option<&Value>) -> Vec<QueueItem> {
     list.iter()
         .filter_map(Value::as_object)
         .map(|q| {
-            let rest = leftovers(
-                q,
-                &["id", "text", "attachments", "at", "by", "now", "reports"],
-            );
+            let rest = leftovers(q, &["id", "text", "attachments", "at", "by", "now", "reports"]);
             QueueItem {
                 id: s(q, "id"),
                 text: s(q, "text"),
@@ -293,16 +248,9 @@ fn queue(v: Option<&Value>) -> Vec<QueueItem> {
 pub fn from_v1(v: &Value) -> Result<Imported, String> {
     let o = v.as_object().ok_or("not an object")?;
     let sid = SessionId(opt(o, "id").ok_or("no id")?);
-    let list = o
-        .get("turns")
-        .and_then(Value::as_array)
-        .map_or(&[][..], Vec::as_slice);
-    let turns: Vec<ImportedTurn> = list
-        .iter()
-        .filter_map(Value::as_object)
-        .enumerate()
-        .map(|(i, t)| turn(&sid, u32::try_from(i).unwrap_or(u32::MAX), t))
-        .collect();
+    let list = o.get("turns").and_then(Value::as_array).map_or(&[][..], Vec::as_slice);
+    let turns: Vec<ImportedTurn> =
+        list.iter().filter_map(Value::as_object).enumerate().map(|(i, t)| turn(&sid, u32::try_from(i).unwrap_or(u32::MAX), t)).collect();
     let mut ext = Map::new();
     let rest = leftovers(o, SESSION_OWN);
     if !rest.is_empty() {
@@ -311,11 +259,7 @@ pub fn from_v1(v: &Value) -> Result<Imported, String> {
     let dirs = o
         .get("also")
         .and_then(Value::as_array)
-        .map_or_else(Vec::new, |a| {
-            a.iter()
-                .filter_map(|x| x.get("cwd").and_then(Value::as_str).map(str::to_owned))
-                .collect()
-        });
+        .map_or_else(Vec::new, |a| a.iter().filter_map(|x| x.get("cwd").and_then(Value::as_str).map(str::to_owned)).collect());
     let session = Session {
         id: sid,
         title: s(o, "title"),

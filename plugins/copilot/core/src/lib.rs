@@ -10,7 +10,9 @@ use std::collections::{BTreeMap, HashMap};
 use serde_json::{Map, Value, json};
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::protocol::{ASK_TIMEOUT_MS, exit_text};
-use wisp_harness_kit::{Change, Edit, Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, TurnResult, clip, json_line, rel_value};
+use wisp_harness_kit::{
+    Change, Edit, Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, TurnResult, clip, json_line, rel_value,
+};
 
 pub use describe::{blocked_of, describe_mcp, describe_tool, model_ids, model_label};
 
@@ -69,7 +71,9 @@ pub fn args(a: &CopilotArgs<'_>) -> Vec<String> {
     for g in a.grants {
         // a rule list (the blocked card's) travels as its JSON
         match serde_json::from_str::<Value>(g) {
-            Ok(Value::Array(l)) => out.extend(l.iter().filter_map(Value::as_str).filter(|r| !r.is_empty()).map(|r| format!("--allow-tool={r}"))),
+            Ok(Value::Array(l)) => {
+                out.extend(l.iter().filter_map(Value::as_str).filter(|r| !r.is_empty()).map(|r| format!("--allow-tool={r}")));
+            }
             _ if !g.is_empty() => out.push(format!("--allow-tool={g}")),
             _ => {}
         }
@@ -123,9 +127,15 @@ impl CopilotParser {
         self.ended = true;
         let code = result["exitCode"].as_i64().unwrap_or(0);
         let ok = code == 0 && self.error.is_none();
-        let text = if ok { self.last_text.clone() } else { self.error.clone().unwrap_or_else(|| exit_text("copilot", i32::try_from(code).ok(), None)) };
+        let text = if ok {
+            self.last_text.clone()
+        } else {
+            self.error.clone().unwrap_or_else(|| exit_text("copilot", i32::try_from(code).ok(), None))
+        };
         #[allow(clippy::cast_precision_loss)]
-        let ms = result["usage"]["sessionDurationMs"].as_f64().map_or_else(|| js::json_num((now - self.started.unwrap_or(now)) as f64), js::json_num);
+        let ms = result["usage"]["sessionDurationMs"]
+            .as_f64()
+            .map_or_else(|| js::json_num((now - self.started.unwrap_or(now)) as f64), js::json_num);
         let mut stats = Map::new();
         stats.insert("durationMs".into(), ms);
         let stats: Option<Box<Stats>> = serde_json::from_value(Value::Object(stats)).ok().map(Box::new);
@@ -136,17 +146,32 @@ impl CopilotParser {
         let id = js::str(&d["toolCallId"]);
         let Some((name, a)) = self.calls.remove(&id) else { return };
         if d["success"] == false {
-            let why = [&d["error"]["message"], &d["result"]["content"]].into_iter().find(|v| truthy(v)).map_or_else(|| "failed".to_owned(), js::string);
+            let why = [&d["error"]["message"], &d["result"]["content"]]
+                .into_iter()
+                .find(|v| truthy(v))
+                .map_or_else(|| "failed".to_owned(), js::string);
             out.push(HarnessEvent::ToolError { name: Some(name), text: clip(&why, 400), id: None }.into());
             return;
         }
-        let output = truthy(&d["result"]["content"]).then(|| HarnessEvent::ToolOutput { id: id.clone(), text: js::string(&d["result"]["content"]) });
+        let output =
+            truthy(&d["result"]["content"]).then(|| HarnessEvent::ToolOutput { id: id.clone(), text: js::string(&d["result"]["content"]) });
         let file = rel_value(&a["path"], &self.paths);
         if !file.is_empty() && (name == "edit" || name == "create") {
             if name == "edit" && a["old_str"].as_str().is_some_and(|s| !s.is_empty()) {
                 out.push(Out::Io(IoStep::Sync { file: file.clone() })); // keep the tracker current
-                let after = a["new_str"].as_str().map_or_else(|| if a["new_str"].is_null() { String::new() } else { js::string(&a["new_str"]) }, str::to_owned);
-                out.push(HarnessEvent::Change(Change { file, op: "edit".into(), edits: vec![Edit { before: js::str(&a["old_str"]), after }], early: None, before_file: None }).into());
+                let after = a["new_str"]
+                    .as_str()
+                    .map_or_else(|| if a["new_str"].is_null() { String::new() } else { js::string(&a["new_str"]) }, str::to_owned);
+                out.push(
+                    HarnessEvent::Change(Change {
+                        file,
+                        op: "edit".into(),
+                        edits: vec![Edit { before: js::str(&a["old_str"]), after }],
+                        early: None,
+                        before_file: None,
+                    })
+                    .into(),
+                );
                 return;
             }
             match output {
@@ -218,7 +243,14 @@ impl LineParser for CopilotParser {
             "session.warning" => {
                 let m = js::str(&d["message"]);
                 if d["warningType"] == "mcp" && m.contains("'wisp'") {
-                    out.push(HarnessEvent::ToolError { name: Some("wisp".into()), text: format!("{m} Copilot can't reach wisp's ask_user, so it can't ask you mid-run."), id: None }.into());
+                    out.push(
+                        HarnessEvent::ToolError {
+                            name: Some("wisp".into()),
+                            text: format!("{m} Copilot can't reach wisp's ask_user, so it can't ask you mid-run."),
+                            id: None,
+                        }
+                        .into(),
+                    );
                 }
             }
             // model_call errors are single requests copilot retries itself
@@ -235,7 +267,11 @@ impl LineParser for CopilotParser {
             return;
         }
         self.ended = true;
-        let text = self.error.clone().or_else(|| Some(exit.stderr.clone()).filter(|s| !s.is_empty())).unwrap_or_else(|| exit_text("copilot", exit.code, exit.signal.as_deref()));
+        let text = self
+            .error
+            .clone()
+            .or_else(|| Some(exit.stderr.clone()).filter(|s| !s.is_empty()))
+            .unwrap_or_else(|| exit_text("copilot", exit.code, exit.signal.as_deref()));
         out.push(HarnessEvent::Result(TurnResult { stopped: Some(exit.stopped), ..TurnResult::error(text) }).into());
     }
 }
@@ -249,7 +285,12 @@ mod tests {
         // v1 adapters.test.js "copilot: Allow retries with exactly that rule"
         let g = vec![json!(["shell(npm publish)", "shell(git push)"]).to_string(), "url(x.dev)".into()];
         let a = args(&CopilotArgs { mode: "edits", session: "s", usage_file: "u", grants: &g, delegating: true, ..CopilotArgs::default() });
-        assert!(a.ends_with(&["--allow-tool=shell(npm publish)".to_owned(), "--allow-tool=shell(git push)".to_owned(), "--allow-tool=url(x.dev)".to_owned(), "--excluded-tools=task".to_owned()]));
+        assert!(a.ends_with(&[
+            "--allow-tool=shell(npm publish)".to_owned(),
+            "--allow-tool=shell(git push)".to_owned(),
+            "--allow-tool=url(x.dev)".to_owned(),
+            "--excluded-tools=task".to_owned()
+        ]));
         assert!(COULD_NOT.compiles());
     }
 

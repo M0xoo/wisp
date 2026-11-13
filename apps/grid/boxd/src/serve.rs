@@ -34,7 +34,14 @@ pub struct Opts {
 
 impl Default for Opts {
     fn default() -> Self {
-        Self { socket: "/run/wisp-grid/box.sock".into(), group: "wisp".into(), data: "/var/lib/wisp-grid".into(), boxes: "/var/lib/wisp-grid-boxes".into(), docker: "docker".into(), container: Container::default() }
+        Self {
+            socket: "/run/wisp-grid/box.sock".into(),
+            group: "wisp".into(),
+            data: "/var/lib/wisp-grid".into(),
+            boxes: "/var/lib/wisp-grid-boxes".into(),
+            docker: "docker".into(),
+            container: Container::default(),
+        }
     }
 }
 
@@ -82,7 +89,15 @@ impl Boxd {
     }
 
     fn docker(&self, args: &[&str]) -> i32 {
-        Command::new(&self.o.docker).args(args).env_clear().env("PATH", path_env()).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status().map_or(127, |s| s.code().unwrap_or(1))
+        Command::new(&self.o.docker)
+            .args(args)
+            .env_clear()
+            .env("PATH", path_env())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_or(127, |s| s.code().unwrap_or(1))
     }
 
     /// `<boxes>/<id>` (root, 0700) holds the box's env file and resolv.conf, and its home (the box's uid).
@@ -164,10 +179,24 @@ impl Boxd {
         let env_file = dir.join("env");
         Self::write_private(&env_file, &env_file_text(&r.env)?, 0o600)?;
         let args = container_run(&self.o.container, &r, &resolv.to_string_lossy(), &env_file.to_string_lossy(), &home.to_string_lossy());
-        let mut child: Child = Command::new(&self.o.docker).args(&args).env_clear().env("PATH", path_env()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("{}: {e}", self.o.docker))?;
+        let mut child: Child = Command::new(&self.o.docker)
+            .args(&args)
+            .env_clear()
+            .env("PATH", path_env())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("{}: {e}", self.o.docker))?;
         let running = Arc::new(Running { pid: child.id(), name: name.clone(), done: Arc::new((Mutex::new(false), Condvar::new())) });
         lock(&self.runs).insert(r.id.clone(), running.clone());
-        let pipes: Vec<Box<dyn std::io::Read + Send>> = [child.stdout.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>), child.stderr.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>)].into_iter().flatten().collect();
+        let pipes: Vec<Box<dyn std::io::Read + Send>> = [
+            child.stdout.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
+            child.stderr.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         let mut readers = Vec::new();
         for mut p in pipes {
             let out = out.clone();
@@ -254,7 +283,17 @@ impl Boxd {
         match m.get("op").and_then(J::str) {
             Some("ping") => {
                 let c = &self.o.container;
-                send(&out, &J::obj(vec![("ok", J::Bool(true)), ("boxes", J::Str(self.o.boxes.to_string_lossy().into_owned())), ("image", J::Str(c.image.clone())), ("runtime", J::Str(c.runtime.clone())), ("network", J::Str(c.network.clone())), ("running", J::Num(f64::from(u32::try_from(lock(&self.runs).len()).unwrap_or(u32::MAX))))]));
+                send(
+                    &out,
+                    &J::obj(vec![
+                        ("ok", J::Bool(true)),
+                        ("boxes", J::Str(self.o.boxes.to_string_lossy().into_owned())),
+                        ("image", J::Str(c.image.clone())),
+                        ("runtime", J::Str(c.runtime.clone())),
+                        ("network", J::Str(c.network.clone())),
+                        ("running", J::Num(f64::from(u32::try_from(lock(&self.runs).len()).unwrap_or(u32::MAX)))),
+                    ]),
+                );
                 end(&out);
             }
             Some("remove") => match self.remove(&m) {
@@ -334,16 +373,38 @@ pub fn root_only_dir(dir: &Path) -> Result<(), String> {
 
 fn group_id(name: &str) -> Result<u32, String> {
     let text = std::fs::read_to_string("/etc/group").map_err(|e| e.to_string())?;
-    text.lines().map(|l| l.split(':').collect::<Vec<_>>()).find(|f| f.first() == Some(&name)).and_then(|f| f.get(2).and_then(|g| g.parse().ok())).ok_or_else(|| format!("There's no group \"{name}\" (--group: the grid's user's group)."))
+    text.lines()
+        .map(|l| l.split(':').collect::<Vec<_>>())
+        .find(|f| f.first() == Some(&name))
+        .and_then(|f| f.get(2).and_then(|g| g.parse().ok()))
+        .ok_or_else(|| format!("There's no group \"{name}\" (--group: the grid's user's group)."))
 }
 
 /// The users' network: containers can't talk to each other.
 fn ensure_network(o: &Opts) -> Result<(), String> {
-    let run = |args: &[&str]| Command::new(&o.docker).args(args).stdout(Stdio::null()).stderr(Stdio::null()).status().map_err(|_| "The container driver needs Docker.".to_owned());
+    let run = |args: &[&str]| {
+        Command::new(&o.docker)
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|_| "The container driver needs Docker.".to_owned())
+    };
     if run(&["network", "inspect", &o.container.network])?.success() {
         return Ok(());
     }
-    let ok = run(&["network", "create", "--driver", "bridge", "-o", "com.docker.network.bridge.enable_icc=false", "-o", "com.docker.network.bridge.name=br-wisp", &o.container.network])?.success();
+    let ok = run(&[
+        "network",
+        "create",
+        "--driver",
+        "bridge",
+        "-o",
+        "com.docker.network.bridge.enable_icc=false",
+        "-o",
+        "com.docker.network.bridge.name=br-wisp",
+        &o.container.network,
+    ])?
+    .success();
     if ok { Ok(()) } else { Err(format!("docker network create {} failed", o.container.network)) }
 }
 
@@ -403,7 +464,8 @@ pub fn migrate(o: &Opts) -> Result<(Vec<String>, Vec<String>), String> {
         std::fs::create_dir_all(&o.boxes).map_err(|e| e.to_string())?;
     }
     let users = o.data.join("users");
-    let mut ids: Vec<String> = std::fs::read_dir(&users).map(|r| r.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default();
+    let mut ids: Vec<String> =
+        std::fs::read_dir(&users).map(|r| r.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default();
     ids.sort();
     let (mut moved, mut skipped) = (Vec::new(), Vec::new());
     let real_dir = |p: &Path| std::fs::symlink_metadata(p).is_ok_and(|m| m.is_dir());

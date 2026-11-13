@@ -131,7 +131,11 @@ pub fn parse_message(text: &str, c: &ChannelCtx) -> Parsed {
         // /goal, /side in a thread: words for the agent's task, as a follow-up
         Some(Command::Unknown(_)) if c.thread.is_some() => return nothing(None, String::new(), src, Vec::new()),
         Some(Command::Unknown(u)) => {
-            let p = Problem { kind: "unknown".into(), text: format!("There’s no /{u} here. Send /help, or start with “:” to send it as written."), choices: Vec::new() };
+            let p = Problem {
+                kind: "unknown".into(),
+                text: format!("There’s no /{u} here. Send /help, or start with “:” to send it as written."),
+                choices: Vec::new(),
+            };
             return nothing(None, String::new(), String::new(), vec![p]);
         }
         Some(Command::Named { name, arg }) if name != "new" => {
@@ -172,8 +176,26 @@ pub fn parse_message(text: &str, c: &ChannelCtx) -> Parsed {
     }
     let prompt = rest.trim().to_owned();
     // a member named further in joins as a delegate, as in the launcher
-    let further: Vec<_> = crew_mentions(&prompt, &c.crew).all.into_iter().filter(|m| o.crew.as_ref().is_none_or(|x| x.id != m.id) && !o.tagged.iter().any(|x| x.id == m.id)).collect();
+    let further: Vec<_> = crew_mentions(&prompt, &c.crew)
+        .all
+        .into_iter()
+        .filter(|m| o.crew.as_ref().is_none_or(|x| x.id != m.id) && !o.tagged.iter().any(|x| x.id == m.id))
+        .collect();
     let mut tagged = o.tagged;
     tagged.extend(further);
-    Parsed { command, arg: String::new(), crew: o.crew, tagged, project: o.project, machine: o.machine, agent: o.agent, model: o.model, effort: o.effort, mode: o.mode, prompt, problems: o.problems, notes: o.notes }
+    Parsed {
+        command,
+        arg: String::new(),
+        crew: o.crew,
+        tagged,
+        project: o.project,
+        machine: o.machine,
+        agent: o.agent,
+        model: o.model,
+        effort: o.effort,
+        mode: o.mode,
+        prompt,
+        problems: o.problems,
+        notes: o.notes,
+    }
 }

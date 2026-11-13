@@ -40,7 +40,14 @@ async fn info(ctx: &Ctx, call: &wisp_kernel::Call) -> Result<api::Info> {
     let grid = calls::grid_info(ctx, call).await;
     let (enabled, why, logins, env) = match &grid {
         Ok(v) => {
-            let names = |k: &str| v.get(k).and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.as_str().map(str::to_owned).or_else(|| x.get("agent").and_then(Value::as_str).map(str::to_owned))).collect::<Vec<_>>();
+            let names = |k: &str| {
+                v.get(k)
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|x| x.as_str().map(str::to_owned).or_else(|| x.get("agent").and_then(Value::as_str).map(str::to_owned)))
+                    .collect::<Vec<_>>()
+            };
             let on = v.get("enabled").and_then(Value::as_bool).unwrap_or(false);
             (on, (!on).then(|| "This grid doesn't make sandboxes.".to_owned()), core::logins_of(v.get("logins")), names("env"))
         }
@@ -54,7 +61,14 @@ async fn info(ctx: &Ctx, call: &wisp_kernel::Call) -> Result<api::Info> {
             let sandbox = data.get("sandbox")?.as_str()?.to_owned();
             let s = |k: &str| m.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
             // the app reaches a machine by its own id (`/api/peer/<id>`): that's its peer there
-            Some(api::SandboxView { machine: s("id"), peer: s("id"), sandbox, name: s("name"), owner: data.get("owner").cloned().unwrap_or(Value::Null), state: s("state") })
+            Some(api::SandboxView {
+                machine: s("id"),
+                peer: s("id"),
+                sandbox,
+                name: s("name"),
+                owner: data.get("owner").cloned().unwrap_or(Value::Null),
+                state: s("state"),
+            })
         })
         .collect();
     Ok(api::Info { enabled, why, logins, env, sandboxes })
@@ -66,7 +80,9 @@ async fn owners_gone(ctx: &Ctx) {
     for h in make::held(ctx, &call).await {
         let Some(Owner::Task { task } | Owner::Job { job: task, .. }) = &h.owner else { continue };
         let id = core::bare(task);
-        if let Err(e) = calls::route::<wisp_runtime_api::commands::Get>(ctx, &call, &h.machine, wisp_runtime_api::commands::IdArgs { id: id.into() }).await
+        if let Err(e) =
+            calls::route::<wisp_runtime_api::commands::Get>(ctx, &call, &h.machine, wisp_runtime_api::commands::IdArgs { id: id.into() })
+                .await
             && e.code == wisp_kernel::Code::NotFound
         {
             make::drop_one(ctx, &call, &h.machine, &h.sandbox).await;
@@ -85,39 +101,39 @@ async fn sweep(ctx: &Ctx) {
 
 /// An owner going takes its sandboxes with it; the sweep and the look at task owners run on the plugin's clock.
 fn watch(s: &mut Setup) {
-        // an owner going takes its sandboxes with it
-        s.on::<wisp_runtime_api::events::SessionDeleted, _, _>(|ctx, e| async move {
-            let call = ctx.root_call();
-            let all = make::held(&ctx, &call).await;
-            make::drop_all(&ctx, &call, &core::gone_with_task(&all, e.id.as_str())).await;
-        });
-        s.on::<wisp_crew_api::events::Left, _, _>(|ctx, e| async move {
-            let call = ctx.root_call();
-            let all = make::held(&ctx, &call).await;
-            make::drop_all(&ctx, &call, &core::gone_with_member(&all, &e.crew_id)).await;
-        });
-        s.on_start(|ctx| async move {
-            let Ok(clock) = ctx.clock() else { return Ok(()) };
-            // tests look sooner (`WISP_SANDBOX_TICK_MS`); everywhere else, once a minute
-            let every = std::env::var("WISP_SANDBOX_TICK_MS").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(OWNERS_MS).max(200);
-            let scope = ctx.scope().clone();
-            let c = ctx.clone();
-            ctx.spawn(async move {
-                let mut since_sweep = core::SWEEP_MS;
-                loop {
-                    if since_sweep >= core::SWEEP_MS {
-                        sweep(&c).await;
-                        since_sweep = 0;
-                    }
-                    owners_gone(&c).await;
-                    tokio::select! {
-                        () = scope.cancelled() => return,
-                        () = clock.sleep(every) => since_sweep += every,
-                    }
+    // an owner going takes its sandboxes with it
+    s.on::<wisp_runtime_api::events::SessionDeleted, _, _>(|ctx, e| async move {
+        let call = ctx.root_call();
+        let all = make::held(&ctx, &call).await;
+        make::drop_all(&ctx, &call, &core::gone_with_task(&all, e.id.as_str())).await;
+    });
+    s.on::<wisp_crew_api::events::Left, _, _>(|ctx, e| async move {
+        let call = ctx.root_call();
+        let all = make::held(&ctx, &call).await;
+        make::drop_all(&ctx, &call, &core::gone_with_member(&all, &e.crew_id)).await;
+    });
+    s.on_start(|ctx| async move {
+        let Ok(clock) = ctx.clock() else { return Ok(()) };
+        // tests look sooner (`WISP_SANDBOX_TICK_MS`); everywhere else, once a minute
+        let every = std::env::var("WISP_SANDBOX_TICK_MS").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(OWNERS_MS).max(200);
+        let scope = ctx.scope().clone();
+        let c = ctx.clone();
+        ctx.spawn(async move {
+            let mut since_sweep = core::SWEEP_MS;
+            loop {
+                if since_sweep >= core::SWEEP_MS {
+                    sweep(&c).await;
+                    since_sweep = 0;
                 }
-            });
-            Ok(())
+                owners_gone(&c).await;
+                tokio::select! {
+                    () = scope.cancelled() => return,
+                    () = clock.sleep(every) => since_sweep += every,
+                }
+            }
         });
+        Ok(())
+    });
 }
 
 impl Plugin for SandboxPlugin {

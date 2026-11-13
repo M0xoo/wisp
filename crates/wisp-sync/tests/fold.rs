@@ -24,12 +24,7 @@ use wisp_protocol::{Change, EntityOp, PatchOp, diff};
 use wisp_sync::{compose, fold};
 
 fn op(change: Change) -> EntityOp {
-    EntityOp {
-        topic: topic("list"),
-        e: "row".into(),
-        id: "r1".into(),
-        change,
-    }
+    EntityOp { topic: topic("list"), e: "row".into(), id: "r1".into(), change }
 }
 
 fn obj(r: &mut Rng, depth: u32) -> Value {
@@ -53,8 +48,7 @@ fn obj(r: &mut Rng, depth: u32) -> Value {
 
 /// A random history for one entity, valid against the true state at every step.
 fn history(r: &mut Rng, n: usize) -> Vec<EntityOp> {
-    let (mut ops, mut cur, mut list): (Vec<EntityOp>, Option<Value>, Option<Vec<Value>>) =
-        (vec![], None, None);
+    let (mut ops, mut cur, mut list): (Vec<EntityOp>, Option<Value>, Option<Vec<Value>>) = (vec![], None, None);
     for i in 0..n {
         let k = r.next();
         if k < 0.15 {
@@ -108,10 +102,7 @@ fn folding_a_history_one_op_at_a_time_has_the_same_effect_as_the_history() {
         total += h.len();
         folded += queued.len();
     }
-    assert!(
-        folded < total / 2,
-        "folding should at least halve the ops ({folded} of {total})"
-    );
+    assert!(folded < total / 2, "folding should at least halve the ops ({folded} of {total})");
 }
 
 #[test]
@@ -126,10 +117,7 @@ fn folding_after_the_client_already_holds_a_value_is_still_equal() {
         for o in &h[split..] {
             queued = fold(&queued, o);
         }
-        assert_eq!(
-            apply(&queued, Some(base.clone())),
-            apply(&h[split..], Some(base))
-        );
+        assert_eq!(apply(&queued, Some(base.clone())), apply(&h[split..], Some(base)));
     }
 }
 
@@ -138,49 +126,18 @@ fn the_rules_by_name() {
     let up = |v: Value| op(Change::Upsert { v });
     let patch = |ops: Vec<PatchOp>| op(Change::Patch { ops });
     let app = |v: Vec<Value>| op(Change::Append { v });
-    let rep = |p: &str, v: Value| PatchOp::Replace {
-        path: p.into(),
-        value: v,
-    };
+    let rep = |p: &str, v: Value| PatchOp::Replace { path: p.into(), value: v };
+    assert_eq!(fold(&[patch(vec![rep("/a", json!(1))])], &up(json!({"a": 2}))), vec![up(json!({"a": 2}))], "upsert wins");
+    assert_eq!(fold(&[up(json!({"a": 1})), app(vec![json!(1)])], &op(Change::Del)), vec![op(Change::Del)], "a del drops what was queued");
+    assert_eq!(fold(&[app(vec![json!(1)])], &app(vec![json!(2), json!(3)])), vec![app(vec![json!(1), json!(2), json!(3)])], "appends join");
+    assert_eq!(fold(&[up(json!([1]))], &app(vec![json!(2)])), vec![up(json!([1, 2]))], "an append onto a queued list");
+    assert_eq!(fold(&[up(json!({"a": 1}))], &patch(vec![rep("/a", json!(2))])), vec![up(json!({"a": 2}))], "a patch folds into an upsert");
     assert_eq!(
-        fold(&[patch(vec![rep("/a", json!(1))])], &up(json!({"a": 2}))),
-        vec![up(json!({"a": 2}))],
-        "upsert wins"
-    );
-    assert_eq!(
-        fold(
-            &[up(json!({"a": 1})), app(vec![json!(1)])],
-            &op(Change::Del)
-        ),
-        vec![op(Change::Del)],
-        "a del drops what was queued"
-    );
-    assert_eq!(
-        fold(&[app(vec![json!(1)])], &app(vec![json!(2), json!(3)])),
-        vec![app(vec![json!(1), json!(2), json!(3)])],
-        "appends join"
-    );
-    assert_eq!(
-        fold(&[up(json!([1]))], &app(vec![json!(2)])),
-        vec![up(json!([1, 2]))],
-        "an append onto a queued list"
-    );
-    assert_eq!(
-        fold(&[up(json!({"a": 1}))], &patch(vec![rep("/a", json!(2))])),
-        vec![up(json!({"a": 2}))],
-        "a patch folds into an upsert"
-    );
-    assert_eq!(
-        fold(
-            &[patch(vec![rep("/live", json!("Reading"))])],
-            &patch(vec![rep("/live", json!("Editing"))])
-        ),
+        fold(&[patch(vec![rep("/live", json!("Reading"))])], &patch(vec![rep("/live", json!("Editing"))])),
         vec![patch(vec![rep("/live", json!("Editing"))])],
         "a newer value replaces an older one"
     );
-    let bad = patch(vec![PatchOp::Remove {
-        path: "/nope".into(),
-    }]);
+    let bad = patch(vec![PatchOp::Remove { path: "/nope".into() }]);
     assert_eq!(
         fold(&[up(json!({}))], &bad),
         vec![up(json!({})), bad.clone()],
@@ -190,45 +147,20 @@ fn the_rules_by_name() {
 
 #[test]
 fn compose_keeps_order_where_it_matters() {
-    let add = PatchOp::Add {
-        path: "/x".into(),
-        value: json!(1),
-    };
+    let add = PatchOp::Add { path: "/x".into(), value: json!(1) };
     let run = |a: &[PatchOp], b: &[PatchOp]| {
         let mut out = a.to_vec();
         compose(&mut out, b);
         out
     };
     let rm = |p: &str| PatchOp::Remove { path: p.into() };
-    let rep = |p: &str, v: Value| PatchOp::Replace {
-        path: p.into(),
-        value: v,
-    };
+    let rep = |p: &str, v: Value| PatchOp::Replace { path: p.into(), value: v };
     // the key may not have existed before the add: the remove can't stand alone
-    assert_eq!(
-        run(std::slice::from_ref(&add), &[rm("/x")]),
-        vec![add.clone(), rm("/x")]
-    );
+    assert_eq!(run(std::slice::from_ref(&add), &[rm("/x")]), vec![add.clone(), rm("/x")]);
     // an add then a replace of the same key is one add
-    assert_eq!(
-        run(&[add], &[rep("/x", json!(2))]),
-        vec![PatchOp::Add {
-            path: "/x".into(),
-            value: json!(2)
-        }]
-    );
+    assert_eq!(run(&[add], &[rep("/x", json!(2))]), vec![PatchOp::Add { path: "/x".into(), value: json!(2) }]);
     // array indexes shift: never folded
-    assert_eq!(
-        run(
-            &[PatchOp::Add {
-                path: "/l/0".into(),
-                value: json!(1)
-            }],
-            &[rep("/l/0", json!(2))]
-        )
-        .len(),
-        2
-    );
+    assert_eq!(run(&[PatchOp::Add { path: "/l/0".into(), value: json!(1) }], &[rep("/l/0", json!(2))]).len(), 2);
     // a parent replaced in between: the child op stays behind it
     let seq = vec![rep("/a/b", json!(1)), rep("/a", json!({"b": 0}))];
     let mut want = seq.clone();
@@ -236,16 +168,7 @@ fn compose_keeps_order_where_it_matters() {
     assert_eq!(run(&seq, &[rep("/a/b", json!(2))]), want);
     // a whole object replaced drops the writes inside it
     assert_eq!(
-        run(
-            &[
-                rep("/a/b", json!(1)),
-                PatchOp::Add {
-                    path: "/a/c/-".into(),
-                    value: json!(1)
-                }
-            ],
-            &[rep("/a", json!(3))]
-        ),
+        run(&[rep("/a/b", json!(1)), PatchOp::Add { path: "/a/c/-".into(), value: json!(1) }], &[rep("/a", json!(3))]),
         vec![rep("/a", json!(3))]
     );
 }

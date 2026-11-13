@@ -19,11 +19,7 @@ pub fn parse_status(out: &[u8]) -> Status {
         match kind {
             "1" => {
                 if let Some((xy, path)) = nth_field(rest, 7) {
-                    s.entries.push(StatusEntry {
-                        path,
-                        xy,
-                        from: None,
-                    });
+                    s.entries.push(StatusEntry { path, xy, from: None });
                 }
             }
             "2" => {
@@ -35,18 +31,10 @@ pub fn parse_status(out: &[u8]) -> Status {
             "u" => {
                 if let Some((xy, path)) = nth_field(rest, 9) {
                     s.conflicted += 1;
-                    s.entries.push(StatusEntry {
-                        path,
-                        xy,
-                        from: None,
-                    });
+                    s.entries.push(StatusEntry { path, xy, from: None });
                 }
             }
-            "?" if !rest.is_empty() => s.entries.push(StatusEntry {
-                path: rest.to_owned(),
-                xy: "??".into(),
-                from: None,
-            }),
+            "?" if !rest.is_empty() => s.entries.push(StatusEntry { path: rest.to_owned(), xy: "??".into(), from: None }),
             _ => {}
         }
     }
@@ -62,29 +50,15 @@ fn nth_field(rest: &str, skip: usize) -> Option<(String, String)> {
 
 fn branch_header(s: &mut Status, h: &str) {
     if let Some(oid) = h.strip_prefix("branch.oid ") {
-        s.head = if oid == "(initial)" {
-            String::new()
-        } else {
-            oid.to_owned()
-        };
+        s.head = if oid == "(initial)" { String::new() } else { oid.to_owned() };
     } else if let Some(name) = h.strip_prefix("branch.head ") {
-        s.branch = if name == "(detached)" {
-            String::new()
-        } else {
-            name.to_owned()
-        };
+        s.branch = if name == "(detached)" { String::new() } else { name.to_owned() };
     } else if let Some(up) = h.strip_prefix("branch.upstream ") {
         s.upstream = Some(up.to_owned());
     } else if let Some(ab) = h.strip_prefix("branch.ab ") {
         let mut it = ab.split(' ');
-        s.ahead = it
-            .next()
-            .and_then(|a| a.trim_start_matches('+').parse().ok())
-            .unwrap_or(0);
-        s.behind = it
-            .next()
-            .and_then(|b| b.trim_start_matches('-').parse().ok())
-            .unwrap_or(0);
+        s.ahead = it.next().and_then(|a| a.trim_start_matches('+').parse().ok()).unwrap_or(0);
+        s.behind = it.next().and_then(|b| b.trim_start_matches('-').parse().ok()).unwrap_or(0);
     }
 }
 
@@ -95,19 +69,14 @@ pub fn parse_worktrees(out: &str) -> Vec<WorktreeEntry> {
     for line in out.lines() {
         if let Some(p) = line.strip_prefix("worktree ") {
             list.extend(cur.take());
-            cur = Some(WorktreeEntry {
-                path: p.to_owned(),
-                ..WorktreeEntry::default()
-            });
+            cur = Some(WorktreeEntry { path: p.to_owned(), ..WorktreeEntry::default() });
             continue;
         }
         let Some(w) = cur.as_mut() else { continue };
         if let Some(h) = line.strip_prefix("HEAD ") {
             h.clone_into(&mut w.head);
         } else if let Some(b) = line.strip_prefix("branch ") {
-            b.strip_prefix("refs/heads/")
-                .unwrap_or(b)
-                .clone_into(&mut w.branch);
+            b.strip_prefix("refs/heads/").unwrap_or(b).clone_into(&mut w.branch);
         } else if line == "bare" {
             w.bare = true;
         } else if line == "locked" || line.starts_with("locked ") {
@@ -132,21 +101,12 @@ pub fn parse_branches(out: &str) -> Vec<Branch> {
             let sha = f.next()?.to_owned();
             let current = f.next() == Some("*");
             let upstream = f.next().filter(|u| !u.is_empty()).map(str::to_owned);
-            let (name, remote) = if let Some(n) = refname.strip_prefix("refs/heads/") {
-                (n, false)
-            } else {
-                (refname.strip_prefix("refs/remotes/")?, true)
-            };
+            let (name, remote) =
+                if let Some(n) = refname.strip_prefix("refs/heads/") { (n, false) } else { (refname.strip_prefix("refs/remotes/")?, true) };
             if remote && name.ends_with("/HEAD") {
                 return None;
             }
-            Some(Branch {
-                name: name.to_owned(),
-                sha,
-                remote,
-                current,
-                upstream,
-            })
+            Some(Branch { name: name.to_owned(), sha, remote, current, upstream })
         })
         .collect()
 }
@@ -177,39 +137,19 @@ pub fn read_merge_tree(code: Option<i32>, stdout: &str) -> MergeTree {
 
 /// Paths of a NUL- or newline-separated list, empties dropped.
 pub fn paths(out: &str) -> Vec<String> {
-    out.split(['\0', '\n'])
-        .filter(|p| !p.is_empty())
-        .map(str::to_owned)
-        .collect()
+    out.split(['\0', '\n']).filter(|p| !p.is_empty()).map(str::to_owned).collect()
 }
 
 /// The reason a failed git or gh gives: its first `fatal:`/`error:` line, else its last three lines,
 /// else `fallback`. With `strip`, the `fatal: ` prefix goes (what stage.js shows).
 pub fn why(stderr: &str, fallback: &str, strip: bool) -> String {
-    let lines: Vec<&str> = stderr
-        .trim()
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .collect();
+    let lines: Vec<&str> = stderr.trim().lines().filter(|l| !l.trim().is_empty()).collect();
     let lead = |l: &str| {
         let low = l.to_ascii_lowercase();
-        ["fatal", "error"].iter().any(|p| {
-            low.starts_with(p)
-                && low[p.len()..]
-                    .chars()
-                    .next()
-                    .is_none_or(|c| !c.is_alphanumeric())
-        })
+        ["fatal", "error"].iter().any(|p| low.starts_with(p) && low[p.len()..].chars().next().is_none_or(|c| !c.is_alphanumeric()))
     };
-    let pick = lines.iter().find(|l| lead(l)).map_or_else(
-        || lines[lines.len().saturating_sub(3)..].join(" "),
-        |l| (*l).to_owned(),
-    );
-    let pick = if pick.is_empty() {
-        fallback.to_owned()
-    } else {
-        pick
-    };
+    let pick = lines.iter().find(|l| lead(l)).map_or_else(|| lines[lines.len().saturating_sub(3)..].join(" "), |l| (*l).to_owned());
+    let pick = if pick.is_empty() { fallback.to_owned() } else { pick };
     if strip {
         for p in ["fatal:", "error:", "Fatal:", "Error:", "FATAL:", "ERROR:"] {
             if let Some(r) = pick.strip_prefix(p) {
@@ -233,14 +173,7 @@ mod tests {
             ("1234abcd", "wisp/x-abc123", Some("origin/wisp/x-abc123"))
         );
         assert_eq!((s.ahead, s.behind, s.conflicted, s.dirty()), (2, 1, 1, 4));
-        assert_eq!(
-            s.entries[0],
-            StatusEntry {
-                path: "src/a b.rs".into(),
-                xy: ".M".into(),
-                from: None
-            }
-        );
+        assert_eq!(s.entries[0], StatusEntry { path: "src/a b.rs".into(), xy: ".M".into(), from: None });
         assert_eq!(s.entries[1].from.as_deref(), Some("old.rs"));
         assert_eq!(s.entries[1].path, "new.rs");
         assert_eq!(s.entries[3].xy, "??");
@@ -278,15 +211,9 @@ mod tests {
         assert_eq!(read_merge_tree(Some(0), "tree\n"), MergeTree::Clean);
         assert_eq!(
             read_merge_tree(Some(1), "abc123\nmath.js\nmath.js\nutil.js\n"),
-            MergeTree::Conflict {
-                files: vec!["math.js".into(), "util.js".into()]
-            }
+            MergeTree::Conflict { files: vec!["math.js".into(), "util.js".into()] }
         );
-        assert_eq!(
-            read_merge_tree(Some(129), "usage: git merge-tree"),
-            MergeTree::Unknown,
-            "git < 2.38"
-        );
+        assert_eq!(read_merge_tree(Some(129), "usage: git merge-tree"), MergeTree::Unknown, "git < 2.38");
         assert_eq!(read_merge_tree(None, ""), MergeTree::Unknown, "killed");
     }
 
@@ -299,20 +226,10 @@ mod tests {
 
     #[test]
     fn why_picks_the_useful_line() {
-        assert_eq!(
-            why("hint: x\nfatal: not a git repository\nmore", "x", false),
-            "fatal: not a git repository"
-        );
-        assert_eq!(
-            why("error: pathspec 'x' did not match\n", "x", true),
-            "pathspec 'x' did not match"
-        );
+        assert_eq!(why("hint: x\nfatal: not a git repository\nmore", "x", false), "fatal: not a git repository");
+        assert_eq!(why("error: pathspec 'x' did not match\n", "x", true), "pathspec 'x' did not match");
         assert_eq!(why("a\nb\nc\nd\n", "x", false), "b c d");
         assert_eq!(why("", "exit 1", false), "exit 1");
-        assert_eq!(
-            why("errors happen\n", "x", false),
-            "errors happen",
-            "a word starting with error isn't a lead"
-        );
+        assert_eq!(why("errors happen\n", "x", false), "errors happen", "a word starting with error isn't a lead");
     }
 }

@@ -75,24 +75,12 @@ pub fn split_diff(out: &str) -> Vec<GitFile> {
         if let Some(rest) = line.strip_prefix("diff --git a/") {
             close(&mut files, &mut lines);
             let path = rest.rfind(" b/").map_or(rest, |at| &rest[at + 3..]);
-            files.push(GitFile {
-                path: path.to_owned(),
-                head: vec![line.to_owned()],
-                hunks: Vec::new(),
-            });
+            files.push(GitFile { path: path.to_owned(), head: vec![line.to_owned()], hunks: Vec::new() });
             continue;
         }
         let Some(f) = files.last_mut() else { continue };
         if let Some((os, oc, ns, nc)) = header(line) {
-            f.hunks.push(GitHunk {
-                text: String::new(),
-                os,
-                oc,
-                ns,
-                nc,
-                new_at: Vec::new(),
-                old_at: Vec::new(),
-            });
+            f.hunks.push(GitHunk { text: String::new(), os, oc, ns, nc, new_at: Vec::new(), old_at: Vec::new() });
             lines.push(vec![line]);
             o = if oc > 0 { os } else { os + 1 };
             n = if nc > 0 { ns } else { ns + 1 };
@@ -159,10 +147,7 @@ pub fn to_index(w: u32, hunks: &[GitHunk]) -> u32 {
 
 /// The git hunks whose changes fall in lines `[from, to]` of their new side.
 pub fn pick(hunks: &[GitHunk], from: u32, to: u32) -> Vec<&GitHunk> {
-    hunks
-        .iter()
-        .filter(|h| h.new_at.iter().any(|&x| x >= from && x <= to))
-        .collect()
+    hunks.iter().filter(|h| h.new_at.iter().any(|&x| x >= from && x <= to)).collect()
 }
 
 /// A Changes hunk's span in the folder's lines, with the line after it so a removal at its end counts.
@@ -172,21 +157,14 @@ pub fn span_of(start: u32, after_len: usize) -> (u32, u32) {
 }
 
 /// Per hunk of Changes' rows: has it something to stage (index → folder), is it staged (HEAD → index).
-pub fn hunk_states(
-    rows: &[Row],
-    unstaged: Option<&GitFile>,
-    staged: Option<&GitFile>,
-) -> Vec<HunkStage> {
+pub fn hunk_states(rows: &[Row], unstaged: Option<&GitFile>, staged: Option<&GitFile>) -> Vec<HunkStage> {
     let un: &[GitHunk] = unstaged.map_or(&[], |f| &f.hunks);
     let st: &[GitHunk] = staged.map_or(&[], |f| &f.hunks);
     hunks_of(rows)
         .iter()
         .map(|h| {
             let (a, b) = span_of(h.start, h.after.len());
-            HunkStage {
-                unstaged: !pick(un, a, b).is_empty(),
-                staged: !pick(st, to_index(a, un), to_index(b, un)).is_empty(),
-            }
+            HunkStage { unstaged: !pick(un, a, b).is_empty(), staged: !pick(st, to_index(a, un), to_index(b, un)).is_empty() }
         })
         .collect()
 }
@@ -200,13 +178,7 @@ pub fn hunkable(f: &FileDiff) -> bool {
 /// diff of that file (index → folder to stage; HEAD → index to unstage, applied with `-R`). `unstaged`
 /// is always the index → folder diff, which maps folder lines to index lines. None: nothing to move.
 #[allow(clippy::many_single_char_names)]
-pub fn hunk_patch(
-    rows: &[Row],
-    i: usize,
-    unstaged: Option<&GitFile>,
-    staged: Option<&GitFile>,
-    unstage: bool,
-) -> Option<String> {
+pub fn hunk_patch(rows: &[Row], i: usize, unstaged: Option<&GitFile>, staged: Option<&GitFile>, unstage: bool) -> Option<String> {
     let h = hunks_of(rows).into_iter().nth(i)?;
     let (a, b) = span_of(h.start, h.after.len());
     let un: &[GitHunk] = unstaged.map_or(&[], |f| &f.hunks);
@@ -235,34 +207,12 @@ mod tests {
         let files = split_diff(DIFF);
         let (f, g) = (&files[0], &files[1]);
         assert_eq!(f.path, "f.txt");
-        assert_eq!(
-            f.head,
-            [
-                "diff --git a/f.txt b/f.txt",
-                "index 1..2 100644",
-                "--- a/f.txt",
-                "+++ b/f.txt"
-            ]
-        );
-        assert_eq!(
-            f.hunks
-                .iter()
-                .map(|h| (h.os, h.oc, h.ns, h.nc))
-                .collect::<Vec<_>>(),
-            [(1, 5, 1, 5), (15, 6, 15, 8)]
-        );
-        assert_eq!(
-            f.hunks[0].new_at,
-            [2, 2],
-            "a removed line counts where the next new line is"
-        );
+        assert_eq!(f.head, ["diff --git a/f.txt b/f.txt", "index 1..2 100644", "--- a/f.txt", "+++ b/f.txt"]);
+        assert_eq!(f.hunks.iter().map(|h| (h.os, h.oc, h.ns, h.nc)).collect::<Vec<_>>(), [(1, 5, 1, 5), (15, 6, 15, 8)]);
+        assert_eq!(f.hunks[0].new_at, [2, 2], "a removed line counts where the next new line is");
         assert_eq!(f.hunks[1].new_at, [18, 18, 19]);
         assert_eq!(f.hunks[1].old_at, [18, 19, 19]);
-        assert!(
-            f.hunks[1]
-                .text
-                .ends_with("\n \n l20\n\\ No newline at end of file")
-        );
+        assert!(f.hunks[1].text.ends_with("\n \n l20\n\\ No newline at end of file"));
         assert_eq!(g.path, "g.txt");
         assert_eq!(g.hunks[0].new_at, [1, 2]);
     }
@@ -287,46 +237,23 @@ mod tests {
         assert_eq!(to_index(3, h), 3);
         assert_eq!(to_index(10, h), 10);
         assert_eq!(to_index(30, h), 28);
-        assert_eq!(
-            to_index(16, h),
-            16,
-            "inside a hunk: its old side at the same offset"
-        );
+        assert_eq!(to_index(16, h), 16, "inside a hunk: its old side at the same offset");
     }
 
     #[test]
     fn hunk_states_staged_and_not() {
         let rows = parse_diff(DIFF).remove(0).rows;
         assert_eq!(hunks_of(&rows).len(), 2);
-        let first = DIFF
-            .split("diff --git a/g.txt")
-            .next()
-            .unwrap_or_default()
-            .replace("@@ -1,5 +1,5 @@\n l1\n-l2\n+L2\n l3\n l4\n l5\n", "");
+        let first =
+            DIFF.split("diff --git a/g.txt").next().unwrap_or_default().replace("@@ -1,5 +1,5 @@\n l1\n-l2\n+L2\n l3\n l4\n l5\n", "");
         let unstaged = split_diff(&first).remove(0);
         let all = split_diff(DIFF).remove(0);
-        let staged = GitFile {
-            hunks: vec![all.hunks[0].clone()],
-            ..all
-        };
+        let staged = GitFile { hunks: vec![all.hunks[0].clone()], ..all };
         assert_eq!(
             hunk_states(&rows, Some(&unstaged), Some(&staged)),
-            [
-                HunkStage {
-                    unstaged: false,
-                    staged: true
-                },
-                HunkStage {
-                    unstaged: true,
-                    staged: false
-                }
-            ]
+            [HunkStage { unstaged: false, staged: true }, HunkStage { unstaged: true, staged: false }]
         );
-        assert_eq!(
-            hunk_states(&rows, None, None),
-            [HunkStage::default(), HunkStage::default()],
-            "committed: neither"
-        );
+        assert_eq!(hunk_states(&rows, None, None), [HunkStage::default(), HunkStage::default()], "committed: neither");
     }
 
     #[test]
@@ -336,15 +263,8 @@ mod tests {
         let p = hunk_patch(&rows, 1, Some(&all), None, false).unwrap_or_default();
         assert!(p.contains("+L18") && !p.contains("+L2"));
         assert_eq!(hunk_patch(&rows, 1, None, None, false), None);
-        assert_eq!(
-            hunk_patch(&rows, 0, Some(&all), Some(&all), true).map(|p| p.contains("+L2")),
-            Some(true)
-        );
-        assert_eq!(
-            hunk_patch(&rows, 5, Some(&all), None, false),
-            None,
-            "no such hunk"
-        );
+        assert_eq!(hunk_patch(&rows, 0, Some(&all), Some(&all), true).map(|p| p.contains("+L2")), Some(true));
+        assert_eq!(hunk_patch(&rows, 5, Some(&all), None, false), None, "no such hunk");
     }
 
     #[test]

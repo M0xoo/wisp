@@ -48,7 +48,13 @@ impl Tools {
         [profile, mode].iter().filter(|n| !n.is_empty()).find_map(|n| all.iter().find(|(m, _)| m == n).map(|(_, s)| s.clone()))
     }
     async fn refresh(&self, inner: &StoredKind) {
-        let list = inner.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| serde_json::from_value(v).ok().map(|s| (n, s))).collect();
+        let list = inner
+            .specs()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(n, v)| serde_json::from_value(v).ok().map(|s| (n, s)))
+            .collect();
         *self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = list;
     }
 }
@@ -109,7 +115,8 @@ mod tests {
         let out: Value = serde_json::from_str(&filter_list(&list, &spec)).unwrap_or_default();
         assert_eq!(out["result"]["tools"], json!([{ "name": "wisp_answer" }]));
         let t = Tools::default();
-        *t.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = vec![("plan".into(), ToolsSpec::default()), ("reviewer".into(), spec.clone())];
+        *t.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+            vec![("plan".into(), ToolsSpec::default()), ("reviewer".into(), spec.clone())];
         assert_eq!(t.for_run("reviewer", "plan"), Some(spec));
         assert_eq!(t.for_run("other", "plan"), Some(ToolsSpec::default()));
         assert_eq!(t.for_run("other", "edits"), None);

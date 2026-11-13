@@ -4,10 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use wisp_protocol::{
-    ClientMessage, EntityOp, Mutate, PROTO, PROTO_MIN, Row, ServerMessage, Sub, Topic, Unsub,
-    Welcome, tag,
-};
+use wisp_protocol::{ClientMessage, EntityOp, Mutate, PROTO, PROTO_MIN, Row, ServerMessage, Sub, Topic, Unsub, Welcome, tag};
 use wisp_sync::ConnectQuery;
 
 #[derive(Debug, Clone, Default)]
@@ -71,10 +68,8 @@ pub struct SyncClient {
 impl SyncClient {
     pub fn new(client_id: &str, saved: Option<Saved>) -> Self {
         let saved = saved.unwrap_or_default();
-        let mut held: BTreeMap<Topic, u64> = saved
-            .cursor
-            .map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect())
-            .unwrap_or_default();
+        let mut held: BTreeMap<Topic, u64> =
+            saved.cursor.map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect()).unwrap_or_default();
         held.extend(saved.held);
         let topics = BTreeMap::new();
         Self {
@@ -92,25 +87,9 @@ impl SyncClient {
     }
 
     pub fn save(&self) -> Saved {
-        let synced: Vec<Topic> = self
-            .topics
-            .iter()
-            .filter(|(_, s)| s.synced)
-            .map(|(t, _)| t.clone())
-            .collect();
-        let held = self
-            .held
-            .iter()
-            .filter(|(t, _)| !synced.contains(t))
-            .map(|(t, s)| (t.clone(), *s))
-            .collect();
-        Saved {
-            epoch: self.epoch.clone(),
-            cursor: self.cursor,
-            synced,
-            pending: self.pending.clone(),
-            held,
-        }
+        let synced: Vec<Topic> = self.topics.iter().filter(|(_, s)| s.synced).map(|(t, _)| t.clone()).collect();
+        let held = self.held.iter().filter(|(t, _)| !synced.contains(t)).map(|(t, s)| (t.clone(), *s)).collect();
+        Saved { epoch: self.epoch.clone(), cursor: self.cursor, synced, pending: self.pending.clone(), held }
     }
 
     fn send(&mut self, m: ClientMessage) {
@@ -125,12 +104,7 @@ impl SyncClient {
     }
 
     fn sub_message(topic: &Topic, s: &TopicSub, since: Option<u64>) -> ClientMessage {
-        ClientMessage::Sub(Sub {
-            t: tag::Sub,
-            topic: topic.clone(),
-            since,
-            passive: (s.active_refs == 0).then_some(true),
-        })
+        ClientMessage::Sub(Sub { t: tag::Sub, topic: topic.clone(), since, passive: (s.active_refs == 0).then_some(true) })
     }
 
     pub fn open(&mut self) -> Vec<Out> {
@@ -219,27 +193,15 @@ impl SyncClient {
         self.attempt = 0;
         self.set_state(State::Live);
         // subscribed while the hello was in flight (or held as of an older seq)
-        let later: Vec<Topic> = self
-            .topics
-            .iter()
-            .filter(|(t, s)| !self.hello.contains_key(*t) && !s.denied)
-            .map(|(t, _)| t.clone())
-            .collect();
+        let later: Vec<Topic> =
+            self.topics.iter().filter(|(t, s)| !self.hello.contains_key(*t) && !s.denied).map(|(t, _)| t.clone()).collect();
         for t in later {
             let m = self.sub_first(&t);
             self.send(m);
         }
-        let gone: Vec<Topic> = self
-            .hello
-            .keys()
-            .filter(|t| !self.topics.contains_key(*t))
-            .cloned()
-            .collect();
+        let gone: Vec<Topic> = self.hello.keys().filter(|t| !self.topics.contains_key(*t)).cloned().collect();
         for t in gone {
-            self.send(ClientMessage::Unsub(Unsub {
-                t: tag::Unsub,
-                topic: t,
-            }));
+            self.send(ClientMessage::Unsub(Unsub { t: tag::Unsub, topic: t }));
         }
         self.hello.clear();
         for m in self.pending.clone() {
@@ -300,18 +262,11 @@ impl SyncClient {
                     return;
                 }
                 s.synced = true;
-                self.out.push(Out::Snapshot {
-                    topic: snap.topic,
-                    rows,
-                });
+                self.out.push(Out::Snapshot { topic: snap.topic, rows });
             }
             ServerMessage::Patch(p) => {
                 // a topic waiting for its snapshot takes no ops: the snapshot replaces them
-                let ops: Vec<EntityOp> = p
-                    .ops
-                    .into_iter()
-                    .filter(|op| self.topics.get(&op.topic).is_some_and(|s| s.synced))
-                    .collect();
+                let ops: Vec<EntityOp> = p.ops.into_iter().filter(|op| self.topics.get(&op.topic).is_some_and(|s| s.synced)).collect();
                 if !ops.is_empty() {
                     self.out.push(Out::EntityOps(ops));
                 }
@@ -333,12 +288,7 @@ impl SyncClient {
             }
             ServerMessage::Notice(n) => {
                 if n.kind == "denied" {
-                    if let Some(topic) = n
-                        .data
-                        .get("topic")
-                        .and_then(|t| t.as_str())
-                        .and_then(Topic::parse)
-                    {
+                    if let Some(topic) = n.data.get("topic").and_then(|t| t.as_str()).and_then(Topic::parse) {
                         if let Some(s) = self.topics.get_mut(&topic) {
                             s.denied = true;
                         }
@@ -400,10 +350,7 @@ impl SyncClient {
                 }
             } else if let Some(s) = self.topics.remove(topic) {
                 if live && !s.denied {
-                    self.send(ClientMessage::Unsub(Unsub {
-                        t: tag::Unsub,
-                        topic: topic.clone(),
-                    }));
+                    self.send(ClientMessage::Unsub(Unsub { t: tag::Unsub, topic: topic.clone() }));
                 }
             }
         }
@@ -427,10 +374,7 @@ impl SyncClient {
             s.pages = None;
             if live {
                 let m = Self::sub_message(topic, s, None);
-                self.send(ClientMessage::Unsub(Unsub {
-                    t: tag::Unsub,
-                    topic: topic.clone(),
-                }));
+                self.send(ClientMessage::Unsub(Unsub { t: tag::Unsub, topic: topic.clone() }));
                 self.send(m);
             }
         }

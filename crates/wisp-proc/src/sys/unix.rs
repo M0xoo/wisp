@@ -28,39 +28,25 @@ const NAMES: &[(&str, i32)] = &[
 
 /// `"SIGTERM"` or `"TERM"` → its number on this OS.
 pub fn signal_number(name: &str) -> Option<i32> {
-    let full = if name.starts_with("SIG") {
-        name.to_owned()
-    } else {
-        format!("SIG{name}")
-    };
+    let full = if name.starts_with("SIG") { name.to_owned() } else { format!("SIG{name}") };
     NAMES.iter().find(|(n, _)| *n == full).map(|&(_, s)| s)
 }
 
 /// A signal number → `"SIGTERM"` (or `"SIG42"` for one without a name here).
 pub fn signal_name(sig: i32) -> String {
-    NAMES
-        .iter()
-        .find(|&&(_, s)| s == sig)
-        .map_or_else(|| format!("SIG{sig}"), |(n, _)| (*n).to_owned())
+    NAMES.iter().find(|&&(_, s)| s == sig).map_or_else(|| format!("SIG{sig}"), |(n, _)| (*n).to_owned())
 }
 
 /// kill(2) reads 0 as "my group", -1 as "everyone" and 1 is init: none is ever a child of ours.
 fn target(pid: u32) -> io::Result<libc::pid_t> {
     match libc::pid_t::try_from(pid) {
         Ok(p) if p > 1 => Ok(p),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("refusing to signal pid {pid}"),
-        )),
+        _ => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("refusing to signal pid {pid}"))),
     }
 }
 
 fn check(ret: libc::c_int) -> io::Result<()> {
-    if ret == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    if ret == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
 }
 
 /// Send `sig` to one process.
@@ -86,11 +72,7 @@ pub fn processes() -> io::Result<Vec<ProcInfo>> {
     let mut out = Vec::new();
     for entry in std::fs::read_dir("/proc")? {
         let Ok(entry) = entry else { continue };
-        let Some(pid) = entry
-            .file_name()
-            .to_str()
-            .and_then(|s| s.parse::<u32>().ok())
-        else {
+        let Some(pid) = entry.file_name().to_str().and_then(|s| s.parse::<u32>().ok()) else {
             continue;
         };
         // A process may exit between the listing and the read: it is simply not in the table.
@@ -113,13 +95,7 @@ fn parse_stat(pid: u32, stat: &str) -> Option<ProcInfo> {
     let pgid = f.next()?.parse().ok()?;
     // starttime is field 22 of stat(5): the 17th after pgrp.
     let start = f.nth(16).and_then(|v| v.parse().ok()).unwrap_or(0);
-    Some(ProcInfo {
-        pid,
-        ppid,
-        pgid,
-        zombie: state == "Z" || state == "X",
-        start,
-    })
+    Some(ProcInfo { pid, ppid, pgid, zombie: state == "Z" || state == "X", start })
 }
 
 /// Every process this user can see.
@@ -132,8 +108,7 @@ pub fn processes() -> io::Result<Vec<ProcInfo>> {
     let count = usize::try_from(count).map_err(|_| io::Error::last_os_error())?;
     // Room for processes started between the two calls.
     let mut pids: Vec<libc::pid_t> = vec![0; count + 64];
-    let bytes = libc::c_int::try_from(pids.len() * PID)
-        .map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
+    let bytes = libc::c_int::try_from(pids.len() * PID).map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
     // SAFETY: `pids` is a live, writable buffer of exactly `bytes` bytes; the call writes at most that.
     #[allow(unsafe_code)]
     let filled = unsafe { libc::proc_listallpids(pids.as_mut_ptr().cast(), bytes) };
@@ -150,15 +125,7 @@ fn bsd_info(pid: libc::pid_t) -> Option<ProcInfo> {
     // SAFETY: `info` is a writable proc_bsdinfo-sized buffer and `size` says so; the kernel fills
     // at most `size` bytes and returns how many.
     #[allow(unsafe_code)]
-    let got = unsafe {
-        libc::proc_pidinfo(
-            pid,
-            libc::PROC_PIDTBSDINFO,
-            0,
-            info.as_mut_ptr().cast(),
-            size,
-        )
-    };
+    let got = unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0, info.as_mut_ptr().cast(), size) };
     if usize::try_from(got).ok()? != SIZE {
         return None; // gone, or another user's
     }
@@ -223,30 +190,15 @@ mod tests {
     #[test]
     fn broadcast_pids_are_refused() {
         for pid in [0, 1, u32::MAX] {
-            assert_eq!(
-                signal_pid(pid, 0).unwrap_err().kind(),
-                io::ErrorKind::InvalidInput
-            );
-            assert_eq!(
-                signal_group(pid, 0).unwrap_err().kind(),
-                io::ErrorKind::InvalidInput
-            );
+            assert_eq!(signal_pid(pid, 0).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+            assert_eq!(signal_group(pid, 0).unwrap_err().kind(), io::ErrorKind::InvalidInput);
         }
     }
 
     #[test]
     fn stat_lines_with_odd_names_parse() {
         let info = parse_stat(42, "42 (a (b) c) S 7 42 42 0 -1").unwrap();
-        assert_eq!(
-            info,
-            ProcInfo {
-                pid: 42,
-                ppid: 7,
-                pgid: 42,
-                zombie: false,
-                start: 0,
-            }
-        );
+        assert_eq!(info, ProcInfo { pid: 42, ppid: 7, pgid: 42, zombie: false, start: 0 });
         assert!(parse_stat(9, "9 (z) Z 1 9").unwrap().zombie);
         let full = "7 (x) S 1 7 7 0 -1 4194560 100 0 0 0 1 2 0 0 20 0 1 0 123456 9999 1";
         assert_eq!(parse_stat(7, full).unwrap().start, 123_456);

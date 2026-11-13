@@ -89,9 +89,7 @@ impl<C> Core<C> {
     }
 
     pub fn pending(&self, c: &Conn<C>) -> bool {
-        !c.control.is_empty()
-            || !c.out.is_empty()
-            || (!c.acks.is_empty() && c.acks.iter().any(|a| a.seq <= self.watermark(c)))
+        !c.control.is_empty() || !c.out.is_empty() || (!c.acks.is_empty() && c.acks.iter().any(|a| a.seq <= self.watermark(c)))
     }
 
     pub fn deny(c: &mut Conn<C>, topic: &str, code: &str) {

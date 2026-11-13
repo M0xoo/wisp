@@ -19,9 +19,36 @@ fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.learn:lists".into()]
 }
 
-pub const LIST: EntityDef = EntityDef { kind: "learn.list", table: "learn_list", key: "scope", columns: &[("scope", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
-pub const RETRO: EntityDef = EntityDef { kind: "learn.retro", table: "learn_retro", key: "id", columns: &[("id", Col::Text), ("at", Col::Int), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
-pub const SEEN: EntityDef = EntityDef { kind: "learn.seen", table: "learn_seen", key: "session_id", columns: &[("session_id", Col::Text), ("turns", Col::Int)], json_columns: &[], parent: None, seq: None, topics: |_| Vec::new() };
+pub const LIST: EntityDef = EntityDef {
+    kind: "learn.list",
+    table: "learn_list",
+    key: "scope",
+    columns: &[("scope", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
+pub const RETRO: EntityDef = EntityDef {
+    kind: "learn.retro",
+    table: "learn_retro",
+    key: "id",
+    columns: &[("id", Col::Text), ("at", Col::Int), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
+pub const SEEN: EntityDef = EntityDef {
+    kind: "learn.seen",
+    table: "learn_seen",
+    key: "session_id",
+    columns: &[("session_id", Col::Text), ("turns", Col::Int)],
+    json_columns: &[],
+    parent: None,
+    seq: None,
+    topics: |_| Vec::new(),
+};
 
 /// What the tables hold, read once at start.
 #[derive(Debug, Default)]
@@ -53,7 +80,11 @@ pub async fn load(store: &Store) -> wisp_store::Result<Data> {
                     d.projects.insert(scope, lists);
                 }
             }
-            let mut hist: Vec<Retro> = r.query(RETRO.kind, &Query::new())?.into_iter().filter_map(|row| row.get("body").cloned().and_then(|b| serde_json::from_value(b).ok())).collect();
+            let mut hist: Vec<Retro> = r
+                .query(RETRO.kind, &Query::new())?
+                .into_iter()
+                .filter_map(|row| row.get("body").cloned().and_then(|b| serde_json::from_value(b).ok()))
+                .collect();
             hist.sort_by_key(|x| x.at);
             d.history = hist;
             for row in r.query(SEEN.kind, &Query::new())? {

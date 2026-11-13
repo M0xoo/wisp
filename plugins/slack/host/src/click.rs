@@ -5,10 +5,10 @@
 //! Typed answers always work.
 
 use serde_json::Value;
+use wisp_channels_api::Mode;
 use wisp_channels_api::policy::{Gate, GateArgs, gate};
 use wisp_channels_api::scrub::{defuse, scrub_out};
 use wisp_channels_api::views::{ActArgs, ActionKind, Msg, SessionView, Signed};
-use wisp_channels_api::Mode;
 use wisp_kernel::Result;
 use wisp_slack_core::post::{self, Choice};
 use wisp_slack_core::{event, mrkdwn};
@@ -24,7 +24,14 @@ pub fn choices(msg: &Msg, sv: &SessionView, sign: &dyn Fn(ActionKind, &str, u32)
     msg.actions
         .iter()
         .filter(|a| a.kind == ActionKind::Answer || (a.kind == ActionKind::Reply && sv.mode != Some(Mode::Auto)))
-        .map(|a| Choice { label: mrkdwn::label(if a.label.is_empty() { "OK" } else { &a.label }, &clean), code: a.kind.code(), session: sv.id.clone(), reference: a.reference.clone(), index: a.index, sig: sign(a.kind, &a.reference, a.index) })
+        .map(|a| Choice {
+            label: mrkdwn::label(if a.label.is_empty() { "OK" } else { &a.label }, &clean),
+            code: a.kind.code(),
+            session: sv.id.clone(),
+            reference: a.reference.clone(),
+            index: a.index,
+            sig: sign(a.kind, &a.reference, a.index),
+        })
         .collect()
 }
 
@@ -45,13 +52,23 @@ impl Slack {
         let Some(c) = event::click(payload) else { return Ok(()) };
         let user = c.user.clone().unwrap_or_default();
         let cfg = self.cfg();
-        let senders: Vec<String> = cfg.get("senders").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+        let senders: Vec<String> =
+            cfg.get("senders").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
         let g = {
             let (mut seen, mut limit) = (lock(&self.seen), lock(&self.limit));
             let id = c.id.as_ref().map(|i| format!("click:{i}"));
             #[allow(clippy::cast_possible_truncation)]
             let at_s = c.action_ts.map(|t| t as i64);
-            gate(GateArgs { sender: Some(&user), senders: &senders, id: id.as_deref(), at_s, seen: Some(&mut seen), limit: Some(&mut limit), now_ms: self.hub.now_ms(), ..GateArgs::default() })
+            gate(GateArgs {
+                sender: Some(&user),
+                senders: &senders,
+                id: id.as_deref(),
+                at_s,
+                seen: Some(&mut seen),
+                limit: Some(&mut limit),
+                now_ms: self.hub.now_ms(),
+                ..GateArgs::default()
+            })
         };
         if let Gate::Refused { reply, why } = g {
             self.hub.phone().count("refused", Some(&format!("{why:?}").to_lowercase()));
@@ -69,9 +86,24 @@ impl Slack {
         if kind == ActionKind::Reply && self.hub.phone().session(&b.s).await.ok().flatten().is_none_or(|sv| sv.mode == Some(Mode::Auto)) {
             return self.only(&c.chat, &user, &c.root, IN_WORDS).await;
         }
-        let result = match self.hub.act(&ActArgs { session_id: b.s.clone(), kind: kind.into(), reference: Some(b.r.clone()), index: Some(b.i), text: None, approvals: false }).await {
+        let result = match self
+            .hub
+            .act(&ActArgs {
+                session_id: b.s.clone(),
+                kind: kind.into(),
+                reference: Some(b.r.clone()),
+                index: Some(b.i),
+                text: None,
+                approvals: false,
+            })
+            .await
+        {
             Ok(r) => r,
-            Err(e) => return self.only(&c.chat, &user, &c.root, &format!("Couldn’t send that: {}", wisp_slack_core::truncate(&e.message, 300))).await,
+            Err(e) => {
+                return self
+                    .only(&c.chat, &user, &c.root, &format!("Couldn’t send that: {}", wisp_slack_core::truncate(&e.message, 300)))
+                    .await;
+            }
         };
         if !result.starts_with('✓') {
             return self.only(&c.chat, &user, &c.root, &result).await;
@@ -97,11 +129,23 @@ mod tests {
 
     #[test]
     fn a_reports_choices_are_signed_buttons_and_a_reply_only_outside_full_auto() {
-        let msg = Msg { title: "t".into(), text: "x".into(), actions: vec![Action { label: "Yes".into(), kind: ActionKind::Answer, reference: "ask1".into(), index: 0 }, Action { label: "Reply".into(), kind: ActionKind::Reply, reference: "turn1".into(), index: 1 }, Action { label: "Done".into(), kind: ActionKind::Done, reference: "turn1".into(), index: 2 }] };
+        let msg = Msg {
+            title: "t".into(),
+            text: "x".into(),
+            actions: vec![
+                Action { label: "Yes".into(), kind: ActionKind::Answer, reference: "ask1".into(), index: 0 },
+                Action { label: "Reply".into(), kind: ActionKind::Reply, reference: "turn1".into(), index: 1 },
+                Action { label: "Done".into(), kind: ActionKind::Done, reference: "turn1".into(), index: 2 },
+            ],
+        };
         let sign = |k: ActionKind, r: &str, i: u32| format!("{}:{r}:{i}", k.code());
         let edits = SessionView { id: "t1".into(), mode: Some(Mode::Edits), ..SessionView::default() };
         let c = choices(&msg, &edits, &sign);
-        assert_eq!(c.iter().map(|c| (c.code, c.sig.as_str())).collect::<Vec<_>>(), [("a", "a:ask1:0"), ("r", "r:turn1:1")], "Done is no choice");
+        assert_eq!(
+            c.iter().map(|c| (c.code, c.sig.as_str())).collect::<Vec<_>>(),
+            [("a", "a:ask1:0"), ("r", "r:turn1:1")],
+            "Done is no choice"
+        );
         let auto = SessionView { mode: Some(Mode::Auto), ..edits };
         assert_eq!(choices(&msg, &auto, &sign).len(), 1, "no reply button in Full auto");
         assert!(no_blocks("invalid_blocks") && !no_blocks("ratelimited"));

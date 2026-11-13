@@ -17,11 +17,17 @@ type Files = &'static [(&'static str, &'static [u8])];
 pub const STARTERS: &[(&str, Files)] = &[
     (
         "agent-board",
-        &[("index.html", include_bytes!("../starters/agent-board/index.html")), ("wisp-app.json", include_bytes!("../starters/agent-board/wisp-app.json"))],
+        &[
+            ("index.html", include_bytes!("../starters/agent-board/index.html")),
+            ("wisp-app.json", include_bytes!("../starters/agent-board/wisp-app.json")),
+        ],
     ),
     (
         "allowance-board",
-        &[("index.html", include_bytes!("../starters/allowance-board/index.html")), ("wisp-app.json", include_bytes!("../starters/allowance-board/wisp-app.json"))],
+        &[
+            ("index.html", include_bytes!("../starters/allowance-board/index.html")),
+            ("wisp-app.json", include_bytes!("../starters/allowance-board/wisp-app.json")),
+        ],
     ),
 ];
 
@@ -57,7 +63,13 @@ pub fn list(shelf: &Shelf) -> Vec<Starter> {
         .map(|(id, files)| {
             let m = manifest(files);
             let added = shelf.find_key(Some(&starter_key(id))).map(|it| it.id);
-            Starter { id: (*id).to_owned(), name: m.name.unwrap_or_else(|| (*id).to_owned()), description: m.description.unwrap_or_default(), uses: m.uses, added }
+            Starter {
+                id: (*id).to_owned(),
+                name: m.name.unwrap_or_else(|| (*id).to_owned()),
+                description: m.description.unwrap_or_default(),
+                uses: m.uses,
+                added,
+            }
         })
         .collect()
 }
@@ -80,14 +92,19 @@ pub async fn add(shelf: &Shelf, id: &str) -> Result<Option<(StuffItem, bool)>> {
     if let Some(it) = shelf.find_key(Some(&starter_key(sid))) {
         return Ok(Some((it, false)));
     }
-    let o = SaveOpts { by: Some("wisp".into()), from: Some(StuffFrom { key: Some(starter_key(sid)), ..StuffFrom::default() }), ..SaveOpts::default() };
+    let o = SaveOpts {
+        by: Some("wisp".into()),
+        from: Some(StuffFrom { key: Some(starter_key(sid)), ..StuffFrom::default() }),
+        ..SaveOpts::default()
+    };
     Ok(Some((shelf.save_app_in(app_in(sid, files), None, o).await?, true)))
 }
 
 /// A copy follows wisp's newer starter only when nobody changed it, and you didn't go back on
 /// purpose. The normal update: rev + 1, prev kept; the title and what you allowed stay.
 pub async fn follow(shelf: &Shelf, it: &StuffItem, id: &str, files: Files, was: &[String]) -> Result<Option<StuffItem>> {
-    let prev = it.prev.as_ref().and_then(|p| p.code.as_deref().map(|c| wisp_stuff_core::app::app_hash(c, p.uses.as_deref().unwrap_or_default())));
+    let prev =
+        it.prev.as_ref().and_then(|p| p.code.as_deref().map(|c| wisp_stuff_core::app::app_hash(c, p.uses.as_deref().unwrap_or_default())));
     if !follows_starter(&hash_now(it), prev.as_deref(), was, &shipped_hash(files)) {
         return Ok(None);
     }

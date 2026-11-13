@@ -10,10 +10,7 @@ pub mod decide;
 pub mod rules;
 pub mod time;
 
-pub use decide::{
-    Action, Decision, PlanAction, PlanDecision, Task, TaskState, due, due_plans, next_at,
-    pull_forward,
-};
+pub use decide::{Action, Decision, PlanAction, PlanDecision, Task, TaskState, due, due_plans, next_at, pull_forward};
 pub use rules::TaskMeta;
 
 /// One error enum for the crate; the host maps it to the wire (`WireError`).

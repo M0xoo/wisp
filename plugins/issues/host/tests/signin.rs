@@ -82,10 +82,16 @@ async fn linear_a_signed_in_connector_lists_your_open_issues_through_its_list_is
     assert!(r.linear);
     let c = calls.lock().unwrap().clone();
     assert_eq!(c.len(), 1);
-    assert_eq!((c[0].0.as_str(), c[0].1.as_str(), &c[0].2["assignee"], &c[0].2["query"]), ("c-linear", "list_issues", &json!("me"), &json!("dark")));
+    assert_eq!(
+        (c[0].0.as_str(), c[0].1.as_str(), &c[0].2["assignee"], &c[0].2["query"]),
+        ("c-linear", "list_issues", &json!("me"), &json!("dark"))
+    );
     assert_eq!(r.scope.as_deref(), Some("mine"));
     let v = serde_json::to_value(&r.issues).unwrap();
-    assert_eq!(v, json!([{ "id": "u1", "ref": "ENG-7", "number": "ENG-7", "title": "Dark mode flickers", "url": "https://linear.app/acme/issue/ENG-7", "labels": ["bug"], "assignee": "Me", "body": "On reload.", "updatedAt": "2026-11-02" }]));
+    assert_eq!(
+        v,
+        json!([{ "id": "u1", "ref": "ENG-7", "number": "ENG-7", "title": "Dark mode flickers", "url": "https://linear.app/acme/issue/ENG-7", "labels": ["bug"], "assignee": "Me", "body": "On reload.", "updatedAt": "2026-11-02" }])
+    );
     assert!(l.list(&call(), args(Source::Jira, "")).await.unwrap().linear, "the other sources know Linear is there");
 }
 
@@ -106,9 +112,18 @@ async fn linear_none_assigned_to_you_lists_the_workspaces_open_issues_instead() 
     assert_eq!((r.error.as_deref(), r.scope.as_deref()), (None, Some("all")));
     let c = calls.lock().unwrap().clone();
     assert_eq!(c.iter().map(|x| x.2["assignee"].clone()).collect::<Vec<_>>(), [json!("me"), Value::Null]);
-    assert!(c.iter().all(|x| { let f = x.2["fields"].to_string(); f.contains("statusType") && f.contains("description") }), "asks for the fields it reads");
+    assert!(
+        c.iter().all(|x| {
+            let f = x.2["fields"].to_string();
+            f.contains("statusType") && f.contains("description")
+        }),
+        "asks for the fields it reads"
+    );
     let v = serde_json::to_value(&r.issues).unwrap();
-    assert_eq!(v, json!([{ "id": "TRY-16", "ref": "TRY-16", "number": "TRY-16", "title": "Task usage of tokens", "url": "https://linear.app/t/issue/TRY-16", "labels": [], "assignee": "", "body": "* include subagents", "updatedAt": "2026-11-10T00:53:36Z" }]));
+    assert_eq!(
+        v,
+        json!([{ "id": "TRY-16", "ref": "TRY-16", "number": "TRY-16", "title": "Task usage of tokens", "url": "https://linear.app/t/issue/TRY-16", "labels": [], "assignee": "", "body": "* include subagents", "updatedAt": "2026-11-10T00:53:36Z" }])
+    );
 }
 
 #[tokio::test]
@@ -129,9 +144,13 @@ async fn linear_not_signed_in_says_to_sign_in_and_so_does_a_refusal_from_the_ser
 async fn jira_a_signed_in_atlassian_connector_finds_your_site_then_searches_your_issues() {
     let answer: Answer = Arc::new(|tool, _| {
         if tool == "getAccessibleAtlassianResources" {
-            return Ok(text(json!([{ "id": "cloud-1", "url": "https://acme.atlassian.net", "name": "acme", "scopes": ["read:jira-work"] }])));
+            return Ok(text(
+                json!([{ "id": "cloud-1", "url": "https://acme.atlassian.net", "name": "acme", "scopes": ["read:jira-work"] }]),
+            ));
         }
-        Ok(text(json!({ "issues": [{ "key": "ACME-4", "fields": { "summary": "Login loops", "labels": [], "assignee": { "displayName": "Me" }, "updated": "2026-11-03", "description": "Plain text here" } }] })))
+        Ok(text(
+            json!({ "issues": [{ "key": "ACME-4", "fields": { "summary": "Login loops", "labels": [], "assignee": { "displayName": "Me" }, "updated": "2026-11-03", "description": "Plain text here" } }] }),
+        ))
     });
     let (l, calls) = lister(vec![signed_in("atlassian", "https://mcp.atlassian.com/v1/mcp", true)], answer);
     let r = l.list(&call(), args(Source::Jira, "login")).await.unwrap();
@@ -142,5 +161,8 @@ async fn jira_a_signed_in_atlassian_connector_finds_your_site_then_searches_your
     assert_eq!(c[1].2["cloudId"], "cloud-1");
     assert!(c[1].2["jql"].as_str().unwrap().starts_with("assignee = currentUser() AND statusCategory != Done AND text ~ \"login\""));
     let v = serde_json::to_value(&r.issues).unwrap();
-    assert_eq!(v, json!([{ "id": "jira:ACME-4", "ref": "ACME-4", "number": "ACME-4", "title": "Login loops", "url": "https://acme.atlassian.net/browse/ACME-4", "labels": [], "assignee": "Me", "body": "Plain text here", "updatedAt": "2026-11-03" }]));
+    assert_eq!(
+        v,
+        json!([{ "id": "jira:ACME-4", "ref": "ACME-4", "number": "ACME-4", "title": "Login loops", "url": "https://acme.atlassian.net/browse/ACME-4", "labels": [], "assignee": "Me", "body": "Plain text here", "updatedAt": "2026-11-03" }])
+    );
 }

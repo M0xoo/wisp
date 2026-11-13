@@ -54,10 +54,7 @@ impl InputOrder {
             if self.senders.len() >= MAX_SENDERS {
                 self.senders.remove(0);
             }
-            self.senders.push(Sender {
-                from: from.to_owned(),
-                ..Sender::default()
-            });
+            self.senders.push(Sender { from: from.to_owned(), ..Sender::default() });
             self.senders.len() - 1
         };
         let mut out = Vec::new();
@@ -93,14 +90,7 @@ impl InputOrder {
 mod tests {
     use super::*;
 
-    fn typed(
-        o: &mut InputOrder,
-        data: &str,
-        seq: i64,
-        from: &str,
-        now: i64,
-        into: &mut Vec<String>,
-    ) {
+    fn typed(o: &mut InputOrder, data: &str, seq: i64, from: &str, now: i64, into: &mut Vec<String>) {
         into.extend(o.put(data.to_owned(), seq, from, now));
     }
 
@@ -120,28 +110,17 @@ mod tests {
         t.extend(o.tick(10 + GAP_MS - 1));
         assert_eq!(t.last().map(String::as_str), Some("b"));
         t.extend(o.tick(10 + GAP_MS));
-        assert_eq!(
-            t.last().map(String::as_str),
-            Some("d"),
-            "seq 2 never came: d goes in after a second"
-        );
+        assert_eq!(t.last().map(String::as_str), Some("d"), "seq 2 never came: d goes in after a second");
         assert_eq!(o.deadline(), None, "nothing held, no timer");
         typed(&mut o, "late 2", 2, "p1", 2000, &mut t);
-        assert_eq!(
-            t.last().map(String::as_str),
-            Some("d"),
-            "the skipped key is dropped when it comes after all"
-        );
+        assert_eq!(t.last().map(String::as_str), Some("d"), "the skipped key is dropped when it comes after all");
     }
 
     #[test]
     fn each_new_key_moves_the_gap_on() {
         let mut o = InputOrder::new();
         assert_eq!(o.put("c".into(), 2, "p", 0), [] as [std::string::String; 0]);
-        assert_eq!(
-            o.put("d".into(), 3, "p", 900),
-            [] as [std::string::String; 0]
-        );
+        assert_eq!(o.put("d".into(), 3, "p", 900), [] as [std::string::String; 0]);
         assert!(o.tick(1000).is_empty(), "the second key restarted the wait");
         assert_eq!(o.tick(1900), ["c", "d"], "0 and 1 skipped, then in order");
     }
@@ -162,10 +141,7 @@ mod tests {
     #[test]
     fn a_negative_seq_is_a_resend() {
         let mut o = InputOrder::new();
-        assert_eq!(
-            o.put("x".into(), -1, "p", 0),
-            [] as [std::string::String; 0]
-        );
+        assert_eq!(o.put("x".into(), -1, "p", 0), [] as [std::string::String; 0]);
         assert_eq!(o.put("y".into(), 0, "p", 0), ["y"]);
     }
 
@@ -176,11 +152,7 @@ mod tests {
         let mut rng = crate::testrand::Rng::new(42);
         for _ in 0..500 {
             let n = 1 + rng.below(30);
-            let missing = if rng.below(3) == 0 {
-                Some(rng.below(n))
-            } else {
-                None
-            };
+            let missing = if rng.below(3) == 0 { Some(rng.below(n)) } else { None };
             let mut sends: Vec<usize> = (0..n).filter(|i| Some(*i) != missing).collect();
             for _ in 0..rng.below(5) {
                 sends.push(rng.below(n));

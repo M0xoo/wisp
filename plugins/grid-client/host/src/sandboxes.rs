@@ -20,7 +20,8 @@ fn machine_of(list: &[Peer], id: &str) -> String {
 /// Makes one on the grid and adds its peer.
 pub async fn create(st: &Arc<St>, name: &str) -> Result<api::Sandbox> {
     let (a, token) = st.signed_in().await.map_err(WireError::unavailable)?;
-    let (status, v) = net::call(&st.http, "POST", &format!("{}/api/sandboxes", a.grid), Some(&token), Some(&json!({ "name": name })), &[]).await?;
+    let (status, v) =
+        net::call(&st.http, "POST", &format!("{}/api/sandboxes", a.grid), Some(&token), Some(&json!({ "name": name })), &[]).await?;
     if status >= 400 {
         return Err(net::refused(status, &v));
     }
@@ -32,7 +33,10 @@ pub async fn create(st: &Arc<St>, name: &str) -> Result<api::Sandbox> {
     let (host, port) = host_port(&url);
     let label = format!("Sandbox {}", if s("name").is_empty() { id.clone() } else { s("name") });
     // its own token: the peer opens that sandbox and nothing else
-    let data = [("url", &url), ("grid", &a.grid), ("handle", &a.handle), ("sandbox", &id)].into_iter().map(|(k, v)| (k.to_owned(), json!(v))).collect();
+    let data = [("url", &url), ("grid", &a.grid), ("handle", &a.handle), ("sandbox", &id)]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), json!(v)))
+        .collect();
     let add = wisp_machines_api::AddArgs {
         name: Some(label),
         transport: Some(wisp_machines_api::GRID.into()),
@@ -55,10 +59,15 @@ pub async fn list(st: &Arc<St>) -> Result<Vec<api::Sandbox>> {
         return Err(net::refused(status, &v));
     }
     let have = calls::peers(&st.ctx).await;
-    Ok(v.get("sandboxes").and_then(Value::as_array).into_iter().flatten().map(|x| {
-        let s = |k: &str| x.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-        api::Sandbox { machine: machine_of(&have, &s("id")), id: s("id"), name: s("name"), url: s("url") }
-    }).collect())
+    Ok(v.get("sandboxes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|x| {
+            let s = |k: &str| x.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+            api::Sandbox { machine: machine_of(&have, &s("id")), id: s("id"), name: s("name"), url: s("url") }
+        })
+        .collect())
 }
 
 /// Deletes it on the grid (its box and home), then its peer here.
@@ -108,12 +117,18 @@ pub async fn env(st: &Arc<St>, a: &api::SandboxSetArgs) -> Result<Value> {
     if key.is_empty() {
         return Err(WireError::invalid("which variable?"));
     }
-    if a.value.is_empty() { grid(st, "DELETE", &format!("/env/{key}"), None).await } else { grid(st, "PUT", "/env", Some(&json!({ "key": key, "value": a.value }))).await }
+    if a.value.is_empty() {
+        grid(st, "DELETE", &format!("/env/{key}"), None).await
+    } else {
+        grid(st, "PUT", "/env", Some(&json!({ "key": key, "value": a.value }))).await
+    }
 }
 
 /// The HTTP call a team op is.
 pub fn team_call(a: &api::TeamsArgs) -> Result<(&'static str, String, Option<Value>)> {
-    let need = |v: &str, what: &str| if v.trim().is_empty() { Err(WireError::invalid(format!("wisp team {}: which {what}?", a.op))) } else { Ok(()) };
+    let need = |v: &str, what: &str| {
+        if v.trim().is_empty() { Err(WireError::invalid(format!("wisp team {}: which {what}?", a.op))) } else { Ok(()) }
+    };
     Ok(match a.op.as_str() {
         "ls" | "list" | "" => ("GET", "/api/teams".into(), None),
         "new" | "create" => {
@@ -127,7 +142,11 @@ pub fn team_call(a: &api::TeamsArgs) -> Result<(&'static str, String, Option<Val
         "add" => {
             need(&a.slug, "team")?;
             need(&a.handle, "member")?;
-            ("POST", format!("/api/teams/{}/members", a.slug), Some(json!({ "handle": a.handle, "role": if a.role.is_empty() { "member" } else { &a.role } })))
+            (
+                "POST",
+                format!("/api/teams/{}/members", a.slug),
+                Some(json!({ "handle": a.handle, "role": if a.role.is_empty() { "member" } else { &a.role } })),
+            )
         }
         "rm" | "remove" => {
             need(&a.slug, "team")?;
@@ -162,10 +181,19 @@ mod tests {
 
     #[test]
     fn team_ops_are_the_grids_team_api() {
-        let t = |op: &str, slug: &str, handle: &str| api::TeamsArgs { op: op.into(), slug: slug.into(), handle: handle.into(), ..api::TeamsArgs::default() };
+        let t = |op: &str, slug: &str, handle: &str| api::TeamsArgs {
+            op: op.into(),
+            slug: slug.into(),
+            handle: handle.into(),
+            ..api::TeamsArgs::default()
+        };
         assert_eq!(team_call(&t("ls", "", "")).map(|c| (c.0, c.1)).ok(), Some(("GET", "/api/teams".to_owned())));
         let (m, p, b) = team_call(&t("add", "acme", "bo")).unwrap_or_else(|e| panic!("{e:?}"));
-        assert_eq!((m, p.as_str(), b.map(|b| b["role"].clone())), ("POST", "/api/teams/acme/members", Some(json!("member"))), "a member unless said");
+        assert_eq!(
+            (m, p.as_str(), b.map(|b| b["role"].clone())),
+            ("POST", "/api/teams/acme/members", Some(json!("member"))),
+            "a member unless said"
+        );
         assert_eq!(team_call(&t("rm", "acme", "bo")).map(|c| (c.0, c.1)).ok(), Some(("DELETE", "/api/teams/acme/members/bo".to_owned())));
         assert!(team_call(&t("add", "acme", "")).is_err() && team_call(&t("dance", "", "")).is_err());
     }

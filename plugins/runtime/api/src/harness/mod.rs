@@ -151,28 +151,15 @@ pub trait Harness: Send + Sync + 'static {
         Box::pin(async { Ok(()) })
     }
     /// Whether the CLI kept conversation `id`; None: it can't tell.
-    fn has_session<'a>(
-        &'a self,
-        _sys: &'a dyn HarnessSys,
-        _id: &'a str,
-        _cwd: &'a str,
-    ) -> BoxFuture<'a, Option<bool>> {
+    fn has_session<'a>(&'a self, _sys: &'a dyn HarnessSys, _id: &'a str, _cwd: &'a str) -> BoxFuture<'a, Option<bool>> {
         Box::pin(async { None })
     }
     /// The newest conversation the CLI kept for this folder (bring-in).
-    fn latest_session<'a>(
-        &'a self,
-        _sys: &'a dyn HarnessSys,
-        _cwd: &'a str,
-    ) -> BoxFuture<'a, Option<String>> {
+    fn latest_session<'a>(&'a self, _sys: &'a dyn HarnessSys, _cwd: &'a str) -> BoxFuture<'a, Option<String>> {
         Box::pin(async { None })
     }
     /// A read of the account's usage windows that spends nothing.
-    fn live_limits<'a>(
-        &'a self,
-        _sys: &'a dyn HarnessSys,
-        _env: &'a BTreeMap<String, String>,
-    ) -> BoxFuture<'a, Option<Value>> {
+    fn live_limits<'a>(&'a self, _sys: &'a dyn HarnessSys, _env: &'a BTreeMap<String, String>) -> BoxFuture<'a, Option<Value>> {
         Box::pin(async { None })
     }
     fn login(&self) -> Option<&HarnessLogin> {
@@ -213,9 +200,7 @@ pub trait Harness: Send + Sync + 'static {
 
 impl std::fmt::Debug for dyn Harness {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Harness")
-            .field("id", &self.info().id)
-            .finish_non_exhaustive()
+        f.debug_struct("Harness").field("id", &self.info().id).finish_non_exhaustive()
     }
 }
 

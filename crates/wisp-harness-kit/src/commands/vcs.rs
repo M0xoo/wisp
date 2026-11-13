@@ -3,10 +3,10 @@
 //! size-ok: a data table: one describer per git/gh subcommand
 
 use super::argv::{Desc, operands, shown, value_of};
+use super::clip;
 use super::files::describe_grep;
 use crate::paths::RunPaths;
 use crate::re::Re;
-use super::clip;
 
 static SCHEME: Re = Re::new(r"^https?://(www\.)?");
 static DOT_GIT: Re = Re::new(r"\.git$");
@@ -48,19 +48,13 @@ fn diff(g: &Git) -> String {
         return "Viewing changes".into();
     }
     // Paths read as "in a.js"; revisions and ranges (main..HEAD) as "(main..HEAD)".
-    let paths = g.ops.iter().any(|o| o.contains('/') || o.contains('.'))
-        && !g.ops.iter().any(|o| o.contains(".."));
-    if paths {
-        format!("Viewing changes in {}", g.shown())
-    } else {
-        format!("Viewing changes ({})", clip(&g.ops.join(" "), 30))
-    }
+    let paths = g.ops.iter().any(|o| o.contains('/') || o.contains('.')) && !g.ops.iter().any(|o| o.contains(".."));
+    if paths { format!("Viewing changes in {}", g.shown()) } else { format!("Viewing changes ({})", clip(&g.ops.join(" "), 30)) }
 }
 
 fn log(g: &Git) -> String {
     let last = g.ops.last().copied();
-    let of_file =
-        g.op(0).is_some_and(|o| !o.contains("..")) && last.is_some_and(|l| l.contains(['/', '.']));
+    let of_file = g.op(0).is_some_and(|o| !o.contains("..")) && last.is_some_and(|l| l.contains(['/', '.']));
     match last {
         Some(l) if of_file => format!("Reading the history of {}", g.f(l)),
         _ => "Reading git history".into(),
@@ -82,10 +76,7 @@ fn commit(g: &Git) -> String {
         return "Amending the last commit".into();
     }
     match value_of(g.rest, &["-m", "--message"]).filter(|m| !m.is_empty()) {
-        Some(m) => format!(
-            "Committing “{}”",
-            clip(m.split('\n').next().unwrap_or(""), 50)
-        ),
+        Some(m) => format!("Committing “{}”", clip(m.split('\n').next().unwrap_or(""), 50)),
         None => "Committing changes".into(),
     }
 }
@@ -93,24 +84,13 @@ fn commit(g: &Git) -> String {
 fn checkout(g: &Git) -> String {
     let creating = ["-b", "-B", "-c", "-C"];
     if g.has(&creating) {
-        return crate::js::trim(&format!(
-            "Creating branch {}",
-            value_of(g.rest, &creating).unwrap_or("")
-        ))
-        .to_owned();
+        return crate::js::trim(&format!("Creating branch {}", value_of(g.rest, &creating).unwrap_or(""))).to_owned();
     }
     if let Some(at) = g.rest.iter().position(|a| a == "--") {
-        let list = operands(&g.rest[at + 1..])
-            .iter()
-            .map(|p| g.f(p))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let list = operands(&g.rest[at + 1..]).iter().map(|p| g.f(p)).collect::<Vec<_>>().join(", ");
         return format!("Discarding changes to {}", or(&list, "files"));
     }
-    g.op(0).filter(|o| !o.is_empty()).map_or_else(
-        || "Switching branch".into(),
-        |o| format!("Switching to {}", clip(o, 40)),
-    )
+    g.op(0).filter(|o| !o.is_empty()).map_or_else(|| "Switching branch".into(), |o| format!("Switching to {}", clip(o, 40)))
 }
 
 fn branch(g: &Git) -> String {
@@ -148,10 +128,7 @@ fn sub_of(g: &Git, sub: &str) -> Option<String> {
         "diff" => diff(g),
         "log" | "shortlog" | "reflog" => log(g),
         "show" => show(g),
-        "blame" => format!(
-            "Checking who changed {}",
-            g.ops.last().map_or_else(|| "the file".into(), |l| g.f(l))
-        ),
+        "blame" => format!("Checking who changed {}", g.ops.last().map_or_else(|| "the file".into(), |l| g.f(l))),
         "add" => {
             if g.has(&["-A", "--all", "."]) || g.ops.contains(&".") {
                 "Staging all changes".into()
@@ -164,10 +141,7 @@ fn sub_of(g: &Git, sub: &str) -> Option<String> {
             if g.has(&["--tags"]) {
                 "Pushing tags".into()
             } else {
-                g.op(1).filter(|o| !o.is_empty()).map_or_else(
-                    || "Pushing to the remote".into(),
-                    |o| format!("Pushing {}", clip(o, 40)),
-                )
+                g.op(1).filter(|o| !o.is_empty()).map_or_else(|| "Pushing to the remote".into(), |o| format!("Pushing {}", clip(o, 40)))
             }
         }
         "pull" => "Pulling the latest changes".into(),
@@ -180,35 +154,20 @@ fn sub_of(g: &Git, sub: &str) -> Option<String> {
         }
         "clone" => format!(
             "Cloning {}",
-            if op0.is_empty() {
-                "a repository".into()
-            } else {
-                clip(&DOT_GIT.replace(&SCHEME.replace(op0, ""), ""), 50)
-            }
+            if op0.is_empty() { "a repository".into() } else { clip(&DOT_GIT.replace(&SCHEME.replace(op0, ""), ""), 50) }
         ),
         "checkout" | "switch" => checkout(g),
         "restore" => format!("Restoring {}", or(&g.shown(), "files")),
         "branch" => branch(g),
-        "merge" => resumable(
-            g,
-            "Aborting the merge",
-            "Finishing the merge",
-            format!("Merging {}", g.op(0).unwrap_or("changes")),
-        ),
-        "rebase" => resumable(
-            g,
-            "Aborting the rebase",
-            "Continuing the rebase",
-            format!("Rebasing onto {}", g.op(0).unwrap_or("upstream")),
-        ),
+        "merge" => resumable(g, "Aborting the merge", "Finishing the merge", format!("Merging {}", g.op(0).unwrap_or("changes"))),
+        "rebase" => {
+            resumable(g, "Aborting the rebase", "Continuing the rebase", format!("Rebasing onto {}", g.op(0).unwrap_or("upstream")))
+        }
         "cherry-pick" => resumable(
             g,
             "Aborting the cherry-pick",
             "Continuing the cherry-pick",
-            format!(
-                "Cherry-picking {}",
-                or(&clip(&g.ops.join(" "), 30), "a commit")
-            ),
+            format!("Cherry-picking {}", or(&clip(&g.ops.join(" "), 30), "a commit")),
         ),
         "revert" => format!("Reverting {}", g.op(0).unwrap_or("a commit")),
         "reset" => {
@@ -246,11 +205,7 @@ fn sub_more(g: &Git, sub: &str) -> Option<String> {
         }
         "remote" => {
             if r0 == "add" {
-                crate::js::trim(&format!(
-                    "Adding remote {}",
-                    g.rest.get(1).map_or("", String::as_str)
-                ))
-                .to_owned()
+                crate::js::trim(&format!("Adding remote {}", g.rest.get(1).map_or("", String::as_str))).to_owned()
             } else {
                 "Checking remotes".into()
             }
@@ -273,8 +228,9 @@ fn sub_more(g: &Git, sub: &str) -> Option<String> {
         }
         "grep" => describe_grep("git grep", g.rest, g.paths, false).text,
         "ls-files" | "ls-tree" => "Listing tracked files".into(),
-        "rev-parse" | "rev-list" | "merge-base" | "describe" | "name-rev" | "symbolic-ref"
-        | "for-each-ref" | "cat-file" => "Inspecting the repository".into(),
+        "rev-parse" | "rev-list" | "merge-base" | "describe" | "name-rev" | "symbolic-ref" | "for-each-ref" | "cat-file" => {
+            "Inspecting the repository".into()
+        }
         "config" => "Checking git settings".into(),
         "init" => "Creating a git repository".into(),
         "clean" => "Removing untracked files".into(),
@@ -290,20 +246,12 @@ pub(super) fn describe_git(args: &[String], paths: &RunPaths) -> Desc {
     // Skip global options: git -C dir -c k=v --no-pager status
     let mut i = 0;
     while i < args.len() && args[i].starts_with('-') {
-        i += if matches!(args[i].as_str(), "-C" | "-c" | "--git-dir" | "--work-tree") {
-            2
-        } else {
-            1
-        };
+        i += if matches!(args[i].as_str(), "-C" | "-c" | "--git-dir" | "--work-tree") { 2 } else { 1 };
     }
     let Some((sub, rest)) = args.get(i..).and_then(<[String]>::split_first) else {
         return Desc::strong("Running git");
     };
-    let g = Git {
-        rest,
-        ops: operands(rest),
-        paths,
-    };
+    let g = Git { rest, ops: operands(rest), paths };
     Desc::strong(sub_of(&g, sub).unwrap_or_else(|| format!("Running git {sub}")))
 }
 
@@ -340,11 +288,7 @@ fn issue(action: &str, r: &str) -> Option<String> {
 }
 
 fn fixed(action: &str, table: &[(&str, &str)], fallback: &str) -> String {
-    table
-        .iter()
-        .find(|(k, _)| *k == action)
-        .map_or(fallback, |(_, v)| v)
-        .to_owned()
+    table.iter().find(|(k, _)| *k == action).map_or(fallback, |(_, v)| v).to_owned()
 }
 
 pub(super) fn describe_gh(args: &[String]) -> Desc {
@@ -363,20 +307,10 @@ pub(super) fn describe_gh(args: &[String]) -> Desc {
         Some("issue") => issue(action, &r).unwrap_or_else(|| "Working with issues".into()),
         Some("run") => fixed(
             action,
-            &[
-                ("list", "Listing CI runs"),
-                ("view", "Checking a CI run"),
-                ("watch", "Watching a CI run"),
-                ("rerun", "Re-running CI"),
-            ],
+            &[("list", "Listing CI runs"), ("view", "Checking a CI run"), ("watch", "Watching a CI run"), ("rerun", "Re-running CI")],
             "Checking CI runs",
         ),
-        Some("workflow") => if action == "run" {
-            "Starting a workflow"
-        } else {
-            "Checking workflows"
-        }
-        .into(),
+        Some("workflow") => if action == "run" { "Starting a workflow" } else { "Checking workflows" }.into(),
         Some("release") => fixed(
             action,
             &[

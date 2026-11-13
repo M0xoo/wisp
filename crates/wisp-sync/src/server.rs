@@ -6,17 +6,12 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use wisp_protocol::{
-    Change, ClientMessage, EntityOp, PROTO, PROTO_MIN, Rows, Snapshot, Topic, Welcome, tag,
-};
+use wisp_protocol::{Change, ClientMessage, EntityOp, PROTO, PROTO_MIN, Rows, Snapshot, Topic, Welcome, tag};
 
 use crate::conn::{Conn, Core, Sub, SubState, json};
 use crate::outbox::{Front, FrontKind, Outbox, SharedOp};
 use crate::parse::{parse_client_message, parse_hello};
-use crate::{
-    ChangeRow, CloseReason, CommandOutcome, ConnId, ConnectQuery, Input, Output, SnapshotAnswer,
-    Stats, SyncOptions,
-};
+use crate::{ChangeRow, CloseReason, CommandOutcome, ConnId, ConnectQuery, Input, Output, SnapshotAnswer, Stats, SyncOptions};
 
 pub struct SyncServer<C> {
     pub(crate) core: Core<C>,
@@ -26,10 +21,7 @@ pub struct SyncServer<C> {
 
 impl<C> std::fmt::Debug for SyncServer<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SyncServer")
-            .field("head", &self.core.head)
-            .field("conns", &self.conns.len())
-            .finish_non_exhaustive()
+        f.debug_struct("SyncServer").field("head", &self.core.head).field("conns", &self.conns.len()).finish_non_exhaustive()
     }
 }
 
@@ -37,14 +29,7 @@ impl<C: Clone> SyncServer<C> {
     pub fn new(opts: SyncOptions<C>) -> Self {
         let (head, oldest) = (opts.head_seq, opts.oldest_seq);
         Self {
-            core: Core {
-                opts,
-                head,
-                oldest,
-                req: 0,
-                out: Vec::new(),
-                stats: Stats::default(),
-            },
+            core: Core { opts, head, oldest, req: 0, out: Vec::new(), stats: Stats::default() },
             conns: BTreeMap::new(),
             by_client: HashMap::new(),
         }
@@ -83,40 +68,24 @@ impl<C: Clone> SyncServer<C> {
 
     pub fn handle(&mut self, input: Input<C>, now: u64) -> Vec<Output<C>> {
         match input {
-            Input::Connect {
-                conn,
-                caller,
-                query,
-            } => self.connect(conn, caller, &query, now),
+            Input::Connect { conn, caller, query } => self.connect(conn, caller, &query, now),
             Input::Message { conn, message } => self.message(conn, message, now),
             Input::Committed { rows } => self.committed(rows, now),
             Input::SnapshotRows(a) => self.snapshot_rows(a, now),
-            Input::WindowRows {
-                conn,
-                req,
-                rows,
-                done,
-            } => self.window_rows(conn, req, rows, done, now),
+            Input::WindowRows { conn, req, rows, done } => self.window_rows(conn, req, rows, done, now),
             Input::CommandResult { conn, mid, outcome } => {
                 self.command_result(conn, mid, outcome, now);
             }
             Input::Notice { notice, topic } => {
                 let msg = json(&notice);
-                for c in self
-                    .conns
-                    .values_mut()
-                    .filter(|c| topic.as_ref().is_none_or(|t| c.subs.contains_key(t)))
-                {
+                for c in self.conns.values_mut().filter(|c| topic.as_ref().is_none_or(|t| c.subs.contains_key(t))) {
                     c.control.push(msg.clone());
                     self.core.maybe_flush(c, now);
                 }
             }
             Input::Retained { oldest_seq } => self.core.oldest = self.core.oldest.max(oldest_seq),
             Input::Tick => self.tick(now),
-            Input::Drained {
-                conn,
-                buffered_bytes,
-            } => {
+            Input::Drained { conn, buffered_bytes } => {
                 if let Some(c) = self.conns.get_mut(&conn) {
                     c.buffered = buffered_bytes;
                     self.core.request_waiting(c);
@@ -132,17 +101,9 @@ impl<C: Clone> SyncServer<C> {
 
     fn connect(&mut self, id: ConnId, caller: C, query: &ConnectQuery, now: u64) {
         let hello = parse_hello(query, &id.to_string());
-        if let Some(old) = self
-            .by_client
-            .get(&hello.client_id)
-            .copied()
-            .filter(|old| *old != id)
-        {
+        if let Some(old) = self.by_client.get(&hello.client_id).copied().filter(|old| *old != id) {
             self.drop_conn(old);
-            self.core.out.push(Output::Close {
-                conn: old,
-                reason: CloseReason::Replaced,
-            });
+            self.core.out.push(Output::Close { conn: old, reason: CloseReason::Replaced });
         }
         let mut c = Conn {
             id,
@@ -162,14 +123,8 @@ impl<C: Clone> SyncServer<C> {
         let compatible = hello.proto_max.min(PROTO) >= hello.proto_min.max(PROTO_MIN);
         let resume = compatible
             && hello.epoch.as_deref() == Some(core.opts.epoch.as_str())
-            && hello
-                .cursor
-                .is_some_and(|x| x >= core.oldest && x <= core.head);
-        let proto = if compatible {
-            hello.proto_max.min(PROTO)
-        } else {
-            PROTO
-        };
+            && hello.cursor.is_some_and(|x| x >= core.oldest && x <= core.head);
+        let proto = if compatible { hello.proto_max.min(PROTO) } else { PROTO };
         let welcome = Welcome {
             t: tag::Welcome,
             epoch: core.opts.epoch.clone(),
@@ -182,10 +137,7 @@ impl<C: Clone> SyncServer<C> {
         if !compatible {
             let w = core.watermark(&c);
             core.write(&mut c, &[json(&welcome)], now, w);
-            core.out.push(Output::Close {
-                conn: id,
-                reason: CloseReason::Incompatible,
-            });
+            core.out.push(Output::Close { conn: id, reason: CloseReason::Incompatible });
             return;
         }
         c.control.push(json(&welcome));
@@ -204,10 +156,7 @@ impl<C: Clone> SyncServer<C> {
         core.flush(&mut c, now);
         // The welcome goes before the snapshot requests of this connect: a host that answers at once
         // would otherwise send a snapshot the client drops, since nothing counts before the welcome.
-        if let Some(pos) = core.out[mark..]
-            .iter()
-            .position(|o| matches!(o, Output::Send { .. }))
-        {
+        if let Some(pos) = core.out[mark..].iter().position(|o| matches!(o, Output::Send { .. })) {
             core.out[mark..=mark + pos].rotate_right(1);
         }
         c.last_flush_at = None; // ...and it doesn't hold back the snapshots behind it
@@ -248,21 +197,13 @@ impl<C: Clone> SyncServer<C> {
             ClientMessage::Window(w) => {
                 if (core.opts.can_read)(&c.caller, &w.topic) {
                     c.windows.insert(w.req.clone(), w.topic.clone());
-                    core.out.push(Output::WindowRequest {
-                        conn: id,
-                        req: w.req,
-                        topic: w.topic,
-                        before_seq: w.before_seq,
-                        limit: w.limit,
-                    });
+                    core.out.push(Output::WindowRequest { conn: id, req: w.req, topic: w.topic, before_seq: w.before_seq, limit: w.limit });
                 } else {
                     Core::deny(c, w.topic.as_str(), "forbidden");
                 }
             }
             ClientMessage::Mutate(m) => {
-                let _span =
-                    tracing::debug_span!("sync.mutate", conn = %id, cmd = %m.cmd, mid = %m.mid)
-                        .entered();
+                let _span = tracing::debug_span!("sync.mutate", conn = %id, cmd = %m.cmd, mid = %m.mid).entered();
                 core.out.push(Output::Command {
                     conn: id,
                     caller: c.caller.clone(),
@@ -283,11 +224,7 @@ impl<C: Clone> SyncServer<C> {
         let Some(c) = self.conns.get_mut(&a.conn) else {
             return;
         };
-        let Some(sub) = c
-            .subs
-            .get_mut(&a.topic)
-            .filter(|s| s.state == SubState::Loading && s.req == a.req)
-        else {
+        let Some(sub) = c.subs.get_mut(&a.topic).filter(|s| s.state == SubState::Loading && s.req == a.req) else {
             return;
         };
         let since = sub.since;
@@ -300,38 +237,15 @@ impl<C: Clone> SyncServer<C> {
         }
         match since.filter(|_| !a.full) {
             None => {
-                let msg = Snapshot {
-                    t: tag::Snapshot,
-                    topic: a.topic.clone(),
-                    seq: a.seq,
-                    rows: a.rows,
-                    more: a.more.then_some(true),
-                };
+                let msg = Snapshot { t: tag::Snapshot, topic: a.topic.clone(), seq: a.seq, rows: a.rows, more: a.more.then_some(true) };
                 // replacing rows the client holds as of `since`: the cursor stays there until this is sent
-                c.out.push_front(
-                    &a.topic,
-                    Front {
-                        json: json(&msg),
-                        kind: FrontKind::Snapshot,
-                        first_seq: since.map(|s| s + 1),
-                    },
-                );
+                c.out.push_front(&a.topic, Front { json: json(&msg), kind: FrontKind::Snapshot, first_seq: since.map(|s| s + 1) });
             }
             Some(since) => {
                 let first = since + 1;
-                let ops = a
-                    .rows
-                    .into_iter()
-                    .map(|r| (r.e, r.id, Change::Upsert { v: r.v }));
-                for (e, id, change) in
-                    ops.chain(a.deleted.into_iter().map(|d| (d.e, d.id, Change::Del)))
-                {
-                    let op = Arc::new(SharedOp::new(EntityOp {
-                        topic: a.topic.clone(),
-                        e,
-                        id,
-                        change,
-                    }));
+                let ops = a.rows.into_iter().map(|r| (r.e, r.id, Change::Upsert { v: r.v }));
+                for (e, id, change) in ops.chain(a.deleted.into_iter().map(|d| (d.e, d.id, Change::Del))) {
+                    let op = Arc::new(SharedOp::new(EntityOp { topic: a.topic.clone(), e, id, change }));
                     let bytes = op.json().len();
                     c.out.push_op(op, first, bytes);
                 }
@@ -344,38 +258,15 @@ impl<C: Clone> SyncServer<C> {
         self.core.maybe_flush(c, now);
     }
 
-    fn window_rows(
-        &mut self,
-        id: ConnId,
-        req: String,
-        rows: Vec<wisp_protocol::Row>,
-        done: bool,
-        now: u64,
-    ) {
+    fn window_rows(&mut self, id: ConnId, req: String, rows: Vec<wisp_protocol::Row>, done: bool, now: u64) {
         let Some(c) = self.conns.get_mut(&id) else {
             return;
         };
-        let Some(topic) = (if done {
-            c.windows.remove(&req)
-        } else {
-            c.windows.get(&req).cloned()
-        }) else {
+        let Some(topic) = (if done { c.windows.remove(&req) } else { c.windows.get(&req).cloned() }) else {
             return;
         };
-        let msg = Rows {
-            t: tag::Rows,
-            req,
-            rows,
-            done,
-        };
-        c.out.push_front(
-            &topic,
-            Front {
-                json: json(&msg),
-                kind: FrontKind::Rows,
-                first_seq: None,
-            },
-        );
+        let msg = Rows { t: tag::Rows, req, rows, done };
+        c.out.push_front(&topic, Front { json: json(&msg), kind: FrontKind::Rows, first_seq: None });
         self.core.maybe_flush(c, now);
     }
 
@@ -387,12 +278,7 @@ impl<C: Clone> SyncServer<C> {
             CommandOutcome::Ok { seq, result } => {
                 c.acks.push(crate::conn::PendingAck { mid, seq, result });
             }
-            CommandOutcome::Err { code, message } => c.control.push(json(&wisp_protocol::Reject {
-                t: tag::Reject,
-                mid,
-                code,
-                message,
-            })),
+            CommandOutcome::Err { code, message } => c.control.push(json(&wisp_protocol::Reject { t: tag::Reject, mid, code, message })),
         }
         self.core.maybe_flush(c, now);
     }
@@ -404,28 +290,16 @@ impl<C: Clone> SyncServer<C> {
         for row in rows {
             let seq = row.seq;
             self.core.head = self.core.head.max(seq);
-            let wanted = self.conns.values().any(|c| {
-                c.subs
-                    .get(&row.topic)
-                    .is_some_and(|s| matches!(s.state, SubState::Live | SubState::Loading))
-            });
+            let wanted =
+                self.conns.values().any(|c| c.subs.get(&row.topic).is_some_and(|s| matches!(s.state, SubState::Live | SubState::Loading)));
             if !wanted {
                 continue; // waiting and dropped: the snapshot or delta asked for later covers it
             }
             let topic = row.topic.clone();
-            let op = Arc::new(SharedOp::new(EntityOp {
-                topic: row.topic,
-                e: row.entity,
-                id: row.id,
-                change: row.change,
-            }));
+            let op = Arc::new(SharedOp::new(EntityOp { topic: row.topic, e: row.entity, id: row.id, change: row.change }));
             let bytes = op.json().len();
             for c in self.conns.values_mut() {
-                let Some(sub) = c
-                    .subs
-                    .get_mut(&topic)
-                    .filter(|s| matches!(s.state, SubState::Live | SubState::Loading))
-                else {
+                let Some(sub) = c.subs.get_mut(&topic).filter(|s| matches!(s.state, SubState::Live | SubState::Loading)) else {
                     continue;
                 };
                 let op = op.clone();
@@ -457,35 +331,18 @@ impl<C: Clone> SyncServer<C> {
 }
 
 impl<C> Core<C> {
-    pub(crate) fn subscribe(
-        &mut self,
-        c: &mut Conn<C>,
-        topic: &Topic,
-        passive: bool,
-        since: Option<u64>,
-    ) {
+    pub(crate) fn subscribe(&mut self, c: &mut Conn<C>, topic: &Topic, passive: bool, since: Option<u64>) {
         if !(self.opts.can_read)(&c.caller, topic) {
             return Self::deny(c, topic.as_str(), "forbidden");
         }
-        if let Some(existing) = c
-            .subs
-            .get_mut(topic)
-            .filter(|s| s.state != SubState::Dropped && since.is_none())
-        {
+        if let Some(existing) = c.subs.get_mut(topic).filter(|s| s.state != SubState::Dropped && since.is_none()) {
             existing.passive = passive; // the same sub again: only its passive flag can change
             return;
         }
         c.out.drop_topic(topic, true);
         // a cursor older than the change log can't be resumed from: take the whole topic
         let from = since.filter(|s| *s >= self.oldest && *s <= self.head);
-        let mut sub = Sub {
-            passive,
-            state: SubState::Waiting,
-            since: from,
-            req: 0,
-            buffer: Vec::new(),
-            buffer_bytes: 0,
-        };
+        let mut sub = Sub { passive, state: SubState::Waiting, since: from, req: 0, buffer: Vec::new(), buffer_bytes: 0 };
         if c.buffered <= self.low_water() {
             let req = self.next_req();
             Self::start_request(c.id, topic, &mut sub, req, &mut self.out);
@@ -498,23 +355,12 @@ impl<C> Core<C> {
         self.req
     }
 
-    pub(crate) fn start_request(
-        conn: ConnId,
-        topic: &Topic,
-        sub: &mut Sub,
-        req: u64,
-        out: &mut Vec<Output<C>>,
-    ) {
+    pub(crate) fn start_request(conn: ConnId, topic: &Topic, sub: &mut Sub, req: u64, out: &mut Vec<Output<C>>) {
         sub.state = SubState::Loading;
         sub.req = req;
         sub.buffer.clear();
         sub.buffer_bytes = 0;
-        out.push(Output::SnapshotRequest {
-            conn,
-            topic: topic.clone(),
-            since: sub.since,
-            req,
-        });
+        out.push(Output::SnapshotRequest { conn, topic: topic.clone(), since: sub.since, req });
     }
 
     /// Snapshots held back while the connection was over the high-water mark.
@@ -522,11 +368,7 @@ impl<C> Core<C> {
         if c.buffered > self.low_water() {
             return;
         }
-        let mut waiting: Vec<_> = c
-            .subs
-            .iter_mut()
-            .filter(|(_, s)| s.state == SubState::Waiting)
-            .collect();
+        let mut waiting: Vec<_> = c.subs.iter_mut().filter(|(_, s)| s.state == SubState::Waiting).collect();
         waiting.sort_by(|a, b| a.0.rank().cmp(&b.0.rank()).then_with(|| a.0.cmp(b.0)));
         for (topic, sub) in waiting {
             self.req += 1;

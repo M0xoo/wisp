@@ -17,7 +17,11 @@ pub fn until(reset_at: Option<i64>, account_until: Option<i64>, now: i64, said_m
 /// The card and the hero. `who`: the account's label, else the harness's name.
 pub fn at_limit(who: &str, text: &str, limit: TurnLimit) -> (TurnLimit, Vec<Value>) {
     let who = if who.is_empty() { "This harness" } else { who };
-    let summary = if limit.others.is_empty() { "Wait for the reset, or hand the task to another agent." } else { "Wait for the reset, continue on another of your accounts, or hand the task to another agent." };
+    let summary = if limit.others.is_empty() {
+        "Wait for the reset, or hand the task to another agent."
+    } else {
+        "Wait for the reset, continue on another of your accounts, or hand the task to another agent."
+    };
     // no time in the hero: the card under it says when, in the page's own time format
     let blocks = vec![
         json!({ "type": "hero", "title": format!("{who} is at its usage limit"), "summary": summary, "status": "blocked" }),
@@ -43,7 +47,11 @@ pub fn others(accounts: &Value, this: &str) -> Vec<LimitAccount> {
         .into_iter()
         .flatten()
         .filter(|a| a["state"] == "ready" && a["id"].as_str() != Some(this))
-        .map(|a| LimitAccount { id: a["id"].as_str().unwrap_or_default().into(), label: a["label"].as_str().unwrap_or_default().into(), kind: a["kind"].as_str().unwrap_or("personal").into() })
+        .map(|a| LimitAccount {
+            id: a["id"].as_str().unwrap_or_default().into(),
+            label: a["label"].as_str().unwrap_or_default().into(),
+            kind: a["kind"].as_str().unwrap_or("personal").into(),
+        })
         .collect()
 }
 
@@ -68,7 +76,10 @@ mod tests {
         assert!(l.waiting);
         assert_eq!(b[0]["status"], "partial");
         let (_, alone) = at_limit("", "", TurnLimit::default());
-        assert_eq!((alone[0]["title"].as_str(), alone[1]["output"].as_str()), (Some("This harness is at its usage limit"), Some("No output.")));
+        assert_eq!(
+            (alone[0]["title"].as_str(), alone[1]["output"].as_str()),
+            (Some("This harness is at its usage limit"), Some("No output."))
+        );
         assert!(!alone[0]["summary"].as_str().unwrap().contains("accounts"));
     }
 }

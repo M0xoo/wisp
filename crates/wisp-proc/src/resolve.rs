@@ -52,11 +52,7 @@ pub enum Platform {
 
 impl Platform {
     pub const fn current() -> Self {
-        if cfg!(windows) {
-            Self::Windows
-        } else {
-            Self::Unix
-        }
+        if cfg!(windows) { Self::Windows } else { Self::Unix }
     }
 }
 
@@ -70,19 +66,11 @@ pub struct Resolved {
 
 /// An environment variable, as Windows reads it (case-insensitively: a copied env may spell PATH "Path").
 pub fn env_get<'a>(env: &'a [(String, String)], name: &str) -> Option<&'a str> {
-    env.iter()
-        .find(|(k, _)| k == name)
-        .or_else(|| env.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)))
-        .map(|(_, v)| v.as_str())
+    env.iter().find(|(k, _)| k == name).or_else(|| env.iter().find(|(k, _)| k.eq_ignore_ascii_case(name))).map(|(_, v)| v.as_str())
 }
 
 /// `bin` on PATH: an absolute path, or `None`.
-pub fn which(
-    bin: &str,
-    env: &[(String, String)],
-    platform: Platform,
-    fs: &dyn Lookup,
-) -> Option<String> {
+pub fn which(bin: &str, env: &[(String, String)], platform: Platform, fs: &dyn Lookup) -> Option<String> {
     match platform {
         Platform::Windows => which_windows(bin, env, fs),
         Platform::Unix => which_unix(bin, env_get(env, "PATH").unwrap_or(""), fs),
@@ -93,10 +81,7 @@ fn which_unix(bin: &str, path: &str, fs: &dyn Lookup) -> Option<String> {
     if bin.contains('/') {
         return fs.is_exe(bin).then(|| bin.to_owned());
     }
-    path.split(':')
-        .filter(|d| !d.is_empty())
-        .map(|d| format!("{}/{bin}", d.trim_end_matches('/')))
-        .find(|p| fs.is_exe(p))
+    path.split(':').filter(|d| !d.is_empty()).map(|d| format!("{}/{bin}", d.trim_end_matches('/'))).find(|p| fs.is_exe(p))
 }
 
 /// As cmd.exe finds it: PATHEXT, then a `.ps1` (some installers, Cursor's, drop only that).
@@ -109,29 +94,18 @@ pub fn which_windows(bin: &str, env: &[(String, String)], fs: &dyn Lookup) -> Op
         .map(str::to_lowercase)
         .collect();
     let names: Vec<String> = if win_ext(bin).is_empty() {
-        exts.iter()
-            .map(|e| format!("{bin}{e}"))
-            .chain([format!("{bin}.ps1")])
-            .collect()
+        exts.iter().map(|e| format!("{bin}{e}")).chain([format!("{bin}.ps1")]).collect()
     } else {
         vec![bin.to_owned()]
     };
     let dirs: Vec<&str> = if bin.contains(['/', '\\']) {
         vec![""]
     } else {
-        env_get(env, "PATH")
-            .unwrap_or("")
-            .split(';')
-            .filter(|d| !d.is_empty())
-            .collect()
+        env_get(env, "PATH").unwrap_or("").split(';').filter(|d| !d.is_empty()).collect()
     };
     for dir in dirs {
         for name in &names {
-            let full = if dir.is_empty() {
-                name.clone()
-            } else {
-                win_join(dir, name)
-            };
+            let full = if dir.is_empty() { name.clone() } else { win_join(dir, name) };
             if fs.is_file(&full) {
                 return Some(full);
             }
@@ -157,11 +131,7 @@ pub fn parse_cmd_shim(text: &str) -> Option<Shim> {
     let line = text.lines().map(str::trim).rfind(|l| l.ends_with("%*"))?;
     let quoted = quoted_parts(line);
     let target = from_dp0(quoted.last()?)?;
-    let prog = if quoted.len() > 1 {
-        quoted[quoted.len() - 2]
-    } else {
-        ""
-    };
+    let prog = if quoted.len() > 1 { quoted[quoted.len() - 2] } else { "" };
     let lower = target.to_lowercase();
     let node = prog.eq_ignore_ascii_case("%_prog%") || {
         let p = prog.to_lowercase();
@@ -216,9 +186,7 @@ fn from_dp0(s: &str) -> Option<&str> {
     (!rest.is_empty()).then_some(rest)
 }
 
-const META: &[char] = &[
-    '(', ')', ']', '[', '%', '!', '^', '"', '`', '<', '>', '&', '|', ';', ',', ' ', '*', '?',
-];
+const META: &[char] = &['(', ')', ']', '[', '%', '!', '^', '"', '`', '<', '>', '&', '|', ';', ',', ' ', '*', '?'];
 
 fn caret(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 2);
@@ -265,18 +233,8 @@ pub fn escape_cmd_argument(arg: &str, double: bool) -> String {
 }
 
 /// `bin args` as the platform can start them directly.
-pub fn resolve_command(
-    bin: &str,
-    args: &[String],
-    env: &[(String, String)],
-    platform: Platform,
-    fs: &dyn Lookup,
-) -> Resolved {
-    let plain = |command: &str, args: Vec<String>| Resolved {
-        command: command.to_owned(),
-        args,
-        verbatim: false,
-    };
+pub fn resolve_command(bin: &str, args: &[String], env: &[(String, String)], platform: Platform, fs: &dyn Lookup) -> Resolved {
+    let plain = |command: &str, args: Vec<String>| Resolved { command: command.to_owned(), args, verbatim: false };
     if platform == Platform::Unix {
         return plain(bin, args.to_vec());
     }
@@ -286,15 +244,7 @@ pub fn resolve_command(
     };
     match win_ext(&file).to_lowercase().as_str() {
         ".ps1" => {
-            let mut a: Vec<String> = [
-                "-NoLogo",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-            ]
-            .map(String::from)
-            .to_vec();
+            let mut a: Vec<String> = ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"].map(String::from).to_vec();
             a.push(file);
             a.extend_from_slice(args);
             plain("powershell.exe", a)
@@ -304,40 +254,23 @@ pub fn resolve_command(
     }
 }
 
-fn resolve_batch(
-    file: &str,
-    args: &[String],
-    env: &[(String, String)],
-    fs: &dyn Lookup,
-) -> Resolved {
+fn resolve_batch(file: &str, args: &[String], env: &[(String, String)], fs: &dyn Lookup) -> Resolved {
     let dir = win_dirname(file);
     match fs.read(file).as_deref().and_then(parse_cmd_shim) {
         Some(Shim::Exe(exe)) => {
             let exe = win_resolve(dir, &exe);
             if fs.is_file(&exe) {
-                return Resolved {
-                    command: exe,
-                    args: args.to_vec(),
-                    verbatim: false,
-                };
+                return Resolved { command: exe, args: args.to_vec(), verbatim: false };
             }
         }
         Some(Shim::Script(script)) => {
             let script = win_resolve(dir, &script);
             if fs.is_file(&script) {
                 let local = win_join(dir, "node.exe");
-                let node = if fs.is_file(&local) {
-                    local
-                } else {
-                    which_windows("node", env, fs).unwrap_or_else(|| "node".into())
-                };
+                let node = if fs.is_file(&local) { local } else { which_windows("node", env, fs).unwrap_or_else(|| "node".into()) };
                 let mut a = vec![script];
                 a.extend_from_slice(args);
-                return Resolved {
-                    command: node,
-                    args: a,
-                    verbatim: false,
-                };
+                return Resolved { command: node, args: a, verbatim: false };
             }
         }
         None => {}
@@ -346,17 +279,10 @@ fn resolve_batch(
     let mut line = escape_cmd_command(file);
     for a in args {
         line.push(' ');
-        line.push_str(&escape_cmd_argument(
-            &a.replace("\r\n", " ").replace('\n', " "),
-            true,
-        ));
+        line.push_str(&escape_cmd_argument(&a.replace("\r\n", " ").replace('\n', " "), true));
     }
     let shell = env_get(env, "ComSpec").unwrap_or("cmd.exe").to_owned();
-    Resolved {
-        command: shell,
-        args: vec!["/d".into(), "/s".into(), "/c".into(), format!("\"{line}\"")],
-        verbatim: true,
-    }
+    Resolved { command: shell, args: vec!["/d".into(), "/s".into(), "/c".into(), format!("\"{line}\"")], verbatim: true }
 }
 
 // ---- Windows paths as strings (so they are tested on any OS) ----
@@ -374,11 +300,7 @@ fn win_dirname(p: &str) -> &str {
 }
 
 fn win_join(dir: &str, name: &str) -> String {
-    format!(
-        "{}\\{}",
-        dir.trim_end_matches(['\\', '/']),
-        name.trim_start_matches(['\\', '/'])
-    )
+    format!("{}\\{}", dir.trim_end_matches(['\\', '/']), name.trim_start_matches(['\\', '/']))
 }
 
 /// `dir` + a relative path with `..` and `.` folded (path.win32.resolve for the shim's targets).

@@ -61,11 +61,14 @@ pub fn wake_loops(after: &[Resource]) -> Vec<String> {
         .iter()
         .filter(|r| r.kind == "crew")
         .flat_map(|r| {
-            let list: Vec<wisp_automations_api::TriggerSpec> = r.spec.get("wakes").and_then(|w| serde_json::from_value(w.clone()).ok()).unwrap_or_default();
+            let list: Vec<wisp_automations_api::TriggerSpec> =
+                r.spec.get("wakes").and_then(|w| serde_json::from_value(w.clone()).ok()).unwrap_or_default();
             list.into_iter().map(move |w| (r.name.clone(), w))
         })
         .collect();
-    wisp_automations_api::spec::wake_cycle(&wisp_automations_api::spec::wake_edges(&wakes)).map(|c| vec![format!("crew wakes go round in a loop: {} (each wakes on the one before's report)", c.join(" → "))]).unwrap_or_default()
+    wisp_automations_api::spec::wake_cycle(&wisp_automations_api::spec::wake_edges(&wakes))
+        .map(|c| vec![format!("crew wakes go round in a loop: {} (each wakes on the one before's report)", c.join(" → "))])
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -77,7 +80,9 @@ mod tests {
 
     #[test]
     fn crew_wake_cycle_refused_at_apply() {
-        let member = |name: &str, after: &str| Resource::new("crew", name, json!({ "wakes": [{ "on": "crew.reported", "match": { "member": after } }] }));
+        let member = |name: &str, after: &str| {
+            Resource::new("crew", name, json!({ "wakes": [{ "on": "crew.reported", "match": { "member": after } }] }))
+        };
         let fine = vec![member("bo", "ada"), member("cy", "bo"), Resource::new("crew", "ada", json!({}))];
         assert!(wake_loops(&fine).is_empty());
         let looped = vec![member("ada", "bo"), member("bo", "ada")];

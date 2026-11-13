@@ -31,10 +31,8 @@ pub struct EnvPatch {
 impl EnvPatch {
     /// `base` with the patch applied (what the program sees).
     pub fn apply(&self, base: impl IntoIterator<Item = (String, String)>) -> Vec<(String, String)> {
-        let mut out: Vec<(String, String)> = base
-            .into_iter()
-            .filter(|(k, _)| !self.remove.contains(k) && !self.set.iter().any(|(s, _)| s == k))
-            .collect();
+        let mut out: Vec<(String, String)> =
+            base.into_iter().filter(|(k, _)| !self.remove.contains(k) && !self.set.iter().any(|(s, _)| s == k)).collect();
         out.extend(self.set.iter().cloned());
         out
     }
@@ -42,17 +40,10 @@ impl EnvPatch {
 
 /// A take over drops the costly settings too; a shell beside the task is the user's own and keeps them.
 pub fn term_env(takeover: bool) -> EnvPatch {
-    let set = [
-        ("TERM", "xterm-256color"),
-        ("COLORTERM", "truecolor"),
-        ("TERM_PROGRAM", "wisp"),
-    ]
-    .map(|(k, v)| (k.to_owned(), v.to_owned()))
-    .to_vec();
-    let mut remove: Vec<String> = std::iter::once("NO_COLOR")
-        .chain(PARENT_SESSION_ENV.iter().copied())
-        .map(str::to_owned)
-        .collect();
+    let set = [("TERM", "xterm-256color"), ("COLORTERM", "truecolor"), ("TERM_PROGRAM", "wisp")]
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .to_vec();
+    let mut remove: Vec<String> = std::iter::once("NO_COLOR").chain(PARENT_SESSION_ENV.iter().copied()).map(str::to_owned).collect();
     if takeover {
         remove.extend(COSTLY_ENV.iter().map(|k| (*k).to_owned()));
     }
@@ -93,34 +84,11 @@ mod tests {
             ],
             [None, None, None, Some("1")]
         );
+        assert_eq!(get(&take, "CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES"), None, "take over: gone");
+        assert_eq!(get(&term_env(false).apply(base), "CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES"), Some("1"), "shell: the user's own");
         assert_eq!(
-            get(&take, "CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES"),
-            None,
-            "take over: gone"
-        );
-        assert_eq!(
-            get(
-                &term_env(false).apply(base),
-                "CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES"
-            ),
-            Some("1"),
-            "shell: the user's own"
-        );
-        assert_eq!(
-            [
-                get(&take, "TERM"),
-                get(&take, "COLORTERM"),
-                get(&take, "TERM_PROGRAM"),
-                get(&take, "NO_COLOR"),
-                get(&take, "PATH")
-            ],
-            [
-                Some("xterm-256color"),
-                Some("truecolor"),
-                Some("wisp"),
-                None,
-                Some("/bin")
-            ]
+            [get(&take, "TERM"), get(&take, "COLORTERM"), get(&take, "TERM_PROGRAM"), get(&take, "NO_COLOR"), get(&take, "PATH")],
+            [Some("xterm-256color"), Some("truecolor"), Some("wisp"), None, Some("/bin")]
         );
         assert_eq!(take.iter().filter(|(k, _)| k == "TERM").count(), 1);
     }

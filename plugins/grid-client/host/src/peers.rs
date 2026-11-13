@@ -16,7 +16,9 @@ pub fn host_port(url: &str) -> (String, u16) {
     let https = url.starts_with("https:");
     let host = net::host_of(url);
     match host.rsplit_once(':') {
-        Some((h, p)) if p.bytes().all(|b| b.is_ascii_digit()) && !p.is_empty() => (h.to_owned(), p.parse().unwrap_or(if https { 443 } else { 80 })),
+        Some((h, p)) if p.bytes().all(|b| b.is_ascii_digit()) && !p.is_empty() => {
+            (h.to_owned(), p.parse().unwrap_or(if https { 443 } else { 80 }))
+        }
         _ => (host.to_owned(), if https { 443 } else { 80 }),
     }
 }
@@ -72,7 +74,10 @@ pub async fn sync_computers(st: &Arc<St>) -> Result<usize> {
         let name = c.get("name").and_then(Value::as_str).unwrap_or("Computer");
         if let Some(p) = have.iter().find(|p| p.field("computer") == Some(cid)) {
             if p.name != name {
-                calls::warn("machines.update (a computer's name)", calls::update(&st.ctx, &p.id, AddArgs { name: Some(name.to_owned()), ..AddArgs::default() }).await);
+                calls::warn(
+                    "machines.update (a computer's name)",
+                    calls::update(&st.ctx, &p.id, AddArgs { name: Some(name.to_owned()), ..AddArgs::default() }).await,
+                );
             }
             continue;
         }
@@ -107,7 +112,8 @@ mod tests {
     /// `/data/grid`, a renewed sign-in never found its cloud box and computers were added again each sync.
     #[test]
     fn the_cloud_box_and_computers_are_found_by_their_flattened_fields() {
-        let peer = |id: &str, t: &str, k: &str, v: &str| Peer { id: id.into(), transport: t.into(), data: data(&[(k, v)]), ..Peer::default() };
+        let peer =
+            |id: &str, t: &str, k: &str, v: &str| Peer { id: id.into(), transport: t.into(), data: data(&[(k, v)]), ..Peer::default() };
         let have = vec![peer("m1", GRID_TUNNEL, "computer", "c1"), peer("m2", GRID, "grid", "https://g.test")];
         assert_eq!(cloud_of(&have, "gone", "https://g.test").map(|p| p.id.as_str()), Some("m2"));
         assert_eq!(cloud_of(&have, "m1", "https://other.test").map(|p| p.id.as_str()), Some("m1"), "the one it was");

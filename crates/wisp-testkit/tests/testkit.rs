@@ -1,24 +1,15 @@
 //! The testkit itself: the fake clock drives kernel time, the free tests pass on a well-behaved plugin
 //! and catch a command reachable without its permission, goldens compare and rewrite, and the fake
 //! harness and gh behave like v1's.
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::needless_pass_by_value
-)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::needless_pass_by_value)]
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde_json::{Value, json};
-use wisp_kernel::{
-    Caller, Clock, Code, Command, Failure, Hook, InterceptOpts, Manifest, Plugin, Result, Setup,
-    Verdict,
-};
+use wisp_kernel::{Caller, Clock, Code, Command, Failure, Hook, InterceptOpts, Manifest, Plugin, Result, Setup, Verdict};
 use wisp_testkit::{
-    FakeClock, TestApp, assert_deactivate_leaks_nothing, assert_golden_at,
-    assert_missing_permission_refused, install_fakes_from,
+    FakeClock, TestApp, assert_deactivate_leaks_nothing, assert_golden_at, assert_missing_permission_refused, install_fakes_from,
 };
 
 struct Go;
@@ -47,27 +38,24 @@ struct Sample {
 }
 impl Plugin for Sample {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.sample", "version": "1.0.0", "api": "^1", "requires": { "wisp.runtime": "^1" } })).unwrap()
+        Manifest::from_value(
+            json!({ "wispPlugin": 1, "id": "acme.sample", "version": "1.0.0", "api": "^1", "requires": { "wisp.runtime": "^1" } }),
+        )
+        .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.command::<Go, _, _>(|ctx, call, v| async move { ctx.run_hook::<Before>(&call, v).await });
         s.command::<Open, _, _>(|_, _, ()| async { Ok(()) });
         let slow = self.slow_ms;
         s.intercept::<Before, _, _>(
-            InterceptOpts {
-                failure: Failure::Closed,
-                timeout_ms: 100,
-                ..Default::default()
-            },
+            InterceptOpts { failure: Failure::Closed, timeout_ms: 100, ..Default::default() },
             move |ctx, _, c| async move {
                 if slow > 0
                     && let Ok(clock) = ctx.clock()
                 {
                     clock.sleep(slow).await;
                 }
-                Verdict::Modify {
-                    ctx: json!({ "seen": c }),
-                }
+                Verdict::Modify { ctx: json!({ "seen": c }) }
             },
         );
         let ctx = s.ctx();
@@ -95,11 +83,7 @@ async fn the_fake_clock_moves_only_when_told() {
 #[tokio::test]
 async fn interceptor_budgets_run_on_the_fake_clock() {
     let clock = FakeClock::default();
-    let k = TestApp::new()
-        .clock(&clock)
-        .with(Sample { slow_ms: 500 })
-        .start()
-        .await;
+    let k = TestApp::new().clock(&clock).with(Sample { slow_ms: 500 }).start().await;
     let call = tokio::spawn({
         let k = k.clone();
         async move { k.call(Caller::user(), "sample.go", json!(1)).await }
@@ -110,11 +94,7 @@ async fn interceptor_budgets_run_on_the_fake_clock() {
         }
         tokio::task::yield_now().await;
     }
-    assert_eq!(
-        clock.sleepers(),
-        2,
-        "the budget timer and the interceptor's own sleep are armed"
-    );
+    assert_eq!(clock.sleepers(), 2, "the budget timer and the interceptor's own sleep are armed");
     clock.advance(100); // the 100 ms budget ends before the interceptor's 500 ms
     let e = call.await.unwrap().unwrap_err();
     assert_eq!(e.code, Code::Vetoed);
@@ -124,15 +104,8 @@ async fn interceptor_budgets_run_on_the_fake_clock() {
 #[tokio::test]
 async fn test_app_stubs_what_a_plugin_requires() {
     let k = TestApp::new().with(Sample { slow_ms: 0 }).start().await;
-    assert_eq!(
-        k.call(Caller::user(), "sample.go", json!(1)).await.unwrap(),
-        json!({ "seen": 1 })
-    );
-    assert!(
-        k.status()
-            .iter()
-            .any(|s| s.id == "wisp.runtime" && s.state == "active")
-    );
+    assert_eq!(k.call(Caller::user(), "sample.go", json!(1)).await.unwrap(), json!({ "seen": 1 }));
+    assert!(k.status().iter().any(|s| s.id == "wisp.runtime" && s.state == "active"));
 }
 
 #[tokio::test]
@@ -163,10 +136,7 @@ fn goldens_compare() {
     let r = std::panic::catch_unwind(|| assert_golden_at(&d, "a", &json!({ "x": 2 })));
     assert!(r.is_err(), "a different value fails");
     let r = std::panic::catch_unwind(|| assert_golden_at(&d, "missing", &json!({})));
-    assert!(
-        r.is_err(),
-        "a missing golden fails and says how to write it"
-    );
+    assert!(r.is_err(), "a missing golden fails and says how to write it");
 }
 
 /// This crate's fakes, by the paths cargo hands its own integration tests: cargo builds the bins
@@ -179,13 +149,7 @@ fn install_fakes(dir: &std::path::Path, names: &[&str]) {
     install_fakes_from(dir, names, agent, gh).unwrap();
 }
 
-fn run(
-    bin: &std::path::Path,
-    args: &[&str],
-    cwd: &std::path::Path,
-    stdin: &str,
-    env: &[(&str, &str)],
-) -> (i32, String, String) {
+fn run(bin: &std::path::Path, args: &[&str], cwd: &std::path::Path, stdin: &str, env: &[(&str, &str)]) -> (i32, String, String) {
     use std::io::Write;
     let mut c = std::process::Command::new(bin);
     c.args(args)
@@ -197,18 +161,9 @@ fn run(
         c.env(k, v);
     }
     let mut child = c.spawn().unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(stdin.as_bytes())
-        .unwrap();
+    child.stdin.take().unwrap().write_all(stdin.as_bytes()).unwrap();
     let o = child.wait_with_output().unwrap();
-    (
-        o.status.code().unwrap_or(-1),
-        String::from_utf8_lossy(&o.stdout).into_owned(),
-        String::from_utf8_lossy(&o.stderr).into_owned(),
-    )
+    (o.status.code().unwrap_or(-1), String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned())
 }
 
 #[test]
@@ -218,60 +173,26 @@ fn the_fake_harness_plays_claude_and_codex() {
     install_fakes(&bin, &["claude", "codex", "gh"]);
     let work = d.join("work");
     std::fs::create_dir_all(&work).unwrap();
-    std::fs::write(
-        work.join("math.js"),
-        "export const add = (a, b) => a - b;\n",
-    )
-    .unwrap();
+    std::fs::write(work.join("math.js"), "export const add = (a, b) => a - b;\n").unwrap();
     let (code, out, _) = run(&bin.join("claude"), &["--version"], &work, "", &[]);
     assert_eq!((code, out.trim()), (0, "9.9.9 (Fake Claude Code)"));
     let rec = d.join("rec");
     let rec_s = rec.display().to_string();
-    let (code, out, _) = run(
-        &bin.join("claude"),
-        &["-p", "--output-format", "stream-json"],
-        &work,
-        "fix it TOPIC[Math fix]",
-        &[("FAKE_RECORD", &rec_s)],
-    );
+    let (code, out, _) =
+        run(&bin.join("claude"), &["-p", "--output-format", "stream-json"], &work, "fix it TOPIC[Math fix]", &[("FAKE_RECORD", &rec_s)]);
     assert_eq!(code, 0);
-    let lines: Vec<Value> = out
-        .lines()
-        .map(|l| serde_json::from_str(l).unwrap())
-        .collect();
+    let lines: Vec<Value> = out.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
     assert_eq!(lines[0]["subtype"], "init");
     let result = lines.last().unwrap();
     assert_eq!(result["type"], "result");
-    assert!(
-        result["result"]
-            .as_str()
-            .unwrap()
-            .contains("\"topic\":\"Math fix\"")
-    );
-    assert!(
-        std::fs::read_to_string(work.join("math.js"))
-            .unwrap()
-            .contains("a + b")
-    );
-    let recorded: Value = serde_json::from_str(
-        std::fs::read_to_string(rec.join("claude.jsonl"))
-            .unwrap()
-            .lines()
-            .next()
-            .unwrap(),
-    )
-    .unwrap();
+    assert!(result["result"].as_str().unwrap().contains("\"topic\":\"Math fix\""));
+    assert!(std::fs::read_to_string(work.join("math.js")).unwrap().contains("a + b"));
+    let recorded: Value = serde_json::from_str(std::fs::read_to_string(rec.join("claude.jsonl")).unwrap().lines().next().unwrap()).unwrap();
     assert_eq!(recorded["stdin"], "fix it TOPIC[Math fix]");
     let (code, out, _) = run(&bin.join("codex"), &["exec", "--json"], &work, "go", &[]);
     assert_eq!(code, 0);
     assert!(out.lines().last().unwrap().contains("turn.completed"));
-    let (code, _, err) = run(
-        &bin.join("claude"),
-        &["-p"],
-        &work,
-        "go",
-        &[("FAKE_FAIL", "1")],
-    );
+    let (code, _, err) = run(&bin.join("claude"), &["-p"], &work, "go", &[("FAKE_FAIL", "1")]);
     assert_eq!(code, 1);
     assert!(err.contains("failed on purpose"));
 }
@@ -284,29 +205,15 @@ fn the_fake_gh_keeps_pull_requests() {
     let state = d.join("state.json").display().to_string();
     let env = [("FAKE_GH_STATE", state.as_str())];
     let gh = bin.join("gh");
-    let (code, out, _) = run(
-        &gh,
-        &[
-            "pr", "create", "--title", "T", "--body", "B", "--head", "feat/x", "--base", "main",
-        ],
-        &d,
-        "",
-        &env,
-    );
+    let (code, out, _) = run(&gh, &["pr", "create", "--title", "T", "--body", "B", "--head", "feat/x", "--base", "main"], &d, "", &env);
     assert_eq!(code, 0, "{out}");
     assert!(out.contains("https://github.com/acme/repo/pull/1"));
     let (_, out, _) = run(&gh, &["pr", "view", "1", "--json", "state"], &d, "", &env);
     let pr: Value = serde_json::from_str(out.trim()).unwrap();
-    assert_eq!(
-        (pr["state"].as_str(), pr["headRefName"].as_str()),
-        (Some("OPEN"), Some("feat/x"))
-    );
+    assert_eq!((pr["state"].as_str(), pr["headRefName"].as_str()), (Some("OPEN"), Some("feat/x")));
     run(&gh, &["pr", "merge", "feat/x", "--squash"], &d, "", &env);
     let (_, out, _) = run(&gh, &["pr", "view", "1"], &d, "", &env);
-    assert_eq!(
-        serde_json::from_str::<Value>(out.trim()).unwrap()["state"],
-        "MERGED"
-    );
+    assert_eq!(serde_json::from_str::<Value>(out.trim()).unwrap()["state"], "MERGED");
     let (code, _, err) = run(&gh, &["pr", "view", "9"], &d, "", &env);
     assert_eq!((code, err.trim()), (1, "no pull requests found"));
     let _ = Arc::new(());

@@ -45,7 +45,10 @@ pub(crate) async fn pick_of(ctx: &Ctx, judge: &str) -> rt::RunPick {
 
 /// The task's scheduled entries (`later.list`), as the goal reads them.
 pub(crate) async fn scheduled(ctx: &Ctx, id: &str) -> Vec<Scheduled> {
-    let list = ctx.run::<wisp_later_api::List>(&ctx.root_call(), wisp_later_api::SessionArgs { session_id: id.to_owned() }).await.unwrap_or_default();
+    let list = ctx
+        .run::<wisp_later_api::List>(&ctx.root_call(), wisp_later_api::SessionArgs { session_id: id.to_owned() })
+        .await
+        .unwrap_or_default();
     list.into_iter().map(|l| Scheduled { id: l.id, by: l.by, remind: l.remind, set_at: l.set_at }).collect()
 }
 
@@ -61,7 +64,12 @@ pub(crate) fn warn_put(id: &str, r: Result<()>) {
 pub(crate) async fn quick(ctx: &Ctx, machine: Option<&str>, a: rt::QuickArgs) -> Result<String> {
     let Some(machine) = machine else { return ctx.run::<rt::Quick>(&ctx.root_call(), a).await.map(|r| r.text) };
     let args = serde_json::to_value(&a).map_err(|e| WireError::internal(e.to_string()))?;
-    let r = wisp_machines_api::RouteArgs { id: Some(machine.to_owned()), cmd: <rt::Quick as Command>::ID.to_owned(), args, mid: format!("judge-{}", wisp_kernel::ids::uuid7()) };
+    let r = wisp_machines_api::RouteArgs {
+        id: Some(machine.to_owned()),
+        cmd: <rt::Quick as Command>::ID.to_owned(),
+        args,
+        mid: format!("judge-{}", wisp_kernel::ids::uuid7()),
+    };
     let out = ctx.run::<wisp_machines_api::Route>(&ctx.root_call(), r).await?;
     Ok(out.get("text").and_then(Value::as_str).unwrap_or_default().to_owned())
 }

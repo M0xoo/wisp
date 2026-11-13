@@ -66,7 +66,8 @@ pub async fn wait(c: &Client, id: &str, timeout: Duration) -> Result<Value> {
 pub async fn show(c: &Client, f: &Flags, id: &str, summary: Option<Value>) -> Result<()> {
     let task = c.cmd("runtime.get", json!({ "id": id })).await?;
     let p = c.cmd("runtime.presentation", json!({ "id": id })).await.unwrap_or(Value::Null);
-    let still = if summary.as_ref().and_then(|x| x.get("timedOut")).and_then(Value::as_bool) == Some(true) { ", still running" } else { "" };
+    let still =
+        if summary.as_ref().and_then(|x| x.get("timedOut")).and_then(Value::as_bool) == Some(true) { ", still running" } else { "" };
     if f.json {
         let mut all = task.clone();
         if let Some(o) = all.as_object_mut() {
@@ -93,7 +94,9 @@ pub async fn ls(c: &Client, f: &Flags) -> Result<()> {
             }
         }
     }
-    if let Some(bad) = Some(states.iter().filter(|x| !LS_STATES.contains(&x.as_str())).cloned().collect::<Vec<_>>()).filter(|b| !b.is_empty()) {
+    if let Some(bad) =
+        Some(states.iter().filter(|x| !LS_STATES.contains(&x.as_str())).cloned().collect::<Vec<_>>()).filter(|b| !b.is_empty())
+    {
         return Err(CliError::said(format!("unknown state {}: use {} or needs (review + waiting)", bad.join(", "), LS_STATES.join(", "))));
     }
     let mut args = json!({});
@@ -114,9 +117,17 @@ pub async fn ls(c: &Client, f: &Flags) -> Result<()> {
     let lines: Vec<String> = rows
         .iter()
         .map(|x| {
-            let ask = x.get("question").and_then(Value::as_str).filter(|q| !q.is_empty()).map_or(String::new(), |q| format!("  — asks: {q}"));
+            let ask =
+                x.get("question").and_then(Value::as_str).filter(|q| !q.is_empty()).map_or(String::new(), |q| format!("  — asks: {q}"));
             let proj = std::path::Path::new(s(x, "cwd")).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            format!("{}  {:<7}  {:<8}  {:<16}  {}{ask}", s(x, "id"), s(x, "state"), s(x, "agent"), proj.chars().take(16).collect::<String>(), s(x, "title"))
+            format!(
+                "{}  {:<7}  {:<8}  {:<16}  {}{ask}",
+                s(x, "id"),
+                s(x, "state"),
+                s(x, "agent"),
+                proj.chars().take(16).collect::<String>(),
+                s(x, "title")
+            )
         })
         .collect();
     out(f, &json!(rows), &if lines.is_empty() { "No sessions.".to_owned() } else { lines.join("\n") });
@@ -138,7 +149,10 @@ pub async fn reply(c: &Client, f: &Flags, args: &[String]) -> Result<()> {
     if let Some(m) = &f.mode {
         a["mode"] = json!(m);
     }
-    let pick: serde_json::Map<String, Value> = [("agent", &f.agent), ("model", &f.model), ("effort", &f.effort)].into_iter().filter_map(|(k, v)| v.as_ref().map(|v| (k.to_owned(), json!(v)))).collect();
+    let pick: serde_json::Map<String, Value> = [("agent", &f.agent), ("model", &f.model), ("effort", &f.effort)]
+        .into_iter()
+        .filter_map(|(k, v)| v.as_ref().map(|v| (k.to_owned(), json!(v))))
+        .collect();
     if !pick.is_empty() {
         a["run"] = Value::Object(pick);
     }
@@ -153,13 +167,19 @@ pub async fn reply(c: &Client, f: &Flags, args: &[String]) -> Result<()> {
 }
 
 pub fn btw_out(f: &Flags, b: &Value) {
-    let text = if b.get("pending") == Some(&json!(true)) { "  … still answering; it will show on the card".to_owned() } else { s(b, "answer").to_owned() };
+    let text = if b.get("pending") == Some(&json!(true)) {
+        "  … still answering; it will show on the card".to_owned()
+    } else {
+        s(b, "answer").to_owned()
+    };
     out(f, b, &text);
 }
 
 /// The side answer, once it's in (the task's `ext["wisp.runtime"].btw`, from its topic; at most 6 minutes).
 pub async fn btw_answer(c: &Client, id: &str, btw: &str) -> Result<Value> {
-    let entry = |t: &Value| t.pointer("/ext/wisp.runtime/btw").and_then(Value::as_array).and_then(|a| a.iter().find(|x| s(x, "id") == btw)).cloned();
+    let entry = |t: &Value| {
+        t.pointer("/ext/wisp.runtime/btw").and_then(Value::as_array).and_then(|a| a.iter().find(|x| s(x, "id") == btw)).cloned()
+    };
     let done = crate::attach::until(c, id, |t| entry(t).is_some_and(|b| b.get("pending") != Some(&json!(true))));
     match tokio::time::timeout(Duration::from_secs(6 * 60), done).await {
         Ok(t) => Ok(entry(&t?).unwrap_or_else(|| json!({ "id": btw, "answer": "", "error": "It was dismissed." }))),

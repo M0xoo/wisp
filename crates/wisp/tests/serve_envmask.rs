@@ -41,7 +41,10 @@ fn replay(dir: &std::path::Path, proj: &std::path::Path) -> std::path::PathBuf {
 
 /// Reads the sync stream until `want` shows or the time runs out; everything it carried.
 async fn stream(http: &reqwest::Client, port: u16, topics: &str, want: &str, secs: u64) -> String {
-    let url = format!("http://127.0.0.1:{port}/api/events?proto_min=2&proto_max=2&client_id=envmask-{}&build=t&topics={topics}", std::process::id());
+    let url = format!(
+        "http://127.0.0.1:{port}/api/events?proto_min=2&proto_max=2&client_id=envmask-{}&build=t&topics={topics}",
+        std::process::id()
+    );
     let mut r = http.get(url).send().await.unwrap();
     let mut seen = String::new();
     let at = Instant::now();
@@ -72,7 +75,10 @@ async fn a_sync_topic_a_share_and_every_read_never_carry_a_env_value_and_reveal_
     let http = reqwest::Client::new();
     let api = Api { http: http.clone(), port, n: 0.into() };
 
-    let id = api.cmd("runtime.create", json!({ "prompt": "rotate the key", "cwd": proj, "agent": "claude" })).await["id"].as_str().unwrap().to_owned();
+    let id = api.cmd("runtime.create", json!({ "prompt": "rotate the key", "cwd": proj, "agent": "claude" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let topic = format!("session:{id}");
     // the live stream, open before the run: every commit it carries
     let live = tokio::spawn({
@@ -109,7 +115,13 @@ async fn a_sync_topic_a_share_and_every_read_never_carry_a_env_value_and_reveal_
     let raw = api.cmd("runtime.unmasked", json!({ "id": id, "turnId": tid, "block": code })).await;
     assert!(raw["code"].as_str().unwrap().contains("sk-live-two"), "{raw}");
     // the event that carries the output (the page asks by it): the call's own `tool_output`
-    let read = steps["items"].as_array().unwrap().iter().find(|s| s["kind"] == "tool_output" && s["text"].as_str().is_some_and(|t| t.contains(DOTS))).cloned().unwrap_or_else(|| panic!("a masked output: {steps}"));
+    let read = steps["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["kind"] == "tool_output" && s["text"].as_str().is_some_and(|t| t.contains(DOTS)))
+        .cloned()
+        .unwrap_or_else(|| panic!("a masked output: {steps}"));
     assert_eq!(read["env"], true, "flagged by the turn machine");
     let raw = api.cmd("runtime.unmasked", json!({ "id": id, "turnId": tid, "step": read["seq"] })).await;
     assert!(raw.to_string().contains("sk-live-one"), "{raw}");

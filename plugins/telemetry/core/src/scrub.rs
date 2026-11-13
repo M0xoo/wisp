@@ -22,9 +22,7 @@ fn slash(c: char) -> bool {
 
 /// A character of a path segment: not whitespace, a quote, a backtick, a parenthesis, a colon or a slash.
 fn seg(c: char) -> bool {
-    !(c.is_whitespace()
-        || c == '\u{feff}'
-        || matches!(c, '\'' | '"' | '`' | '(' | ')' | ':' | '/' | '\\'))
+    !(c.is_whitespace() || c == '\u{feff}' || matches!(c, '\'' | '"' | '`' | '(' | ')' | ':' | '/' | '\\'))
 }
 
 /// The lookbehind `[\w<>~.:/\\-]` (JS `\w` is ASCII).
@@ -63,9 +61,7 @@ fn match_at(cs: &[char], i: usize) -> Option<(usize, usize)> {
         c if c.is_ascii_alphabetic() && cs.get(i + 1) == Some(&':') => Some(i + 2),
         _ => None,
     };
-    prefixed
-        .and_then(|j| path_from(cs, j))
-        .or_else(|| path_from(cs, i))
+    prefixed.and_then(|j| path_from(cs, j)).or_else(|| path_from(cs, i))
 }
 
 /// Cuts every absolute path outside wisp down to its file name.
@@ -114,9 +110,7 @@ fn js_frame(line: &str) -> Option<(Option<&str>, &str, u32, u32)> {
 
 /// `file:line:col` with v1's optional closing parenthesis.
 fn location(loc: &str) -> Option<(&str, u32, u32)> {
-    loc.strip_suffix(')')
-        .and_then(file_line_col)
-        .or_else(|| file_line_col(loc))
+    loc.strip_suffix(')').and_then(file_line_col).or_else(|| file_line_col(loc))
 }
 
 /// `file:line:col` with a non-empty file and all-digit line and col.
@@ -127,11 +121,7 @@ fn file_line_col(loc: &str) -> Option<(&str, u32, u32)> {
     if file.is_empty() || !digits(line) || !digits(col) {
         return None;
     }
-    Some((
-        file,
-        line.parse().unwrap_or(u32::MAX),
-        col.parse().unwrap_or(u32::MAX),
-    ))
+    Some((file, line.parse().unwrap_or(u32::MAX), col.parse().unwrap_or(u32::MAX)))
 }
 
 /// A stack as `PostHog`'s raw frames, innermost last. `JavaScript` stacks (the page, v1) as v1 sent them;
@@ -141,8 +131,7 @@ pub fn frames(stack: &str, o: &ScrubOptions) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
     for line in lines.iter().skip(1).take(29) {
         if let Some((func, file, l, c)) = js_frame(line.trim()) {
-            let in_app =
-                !o.root.is_empty() && file.contains(&o.root) && !file.contains("node_modules");
+            let in_app = !o.root.is_empty() && file.contains(&o.root) && !file.contains("node_modules");
             let file = file.strip_prefix("file://").unwrap_or(file);
             out.push(json!({ "platform": "custom", "lang": "javascript", "function": func.unwrap_or("?"), "filename": scrub(file, o), "lineno": l, "colno": c, "in_app": in_app }));
         }
@@ -159,16 +148,10 @@ fn rust_frames(lines: &[&str], o: &ScrubOptions) -> Vec<Value> {
     let mut i = 0;
     while i < lines.len() && out.len() < 29 {
         let t = lines[i].trim();
-        let func = t
-            .split_once(": ")
-            .filter(|(n, _)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
-            .map(|(_, f)| f);
+        let func = t.split_once(": ").filter(|(n, _)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())).map(|(_, f)| f);
         i += 1;
         let Some(func) = func else { continue };
-        let loc = lines
-            .get(i)
-            .and_then(|l| l.trim().strip_prefix("at "))
-            .and_then(file_line_col);
+        let loc = lines.get(i).and_then(|l| l.trim().strip_prefix("at ")).and_then(file_line_col);
         if loc.is_some() {
             i += 1;
         }

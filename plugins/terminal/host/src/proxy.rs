@@ -182,7 +182,10 @@ async fn handle(upstream: &Upstream, mut req: Request<Incoming>, port: u16) -> R
         Err(e) => return plain(502, "text/html; charset=utf-8", failed_page(port, &e.to_string())),
     };
     let status = resp.status();
-    let mut kept: Vec<(String, String)> = header_pairs(resp.headers()).into_iter().filter(|(k, _)| !HOP.contains(&k.as_str()) || (upgrade && (k == "connection" || k == "upgrade"))).collect();
+    let mut kept: Vec<(String, String)> = header_pairs(resp.headers())
+        .into_iter()
+        .filter(|(k, _)| !HOP.contains(&k.as_str()) || (upgrade && (k == "connection" || k == "upgrade")))
+        .collect();
     kept = pick::frameable(&kept);
     if let (Some(server_side), StatusCode::SWITCHING_PROTOCOLS) = (server_side, status) {
         let client_side = hyper::upgrade::on(&mut resp);
@@ -200,7 +203,9 @@ async fn handle(upstream: &Upstream, mut req: Request<Incoming>, port: u16) -> R
     let length = resp.headers().get(http::header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<u64>().ok());
     if pick::takes_picker(&method, ctype.as_deref(), length) {
         let encoding = resp.headers().get(http::header::CONTENT_ENCODING).and_then(|v| v.to_str().ok()).map(str::to_owned);
-        let Ok(collected) = resp.into_body().collect().await else { return plain(502, "text/html; charset=utf-8", failed_page(port, "the page broke off")) };
+        let Ok(collected) = resp.into_body().collect().await else {
+            return plain(502, "text/html; charset=utf-8", failed_page(port, "the page broke off"));
+        };
         let bytes = collected.to_bytes();
         // a page it can't read as text goes through as it came (without the picker)
         let (body, rewritten) = match decoded(&bytes, encoding.as_deref()) {
@@ -261,7 +266,9 @@ mod tests {
     async fn get(port: u16, path: &str, host: &str) -> String {
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
         let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-        s.write_all(format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nAccept-Encoding: gzip\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+        s.write_all(format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nAccept-Encoding: gzip\r\nConnection: close\r\n\r\n").as_bytes())
+            .await
+            .unwrap();
         let mut out = Vec::new();
         s.read_to_end(&mut out).await.unwrap();
         String::from_utf8_lossy(&out).into_owned()
@@ -281,10 +288,13 @@ mod tests {
                 tokio::spawn(async move {
                     let svc = service_fn(|req: Request<Incoming>| async move {
                         let enc = req.headers().get(http::header::ACCEPT_ENCODING).map_or("none", |v| v.to_str().unwrap_or("?")).to_owned();
-                        let mut r = Response::new(full(format!("<!doctype html><html><head><title>app</title></head><body>enc={enc}</body></html>")));
+                        let mut r = Response::new(full(format!(
+                            "<!doctype html><html><head><title>app</title></head><body>enc={enc}</body></html>"
+                        )));
                         r.headers_mut().insert(http::header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
                         r.headers_mut().insert("x-frame-options", HeaderValue::from_static("DENY"));
-                        r.headers_mut().insert("content-security-policy", HeaderValue::from_static("default-src 'self'; frame-ancestors 'none'"));
+                        r.headers_mut()
+                            .insert("content-security-policy", HeaderValue::from_static("default-src 'self'; frame-ancestors 'none'"));
                         Ok::<_, Infallible>(r)
                     });
                     let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(stream), svc).await;

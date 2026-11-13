@@ -44,8 +44,14 @@ impl Runtime {
         let launch = h.launch(run)?;
         let opts = SpawnOpts {
             // a /btw runs where its task does; a quick answer with no folder in one empty folder of its own
-            cwd: Some(crate::run::run_folder(&launch.cwd, &run.cwd, if run.session_id.is_empty() { "quick" } else { &run.session_id }).await?),
-            env: Env { clear: false, set: run.env.iter().chain(&run.account_env).chain(&launch.env).map(|(k, v)| (k.clone(), v.clone())).collect(), remove: launch.env_remove.clone() },
+            cwd: Some(
+                crate::run::run_folder(&launch.cwd, &run.cwd, if run.session_id.is_empty() { "quick" } else { &run.session_id }).await?,
+            ),
+            env: Env {
+                clear: false,
+                set: run.env.iter().chain(&run.account_env).chain(&launch.env).map(|(k, v)| (k.clone(), v.clone())).collect(),
+                remove: launch.env_remove.clone(),
+            },
             no_stdin: launch.stdin == Stdin::Null,
             ..SpawnOpts::default()
         };

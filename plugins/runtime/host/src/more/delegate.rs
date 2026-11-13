@@ -19,13 +19,33 @@ fn copies(name: &str, count: u64) -> Vec<String> {
 
 /// A delegation that didn't go, and why.
 fn failed(subagent: &str, why: String) -> Delegation {
-    Delegation { id: SessionId(String::new()), subagent: subagent.to_owned(), agent: String::new(), model: String::new(), effort: String::new(), turn_id: TurnId(String::new()), place: None, error: Some(why) }
+    Delegation {
+        id: SessionId(String::new()),
+        subagent: subagent.to_owned(),
+        agent: String::new(),
+        model: String::new(),
+        effort: String::new(),
+        turn_id: TurnId(String::new()),
+        place: None,
+        error: Some(why),
+    }
 }
 
 /// The member a task names, and the slot (it, or a free copy) that takes it, and whether its place is a sandbox;
 /// or why it can't go.
-fn member_slot<'a>(rt: &Runtime, team: &'a [Value], names: &[String], children: &serde_json::Map<String, Value>, claimed: &[String], want: &str, prompt: &str) -> std::result::Result<(&'a Value, String, bool), String> {
-    let Some(m) = team.iter().find(|m| str_at(m, "name") == want || copies(&str_at(m, "name"), m.get("count").and_then(Value::as_u64).unwrap_or(1)).iter().any(|c| c == want)) else {
+fn member_slot<'a>(
+    rt: &Runtime,
+    team: &'a [Value],
+    names: &[String],
+    children: &serde_json::Map<String, Value>,
+    claimed: &[String],
+    want: &str,
+    prompt: &str,
+) -> std::result::Result<(&'a Value, String, bool), String> {
+    let Some(m) = team.iter().find(|m| {
+        str_at(m, "name") == want
+            || copies(&str_at(m, "name"), m.get("count").and_then(Value::as_u64).unwrap_or(1)).iter().any(|c| c == want)
+    }) else {
         return Err(format!("No subagent named \"{want}\". The team: {}.", names.join(", ")));
     };
     if prompt.is_empty() {
@@ -36,7 +56,10 @@ fn member_slot<'a>(rt: &Runtime, team: &'a [Value], names: &[String], children: 
     if (m.get("machine").is_some_and(|x| !x.is_null()) && !in_sandbox) || m.get("crew").is_some_and(|x| !x.is_null()) {
         return Err("Members on another machine or from the crew can't take work here yet.".into());
     }
-    let busy = |n: &String| claimed.contains(n) || children.get(n).and_then(Value::as_str).is_some_and(|c| rt.run_state(c) != wisp_runtime_core::queue::Run::Idle);
+    let busy = |n: &String| {
+        claimed.contains(n)
+            || children.get(n).and_then(Value::as_str).is_some_and(|c| rt.run_state(c) != wisp_runtime_core::queue::Run::Idle)
+    };
     let pool = if want == name { copies(&name, count) } else { vec![want.to_owned()] };
     let Some(slot_name) = pool.into_iter().find(|n| !busy(n)) else {
         let all = if count > 1 && want == name { format!(" (all {count} copies)") } else { String::new() };
@@ -57,9 +80,13 @@ impl Runtime {
         };
         let team: Vec<Value> = slot(&lead).and_then(|m| m.get("subagents")).and_then(Value::as_array).cloned().unwrap_or_default();
         if team.is_empty() {
-            return Err(RuntimeError::Invalid("This session has no subagents yet. Name a harness (agent, and machine to run it elsewhere) in each task to create one.".into()));
+            return Err(RuntimeError::Invalid(
+                "This session has no subagents yet. Name a harness (agent, and machine to run it elsewhere) in each task to create one."
+                    .into(),
+            ));
         }
-        let children: serde_json::Map<String, Value> = slot(&lead).and_then(|m| m.get("children")).and_then(Value::as_object).cloned().unwrap_or_default();
+        let children: serde_json::Map<String, Value> =
+            slot(&lead).and_then(|m| m.get("children")).and_then(Value::as_object).cloned().unwrap_or_default();
         let capped = slot(&lead).and_then(|m| m.get("capped")).cloned();
         let names: Vec<String> = team.iter().map(|m| str_at(m, "name")).collect();
         let mut claimed: Vec<String> = Vec::new();
@@ -82,7 +109,16 @@ impl Runtime {
                 match self.sandbox_member(&lead, m, &slot_name, existing, &prompt).await {
                     Ok(key) => {
                         made.insert(slot_name.clone(), json!(key));
-                        out.push(Delegation { id: SessionId(key), subagent: slot_name, agent: str_at(m, "agent"), model: str_at(m, "model"), effort: str_at(m, "effort"), turn_id: TurnId(String::new()), place: Some("sandbox".into()), error: None });
+                        out.push(Delegation {
+                            id: SessionId(key),
+                            subagent: slot_name,
+                            agent: str_at(m, "agent"),
+                            model: str_at(m, "model"),
+                            effort: str_at(m, "effort"),
+                            turn_id: TurnId(String::new()),
+                            place: Some("sandbox".into()),
+                            error: None,
+                        });
                     }
                     Err(e) => out.push(failed(&want, e.to_string())),
                 }
@@ -90,14 +126,29 @@ impl Runtime {
             }
             let (child, child_turn) = self.run_member(&lead, m, &slot_name, existing, &prompt, capped.as_ref(), &mut made).await?;
             let c = self.repo.session(&child).await?;
-            out.push(Delegation { id: c.id.clone(), subagent: slot_name, agent: c.agent, model: c.model, effort: c.effort, turn_id: child_turn.unwrap_or_else(|| TurnId(String::new())), place: None, error: None });
+            out.push(Delegation {
+                id: c.id.clone(),
+                subagent: slot_name,
+                agent: c.agent,
+                model: c.model,
+                effort: c.effort,
+                turn_id: child_turn.unwrap_or_else(|| TurnId(String::new())),
+                place: None,
+                error: None,
+            });
         }
         self.note_delegations(&a.id, &turn.id, made, &out).await?;
         Ok(out)
     }
 
     /// The delegations that went, on the lead: its children by slot, a record each on its turn, a "Delegated to …" row.
-    async fn note_delegations(self: &Arc<Self>, id: &SessionId, turn: &TurnId, made: serde_json::Map<String, Value>, out: &[Delegation]) -> Result<()> {
+    async fn note_delegations(
+        self: &Arc<Self>,
+        id: &SessionId,
+        turn: &TurnId,
+        made: serde_json::Map<String, Value>,
+        out: &[Delegation],
+    ) -> Result<()> {
         let sent: Vec<&Delegation> = out.iter().filter(|d| d.error.is_none()).collect();
         if sent.is_empty() {
             return Ok(());
@@ -114,7 +165,11 @@ impl Runtime {
         });
         with_slot(&mut t.ext, |x| {
             for d in &sent {
-                push(x, "delegations", json!({ "name": d.subagent, "sessionId": d.id, "turnId": d.turn_id, "agent": d.agent, "model": d.model, "startedAt": now, "owed": true }));
+                push(
+                    x,
+                    "delegations",
+                    json!({ "name": d.subagent, "sessionId": d.id, "turnId": d.turn_id, "agent": d.agent, "model": d.model, "startedAt": now, "owed": true }),
+                );
             }
         });
         self.persist(&mut l, vec![t]).await?;
@@ -125,7 +180,16 @@ impl Runtime {
 
     /// One member's task: its child resumed (following the lead's folder, mode and cap), or made.
     #[allow(clippy::too_many_arguments)]
-    async fn run_member(self: &Arc<Self>, lead: &Session, m: &Value, slot_name: &str, existing: Option<String>, prompt: &str, capped: Option<&Value>, made: &mut serde_json::Map<String, Value>) -> Result<(String, Option<TurnId>)> {
+    async fn run_member(
+        self: &Arc<Self>,
+        lead: &Session,
+        m: &Value,
+        slot_name: &str,
+        existing: Option<String>,
+        prompt: &str,
+        capped: Option<&Value>,
+        made: &mut serde_json::Map<String, Value>,
+    ) -> Result<(String, Option<TurnId>)> {
         let (prompt, capped) = (prompt.to_owned(), capped.cloned());
         let slot_name = slot_name.to_owned();
         Ok(match existing {
@@ -141,7 +205,15 @@ impl Runtime {
                     });
                     self.persist(&mut c, Vec::new()).await?;
                 }
-                let f = self.follow_up(FollowUpArgs { id: SessionId(cid.clone()), text: prompt.clone(), queue: Some(false), by: Some("lead".into()), ..FollowUpArgs::default() }).await?;
+                let f = self
+                    .follow_up(FollowUpArgs {
+                        id: SessionId(cid.clone()),
+                        text: prompt.clone(),
+                        queue: Some(false),
+                        by: Some("lead".into()),
+                        ..FollowUpArgs::default()
+                    })
+                    .await?;
                 (cid, f.turn_id)
             }
             _ => {
@@ -179,7 +251,14 @@ impl Runtime {
         let until = self.now() + i64::from(a.wait.unwrap_or(0).min(600)) * 1000;
         let ids: Vec<String> = if a.ids.is_empty() {
             let t = self.last_turn(a.id.as_str()).await?;
-            t.as_ref().and_then(|t| t.ext.get(SLOT)).and_then(|x| x.get("delegations")).and_then(Value::as_array).into_iter().flatten().map(|d| str_at(d, "sessionId")).collect()
+            t.as_ref()
+                .and_then(|t| t.ext.get(SLOT))
+                .and_then(|x| x.get("delegations"))
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(|d| str_at(d, "sessionId"))
+                .collect()
         } else {
             a.ids.iter().map(|i| i.0.clone()).collect()
         };

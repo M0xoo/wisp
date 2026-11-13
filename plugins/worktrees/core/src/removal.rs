@@ -36,11 +36,7 @@ pub fn folder_only(changed: u32, head: &str, branch_tip: Option<&str>) -> u32 {
 /// The dirt a removal weighs: strict reads what only the folder holds (None = can't tell = 1), else the
 /// plain status count.
 pub fn removal_dirt(strict: bool, only: Option<u32>, status_dirty: u32) -> u32 {
-    if strict {
-        only.unwrap_or(1)
-    } else {
-        status_dirty
-    }
+    if strict { only.unwrap_or(1) } else { status_dirty }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,13 +53,7 @@ pub enum RemoveStep {
 }
 
 /// `still`: asked last thing before the folder goes (None: nobody to ask).
-pub fn decide_removal(
-    foreign: bool,
-    exists: bool,
-    dirt: u32,
-    force: bool,
-    still: Option<bool>,
-) -> RemoveStep {
+pub fn decide_removal(foreign: bool, exists: bool, dirt: u32, force: bool, still: Option<bool>) -> RemoveStep {
     if foreign {
         RemoveStep::Foreign
     } else if !exists {
@@ -124,10 +114,7 @@ pub fn ensure_plan(exists: bool, foreign: bool, path: &str) -> EnsurePlan {
 
 /// A leftover folder's repo, from its `.git` file (`gitdir: <root>/.git/worktrees/<name>`).
 pub fn leftover_root(dot_git: &str) -> Option<String> {
-    let line = dot_git
-        .lines()
-        .find_map(|l| l.strip_prefix("gitdir: "))?
-        .trim();
+    let line = dot_git.lines().find_map(|l| l.strip_prefix("gitdir: "))?.trim();
     let norm = line.replace('\\', "/");
     let at = norm.find("/.git/worktrees/")?;
     (at > 0).then(|| norm[..at].to_owned())
@@ -139,46 +126,20 @@ mod tests {
     use crate::testrand::Rng;
 
     fn wt(path: &str, foreign: bool) -> Worktree {
-        Worktree {
-            path: path.into(),
-            foreign,
-            ..Worktree::default()
-        }
+        Worktree { path: path.into(), foreign, ..Worktree::default() }
     }
 
     #[test]
     fn foreign_worktrees_are_never_removed_whatever_force_says() {
         let home = "/Users/me";
         assert!(is_foreign(&wt("/src/app", true), home, false), "brought in");
-        assert!(is_foreign(
-            &wt("/Users/me/conductor/workspaces/app/x", false),
-            home,
-            false
-        ));
-        assert!(is_foreign(
-            &wt("/src/app/.conductor/ws", false),
-            home,
-            false
-        ));
-        assert!(
-            is_foreign(&wt("/src/app", false), home, true),
-            "a setup source claims it"
-        );
-        assert!(!is_foreign(
-            &wt("/Users/me/.wisp/worktrees/app-1", false),
-            home,
-            false
-        ));
-        assert!(!is_foreign(
-            &wt("/Users/me/conductorish/x", false),
-            home,
-            false
-        ));
+        assert!(is_foreign(&wt("/Users/me/conductor/workspaces/app/x", false), home, false));
+        assert!(is_foreign(&wt("/src/app/.conductor/ws", false), home, false));
+        assert!(is_foreign(&wt("/src/app", false), home, true), "a setup source claims it");
+        assert!(!is_foreign(&wt("/Users/me/.wisp/worktrees/app-1", false), home, false));
+        assert!(!is_foreign(&wt("/Users/me/conductorish/x", false), home, false));
         for force in [false, true] {
-            assert_eq!(
-                decide_removal(true, true, 0, force, Some(true)),
-                RemoveStep::Foreign
-            );
+            assert_eq!(decide_removal(true, true, 0, force, Some(true)), RemoveStep::Foreign);
         }
     }
 
@@ -189,23 +150,10 @@ mod tests {
         assert_eq!(folder_only(0, "a", None), 0, "no branch to leave");
         assert_eq!(removal_dirt(true, None, 0), 1, "can't tell = dirty");
         assert_eq!(removal_dirt(false, None, 2), 2);
-        assert_eq!(
-            decide_removal(false, true, 3, false, None),
-            RemoveStep::KeepDirty(3)
-        );
-        assert_eq!(
-            decide_removal(false, true, 3, true, None),
-            RemoveStep::Remove
-        );
-        assert_eq!(
-            decide_removal(false, true, 0, false, Some(false)),
-            RemoveStep::Overtaken,
-            "re-checked right before"
-        );
-        assert_eq!(
-            decide_removal(false, false, 9, false, None),
-            RemoveStep::Gone
-        );
+        assert_eq!(decide_removal(false, true, 3, false, None), RemoveStep::KeepDirty(3));
+        assert_eq!(decide_removal(false, true, 3, true, None), RemoveStep::Remove);
+        assert_eq!(decide_removal(false, true, 0, false, Some(false)), RemoveStep::Overtaken, "re-checked right before");
+        assert_eq!(decide_removal(false, false, 9, false, None), RemoveStep::Gone);
         assert_eq!(porcelain_count(" M a\n?? b\n"), 2);
         assert_eq!(porcelain_count(""), 0);
     }
@@ -215,44 +163,26 @@ mod tests {
         assert!(!delete_branch(BranchMode::Keep, Some(0)));
         assert!(delete_branch(BranchMode::IfMerged, Some(0)));
         assert!(!delete_branch(BranchMode::IfMerged, Some(2)));
-        assert!(
-            !delete_branch(BranchMode::IfMerged, None),
-            "can't tell: it stays"
-        );
+        assert!(!delete_branch(BranchMode::IfMerged, None), "can't tell: it stays");
         assert!(delete_branch(BranchMode::Force, Some(5)));
     }
 
     #[test]
     fn unpushed_counts_from_the_merged_head_then_the_remote_branch_then_ahead() {
-        assert_eq!(
-            pushed_refs(Some("abc"), Some("origin"), "wisp/x"),
-            ["abc", "refs/remotes/origin/wisp/x"]
-        );
+        assert_eq!(pushed_refs(Some("abc"), Some("origin"), "wisp/x"), ["abc", "refs/remotes/origin/wisp/x"]);
         assert_eq!(pushed_refs(None, None, "b"), Vec::<String>::new());
         assert_eq!(unpushed(5, &[None, Some(2)]), 2);
-        assert_eq!(
-            unpushed(5, &[Some(0), Some(2)]),
-            0,
-            "after a squash merge only newer commits count"
-        );
+        assert_eq!(unpushed(5, &[Some(0), Some(2)]), 0, "after a squash merge only newer commits count");
         assert_eq!(unpushed(5, &[None, None]), 5);
     }
 
     #[test]
     fn ensure_and_leftovers() {
         assert_eq!(ensure_plan(true, true, "/p"), EnsurePlan::Nothing);
-        assert!(
-            matches!(ensure_plan(false, true, "/p"), EnsurePlan::Refuse(m) if m.contains("/p"))
-        );
+        assert!(matches!(ensure_plan(false, true, "/p"), EnsurePlan::Refuse(m) if m.contains("/p")));
         assert_eq!(ensure_plan(false, false, "/p"), EnsurePlan::Restore);
-        assert_eq!(
-            leftover_root("gitdir: /src/app/.git/worktrees/left\n").as_deref(),
-            Some("/src/app")
-        );
-        assert_eq!(
-            leftover_root("gitdir: C:\\src\\app\\.git\\worktrees\\x").as_deref(),
-            Some("C:/src/app")
-        );
+        assert_eq!(leftover_root("gitdir: /src/app/.git/worktrees/left\n").as_deref(), Some("/src/app"));
+        assert_eq!(leftover_root("gitdir: C:\\src\\app\\.git\\worktrees\\x").as_deref(), Some("C:/src/app"));
         assert_eq!(leftover_root("nonsense"), None);
     }
 
@@ -270,10 +200,7 @@ mod tests {
             if step == RemoveStep::Remove {
                 assert!(!foreign && exists && still != Some(false));
                 assert!(force || dirt == 0);
-                assert!(
-                    force || !strict || only == Some(0),
-                    "strict and unforced: only a folder known to be clean goes"
-                );
+                assert!(force || !strict || only == Some(0), "strict and unforced: only a folder known to be clean goes");
             }
         }
     }

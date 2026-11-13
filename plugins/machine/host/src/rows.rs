@@ -97,7 +97,20 @@ pub fn rows(v: &MachineView, reading: &LoadReading, paused_until: i64, cleanup: 
     let mut snap = Row::new();
     snap.insert("id".into(), json!("this"));
     snap.insert("platform".into(), json!(platform));
-    for (col, key) in [("at", "at"), ("mem", "mem"), ("cpu", "cpu"), ("disk", "disk"), ("wisp", "wisp"), ("guard", "guard"), ("tasks", "tasks"), ("crew", "crew"), ("leftovers", "leftovers"), ("leftover_groups", "leftoverGroups"), ("history", "history"), ("reclaim", "reclaim")] {
+    for (col, key) in [
+        ("at", "at"),
+        ("mem", "mem"),
+        ("cpu", "cpu"),
+        ("disk", "disk"),
+        ("wisp", "wisp"),
+        ("guard", "guard"),
+        ("tasks", "tasks"),
+        ("crew", "crew"),
+        ("leftovers", "leftovers"),
+        ("leftover_groups", "leftoverGroups"),
+        ("history", "history"),
+        ("reclaim", "reclaim"),
+    ] {
         snap.insert(col.into(), f.get(key).cloned().unwrap_or(Value::Null));
     }
     snap.insert("cleanup".into(), cleanup.map_or(Value::Null, |c| json!(c)));
@@ -115,7 +128,6 @@ pub fn rows(v: &MachineView, reading: &LoadReading, paused_until: i64, cleanup: 
     (snap, load)
 }
 
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
@@ -132,10 +144,36 @@ mod tests {
     async fn the_snapshot_and_load_rows_are_published_on_the_topics_the_ui_watches() {
         let db = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
         install(&db).unwrap();
-        let reading = LoadReading { mem_free_pct: Some(42.5), cpu: Some(10.0), pressure: None, at: 7, runs: 2, limits: Limits { floor: Some(15), ..Limits::default() }, held: None };
+        let reading = LoadReading {
+            mem_free_pct: Some(42.5),
+            cpu: Some(10.0),
+            pressure: None,
+            at: 7,
+            runs: 2,
+            limits: Limits { floor: Some(15), ..Limits::default() },
+            held: None,
+        };
         let left = Leftover { pid: 9, command: "node dev".into(), rss: 5, cpu: 0.0, task: Some("t1".into()), since: 1 };
         let v = view::build(
-            ViewInput { now: 7, mem_total: 16, cores: 8, memory: MemoryPer::Rss, reading: &reading, hold: None, paused_until: 0, battery: None, battery_hold: None, rows: &std::collections::BTreeMap::default(), tasks: &HashMap::new(), worktrees: None, harness: None, wisp: WispUse { rss: 3, cpu: Some(1.0) }, leftovers: vec![left], groups: Vec::new(), history: Vec::new() },
+            ViewInput {
+                now: 7,
+                mem_total: 16,
+                cores: 8,
+                memory: MemoryPer::Rss,
+                reading: &reading,
+                hold: None,
+                paused_until: 0,
+                battery: None,
+                battery_hold: None,
+                rows: &std::collections::BTreeMap::default(),
+                tasks: &HashMap::new(),
+                worktrees: None,
+                harness: None,
+                wisp: WispUse { rss: 3, cpu: Some(1.0) },
+                leftovers: vec![left],
+                groups: Vec::new(),
+                history: Vec::new(),
+            },
             Vec::new(),
         );
         let (snap, load) = rows(&v, &reading, 99, Some("7"), "darwin");
@@ -155,5 +193,4 @@ mod tests {
         assert_eq!((SNAPSHOT.topics)(&s), vec!["plugin:wisp.machine:snapshot".to_owned()]);
         assert_eq!((LOAD.topics)(&l), vec!["plugin:wisp.machine:load".to_owned()]);
     }
-
 }

@@ -285,11 +285,7 @@ pub enum CommandResponse {
 
 impl CommandResponse {
     pub fn ok(seq: u64, result: Option<Value>) -> Self {
-        Self::Ok {
-            ok: true,
-            seq,
-            result,
-        }
+        Self::Ok { ok: true, seq, result }
     }
 
     pub fn err(error: CommandError) -> Self {
@@ -302,10 +298,7 @@ impl CommandResponse {
 /// The `t` (or `ok`) of a tagged object, and the object.
 fn tagged<'de, D: Deserializer<'de>>(d: D, tag: &str) -> Result<(Value, Value), D::Error> {
     let v = Value::deserialize(d)?;
-    let t = v
-        .get(tag)
-        .cloned()
-        .ok_or_else(|| D::Error::custom(format!("no `{tag}`")))?;
+    let t = v.get(tag).cloned().ok_or_else(|| D::Error::custom(format!("no `{tag}`")))?;
     Ok((t, v))
 }
 

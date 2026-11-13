@@ -17,7 +17,10 @@ use wisp_harness_kit::protocol::{FileNote, attachment_note};
 use wisp_harness_kit::{Re, RunPaths};
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
 use wisp_opencode_core::{OpencodeArgs, OpencodeOptions, OpencodeParser, RATE_LIMIT_GRACE_MS, args, config, has_key, major_version};
-use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessKeys, HarnessModel, HarnessRun, HarnessSys, KeyProvider, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
+use wisp_runtime_api::harness::{
+    ExecReq, HarnessFound, HarnessInfo, HarnessKeys, HarnessModel, HarnessRun, HarnessSys, KeyProvider, Launch, ResumeCommand,
+    ResumeOptions, RunDriver, SetupTip, Stdin,
+};
 use wisp_runtime_api::model::Mode;
 use wisp_runtime_api::{HARNESS, Harness};
 
@@ -30,7 +33,12 @@ pub fn info() -> HarnessInfo {
     HarnessInfo {
         id: "opencode".into(),
         name: "opencode".into(),
-        models: vec![HarnessModel { id: String::new(), label: "Default".into(), hint: Some("Whatever opencode is set to".into()), efforts: Vec::new() }],
+        models: vec![HarnessModel {
+            id: String::new(),
+            label: "Default".into(),
+            hint: Some("Whatever opencode is set to".into()),
+            efforts: Vec::new(),
+        }],
         ask_tool: Some("wisp_ask_user".into()),
         fork: true,
         ..HarnessInfo::default()
@@ -50,19 +58,28 @@ pub fn keys(data_home: &str) -> HarnessKeys {
     HarnessKeys {
         env: "OPENCODE_API_KEY".into(),
         url: "https://opencode.ai/auth".into(),
-        providers: vec![KeyProvider { id: "opencode".into(), name: "Zen".into() }, KeyProvider { id: "opencode-go".into(), name: "Go".into() }],
+        providers: vec![
+            KeyProvider { id: "opencode".into(), name: "Zen".into() },
+            KeyProvider { id: "opencode-go".into(), name: "Go".into() },
+        ],
         file: format!("{data_home}/opencode/auth.json"),
     }
 }
 
 /// opencode's data folder (xdg-basedir: the same rule on every OS).
 fn data_home() -> String {
-    std::env::var("XDG_DATA_HOME").ok().filter(|d| !d.is_empty()).unwrap_or_else(|| format!("{}/.local/share", std::env::var("HOME").unwrap_or_default()))
+    std::env::var("XDG_DATA_HOME")
+        .ok()
+        .filter(|d| !d.is_empty())
+        .unwrap_or_else(|| format!("{}/.local/share", std::env::var("HOME").unwrap_or_default()))
 }
 
 /// Where `accounts.install` puts it: wisp's own tools folder.
 fn tools_bin() -> String {
-    let home = std::env::var("WISP_HOME").ok().filter(|h| !h.is_empty()).unwrap_or_else(|| format!("{}/.wisp", std::env::var("HOME").unwrap_or_default()));
+    let home = std::env::var("WISP_HOME")
+        .ok()
+        .filter(|h| !h.is_empty())
+        .unwrap_or_else(|| format!("{}/.wisp", std::env::var("HOME").unwrap_or_default()));
     format!("{home}/tools/node_modules/.bin/opencode")
 }
 
@@ -80,7 +97,8 @@ impl Default for OpencodeHarness {
 }
 
 async fn output(sys: &dyn HarnessSys, bin: &str, args: &[&str]) -> Option<String> {
-    let req = ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
+    let req =
+        ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
     match sys.exec(req).await {
         Ok(o) if o.code == Some(0) && !o.timed_out => Some(o.stdout),
         _ => None,
@@ -98,7 +116,11 @@ fn verbose_models(out: &str) -> Vec<HarnessModel> {
     re.captures_iter(out)
         .filter_map(|c| {
             let id = c.get(1)?.as_str();
-            let efforts = c.get(2).and_then(|j| serde_json::from_str::<Value>(j.as_str()).ok()).and_then(|v| v["variants"].as_object().map(|o| o.keys().cloned().collect())).unwrap_or_default();
+            let efforts = c
+                .get(2)
+                .and_then(|j| serde_json::from_str::<Value>(j.as_str()).ok())
+                .and_then(|v| v["variants"].as_object().map(|o| o.keys().cloned().collect()))
+                .unwrap_or_default();
             Some(model(id, efforts))
         })
         .collect()
@@ -119,14 +141,30 @@ fn mode(m: Mode) -> &'static str {
 /// The launch for `run` (the runtime already put wisp's protocol ahead of a new session's prompt).
 pub fn launch(run: &HarnessRun, bin: &str, v2: bool, user_config: Option<&str>) -> Launch {
     let files: Vec<String> = run.attachments.iter().filter_map(|a| a.path.clone()).collect();
-    let a = OpencodeArgs { mode: mode(run.mode), model: &run.model, effort: &run.effort, resume_id: run.resume_id.as_deref(), fork: run.fork, attachments: &files, v2 };
+    let a = OpencodeArgs {
+        mode: mode(run.mode),
+        model: &run.model,
+        effort: &run.effort,
+        resume_id: run.resume_id.as_deref(),
+        fork: run.fork,
+        attachments: &files,
+        v2,
+    };
     let mut env = BTreeMap::new();
     if let Some(c) = config(user_config, &run.mcp_servers, &run.grants, mode(run.mode), run.delegating, run.capped) {
         env.insert("OPENCODE_CONFIG_CONTENT".to_owned(), c);
     }
-    let notes: Vec<FileNote> = run.attachments.iter().filter_map(|a| a.path.clone().map(|path| FileNote { path, mime: a.mime.clone(), size: a.size })).collect();
+    let notes: Vec<FileNote> =
+        run.attachments.iter().filter_map(|a| a.path.clone().map(|path| FileNote { path, mime: a.mime.clone(), size: a.size })).collect();
     let input = format!("{}{}", run.prompt, attachment_note(&notes, Some("They are also attached to this message")));
-    Launch { program: bin.to_owned(), args: args(&a), env, cwd: run.cwd.clone(), stdin: Stdin::Bytes(input.into_bytes()), ..Launch::default() }
+    Launch {
+        program: bin.to_owned(),
+        args: args(&a),
+        env,
+        cwd: run.cwd.clone(),
+        stdin: Stdin::Bytes(input.into_bytes()),
+        ..Launch::default()
+    }
 }
 
 impl OpencodeHarness {
@@ -144,7 +182,12 @@ impl Harness for OpencodeHarness {
         Box::pin(async move {
             let mut tries: Vec<String> = match sys.env("WISP_OPENCODE_BIN").filter(|b| !b.is_empty()) {
                 Some(b) => vec![b],
-                None => sys.which(DEFAULT_BIN).await.into_iter().chain([tools_bin(), format!("{}/.opencode/bin/opencode", sys.home())]).collect(),
+                None => sys
+                    .which(DEFAULT_BIN)
+                    .await
+                    .into_iter()
+                    .chain([tools_bin(), format!("{}/.opencode/bin/opencode", sys.home())])
+                    .collect(),
             };
             let mut hit = None;
             for b in tries.drain(..) {
@@ -167,24 +210,42 @@ impl Harness for OpencodeHarness {
             let mut all = vec![self.info.models[0].clone()];
             all.extend(models);
             let key = has_key(&output(sys, &bin, &["auth", "list"]).await.unwrap_or_default());
-            HarnessFound { available: true, version: Some(version).filter(|v| !v.is_empty()), bin: Some(bin), models: Some(all), has_key: key, ..HarnessFound::default() }
+            HarnessFound {
+                available: true,
+                version: Some(version).filter(|v| !v.is_empty()),
+                bin: Some(bin),
+                models: Some(all),
+                has_key: key,
+                ..HarnessFound::default()
+            }
         })
     }
 
     fn program(&self) -> Option<String> {
-        Some(self.found().bin.or_else(|| std::env::var("WISP_OPENCODE_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned()))
+        Some(
+            self.found()
+                .bin
+                .or_else(|| std::env::var("WISP_OPENCODE_BIN").ok().filter(|b| !b.is_empty()))
+                .unwrap_or_else(|| DEFAULT_BIN.to_owned()),
+        )
     }
 
     fn launch(&self, run: &HarnessRun) -> Result<Launch> {
         let f = self.found();
-        let bin = run.bin.clone().or(f.bin).or_else(|| std::env::var("WISP_OPENCODE_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned());
+        let bin = run
+            .bin
+            .clone()
+            .or(f.bin)
+            .or_else(|| std::env::var("WISP_OPENCODE_BIN").ok().filter(|b| !b.is_empty()))
+            .unwrap_or_else(|| DEFAULT_BIN.to_owned());
         let user = run.env.get("OPENCODE_CONFIG_CONTENT").cloned().or_else(|| std::env::var("OPENCODE_CONFIG_CONTENT").ok());
         Ok(launch(run, &bin, f.v2, user.as_deref()))
     }
 
     fn driver(&self, run: &HarnessRun) -> Box<dyn RunDriver> {
         let paths = RunPaths::same(run.cwd.clone());
-        let grace = std::env::var("WISP_RATE_LIMIT_GRACE_MS").ok().and_then(|v| v.parse().ok()).filter(|g| *g > 0).unwrap_or(RATE_LIMIT_GRACE_MS);
+        let grace =
+            std::env::var("WISP_RATE_LIMIT_GRACE_MS").ok().and_then(|v| v.parse().ok()).filter(|g| *g > 0).unwrap_or(RATE_LIMIT_GRACE_MS);
         let parser = OpencodeParser::new(OpencodeOptions { paths: paths.clone(), model: run.model.clone(), rate_limit_grace_ms: grace });
         driver::KitDriver::boxed(parser, paths, true)
     }
@@ -198,7 +259,11 @@ impl Harness for OpencodeHarness {
     }
 
     fn setup(&self, _platform: &str) -> Option<SetupTip> {
-        Some(SetupTip { tip: "wisp can install it here: free models, no account needed".into(), command: Some("npm i -g opencode-ai".into()), url: Some("https://opencode.ai".into()) })
+        Some(SetupTip {
+            tip: "wisp can install it here: free models, no account needed".into(),
+            command: Some("npm i -g opencode-ai".into()),
+            url: Some("https://opencode.ai".into()),
+        })
     }
 
     fn resume_command(&self, o: &ResumeOptions) -> Option<ResumeCommand> {
@@ -228,7 +293,8 @@ impl Plugin for OpencodePlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let h: Arc<dyn Harness> = Arc::new(OpencodeHarness::default());
         s.contribute(&HARNESS, h);
-        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> = Arc::new(crate::sessions::OpencodeSessions::from_env());
+        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> =
+            Arc::new(crate::sessions::OpencodeSessions::from_env());
         s.contribute(&wisp_runtime_api::harness::sessions::SESSIONS, sessions);
         Ok(())
     }
@@ -250,7 +316,10 @@ mod tests {
         // v1 adapters.test.js "opencode: detect reads each model's variants"
         let out = "fake/model-a\n{\n  \"id\": \"model-a\",\n  \"variants\": { \"low\": {}, \"high\": {} }\n}\nfake/model-b\n{\n  \"id\": \"model-b\"\n}\n";
         let m = verbose_models(out);
-        assert_eq!(m.iter().map(|x| (x.id.as_str(), x.label.as_str(), x.efforts.len())).collect::<Vec<_>>(), [("fake/model-a", "model-a", 2), ("fake/model-b", "model-b", 0)]);
+        assert_eq!(
+            m.iter().map(|x| (x.id.as_str(), x.label.as_str(), x.efforts.len())).collect::<Vec<_>>(),
+            [("fake/model-a", "model-a", 2), ("fake/model-b", "model-b", 0)]
+        );
         assert_eq!(plain_models("fake/a\nnot a model\nx/y-1\n").len(), 2);
     }
 

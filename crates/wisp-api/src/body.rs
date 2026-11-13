@@ -14,10 +14,7 @@ pub const DRAIN_MAX: usize = 32 * 1024 * 1024;
 
 /// The whole body if it is at most `cap` bytes, else `TooLarge` (after draining what came).
 pub async fn read_capped(mut body: Incoming, cap: usize) -> Result<Bytes, ApiError> {
-    let declared = body
-        .size_hint()
-        .exact()
-        .and_then(|n| usize::try_from(n).ok());
+    let declared = body.size_hint().exact().and_then(|n| usize::try_from(n).ok());
     if declared.is_some_and(|n| n > cap) {
         drain(body, DRAIN_MAX).await;
         return Err(ApiError::TooLarge);

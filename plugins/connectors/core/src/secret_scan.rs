@@ -21,13 +21,17 @@ const PATTERNS: [(&str, &str); 13] = [
     ("an npm token", r"\bnpm_[A-Za-z0-9]{36}\b"),
     ("a JSON Web Token", r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
     ("a password in a URL", r"(?i)\b[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s/@]{4,}@"),
-    ("a secret value", r#"(?i)\b[\w-]*(api[_-]?key|secret|token|passw(or)?d|private[_-]?key)\b["']?\s*[:=]\s*["']?(?P<v>[A-Za-z0-9/+_.=-]{16,})"#),
+    (
+        "a secret value",
+        r#"(?i)\b[\w-]*(api[_-]?key|secret|token|passw(or)?d|private[_-]?key)\b["']?\s*[:=]\s*["']?(?P<v>[A-Za-z0-9/+_.=-]{16,})"#,
+    ),
 ];
 
 /// What a placeholder starts with (v1's negative look-ahead, case-insensitive).
 const PLACEHOLDERS: [&str; 6] = ["xxx", "your_", "your-", "example", "placeholder", "changeme"];
 
-static COMPILED: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| PATTERNS.iter().filter_map(|(what, re)| Regex::new(re).ok().map(|r| (*what, r))).collect());
+static COMPILED: LazyLock<Vec<(&'static str, Regex)>> =
+    LazyLock::new(|| PATTERNS.iter().filter_map(|(what, re)| Regex::new(re).ok().map(|r| (*what, r))).collect());
 
 /// How many patterns compiled (all of them; a test holds it to that).
 pub fn pattern_count() -> usize {

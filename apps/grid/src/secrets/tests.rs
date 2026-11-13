@@ -4,13 +4,7 @@ use super::*;
 
 fn secrets() -> (Arc<Db>, Secrets) {
     let db = Arc::new(Db::memory().unwrap());
-    db.with(|c| {
-        c.execute(
-            "INSERT INTO users (id, handle, created_at) VALUES ('u1', 'ada', 0)",
-            [],
-        )
-    })
-    .unwrap();
+    db.with(|c| c.execute("INSERT INTO users (id, handle, created_at) VALUES ('u1', 'ada', 0)", [])).unwrap();
     (db.clone(), Secrets::for_test(db, [7; 32]).unwrap())
 }
 
@@ -31,8 +25,7 @@ fn sealed_values_are_bound_to_user_and_purpose() {
     let (db, s) = secrets();
     s.seal("u1", "a", "v").unwrap();
     // Moving the sealed text to another purpose doesn't open it.
-    db.with(|c| c.execute("UPDATE user_secrets SET purpose = 'b'", []))
-        .unwrap();
+    db.with(|c| c.execute("UPDATE user_secrets SET purpose = 'b'", [])).unwrap();
     assert!(s.open_secret("u1", "b").is_err());
 }
 
@@ -60,21 +53,14 @@ fn master_file_rotation() {
     assert!(ensure_master(&dir).unwrap());
     assert!(!ensure_master(&dir).unwrap());
     let db = Arc::new(Db::memory().unwrap());
-    db.with(|c| {
-        c.execute(
-            "INSERT INTO users (id, handle, created_at) VALUES ('u1', 'ada', 0)",
-            [],
-        )
-    })
-    .unwrap();
+    db.with(|c| c.execute("INSERT INTO users (id, handle, created_at) VALUES ('u1', 'ada', 0)", [])).unwrap();
     let s = Secrets::open(db.clone(), &dir, &Env::new()).unwrap();
     s.seal("u1", "x", "v").unwrap();
     assert_eq!(add_master_key(&dir).unwrap(), "k2");
     let s2 = Secrets::open(db, &dir, &Env::new()).unwrap();
     assert_eq!(s2.rewrap().unwrap(), 1);
     assert_eq!(s2.open_secret("u1", "x").unwrap().as_deref(), Some("v"));
-    let gone =
-        prune_master_keys(&dir, &std::collections::HashSet::from(["k2".to_owned()])).unwrap();
+    let gone = prune_master_keys(&dir, &std::collections::HashSet::from(["k2".to_owned()])).unwrap();
     assert_eq!(gone, vec!["k1".to_owned()]);
     let _ = std::fs::remove_dir_all(dir);
 }

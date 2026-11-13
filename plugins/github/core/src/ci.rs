@@ -7,7 +7,17 @@ use wisp_automations_api::TriggerEvent;
 
 /// `gh run list` for a branch (empty: every branch).
 pub fn run_list_args(branch: &str) -> Vec<String> {
-    let mut a: Vec<String> = ["run", "list", "--limit", "20", "--json", "databaseId,conclusion,status,headBranch,headSha,workflowName,displayTitle,url,createdAt"].iter().map(|s| (*s).to_owned()).collect();
+    let mut a: Vec<String> = [
+        "run",
+        "list",
+        "--limit",
+        "20",
+        "--json",
+        "databaseId,conclusion,status,headBranch,headSha,workflowName,displayTitle,url,createdAt",
+    ]
+    .iter()
+    .map(|s| (*s).to_owned())
+    .collect();
     if !branch.is_empty() {
         a.push("--branch".into());
         a.push(branch.to_owned());
@@ -71,7 +81,13 @@ mod tests {
         let (first, c) = ci_events("ci.failed", &list, &Value::Null).unwrap();
         assert!(first.is_empty(), "the first poll only sets the cursor");
         assert_eq!(c, json!(5));
-        let list = json!([run(8, "in_progress", ""), run(7, "completed", "failure"), run(6, "completed", "success"), run(5, "completed", "failure")]).to_string();
+        let list = json!([
+            run(8, "in_progress", ""),
+            run(7, "completed", "failure"),
+            run(6, "completed", "success"),
+            run(5, "completed", "failure")
+        ])
+        .to_string();
         let (evs, c) = ci_events("ci.failed", &list, &json!(5)).unwrap();
         assert_eq!(evs.iter().map(|e| e.key.as_str()).collect::<Vec<_>>(), ["ci:7"]);
         assert_eq!(evs[0].payload["branch"], "main");

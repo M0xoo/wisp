@@ -4,14 +4,13 @@
 //! at `before:create`, `before:followUp` and `before:run`; events after commit; v1's session routes; the
 //! v1 importer with the dual write. The decisions live in `wisp-runtime-core`; this crate does the I/O.
 
-mod reads;
 mod calls;
 mod drive;
+mod env_view;
+pub mod error;
+mod finish;
 mod found;
 mod group;
-pub mod error;
-mod env_view;
-mod finish;
 pub mod host;
 mod importer;
 mod kinds;
@@ -21,19 +20,20 @@ mod mentions;
 mod more;
 mod ops;
 mod plugin;
+mod reads;
 pub mod repo;
 pub mod rows;
 mod run;
+pub mod runtime;
+pub mod schema;
 mod setup;
 mod side;
 mod specs;
+pub mod sys;
 mod term;
+pub mod turn_window;
 mod usage_row;
 mod watch;
-pub mod runtime;
-pub mod schema;
-pub mod sys;
-pub mod turn_window;
 
 pub use host::{Emitted, Host, Recorder};
 pub use plugin::RuntimePlugin;

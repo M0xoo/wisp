@@ -22,10 +22,7 @@ pub struct Started {
 
 impl std::fmt::Debug for Started {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Started")
-            .field("why", &self.why)
-            .field("job", &self.job.is_some())
-            .finish()
+        f.debug_struct("Started").field("why", &self.why).field("job", &self.job.is_some()).finish()
     }
 }
 
@@ -37,18 +34,13 @@ pub struct Reviewer {
 
 impl std::fmt::Debug for Reviewer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Reviewer")
-            .field("running", &self.lock().len())
-            .finish_non_exhaustive()
+        f.debug_struct("Reviewer").field("running", &self.lock().len()).finish_non_exhaustive()
     }
 }
 
 impl Reviewer {
     pub fn new(env: Arc<dyn Env>) -> Arc<Self> {
-        Arc::new(Self {
-            env,
-            running: Mutex::new(HashMap::new()),
-        })
+        Arc::new(Self { env, running: Mutex::new(HashMap::new()) })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
@@ -79,10 +71,7 @@ impl Reviewer {
             match core::gate(&d) {
                 Gate::Refuse(why) => return Ok(Started { why, job: None }),
                 Gate::Quiet => {
-                    return Ok(Started {
-                        why: String::new(),
-                        job: None,
-                    });
+                    return Ok(Started { why: String::new(), job: None });
                 }
                 // claimed before any await, so two callers never start two runs of one head
                 Gate::Pick { setting } => {
@@ -113,14 +102,8 @@ impl Reviewer {
                 }
                 let me = self.clone();
                 let call = call.clone();
-                let name = agents
-                    .iter()
-                    .find(|a| a.id == pick.agent)
-                    .map_or_else(|| pick.agent.clone(), |a| a.name.clone());
-                Ok(Started {
-                    why: String::new(),
-                    job: Some(Box::pin(async move { me.run(&call, t, pick, name).await })),
-                })
+                let name = agents.iter().find(|a| a.id == pick.agent).map_or_else(|| pick.agent.clone(), |a| a.name.clone());
+                Ok(Started { why: String::new(), job: Some(Box::pin(async move { me.run(&call, t, pick, name).await })) })
             }
         }
     }
@@ -134,12 +117,7 @@ impl Reviewer {
 
     /// Still worth finishing: this head is still the one running, and still the PR's.
     async fn live(&self, call: &Call, id: &str, head: &str) -> bool {
-        self.lock().get(id).is_some_and(|h| h == head)
-            && self
-                .env
-                .task(call, id)
-                .await
-                .is_ok_and(|t| t.pr_head == head)
+        self.lock().get(id).is_some_and(|h| h == head) && self.env.task(call, id).await.is_ok_and(|t| t.pr_head == head)
     }
 
     async fn run(&self, call: &Call, t: Task, pick: Pick, reviewer: String) {
@@ -151,14 +129,7 @@ impl Reviewer {
             // overtaken (a new head, a newer review): nothing of this one is kept
             None => None,
             Some(Err(why)) => Some(core::finish(
-                Finish {
-                    head: &head,
-                    pick: &pick,
-                    tests: None,
-                    constraints: Vec::new(),
-                    coverage: got.coverage,
-                    now: self.env.now(),
-                },
+                Finish { head: &head, pick: &pick, tests: None, constraints: Vec::new(), coverage: got.coverage, now: self.env.now() },
                 Outcome::Error { why },
             )),
             Some(Ok(o)) => Some(core::finish(
@@ -203,11 +174,7 @@ impl Reviewer {
         if !self.live(call, &t.id, &t.pr_head).await {
             return None;
         }
-        let base = if t.base_ref.is_empty() {
-            "HEAD"
-        } else {
-            t.base_ref.as_str()
-        };
+        let base = if t.base_ref.is_empty() { "HEAD" } else { t.base_ref.as_str() };
         got.rules = core::constraints_for(env.constraints(call, &t.id).await, &t.goal);
         // nothing to go on is a failed review, not a review of nothing
         let Some((files, listed)) = env.changes(call, &t.dir, base).await else {
@@ -230,17 +197,10 @@ impl Reviewer {
         if !self.live(call, &t.id, &t.pr_head).await {
             return None;
         }
-        Some(Ok(
-            match answer
-                .as_ref()
-                .and_then(|j| core::read_review(j, &got.rules))
-            {
-                Some((summary, findings)) => Outcome::Answered { summary, findings },
-                None => Outcome::Silent {
-                    reviewer: reviewer.to_owned(),
-                },
-            },
-        ))
+        Some(Ok(match answer.as_ref().and_then(|j| core::read_review(j, &got.rules)) {
+            Some((summary, findings)) => Outcome::Answered { summary, findings },
+            None => Outcome::Silent { reviewer: reviewer.to_owned() },
+        }))
     }
 }
 
@@ -266,31 +226,15 @@ fn finished_of(t: &Task, r: &Review) -> ReviewFinished {
         author: t.agent.clone(),
         findings: n(r.findings.len()),
         constraints: n(r.constraints.len()),
-        broken: n(r
-            .findings
-            .iter()
-            .filter(|f| f.constraint.is_some() && f.severity == Severity::High)
-            .count()),
-        tests: r
-            .tests
-            .as_ref()
-            .map_or_else(|| "skip".into(), |t| t.verdict.clone()),
-        partial: r
-            .coverage
-            .as_ref()
-            .is_some_and(wisp_review_api::Coverage::partial),
+        broken: n(r.findings.iter().filter(|f| f.constraint.is_some() && f.severity == Severity::High).count()),
+        tests: r.tests.as_ref().map_or_else(|| "skip".into(), |t| t.verdict.clone()),
+        partial: r.coverage.as_ref().is_some_and(wisp_review_api::Coverage::partial),
     }
 }
 
 /// A review cut short by a restart starts over: the running ones are cleared at boot.
 pub async fn boot(env: &dyn Env, call: &Call, tasks: Vec<Task>) {
-    for t in tasks.into_iter().filter(|t| {
-        t.review
-            .as_ref()
-            .is_some_and(|r| r.status == Status::Running)
-    }) {
-        let _ = env
-            .save(call, &t.id, core::on_boot(t.review.clone()).as_ref(), false)
-            .await;
+    for t in tasks.into_iter().filter(|t| t.review.as_ref().is_some_and(|r| r.status == Status::Running)) {
+        let _ = env.save(call, &t.id, core::on_boot(t.review.clone()).as_ref(), false).await;
     }
 }

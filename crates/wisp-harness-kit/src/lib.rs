@@ -21,9 +21,7 @@ pub mod wip;
 
 pub use commands::{describe_command, run_label};
 pub use drive::{Disk, DiskFuture, Driver};
-pub use event::{
-    BillingKind, Change, Edit, HarnessEvent, LimitWindow, Limits, Stats, Tool, ToolKind, TurnResult,
-};
+pub use event::{BillingKind, Change, Edit, HarnessEvent, LimitWindow, Limits, Stats, Tool, ToolKind, TurnResult};
 pub use lines::{LineSplitter, json_line};
 pub use parser::{Exit, IoStep, LineParser, NoDisk, Out, ReplayIo, replay};
 pub use paths::{MAX_SNAPSHOT, RunPaths, rel, rel_value};

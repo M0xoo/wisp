@@ -51,45 +51,15 @@ async fn every_method_checks_its_permission_first() {
     let dir = repo(&t);
     let (_, s) = service();
     let o = owner();
-    assert!(
-        s.repo(&stranger(), &o, dir.to_str().unwrap())
-            .await
-            .is_err(),
-        "git:repo refused"
-    );
+    assert!(s.repo(&stranger(), &o, dir.to_str().unwrap()).await.is_err(), "git:repo refused");
     let r = s.repo(&user(), &o, dir.to_str().unwrap()).await.unwrap();
     let st = stranger();
-    assert_eq!(
-        r.status(&st).await.unwrap_err().code,
-        wisp_kernel::Code::Forbidden
-    );
-    assert!(
-        r.commit(
-            &st,
-            wisp_git_api::CommitRequest {
-                message: "x".into(),
-                all: true,
-                ..Default::default()
-            }
-        )
-        .await
-        .is_err()
-    );
+    assert_eq!(r.status(&st).await.unwrap_err().code, wisp_kernel::Code::Forbidden);
+    assert!(r.commit(&st, wisp_git_api::CommitRequest { message: "x".into(), all: true, ..Default::default() }).await.is_err());
     assert!(r.worktree_add(&st, WorktreeAdd::default()).await.is_err());
     assert!(r.on_change(&st, &o, Arc::new(|_| {})).is_err());
     // every trait method is in the permission table
-    for m in [
-        "status",
-        "changes",
-        "diff",
-        "worktree_add",
-        "worktree_remove",
-        "commit",
-        "push",
-        "sync_base",
-        "on_change",
-        "touch",
-    ] {
+    for m in ["status", "changes", "diff", "worktree_add", "worktree_remove", "commit", "push", "sync_base", "on_change", "touch"] {
         assert!(wisp_git_api::permission(m).is_some(), "{m}");
     }
 }
@@ -101,10 +71,7 @@ async fn a_handle_is_cached_per_path_and_released_with_its_owner_scope() {
     let (svc, s) = service();
     let (a, b) = (owner(), owner());
     let r1 = s.repo(&user(), &a, dir.to_str().unwrap()).await.unwrap();
-    let r2 = s
-        .repo(&user(), &b, dir.join(".").to_str().unwrap())
-        .await
-        .unwrap();
+    let r2 = s.repo(&user(), &b, dir.join(".").to_str().unwrap()).await.unwrap();
     assert_eq!(r1.info(), r2.info());
     assert_eq!(svc.cached(), 1);
     a.cancel();
@@ -115,10 +82,7 @@ async fn a_handle_is_cached_per_path_and_released_with_its_owner_scope() {
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     assert_eq!(svc.cached(), 0);
     let o = owner();
-    assert!(
-        s.repo(&user(), &o, t.0.to_str().unwrap()).await.is_err(),
-        "outside a repo: not found"
-    );
+    assert!(s.repo(&user(), &o, t.0.to_str().unwrap()).await.is_err(), "outside a repo: not found");
 }
 
 #[tokio::test]
@@ -129,15 +93,8 @@ async fn status_and_info_from_a_subfolder() {
     write(&dir, "a.txt", "changed\n");
     let (_, s) = service();
     let o = owner();
-    let r = s
-        .repo(&user(), &o, dir.join("sub").to_str().unwrap())
-        .await
-        .unwrap();
-    assert_eq!(
-        r.info().sub,
-        "sub",
-        "a launch from a subfolder keeps it (edge case Git 5)"
-    );
+    let r = s.repo(&user(), &o, dir.join("sub").to_str().unwrap()).await.unwrap();
+    assert_eq!(r.info().sub, "sub", "a launch from a subfolder keeps it (edge case Git 5)");
     assert_eq!(r.info().root, dir.display().to_string());
     let st = r.status(&user()).await.unwrap();
     assert_eq!((st.branch.as_str(), st.dirty()), ("main", 2));
@@ -154,34 +111,15 @@ async fn base_order() {
     let o = owner();
     let r = s.repo(&user(), &o, dir.to_str().unwrap()).await.unwrap();
     let b = r.base(&user(), true).await.unwrap().unwrap();
-    assert_eq!(
-        (b.reference.as_str(), b.branch.as_str(), b.remote.as_deref()),
-        ("origin/main", "main", Some("origin"))
-    );
+    assert_eq!((b.reference.as_str(), b.branch.as_str(), b.remote.as_deref()), ("origin/main", "main", Some("origin")));
     let lone = t.0.join("lone");
     std::fs::create_dir_all(&lone).unwrap();
     git(&lone, &["init", "-q", "-b", "trunk"]);
     let r = s.repo(&user(), &o, lone.to_str().unwrap()).await.unwrap();
-    assert_eq!(
-        r.base(&user(), false).await.unwrap(),
-        None,
-        "a repo with no commits gets no worktree"
-    );
+    assert_eq!(r.base(&user(), false).await.unwrap(), None, "a repo with no commits gets no worktree");
     write(&lone, "f", "1");
     git(&lone, &["add", "-A"]);
-    git(
-        &lone,
-        &[
-            "-c",
-            "user.email=a@b",
-            "-c",
-            "user.name=a",
-            "commit",
-            "-q",
-            "-m",
-            "x",
-        ],
-    );
+    git(&lone, &["-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-m", "x"]);
     let b = r.base(&user(), false).await.unwrap().unwrap();
     assert_eq!((b.branch.as_str(), b.remote), ("trunk", None));
 }
@@ -204,21 +142,14 @@ async fn changes_from_the_merge_base_with_untracked_and_stage_state() {
         stage_state: true,
         inline: true,
     };
-    let c = wisp_git::commands::changes(&svc, args.clone())
-        .await
-        .unwrap()
-        .unwrap();
+    let c = wisp_git::commands::changes(&svc, args.clone()).await.unwrap().unwrap();
     let paths: Vec<&str> = files(&c).iter().map(|f| f.path.as_str()).collect();
     assert_eq!(paths, ["Cargo.lock", "a.txt", "new.txt"]);
     let a = &files(&c)[1];
     assert_eq!((a.add, a.del, hunks_of(&a.rows).len()), (2, 2, 2));
     assert_eq!(a.hunk_stage.as_ref().map(Vec::len), Some(2));
     assert!(files(&c)[0].generated);
-    assert_eq!(
-        files(&c)[2].unstaged,
-        Some(true),
-        "untracked counts as unstaged"
-    );
+    assert_eq!(files(&c)[2].unstaged, Some(true), "untracked counts as unstaged");
     assert_eq!(c.base, "origin/main");
 }
 
@@ -230,49 +161,19 @@ async fn stage_a_hunk_unstage_it_commit_and_refuse_a_stale_key() {
     edit(&dir);
     let (svc, _) = service();
     let d = dir.display().to_string();
-    let a = ChangesArgs {
-        path: d.clone(),
-        base: "HEAD".into(),
-        reveal: vec![],
-        mask: false,
-        stage_state: true,
-        inline: true,
-    };
+    let a = ChangesArgs { path: d.clone(), base: "HEAD".into(), reveal: vec![], mask: false, stage_state: true, inline: true };
     let c = wisp_git::commands::changes(&svc, a).await.unwrap().unwrap();
-    let a = files(&c)
-        .iter()
-        .find(|f| f.path == "a.txt")
-        .unwrap()
-        .clone();
+    let a = files(&c).iter().find(|f| f.path == "a.txt").unwrap().clone();
     let key1 = hunk_key(&hunks_of(&a.rows)[1].rows);
     let stale = wisp_git::commands::stage(
         &svc,
-        StageArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "a.txt".into(),
-            hunk: Some(0),
-            key: Some(key1.clone()),
-            unstage: false,
-        },
+        StageArgs { dir: d.clone(), base: "HEAD".into(), path: "a.txt".into(), hunk: Some(0), key: Some(key1.clone()), unstage: false },
     )
     .await;
-    assert!(
-        stale
-            .unwrap_err()
-            .to_string()
-            .contains("changed since you looked")
-    );
+    assert!(stale.unwrap_err().to_string().contains("changed since you looked"));
     wisp_git::commands::stage(
         &svc,
-        StageArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "a.txt".into(),
-            hunk: Some(1),
-            key: Some(key1),
-            unstage: false,
-        },
+        StageArgs { dir: d.clone(), base: "HEAD".into(), path: "a.txt".into(), hunk: Some(1), key: Some(key1), unstage: false },
     )
     .await
     .unwrap();
@@ -280,74 +181,26 @@ async fn stage_a_hunk_unstage_it_commit_and_refuse_a_stale_key() {
     assert!(cached.contains("+LINE 25") && !cached.contains("+LINE 2\n"));
     let again = wisp_git::commands::stage(
         &svc,
-        StageArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "a.txt".into(),
-            hunk: Some(1),
-            key: None,
-            unstage: false,
-        },
+        StageArgs { dir: d.clone(), base: "HEAD".into(), path: "a.txt".into(), hunk: Some(1), key: None, unstage: false },
     )
     .await;
-    assert!(
-        again
-            .unwrap_err()
-            .to_string()
-            .contains("nothing left to stage")
-    );
+    assert!(again.unwrap_err().to_string().contains("nothing left to stage"));
     wisp_git::commands::stage(
         &svc,
-        StageArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "a.txt".into(),
-            hunk: Some(1),
-            key: None,
-            unstage: true,
-        },
+        StageArgs { dir: d.clone(), base: "HEAD".into(), path: "a.txt".into(), hunk: Some(1), key: None, unstage: true },
     )
     .await
     .unwrap();
     assert_eq!(git(&dir, &["diff", "--cached"]), "");
-    let nothing = wisp_git::commands::commit(
-        &svc,
-        CommitArgs {
-            dir: d.clone(),
-            message: "x".into(),
-            all: false,
-        },
-    )
-    .await;
-    assert!(
-        nothing
-            .unwrap_err()
-            .to_string()
-            .contains("Nothing is staged")
-    );
+    let nothing = wisp_git::commands::commit(&svc, CommitArgs { dir: d.clone(), message: "x".into(), all: false }).await;
+    assert!(nothing.unwrap_err().to_string().contains("Nothing is staged"));
     wisp_git::commands::stage(
         &svc,
-        StageArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "new.txt".into(),
-            hunk: None,
-            key: None,
-            unstage: false,
-        },
+        StageArgs { dir: d.clone(), base: "HEAD".into(), path: "new.txt".into(), hunk: None, key: None, unstage: false },
     )
     .await
     .unwrap();
-    let done = wisp_git::commands::commit(
-        &svc,
-        CommitArgs {
-            dir: d.clone(),
-            message: "Add new.txt".into(),
-            all: false,
-        },
-    )
-    .await
-    .unwrap();
+    let done = wisp_git::commands::commit(&svc, CommitArgs { dir: d.clone(), message: "Add new.txt".into(), all: false }).await.unwrap();
     assert!(done.sha.len() >= 7);
     assert_eq!(git(&dir, &["log", "-1", "--format=%s"]), "Add new.txt");
 }
@@ -361,13 +214,7 @@ async fn revert_a_hunk_then_undo_it_and_revert_a_new_file() {
     let d = dir.display().to_string();
     let r = wisp_git::commands::revert(
         &svc,
-        RevertArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "a.txt".into(),
-            hunk: Some(0),
-            ..Default::default()
-        },
+        RevertArgs { dir: d.clone(), base: "HEAD".into(), path: "a.txt".into(), hunk: Some(0), ..Default::default() },
     )
     .await
     .unwrap();
@@ -387,26 +234,13 @@ async fn revert_a_hunk_then_undo_it_and_revert_a_new_file() {
     };
     wisp_git::commands::revert(&svc, undo).await.unwrap();
     assert_eq!(std::fs::read_to_string(dir.join("a.txt")).unwrap(), before);
-    wisp_git::commands::revert(
-        &svc,
-        RevertArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "new.txt".into(),
-            ..Default::default()
-        },
-    )
-    .await
-    .unwrap();
+    wisp_git::commands::revert(&svc, RevertArgs { dir: d.clone(), base: "HEAD".into(), path: "new.txt".into(), ..Default::default() })
+        .await
+        .unwrap();
     assert!(!dir.join("new.txt").exists(), "an added file goes");
     let out = wisp_git::commands::revert(
         &svc,
-        RevertArgs {
-            dir: d.clone(),
-            base: "HEAD".into(),
-            path: "../escape".into(),
-            ..Default::default()
-        },
+        RevertArgs { dir: d.clone(), base: "HEAD".into(), path: "../escape".into(), ..Default::default() },
     )
     .await;
     assert!(out.is_err(), "nothing outside the folder");
@@ -422,20 +256,9 @@ async fn worktree_adds_take_turns_and_remove_cleans_up() {
     let r = s.repo(&user(), &o, dir.to_str().unwrap()).await.unwrap();
     let mut jobs = Vec::new();
     for i in 0..5 {
-        let (r, at) = (
-            r.clone(),
-            t.0.join(format!("wts/w{i}")).display().to_string(),
-        );
+        let (r, at) = (r.clone(), t.0.join(format!("wts/w{i}")).display().to_string());
         jobs.push(tokio::spawn(async move {
-            r.worktree_add(
-                &user(),
-                WorktreeAdd {
-                    path: at,
-                    branch: format!("wisp/t-{i}"),
-                    start: Some("origin/main".into()),
-                },
-            )
-            .await
+            r.worktree_add(&user(), WorktreeAdd { path: at, branch: format!("wisp/t-{i}"), start: Some("origin/main".into()) }).await
         }));
     }
     for j in jobs {
@@ -464,27 +287,12 @@ async fn merge_tree_touched_and_base_merged() {
     git(&dir, &["checkout", "-q", "-b", "b", "main"]);
     write(&dir, "a.txt", "theirs\n");
     git(&dir, &["commit", "-qam", "b"]);
-    assert_eq!(
-        r.merge_tree(&user(), "a", "b").await.unwrap(),
-        MergeTree::Conflict {
-            files: vec!["a.txt".into()]
-        }
-    );
-    assert_eq!(
-        r.merge_tree(&user(), "a", "main").await.unwrap(),
-        MergeTree::Clean
-    );
+    assert_eq!(r.merge_tree(&user(), "a", "b").await.unwrap(), MergeTree::Conflict { files: vec!["a.txt".into()] });
+    assert_eq!(r.merge_tree(&user(), "a", "main").await.unwrap(), MergeTree::Clean);
     write(&dir, "u.txt", "new\n");
     let touched = r.touched(&user(), "main").await.unwrap().unwrap();
     assert_eq!(touched.files, ["a.txt", "u.txt"]);
-    assert!(
-        r.base_merged(&user(), "a")
-            .await
-            .unwrap()
-            .why
-            .unwrap()
-            .contains("not merged")
-    );
+    assert!(r.base_merged(&user(), "a").await.unwrap().why.unwrap().contains("not merged"));
     assert!(r.base_merged(&user(), "main").await.unwrap().ok);
 }
 
@@ -508,17 +316,7 @@ async fn on_change_hears_writes_until_disposed() {
         )
         .unwrap();
     write(&dir, "z", "z");
-    r.commit(
-        &user(),
-        wisp_git_api::CommitRequest {
-            message: "z".into(),
-            all: true,
-            ..Default::default()
-        },
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    r.commit(&user(), wisp_git_api::CommitRequest { message: "z".into(), all: true, ..Default::default() }).await.unwrap().unwrap();
     assert_eq!(n.load(Ordering::SeqCst), 1);
     sub.dispose();
     r.touch(&user(), "head").unwrap();
@@ -532,37 +330,11 @@ async fn clone_reuses_the_same_repo_and_suffixes_another() {
     let (_, s) = service();
     let url = format!("file://{}", t.0.join("origin.git").display());
     let parent = t.0.join("clones").display().to_string();
-    let a = s
-        .clone_repo(
-            &user(),
-            CloneRequest {
-                url: url.clone(),
-                parent: parent.clone(),
-            },
-        )
-        .await
-        .unwrap();
+    let a = s.clone_repo(&user(), CloneRequest { url: url.clone(), parent: parent.clone() }).await.unwrap();
     assert!(!a.existed && std::path::Path::new(&a.dir).join("a.txt").exists());
-    let b = s
-        .clone_repo(
-            &user(),
-            CloneRequest {
-                url: url.clone(),
-                parent: parent.clone(),
-            },
-        )
-        .await
-        .unwrap();
+    let b = s.clone_repo(&user(), CloneRequest { url: url.clone(), parent: parent.clone() }).await.unwrap();
     assert_eq!((b.dir.as_str(), b.existed), (a.dir.as_str(), true));
-    let bad = s
-        .clone_repo(
-            &user(),
-            CloneRequest {
-                url: format!("file://{}/missing.git", t.0.display()),
-                parent: parent.clone(),
-            },
-        )
-        .await;
+    let bad = s.clone_repo(&user(), CloneRequest { url: format!("file://{}/missing.git", t.0.display()), parent: parent.clone() }).await;
     assert!(bad.unwrap_err().message.contains("Couldn’t clone"));
     drop(dir);
 }
@@ -611,10 +383,18 @@ async fn a_folders_repo_and_the_other_computers_checkout_of_it_found_or_cloned_v
     let home = t.0.join("home");
     std::fs::create_dir_all(&home).unwrap();
     let parent = home.join("code").to_string_lossy().into_owned();
-    let known = s.checkout(wisp_git_api::CheckoutArgs { url: url.clone(), known: vec![dir.to_string_lossy().into_owned()] }, &home.to_string_lossy(), parent.clone()).await.unwrap();
+    let known = s
+        .checkout(
+            wisp_git_api::CheckoutArgs { url: url.clone(), known: vec![dir.to_string_lossy().into_owned()] },
+            &home.to_string_lossy(),
+            parent.clone(),
+        )
+        .await
+        .unwrap();
     assert_eq!((known.dir.as_str(), known.existed), (dir.to_str().unwrap(), true));
     // none known, none in the usual folders: a fresh clone where clones go
-    let fresh = s.checkout(wisp_git_api::CheckoutArgs { url: url.clone(), known: vec![] }, &home.to_string_lossy(), parent.clone()).await.unwrap();
+    let fresh =
+        s.checkout(wisp_git_api::CheckoutArgs { url: url.clone(), known: vec![] }, &home.to_string_lossy(), parent.clone()).await.unwrap();
     assert!(!fresh.existed && fresh.dir.starts_with(&parent), "{fresh:?}");
     // asked again: the clone it made is found in the usual folders, not cloned twice
     let again = s.checkout(wisp_git_api::CheckoutArgs { url, known: vec![] }, &home.to_string_lossy(), parent).await.unwrap();

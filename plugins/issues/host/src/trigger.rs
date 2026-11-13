@@ -19,7 +19,13 @@ impl TriggerSource for Issues {
     fn ons(&self) -> Vec<SourceOn> {
         let fields = json!({ "type": "object", "properties": { "project": { "type": "string" }, "label": { "type": "string" }, "author": { "type": "string" } } });
         vec![
-            SourceOn { on: "issue.opened".into(), title: "An issue opened".into(), fields: fields.clone(), mode: "poll".into(), every: Some(5) },
+            SourceOn {
+                on: "issue.opened".into(),
+                title: "An issue opened".into(),
+                fields: fields.clone(),
+                mode: "poll".into(),
+                every: Some(5),
+            },
             SourceOn { on: "issue.labeled".into(), title: "An issue labelled".into(), fields, mode: "poll".into(), every: Some(5) },
         ]
     }

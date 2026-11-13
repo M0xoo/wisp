@@ -23,11 +23,17 @@ pub fn issue_events(on: &str, issues: &[Issue], cursor: &Value, at: i64) -> (Vec
             TriggerEvent { on: on.to_owned(), key, at, payload, summary, ..TriggerEvent::default() }
         };
         match (on, was) {
-            ("issue.opened", Some(None)) => out.push(ev(format!("issue:{}:opened", i.id), format!("{} opened: {}", i.reference, i.title), json!({}))),
+            ("issue.opened", Some(None)) => {
+                out.push(ev(format!("issue:{}:opened", i.id), format!("{} opened: {}", i.reference, i.title), json!({})));
+            }
             ("issue.labeled", Some(prev)) => {
                 let had = prev.cloned().unwrap_or_default();
                 for l in i.labels.iter().filter(|l| !had.contains(l)) {
-                    out.push(ev(format!("issue:{}:label:{l}", i.id), format!("{} labelled {l}: {}", i.reference, i.title), json!({ "label": l })));
+                    out.push(ev(
+                        format!("issue:{}:label:{l}", i.id),
+                        format!("{} labelled {l}: {}", i.reference, i.title),
+                        json!({ "label": l }),
+                    ));
                 }
             }
             _ => {}
@@ -47,7 +53,17 @@ mod tests {
     use super::*;
 
     fn issue(id: &str, labels: &[&str]) -> Issue {
-        Issue { id: id.into(), reference: format!("#{id}"), number: wisp_issues_api::IssueNumber::Int(id.parse().unwrap()), title: format!("bug {id}"), url: String::new(), labels: labels.iter().map(|s| (*s).to_owned()).collect(), assignee: String::new(), body: String::new(), updated_at: None }
+        Issue {
+            id: id.into(),
+            reference: format!("#{id}"),
+            number: wisp_issues_api::IssueNumber::Int(id.parse().unwrap()),
+            title: format!("bug {id}"),
+            url: String::new(),
+            labels: labels.iter().map(|s| (*s).to_owned()).collect(),
+            assignee: String::new(),
+            body: String::new(),
+            updated_at: None,
+        }
     }
 
     #[test]

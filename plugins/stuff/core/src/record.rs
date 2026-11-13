@@ -21,12 +21,7 @@ pub struct Fields {
 impl Fields {
     /// v1 `fields()`: a title is one line of at most 140 characters (blank: not given), a note at
     /// most 2000, tags normalised.
-    pub fn of(
-        title: Option<&str>,
-        note: Option<&str>,
-        tags: &Value,
-        starred: Option<bool>,
-    ) -> Self {
+    pub fn of(title: Option<&str>, note: Option<&str>, tags: &Value, starred: Option<bool>) -> Self {
         Self {
             title: title.filter(|t| !t.trim().is_empty()).map(|t| clip(t, 140)),
             note: note.map(|n| cut(n.trim(), 2000)),
@@ -117,23 +112,13 @@ pub fn prune_grant(it: &mut StuffItem) {
 pub fn keep(old: &StuffItem, new: StuffItem, titled: bool, now: i64) -> StuffItem {
     let mut next = old.clone();
     let was = content(old);
-    let title = if titled {
-        new.title.clone()
-    } else {
-        old.title.clone()
-    };
+    let title = if titled { new.title.clone() } else { old.title.clone() };
     put_content(&mut next, content(&new));
     if new.cover.is_some() {
         next.cover.clone_from(&new.cover);
         next.cover_mime.clone_from(&new.cover_mime);
     }
-    Fields {
-        title: None,
-        note: new.note,
-        tags: new.tags,
-        starred: new.starred,
-    }
-    .apply(&mut next);
+    Fields { title: None, note: new.note, tags: new.tags, starred: new.starred }.apply(&mut next);
     next.title = title;
     next.updated_at = Some(now);
     next.rev = Some(old.rev.unwrap_or(1) + 1);
@@ -159,18 +144,12 @@ pub fn restore(it: &StuffItem, now: i64) -> Result<StuffItem, Bad> {
 /// What an app may use now. The code hash only counts for an app holding a write scope; `hash_now`
 /// is its code as it is (`""`: unknown, so a write grant is off).
 pub fn grant(it: &StuffItem, hash_now: &str) -> Grant {
-    effective_grant(
-        it.allowed.as_deref().unwrap_or_default(),
-        it.grant_hash.as_deref().unwrap_or_default(),
-        hash_now,
-    )
+    effective_grant(it.allowed.as_deref().unwrap_or_default(), it.grant_hash.as_deref().unwrap_or_default(), hash_now)
 }
 
 /// The app's grant hash as its content is now: its code (immutable in the CAS) and its uses.
 pub fn hash_now(it: &StuffItem) -> String {
-    it.code.as_deref().map_or_else(String::new, |c| {
-        crate::app::app_hash(c, it.uses.as_deref().unwrap_or_default())
-    })
+    it.code.as_deref().map_or_else(String::new, |c| crate::app::app_hash(c, it.uses.as_deref().unwrap_or_default()))
 }
 
 /// What an app may use now, by its own content.
@@ -214,23 +193,12 @@ pub fn view(it: &StuffItem, f: &ViewFacts) -> StuffView {
         published: it.published.clone(),
         allowed: (!g.allowed.is_empty()).then_some(g.allowed),
         changed: g.changed.then_some(true),
-        risky: it
-            .risky
-            .clone()
-            .filter(|r| !r.is_empty() && it.uses.as_ref().is_some_and(|u| !u.is_empty())),
-        prev: it.prev.as_ref().map(|p| PrevView {
-            at: p.at,
-            size: Some(p.size),
-            by: p.by.clone(),
-        }),
+        risky: it.risky.clone().filter(|r| !r.is_empty() && it.uses.as_ref().is_some_and(|u| !u.is_empty())),
+        prev: it.prev.as_ref().map(|p| PrevView { at: p.at, size: Some(p.size), by: p.by.clone() }),
         cover: it.cover.as_ref().map(|_| true),
         db: it.db.as_ref().map(|_| true),
         data: it.db.as_ref().map(|_| f.data),
-        running: if it.kind == StuffKind::App {
-            f.running.map(|port| Running { port })
-        } else {
-            None
-        },
+        running: if it.kind == StuffKind::App { f.running.map(|port| Running { port }) } else { None },
     }
 }
 
@@ -239,16 +207,8 @@ pub fn matches(it: &StuffItem, query: &str, kind: Option<StuffKind>) -> bool {
     if kind.is_some_and(|k| k != it.kind) {
         return false;
     }
-    let from = it
-        .from
-        .as_ref()
-        .and_then(|f| f.title.as_deref())
-        .unwrap_or_default();
-    let app = if it.kind == StuffKind::App {
-        format!("app {}", it.excerpt.as_deref().unwrap_or_default())
-    } else {
-        String::new()
-    };
+    let from = it.from.as_ref().and_then(|f| f.title.as_deref()).unwrap_or_default();
+    let app = if it.kind == StuffKind::App { format!("app {}", it.excerpt.as_deref().unwrap_or_default()) } else { String::new() };
     let tags = it.tags.as_deref().unwrap_or_default().join(" ");
     let hay = format!(
         "{} {} {} {} {} {} {}",
@@ -261,10 +221,7 @@ pub fn matches(it: &StuffItem, query: &str, kind: Option<StuffKind>) -> bool {
         app
     )
     .to_lowercase();
-    query
-        .to_lowercase()
-        .split_whitespace()
-        .all(|w| hay.contains(w.trim_start_matches('#')))
+    query.to_lowercase().split_whitespace().all(|w| hay.contains(w.trim_start_matches('#')))
 }
 
 /// Newest first; the same `at` keeps the later id first (ids are time-sortable).
@@ -274,19 +231,10 @@ pub fn sort_newest(items: &mut [StuffItem]) {
 
 /// Where an item came from: the task (its title as it was then) and the turn, plus the page's key
 /// for "already saved" (at most 300 characters).
-pub fn from_task(
-    task: Option<(&str, &str)>,
-    turn: Option<&str>,
-    key: Option<&str>,
-) -> Option<wisp_stuff_api::StuffFrom> {
-    let key = key
-        .filter(|k| !k.is_empty())
-        .map(|k| k.chars().take(300).collect::<String>());
+pub fn from_task(task: Option<(&str, &str)>, turn: Option<&str>, key: Option<&str>) -> Option<wisp_stuff_api::StuffFrom> {
+    let key = key.filter(|k| !k.is_empty()).map(|k| k.chars().take(300).collect::<String>());
     match task {
-        None => key.map(|k| wisp_stuff_api::StuffFrom {
-            key: Some(k),
-            ..Default::default()
-        }),
+        None => key.map(|k| wisp_stuff_api::StuffFrom { key: Some(k), ..Default::default() }),
         Some((id, title)) => Some(wisp_stuff_api::StuffFrom {
             session: Some(id.to_owned()),
             title: Some(title.to_owned()),

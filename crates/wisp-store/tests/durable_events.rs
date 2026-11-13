@@ -63,7 +63,16 @@ fn on_notes(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.src:notes".into()]
 }
 
-const NOTE: EntityDef = EntityDef { kind: "src_note", table: "src_note", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &[], parent: None, seq: None, topics: on_notes };
+const NOTE: EntityDef = EntityDef {
+    kind: "src_note",
+    table: "src_note",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &[],
+    parent: None,
+    seq: None,
+    topics: on_notes,
+};
 
 fn note(id: &str) -> Row {
     let mut r = Row::new();
@@ -79,7 +88,8 @@ struct P {
 
 impl Plugin for P {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": self.id, "version": "1.0.0", "api": "^1", "permissions": ["src:make"] })).unwrap()
+        Manifest::from_value(json!({ "wispPlugin": 1, "id": self.id, "version": "1.0.0", "api": "^1", "permissions": ["src:make"] }))
+            .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         (self.f)(s);
@@ -166,14 +176,17 @@ fn sink(seen: Arc<Seen>, mode: &'static str) -> P {
                                     seen.depths.lock().unwrap().push(call.cause_depth());
                                     seen.got.lock().unwrap().push(event.n);
                                     if event.n < 5 {
-                                        ctx.run_json(&call, "src.make", json!({ "n": event.n + 1, "noWrite": true, "no_write": true })).await?;
+                                        ctx.run_json(&call, "src.make", json!({ "n": event.n + 1, "noWrite": true, "no_write": true }))
+                                            .await?;
                                     }
                                     return Ok(());
                                 }
                                 _ => {}
                             }
                             let st = store_of(&ctx);
-                            st.write(move |w| w.upsert(NOTE.kind, note(&format!("effect-{seq}"))).map(|_| ())).await.map_err(|e| WireError::internal(e.to_string()))?;
+                            st.write(move |w| w.upsert(NOTE.kind, note(&format!("effect-{seq}"))).map(|_| ()))
+                                .await
+                                .map_err(|e| WireError::internal(e.to_string()))?;
                             seen.got.lock().unwrap().push(event.n);
                             Ok(())
                         }
@@ -216,7 +229,11 @@ async fn kernel(st: &Store, plugins: Vec<P>) -> Kernel {
 }
 
 fn temp(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("wisp-durable-{name}-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let d = std::env::temp_dir().join(format!(
+        "wisp-durable-{name}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+    ));
     std::fs::create_dir_all(&d).unwrap();
     d.join("wisp.db")
 }
@@ -226,7 +243,13 @@ async fn make(k: &Kernel, args: Value) -> std::result::Result<Value, WireError> 
 }
 
 fn notes(st: &Store) -> Vec<String> {
-    st.read(|r| Ok(r.query(NOTE.kind, &wisp_store::Query::new())?.iter().filter_map(|x| x.get("id").and_then(Value::as_str).map(str::to_owned)).collect::<Vec<_>>())).unwrap()
+    st.read(|r| {
+        Ok(r.query(NOTE.kind, &wisp_store::Query::new())?
+            .iter()
+            .filter_map(|x| x.get("id").and_then(Value::as_str).map(str::to_owned))
+            .collect::<Vec<_>>())
+    })
+    .unwrap()
 }
 
 async fn settle(k: &Kernel) {

@@ -58,10 +58,7 @@ pub struct Prepared {
 impl Prepared {
     /// v1 kept `prepared` on the record only when it says something.
     pub fn is_empty(&self) -> bool {
-        self.copied.is_empty()
-            && self.ran.is_empty()
-            && self.problems.is_empty()
-            && self.held.is_none()
+        self.copied.is_empty() && self.ran.is_empty() && self.problems.is_empty() && self.held.is_none()
     }
 }
 

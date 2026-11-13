@@ -49,7 +49,10 @@ async fn create(ctx: &Ctx, call: &Call, slot: &Slot, kinds: &Kinds, a: StartArgs
     let rt = rt(slot)?;
     let mut args = p.args;
     let on = ctx.setting("terminal.terminalSessions").is_some_and(|v| v == true || v == "on");
-    args.terminal = crate::term::starts_in_terminal(&args, on) && rt.harness(args.agent.as_deref().unwrap_or("claude")).is_ok_and(|h| h.resume_command(&wisp_runtime_api::harness::ResumeOptions::default()).is_some());
+    args.terminal = crate::term::starts_in_terminal(&args, on)
+        && rt
+            .harness(args.agent.as_deref().unwrap_or("claude"))
+            .is_ok_and(|h| h.resume_command(&wisp_runtime_api::harness::ResumeOptions::default()).is_some());
     let terminal = args.terminal;
     let wants_tree = args.worktree == Some(true) && !args.hold && args.cwd.as_deref().is_some_and(|c| !c.is_empty());
     let setup = if wants_tree { crate::specs::project_setup(Some(kinds), &args).await } else { Vec::new() };
@@ -57,7 +60,8 @@ async fn create(ctx: &Ctx, call: &Call, slot: &Slot, kinds: &Kinds, a: StartArgs
     let (cwd, title, mode) = (args.cwd.clone().unwrap_or_default(), args.title.clone().unwrap_or_default(), args.mode);
     let made = rt.create(args).await.map_err(WireError::from)?;
     let made = if wants_tree {
-        let mode = mode.map(|m| serde_json::to_value(m).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()).unwrap_or_default();
+        let mode =
+            mode.map(|m| serde_json::to_value(m).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()).unwrap_or_default();
         let wa = wisp_worktrees_api::CreateArgs { session_id: made.id.0.clone(), cwd, title, mode };
         in_worktree(ctx, call, &rt, &proc, made, wa, &setup).await?
     } else {
@@ -75,7 +79,15 @@ async fn create(ctx: &Ctx, call: &Call, slot: &Slot, kinds: &Kinds, a: StartArgs
 }
 
 /// The held task's worktree, made and set up; then its first turn starts (in its folder if that failed).
-async fn in_worktree(ctx: &Ctx, call: &Call, rt: &Arc<Runtime>, proc: &Proc, made: c::Created, wa: wisp_worktrees_api::CreateArgs, setup: &[String]) -> WireResult<c::Created> {
+async fn in_worktree(
+    ctx: &Ctx,
+    call: &Call,
+    rt: &Arc<Runtime>,
+    proc: &Proc,
+    made: c::Created,
+    wa: wisp_worktrees_api::CreateArgs,
+    setup: &[String],
+) -> WireResult<c::Created> {
     let wt = match ctx.run::<wisp_worktrees_api::Create>(call, wa).await {
         Ok(w) => w.and_then(|w| serde_json::to_value(w).ok()),
         Err(err) => {

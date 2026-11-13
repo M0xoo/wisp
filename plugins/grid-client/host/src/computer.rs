@@ -49,7 +49,13 @@ pub fn view(st: &St) -> ComputerState {
     if let Some(a) = st.account() {
         c.on = a.computer_on;
         c.label = a.computer_label;
-        c.url = if c.label.is_empty() { String::new() } else { wisp_grid_client_core::label_host(&a.grid, &c.label).map(|h| format!("{}://{h}", a.grid.split("://").next().unwrap_or("https"))).unwrap_or_default() };
+        c.url = if c.label.is_empty() {
+            String::new()
+        } else {
+            wisp_grid_client_core::label_host(&a.grid, &c.label)
+                .map(|h| format!("{}://{h}", a.grid.split("://").next().unwrap_or("https")))
+                .unwrap_or_default()
+        };
     }
     c
 }
@@ -71,7 +77,8 @@ pub async fn set(st: &Arc<St>, on: bool, name: Option<String>) -> Result<Compute
     let (mut a, token) = st.signed_in().await.map_err(WireError::invalid)?;
     let name = name.unwrap_or_else(|| crate::signin::device_name().trim_end_matches(" (wisp)").to_owned());
     if a.computer_id.is_empty() || a.computer_name != name {
-        let (status, c) = net::call(&st.http, "POST", &format!("{}/api/computers", a.grid), Some(&token), Some(&json!({ "name": name })), &[]).await?;
+        let (status, c) =
+            net::call(&st.http, "POST", &format!("{}/api/computers", a.grid), Some(&token), Some(&json!({ "name": name })), &[]).await?;
         if status >= 400 {
             return Err(net::refused(status, &c));
         }
@@ -137,7 +144,13 @@ async fn dial_loop(st: Arc<St>, grid: String, id: String, token: String, cancel:
 /// One dial: the tunnel held until it drops. → why it ended, and whether it was up.
 async fn dial_once(st: &Arc<St>, grid: &str, id: &str, token: &str, cancel: &CancellationToken) -> (Ended, bool) {
     let client = net::client(true);
-    let req = client.get(format!("{grid}/api/computers/{id}/tunnel")).header("connection", "Upgrade").header("upgrade", TUNNEL_PROTOCOL).bearer_auth(token).timeout(Duration::from_secs(20)).send();
+    let req = client
+        .get(format!("{grid}/api/computers/{id}/tunnel"))
+        .header("connection", "Upgrade")
+        .header("upgrade", TUNNEL_PROTOCOL)
+        .bearer_auth(token)
+        .timeout(Duration::from_secs(20))
+        .send();
     let resp = tokio::select! {
         () = cancel.cancelled() => return (Ended::Closed, false),
         r = req => match r { Ok(r) => r, Err(e) => return (Ended::Retry(format!("The grid didn’t answer: {e}")), false) },
@@ -147,7 +160,10 @@ async fn dial_once(st: &Arc<St>, grid: &str, id: &str, token: &str, cancel: &Can
         Dialed::Up => {}
         Dialed::Gone => {
             let v: Value = resp.json().await.unwrap_or_default();
-            return (Ended::Gone(v.get("error").and_then(Value::as_str).unwrap_or("The grid doesn’t know this computer any more.").to_owned()), false);
+            return (
+                Ended::Gone(v.get("error").and_then(Value::as_str).unwrap_or("The grid doesn’t know this computer any more.").to_owned()),
+                false,
+            );
         }
         Dialed::Retry => return (Ended::Retry(format!("The grid said {status}.")), false),
     }
@@ -177,7 +193,12 @@ async fn dial_once(st: &Arc<St>, grid: &str, id: &str, token: &str, cancel: &Can
 
 /// This wisp's own port (its loopback address, from the agent access service).
 fn local_port(st: &St) -> u16 {
-    st.ctx.service::<Arc<dyn wisp_runtime_api::points::AgentAccess>>().ok().map(|a| a.url()).and_then(|u| u.rsplit(':').next().and_then(|p| p.trim_end_matches('/').parse().ok())).unwrap_or(4477)
+    st.ctx
+        .service::<Arc<dyn wisp_runtime_api::points::AgentAccess>>()
+        .ok()
+        .map(|a| a.url())
+        .and_then(|u| u.rsplit(':').next().and_then(|p| p.trim_end_matches('/').parse().ok()))
+        .unwrap_or(4477)
 }
 
 fn answer(status: u16, body: &Value) -> http::Response<Body> {
@@ -200,23 +221,34 @@ async fn serve(st: &St, local: &Client<HttpConnector, Body>, port: u16, req: htt
         if parts.uri.path() != "/api/channels/routed" || parts.method != http::Method::POST {
             return answer(404, &json!({ "error": "not found" }));
         }
-        let Ok(b) = http_body_util::Limited::new(body, 64 * 1024).collect().await.map(http_body_util::Collected::to_bytes) else { return answer(413, &json!({ "reply": "That message was too big." })) };
+        let Ok(b) = http_body_util::Limited::new(body, 64 * 1024).collect().await.map(http_body_util::Collected::to_bytes) else {
+            return answer(413, &json!({ "reply": "That message was too big." }));
+        };
         let args: Value = serde_json::from_slice(&b).unwrap_or(Value::Null);
         return match crate::calls::routed(&st.ctx, args).await {
             Ok(out) => answer(out.status, &out.body),
             Err(e) => answer(e.status(), &json!({ "reply": e.message })),
         };
     }
-    let from: Vec<(String, String)> = parts.headers.iter().filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))).collect();
+    let from: Vec<(String, String)> =
+        parts.headers.iter().filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))).collect();
     let preview = parts.headers.get("x-wisp-preview").map(|v| preview_port(v.to_str().ok()));
     let target = match preview {
-        Some(_) if !previews_on(st) => return answer(403, &json!({ "error": "This computer doesn’t show its local pages through the grid. Turn on Settings → Machines → Show local pages in previews there." })),
+        Some(_) if !previews_on(st) => {
+            return answer(
+                403,
+                &json!({ "error": "This computer doesn’t show its local pages through the grid. Turn on Settings → Machines → Show local pages in previews there." }),
+            );
+        }
         Some(None) => return answer(404, &json!({ "error": "not found" })),
         Some(Some(p)) => p,
         None => port,
     };
     let headers = if preview.is_some() {
-        from.into_iter().filter(|(k, _)| !wisp_grid_client_core::HOP.contains(&k.as_str()) && k != "x-wisp-preview").chain(std::iter::once(("host".to_owned(), format!("127.0.0.1:{target}")))).collect()
+        from.into_iter()
+            .filter(|(k, _)| !wisp_grid_client_core::HOP.contains(&k.as_str()) && k != "x-wisp-preview")
+            .chain(std::iter::once(("host".to_owned(), format!("127.0.0.1:{target}"))))
+            .collect()
     } else {
         local_headers(&from, port, &st.mark)
     };
@@ -255,7 +287,9 @@ pub async fn reply(st: &St, a: &api::ReplyArgs) -> api::Replied {
     let Ok((acct, token)) = st.signed_in().await else { return api::Replied { status: 401, error: "Not signed in to wisp Cloud".into() } };
     let url = format!("{}/api/channels/reply", acct.grid.trim_end_matches('/'));
     match net::call(&st.http, "POST", &url, Some(&token), Some(&json!({ "thread": a.thread, "text": a.text })), &[]).await {
-        Ok((status, v)) => api::Replied { status, error: if status < 300 { String::new() } else { v["error"].as_str().unwrap_or_default().to_owned() } },
+        Ok((status, v)) => {
+            api::Replied { status, error: if status < 300 { String::new() } else { v["error"].as_str().unwrap_or_default().to_owned() } }
+        }
         Err(e) => api::Replied { status: 0, error: e.message },
     }
 }

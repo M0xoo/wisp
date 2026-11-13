@@ -34,7 +34,11 @@ fn s<'a>(v: &'a Value, k: &str) -> &'a str {
 
 fn open_in_wisp(c: &ShareCard, public_url: &str) -> String {
     let link = format!("{public_url}/s/{}", c.id);
-    format!(r#"<div class="hub-open"><a class="primary tall" href="wisp://open/{id}">Open in wisp</a> <span class="sub">or run <code>wisp open {link}</code></span></div>"#, id = esc(&c.id), link = esc(&link))
+    format!(
+        r#"<div class="hub-open"><a class="primary tall" href="wisp://open/{id}">Open in wisp</a> <span class="sub">or run <code>wisp open {link}</code></span></div>"#,
+        id = esc(&c.id),
+        link = esc(&link)
+    )
 }
 
 fn task_body(v: &Value) -> String {
@@ -52,9 +56,16 @@ fn task_body(v: &Value) -> String {
             out.push_str(&format!(r#"<div class="hub-pre">{}</div>"#, esc(&text)));
         }
     }
-    let files: Vec<String> = v.pointer("/report/files").and_then(Value::as_array).map(|f| f.iter().filter_map(|x| x.as_str().map(esc)).collect()).unwrap_or_default();
+    let files: Vec<String> = v
+        .pointer("/report/files")
+        .and_then(Value::as_array)
+        .map(|f| f.iter().filter_map(|x| x.as_str().map(esc)).collect())
+        .unwrap_or_default();
     if !files.is_empty() {
-        out.push_str(&format!(r#"<h2 class="h2">Files it changed</h2><ul class="hub-list">{}</ul>"#, files.iter().map(|f| format!("<li>{f}</li>")).collect::<String>()));
+        out.push_str(&format!(
+            r#"<h2 class="h2">Files it changed</h2><ul class="hub-list">{}</ul>"#,
+            files.iter().map(|f| format!("<li>{f}</li>")).collect::<String>()
+        ));
     }
     if out.is_empty() {
         out.push_str(r#"<p class="sub">The ask and its setup, to run on your own code.</p>"#);
@@ -66,7 +77,17 @@ fn setup_body(v: &Value) -> String {
     let mut out = String::new();
     let res = v.get("resources").and_then(Value::as_array).cloned().unwrap_or_default();
     if !res.is_empty() {
-        out.push_str(&format!(r#"<h2 class="h2">What it sets up</h2><ul class="hub-list">{}</ul>"#, res.iter().map(|r| format!(r#"<li><span class="hub-k">{}</span><b>{}</b> {}</li>"#, esc(s(r, "kind")), esc(s(r, "name")), esc(s(r, "summary")))).collect::<String>()));
+        out.push_str(&format!(
+            r#"<h2 class="h2">What it sets up</h2><ul class="hub-list">{}</ul>"#,
+            res.iter()
+                .map(|r| format!(
+                    r#"<li><span class="hub-k">{}</span><b>{}</b> {}</li>"#,
+                    esc(s(r, "kind")),
+                    esc(s(r, "name")),
+                    esc(s(r, "summary"))
+                ))
+                .collect::<String>()
+        ));
     }
     for f in v.get("files").and_then(Value::as_array).into_iter().flatten() {
         out.push_str(&format!(r#"<h2 class="h2">{}</h2><div class="hub-pre">{}</div>"#, esc(s(f, "name")), esc(s(f, "text"))));
@@ -103,7 +124,9 @@ pub fn locked_page(cfg: &PageCfg, id: &str, access: &str, wrong: bool) -> String
             if wrong { r#"<div class="flash bad">That password isn’t right.</div>"# } else { "" },
             esc(id)
         ),
-        "people" => r#"<h1 class="h1">This share is for some people only</h1><p class="sub">Sign in as one of them to open it.</p>"#.to_owned(),
+        "people" => {
+            r#"<h1 class="h1">This share is for some people only</h1><p class="sub">Sign in as one of them to open it.</p>"#.to_owned()
+        }
         _ => r#"<h1 class="h1">This share is for a team</h1><p class="sub">Sign in as a member of that team to open it.</p>"#.to_owned(),
     };
     app_page(&AppPage { narrow: true, ..AppPage::new(cfg, "A locked share", &body) })
@@ -133,7 +156,11 @@ pub fn gallery_page(cfg: &PageCfg, q: &str, found: &[Value]) -> String {
             )
         })
         .collect();
-    let list = if items.is_empty() { r#"<p class="sub">Nothing matches yet.</p>"#.to_owned() } else { format!(r#"<ul class="hub-list">{items}</ul>"#) };
+    let list = if items.is_empty() {
+        r#"<p class="sub">Nothing matches yet.</p>"#.to_owned()
+    } else {
+        format!(r#"<ul class="hub-list">{items}</ul>"#)
+    };
     let body = format!(
         r#"<h1 class="h1">What people are building</h1><p class="sub">Formulas, modules, crew, workflows, plugins and apps people chose to publish. Use this opens it in wisp, where you see its plan before anything changes.</p><form method="get" action="/gallery" style="margin:16px 0;display:flex;gap:10px"><input class="input" name="q" value="{}" placeholder="Search"><button class="primary tall">Search</button></form>{list}"#,
         esc(q)
@@ -153,12 +180,28 @@ mod tests {
 
     #[test]
     fn a_share_page_works_without_wisp() {
-        let card = |kind: &str| ShareCard { id: "abc".into(), kind: kind.into(), title: "<b>Review</b>".into(), from: "ada".into(), version: 2, source: "grid://ada/review".into(), ..ShareCard::default() };
-        let task = share_page(&cfg(), &card("task"), &json!({ "spec": { "prompt": "fix <script>x</script>" }, "report": { "answers": [{ "text": "Done" }], "files": ["src/a.ts"] } }));
+        let card = |kind: &str| ShareCard {
+            id: "abc".into(),
+            kind: kind.into(),
+            title: "<b>Review</b>".into(),
+            from: "ada".into(),
+            version: 2,
+            source: "grid://ada/review".into(),
+            ..ShareCard::default()
+        };
+        let task = share_page(
+            &cfg(),
+            &card("task"),
+            &json!({ "spec": { "prompt": "fix <script>x</script>" }, "report": { "answers": [{ "text": "Done" }], "files": ["src/a.ts"] } }),
+        );
         assert!(task.contains("fix &#60;script&#62;") || task.contains("fix &lt;script&gt;"), "escaped");
         assert!(!task.contains("<script>x") && task.contains("src/a.ts") && task.contains("wisp open http://wisp.localhost:8080/s/abc"));
         assert!(!task.contains("<b>Review</b>"));
-        let setup = share_page(&cfg(), &card("setup"), &json!({ "resources": [{ "kind": "agent", "name": "reviewer", "summary": "claude, plan mode" }], "files": [{ "name": "agents.wisp.yml", "text": "agent: …" }] }));
+        let setup = share_page(
+            &cfg(),
+            &card("setup"),
+            &json!({ "resources": [{ "kind": "agent", "name": "reviewer", "summary": "claude, plan mode" }], "files": [{ "name": "agents.wisp.yml", "text": "agent: …" }] }),
+        );
         assert!(setup.contains("reviewer") && setup.contains("agents.wisp.yml") && setup.contains("v2"));
         let doc = share_page(&cfg(), &card("doc"), &json!({ "markdown": "# Notes" }));
         assert!(doc.contains("# Notes"));

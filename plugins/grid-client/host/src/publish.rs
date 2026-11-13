@@ -62,20 +62,33 @@ impl wisp_stuff_api::commands::Publisher for Publish {
         Box::pin(async move {
             call.require_write("stuff:publish")?;
             let state = st(&slot)?;
-            let (acct, token) = state.signed_in().await.map_err(|_| WireError::conflict("Sign in to a wisp Grid first (Settings → Cloud) to publish apps."))?;
+            let (acct, token) = state
+                .signed_in()
+                .await
+                .map_err(|_| WireError::conflict("Sign in to a wisp Grid first (Settings → Cloud) to publish apps."))?;
             let bundle = crate::calls::bundle(&ctx, &call, &id).await?;
             let body = base64::engine::general_purpose::STANDARD.decode(&bundle.body).map_err(|e| WireError::internal(e.to_string()))?;
             let or = |v: &str, d: &'static str| if v.is_empty() { d.to_owned() } else { v.to_owned() };
             let (title, entry) = (or(&bundle.title, "App"), or(&bundle.entry, "index.html"));
             let host = host_of(&acct.grid).to_owned();
             let url = format!("{}/api/sites/{}?title={}&entry={}", acct.grid.trim_end_matches('/'), enc(&id), enc(&title), enc(&entry));
-            let r = state.http.put(&url).bearer_auth(&token).header("content-type", "application/octet-stream").body(body).timeout(std::time::Duration::from_secs(120)).send().await.map_err(|e| WireError::unavailable(format!("Couldn’t reach {host}: {e}")))?;
+            let r = state
+                .http
+                .put(&url)
+                .bearer_auth(&token)
+                .header("content-type", "application/octet-stream")
+                .body(body)
+                .timeout(std::time::Duration::from_secs(120))
+                .send()
+                .await
+                .map_err(|e| WireError::unavailable(format!("Couldn’t reach {host}: {e}")))?;
             let status = r.status().as_u16();
             let v: Value = r.json().await.unwrap_or_else(|_| json!({}));
             let site = answer(&host, "PUT", status, &v)?;
             let now = ctx.clock().map_or(0, |c| c.now_ms());
             let url = site["url"].as_str().ok_or_else(|| WireError::internal(format!("{host} published it but gave no link")))?.to_owned();
-            let published = Published { url, account: Some("cloud".into()), host: Some(host), handle: Some(acct.handle), rev: None, at: Some(now) };
+            let published =
+                Published { url, account: Some("cloud".into()), host: Some(host), handle: Some(acct.handle), rev: None, at: Some(now) };
             crate::calls::set_published(&ctx, &call, &id, Some(published)).await?;
             Ok(item(&id))
         })
@@ -88,7 +101,9 @@ impl wisp_stuff_api::commands::Publisher for Publish {
             let s = st(&slot)?;
             let Ok((a, token)) = s.signed_in().await else {
                 crate::calls::set_published(&ctx, &call, &id, None).await?;
-                return Err(WireError::conflict("You’re signed out of wisp Cloud, so it’s still up there: unpublish it from your account page."));
+                return Err(WireError::conflict(
+                    "You’re signed out of wisp Cloud, so it’s still up there: unpublish it from your account page.",
+                ));
             };
             let host = host_of(&a.grid).to_owned();
             let url = format!("{}/api/sites/{}", a.grid.trim_end_matches('/'), enc(&id));
@@ -113,7 +128,10 @@ mod tests {
     fn the_grids_answer_says_an_older_grid_a_lost_sign_in_or_its_refusal() {
         assert!(answer("g.test", "PUT", 404, &json!({})).unwrap_err().message.contains("doesn’t publish apps yet"));
         assert!(answer("g.test", "PUT", 401, &json!({})).unwrap_err().message.contains("Sign in again"));
-        assert_eq!(answer("g.test", "PUT", 400, &json!({ "error": "No index.html in the app." })).unwrap_err().message, "No index.html in the app.");
+        assert_eq!(
+            answer("g.test", "PUT", 400, &json!({ "error": "No index.html in the app." })).unwrap_err().message,
+            "No index.html in the app."
+        );
         assert_eq!(answer("g.test", "DELETE", 404, &json!({ "ok": false })).unwrap()["ok"], false, "a delete of what's gone is no error");
         assert_eq!(answer("g.test", "PUT", 200, &json!({ "url": "https://x/" })).unwrap()["url"], "https://x/");
     }

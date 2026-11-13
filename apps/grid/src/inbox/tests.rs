@@ -65,7 +65,15 @@ fn world(answers: Vec<u16>, opts: Opts) -> World {
     let boxes = Arc::new(FakeBoxes { up: Mutex::new(false), starts: AtomicU32::new(0), cold: Mutex::default() });
     let the_box = Arc::new(FakeBox { answers: Mutex::new(answers), got: Mutex::default() });
     let clock = ManualClock::new(1_000_000);
-    let inbox = Inbox::new(db, clock.clone(), Some(secrets), boxes.clone(), the_box.clone(), Opts { enabled: true, ..opts }, Arc::new(|h: &str| format!("https://{h}.grid.test")));
+    let inbox = Inbox::new(
+        db,
+        clock.clone(),
+        Some(secrets),
+        boxes.clone(),
+        the_box.clone(),
+        Opts { enabled: true, ..opts },
+        Arc::new(|h: &str| format!("https://{h}.grid.test")),
+    );
     World { inbox, boxes, the_box, clock, user }
 }
 
@@ -92,7 +100,11 @@ async fn a_message_to_a_sleeping_box_is_held_then_woken_and_delivered_in_order()
     let got = w.the_box.got.lock().unwrap().clone();
     assert_eq!(got.len(), 2);
     assert!(got[0].body.windows(13).any(|x| x == b"\"update_id\":1"), "in order");
-    assert_eq!(got[0].headers, vec![("x-telegram-bot-api-secret-token".to_owned(), "abc".to_owned())], "only the headers the box checks: no cookie");
+    assert_eq!(
+        got[0].headers,
+        vec![("x-telegram-bot-api-secret-token".to_owned(), "abc".to_owned())],
+        "only the headers the box checks: no cookie"
+    );
     assert_eq!(w.boxes.starts.load(Ordering::SeqCst), 1, "woken once");
 }
 
@@ -241,7 +253,9 @@ async fn the_grid_refuses_an_unsigned_or_forged_discord_interaction_and_wakes_no
     let ping = json!({ "type": 1, "id": "23" }).to_string().into_bytes();
     let bad_ping = w.inbox.accept(&w.user, "discord", &discord_signed_headers(&other, &ping), Some(&ping)).await.unwrap();
     *w.boxes.up.lock().unwrap() = false;
-    for (what, a) in [("unsigned", unsigned), ("forged", forged), ("another key", stranger), ("another body", swapped), ("a ping", bad_ping)] {
+    for (what, a) in
+        [("unsigned", unsigned), ("forged", forged), ("another key", stranger), ("another body", swapped), ("a ping", bad_ping)]
+    {
         assert_eq!(a.map(|a| a.0), Some(401), "{what}");
     }
     assert_eq!(w.inbox.waiting().unwrap(), Vec::<String>::new(), "nothing held");

@@ -2,8 +2,8 @@
 //! the TS port's channel-policy.test.ts case for case), plus capped.js's helpers.
 use wisp_channels_api::{AskView, Capped, Mode, Permission};
 use wisp_channels_core::policy::{
-    Gate, GateArgs, RateHit, RateLimit, STALE_S, Seen, Why, above_cap, allowed, approvals_here, at_cap, cap_mode, capped_at, capped_refusal, gate, message_of, over_cap,
-    sender_name, tighter, untrusted,
+    Gate, GateArgs, RateHit, RateLimit, STALE_S, Seen, Why, above_cap, allowed, approvals_here, at_cap, cap_mode, capped_at,
+    capped_refusal, gate, message_of, over_cap, sender_name, tighter, untrusted,
 };
 
 const NOW: i64 = 2_000_000_000_000;
@@ -25,7 +25,10 @@ fn gate_checks_in_order_and_a_stranger_hears_nothing_unless_dm() {
     assert_eq!(dm, Gate::Refused { why: Why::Stranger, reply: Some("This wisp isn’t linked to you.".into()) });
     let mut seen = Seen::default();
     assert!(gate(GateArgs { id: Some("a"), seen: Some(&mut seen), ..base(&senders) }).ok());
-    assert_eq!(gate(GateArgs { id: Some("a"), seen: Some(&mut seen), ..base(&senders) }), Gate::Refused { why: Why::Duplicate, reply: None });
+    assert_eq!(
+        gate(GateArgs { id: Some("a"), seen: Some(&mut seen), ..base(&senders) }),
+        Gate::Refused { why: Why::Duplicate, reply: None }
+    );
     let stale = gate(GateArgs { at_s: Some(NOW / 1000 - STALE_S - 1), ..base(&senders) });
     assert!(matches!(stale, Gate::Refused { why: Why::Stale, reply: Some(ref r) } if r.contains("Send it again")));
     assert!(gate(GateArgs { at_s: Some(NOW / 1000 - STALE_S + 1), ..base(&senders) }).ok());

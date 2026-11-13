@@ -14,7 +14,14 @@ use crate::runtime::Runtime;
 impl Runtime {
     /// `runtime.compact`: `/compact` as the next turn, by wisp (it doesn't count as your follow-up).
     pub async fn compact(self: &Arc<Self>, id: &SessionId) -> Result<FollowedUp> {
-        self.follow_up(FollowUpArgs { id: id.clone(), text: "/compact".into(), queue: Some(true), by: Some("compact".into()), ..FollowUpArgs::default() }).await
+        self.follow_up(FollowUpArgs {
+            id: id.clone(),
+            text: "/compact".into(),
+            queue: Some(true),
+            by: Some("compact".into()),
+            ..FollowUpArgs::default()
+        })
+        .await
     }
 
     /// `runtime.rerun` (v1 `rerunSignedOut`): a signed-out turn's request again, once, in the same
@@ -39,7 +46,16 @@ impl Runtime {
             t
         };
         // the run goes through `before:run` like any turn: the guard may hold it (v1's `guard.check`)
-        let sent = self.follow_up(FollowUpArgs { id: a.id.clone(), text: t.prompt.clone(), attachments: t.attachments.clone(), queue: Some(false), by: t.by.clone(), ..FollowUpArgs::default() }).await;
+        let sent = self
+            .follow_up(FollowUpArgs {
+                id: a.id.clone(),
+                text: t.prompt.clone(),
+                attachments: t.attachments.clone(),
+                queue: Some(false),
+                by: t.by.clone(),
+                ..FollowUpArgs::default()
+            })
+            .await;
         if sent.is_err() {
             // it never went: the card offers it again (v1 runner.js:2036)
             let _g = self.task_lock(a.id.as_str()).await;
@@ -54,7 +70,16 @@ impl Runtime {
     /// `runtime.adopt`: a read-only task holding someone else's turns (a `full` share); fork it to go on.
     pub async fn adopt(self: &Arc<Self>, a: wisp_runtime_api::spec::AdoptArgs) -> Result<wisp_runtime_api::commands::Created> {
         let now = self.now();
-        let mut s = Session { id: SessionId::new(), title: a.title, agent: a.agent, cwd: a.cwd, state: SessionState::Done, created_at: now, updated_at: now, ..Session::default() };
+        let mut s = Session {
+            id: SessionId::new(),
+            title: a.title,
+            agent: a.agent,
+            cwd: a.cwd,
+            state: SessionState::Done,
+            created_at: now,
+            updated_at: now,
+            ..Session::default()
+        };
         for (k, v) in a.ext {
             s.ext.insert(k, v);
         }
@@ -66,7 +91,12 @@ impl Runtime {
             with_slot(&mut s.ext, |m| m.insert("readOnly".into(), json!(true)));
         }
         with_slot(&mut s.ext, |m| m.insert("spec".into(), spec));
-        let copies: Vec<Turn> = a.turns.into_iter().filter_map(|t| serde_json::from_value::<Turn>(t).ok()).map(|t| Turn { id: TurnId::new(), session_id: s.id.clone(), ..t }).collect();
+        let copies: Vec<Turn> = a
+            .turns
+            .into_iter()
+            .filter_map(|t| serde_json::from_value::<Turn>(t).ok())
+            .map(|t| Turn { id: TurnId::new(), session_id: s.id.clone(), ..t })
+            .collect();
         if copies.is_empty() {
             return Err(RuntimeError::Invalid("a shared task to import has its turns (a full share)".into()));
         }
@@ -77,9 +107,16 @@ impl Runtime {
 
     /// An outside session already adopted (ADR-0035: never twice): its task, with the session's turns past
     /// the ones it has appended. None when no task came from it.
-    pub async fn readopt(self: &Arc<Self>, session: &str, a: &wisp_runtime_api::spec::AdoptArgs) -> Result<Option<wisp_runtime_api::commands::Created>> {
+    pub async fn readopt(
+        self: &Arc<Self>,
+        session: &str,
+        a: &wisp_runtime_api::spec::AdoptArgs,
+    ) -> Result<Option<wisp_runtime_api::commands::Created>> {
         // adopted from it before, or wisp's own task that ran as it (`wisp open` comes back to it)
-        let found = self.repo.sessions().await?.into_iter().find(|s| s.ext.get("wisp.adopted").and_then(|v| v.get("session")).and_then(Value::as_str) == Some(session) || s.resume_id.as_deref() == Some(session));
+        let found = self.repo.sessions().await?.into_iter().find(|s| {
+            s.ext.get("wisp.adopted").and_then(|v| v.get("session")).and_then(Value::as_str) == Some(session)
+                || s.resume_id.as_deref() == Some(session)
+        });
         let Some(mut s) = found else { return Ok(None) };
         let have = self.repo.turns(s.id.as_str(), None, None).await?.len();
         let new: Vec<Turn> = a

@@ -16,29 +16,15 @@ impl Store {
     /// returned guard unsubscribes.
     pub fn on_commit(&self, f: impl Fn(&Arc<[ChangeRow]>) + Send + Sync + 'static) -> Subscription {
         let id = self.shared.next_id.fetch_add(1, Ordering::Relaxed);
-        self.shared
-            .listeners
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push((id, Arc::new(f)));
-        Subscription {
-            shared: Arc::downgrade(&self.shared),
-            id,
-        }
+        self.shared.listeners.write().unwrap_or_else(PoisonError::into_inner).push((id, Arc::new(f)));
+        Subscription { shared: Arc::downgrade(&self.shared), id }
     }
 
     /// Hears a new epoch (after a restore or an import).
     pub fn on_epoch(&self, f: impl Fn(&str) + Send + Sync + 'static) -> Subscription {
         let id = self.shared.next_id.fetch_add(1, Ordering::Relaxed);
-        self.shared
-            .epoch_listeners
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push((id, Arc::new(f)));
-        Subscription {
-            shared: Arc::downgrade(&self.shared),
-            id,
-        }
+        self.shared.epoch_listeners.write().unwrap_or_else(PoisonError::into_inner).push((id, Arc::new(f)));
+        Subscription { shared: Arc::downgrade(&self.shared), id }
     }
 }
 
@@ -51,23 +37,15 @@ pub struct Subscription {
 
 impl std::fmt::Debug for Subscription {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Subscription")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
+        f.debug_struct("Subscription").field("id", &self.id).finish_non_exhaustive()
     }
 }
 
 impl Drop for Subscription {
     fn drop(&mut self) {
         if let Some(s) = self.shared.upgrade() {
-            s.listeners
-                .write()
-                .unwrap_or_else(PoisonError::into_inner)
-                .retain(|(id, _)| *id != self.id);
-            s.epoch_listeners
-                .write()
-                .unwrap_or_else(PoisonError::into_inner)
-                .retain(|(id, _)| *id != self.id);
+            s.listeners.write().unwrap_or_else(PoisonError::into_inner).retain(|(id, _)| *id != self.id);
+            s.epoch_listeners.write().unwrap_or_else(PoisonError::into_inner).retain(|(id, _)| *id != self.id);
         }
     }
 }

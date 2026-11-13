@@ -37,11 +37,7 @@ pub struct Retention {
 
 const DAY: i64 = 24 * 60 * 60 * 1000;
 /// Change rows: 7 days or 1M rows, whichever keeps fewer. Mutation records: 24 h (plan §4.1).
-pub const DEFAULT_RETENTION: Retention = Retention {
-    change_ms: 7 * DAY,
-    change_rows: 1_000_000,
-    mutation_ms: DAY,
-};
+pub const DEFAULT_RETENTION: Retention = Retention { change_ms: 7 * DAY, change_rows: 1_000_000, mutation_ms: DAY };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PruneResult {
@@ -77,14 +73,7 @@ impl std::fmt::Debug for StoreOptions {
 
 impl StoreOptions {
     pub fn new(location: Location, clock: Arc<dyn Clock>) -> Self {
-        Self {
-            location,
-            clock,
-            home: None,
-            retention: DEFAULT_RETENTION,
-            readers: 4,
-            epoch: Arc::new(wisp_kernel::ids::uuid7),
-        }
+        Self { location, clock, home: None, retention: DEFAULT_RETENTION, readers: 4, epoch: Arc::new(wisp_kernel::ids::uuid7) }
     }
 }
 
@@ -119,11 +108,7 @@ impl Shared {
             .unwrap_or_else(PoisonError::into_inner)
             .get(name)
             .cloned()
-            .ok_or_else(|| {
-                invalid(format!(
-                    "unknown entity kind {name}: its owner must define it first"
-                ))
-            })
+            .ok_or_else(|| invalid(format!("unknown entity kind {name}: its owner must define it first")))
     }
 }
 
@@ -136,10 +121,7 @@ pub struct Store {
 
 impl std::fmt::Debug for Store {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Store")
-            .field("home", &self.shared.home)
-            .field("memory", &self.shared.memory)
-            .finish_non_exhaustive()
+        f.debug_struct("Store").field("home", &self.shared.home).field("memory", &self.shared.memory).finish_non_exhaustive()
     }
 }
 
@@ -153,12 +135,8 @@ fn configure(db: &Connection, memory: bool) -> Result<()> {
 }
 
 fn open_reader(path: &Path) -> Result<Connection> {
-    let db = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY
-            | OpenFlags::SQLITE_OPEN_NO_MUTEX
-            | OpenFlags::SQLITE_OPEN_URI,
-    )?;
+    let db =
+        Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX | OpenFlags::SQLITE_OPEN_URI)?;
     db.execute_batch("PRAGMA busy_timeout = 5000; PRAGMA temp_store = MEMORY;")?;
     db.set_prepared_statement_cache_capacity(256);
     Ok(db)
@@ -182,22 +160,13 @@ impl Store {
         };
         let memory = path.is_none();
         configure(&writer, memory)?;
-        let home = opts.home.clone().or_else(|| {
-            path.as_ref()
-                .and_then(|p| std::path::absolute(p).ok())
-                .and_then(|p| p.parent().map(Path::to_path_buf))
-        });
-        migrate::run(
-            &writer,
-            home.as_deref(),
-            opts.clock.now_ms(),
-            KERNEL_OWNER,
-            KERNEL_MIGRATIONS,
-        )?;
+        let home = opts
+            .home
+            .clone()
+            .or_else(|| path.as_ref().and_then(|p| std::path::absolute(p).ok()).and_then(|p| p.parent().map(Path::to_path_buf)));
+        migrate::run(&writer, home.as_deref(), opts.clock.now_ms(), KERNEL_OWNER, KERNEL_MIGRATIONS)?;
         let readers = match &path {
-            Some(p) => (0..opts.readers.max(1))
-                .map(|_| open_reader(p).map(Mutex::new))
-                .collect::<Result<Vec<_>>>()?,
+            Some(p) => (0..opts.readers.max(1)).map(|_| open_reader(p).map(Mutex::new)).collect::<Result<Vec<_>>>()?,
             None => Vec::new(),
         };
         let shared = Arc::new(Shared {
@@ -233,15 +202,10 @@ impl Store {
         } else {
             let fresh = (self.shared.make_epoch)();
             let e = fresh.clone();
-            self.thread
-                .run_raw(move |db| crate::writer::write_meta(db, "epoch", Some(&e)))?;
+            self.thread.run_raw(move |db| crate::writer::write_meta(db, "epoch", Some(&e)))?;
             fresh
         };
-        *self
-            .shared
-            .epoch
-            .write()
-            .unwrap_or_else(PoisonError::into_inner) = epoch;
+        *self.shared.epoch.write().unwrap_or_else(PoisonError::into_inner) = epoch;
         Ok(())
     }
 
@@ -250,11 +214,7 @@ impl Store {
     }
 
     pub fn epoch(&self) -> String {
-        self.shared
-            .epoch
-            .read()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.shared.epoch.read().unwrap_or_else(PoisonError::into_inner).clone()
     }
 
     pub fn clock(&self) -> &Arc<dyn Clock> {
@@ -265,31 +225,20 @@ impl Store {
 
     /// Runs an owner's forward-only migrations (startup and plugin setup; it blocks until done).
     pub fn migrate(&self, owner: &str, list: &[Migration]) -> Result<MigrateReport> {
-        let (owner, home, now, list) = (
-            owner.to_owned(),
-            self.shared.home.clone(),
-            self.shared.clock.now_ms(),
-            list.to_vec(),
-        );
-        self.thread
-            .run_raw(move |db| migrate::run(db, home.as_deref(), now, &owner, &list))
+        let (owner, home, now, list) = (owner.to_owned(), self.shared.home.clone(), self.shared.clock.now_ms(), list.to_vec());
+        self.thread.run_raw(move |db| migrate::run(db, home.as_deref(), now, &owner, &list))
     }
 
     pub fn schema_version(&self, owner: &str) -> Result<u32> {
         let owner = owner.to_owned();
-        self.thread
-            .run_raw(move |db| migrate::schema_version(db, &owner))
+        self.thread.run_raw(move |db| migrate::schema_version(db, &owner))
     }
 
     /// Registers an owner's entity kind. The same definition twice is fine; another one under a taken
     /// kind name is refused.
     pub fn define_entity(&self, def: EntityDef) -> Result<()> {
         let kind = Kind::compile(def)?;
-        let mut kinds = self
-            .shared
-            .kinds
-            .write()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut kinds = self.shared.kinds.write().unwrap_or_else(PoisonError::into_inner);
         if let Some(had) = kinds.get(def.kind) {
             let same = had.def.table == def.table
                 && had.def.key == def.key
@@ -297,10 +246,7 @@ impl Store {
                 && had.def.json_columns == def.json_columns
                 && had.def.parent == def.parent;
             if !same {
-                return Err(invalid(format!(
-                    "entity kind {} is already registered",
-                    def.kind
-                )));
+                return Err(invalid(format!("entity kind {} is already registered", def.kind)));
             }
         }
         kinds.insert(def.kind, Arc::new(kind));
@@ -315,17 +261,11 @@ impl Store {
         crate::thread::refuse_inside_write()?;
         if self.shared.memory {
             let db = lock(&self.shared.writer);
-            return f(&Reader {
-                db: &db,
-                shared: &self.shared,
-            });
+            return f(&Reader { db: &db, shared: &self.shared });
         }
         let db = self.reader();
         db.execute_batch("BEGIN DEFERRED")?;
-        let out = f(&Reader {
-            db: &db,
-            shared: &self.shared,
-        });
+        let out = f(&Reader { db: &db, shared: &self.shared });
         db.execute_batch("COMMIT")?;
         out
     }
@@ -337,9 +277,7 @@ impl Store {
         F: FnOnce(&Reader<'_>) -> Result<T> + Send + 'static,
     {
         let store = self.clone();
-        tokio::task::spawn_blocking(move || store.read(f))
-            .await
-            .map_err(|e| StoreError::Internal(format!("a read panicked: {e}")))?
+        tokio::task::spawn_blocking(move || store.read(f)).await.map_err(|e| StoreError::Internal(format!("a read panicked: {e}")))?
     }
 
     fn reader(&self) -> MutexGuard<'_, Connection> {

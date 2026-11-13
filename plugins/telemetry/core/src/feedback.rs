@@ -43,10 +43,7 @@ impl FeedbackArgs {
     pub fn peer_body(&self, local_id: &str) -> Value {
         let mut b = serde_json::Map::new();
         if let Some(r) = self.rating {
-            b.insert(
-                "rating".into(),
-                r.as_str().map_or(Value::Null, |r| json!(r)),
-            );
+            b.insert("rating".into(), r.as_str().map_or(Value::Null, |r| json!(r)));
         }
         b.insert("text".into(), json!(self.text));
         if let Some(k) = &self.kind {
@@ -96,14 +93,7 @@ pub fn parse(body: &Value) -> Result<FeedbackArgs, String> {
         Some(Value::String(s)) => Some(s.clone()),
         Some(v) => Some(v.to_string()),
     };
-    Ok(FeedbackArgs {
-        rating,
-        text,
-        kind,
-        session_id: opt("sessionId"),
-        turn_id: opt("turnId"),
-        source: opt("source"),
-    })
+    Ok(FeedbackArgs { rating, text, kind, session_id: opt("sessionId"), turn_id: opt("turnId"), source: opt("source") })
 }
 
 /// `id@machine` → (id, machine) (v1 machines.js `splitId`): the last `@`, not at the start.
@@ -131,36 +121,19 @@ pub fn event(a: &FeedbackArgs, c: &Context<'_>) -> (&'static str, Props) {
         p.insert("status".into(), json!(t.status));
         set_opt(&mut p, "heroStatus", hero_status(t));
         p.insert("blockTypes".into(), json!(block_types(t)));
-        set_opt(
-            &mut p,
-            "durationMs",
-            t.ended_at.filter(|e| *e != 0).map(|e| e - t.started_at),
-        );
+        set_opt(&mut p, "durationMs", t.ended_at.filter(|e| *e != 0).map(|e| e - t.started_at));
         if c.tour {
             p.insert("tour".into(), json!(true));
         }
     }
     set_opt(&mut p, "rating", a.rating.and_then(Rating::as_str));
     set_opt(&mut p, "kind", a.kind.clone());
-    let source = a.source.clone().unwrap_or_else(|| {
-        if c.run.is_some() {
-            "turn".into()
-        } else {
-            "app".into()
-        }
-    });
-    p.insert(
-        "source".into(),
-        json!(source.chars().take(20).collect::<String>()),
-    );
+    let source = a.source.clone().unwrap_or_else(|| if c.run.is_some() { "turn".into() } else { "app".into() });
+    p.insert("source".into(), json!(source.chars().take(20).collect::<String>()));
     if c.machine {
         p.insert("machine".into(), json!(true));
     }
-    let name = if !a.text.is_empty() || a.turn_id.is_none() {
-        "feedback"
-    } else {
-        "turn_rated"
-    };
+    let name = if !a.text.is_empty() || a.turn_id.is_none() { "feedback" } else { "turn_rated" };
     if name == "turn_rated" && a.rating == Some(Rating::Clear) {
         p.insert("cleared".into(), json!(true));
     }

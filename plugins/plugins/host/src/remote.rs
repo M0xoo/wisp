@@ -29,7 +29,10 @@ pub fn module_path(component: &str) -> Option<String> {
     let path = component.split('#').next().unwrap_or_default();
     let path = path.strip_prefix("./").unwrap_or(path);
     let p = std::path::Path::new(path);
-    let ok = p.extension().is_some_and(|e| e == "js") && !path.starts_with('/') && !path.contains('\\') && p.components().all(|c| matches!(c, std::path::Component::Normal(_)));
+    let ok = p.extension().is_some_and(|e| e == "js")
+        && !path.starts_with('/')
+        && !path.contains('\\')
+        && p.components().all(|c| matches!(c, std::path::Component::Normal(_)));
     ok.then(|| path.to_owned())
 }
 
@@ -92,6 +95,10 @@ mod tests {
         .into_iter()
         .collect();
         let e = entries(&c);
-        assert_eq!(e, vec![("user.theme.pane".into(), "shell.settings".into(), "Theme".into(), "ui.js".into())], "not the frame, nothing outside its folder");
+        assert_eq!(
+            e,
+            vec![("user.theme.pane".into(), "shell.settings".into(), "Theme".into(), "ui.js".into())],
+            "not the frame, nothing outside its folder"
+        );
     }
 }

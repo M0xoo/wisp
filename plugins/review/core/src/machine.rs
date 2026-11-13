@@ -1,9 +1,7 @@
 //! When a review starts, and what it leaves on the task: idle → running → done | failed, or held
 //! (the reviewer's account is past Automations' stop), always of one PR head (v1 createReview).
 
-use wisp_review_api::{
-    Coverage, Finding, Pick, Review, ReviewView, Status, TestsRun, TestsSummary,
-};
+use wisp_review_api::{Coverage, Finding, Pick, Review, ReviewView, Status, TestsRun, TestsSummary};
 
 use crate::pick::clip;
 use crate::prompt::partial_summary;
@@ -11,8 +9,7 @@ use crate::prompt::partial_summary;
 pub const NO_PR: &str = "No open pull request of the task’s own branch.";
 pub const OFF: &str = "Review by another harness is off.";
 pub const BUSY: &str = "Still working: it’s reviewed once the run ends.";
-pub const UNPUSHED: &str =
-    "The branch has commits the PR doesn’t have yet: push them (Ship it) to review.";
+pub const UNPUSHED: &str = "The branch has commits the PR doesn’t have yet: push them (Ship it) to review.";
 pub const NO_DIFF: &str = "Couldn’t read the PR’s diff";
 
 /// What `maybe` looks at.
@@ -57,19 +54,10 @@ pub fn gate(d: &Due<'_>) -> Gate {
     if d.busy {
         return Gate::Refuse(BUSY.into());
     }
-    if !d.force
-        && d.last
-            .is_some_and(|r| r.head == d.pr_head && r.status != Status::Running)
-    {
+    if !d.force && d.last.is_some_and(|r| r.head == d.pr_head && r.status != Status::Running) {
         return Gate::Quiet;
     }
-    Gate::Pick {
-        setting: if off {
-            "other".into()
-        } else {
-            d.setting.to_owned()
-        },
-    }
+    Gate::Pick { setting: if off { "other".into() } else { d.setting.to_owned() } }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,43 +74,14 @@ pub enum Decision {
 }
 
 /// After the pick, and (unless forced) the hold check on the reviewer's own account.
-pub fn after_pick(
-    head: &str,
-    pick: Result<Pick, String>,
-    hold: Option<String>,
-    now: i64,
-) -> Decision {
-    let base = Review {
-        head: head.to_owned(),
-        at: now,
-        ..Review::default()
-    };
+pub fn after_pick(head: &str, pick: Result<Pick, String>, hold: Option<String>, now: i64) -> Decision {
+    let base = Review { head: head.to_owned(), at: now, ..Review::default() };
     match (pick, hold) {
-        (Err(why), _) => Decision::Stop {
-            review: Review {
-                status: Status::Failed,
-                why: Some(why.clone()),
-                ..base
-            },
-            why,
-        },
-        (Ok(pick), Some(why)) => Decision::Stop {
-            review: Review {
-                status: Status::Held,
-                by: Some(pick),
-                why: Some(why.clone()),
-                ..base
-            },
-            why,
-        },
-        (Ok(pick), None) => Decision::Start {
-            review: Review {
-                status: Status::Running,
-                by: Some(pick.clone()),
-                ..base
-            },
-            pick,
-        },
+        (Err(why), _) => Decision::Stop { review: Review { status: Status::Failed, why: Some(why.clone()), ..base }, why },
+        (Ok(pick), Some(why)) => {
+            Decision::Stop { review: Review { status: Status::Held, by: Some(pick), why: Some(why.clone()), ..base }, why }
+        }
+        (Ok(pick), None) => Decision::Start { review: Review { status: Status::Running, by: Some(pick.clone()), ..base }, pick },
     }
 }
 
@@ -140,10 +99,7 @@ pub fn tests_summary(t: Option<&TestsRun>) -> Option<TestsSummary> {
 #[derive(Debug, Clone)]
 pub enum Outcome {
     /// the reviewer answered: its summary and findings
-    Answered {
-        summary: String,
-        findings: Vec<Finding>,
-    },
+    Answered { summary: String, findings: Vec<Finding> },
     /// it didn't (a timeout, junk): named for the page
     Silent { reviewer: String },
     /// it couldn't run (the head moved, no diff)
@@ -161,12 +117,7 @@ pub struct Finish<'a> {
 }
 
 pub fn finish(f: Finish<'_>, outcome: Outcome) -> Review {
-    let base = Review {
-        head: f.head.to_owned(),
-        by: Some(f.pick.clone()),
-        at: f.now,
-        ..Review::default()
-    };
+    let base = Review { head: f.head.to_owned(), by: Some(f.pick.clone()), at: f.now, ..Review::default() };
     match outcome {
         Outcome::Answered { summary, findings } => {
             let partial = f.coverage.as_ref().is_some_and(Coverage::partial);
@@ -191,12 +142,7 @@ pub fn finish(f: Finish<'_>, outcome: Outcome) -> Review {
             coverage: f.coverage,
             ..base
         },
-        Outcome::Error { why } => Review {
-            status: Status::Failed,
-            why: Some(clip(&why, 300)),
-            coverage: f.coverage,
-            ..base
-        },
+        Outcome::Error { why } => Review { status: Status::Failed, why: Some(clip(&why, 300)), coverage: f.coverage, ..base },
     }
 }
 

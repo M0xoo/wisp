@@ -36,12 +36,7 @@ pub trait Snapshots: Send + Sync + 'static {
     fn oldest_seq(&self) -> u64;
     fn snapshot(&self, topic: &Topic, since: Option<u64>) -> BoxFuture<'static, Read>;
     /// events before `before_seq`, newest first: (rows, done)
-    fn window(
-        &self,
-        topic: &Topic,
-        before_seq: u64,
-        limit: u32,
-    ) -> BoxFuture<'static, (Vec<Row>, bool)>;
+    fn window(&self, topic: &Topic, before_seq: u64, limit: u32) -> BoxFuture<'static, (Vec<Row>, bool)>;
 }
 
 /// No store in this build: every topic is empty at seq 0.
@@ -61,12 +56,7 @@ impl Snapshots for Empty {
         0
     }
     fn snapshot(&self, _: &Topic, _: Option<u64>) -> BoxFuture<'static, Read> {
-        Box::pin(async {
-            Read {
-                full: true,
-                ..Read::default()
-            }
-        })
+        Box::pin(async { Read { full: true, ..Read::default() } })
     }
     fn window(&self, _: &Topic, _: u64, _: u32) -> BoxFuture<'static, (Vec<Row>, bool)> {
         Box::pin(async { (Vec::new(), true) })
@@ -101,9 +91,7 @@ pub struct Driver {
 
 impl std::fmt::Debug for Driver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Driver")
-            .field("active", &self.active.load(Ordering::Relaxed))
-            .finish_non_exhaustive()
+        f.debug_struct("Driver").field("active", &self.active.load(Ordering::Relaxed)).finish_non_exhaustive()
     }
 }
 
@@ -113,35 +101,16 @@ fn now_ms() -> u64 {
 
 /// `topic:read{topic:<t>}` decides who reads what (plan §6.5).
 fn can_read(backend: Arc<dyn Backend>) -> wisp_sync::CanRead<Caller> {
-    Box::new(move |c: &Caller, t: &Topic| {
-        backend
-            .explain(c, &format!("topic:read{{topic:{}}}", t.as_str()))
-            .is_ok()
-    })
+    Box::new(move |c: &Caller, t: &Topic| backend.explain(c, &format!("topic:read{{topic:{}}}", t.as_str())).is_ok())
 }
 
 impl Driver {
     /// Starts the machine's task; it ends when the last handle (and every stream) is gone.
-    pub fn start(
-        snaps: Arc<dyn Snapshots>,
-        backend: Arc<dyn Backend>,
-        peer: PeerInfo,
-    ) -> Arc<Self> {
-        let opts = SyncOptions::new(
-            snaps.epoch(),
-            peer,
-            snaps.head_seq(),
-            snaps.oldest_seq(),
-            can_read(backend.clone()),
-        );
+    pub fn start(snaps: Arc<dyn Snapshots>, backend: Arc<dyn Backend>, peer: PeerInfo) -> Arc<Self> {
+        let opts = SyncOptions::new(snaps.epoch(), peer, snaps.head_seq(), snaps.oldest_seq(), can_read(backend.clone()));
         let (tx, rx) = mpsc::unbounded_channel();
         let active = Arc::new(AtomicUsize::new(0));
-        let me = Arc::new(Self {
-            tx: tx.clone(),
-            next: AtomicU64::new(1),
-            active: active.clone(),
-            snaps: snaps.clone(),
-        });
+        let me = Arc::new(Self { tx: tx.clone(), next: AtomicU64::new(1), active: active.clone(), snaps: snaps.clone() });
         let actor = Actor::new(SyncServer::new(opts), tx, snaps, backend, active);
         tokio::spawn(actor.run(rx));
         me
@@ -159,10 +128,7 @@ impl Driver {
 }
 
 fn connect_query(q: Vec<(String, String)>, last_event_id: Option<String>) -> ConnectQuery {
-    let mut c = ConnectQuery {
-        last_event_id,
-        ..ConnectQuery::default()
-    };
+    let mut c = ConnectQuery { last_event_id, ..ConnectQuery::default() };
     for (k, v) in q {
         let slot = match k.as_str() {
             "proto_min" => &mut c.proto_min,
@@ -182,12 +148,7 @@ fn connect_query(q: Vec<(String, String)>, last_event_id: Option<String>) -> Con
 }
 
 impl SyncMount for Driver {
-    fn events(
-        &self,
-        caller: Caller,
-        query: Vec<(String, String)>,
-        last_event_id: Option<String>,
-    ) -> Result<mpsc::Receiver<Bytes>> {
+    fn events(&self, caller: Caller, query: Vec<(String, String)>, last_event_id: Option<String>) -> Result<mpsc::Receiver<Bytes>> {
         let conn = ConnId(self.next.fetch_add(1, Ordering::Relaxed));
         let (tx, mut queue) = mpsc::channel::<Bytes>(QUEUE);
         let (out, rx) = mpsc::channel::<Bytes>(16);
@@ -211,50 +172,24 @@ impl SyncMount for Driver {
             let _ = actor.send(Msg::Gone(conn));
         });
         self.tx
-            .send(Msg::Open {
-                conn,
-                caller,
-                query: connect_query(query, last_event_id),
-                tx,
-                queued,
-            })
+            .send(Msg::Open { conn, caller, query: connect_query(query, last_event_id), tx, queued })
             .map_err(|_| WireError::unavailable("the sync stream stopped"))?;
         Ok(rx)
     }
 
-    fn message(
-        &self,
-        caller: Caller,
-        client: String,
-        body: Bytes,
-    ) -> BoxFuture<'static, Result<()>> {
+    fn message(&self, caller: Caller, client: String, body: Bytes) -> BoxFuture<'static, Result<()>> {
         let tx = self.tx.clone();
         Box::pin(async move {
-            let body: Value = serde_json::from_slice(&body)
-                .map_err(|e| WireError::invalid(format!("message: {e}")))?;
+            let body: Value = serde_json::from_slice(&body).map_err(|e| WireError::invalid(format!("message: {e}")))?;
             let (reply, rx) = oneshot::channel();
-            tx.send(Msg::Post {
-                caller,
-                client,
-                body,
-                reply,
-            })
-            .map_err(|_| WireError::unavailable("the sync stream stopped"))?;
-            rx.await
-                .map_err(|_| WireError::unavailable("the sync stream stopped"))?
+            tx.send(Msg::Post { caller, client, body, reply }).map_err(|_| WireError::unavailable("the sync stream stopped"))?;
+            rx.await.map_err(|_| WireError::unavailable("the sync stream stopped"))?
         })
     }
 
     fn notice(&self, kind: &str, data: &Value, topic: Option<&str>) {
-        let notice = Notice {
-            t: wisp_protocol::tag::Notice,
-            kind: kind.to_owned(),
-            data: data.clone(),
-        };
-        let _ = self.tx.send(Msg::In(Input::Notice {
-            notice,
-            topic: topic.and_then(Topic::parse),
-        }));
+        let notice = Notice { t: wisp_protocol::tag::Notice, kind: kind.to_owned(), data: data.clone() };
+        let _ = self.tx.send(Msg::In(Input::Notice { notice, topic: topic.and_then(Topic::parse) }));
     }
 
     fn looking(&self) -> usize {

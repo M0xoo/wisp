@@ -94,7 +94,13 @@ async fn wait_up(ctx: &Ctx, call: &Call, machine: &str) -> Result<String> {
 }
 
 async fn git(proc: &Proc, cwd: &Path, args: &[String]) -> Option<String> {
-    let opts = ExecOpts { cwd: Some(cwd.to_owned()), env: Env::default().with("GIT_TERMINAL_PROMPT", "0"), timeout: Some(Duration::from_secs(120)), max_output: 64 << 20, ..ExecOpts::default() };
+    let opts = ExecOpts {
+        cwd: Some(cwd.to_owned()),
+        env: Env::default().with("GIT_TERMINAL_PROMPT", "0"),
+        timeout: Some(Duration::from_secs(120)),
+        max_output: 64 << 20,
+        ..ExecOpts::default()
+    };
     let r = proc.exec("git", args, opts).await.ok()?;
     r.exit.success().then(|| r.stdout_text())
 }
@@ -140,7 +146,8 @@ async fn seed(ctx: &Ctx, call: &Call, machine: &str, cwd: Option<&str>) -> Resul
 /// `sandbox.place`: the owner's sandbox from before (a member's own, a delegate's, a task's judges'), else a new one,
 /// seeded.
 pub(crate) async fn place(ctx: &Ctx, call: &Call, a: &api::PlaceArgs) -> Result<api::Placed> {
-    let owner: Owner = serde_json::from_value(a.owner.clone()).map_err(|_| WireError::invalid("a sandbox's owner is a task, a delegate, a crew job or member, or a goal's judges"))?;
+    let owner: Owner = serde_json::from_value(a.owner.clone())
+        .map_err(|_| WireError::invalid("a sandbox's owner is a task, a delegate, a crew job or member, or a goal's judges"))?;
     if let Some(h) = core::reusable(&held(ctx, call).await, &owner) {
         let peer = wait_up(ctx, call, &h.machine).await?;
         let cwd = seed(ctx, call, &h.machine, a.cwd.as_deref()).await?;
@@ -162,10 +169,17 @@ pub(crate) async fn launch(ctx: &Ctx, call: &Call, a: &api::LaunchArgs) -> Resul
     let agent = a.agent.clone().unwrap_or_default();
     core::may_start(&agent, &logins(ctx, call).await).map_err(WireError::invalid)?;
     let mode = match &a.mode {
-        Some(m) => Some(serde_json::from_value::<wisp_runtime_api::model::Mode>(Value::String(m.clone())).map_err(|_| WireError::invalid(format!("{m} isn't a mode (plan, edits or auto)")))?),
+        Some(m) => Some(
+            serde_json::from_value::<wisp_runtime_api::model::Mode>(Value::String(m.clone()))
+                .map_err(|_| WireError::invalid(format!("{m} isn't a mode (plan, edits or auto)")))?,
+        ),
         None => None,
     };
-    let name = a.title.clone().filter(|t| !t.trim().is_empty()).unwrap_or_else(|| a.prompt.lines().next().unwrap_or("task").chars().take(40).collect());
+    let name = a
+        .title
+        .clone()
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| a.prompt.lines().next().unwrap_or("task").chars().take(40).collect());
     let pending = Owner::Pending { pending: now(ctx) };
     let (machine, peer, sandbox) = make(ctx, call, &pending, &name).await?;
     let cwd = match seed(ctx, call, &machine, a.cwd.as_deref()).await {
@@ -205,7 +219,10 @@ pub(crate) async fn drop_one(ctx: &Ctx, call: &Call, machine: &str, sandbox: &st
         Ok(()) => true,
         Err(e) => {
             tracing::warn!(sandbox, "a sandbox's drop failed, the sweep tries again: {}", e.message);
-            calls::warn("marking a sandbox dropping", calls::set_data(ctx, call, machine, BTreeMap::from([("dropping".to_owned(), Value::Bool(true))])).await);
+            calls::warn(
+                "marking a sandbox dropping",
+                calls::set_data(ctx, call, machine, BTreeMap::from([("dropping".to_owned(), Value::Bool(true))])).await,
+            );
             false
         }
     }
@@ -229,7 +246,13 @@ pub(crate) async fn bring(ctx: &Ctx, call: &Call, a: &api::BringArgs) -> Result<
     }
     let files = u32::try_from(patch.lines().filter(|l| l.starts_with("diff --git ")).count()).unwrap_or(u32::MAX);
     let proc = ctx.service::<Proc>()?;
-    let opts = ExecOpts { cwd: Some(PathBuf::from(&a.into)), input: Some(patch.into_bytes()), timeout: Some(Duration::from_secs(60)), max_output: 1 << 20, ..ExecOpts::default() };
+    let opts = ExecOpts {
+        cwd: Some(PathBuf::from(&a.into)),
+        input: Some(patch.into_bytes()),
+        timeout: Some(Duration::from_secs(60)),
+        max_output: 1 << 20,
+        ..ExecOpts::default()
+    };
     let args = ["apply", "--whitespace=nowarn", "-"].map(str::to_owned).to_vec();
     let r = proc.exec("git", &args, opts).await.map_err(|e| WireError::unavailable(format!("git: {e}")))?;
     if r.exit.success() {

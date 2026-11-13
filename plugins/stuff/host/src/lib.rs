@@ -5,25 +5,25 @@
 //! (`store.rs`, ADR-0004). An app's own database and the copies agents read stay files under
 //! `<home>/stuff`. v1's files are imported once at start (`import.rs`).
 
-mod kinds;
 mod agent;
-mod bundle;
 pub mod appdb;
 mod appfiles;
+mod bundle;
 mod commands;
 mod error;
 mod files;
 pub mod import;
+mod kinds;
 pub mod launch;
 pub mod ports;
 mod routes;
 mod save;
 pub mod shelf;
 mod starters;
-mod view;
 pub mod state;
 pub mod store;
 mod uploads;
+mod view;
 
 use std::sync::Arc;
 
@@ -56,9 +56,10 @@ impl Plugin for StuffPlugin {
             let db = ctx.service::<wisp_store::Store>()?.as_ref().clone();
             store::install(&db).map_err(WireError::from)?;
             view::install(&db).map_err(WireError::from)?;
-            let shelf = Shelf::open(Arc::new(store::StoreBlobs { store: db.clone() }), Arc::new(store::StoreRows { store: db }), dir, ctx.clock()?)
-                .await
-                .map_err(WireError::from)?;
+            let shelf =
+                Shelf::open(Arc::new(store::StoreBlobs { store: db.clone() }), Arc::new(store::StoreRows { store: db }), dir, ctx.clock()?)
+                    .await
+                    .map_err(WireError::from)?;
             // v1's stuff, uploads and shots (and the pre-store files), once: what's here already is skipped
             let (bg, home2) = (shelf.clone(), home.clone());
             ctx.spawn(async move {

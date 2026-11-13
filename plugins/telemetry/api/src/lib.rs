@@ -40,16 +40,17 @@ pub fn entry(name: &str) -> Option<&'static CatalogueEntry> {
 
 /// Only the catalogue's keys of `props` (a key it doesn't know is dropped, never sent).
 pub fn allowed(e: &CatalogueEntry, props: Map<String, Value>) -> Map<String, Value> {
-    props
-        .into_iter()
-        .filter(|(k, _)| e.props.iter().any(|p| p == k || p.strip_prefix('*').is_some_and(|tail| k.ends_with(tail))))
-        .collect()
+    props.into_iter().filter(|(k, _)| e.props.iter().any(|p| p == k || p.strip_prefix('*').is_some_and(|tail| k.ends_with(tail)))).collect()
 }
 
 /// What the UI may send: a UI event with only the allowed values (v1 `pageEvent`); None: dropped.
 pub fn ui_event(name: &str, props: &Map<String, Value>) -> Option<Map<String, Value>> {
     let ui = entry(name)?.ui.as_ref()?;
-    Some(ui.iter().filter_map(|(k, vals)| props.get(k).filter(|v| vals.as_array().is_some_and(|a| a.contains(v))).map(|v| (k.clone(), v.clone()))).collect())
+    Some(
+        ui.iter()
+            .filter_map(|(k, vals)| props.get(k).filter(|v| vals.as_array().is_some_and(|a| a.contains(v))).map(|v| (k.clone(), v.clone())))
+            .collect(),
+    )
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

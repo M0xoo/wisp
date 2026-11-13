@@ -51,7 +51,10 @@ impl ResourceKind for AccountKind {
                             spec.insert(k.into(), json!(v));
                         }
                     }
-                    out.push(Resource { id: Some(id.to_owned()), ..Resource::new("account", format!("{agent}/{id}"), Value::Object(spec)) });
+                    out.push(Resource {
+                        id: Some(id.to_owned()),
+                        ..Resource::new("account", format!("{agent}/{id}"), Value::Object(spec))
+                    });
                 }
             }
             Ok(out)
@@ -64,7 +67,10 @@ impl ResourceKind for AccountKind {
             let s = |k: &str| op.spec.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
             let (cmd, args) = match op.op {
                 OpKind::Create => ("accounts.add", json!({ "agent": agent, "id": id, "label": s("label"), "kind": s("kind") })),
-                OpKind::Update => ("accounts.update", json!({ "agent": agent, "account": id, "label": s("label"), "kind": if s("kind").is_empty() { "personal".to_owned() } else { s("kind") } })),
+                OpKind::Update => (
+                    "accounts.update",
+                    json!({ "agent": agent, "account": id, "label": s("label"), "kind": if s("kind").is_empty() { "personal".to_owned() } else { s("kind") } }),
+                ),
                 OpKind::Delete => ("accounts.remove", json!({ "agent": agent, "account": id })),
             };
             self.ctx.run_json(call, cmd, args).await.map(|_| ())

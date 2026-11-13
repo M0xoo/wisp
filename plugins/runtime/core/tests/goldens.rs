@@ -20,10 +20,7 @@ fn golden(name: &str, actual: &str) {
         std::fs::write(&file, actual).unwrap();
     }
     let want = std::fs::read_to_string(&file).unwrap();
-    assert!(
-        want == actual,
-        "{name} changed: run with UPDATE_GOLDENS=1 if that is meant\n--- want\n{want}\n--- got\n{actual}"
-    );
+    assert!(want == actual, "{name} changed: run with UPDATE_GOLDENS=1 if that is meant\n--- want\n{want}\n--- got\n{actual}");
 }
 
 fn inputs() -> Vec<String> {
@@ -50,10 +47,7 @@ fn parsed_json(text: &str) -> Value {
 fn real_answers_parse_as_pinned() {
     let inputs = inputs();
     assert!(inputs.len() >= 15);
-    let want: Vec<Value> = serde_json::from_str(
-        &std::fs::read_to_string(dir().join("blocks-real.parsed.json")).unwrap(),
-    )
-    .unwrap();
+    let want: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(dir().join("blocks-real.parsed.json")).unwrap()).unwrap();
     assert_eq!(want.len(), inputs.len());
     for (i, (t, w)) in inputs.iter().zip(&want).enumerate() {
         assert_eq!(&parsed_json(t), w, "answer {i}");
@@ -65,12 +59,7 @@ fn real_answers_render_to_markdown_as_pinned() {
     let md: Vec<String> = inputs()
         .iter()
         .enumerate()
-        .map(|(i, t)| {
-            format!(
-                "<!-- answer {i} -->\n{}",
-                blocks_to_markdown(&parse(t).blocks, &Context::default())
-            )
-        })
+        .map(|(i, t)| format!("<!-- answer {i} -->\n{}", blocks_to_markdown(&parse(t).blocks, &Context::default())))
         .collect();
     golden("blocks-real.md", &format!("{}\n", md.join("\n\n")));
 }
@@ -78,32 +67,15 @@ fn real_answers_render_to_markdown_as_pinned() {
 #[test]
 fn the_system_prompt_is_pinned_in_its_three_main_shapes() {
     golden("system-prompt.txt", &system_prompt(&SystemOpts::default()));
-    golden(
-        "system-prompt-plain.txt",
-        &system_prompt(&SystemOpts {
-            blocks: false,
-            ..SystemOpts::default()
-        }),
-    );
-    golden(
-        "system-prompt-subagent.txt",
-        &system_prompt(&SystemOpts {
-            ask: Some(SUBAGENT_ASK.to_owned()),
-            ..SystemOpts::default()
-        }),
-    );
+    golden("system-prompt-plain.txt", &system_prompt(&SystemOpts { blocks: false, ..SystemOpts::default() }));
+    golden("system-prompt-subagent.txt", &system_prompt(&SystemOpts { ask: Some(SUBAGENT_ASK.to_owned()), ..SystemOpts::default() }));
 }
 
 #[test]
 fn every_built_in_block_type_the_prompt_documents_appears_in_a_golden_answer() {
     let seen: Vec<String> = inputs()
         .iter()
-        .flat_map(|t| {
-            parse(t)
-                .blocks
-                .into_iter()
-                .filter_map(|b| b.get("type").and_then(Value::as_str).map(str::to_owned))
-        })
+        .flat_map(|t| parse(t).blocks.into_iter().filter_map(|b| b.get("type").and_then(Value::as_str).map(str::to_owned)))
         .collect();
     for ty in wisp_runtime_core::blocks::BUILTIN_BLOCKS {
         assert!(seen.iter().any(|s| s == ty), "{ty}");

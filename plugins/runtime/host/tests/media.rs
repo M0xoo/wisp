@@ -18,7 +18,12 @@ async fn a_picture_in_the_tasks_folder_loads_and_nothing_outside_it_does_v1_medi
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("shot.png"), b"png").unwrap();
     std::fs::write(dir.join("notes.txt"), b"txt").unwrap();
-    let id = r.rt.create(StartArgs { prompt: "screenshot".into(), cwd: Some(dir.display().to_string()), hold: true, ..StartArgs::default() }).await.unwrap().id.0;
+    let id =
+        r.rt.create(StartArgs { prompt: "screenshot".into(), cwd: Some(dir.display().to_string()), hold: true, ..StartArgs::default() })
+            .await
+            .unwrap()
+            .id
+            .0;
 
     let f = r.rt.media(&id, "shot.png").await.unwrap().expect("in the folder");
     assert_eq!(f.path, dir.join("shot.png"));
@@ -43,8 +48,15 @@ async fn a_screenshot_in_tmp_is_copied_into_shots_and_still_shows_once_its_gone_
     let shot = home.join("shot.png");
     std::fs::write(&shot, PNG).unwrap();
     let r = rig_with(Recorder { shots: Some(shots.clone()), ..Recorder::default() }).await;
-    let id = r.rt.create(StartArgs { prompt: format!("shot {}", shot.display()), cwd: Some(work.display().to_string()), ..StartArgs::default() }).await.unwrap().id.0;
-    until("the turn to end", || async { r.rt.turns(&id, None, None).await.unwrap().last().is_some_and(|t| t.presentation.is_some()) }).await;
+    let id = r
+        .rt
+        .create(StartArgs { prompt: format!("shot {}", shot.display()), cwd: Some(work.display().to_string()), ..StartArgs::default() })
+        .await
+        .unwrap()
+        .id
+        .0;
+    until("the turn to end", || async { r.rt.turns(&id, None, None).await.unwrap().last().is_some_and(|t| t.presentation.is_some()) })
+        .await;
     let t = r.rt.turns(&id, None, None).await.unwrap().pop().unwrap();
     let block = t.presentation.unwrap().blocks.into_iter().find(|b| b["type"] == "image").expect("the picture");
     let copy = shots.join(&id).join(format!("{}-1.png", t.id.as_str()));
@@ -80,10 +92,17 @@ async fn a_file_a_block_names_outside_the_folder_is_served_only_when_its_bytes_a
     std::fs::write(work.join("own.png"), b"whatever the agent wrote").unwrap();
     let r = rig().await;
     let served = |name: &str| {
-        let (rt, work, path) = (r.rt.clone(), work.clone(), if name.starts_with('/') { name.to_owned() } else { out.join(name).display().to_string() });
+        let (rt, work, path) =
+            (r.rt.clone(), work.clone(), if name.starts_with('/') { name.to_owned() } else { out.join(name).display().to_string() });
         async move {
-            let id = rt.create(StartArgs { prompt: format!("shot {path}"), cwd: Some(work.display().to_string()), ..StartArgs::default() }).await.unwrap().id.0;
-            until("the answer", || async { rt.turns(&id, None, None).await.unwrap().last().is_some_and(|t| t.presentation.is_some()) }).await;
+            let id = rt
+                .create(StartArgs { prompt: format!("shot {path}"), cwd: Some(work.display().to_string()), ..StartArgs::default() })
+                .await
+                .unwrap()
+                .id
+                .0;
+            until("the answer", || async { rt.turns(&id, None, None).await.unwrap().last().is_some_and(|t| t.presentation.is_some()) })
+                .await;
             rt.media(&id, &path).await.unwrap().map(|f| f.path)
         }
     };

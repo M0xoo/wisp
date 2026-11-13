@@ -15,7 +15,14 @@ use common::{Api, ended, start_with, temp};
 use serde_json::{Value, json};
 
 fn wisp(dir: &Path, args: &[&str]) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_wisp")).args(args).env("WISP_HOME", dir.join("home")).env("NO_COLOR", "1").current_dir(dir).stdin(Stdio::null()).output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_wisp"))
+        .args(args)
+        .env("WISP_HOME", dir.join("home"))
+        .env("NO_COLOR", "1")
+        .current_dir(dir)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
     (o.status.code().unwrap_or(-1), String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned())
 }
 
@@ -45,7 +52,9 @@ async fn lifecycle_events_are_kept_and_read_from_outside() {
     let (serve, port) = start_with(&dir, &[]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     let id = task(&api, &dir, "fix the add bug").await;
-    let list = until_tail(&api, json!({ "type": "turn.*", "subject": id }), "turn events", |l| l.iter().any(|e| e["type"] == "turn.finished")).await;
+    let list =
+        until_tail(&api, json!({ "type": "turn.*", "subject": id }), "turn events", |l| l.iter().any(|e| e["type"] == "turn.finished"))
+            .await;
     assert!(list.iter().all(|e| e["subject"] == json!(id) && e["seq"].as_u64().is_some()), "{list:?}");
     // the catalogue: every emitted type, durable ones marked
     let ls = api.cmd("events.ls", json!({})).await;
@@ -86,14 +95,24 @@ async fn capped_agent_sees_only_its_task_events_over_mcp() {
     until_tail(&api, json!({ "subject": other }), "the first task's events", |l| !l.is_empty()).await;
     // a running task's agent, with its own token
     let _ = std::fs::remove_file(rec.join("claude.jsonl"));
-    let made = api.cmd("runtime.create", json!({ "prompt": "second", "cwd": dir.join("proj"), "agent": "claude", "worktree": false })).await;
+    let made =
+        api.cmd("runtime.create", json!({ "prompt": "second", "cwd": dir.join("proj"), "agent": "claude", "worktree": false })).await;
     let id = made["id"].as_str().unwrap().to_owned();
-    let runs = common::until_records(&rec.join("claude.jsonl"), "the run's record", |r| r.iter().any(|v| common::argv(v).iter().any(|a| a == "--mcp-config"))).await;
+    let runs = common::until_records(&rec.join("claude.jsonl"), "the run's record", |r| {
+        r.iter().any(|v| common::argv(v).iter().any(|a| a == "--mcp-config"))
+    })
+    .await;
     let argv = common::argv(runs.last().unwrap());
     let cfg: Value = serde_json::from_str(&argv[argv.iter().position(|a| a == "--mcp-config").unwrap() + 1]).unwrap();
     let token = cfg["mcpServers"]["wisp"]["headers"]["x-wisp-token"].as_str().unwrap().to_owned();
     let agent = [("x-wisp-token", token.as_str()), ("x-wisp-session", id.as_str())];
-    let got = mcp(&api.http, port, &agent, json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": { "name": "wisp_events", "arguments": {} } })).await;
+    let got = mcp(
+        &api.http,
+        port,
+        &agent,
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": { "name": "wisp_events", "arguments": {} } }),
+    )
+    .await;
     let text = got.pointer("/result/content/0/text").and_then(Value::as_str).unwrap_or_else(|| panic!("{got}"));
     let seen: Value = serde_json::from_str(text).unwrap_or_else(|_| panic!("{got}"));
     assert!(seen.as_array().unwrap().iter().all(|e| e["subject"] == json!(id)), "only its own task: {seen}");
@@ -131,15 +150,36 @@ async fn receiver(fail_first: u32) -> (u16, Arc<Mutex<Vec<(String, String, Strin
                     buf.extend_from_slice(&chunk[..n]);
                     let text = String::from_utf8_lossy(&buf).into_owned();
                     if let Some((head, body)) = text.split_once("\r\n\r\n") {
-                        let len = head.lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0))).unwrap_or(0);
+                        let len = head
+                            .lines()
+                            .find_map(|l| {
+                                l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                            })
+                            .unwrap_or(0);
                         if body.len() >= len {
-                            let sig = head.lines().find_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("x-wisp-signature")).map(|(_, v)| v.trim().to_owned())).unwrap_or_default();
-                            let ty = head.lines().find_map(|l| l.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("x-wisp-event")).map(|(_, v)| v.trim().to_owned())).unwrap_or_default();
+                            let sig = head
+                                .lines()
+                                .find_map(|l| {
+                                    l.split_once(':')
+                                        .filter(|(k, _)| k.eq_ignore_ascii_case("x-wisp-signature"))
+                                        .map(|(_, v)| v.trim().to_owned())
+                                })
+                                .unwrap_or_default();
+                            let ty = head
+                                .lines()
+                                .find_map(|l| {
+                                    l.split_once(':')
+                                        .filter(|(k, _)| k.eq_ignore_ascii_case("x-wisp-event"))
+                                        .map(|(_, v)| v.trim().to_owned())
+                                })
+                                .unwrap_or_default();
                             let n = h.fetch_add(1, Ordering::SeqCst);
                             let ok = n >= always.load(Ordering::SeqCst);
                             g.lock().unwrap().push((ty, sig, body[..len].to_owned()));
                             let status = if ok { "200 OK" } else { "500 Internal Server Error" };
-                            let _ = s.write_all(format!("HTTP/1.1 {status}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").as_bytes()).await;
+                            let _ = s
+                                .write_all(format!("HTTP/1.1 {status}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").as_bytes())
+                                .await;
                             break;
                         }
                     }
@@ -216,7 +256,8 @@ async fn sink_webhook_signed_retried_with_backoff_and_paused_after_failures() {
 /// Opens the sync stream, subscribes to `topic` (from `since`), and collects frames for a while.
 async fn stream(port: u16, client: &str, topic: &str, since: Option<u64>, until: impl Fn(&str) -> bool) -> String {
     let http = reqwest::Client::new();
-    let mut r = http.get(format!("http://127.0.0.1:{port}/api/events?proto_min=2&proto_max=2&client_id={client}&build=t")).send().await.unwrap();
+    let mut r =
+        http.get(format!("http://127.0.0.1:{port}/api/events?proto_min=2&proto_max=2&client_id={client}&build=t")).send().await.unwrap();
     let mut seen = String::new();
     let at = Instant::now();
     let mut subbed = false;
@@ -233,7 +274,14 @@ async fn stream(port: u16, client: &str, topic: &str, since: Option<u64>, until:
             if let Some(s) = since {
                 sub["since"] = json!(s);
             }
-            let ok = http.post(format!("http://127.0.0.1:{port}/api/events")).header("content-type", "application/json").header("x-wisp-client", client).body(sub.to_string()).send().await.unwrap();
+            let ok = http
+                .post(format!("http://127.0.0.1:{port}/api/events"))
+                .header("content-type", "application/json")
+                .header("x-wisp-client", client)
+                .body(sub.to_string())
+                .send()
+                .await
+                .unwrap();
             assert_eq!(ok.status(), 200);
             subbed = true;
         }
@@ -253,7 +301,12 @@ async fn topic_events_resumes_from_client_cursor() {
     until_tail(&api, json!({ "subject": first, "type": "turn.finished" }), "kept", |l| !l.is_empty()).await;
     // a client's first look: a snapshot of the topic, and its cursor
     let snap = stream(port, "c1", "events:turn.*", None, |s| s.contains("\"snapshot\"") && s.contains(&first)).await;
-    let cursor: u64 = snap.split("\"seq\":").nth(1).and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next()).and_then(|n| n.parse().ok()).unwrap_or_else(|| panic!("{snap}"));
+    let cursor: u64 = snap
+        .split("\"seq\":")
+        .nth(1)
+        .and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|n| n.parse().ok())
+        .unwrap_or_else(|| panic!("{snap}"));
     let second = task(&api, &dir, "second").await;
     until_tail(&api, json!({ "subject": second, "type": "turn.finished" }), "kept", |l| !l.is_empty()).await;
     tokio::time::sleep(Duration::from_millis(300)).await;
@@ -273,7 +326,11 @@ async fn a_project_reaches_every_screen_on_config_and_after_a_restart() {
     let (serve, port) = start_with(&dir, &[]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     let path = dir.join("proj").display().to_string();
-    api.cmd("resources.apply", json!({ "resources": [{ "kind": "project", "name": "web", "spec": { "path": path, "color": "teal" } }], "trust": true })).await;
+    api.cmd(
+        "resources.apply",
+        json!({ "resources": [{ "kind": "project", "name": "web", "spec": { "path": path, "color": "teal" } }], "trust": true }),
+    )
+    .await;
     let snap = stream(port, "c1", "config", None, |s| s.contains("\"snapshot\"") && s.contains("\"web\"")).await;
     assert!(snap.contains("\"e\":\"project\"") && snap.contains("\"id\":\"web\"") && snap.contains("teal"), "{snap}");
     serve.stop();

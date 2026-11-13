@@ -29,7 +29,15 @@ fn wisp(dir: &Path, port: u16, args: &[&str]) -> (i32, String, String) {
 }
 
 fn git(dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git").args(args).current_dir(dir).env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t").output().unwrap();
+    let o = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
+        .output()
+        .unwrap();
     assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
     String::from_utf8_lossy(&o.stdout).trim().to_owned()
 }
@@ -110,7 +118,15 @@ async fn a_formula_applied_exported_and_its_workflow_run() {
     assert!(out.contains("✓ 6 resources"), "{out}");
     let (code, plan, err) = wisp(&dir, port, &["apply", "-f", "wisp.yml", "--dry-run"]);
     assert_eq!(code, 0, "{err}");
-    for line in ["+ agent/reviewer", "+ agent/fixer", "+ crew/Ada", "+ task/nightly-deps", "+ workflow/release-check", "+ setting/settings.timeZone", "6 to add, 0 to change, 0 to remove, 0 unchanged"] {
+    for line in [
+        "+ agent/reviewer",
+        "+ agent/fixer",
+        "+ crew/Ada",
+        "+ task/nightly-deps",
+        "+ workflow/release-check",
+        "+ setting/settings.timeZone",
+        "6 to add, 0 to change, 0 to remove, 0 unchanged",
+    ] {
         assert!(plan.contains(line), "{line}: {plan}");
     }
     let _ = writeln!(std::io::stdout(), "--- wisp apply -f wisp.yml --dry-run ---\n{plan}");
@@ -126,7 +142,13 @@ async fn a_formula_applied_exported_and_its_workflow_run() {
     // export round-trips: applying the export changes nothing, and it reads back the same resources
     let (code, exported, _) = wisp(&dir, port, &["export"]);
     assert_eq!(code, 0);
-    assert!(exported.starts_with("wisp: 1\n") && exported.contains("name: reviewer") && exported.contains("cron: 0 9 * * 1-5") && exported.contains("schedule: 0 2 * * *"), "{exported}");
+    assert!(
+        exported.starts_with("wisp: 1\n")
+            && exported.contains("name: reviewer")
+            && exported.contains("cron: 0 9 * * 1-5")
+            && exported.contains("schedule: 0 2 * * *"),
+        "{exported}"
+    );
     std::fs::write(dir.join("exported.yml"), &exported).unwrap();
     let (_, out, _) = wisp(&dir, port, &["diff", "-f", "exported.yml"]);
     assert!(out.contains("0 to add, 0 to change, 0 to remove"), "{out}");
@@ -140,11 +162,17 @@ async fn a_formula_applied_exported_and_its_workflow_run() {
     assert!(only.contains("agents:") && !only.contains("crew:"), "{only}");
     let (_, schema, _) = wisp(&dir, port, &["schema"]);
     let schema: Value = serde_json::from_str(&schema).unwrap();
-    assert!(schema["properties"]["agents"].is_object() && schema["$defs"]["agent"]["properties"]["harness"]["description"].is_string(), "doc comments reach the schema");
+    assert!(
+        schema["properties"]["agents"].is_object() && schema["$defs"]["agent"]["properties"]["harness"]["description"].is_string(),
+        "doc comments reach the schema"
+    );
     // a change in the file plans as a change of that field only
     std::fs::write(dir.join("wisp.yml"), formula(&proj).replace("effort: high", "effort: medium")).unwrap();
     let (_, out, _) = wisp(&dir, port, &["diff", "-f", "wisp.yml"]);
-    assert!(out.contains("~ agent/reviewer") && out.contains("effort: \"high\" → \"medium\"") && out.contains("0 to add, 1 to change"), "{out}");
+    assert!(
+        out.contains("~ agent/reviewer") && out.contains("effort: \"high\" → \"medium\"") && out.contains("0 to add, 1 to change"),
+        "{out}"
+    );
     let (_, out, _) = wisp(&dir, port, &["validate", "-f", "exported.yml"]);
     assert!(out.contains('✓'), "{out}");
     std::fs::write(dir.join("bad.yml"), "wisp: 1\nagents:\n  - name: x\n    harnes: codex\n").unwrap();
@@ -164,11 +192,21 @@ async fn a_formula_applied_exported_and_its_workflow_run() {
     assert_eq!(steps.len(), 3);
     let triage = steps.iter().find(|s| s["id"] == "triage").unwrap()["task"].as_str().unwrap().to_owned();
     let t = api.cmd("runtime.get", json!({ "id": triage })).await;
-    assert_eq!((t["agent"].as_str(), t["mode"].as_str(), t["effort"].as_str(), t["parentId"].as_str()), (Some("codex"), Some("plan"), Some("high"), Some(parent.as_str())), "the reviewer profile");
+    assert_eq!(
+        (t["agent"].as_str(), t["mode"].as_str(), t["effort"].as_str(), t["parentId"].as_str()),
+        (Some("codex"), Some("plan"), Some("high"), Some(parent.as_str())),
+        "the reviewer profile"
+    );
 
     // the task's spec and its snapshot
     let (_, spec, _) = wisp(&dir, port, &["task", "spec", &triage]);
-    assert!(spec.contains("agent: reviewer") && spec.contains(&format!("sha: {first_sha}")) && spec.contains(&format!("workflowRun: {parent}")) && spec.contains("Review what the tests said: No question asked."), "{spec}");
+    assert!(
+        spec.contains("agent: reviewer")
+            && spec.contains(&format!("sha: {first_sha}"))
+            && spec.contains(&format!("workflowRun: {parent}"))
+            && spec.contains("Review what the tests said: No question asked."),
+        "{spec}"
+    );
     let (_, f, _) = wisp(&dir, port, &["task", "formula", &triage]);
     assert!(f.contains("name: reviewer") && f.contains("harness: codex"), "{f}");
 
@@ -178,7 +216,8 @@ async fn a_formula_applied_exported_and_its_workflow_run() {
     let (code, out, _) = wisp(&dir, port, &["rerun", &triage, "--formula", "new.yml,other.yml"]);
     assert_eq!(code, 1, "one of the two had no reviewer: {out}");
     assert!(out.contains("other.yml has no agent named reviewer"), "{out}");
-    let new = out.lines().find(|l| l.contains("(new.yml)")).unwrap().split(" → ").nth(1).unwrap().split_whitespace().next().unwrap().to_owned();
+    let new =
+        out.lines().find(|l| l.contains("(new.yml)")).unwrap().split(" → ").nth(1).unwrap().split_whitespace().next().unwrap().to_owned();
     let n = api.cmd("runtime.get", json!({ "id": new })).await;
     assert_eq!((n["agent"].as_str(), n["effort"].as_str()), (Some("claude"), Some("low")));
     assert_eq!(api.cmd("runtime.spec", json!({ "id": new })).await["lineage"]["rerunOf"], triage.as_str());
@@ -217,7 +256,12 @@ async fn a_formula_applied_exported_and_its_workflow_run() {
     assert!(out.contains("runs an agent by itself") && err.contains("--trust"), "{out}{err}");
     let (code, out, err) = wisp(&dir, port, &["apply", "-f", &url, "--yes", "--trust"]);
     assert_eq!(code, 0, "{out}{err}");
-    let refused = api.try_cmd("resources.apply", json!({ "resources": [{ "kind": "task", "name": "x", "spec": { "prompt": "p", "schedule": "@daily" } }], "foreign": true })).await;
+    let refused = api
+        .try_cmd(
+            "resources.apply",
+            json!({ "resources": [{ "kind": "task", "name": "x", "spec": { "prompt": "p", "schedule": "@daily" } }], "foreign": true }),
+        )
+        .await;
     assert_eq!(refused["ok"], false, "the server refuses it too: {refused}");
 
     // pruning removes what the file doesn't declare, never a task's history
@@ -246,7 +290,11 @@ async fn atomic_apply_every_kind_history_import_and_sharing() {
     assert_eq!(wisp(&dir, port, &["apply", "-f", "wisp.yml", "--yes"]).0, 0);
 
     // all or nothing: the crew member can't be made, so the new agent before it is undone
-    std::fs::write(dir.join("bad.yml"), "wisp: 1\nagents:\n  - name: temp\n    harness: claude\ncrew:\n  - name: Bo\n    cwd: /no/such/folder\n").unwrap();
+    std::fs::write(
+        dir.join("bad.yml"),
+        "wisp: 1\nagents:\n  - name: temp\n    harness: claude\ncrew:\n  - name: Bo\n    cwd: /no/such/folder\n",
+    )
+    .unwrap();
     let (code, out, err) = wisp(&dir, port, &["apply", "-f", "bad.yml", "--yes"]);
     assert_eq!(code, 1, "{out}");
     assert!(err.contains("Not a folder") && err.contains("nothing was changed (1 undone)"), "{err}");
@@ -323,11 +371,34 @@ ui: {{ theme: dark, editor: zed }}
     std::fs::write(dir.join("more.yml"), &more).unwrap();
     let (code, out, err) = wisp(&dir, port, &["apply", "-f", "more.yml", "--yes"]);
     assert_eq!(code, 0, "{out}{err}");
-    for k in ["project/api", "harness/codex", "skill/release-notes", "team/pair", "machine/studio", "connector/linear", "tools/reviewer", "capability/ci-bot", "channel/telegram", "notification/phone", "trigger/ci", "task/fix-issue", "goal/default", "budget/default", "pipeline/careful", "plugin/wisp.telegram", "app/board", "pane/notes", "ui/default"] {
+    for k in [
+        "project/api",
+        "harness/codex",
+        "skill/release-notes",
+        "team/pair",
+        "machine/studio",
+        "connector/linear",
+        "tools/reviewer",
+        "capability/ci-bot",
+        "channel/telegram",
+        "notification/phone",
+        "trigger/ci",
+        "task/fix-issue",
+        "goal/default",
+        "budget/default",
+        "pipeline/careful",
+        "plugin/wisp.telegram",
+        "app/board",
+        "pane/notes",
+        "ui/default",
+    ] {
         assert!(out.contains(&format!("+ {k}")), "{k}: {out}");
     }
     let (_, exported, _) = wisp(&dir, port, &["export"]);
-    assert!(exported.contains("projects:") && exported.contains("budget:") && exported.contains("tasks:") && !exported.contains("ui:"), "ui stays on its device: {exported}");
+    assert!(
+        exported.contains("projects:") && exported.contains("budget:") && exported.contains("tasks:") && !exported.contains("ui:"),
+        "ui stays on its device: {exported}"
+    );
     let (_, with_ui, _) = wisp(&dir, port, &["export", "--include", "ui"]);
     assert!(with_ui.contains("theme: dark"), "{with_ui}");
     std::fs::write(dir.join("all.yml"), &with_ui).unwrap();
@@ -354,7 +425,8 @@ ui: {{ theme: dark, editor: zed }}
     let (_, out, _) = wisp(&dir, port, &["show", &again]);
     assert!(out.contains(&format!("rerun of {triage}")) && out.contains("ran with @"), "{out}");
     let leak = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123";
-    let made = api.cmd("runtime.create", json!({ "prompt": format!("Use the key {leak} to call the API"), "cwd": proj, "agent": "claude" })).await;
+    let made =
+        api.cmd("runtime.create", json!({ "prompt": format!("Use the key {leak} to call the API"), "cwd": proj, "agent": "claude" })).await;
     let secret_task = made["id"].as_str().unwrap().to_owned();
     api.until(&secret_task, "its turn", |t| t.len() == 1 && common::ended(&t[0])).await;
     let (code, out, _) = wisp(&dir, port, &["history", "export", "--since", "1d"]);
@@ -367,12 +439,24 @@ ui: {{ theme: dark, editor: zed }}
     // v1's home: its plan, then applied; history imported apart
     let v1 = dir.join("v1-home");
     std::fs::create_dir_all(v1.join("sessions")).unwrap();
-    let fixture = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v1-home/config.json")).unwrap().replace("__PROJ__", &proj.display().to_string());
+    let fixture = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v1-home/config.json"))
+        .unwrap()
+        .replace("__PROJ__", &proj.display().to_string());
     std::fs::write(v1.join("config.json"), fixture).unwrap();
     let (code, out, err) = wisp(&dir, port, &["import", v1.to_str().unwrap(), "--dry-run"]);
     assert_eq!(code, 0, "{out}{err}");
-    assert!(out.contains("Import plan") && out.contains("+ agent/default") && out.contains("+ task/nightly") && out.contains("~ crew/Ada") && out.contains("history of 0 tasks"), "{out}");
-    assert!(!api.cmd("runtime.profiles", json!({})).await.as_array().unwrap().iter().any(|p| p["name"] == "default"), "a dry run changes nothing");
+    assert!(
+        out.contains("Import plan")
+            && out.contains("+ agent/default")
+            && out.contains("+ task/nightly")
+            && out.contains("~ crew/Ada")
+            && out.contains("history of 0 tasks"),
+        "{out}"
+    );
+    assert!(
+        !api.cmd("runtime.profiles", json!({})).await.as_array().unwrap().iter().any(|p| p["name"] == "default"),
+        "a dry run changes nothing"
+    );
     let (code, out, err) = wisp(&dir, port, &["import", v1.to_str().unwrap(), "--yes"]);
     assert_eq!(code, 0, "{out}{err}");
     let def = api.cmd("runtime.profiles", json!({})).await.as_array().unwrap().iter().find(|p| p["name"] == "default").cloned().unwrap();

@@ -58,13 +58,17 @@ pub(crate) async fn crew(ctx: &Ctx, call: &Call) -> Result<Vec<(String, String)>
 
 /// `runtime.agents`: the harnesses this wisp has (`(id, available)`); none when refused.
 pub(crate) async fn agents(ctx: &Ctx, call: &Call) -> Vec<(String, bool)> {
-    ctx.run::<rt::Agents>(call, rt::AgentsArgs { fresh: None }).await.map(|v| v.into_iter().map(|a| (a.id, a.available)).collect()).unwrap_or_default()
+    ctx.run::<rt::Agents>(call, rt::AgentsArgs { fresh: None })
+        .await
+        .map(|v| v.into_iter().map(|a| (a.id, a.available)).collect())
+        .unwrap_or_default()
 }
 
 /// `runtime.adopt`: a read-only task from shared turns, as JSON. Its args from JSON built here (a bundle's spec),
 /// refused in the words its handler would use.
 pub(crate) async fn adopt(ctx: &Ctx, call: &Call, args: Value) -> Result<Value> {
-    let a: AdoptArgs = serde_json::from_value(args).map_err(|e| WireError::invalid(format!("{}: {e}", <rt::Adopt as wisp_kernel::Command>::ID)))?;
+    let a: AdoptArgs =
+        serde_json::from_value(args).map_err(|e| WireError::invalid(format!("{}: {e}", <rt::Adopt as wisp_kernel::Command>::ID)))?;
     to_json(&ctx.run::<rt::Adopt>(call, a).await?)
 }
 
@@ -79,7 +83,9 @@ pub(crate) async fn track(ctx: &Ctx, event: &str, props: Value) -> Result<()> {
         Value::Object(m) => m,
         _ => Map::new(),
     };
-    ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), wisp_telemetry_api::TrackArgs { event: event.to_owned(), props }).await.map(|_| ())
+    ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), wisp_telemetry_api::TrackArgs { event: event.to_owned(), props })
+        .await
+        .map(|_| ())
 }
 
 /// `grid-client.revoke`: a link taken back.

@@ -47,7 +47,18 @@ pub fn available(s: &Session, run: &HarnessRun, harness: &str, skill_dirs: &[(Pa
         .mcp_servers
         .iter()
         .map(|(name, c)| {
-            let at = c.get("url").and_then(Value::as_str).map_or_else(|| format!("{} {}", c["command"].as_str().unwrap_or_default(), c["args"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" ")).unwrap_or_default()).trim().to_owned(), str::to_owned);
+            let at = c.get("url").and_then(Value::as_str).map_or_else(
+                || {
+                    format!(
+                        "{} {}",
+                        c["command"].as_str().unwrap_or_default(),
+                        c["args"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" ")).unwrap_or_default()
+                    )
+                    .trim()
+                    .to_owned()
+                },
+                str::to_owned,
+            );
             json!({ "name": name, "at": at, "probe": "pending" })
         })
         .collect();
@@ -93,13 +104,32 @@ async fn probe(proc: &wisp_proc::Proc, net: Option<&wisp_kernel::services::NetSe
     let got = if let Some(url) = c.get("url").and_then(Value::as_str) {
         match net {
             Some(n) => {
-                let mut headers: Vec<(String, String)> = c.get("headers").and_then(Value::as_object).into_iter().flatten().filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_owned()))).collect();
+                let mut headers: Vec<(String, String)> = c
+                    .get("headers")
+                    .and_then(Value::as_object)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_owned())))
+                    .collect();
                 headers.push(("content-type".into(), "application/json".into()));
                 headers.push(("accept".into(), "application/json, text/event-stream".into()));
                 let body = format!("[{INIT},{INITIALIZED},{LIST}]");
-                match n.fetch(wisp_kernel::services::NetRequest { method: "POST".into(), url: url.to_owned(), headers, body: body.into_bytes(), timeout_ms: 5000 }).await {
+                match n
+                    .fetch(wisp_kernel::services::NetRequest {
+                        method: "POST".into(),
+                        url: url.to_owned(),
+                        headers,
+                        body: body.into_bytes(),
+                        timeout_ms: 5000,
+                    })
+                    .await
+                {
                     Ok(r) => {
-                        let text = String::from_utf8_lossy(&r.body).replace("},{\"jsonrpc\"", "}\n{\"jsonrpc\"").trim_start_matches('[').trim_end_matches(']').to_owned();
+                        let text = String::from_utf8_lossy(&r.body)
+                            .replace("},{\"jsonrpc\"", "}\n{\"jsonrpc\"")
+                            .trim_start_matches('[')
+                            .trim_end_matches(']')
+                            .to_owned();
                         read_probe(&text)
                     }
                     Err(e) => Err(e.message),
@@ -109,14 +139,21 @@ async fn probe(proc: &wisp_proc::Proc, net: Option<&wisp_kernel::services::NetSe
         }
     } else {
         let cmd = c.get("command").and_then(Value::as_str).unwrap_or_default();
-        let args: Vec<String> = c.get("args").and_then(Value::as_array).into_iter().flatten().filter_map(|a| a.as_str().map(str::to_owned)).collect();
+        let args: Vec<String> =
+            c.get("args").and_then(Value::as_array).into_iter().flatten().filter_map(|a| a.as_str().map(str::to_owned)).collect();
         let mut env = wisp_proc::Env::default();
         for (k, v) in c.get("env").and_then(Value::as_object).into_iter().flatten() {
             if let Some(v) = v.as_str() {
                 env.set.push((k.clone(), v.to_owned()));
             }
         }
-        let opts = wisp_proc::ExecOpts { input: Some(format!("{INIT}\n{INITIALIZED}\n{LIST}\n").into_bytes()), timeout: Some(PROBE_TIMEOUT), env, max_output: 4 << 20, ..wisp_proc::ExecOpts::default() };
+        let opts = wisp_proc::ExecOpts {
+            input: Some(format!("{INIT}\n{INITIALIZED}\n{LIST}\n").into_bytes()),
+            timeout: Some(PROBE_TIMEOUT),
+            env,
+            max_output: 4 << 20,
+            ..wisp_proc::ExecOpts::default()
+        };
         match proc.exec(cmd, &args, opts).await {
             Ok(r) if r.timed_out => Err(format!("timed out after {} s", PROBE_TIMEOUT.as_secs())),
             Ok(r) => read_probe(&r.stdout_text()),
@@ -187,7 +224,10 @@ pub fn changed(mut available: Value, latest: &HashMap<String, String>) -> Value 
 }
 
 /// The harness's version, once per process per harness (its `detect`).
-async fn harness_version(h: &Arc<dyn wisp_runtime_api::harness::Harness>, sys: &dyn wisp_runtime_api::harness::HarnessSys) -> Option<String> {
+async fn harness_version(
+    h: &Arc<dyn wisp_runtime_api::harness::Harness>,
+    sys: &dyn wisp_runtime_api::harness::HarnessSys,
+) -> Option<String> {
     let key = format!("harness:{}", h.info().id);
     if let Some(v) = latest_versions().get(&key) {
         return Some(v.clone());
@@ -200,7 +240,16 @@ async fn harness_version(h: &Arc<dyn wisp_runtime_api::harness::Harness>, sys: &
 /// Records `available` now, then probes its MCP servers and the harness's version and records them again (the run
 /// doesn't wait).
 #[allow(clippy::too_many_arguments)] // the store, the proc and net it probes with, the task, what it had
-pub fn record(store: wisp_store::Store, proc: Arc<wisp_proc::Proc>, net: Option<wisp_kernel::services::NetService>, harness: Option<Arc<dyn wisp_runtime_api::harness::Harness>>, id: String, available: Value, servers: Vec<(String, Value)>, spawn: &dyn Fn(wisp_kernel::BoxFuture<'static, ()>)) {
+pub fn record(
+    store: wisp_store::Store,
+    proc: Arc<wisp_proc::Proc>,
+    net: Option<wisp_kernel::services::NetService>,
+    harness: Option<Arc<dyn wisp_runtime_api::harness::Harness>>,
+    id: String,
+    available: Value,
+    servers: Vec<(String, Value)>,
+    spawn: &dyn Fn(wisp_kernel::BoxFuture<'static, ()>),
+) {
     spawn(Box::pin(async move {
         save(&store, &id, available.clone()).await;
         let mut a = available;
@@ -212,7 +261,10 @@ pub fn record(store: wisp_store::Store, proc: Arc<wisp_proc::Proc>, net: Option<
         }
         let mut list = Vec::new();
         for (name, cfg) in servers {
-            let mut entry = a["mcpServers"].as_array().and_then(|l| l.iter().find(|s| s["name"] == name.as_str()).cloned()).unwrap_or_else(|| json!({ "name": name }));
+            let mut entry = a["mcpServers"]
+                .as_array()
+                .and_then(|l| l.iter().find(|s| s["name"] == name.as_str()).cloned())
+                .unwrap_or_else(|| json!({ "name": name }));
             if let (Some(e), Value::Object(p)) = (entry.as_object_mut(), probe(&proc, net.as_ref(), &cfg).await) {
                 if let Some(v) = p.get("version").and_then(Value::as_str) {
                     note_version(&format!("mcp:{name}"), v);
@@ -228,7 +280,8 @@ pub fn record(store: wisp_store::Store, proc: Arc<wisp_proc::Proc>, net: Option<
 
 /// What a task used, from its activity.
 pub fn used(steps: &[Step]) -> Value {
-    let (mut skills, mut mcp, mut builtin): (Map<String, Value>, Map<String, Value>, Map<String, Value>) = (Map::new(), Map::new(), Map::new());
+    let (mut skills, mut mcp, mut builtin): (Map<String, Value>, Map<String, Value>, Map<String, Value>) =
+        (Map::new(), Map::new(), Map::new());
     let mut blocked = Vec::new();
     let bump = |m: &mut Map<String, Value>, k: &str| {
         let n = m.get(k).and_then(Value::as_u64).unwrap_or(0) + 1;
@@ -242,7 +295,10 @@ pub fn used(steps: &[Step]) -> Value {
                 } else if let Some((server, t)) = label.strip_prefix("Using ").and_then(|r| r.split_once(" · ")) {
                     bump(&mut mcp, &format!("{server} · {t}"));
                 } else {
-                    bump(&mut builtin, serde_json::to_value(tool).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default().as_str());
+                    bump(
+                        &mut builtin,
+                        serde_json::to_value(tool).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default().as_str(),
+                    );
                 }
             }
             Activity::Blocked { tool, detail, .. } => blocked.push(json!({ "tool": tool, "detail": detail })),
@@ -259,13 +315,28 @@ mod tests {
     use wisp_runtime_api::model::ToolKind;
 
     fn tool(kind: ToolKind, label: &str) -> Step {
-        Step { seq: 0, t: 0, activity: Activity::Tool { tool: kind, label: label.into(), file: None, detail: None, call_id: None, output: None, title: None } }
+        Step {
+            seq: 0,
+            t: 0,
+            activity: Activity::Tool {
+                tool: kind,
+                label: label.into(),
+                file: None,
+                detail: None,
+                call_id: None,
+                output: None,
+                title: None,
+            },
+        }
     }
 
     #[test]
     fn changed_since_compares_what_a_task_had_with_what_is_there_now() {
         let had = json!({ "harness": "claude", "harnessVersion": "2.0.1", "mcpServers": [{ "name": "linear", "version": "1.4.0" }, { "name": "fs", "version": "0.3.0" }, { "name": "new", "probe": "failed" }] });
-        let latest: HashMap<String, String> = [("harness:claude", "2.0.4"), ("mcp:linear", "1.6.0"), ("mcp:fs", "0.3.0")].iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+        let latest: HashMap<String, String> = [("harness:claude", "2.0.4"), ("mcp:linear", "1.6.0"), ("mcp:fs", "0.3.0")]
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect();
         let c = changed(had, &latest);
         assert_eq!(c["harnessChangedSince"], "2.0.1 → 2.0.4");
         assert_eq!(c["mcpServers"][0]["changedSince"], "1.4.0 → 1.6.0");

@@ -25,9 +25,7 @@ fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
 }
 
 fn num(s: &str) -> Option<i64> {
-    (!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
-        .then(|| s.parse().ok())
-        .flatten()
+    (!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())).then(|| s.parse().ok()).flatten()
 }
 
 /// `±HH:MM`, `±HHMM`, `±HH` → minutes east of UTC.
@@ -71,11 +69,7 @@ pub fn parse_iso(s: &str, tz: i32) -> Option<i64> {
     if parts.next().is_some() || h > 23 || mi > 59 || sec > 59 {
         return None;
     }
-    let ms = if frac.is_empty() {
-        0
-    } else {
-        num(&format!("{frac:0<3}")[..3])?
-    };
+    let ms = if frac.is_empty() { 0 } else { num(&format!("{frac:0<3}")[..3])? };
     let off = match zone {
         "" => i64::from(tz),
         "Z" | "z" => 0,
@@ -105,12 +99,9 @@ fn round(f: f64) -> i64 {
 pub fn when_of(w: &When, now: i64, max: i64, tz: i32) -> Result<i64> {
     let at = match w.at.as_ref() {
         Some(Value::String(s)) if !s.trim().is_empty() => parse_iso(s, tz).map(|t| t as f64),
-        None | Some(Value::Null | Value::String(_)) => w
-            .in_min
-            .as_ref()
-            .filter(|v| !v.is_null())
-            .and_then(number)
-            .map(|m| now as f64 + m * 60_000.0),
+        None | Some(Value::Null | Value::String(_)) => {
+            w.in_min.as_ref().filter(|v| !v.is_null()).and_then(number).map(|m| now as f64 + m * 60_000.0)
+        }
         Some(v) => number(v),
     };
     let Some(at) = at.filter(|f| f.is_finite()) else {
@@ -121,10 +112,7 @@ pub fn when_of(w: &When, now: i64, max: i64, tz: i32) -> Result<i64> {
         return Err(bad("Pick a time at least a minute from now."));
     }
     if at > now + max {
-        return Err(bad(format!(
-            "Pick a time within {}.",
-            if max == MAX_MS { "a month" } else { "a week" }
-        )));
+        return Err(bad(format!("Pick a time within {}.", if max == MAX_MS { "a month" } else { "a week" })));
     }
     Ok(at)
 }

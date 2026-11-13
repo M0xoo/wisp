@@ -16,7 +16,11 @@ async fn a_setting_survives_a_restart() {
     let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
     let set = api.cmd("settings.set", json!({ "key": "review.harness", "value": "codex" })).await;
     assert_eq!(set["value"], "codex", "{set}");
-    assert_ne!(api.try_cmd("settings.set", json!({ "key": "review.harness", "value": "nope" })).await["ok"], true, "the declaration's values only");
+    assert_ne!(
+        api.try_cmd("settings.set", json!({ "key": "review.harness", "value": "nope" })).await["ok"],
+        true,
+        "the declaration's values only"
+    );
     api.cmd("settings.set", json!({ "key": "settings.timeZone", "value": "Europe/Zurich" })).await;
     serve.stop();
     let (serve, port) = start(&dir);

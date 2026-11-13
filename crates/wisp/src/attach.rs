@@ -94,7 +94,11 @@ fn print_lines(lines: &[String], st: &Style) {
 
 /// The stream for this hello, chunk by chunk, until it ends.
 fn open(c: &Client, params: &BTreeMap<String, String>, tx: mpsc::Sender<Ev>) {
-    let enc = |x: &str| x.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect::<String>();
+    let enc = |x: &str| {
+        x.bytes()
+            .map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+            .collect::<String>()
+    };
     let q: Vec<String> = params.iter().map(|(k, v)| format!("{}={}", enc(k), enc(v))).collect();
     let mut b = c.http().get(format!("{}/api/events?{}", c.url, q.join("&")));
     if let Some(t) = c.token() {
@@ -184,7 +188,10 @@ impl Conn {
                 Output::EntityOps { ops, .. } => got.push(Got::Ops(ops)),
                 Output::Retry { at } => self.retry = Some(self.start + Duration::from_millis(u64::try_from(at).unwrap_or(0))),
                 Output::State { update: Some(u), .. } => {
-                    return Err(CliError::said(format!("this wisp speaks another sync protocol: update the {}", if u == wisp_sync::client::Update::Peer { "server" } else { "CLI" })));
+                    return Err(CliError::said(format!(
+                        "this wisp speaks another sync protocol: update the {}",
+                        if u == wisp_sync::client::Update::Peer { "server" } else { "CLI" }
+                    )));
                 }
                 Output::Denied { topic, code } => return Err(CliError::said(format!("{topic}: {code}"))),
                 _ => {}
@@ -279,7 +286,11 @@ pub async fn notices(c: &Client, home: &Path) {
                     "waiting" => "asks you something",
                     _ => "finished",
                 };
-                eprintln!("  {} \"{}\" {what} · wisp attach {id}", state_line(&st, s).split(' ').next().unwrap_or("◌"), x["title"].as_str().unwrap_or(""));
+                eprintln!(
+                    "  {} \"{}\" {what} · wisp attach {id}",
+                    state_line(&st, s).split(' ').next().unwrap_or("◌"),
+                    x["title"].as_str().unwrap_or("")
+                );
             }
             None => {}
         }
@@ -331,7 +342,10 @@ pub async fn attach(c: &Client, home: &Path, id: &str, mode: Mode) -> Result<i32
                             return Ok(i32::from(state == "error"));
                         }
                         if mode.interactive && !matches!(asking, Prompt::Ask(_)) {
-                            out_line(&format!("\n{}", term::dim(&st, &format!("{}  · Enter to leave, or reply ›", state_line(&st, &state)))));
+                            out_line(&format!(
+                                "\n{}",
+                                term::dim(&st, &format!("{}  · Enter to leave, or reply ›", state_line(&st, &state)))
+                            ));
                             prompt("› ");
                             asking = Prompt::Reply;
                         }
@@ -502,10 +516,14 @@ pub async fn events_follow(c: &Client, topic: &str, subject: Option<&str>, json:
         for g in got.drain(..) {
             let rows: Vec<(String, Value)> = match g {
                 Got::Snapshot(list) => list.into_iter().filter(|r| r.e == "events_view").map(|r| (r.id, r.v)).collect(),
-                Got::Ops(ops) => ops.into_iter().filter(|o| o.e == "events_view").filter_map(|o| match o.change {
-                    wisp_protocol::Change::Upsert { v } => Some((o.id, v)),
-                    _ => None,
-                }).collect(),
+                Got::Ops(ops) => ops
+                    .into_iter()
+                    .filter(|o| o.e == "events_view")
+                    .filter_map(|o| match o.change {
+                        wisp_protocol::Change::Upsert { v } => Some((o.id, v)),
+                        _ => None,
+                    })
+                    .collect(),
             };
             for (id, v) in rows {
                 // what's there already when it starts isn't news

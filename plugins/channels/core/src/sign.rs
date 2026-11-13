@@ -63,7 +63,13 @@ pub fn sign(secret: &str, session_id: &str, kind: ActionKind, reference: &str, i
 
 /// A tap as signed, ready to be carried in a button.
 pub fn signed(secret: &str, session_id: &str, kind: ActionKind, reference: &str, index: u32) -> Signed {
-    Signed { s: session_id.into(), k: kind.code().into(), r: reference.into(), i: index, sig: sign(secret, session_id, kind, reference, index) }
+    Signed {
+        s: session_id.into(),
+        k: kind.code().into(),
+        r: reference.into(),
+        i: index,
+        sig: sign(secret, session_id, kind, reference, index),
+    }
 }
 
 /// True for a tap this hub signed. An unknown kind or an empty secret never verifies.

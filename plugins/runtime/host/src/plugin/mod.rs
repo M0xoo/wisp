@@ -19,9 +19,7 @@ pub struct RuntimePlugin;
 pub(crate) type Slot = Arc<OnceLock<Arc<Runtime>>>;
 
 pub(crate) fn rt(slot: &Slot) -> WireResult<Arc<Runtime>> {
-    slot.get()
-        .cloned()
-        .ok_or_else(|| WireError::unavailable("wisp.runtime is starting"))
+    slot.get().cloned().ok_or_else(|| WireError::unavailable("wisp.runtime is starting"))
 }
 
 /// Registers command `$cmd` with a handler over the started runtime.
@@ -58,7 +56,9 @@ async fn track(ctx: &wisp_kernel::Ctx, event: &str, props: serde_json::Value) {
         serde_json::Value::Object(m) => m,
         _ => serde_json::Map::new(),
     };
-    if let Err(err) = ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), wisp_telemetry_api::TrackArgs { event: event.into(), props }).await {
+    if let Err(err) =
+        ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), wisp_telemetry_api::TrackArgs { event: event.into(), props }).await
+    {
         tracing::warn!(error = %err.message, event, "runtime: telemetry.track");
     }
 }

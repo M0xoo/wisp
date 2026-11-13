@@ -30,11 +30,7 @@ pub struct RowFacts<'a> {
 }
 
 fn hero(t: Option<&Turn>) -> Option<&Value> {
-    t?.presentation
-        .as_ref()?
-        .blocks
-        .iter()
-        .find(|b| b.get("type").and_then(Value::as_str) == Some("hero"))
+    t?.presentation.as_ref()?.blocks.iter().find(|b| b.get("type").and_then(Value::as_str) == Some("hero"))
 }
 
 fn status(f: &RowFacts<'_>, waiting: &str) -> String {
@@ -45,18 +41,10 @@ fn status(f: &RowFacts<'_>, waiting: &str) -> String {
     if last == Some(TurnStatus::Held) {
         return "held".into();
     }
-    if let Some(s) = hero(f.report)
-        .and_then(|h| h.get("status"))
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-    {
+    if let Some(s) = hero(f.report).and_then(|h| h.get("status")).and_then(Value::as_str).filter(|s| !s.is_empty()) {
         return s.to_owned();
     }
-    if last == Some(TurnStatus::Error) {
-        "blocked".into()
-    } else {
-        "info".into()
-    }
+    if last == Some(TurnStatus::Error) { "blocked".into() } else { "info".into() }
 }
 
 fn live(f: &RowFacts<'_>, waiting: &str) -> String {
@@ -70,12 +58,7 @@ fn live(f: &RowFacts<'_>, waiting: &str) -> String {
         if let Some(step) = f.live_step.filter(|s| !s.is_empty()) {
             return step.to_owned();
         }
-        return if t.by.as_deref() == Some("compact") {
-            "Compacting"
-        } else {
-            "Starting up"
-        }
-        .into();
+        return if t.by.as_deref() == Some("compact") { "Compacting" } else { "Starting up" }.into();
     }
     if !waiting.is_empty() {
         return waiting.to_owned();
@@ -96,16 +79,8 @@ pub fn summarize(s: &Session, f: &RowFacts<'_>, fields: BTreeMap<String, Value>)
             names.push(n);
         }
     }
-    let waiting = if names.is_empty() {
-        String::new()
-    } else {
-        format!("Waiting on {}", names.join(", "))
-    };
-    let preview = hero(f.report)
-        .and_then(|h| h.get("summary"))
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_owned();
+    let waiting = if names.is_empty() { String::new() } else { format!("Waiting on {}", names.join(", ")) };
+    let preview = hero(f.report).and_then(|h| h.get("summary")).and_then(Value::as_str).unwrap_or("").to_owned();
     let mut out = BTreeMap::new();
     if let Some(a) = &s.account {
         out.insert("account".into(), json!(a));
@@ -120,24 +95,13 @@ pub fn summarize(s: &Session, f: &RowFacts<'_>, fields: BTreeMap<String, Value>)
     if let Some(l) = s.ext.get("wisp.runtime").and_then(|r| r.get("forLater")).filter(|l| !l.is_null()) {
         out.insert("forLater".into(), l.clone());
     }
-    if let Some(h) = f
-        .last
-        .filter(|t| t.status == TurnStatus::Held)
-        .and_then(|t| t.held.as_ref())
-    {
-        out.insert(
-            "held".into(),
-            json!({ "kind": h.kind, "by": h.by, "until": h.until, "data": h.data, "turnId": t_id(f.last) }),
-        );
+    if let Some(h) = f.last.filter(|t| t.status == TurnStatus::Held).and_then(|t| t.held.as_ref()) {
+        out.insert("held".into(), json!({ "kind": h.kind, "by": h.by, "until": h.until, "data": h.data, "turnId": t_id(f.last) }));
     }
     let asks = f.ask.is_some()
         || f.report
             .and_then(|t| t.presentation.as_ref())
-            .is_some_and(|p| {
-                p.blocks
-                    .iter()
-                    .any(|b| b.get("type").and_then(Value::as_str) == Some("question"))
-            });
+            .is_some_and(|p| p.blocks.iter().any(|b| b.get("type").and_then(Value::as_str) == Some("question")));
     out.insert("asks".into(), json!(asks));
     out.insert("question".into(), json!(f.ask.map_or("", |a| a.0)));
     if let Some((_, opts, _)) = f.ask.filter(|a| !a.1.is_empty()) {

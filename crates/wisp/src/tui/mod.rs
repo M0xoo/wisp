@@ -81,11 +81,25 @@ fn attachment(path: &str) -> Value {
 }
 
 /// The command a send makes, and what its answer does.
-fn send_cmd(task: Option<String>, text: &str, attachments: &[String], mode: app::Mode, queue: bool, local: String, cwd: &str) -> (String, Value, Then) {
+fn send_cmd(
+    task: Option<String>,
+    text: &str,
+    attachments: &[String],
+    mode: app::Mode,
+    queue: bool,
+    local: String,
+    cwd: &str,
+) -> (String, Value, Then) {
     let att: Vec<Value> = attachments.iter().map(|a| attachment(a)).collect();
     match task {
-        None => ("runtime.create".into(), json!({ "prompt": text, "cwd": cwd, "mode": mode.wire(), "attachments": att }), Then::Created(local)),
-        Some(id) => ("runtime.followUp".into(), json!({ "id": id, "text": text, "queue": queue, "mode": mode.wire(), "attachments": att }), Then::Sent(local)),
+        None => {
+            ("runtime.create".into(), json!({ "prompt": text, "cwd": cwd, "mode": mode.wire(), "attachments": att }), Then::Created(local))
+        }
+        Some(id) => (
+            "runtime.followUp".into(),
+            json!({ "id": id, "text": text, "queue": queue, "mode": mode.wire(), "attachments": att }),
+            Then::Sent(local),
+        ),
     }
 }
 
@@ -121,6 +135,22 @@ fn editor(text: &str, paused: &AtomicBool) -> Option<String> {
     let out = ok.then(|| std::fs::read_to_string(&path).ok()).flatten();
     let _ = std::fs::remove_file(&path);
     out
+}
+
+/// The repo's files for `@` mentions (tracked and untracked, ignored ones left out), off the UI loop.
+fn list_files(dir: String, tx: mpsc::Sender<(Then, std::result::Result<Value, String>)>) {
+    tokio::spawn(async move {
+        let out = tokio::process::Command::new("git")
+            .args(["ls-files", "--cached", "--others", "--exclude-standard"])
+            .current_dir(dir)
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .output()
+            .await;
+        let files: Vec<Value> = out
+            .map(|o| String::from_utf8_lossy(&o.stdout).lines().take(20_000).map(|l| Value::String(l.to_owned())).collect())
+            .unwrap_or_default();
+        let _ = tx.send((Then::Mentions("file".into()), Ok(Value::Array(files)))).await;
+    });
 }
 
 /// `wisp tui`.
@@ -159,14 +189,7 @@ pub async fn run(c: &Client, cwd: &str) -> Result<i32> {
                     let (id, args, then) = send_cmd(t, &text, &attachments, mode, queue, local, cwd);
                     pending.push(Effect::Cmd { id, args, then });
                 }
-                Effect::Files => {
-                    let (dir, tx) = (cwd.to_owned(), done_tx.clone());
-                    tokio::spawn(async move {
-                        let out = tokio::process::Command::new("git").args(["ls-files", "--cached", "--others", "--exclude-standard"]).current_dir(dir).env("GIT_OPTIONAL_LOCKS", "0").output().await;
-                        let files: Vec<Value> = out.map(|o| String::from_utf8_lossy(&o.stdout).lines().take(20_000).map(|l| Value::String(l.to_owned())).collect()).unwrap_or_default();
-                        let _ = tx.send((Then::Mentions("file".into()), Ok(Value::Array(files)))).await;
-                    });
-                }
+                Effect::Files => list_files(cwd.to_owned(), done_tx.clone()),
                 Effect::OpenIn(id) => {
                     open_in(&id, &paused);
                     let _ = term.clear();
@@ -241,7 +264,10 @@ fn ticked(app: &mut App) -> bool {
     app.frame();
     app.now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0));
     // and once a minute, so the list's "5m" ages while nothing happens
-    app.tick.is_multiple_of(3750) || app.running() || !app.toasts.is_empty() || app.tasks.rows.values().any(|t| matches!(model::s(t, "state"), "running" | "starting"))
+    app.tick.is_multiple_of(3750)
+        || app.running()
+        || !app.toasts.is_empty()
+        || app.tasks.rows.values().any(|t| matches!(model::s(t, "state"), "running" | "starting"))
 }
 
 /// The open task's topic, watched (a task still being created has none yet).

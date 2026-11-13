@@ -93,12 +93,33 @@ mod tests {
     use super::*;
 
     fn row(kind: &str) -> TriggerBase {
-        TriggerBase { id: "abc123".into(), name: format!("My {kind}"), kind: kind.into(), enabled: true, cwd: "/w/api".into(), prompt: "go".into(), cron: "0 9 * * 1-5".into(), branch: "main".into(), label: "bug".into(), every: 5, ..TriggerBase::default() }
+        TriggerBase {
+            id: "abc123".into(),
+            name: format!("My {kind}"),
+            kind: kind.into(),
+            enabled: true,
+            cwd: "/w/api".into(),
+            prompt: "go".into(),
+            cron: "0 9 * * 1-5".into(),
+            branch: "main".into(),
+            label: "bug".into(),
+            every: 5,
+            ..TriggerBase::default()
+        }
     }
 
     #[test]
     fn v1_trigger_rows_import_to_specs() {
-        let want = [("schedule", "schedule"), ("ci", "ci.failed"), ("issues", "issue.labeled"), ("finished", "task.finished"), ("done", "task.done"), ("webhook", "webhook"), ("slack", "chat.message"), ("linear", "linear.issue")];
+        let want = [
+            ("schedule", "schedule"),
+            ("ci", "ci.failed"),
+            ("issues", "issue.labeled"),
+            ("finished", "task.finished"),
+            ("done", "task.done"),
+            ("webhook", "webhook"),
+            ("slack", "chat.message"),
+            ("linear", "linear.issue"),
+        ];
         for (kind, on) in want {
             let (name, s) = from_v1(&row(kind)).unwrap_or_else(|| panic!("{kind}"));
             assert_eq!((s.on.as_str(), s.project.as_str()), (on, "/w/api"), "{kind}");
@@ -111,11 +132,18 @@ mod tests {
         assert_eq!(from_v1(&row("webhook")).unwrap().1.secret, "${secret:my-webhook}");
         let slack = TriggerBase { channel: Some("C1".into()), keyword: Some("deploy".into()), ..row("slack") };
         let (_, s) = from_v1(&slack).unwrap();
-        assert_eq!((s.filters["channel"].as_str(), s.users.as_slice()), (Some("C1"), &["anyone".to_owned()][..]), "an open v1 channel stays open, said out loud");
+        assert_eq!(
+            (s.filters["channel"].as_str(), s.users.as_slice()),
+            (Some("C1"), &["anyone".to_owned()][..]),
+            "an open v1 channel stays open, said out loud"
+        );
         assert!(from_v1(&row("telepathy")).is_none());
         assert_eq!(from_v1(&TriggerBase { enabled: false, ..row("done") }).unwrap().1.enabled, Some(false));
         // MEMBER_KINDS → wakes
         let wakes = member_wakes("ada", &["finished".into(), "ci".into(), "done".into()]);
-        assert_eq!(wakes.iter().map(|w| (w.on.as_str(), w.crew.as_str())).collect::<Vec<_>>(), [("task.finished", "ada"), ("ci.failed", "ada"), ("task.done", "ada")]);
+        assert_eq!(
+            wakes.iter().map(|w| (w.on.as_str(), w.crew.as_str())).collect::<Vec<_>>(),
+            [("task.finished", "ada"), ("ci.failed", "ada"), ("task.done", "ada")]
+        );
     }
 }

@@ -28,9 +28,7 @@ pub struct JsonFile<T> {
 
 impl<T> std::fmt::Debug for JsonFile<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("JsonFile")
-            .field("path", &self.path)
-            .finish_non_exhaustive()
+        f.debug_struct("JsonFile").field("path", &self.path).finish_non_exhaustive()
     }
 }
 
@@ -52,14 +50,7 @@ impl<T: Serialize + DeserializeOwned + 'static> JsonFile<T> {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         let path = path.into();
         let path = std::path::absolute(&path).unwrap_or(path);
-        Self {
-            path,
-            mode: 0o600,
-            pretty: false,
-            latest: Arc::new(AtomicU64::new(0)),
-            rename: Arc::new(Mutex::new(())),
-            _t: PhantomData,
-        }
+        Self { path, mode: 0o600, pretty: false, latest: Arc::new(AtomicU64::new(0)), rename: Arc::new(Mutex::new(())), _t: PhantomData }
     }
     #[must_use]
     pub fn mode(mut self, mode: u32) -> Self {
@@ -82,9 +73,7 @@ impl<T: Serialize + DeserializeOwned + 'static> JsonFile<T> {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        serde_json::from_slice(&text).map(Some).map_err(|e| {
-            StoreError::Invalid(format!("{} is not valid JSON: {e}", self.path.display()))
-        })
+        serde_json::from_slice(&text).map(Some).map_err(|e| StoreError::Invalid(format!("{} is not valid JSON: {e}", self.path.display())))
     }
 
     /// Writes now (blocking). Any background save still on its way is dropped when it lands.
@@ -96,10 +85,7 @@ impl<T: Serialize + DeserializeOwned + 'static> JsonFile<T> {
     }
 
     /// Writes on tokio's blocking pool. `Ok(false)` when a newer write made this one moot.
-    pub fn save(
-        &self,
-        value: &T,
-    ) -> impl std::future::Future<Output = Result<bool>> + Send + 'static {
+    pub fn save(&self, value: &T) -> impl std::future::Future<Output = Result<bool>> + Send + 'static {
         // Numbered now, not when first polled: a `write` made after this call always wins.
         let n = self.latest.fetch_add(1, Ordering::SeqCst) + 1;
         let text = self.text(value);
@@ -122,12 +108,7 @@ impl<T: Serialize + DeserializeOwned + 'static> JsonFile<T> {
 
     /// Removes temp files a crash left behind, older than a minute so no live write is touched.
     pub fn clean_temps(&self, now_ms: i64) -> Result<u64> {
-        let (Some(dir), Some(base)) = (
-            self.path.parent(),
-            self.path
-                .file_name()
-                .map(|b| b.to_string_lossy().into_owned()),
-        ) else {
+        let (Some(dir), Some(base)) = (self.path.parent(), self.path.file_name().map(|b| b.to_string_lossy().into_owned())) else {
             return Ok(0);
         };
         let Ok(entries) = fs::read_dir(dir) else {
@@ -136,11 +117,7 @@ impl<T: Serialize + DeserializeOwned + 'static> JsonFile<T> {
         let mut n = 0;
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
-            if !name.starts_with(&format!("{base}."))
-                || !Path::new(&name)
-                    .extension()
-                    .is_some_and(|e| e.eq_ignore_ascii_case("tmp"))
-            {
+            if !name.starts_with(&format!("{base}.")) || !Path::new(&name).extension().is_some_and(|e| e.eq_ignore_ascii_case("tmp")) {
                 continue;
             }
             let age = e
@@ -148,9 +125,7 @@ impl<T: Serialize + DeserializeOwned + 'static> JsonFile<T> {
                 .modified()
                 .ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map_or(0, |d| {
-                    now_ms - i64::try_from(d.as_millis()).unwrap_or(i64::MAX)
-                });
+                .map_or(0, |d| now_ms - i64::try_from(d.as_millis()).unwrap_or(i64::MAX));
             if age > 60_000 && fs::remove_file(e.path()).is_ok() {
                 n += 1;
             }
@@ -159,11 +134,7 @@ impl<T: Serialize + DeserializeOwned + 'static> JsonFile<T> {
     }
 
     fn text(&self, value: &T) -> Result<Vec<u8>> {
-        let mut out = if self.pretty {
-            serde_json::to_vec_pretty(value)?
-        } else {
-            serde_json::to_vec(value)?
-        };
+        let mut out = if self.pretty { serde_json::to_vec_pretty(value)? } else { serde_json::to_vec(value)? };
         out.push(b'\n');
         Ok(out)
     }

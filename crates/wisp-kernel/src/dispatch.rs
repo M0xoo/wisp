@@ -18,30 +18,15 @@ use crate::state::KernelState;
 use crate::{BoxFuture, Call, Caller, Code, Command, Result, WireError};
 
 /// A refusal by the kernel itself: kept in Diagnostics with its trace, logged, returned.
-pub(crate) fn refuse(
-    k: &KernelState,
-    code: Code,
-    message: String,
-    who: &str,
-    stack: Vec<String>,
-) -> WireError {
-    let c = serde_json::to_value(code)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_owned))
-        .unwrap_or_default();
+pub(crate) fn refuse(k: &KernelState, code: Code, message: String, who: &str, stack: Vec<String>) -> WireError {
+    let c = serde_json::to_value(code).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
     tracing::warn!(code = %c, stack = ?stack, "{message}");
     k.diag.refuse(k.now_ms(), who, &c, message.clone(), stack);
     WireError::new(code, message)
 }
 
 /// The command's entry, activating a lazy plugin that waits on it first.
-async fn find(
-    k: &Arc<KernelState>,
-    id: &str,
-    args: impl FnOnce() -> Option<Value>,
-    who: &str,
-    stack: &[String],
-) -> Result<Arc<CmdEntry>> {
+async fn find(k: &Arc<KernelState>, id: &str, args: impl FnOnce() -> Option<Value>, who: &str, stack: &[String]) -> Result<Arc<CmdEntry>> {
     if let Some(e) = k.read_reg()?.commands.get(id).cloned() {
         return Ok(e);
     }
@@ -53,20 +38,8 @@ async fn find(
     let mut st = stack.to_vec();
     st.push(format!("?:{id}"));
     Err(match crate::life::off_owner_of(k, id) {
-        Some((owner, why)) => refuse(
-            k,
-            Code::PluginOff,
-            format!("{id}: {owner} is off ({why})"),
-            who,
-            st,
-        ),
-        None => refuse(
-            k,
-            Code::NotFound,
-            format!("unknown command {id} (is its plugin off?)"),
-            who,
-            st,
-        ),
+        Some((owner, why)) => refuse(k, Code::PluginOff, format!("{id}: {owner} is off ({why})"), who, st),
+        None => refuse(k, Code::NotFound, format!("unknown command {id} (is its plugin off?)"), who, st),
     })
 }
 
@@ -92,58 +65,31 @@ fn enter(k: &Arc<KernelState>, e: &CmdEntry, from: Option<&Ctx>, parent: &Call) 
         return Err(refuse(
             k,
             Code::DepthExceeded,
-            format!(
-                "{} would run at depth {depth}: calls nest at most {MAX_DEPTH} deep ({})",
-                e.id,
-                st.join(" → ")
-            ),
+            format!("{} would run at depth {depth}: calls nest at most {MAX_DEPTH} deep ({})", e.id, st.join(" → ")),
             who,
             st,
         ));
     }
     if p.read_only && !e.read_only {
-        return Err(refuse(
-            k,
-            Code::Forbidden,
-            format!("{} writes, and an interceptor may only read", e.id),
-            who,
-            stack(),
-        ));
+        return Err(refuse(k, Code::Forbidden, format!("{} writes, and an interceptor may only read", e.id), who, stack()));
     }
     let set = p.set.clone().or_else(|| k.caps.get(&p.caller.set));
     let via = from.map(|c| (c.plugin(), c.inner.set.as_deref()));
     let checked = check_sets(set.as_deref(), &p.caller.set, via, &e.perm);
     if let Err(why) = checked {
-        return Err(refuse(
-            k,
-            Code::Forbidden,
-            format!("{} refused: {}", e.id, why.message),
-            who,
-            stack(),
-        ));
+        return Err(refuse(k, Code::Forbidden, format!("{} refused: {}", e.id, why.message), who, stack()));
     }
     if p.cancel.is_cancelled() {
-        return Err(WireError::new(
-            Code::Unavailable,
-            format!("{}: the call was cancelled", e.id),
-        ));
+        return Err(WireError::new(Code::Unavailable, format!("{}: the call was cancelled", e.id)));
     }
-    let tx = if in_cmd {
-        p.tx.clone()
-    } else {
-        Some(Arc::new(RootTx { kernel: Arc::downgrade(k), ..RootTx::default() }))
-    };
+    let tx = if in_cmd { p.tx.clone() } else { Some(Arc::new(RootTx { kernel: Arc::downgrade(k), ..RootTx::default() })) };
     let call = CallInner {
         root: p.root.clone(),
         depth,
         stack: stack(),
         caller: p.caller.clone(),
         // a root gets its own token, cancelled when it settles; nested calls share it
-        cancel: if in_cmd {
-            p.cancel.clone()
-        } else {
-            p.cancel.child_token()
-        },
+        cancel: if in_cmd { p.cancel.clone() } else { p.cancel.child_token() },
         read_only: p.read_only,
         set,
         via: Some(e.owner.clone()),
@@ -153,20 +99,12 @@ fn enter(k: &Arc<KernelState>, e: &CmdEntry, from: Option<&Ctx>, parent: &Call) 
         cause: p.cause,
         cause_depth: p.cause_depth,
     };
-    Ok(Entered {
-        call: call.into_call(),
-        root: if in_cmd { None } else { tx },
-    })
+    Ok(Entered { call: call.into_call(), root: if in_cmd { None } else { tx } })
 }
 
 /// Runs a command's future inside its call: span, panic guard, the owner going off, then for a root
 /// command: publish, cancel, follow-ups.
-async fn run<T: Send + 'static>(
-    k: &Arc<KernelState>,
-    e: &CmdEntry,
-    en: Entered,
-    fut: BoxFuture<'static, Result<T>>,
-) -> Result<T> {
+async fn run<T: Send + 'static>(k: &Arc<KernelState>, e: &CmdEntry, en: Entered, fut: BoxFuture<'static, Result<T>>) -> Result<T> {
     let span = tracing::debug_span!("cmd", id = %e.id, depth = en.call.inner.depth, root = %en.call.inner.root);
     let scope = e.ctx.inner.scope.clone();
     // a root command's store writes carry its durable events (and a durable handler's cursor) along
@@ -185,18 +123,8 @@ async fn run<T: Send + 'static>(
     .instrument(span)
     .await;
     if let Err(err) = &res {
-        let code = serde_json::to_value(err.code)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_default();
-        k.diag.record(
-            k.now_ms(),
-            &e.owner,
-            "command",
-            &code,
-            format!("{}: {}", e.id, err.message),
-            en.call.inner.stack.clone(),
-        );
+        let code = serde_json::to_value(err.code).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
+        k.diag.record(k.now_ms(), &e.owner, "command", &code, format!("{}: {}", e.id, err.message), en.call.inner.stack.clone());
     }
     if let Some(tx) = en.root {
         if res.is_ok() {
@@ -211,17 +139,8 @@ async fn run<T: Send + 'static>(
 
 /// Publishes a root's buffered events from `from` on (they committed).
 pub(crate) fn flush(k: &KernelState, root: &str, tx: &RootTx, cursor: Option<u64>, from: usize) {
-    let pending: Vec<Pending> = tx
-        .events
-        .lock()
-        .map(|mut ev| {
-            if from < ev.len() {
-                ev.drain(from..).collect()
-            } else {
-                Vec::new()
-            }
-        })
-        .unwrap_or_default();
+    let pending: Vec<Pending> =
+        tx.events.lock().map(|mut ev| if from < ev.len() { ev.drain(from..).collect() } else { Vec::new() }).unwrap_or_default();
     for p in pending {
         // a durable repeat (same type and key within 24 h) is the same fact: not published again
         if p.durable && p.written == crate::events::Logged::Repeat {
@@ -232,11 +151,7 @@ pub(crate) fn flush(k: &KernelState, root: &str, tx: &RootTx, cursor: Option<u64
 }
 
 fn follow_ups(k: &Arc<KernelState>, tx: &RootTx) {
-    let list: Vec<(String, Value, Ctx)> = tx
-        .follow
-        .lock()
-        .map(|mut f| std::mem::take(&mut *f))
-        .unwrap_or_default();
+    let list: Vec<(String, Value, Ctx)> = tx.follow.lock().map(|mut f| std::mem::take(&mut *f)).unwrap_or_default();
     for (cmd, args, ctx) in list {
         spawn_root(k, ctx, cmd, args);
     }
@@ -249,13 +164,7 @@ pub(crate) fn spawn_root(k: &Arc<KernelState>, ctx: Ctx, cmd: String, args: Valu
     let k = k.clone();
     tokio::spawn(async move {
         // owned by the kernel, not the vetoer's scope: the notice still goes out if it is switched off meanwhile
-        let call = CallInner::detached(
-            &k,
-            Caller::plugin(ctx.plugin()),
-            Some(ctx.inner.id.clone()),
-            k.root.child_token(),
-        )
-        .into_call();
+        let call = CallInner::detached(&k, Caller::plugin(ctx.plugin()), Some(ctx.inner.id.clone()), k.root.child_token()).into_call();
         if let Err(e) = json(&k, Some(ctx.clone()), &call, &cmd, args).await {
             tracing::warn!(plugin = %ctx.plugin(), "follow-up {cmd} failed: {}", e.message);
         }
@@ -264,11 +173,7 @@ pub(crate) fn spawn_root(k: &Arc<KernelState>, ctx: Ctx, cmd: String, args: Valu
 }
 
 /// Command `C` from plugin code (`Ctx::run`).
-pub(crate) fn typed<C: Command>(
-    ctx: Ctx,
-    call: Call,
-    args: C::Args,
-) -> BoxFuture<'static, Result<C::Out>> {
+pub(crate) fn typed<C: Command>(ctx: Ctx, call: Call, args: C::Args) -> BoxFuture<'static, Result<C::Out>> {
     Box::pin(async move {
         let k = ctx.k()?;
         let known = k.read_reg()?.commands.get(C::ID).cloned();
@@ -283,19 +188,13 @@ pub(crate) fn typed<C: Command>(
             let v = serde_json::to_value(&args).unwrap_or_default();
             scoped(&k, &e, &en.call, &v).await?;
         }
-        let fut: BoxFuture<'static, Result<C::Out>> = if let Some(t) = e
-            .typed
-            .as_deref()
-            .and_then(|t| t.downcast_ref::<TypedCmd<C>>())
-        {
+        let fut: BoxFuture<'static, Result<C::Out>> = if let Some(t) = e.typed.as_deref().and_then(|t| t.downcast_ref::<TypedCmd<C>>()) {
             (t.0)(e.ctx.clone(), en.call.clone(), args)
         } else {
             let (f, ctx, child) = (e.json.clone(), e.ctx.clone(), en.call.clone());
-            let v = serde_json::to_value(args)
-                .map_err(|err| WireError::invalid(format!("{}: {err}", C::ID)))?;
+            let v = serde_json::to_value(args).map_err(|err| WireError::invalid(format!("{}: {err}", C::ID)))?;
             Box::pin(async move {
-                serde_json::from_value(f(ctx, child, v).await?)
-                    .map_err(|err| WireError::internal(format!("{}: {err}", C::ID)))
+                serde_json::from_value(f(ctx, child, v).await?).map_err(|err| WireError::internal(format!("{}: {err}", C::ID)))
             })
         };
         run(&k, &e, en, fut).await
@@ -315,16 +214,8 @@ async fn scoped(k: &Arc<KernelState>, e: &CmdEntry, call: &Call, args: &Value) -
 }
 
 /// A command by id with JSON args: the edge, follow-ups, the exec tier.
-pub(crate) async fn json(
-    k: &Arc<KernelState>,
-    from: Option<Ctx>,
-    parent: &Call,
-    cmd: &str,
-    args: Value,
-) -> Result<Value> {
-    let who = from
-        .as_ref()
-        .map_or_else(|| "edge".to_owned(), |c| c.plugin().to_owned());
+pub(crate) async fn json(k: &Arc<KernelState>, from: Option<Ctx>, parent: &Call, cmd: &str, args: Value) -> Result<Value> {
+    let who = from.as_ref().map_or_else(|| "edge".to_owned(), |c| c.plugin().to_owned());
     let e = find(k, cmd, || Some(args.clone()), &who, &parent.inner.stack).await?;
     let en = enter(k, &e, from.as_ref(), parent)?;
     scoped(k, &e, &en.call, &args).await?;
@@ -332,12 +223,7 @@ pub(crate) async fn json(
     run(k, &e, en, fut).await
 }
 
-pub(crate) fn edge(
-    k: Arc<KernelState>,
-    caller: Caller,
-    cmd: String,
-    args: Value,
-) -> BoxFuture<'static, Result<Value>> {
+pub(crate) fn edge(k: Arc<KernelState>, caller: Caller, cmd: String, args: Value) -> BoxFuture<'static, Result<Value>> {
     Box::pin(async move {
         let parent = CallInner::detached(&k, caller, None, k.root.child_token()).into_call();
         json(&k, None, &parent, &cmd, args).await

@@ -6,21 +6,12 @@ use crate::shell::host_of;
 
 fn has(e: &str, needles: &[&str]) -> bool {
     let low = e.to_ascii_lowercase();
-    needles
-        .iter()
-        .any(|n| low.contains(&n.to_ascii_lowercase()))
+    needles.iter().any(|n| low.contains(&n.to_ascii_lowercase()))
 }
 
 pub fn ssh_hint(stderr: &str, target: &str) -> Option<Hint> {
     let host = host_of(target);
-    if has(
-        stderr,
-        &[
-            "Permission denied",
-            "Too many authentication failures",
-            "publickey",
-        ],
-    ) {
+    if has(stderr, &["Permission denied", "Too many authentication failures", "publickey"]) {
         return Some(Hint {
             command: Some(format!("ssh-copy-id {target}")),
             let_in: true,
@@ -32,13 +23,7 @@ pub fn ssh_hint(stderr: &str, target: &str) -> Option<Hint> {
             )
         });
     }
-    if has(
-        stderr,
-        &[
-            "Host key verification failed",
-            "REMOTE HOST IDENTIFICATION HAS CHANGED",
-        ],
-    ) {
+    if has(stderr, &["Host key verification failed", "REMOTE HOST IDENTIFICATION HAS CHANGED"]) {
         return Some(Hint {
             command: Some(format!("ssh {target}")),
             ..Hint::titled(
@@ -49,14 +34,7 @@ pub fn ssh_hint(stderr: &str, target: &str) -> Option<Hint> {
             )
         });
     }
-    if has(
-        stderr,
-        &[
-            "Could not resolve hostname",
-            "Name or service not known",
-            "nodename nor servname",
-        ],
-    ) {
+    if has(stderr, &["Could not resolve hostname", "Name or service not known", "nodename nor servname"]) {
         return Some(Hint {
             tailscale: true,
             ..Hint::titled(
@@ -75,16 +53,7 @@ pub fn ssh_hint(stderr: &str, target: &str) -> Option<Hint> {
             ),
         ));
     }
-    if has(
-        stderr,
-        &[
-            "timed out",
-            "No route to host",
-            "Network is unreachable",
-            "Connection closed",
-            "Broken pipe",
-        ],
-    ) {
+    if has(stderr, &["timed out", "No route to host", "Network is unreachable", "Connection closed", "Broken pipe"]) {
         return Some(Hint {
             tailscale: true,
             ..Hint::titled(
@@ -96,11 +65,7 @@ pub fn ssh_hint(stderr: &str, target: &str) -> Option<Hint> {
         });
     }
     if has(stderr, &["Address already in use", "forwarding failed"]) {
-        return Some(Hint {
-            text: "The local end of the tunnel was taken. Connect again to pick another port."
-                .into(),
-            ..Hint::default()
-        });
+        return Some(Hint { text: "The local end of the tunnel was taken. Connect again to pick another port.".into(), ..Hint::default() });
     }
     None
 }
@@ -124,43 +89,19 @@ mod tests {
         assert!(h.let_in);
         assert!(h.title.unwrap_or_default().contains("isn’t allowed in yet"));
         assert!(
-            ssh_hint("ssh: Could not resolve hostname nope", "nope")
+            ssh_hint("ssh: Could not resolve hostname nope", "nope").unwrap_or_default().text.contains("can’t find a computer called nope")
+        );
+        assert!(ssh_hint("ssh: connect to host box port 22: Operation timed out", "me@box").unwrap_or_default().tailscale);
+        assert!(
+            ssh_hint("ssh: connect to host box port 22: Connection refused", "me@box").unwrap_or_default().text.contains("Remote Login")
+        );
+        assert!(
+            ssh_hint("@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@", "me@box")
                 .unwrap_or_default()
-                .text
-                .contains("can’t find a computer called nope")
+                .command
+                .is_some_and(|c| c == "ssh me@box")
         );
-        assert!(
-            ssh_hint(
-                "ssh: connect to host box port 22: Operation timed out",
-                "me@box"
-            )
-            .unwrap_or_default()
-            .tailscale
-        );
-        assert!(
-            ssh_hint(
-                "ssh: connect to host box port 22: Connection refused",
-                "me@box"
-            )
-            .unwrap_or_default()
-            .text
-            .contains("Remote Login")
-        );
-        assert!(
-            ssh_hint(
-                "@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@",
-                "me@box"
-            )
-            .unwrap_or_default()
-            .command
-            .is_some_and(|c| c == "ssh me@box")
-        );
-        assert!(
-            ssh_hint("bind [127.0.0.1]:5555: Address already in use", "box")
-                .unwrap_or_default()
-                .text
-                .contains("another port")
-        );
+        assert!(ssh_hint("bind [127.0.0.1]:5555: Address already in use", "box").unwrap_or_default().text.contains("another port"));
         assert_eq!(ssh_hint("something else", "box"), None);
     }
 }

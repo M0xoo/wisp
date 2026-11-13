@@ -84,7 +84,12 @@ impl ResourceKind for SettingKind {
             _ => true,
         };
         if !ok && !r.spec.is_null() {
-            out.push(format!("{key} is {}{}, not {}", s.decl.ty, s.decl.values.as_ref().map(|v| format!(" ({})", v.join(", "))).unwrap_or_default(), r.spec));
+            out.push(format!(
+                "{key} is {}{}, not {}",
+                s.decl.ty,
+                s.decl.values.as_ref().map(|v| format!(" ({})", v.join(", "))).unwrap_or_default(),
+                r.spec
+            ));
         }
         out
     }

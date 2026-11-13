@@ -60,11 +60,7 @@ pub struct ManifestError {
 
 impl std::fmt::Display for ManifestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.path.is_empty() {
-            f.write_str(&self.message)
-        } else {
-            write!(f, "{}: {}", self.path, self.message)
-        }
+        if self.path.is_empty() { f.write_str(&self.message) } else { write!(f, "{}: {}", self.path, self.message) }
     }
 }
 
@@ -112,10 +108,7 @@ impl SettingDecl {
             "bool" => (!value.is_boolean()).then(|| "must be true or false".to_owned()),
             "enum" => {
                 let values = self.values.as_deref().unwrap_or_default();
-                (!value
-                    .as_str()
-                    .is_some_and(|s| values.iter().any(|v| v == s)))
-                .then(|| format!("must be one of {}", values.join(", ")))
+                (!value.as_str().is_some_and(|s| values.iter().any(|v| v == s))).then(|| format!("must be one of {}", values.join(", ")))
             }
             "int" => {
                 // a whole number: ints only, as JSON parsed them
@@ -128,9 +121,7 @@ impl SettingDecl {
                 if let Some(lo) = self.min.filter(|lo| n < *lo) {
                     return Some(format!("must be at least {lo}"));
                 }
-                self.max
-                    .filter(|hi| n > *hi)
-                    .map(|hi| format!("must be at most {hi}"))
+                self.max.filter(|hi| n > *hi).map(|hi| format!("must be at most {hi}"))
             }
             _ => None,
         }
@@ -181,16 +172,11 @@ impl Manifest {
     /// Parses a manifest embedded with `include_str!`. An invalid built-in manifest yields a manifest
     /// whose id is `invalid.manifest`; the kernel refuses it and every plugin crate's tests fail on it.
     pub fn embedded(json: &str) -> Self {
-        Self::parse(json).unwrap_or_else(|e| Self {
-            id: "invalid.manifest".into(),
-            description: Some(e.message),
-            ..Self::default()
-        })
+        Self::parse(json).unwrap_or_else(|e| Self { id: "invalid.manifest".into(), description: Some(e.message), ..Self::default() })
     }
 
     pub fn parse(json: &str) -> Result<Self> {
-        let v: Value = serde_json::from_str(json)
-            .map_err(|e| WireError::invalid(format!("wisp-plugin.json: {e}")))?;
+        let v: Value = serde_json::from_str(json).map_err(|e| WireError::invalid(format!("wisp-plugin.json: {e}")))?;
         Self::from_value(v)
     }
 
@@ -198,18 +184,10 @@ impl Manifest {
     pub fn from_value(v: Value) -> Result<Self> {
         let problems = Self::check(&v);
         if !problems.is_empty() {
-            let id = v
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or("wisp-plugin.json");
-            let text = problems
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("; ");
+            let id = v.get("id").and_then(Value::as_str).unwrap_or("wisp-plugin.json");
+            let text = problems.iter().map(ToString::to_string).collect::<Vec<_>>().join("; ");
             let details = serde_json::to_value(&problems).unwrap_or(Value::Null);
-            return Err(WireError::invalid(format!("{id}: {text}"))
-                .with_details(serde_json::json!({ "errors": details })));
+            return Err(WireError::invalid(format!("{id}: {text}")).with_details(serde_json::json!({ "errors": details })));
         }
         serde_json::from_value(v).map_err(|e| WireError::invalid(format!("wisp-plugin.json: {e}")))
     }
@@ -222,11 +200,7 @@ impl Manifest {
     /// Re-checks this manifest as a whole (the kernel does it for every plugin it is given).
     pub fn validate(&self) -> Result<()> {
         if self.id == "invalid.manifest" {
-            return Err(WireError::invalid(
-                self.description
-                    .clone()
-                    .unwrap_or_else(|| "invalid manifest".into()),
-            ));
+            return Err(WireError::invalid(self.description.clone().unwrap_or_else(|| "invalid manifest".into())));
         }
         let v = serde_json::to_value(self).map_err(|e| WireError::internal(e.to_string()))?;
         Self::from_value(v).map(|_| ())
@@ -238,18 +212,10 @@ impl Manifest {
             .map(|(id, v)| match v {
                 Value::Object(o) => Requirement {
                     id: id.clone(),
-                    version: o
-                        .get("version")
-                        .and_then(Value::as_str)
-                        .unwrap_or("*")
-                        .to_owned(),
+                    version: o.get("version").and_then(Value::as_str).unwrap_or("*").to_owned(),
                     optional: o.get("optional").and_then(Value::as_bool).unwrap_or(false),
                 },
-                _ => Requirement {
-                    id: id.clone(),
-                    version: v.as_str().unwrap_or("*").to_owned(),
-                    optional: false,
-                },
+                _ => Requirement { id: id.clone(), version: v.as_str().unwrap_or("*").to_owned(), optional: false },
             })
             .collect()
     }
@@ -261,11 +227,7 @@ impl Manifest {
 
     pub fn exec(&self) -> Option<Vec<String>> {
         let a = self.server.as_ref()?.get("exec")?.as_array()?;
-        Some(
-            a.iter()
-                .filter_map(|x| x.as_str().map(str::to_owned))
-                .collect(),
-        )
+        Some(a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
     }
 
     pub fn is_module(&self) -> bool {
@@ -276,11 +238,7 @@ impl Manifest {
         self.contributes
             .get(key)
             .and_then(Value::as_array)
-            .map(|a| {
-                a.iter()
-                    .filter_map(|x| serde_json::from_value(x.clone()).ok())
-                    .collect()
-            })
+            .map(|a| a.iter().filter_map(|x| serde_json::from_value(x.clone()).ok()).collect())
             .unwrap_or_default()
     }
 
@@ -321,10 +279,7 @@ impl Manifest {
 
     /// Static contributions to a point (`runtime.harness`), live before any code loads.
     pub fn contributions(&self, point: &str) -> Vec<Value> {
-        self.contributes
-            .get(point)
-            .map(|v| v.as_array().cloned().unwrap_or_else(|| vec![v.clone()]))
-            .unwrap_or_default()
+        self.contributes.get(point).map(|v| v.as_array().cloned().unwrap_or_else(|| vec![v.clone()])).unwrap_or_default()
     }
 
     /// No `activation` list (or `onStartup` in it) starts at startup: an interceptor that never loaded

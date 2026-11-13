@@ -57,7 +57,9 @@ pub fn find_peer(list: &Value, on: &str) -> std::result::Result<(String, String)
     let hit = all.iter().find(|p| s(p, "id") == on).or_else(|| all.iter().find(|p| s(p, "name").eq_ignore_ascii_case(on)));
     match hit {
         Some(p) => Ok((s(p, "id"), s(p, "name"))),
-        None if all.is_empty() => Err(format!("there's no machine {on}: this wisp has none yet (wisp cloud signin, wisp computer on, or Machines)")),
+        None if all.is_empty() => {
+            Err(format!("there's no machine {on}: this wisp has none yet (wisp cloud signin, wisp computer on, or Machines)"))
+        }
         None => Err(format!("there's no machine {on}; there's {}", all.iter().map(|p| s(p, "name")).collect::<Vec<_>>().join(", "))),
     }
 }
@@ -72,7 +74,13 @@ pub fn discover(home: &Path) -> Option<u16> {
 impl Client {
     pub fn new(port: u16) -> Self {
         let http = reqwest::Client::builder().connect_timeout(Duration::from_secs(3)).build().unwrap_or_default();
-        Self { url: format!("http://127.0.0.1:{port}"), http, token: std::env::var("WISP_TOKEN").ok().filter(|t| !t.is_empty()), on: ON.get().cloned(), peer: std::sync::Arc::default() }
+        Self {
+            url: format!("http://127.0.0.1:{port}"),
+            http,
+            token: std::env::var("WISP_TOKEN").ok().filter(|t| !t.is_empty()),
+            on: ON.get().cloned(),
+            peer: std::sync::Arc::default(),
+        }
     }
 
     pub async fn request(&self, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
@@ -90,9 +98,16 @@ impl Client {
         let r = b.send().await.map_err(|e| CliError::said(format!("wisp at {}: {e}", self.url)))?;
         let status = r.status().as_u16();
         let text = r.text().await.unwrap_or_default();
-        let json: Value = if text.is_empty() { serde_json::json!({}) } else { serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "text": text })) };
+        let json: Value = if text.is_empty() {
+            serde_json::json!({})
+        } else {
+            serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "text": text }))
+        };
         if status >= 400 {
-            let message = json.get("error").and_then(|e| e.as_str().map(str::to_owned).or_else(|| e.get("message").and_then(Value::as_str).map(str::to_owned))).unwrap_or_else(|| format!("HTTP {status}"));
+            let message = json
+                .get("error")
+                .and_then(|e| e.as_str().map(str::to_owned).or_else(|| e.get("message").and_then(Value::as_str).map(str::to_owned)))
+                .unwrap_or_else(|| format!("HTTP {status}"));
             let message = if status == 404 && message == "not found" { format!("{method} /api{path}: not in this build") } else { message };
             return Err(CliError::Http { status, message, body: json });
         }
@@ -105,7 +120,13 @@ impl Client {
         let on = on.to_owned();
         self.peer
             .get_or_try_init(|| async move {
-                let list = c.local_cmd("machines.list", serde_json::json!({}), &format!("cli-{}", crate::services::hex(&rand::random::<[u8; 12]>()))).await?;
+                let list = c
+                    .local_cmd(
+                        "machines.list",
+                        serde_json::json!({}),
+                        &format!("cli-{}", crate::services::hex(&rand::random::<[u8; 12]>())),
+                    )
+                    .await?;
                 let (id, name) = find_peer(&list, &on).map_err(CliError::said)?;
                 eprintln!("  ◌ on {name}");
                 Ok::<_, CliError>((id, name))
@@ -128,7 +149,11 @@ impl Client {
     }
 
     async fn local_cmd(&self, cmd: &str, args: Value, key: &str) -> Result<Value> {
-        let mut b = self.http.post(format!("{}/api/cmd", self.url)).header("idempotency-key", key).json(&serde_json::json!({ "cmd": cmd, "args": args }));
+        let mut b = self
+            .http
+            .post(format!("{}/api/cmd", self.url))
+            .header("idempotency-key", key)
+            .json(&serde_json::json!({ "cmd": cmd, "args": args }));
         if let Some(t) = &self.token {
             b = b.header("x-wisp-token", t);
         }
@@ -170,7 +195,10 @@ impl Client {
         }
         let exe = std::env::current_exe()?;
         let mut cmd = std::process::Command::new(exe);
-        cmd.args(["--no-open", "--port", &port.to_string()]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        cmd.args(["--no-open", "--port", &port.to_string()])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
         cmd.spawn()?;

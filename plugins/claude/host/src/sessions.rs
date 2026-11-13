@@ -9,7 +9,10 @@ use wisp_kernel::BoxFuture;
 use wisp_runtime_api::harness::sessions::{HarnessSessions, OutsideSession, SessionTurn, content_text, iso_ms};
 
 pub fn store() -> PathBuf {
-    std::env::var("CLAUDE_CONFIG_DIR").ok().filter(|d| !d.is_empty()).map_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude"), PathBuf::from)
+    std::env::var("CLAUDE_CONFIG_DIR")
+        .ok()
+        .filter(|d| !d.is_empty())
+        .map_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude"), PathBuf::from)
 }
 
 /// The folder name Claude Code keeps a project's sessions under.

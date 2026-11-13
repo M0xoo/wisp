@@ -72,11 +72,7 @@ pub struct NoFolder {
 
 impl std::fmt::Display for NoFolder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.path.is_empty() {
-            f.write_str("no folder")
-        } else {
-            write!(f, "{} isn't a full path to a folder", self.path)
-        }
+        if self.path.is_empty() { f.write_str("no folder") } else { write!(f, "{} isn't a full path to a folder", self.path) }
     }
 }
 
@@ -97,7 +93,10 @@ impl Folder {
         let p = path.trim();
         let b = p.as_bytes();
         // rooted on this OS or written for another (a peer's `C:\x` read on Linux): never the process's folder
-        let full = std::path::Path::new(p).is_absolute() || p.starts_with('/') || p.starts_with('\\') || (b.len() >= 3 && b[1] == b':' && matches!(b[2], b'\\' | b'/'));
+        let full = std::path::Path::new(p).is_absolute()
+            || p.starts_with('/')
+            || p.starts_with('\\')
+            || (b.len() >= 3 && b[1] == b':' && matches!(b[2], b'\\' | b'/'));
         if full { Ok(Self(p.into())) } else { Err(NoFolder { path: p.to_owned() }) }
     }
 

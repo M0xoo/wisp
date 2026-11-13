@@ -11,11 +11,7 @@ pub struct Installable {
     pub name: &'static str,
 }
 
-pub const INSTALLABLE: &[Installable] = &[Installable {
-    id: "opencode",
-    pkg: "opencode-ai",
-    name: "opencode",
-}];
+pub const INSTALLABLE: &[Installable] = &[Installable { id: "opencode", pkg: "opencode-ai", name: "opencode" }];
 pub const NPM_TIMEOUT_MS: u64 = 5 * 60 * 1000;
 /// npm's output kept for the error message
 pub const OUTPUT_TAIL: usize = 4000;
@@ -31,18 +27,11 @@ pub fn not_installable(id: &str) -> String {
 
 /// `npm install --prefix <dir> --no-audit --no-fund --loglevel=error <pkg>@latest`
 pub fn npm_args(pkg: &str, dir: &str) -> Vec<String> {
-    [
-        "install",
-        "--prefix",
-        dir,
-        "--no-audit",
-        "--no-fund",
-        "--loglevel=error",
-    ]
-    .iter()
-    .map(|s| (*s).to_owned())
-    .chain([format!("{pkg}@latest")])
-    .collect()
+    ["install", "--prefix", dir, "--no-audit", "--no-fund", "--loglevel=error"]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .chain([format!("{pkg}@latest")])
+        .collect()
 }
 
 /// npm couldn't be started at all (424: offline or a broken npm isn't a wisp bug).
@@ -55,19 +44,12 @@ pub fn npm_failed(pkg: &str, timed_out: bool, output: &str) -> String {
     let lines: Vec<&str> = output.trim().lines().filter(|l| !l.is_empty()).collect();
     let tail = lines[lines.len().saturating_sub(3)..].join(" ");
     let what = if timed_out { "timed out" } else { "failed" };
-    if tail.is_empty() {
-        format!("npm install {pkg} {what}")
-    } else {
-        format!("npm install {pkg} {what}: {tail}")
-    }
+    if tail.is_empty() { format!("npm install {pkg} {what}") } else { format!("npm install {pkg} {what}: {tail}") }
 }
 
 /// Installed, but detection still can't start it (500).
 pub fn installed_but_broken(name: &str, error: Option<&str>) -> String {
-    format!(
-        "{name} was installed but doesn’t start: {}",
-        error.unwrap_or("unknown error")
-    )
+    format!("{name} was installed but doesn’t start: {}", error.unwrap_or("unknown error"))
 }
 
 /// Keeps the last `max` bytes of `s` on a char boundary (npm's output tail).

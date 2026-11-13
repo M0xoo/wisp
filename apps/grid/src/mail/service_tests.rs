@@ -78,7 +78,15 @@ fn world() -> World {
     let secrets = Arc::new(crate::secrets::Secrets::for_test(db.clone(), [7; 32]).unwrap());
     let clock = ManualClock::new(NOW);
     let the_box = Arc::new(TheBox::default());
-    let inbox = Inbox::new(db.clone(), clock.clone(), Some(secrets), Arc::new(Up), the_box.clone(), InboxOpts { enabled: true, ..InboxOpts::default() }, Arc::new(|h: &str| format!("https://{h}.grid.test")));
+    let inbox = Inbox::new(
+        db.clone(),
+        clock.clone(),
+        Some(secrets),
+        Arc::new(Up),
+        the_box.clone(),
+        InboxOpts { enabled: true, ..InboxOpts::default() },
+        Arc::new(|h: &str| format!("https://{h}.grid.test")),
+    );
     let key = rsa::RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 1024).unwrap();
     let pem = key.to_public_key().to_public_key_pem(rsa::pkcs8::LineEnding::LF).unwrap();
     let record = crate::dkim::tests::key_record();
@@ -87,14 +95,22 @@ fn world() -> World {
         Box::pin(async move { if name == "sel._domainkey.example.com" { Ok(vec![vec![r]]) } else { Err(Lookup::NoSuchKey) } })
     });
     let wire = Arc::new(FakeWire::default());
-    let opts = Opts { domain: "mail.grid.test".into(), topic_arn: ARN.into(), keys: vec![pem], outbound: Outbound::default(), send_per_hour: 2, thread_days: 7 };
+    let opts = Opts {
+        domain: "mail.grid.test".into(),
+        topic_arn: ARN.into(),
+        keys: vec![pem],
+        outbound: Outbound::default(),
+        send_per_hour: 2,
+        thread_days: 7,
+    };
     let mail = Arc::new(MailService::new(db, clock, opts, txt, wire.clone()));
     let m = mail.clone();
     let _ = inbox.delivered.set(Arc::new(move |u: &str, d: &Delivery| m.delivered(u, &d.headers, &d.body).unwrap()));
     World { mail, inbox, the_box, wire, user, key }
 }
 
-const HEAD: &str = "From: Ada <ada@example.com>\r\nSubject: in api: fix the login\r\nDate: Tue, 2 Jan 2024 03:04:00 +0000\r\nMessage-ID: <m1@example.com>";
+const HEAD: &str =
+    "From: Ada <ada@example.com>\r\nSubject: in api: fix the login\r\nDate: Tue, 2 Jan 2024 03:04:00 +0000\r\nMessage-ID: <m1@example.com>";
 
 /// SNS's notification of `raw` to `to`, signed with the pinned key.
 fn sns(w: &World, raw: &str, to: &str) -> Vec<u8> {
@@ -119,20 +135,36 @@ async fn a_signed_message_by_the_froms_own_domain_is_held_as_pass_and_its_reply_
     let got = lock(&w.the_box.0).clone();
     assert_eq!(got.len(), 1);
     let h = |k: &str| got[0].headers.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
-    assert_eq!((h(FROM_HEADER).as_str(), h(DMARC_HEADER).as_str(), h(ID_HEADER).as_str(), got[0].channel.as_str()), ("ada@example.com", "pass", "<m1@example.com>", "email"));
+    assert_eq!(
+        (h(FROM_HEADER).as_str(), h(DMARC_HEADER).as_str(), h(ID_HEADER).as_str(), got[0].channel.as_str()),
+        ("ada@example.com", "pass", "<m1@example.com>", "email")
+    );
     let body: Value = serde_json::from_slice(&got[0].body).unwrap();
-    assert_eq!((body["subject"].as_str(), body["text"].as_str(), body["date"].as_str()), (Some("in api: fix the login"), Some("it 500s\r\n"), Some("2024-01-02T03:04:00.000Z")));
+    assert_eq!(
+        (body["subject"].as_str(), body["text"].as_str(), body["date"].as_str()),
+        (Some("in api: fix the login"), Some("it 500s\r\n"), Some("2024-01-02T03:04:00.000Z"))
+    );
     // the box answers: only to the thread's sender
-    let out = w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "subject": "Re: in api: fix the login", "text": "✓ On it." })).await.unwrap();
+    let out = w
+        .mail
+        .reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "subject": "Re: in api: fix the login", "text": "✓ On it." }))
+        .await
+        .unwrap();
     assert!(out["messageId"].as_str().unwrap().ends_with("@mail.grid.test>"));
     let sent = lock(&w.wire.sent).clone();
     assert_eq!((sent[0].0.as_str(), sent[0].1.as_str()), (address.as_str(), "ada@example.com"));
     assert!(sent[0].2.contains("In-Reply-To: <m1@example.com>") && sent[0].2.contains("References: <m1@example.com>"));
     let err = |r: Result<Value>| r.unwrap_err().to_string();
-    assert!(err(w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "to": "eve@x.io", "text": "x" })).await).contains("nowhere else"));
+    assert!(
+        err(w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "to": "eve@x.io", "text": "x" })).await)
+            .contains("nowhere else")
+    );
     assert!(err(w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<nope@x>", "text": "x" })).await).contains("No such thread"));
     w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "text": "again" })).await.unwrap();
-    assert!(err(w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "text": "third" })).await).contains("Too many"), "two an hour here");
+    assert!(
+        err(w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "text": "third" })).await).contains("Too many"),
+        "two an hour here"
+    );
 }
 
 #[tokio::test]
@@ -146,12 +178,16 @@ async fn unproved_mail_is_held_as_such_a_stranger_address_holds_nothing_and_a_fo
     w.inbox.drain(&w.user).await.unwrap();
     let got = lock(&w.the_box.0).clone();
     assert!(got[0].headers.iter().any(|(k, v)| k == DMARC_HEADER && v == "unproved"));
-    assert!(w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "text": "x" })).await.is_err(), "unproved: no thread to answer");
+    assert!(
+        w.mail.reply(&w.inbox, &w.user, &json!({ "replyTo": "<m1@example.com>", "text": "x" })).await.is_err(),
+        "unproved: no thread to answer"
+    );
     let ((s, _), held) = w.mail.webhook(&w.inbox, &sns(&w, &other, "guess@mail.grid.test")).await.unwrap();
     assert_eq!((s, held.len()), (200, 0), "an address nobody has looks like any other");
     let mut forged: Value = serde_json::from_slice(&sns(&w, &other, &address)).unwrap();
     forged["TopicArn"] = json!("arn:aws:sns:eu-west-1:666:theirs");
-    assert_eq!(w.mail.webhook(&w.inbox, forged.to_string().as_bytes()).await.unwrap().0 .0, 403);
-    let auto = crate::dkim::tests::signed("example.com", &format!("{HEAD}\r\nAuto-Submitted: auto-replied"), "x\r\n", "from:subject:date", "");
+    assert_eq!(w.mail.webhook(&w.inbox, forged.to_string().as_bytes()).await.unwrap().0.0, 403);
+    let auto =
+        crate::dkim::tests::signed("example.com", &format!("{HEAD}\r\nAuto-Submitted: auto-replied"), "x\r\n", "from:subject:date", "");
     assert_eq!(w.mail.webhook(&w.inbox, &sns(&w, &auto, &address)).await.unwrap().1.len(), 0, "a machine's mail is never answered");
 }

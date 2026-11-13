@@ -84,7 +84,9 @@ pub fn gone_with_task<'a>(all: &'a [Held], task: &str) -> Vec<&'a Held> {
     let me = bare(task);
     all.iter()
         .filter(|h| match &h.owner {
-            Some(Owner::Task { task: t } | Owner::Judges { judges: t } | Owner::Delegate { lead: t, .. } | Owner::Job { job: t, .. }) => bare(t) == me,
+            Some(Owner::Task { task: t } | Owner::Judges { judges: t } | Owner::Delegate { lead: t, .. } | Owner::Job { job: t, .. }) => {
+                bare(t) == me
+            }
             _ => false,
         })
         .collect()
@@ -103,7 +105,9 @@ pub fn sweep(all: &[Held], now: i64) -> Vec<&Held> {
 /// The sandbox a reusable owner already has (a member's own, a delegate's, a task's judges').
 pub fn reusable<'a>(all: &'a [Held], owner: &Owner) -> Option<&'a Held> {
     match owner {
-        Owner::Member { .. } | Owner::Delegate { .. } | Owner::Judges { .. } => all.iter().find(|h| !h.dropping && h.owner.as_ref() == Some(owner)),
+        Owner::Member { .. } | Owner::Delegate { .. } | Owner::Judges { .. } => {
+            all.iter().find(|h| !h.dropping && h.owner.as_ref() == Some(owner))
+        }
         _ => None,
     }
 }
@@ -118,10 +122,7 @@ pub fn name_of(cwd: &str) -> String {
 
 /// The git commands that pack a project: every ref as one bundle (written to `bundle`), and what isn't committed.
 pub fn pack_commands(bundle: &str) -> [Vec<String>; 2] {
-    [
-        ["bundle", "create", bundle, "--all"].map(str::to_owned).to_vec(),
-        ["diff", "HEAD", "--binary"].map(str::to_owned).to_vec(),
-    ]
+    [["bundle", "create", bundle, "--all"].map(str::to_owned).to_vec(), ["diff", "HEAD", "--binary"].map(str::to_owned).to_vec()]
 }
 
 /// The git commands that unpack it in the sandbox, in `home/code`: clone the bundle, check out the branch it was on,
@@ -142,7 +143,10 @@ pub fn seed_commands(bundle: &str, dir: &str, branch: &str, origin: &str) -> Vec
 pub fn logins_of(v: Option<&Value>) -> Vec<String> {
     match v {
         Some(Value::Object(m)) => m.iter().filter(|(_, on)| on.as_bool() == Some(true)).map(|(k, _)| k.clone()).collect(),
-        Some(Value::Array(a)) => a.iter().filter_map(|x| x.as_str().map(str::to_owned).or_else(|| x.get("agent").and_then(Value::as_str).map(str::to_owned))).collect(),
+        Some(Value::Array(a)) => a
+            .iter()
+            .filter_map(|x| x.as_str().map(str::to_owned).or_else(|| x.get("agent").and_then(Value::as_str).map(str::to_owned)))
+            .collect(),
         _ => Vec::new(),
     }
 }

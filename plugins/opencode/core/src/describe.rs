@@ -24,7 +24,11 @@ pub fn describe_tool(name: &str, input: &Value, paths: &RunPaths) -> Tool {
         }
         "write" => t(ToolKind::Edit, format!("Writing {f}")).file(f),
         "bash" | "shell" => {
-            let label = if truthy(&input["description"]) { clip_value(&input["description"], 80) } else { describe_command_value(&input["command"], paths) };
+            let label = if truthy(&input["description"]) {
+                clip_value(&input["description"], 80)
+            } else {
+                describe_command_value(&input["command"], paths)
+            };
             let mut tool = t(ToolKind::Run, label);
             if !input["command"].is_null() {
                 tool.detail = Some(js::string(&input["command"]));
@@ -59,8 +63,11 @@ pub fn describe_tool(name: &str, input: &Value, paths: &RunPaths) -> Tool {
             t(ToolKind::Agent, format!("Delegated to {}", clip(if who.is_empty() { "subagents" } else { &who }, 60)))
         }
         "wisp_subagent_results" => t(ToolKind::Agent, "Collected subagent reports"),
-        n if n.starts_with("wisp_wisp_") => wisp_tool_label(&n[5..], input).or_else(|| crew_tool_label(&n[5..], input)).unwrap_or_else(|| t(ToolKind::Tool, format!("Using {}", n.replace('_', " ")))),
-        _ => crew_tool_label(name.strip_prefix("wisp_").unwrap_or(name), input).unwrap_or_else(|| t(ToolKind::Tool, format!("Using {}", name.replace('_', " ")))),
+        n if n.starts_with("wisp_wisp_") => wisp_tool_label(&n[5..], input)
+            .or_else(|| crew_tool_label(&n[5..], input))
+            .unwrap_or_else(|| t(ToolKind::Tool, format!("Using {}", n.replace('_', " ")))),
+        _ => crew_tool_label(name.strip_prefix("wisp_").unwrap_or(name), input)
+            .unwrap_or_else(|| t(ToolKind::Tool, format!("Using {}", name.replace('_', " ")))),
     }
 }
 
@@ -75,7 +82,10 @@ mod tests {
         assert_eq!(describe_tool("read", &json!({ "filePath": "/w/a.js" }), &p).label, "Reading a.js");
         assert_eq!(describe_tool("bash", &json!({ "command": "npm test", "description": "Run the tests" }), &p).label, "Run the tests");
         assert_eq!(describe_tool("grep", &json!({ "pattern": "add" }), &p).label, "Searching for “add”");
-        assert_eq!(describe_tool("wisp_delegate", &json!({ "tasks": [{ "subagent": "a" }, { "subagent": "a" }, { "subagent": "b" }] }), &p).label, "Delegated to a, b");
+        assert_eq!(
+            describe_tool("wisp_delegate", &json!({ "tasks": [{ "subagent": "a" }, { "subagent": "a" }, { "subagent": "b" }] }), &p).label,
+            "Delegated to a, b"
+        );
         assert_eq!(describe_tool("wisp_wisp_save", &json!({ "path": "/x/y/report.md" }), &p).label, "Saving report.md to My Stuff");
         assert_eq!(describe_tool("wisp_wisp_pr", &json!({ "pr": "https://github.com/o/r/pull/1" }), &p).label, "Attaching PR o/r/pull/1");
         assert_eq!(describe_tool("some_tool", &json!({}), &p).label, "Using some tool");

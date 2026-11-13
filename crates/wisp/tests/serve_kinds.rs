@@ -29,14 +29,19 @@ fn wisp(dir: &Path, cwd: &Path, port: u16, args: &[&str]) -> (i32, String, Strin
 
 /// Every claude run's argv so far.
 fn runs(rec: &Path) -> Vec<Vec<String>> {
-    common::records(&rec.join("claude.jsonl"))
-        .iter()
-        .map(common::argv)
-        .collect()
+    common::records(&rec.join("claude.jsonl")).iter().map(common::argv).collect()
 }
 
 fn git(dir: &Path, args: &[&str]) {
-    let o = Command::new("git").args(args).current_dir(dir).env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t").output().unwrap();
+    let o = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
+        .output()
+        .unwrap();
     assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
 }
 
@@ -86,7 +91,11 @@ async fn a_project_profile_skill_team_connector_harness_and_tools_shape_the_run(
     let task = api.cmd("runtime.get", json!({ "id": id })).await;
     let tree = task["ext"]["wisp.worktrees"]["path"].as_str().unwrap_or_else(|| panic!("project: its worktree: {task}")).to_owned();
     assert_eq!(task["cwd"].as_str(), Some(tree.as_str()), "the task runs in it");
-    assert_eq!(std::fs::read_to_string(Path::new(&tree).join("setup-ran.txt")).unwrap().trim(), "ok", "project: setup in the fresh worktree");
+    assert_eq!(
+        std::fs::read_to_string(Path::new(&tree).join("setup-ran.txt")).unwrap().trim(),
+        "ok",
+        "project: setup in the fresh worktree"
+    );
     assert!(!proj.join("setup-ran.txt").exists(), "project: never in the folder itself");
     let plain = api.cmd("runtime.create", json!({ "prompt": "again", "cwd": proj, "worktree": false, "agent": "claude" })).await;
     finished(&api, plain["id"].as_str().unwrap()).await;
@@ -94,19 +103,36 @@ async fn a_project_profile_skill_team_connector_harness_and_tools_shape_the_run(
     assert_eq!(api.cmd("runtime.spec", json!({ "id": id })).await["agent"], "reviewer", "project: its agent");
     let argv = runs(&rec).into_iter().next().expect("a claude run");
     let all = argv.join("\n");
-    for (what, needle) in [("project: instructions", "PROJECT-RULE-3"), ("agent: instructions", "AGENT-RULE-1"), ("skill: given to the run", "SKILL-BODY-2"), ("team: given to the run", "helper (codex, up to 2 at once): runs the tests")] {
+    for (what, needle) in [
+        ("project: instructions", "PROJECT-RULE-3"),
+        ("agent: instructions", "AGENT-RULE-1"),
+        ("skill: given to the run", "SKILL-BODY-2"),
+        ("team: given to the run", "helper (codex, up to 2 at once): runs the tests"),
+    ] {
         assert!(all.contains(needle), "{what}: {all}");
     }
     assert!(argv.iter().any(|a| a == "--setting-sources"), "project: trust without hooks or MCP skips the repo's own: {argv:?}");
     let cfg: Value = serde_json::from_str(&argv[argv.iter().position(|a| a == "--mcp-config").expect("--mcp-config") + 1]).unwrap();
-    assert_eq!(cfg["mcpServers"]["docs"], json!({ "type": "stdio", "command": "docs-mcp", "args": ["--stdio"], "env": {} }), "connector: its MCP server");
+    assert_eq!(
+        cfg["mcpServers"]["docs"],
+        json!({ "type": "stdio", "command": "docs-mcp", "args": ["--stdio"], "env": {} }),
+        "connector: its MCP server"
+    );
 
     // tools: the reviewer isn't offered wisp_save, and can't call it
     let wisp = &cfg["mcpServers"]["wisp"];
     let mcp = |body: Value| {
         let (http, token, sid) = (api.http.clone(), wisp["headers"]["x-wisp-token"].as_str().unwrap().to_owned(), id.clone());
         async move {
-            let r = http.post(format!("http://127.0.0.1:{port}/api/mcp")).header("content-type", "application/json").header("x-wisp-token", token).header("x-wisp-session", sid).body(body.to_string()).send().await.unwrap();
+            let r = http
+                .post(format!("http://127.0.0.1:{port}/api/mcp"))
+                .header("content-type", "application/json")
+                .header("x-wisp-token", token)
+                .header("x-wisp-session", sid)
+                .body(body.to_string())
+                .send()
+                .await
+                .unwrap();
             serde_json::from_slice::<Value>(&r.bytes().await.unwrap()).unwrap_or(Value::Null)
         }
     };
@@ -188,7 +214,8 @@ async fn a_trigger_and_a_pipeline_start_tasks_and_an_app_lands_on_the_shelf() {
     // app: on the shelf once, however often it's applied; off takes it away
     let notes = |list: &Value| list.as_array().unwrap().iter().filter(|x| x["title"] == "notes").count();
     assert_eq!(notes(&api.cmd("stuff.list", json!({})).await), 1, "app");
-    apply(&api, json!([{ "kind": "app", "name": "notes", "spec": { "inline": "<!doctype html><title>notes</title><p>hi again</p>" } }])).await;
+    apply(&api, json!([{ "kind": "app", "name": "notes", "spec": { "inline": "<!doctype html><title>notes</title><p>hi again</p>" } }]))
+        .await;
     assert_eq!(notes(&api.cmd("stuff.list", json!({})).await), 1, "app: the same item, updated");
     apply(&api, json!([{ "kind": "app", "name": "notes", "spec": { "inline": "<p>hi</p>", "enabled": false } }])).await;
     assert_eq!(notes(&api.cmd("stuff.list", json!({})).await), 0, "app: off");
@@ -268,14 +295,19 @@ async fn a_goal_keeps_going_until_its_judges_say_met_and_stalls_with_a_question(
     assert_eq!(task["ext"]["wisp.goal"]["rounds"], 2, "{task}");
     let turns = api.turns(&id).await;
     assert_eq!(turns.len(), 2, "the first turn and one more round");
-    assert!(turns[1]["prompt"].as_str().unwrap().contains("the tests still fail"), "the round is told what's missing: {}", turns[1]["prompt"]);
+    assert!(
+        turns[1]["prompt"].as_str().unwrap().contains("the tests still fail"),
+        "the round is told what's missing: {}",
+        turns[1]["prompt"]
+    );
     let at = Instant::now();
     while !api.cmd("runtime.get", json!({ "id": id })).await.to_string().contains("after 2 rounds") {
         assert!(at.elapsed() < Duration::from_secs(30), "it asks you");
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    let ok = api.cmd("runtime.create", json!({ "prompt": "fix it", "cwd": proj, "agent": "claude", "goal": "tests pass TOPIC[MET]" })).await;
+    let ok =
+        api.cmd("runtime.create", json!({ "prompt": "fix it", "cwd": proj, "agent": "claude", "goal": "tests pass TOPIC[MET]" })).await;
     let oid = ok["id"].as_str().unwrap().to_owned();
     let at = Instant::now();
     while api.cmd("runtime.get", json!({ "id": oid })).await["ext"]["wisp.goal"]["state"] != "met" {
@@ -301,7 +333,11 @@ async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
         }
         r.send()
     };
-    assert_eq!(post(Some("s3cret-hook-value")).await.unwrap().status().as_u16(), 404, "webhooks are off until switched on here (v1 defaults.webhookTriggers)");
+    assert_eq!(
+        post(Some("s3cret-hook-value")).await.unwrap().status().as_u16(),
+        404,
+        "webhooks are off until switched on here (v1 defaults.webhookTriggers)"
+    );
     api.cmd("settings.set", json!({ "key": "automations.webhookTriggers", "value": true })).await;
     assert_eq!(post(None).await.unwrap().status().as_u16(), 404, "no secret: nothing");
     assert_eq!(post(Some("wrong")).await.unwrap().status().as_u16(), 404, "a wrong one: the same");
@@ -324,7 +360,10 @@ fn run_dirs(rec: &Path, prompt: &str) -> Vec<String> {
     files
         .filter_map(|f| f.ok().map(|f| f.path()))
         .flat_map(|p| common::records(&p))
-        .filter(|v| v["stdin"].as_str().is_some_and(|s| s.contains(prompt)) || v["argv"].as_array().is_some_and(|a| a.iter().any(|x| x.as_str().is_some_and(|x| x.contains(prompt)))))
+        .filter(|v| {
+            v["stdin"].as_str().is_some_and(|s| s.contains(prompt))
+                || v["argv"].as_array().is_some_and(|a| a.iter().any(|x| x.as_str().is_some_and(|x| x.contains(prompt))))
+        })
         .filter_map(|v| v["cwd"].as_str().map(str::to_owned))
         .collect()
 }
@@ -349,7 +388,10 @@ async fn a_task_never_runs_in_the_servers_own_folder() {
     assert_eq!(ran.len(), 1, "{ran:?}");
     let scratch = std::fs::canonicalize(dir.join("home/scratch")).unwrap();
     assert!(Path::new(&ran[0]).starts_with(&scratch), "ran in {} (the server's is {})", ran[0], here.display());
-    assert!(api.cmd("runtime.spec", json!({ "id": id })).await["cwd"].as_str().unwrap_or_default().is_empty(), "the spec keeps no folder: a rerun gets a fresh one");
+    assert!(
+        api.cmd("runtime.spec", json!({ "id": id })).await["cwd"].as_str().unwrap_or_default().is_empty(),
+        "the spec keeps no folder: a rerun gets a fresh one"
+    );
     // a trigger with no project starts nothing (v1 triggers.js "Not a project folder: (none)")
     api.cmd("settings.set", json!({ "key": "automations.webhookTriggers", "value": true })).await;
     apply(&api, json!([
@@ -357,7 +399,15 @@ async fn a_task_never_runs_in_the_servers_own_folder() {
         { "kind": "trigger", "name": "nightly", "spec": { "on": "schedule", "cron": "0 3 * * *", "prompt": "Tidy the docs", "project": proj } }
     ]))
     .await;
-    let r = api.http.post(format!("http://127.0.0.1:{port}/api/triggers/loose")).header("content-type", "application/json").header("x-wisp-secret", "s3cret-loose-value").body("{}").send().await.unwrap();
+    let r = api
+        .http
+        .post(format!("http://127.0.0.1:{port}/api/triggers/loose"))
+        .header("content-type", "application/json")
+        .header("x-wisp-secret", "s3cret-loose-value")
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
     let body: Value = serde_json::from_str(&r.text().await.unwrap()).unwrap_or_default();
     assert!(body["id"].is_null(), "started a task with no folder: {body}");
     assert!(body["why"].as_str().unwrap_or_default().contains("Not a project folder"), "{body}");
@@ -457,12 +507,16 @@ async fn a_machine_becomes_a_peer_and_goes_with_its_resource() {
     let dir = temp("serve-kinds-machine");
     let (serve, port) = start_with(&dir, &[]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
-    let names = |l: &Value| l.as_array().unwrap().iter().map(|p| (p["name"].as_str().unwrap_or_default().to_owned(), p["port"].clone())).collect::<Vec<_>>();
+    let names = |l: &Value| {
+        l.as_array().unwrap().iter().map(|p| (p["name"].as_str().unwrap_or_default().to_owned(), p["port"].clone())).collect::<Vec<_>>()
+    };
     apply(&api, json!([{ "kind": "machine", "name": "studio", "spec": { "transport": "loopback", "address": "127.0.0.1", "port": 9 } }, { "kind": "machine", "name": "this", "spec": { "limits": { "maxRuns": 4 } } }])).await;
     assert_eq!(names(&api.cmd("machines.list", json!({})).await), [("studio".to_owned(), json!(9))], "a peer, and this computer isn't one");
-    apply(&api, json!([{ "kind": "machine", "name": "studio", "spec": { "transport": "loopback", "address": "127.0.0.1", "port": 10 } }])).await;
+    apply(&api, json!([{ "kind": "machine", "name": "studio", "spec": { "transport": "loopback", "address": "127.0.0.1", "port": 10 } }]))
+        .await;
     assert_eq!(names(&api.cmd("machines.list", json!({})).await), [("studio".to_owned(), json!(10))], "updated in place");
-    let r = api.try_cmd("resources.apply", json!({ "resources": [{ "kind": "machine", "name": "this", "spec": {} }], "prune": true })).await;
+    let r =
+        api.try_cmd("resources.apply", json!({ "resources": [{ "kind": "machine", "name": "this", "spec": {} }], "prune": true })).await;
     assert_eq!(r["ok"], true, "{r}");
     assert!(api.cmd("machines.list", json!({})).await.as_array().unwrap().is_empty(), "pruned: the peer goes");
     drop(serve);
@@ -477,7 +531,14 @@ async fn an_api_key_speaks_with_its_capability_set_at_the_edge() {
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     apply(&api, json!([{ "kind": "capability", "name": "ci", "spec": { "allow": ["runtime:list"], "key": "${secret:CI_KEY}" } }])).await;
     let call = |key: &str, cmd: &str, args: Value| {
-        let r = api.http.post(format!("http://127.0.0.1:{port}/api/cmd")).header("content-type", "application/json").header("idempotency-key", format!("{cmd}-{key}")).header("x-wisp-key", key).body(json!({ "cmd": cmd, "args": args }).to_string()).send();
+        let r = api
+            .http
+            .post(format!("http://127.0.0.1:{port}/api/cmd"))
+            .header("content-type", "application/json")
+            .header("idempotency-key", format!("{cmd}-{key}"))
+            .header("x-wisp-key", key)
+            .body(json!({ "cmd": cmd, "args": args }).to_string())
+            .send();
         async move {
             let r = r.await.unwrap();
             (r.status().as_u16(), r.json::<Value>().await.unwrap_or(Value::Null))

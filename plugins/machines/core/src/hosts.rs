@@ -25,10 +25,7 @@ fn glob(pat: &str, name: &str) -> bool {
             _ => false,
         }
     }
-    go(
-        &pat.chars().collect::<Vec<_>>(),
-        &name.chars().collect::<Vec<_>>(),
-    )
+    go(&pat.chars().collect::<Vec<_>>(), &name.chars().collect::<Vec<_>>())
 }
 
 /// Hosts from `file` and the files it Includes (relative to `ssh_dir`, `~/` to `home`), one per
@@ -48,14 +45,7 @@ pub fn ssh_hosts(files: &dyn SshFiles, file: &Path, ssh_dir: &Path, home: &Path)
     uniq
 }
 
-fn read_config(
-    files: &dyn SshFiles,
-    file: &Path,
-    ssh_dir: &Path,
-    home: &Path,
-    seen: &mut Vec<PathBuf>,
-    hosts: &mut Vec<SshHost>,
-) {
+fn read_config(files: &dyn SshFiles, file: &Path, ssh_dir: &Path, home: &Path, seen: &mut Vec<PathBuf>, hosts: &mut Vec<SshHost>) {
     if seen.iter().any(|s| s == file) || seen.len() > 20 {
         return;
     }
@@ -70,17 +60,9 @@ fn read_config(
         match key.as_str() {
             "include" => {
                 for pat in value.split_whitespace() {
-                    let pat = pat
-                        .strip_prefix("~/")
-                        .map_or_else(|| PathBuf::from(pat), |rest| home.join(rest));
-                    let abs = if pat.is_absolute() {
-                        pat
-                    } else {
-                        ssh_dir.join(pat)
-                    };
-                    let (Some(dir), Some(base)) =
-                        (abs.parent(), abs.file_name().and_then(|b| b.to_str()))
-                    else {
+                    let pat = pat.strip_prefix("~/").map_or_else(|| PathBuf::from(pat), |rest| home.join(rest));
+                    let abs = if pat.is_absolute() { pat } else { ssh_dir.join(pat) };
+                    let (Some(dir), Some(base)) = (abs.parent(), abs.file_name().and_then(|b| b.to_str())) else {
                         continue;
                     };
                     let mut names = files.list(dir);
@@ -92,24 +74,13 @@ fn read_config(
             }
             "host" => {
                 current.clear();
-                for h in value
-                    .split_whitespace()
-                    .filter(|h| !h.contains(['*', '?', '!']))
-                {
+                for h in value.split_whitespace().filter(|h| !h.contains(['*', '?', '!'])) {
                     current.push(hosts.len());
-                    hosts.push(SshHost {
-                        host: h.to_owned(),
-                        hostname: String::new(),
-                        user: String::new(),
-                    });
+                    hosts.push(SshHost { host: h.to_owned(), hostname: String::new(), user: String::new() });
                 }
             }
-            "hostname" => current
-                .iter()
-                .for_each(|&i| hosts[i].hostname.clone_from(&value)),
-            "user" => current
-                .iter()
-                .for_each(|&i| hosts[i].user.clone_from(&value)),
+            "hostname" => current.iter().for_each(|&i| hosts[i].hostname.clone_from(&value)),
+            "user" => current.iter().for_each(|&i| hosts[i].user.clone_from(&value)),
             _ => {}
         }
     }
@@ -128,9 +99,7 @@ fn is_forge(host: &str) -> bool {
         "sr.ht",
     ];
     let h = host.to_ascii_lowercase();
-    FORGES
-        .iter()
-        .any(|f| h == *f || h.ends_with(&format!(".{f}")))
+    FORGES.iter().any(|f| h == *f || h.ends_with(&format!(".{f}")))
 }
 
 fn is_ipv4ish(s: &str) -> bool {
@@ -147,17 +116,9 @@ pub fn known_hosts(text: &str) -> Vec<(String, String)> {
             continue;
         }
         let first = line.split_whitespace().next().unwrap_or("");
-        let names: Vec<&str> = first
-            .split(',')
-            .filter(|n| !n.is_empty() && !n.starts_with('[') && !n.contains(['*', '?', '!']))
-            .collect();
+        let names: Vec<&str> = first.split(',').filter(|n| !n.is_empty() && !n.starts_with('[') && !n.contains(['*', '?', '!'])).collect();
         // "devbox,10.0.0.5": the name, with the address as a detail
-        let Some(host) = names
-            .iter()
-            .find(|n| !is_ipv4ish(n) && !n.contains(':'))
-            .or(names.first())
-            .copied()
-        else {
+        let Some(host) = names.iter().find(|n| !is_ipv4ish(n) && !n.contains(':')).or(names.first()).copied() else {
             continue;
         };
         let loopback = host == "localhost" || host.starts_with("127.") || host == "::1";
@@ -190,20 +151,11 @@ pub fn tailscale_peers(status_json: &str) -> Vec<TailPeer> {
     let s = |p: &Value, k: &str| p.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
     peers
         .values()
-        .filter(|p| {
-            !matches!(
-                s(p, "OS").to_ascii_lowercase().as_str(),
-                "ios" | "android" | "tvos"
-            )
-        })
+        .filter(|p| !matches!(s(p, "OS").to_ascii_lowercase().as_str(), "ios" | "android" | "tvos"))
         .map(|p| {
             let dns = s(p, "DNSName");
             let dns = dns.strip_suffix('.').unwrap_or(&dns).to_owned();
-            let ip = p
-                .get("TailscaleIPs")
-                .and_then(|a| a.get(0))
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let ip = p.get("TailscaleIPs").and_then(|a| a.get(0)).and_then(Value::as_str).unwrap_or("");
             TailPeer {
                 host: if dns.is_empty() { ip.to_owned() } else { dns },
                 name: s(p, "HostName"),
@@ -217,11 +169,7 @@ pub fn tailscale_peers(status_json: &str) -> Vec<TailPeer> {
 
 /// Every host found, one per target: `~/.ssh/config` first (your own names), then the tailnet,
 /// then `known_hosts`; offline tailnet peers last.
-pub fn discover(
-    config: &[SshHost],
-    tail: &[TailPeer],
-    known: &[(String, String)],
-) -> Vec<FoundHost> {
+pub fn discover(config: &[SshHost], tail: &[TailPeer], known: &[(String, String)]) -> Vec<FoundHost> {
     let mut out: BTreeMap<String, usize> = BTreeMap::new();
     let mut list: Vec<FoundHost> = Vec::new();
     let mut put = |x: FoundHost| {
@@ -231,53 +179,22 @@ pub fn discover(
         }
     };
     for h in config {
-        let detail = [h.user.as_str(), h.hostname.as_str()]
-            .iter()
-            .filter(|s| !s.is_empty())
-            .copied()
-            .collect::<Vec<_>>()
-            .join("@");
-        put(FoundHost {
-            target: h.host.clone(),
-            name: h.host.clone(),
-            source: "ssh-config".into(),
-            detail,
-            online: None,
-        });
+        let detail = [h.user.as_str(), h.hostname.as_str()].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("@");
+        put(FoundHost { target: h.host.clone(), name: h.host.clone(), source: "ssh-config".into(), detail, online: None });
     }
     for p in tail {
-        let name = if p.name.is_empty() {
-            p.host.split('.').next().unwrap_or("").to_owned()
-        } else {
-            p.name.clone()
-        };
+        let name = if p.name.is_empty() { p.host.split('.').next().unwrap_or("").to_owned() } else { p.name.clone() };
         let detail = [p.os.as_str(), if p.online { "online" } else { "offline" }]
             .iter()
             .filter(|s| !s.is_empty())
             .copied()
             .collect::<Vec<_>>()
             .join(" · ");
-        put(FoundHost {
-            target: p.host.clone(),
-            name,
-            source: "tailscale".into(),
-            detail,
-            online: Some(p.online),
-        });
+        put(FoundHost { target: p.host.clone(), name, source: "tailscale".into(), detail, online: Some(p.online) });
     }
     for (host, hostname) in known {
-        let name = if is_ipv4ish(host) {
-            host.clone()
-        } else {
-            host.split('.').next().unwrap_or("").to_owned()
-        };
-        put(FoundHost {
-            target: host.clone(),
-            name,
-            source: "known-hosts".into(),
-            detail: hostname.clone(),
-            online: None,
-        });
+        let name = if is_ipv4ish(host) { host.clone() } else { host.split('.').next().unwrap_or("").to_owned() };
+        put(FoundHost { target: host.clone(), name, source: "known-hosts".into(), detail: hostname.clone(), online: None });
     }
     list.sort_by_key(|x| x.online == Some(false)); // stable: the rest keep their order
     list

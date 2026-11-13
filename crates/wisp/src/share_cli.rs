@@ -93,10 +93,18 @@ pub async fn share(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
     }
     let bundle = c.cmd("share.bundle", args).await?;
     let text = serde_json::to_string_pretty(&bundle).unwrap_or_default() + "\n";
-    let file = o.out.clone().map_or_else(|| cwd.join(format!("{}.{}", wisp_share_core::slug(s(&bundle, "title")), wisp_share_api::EXTENSION)), PathBuf::from);
+    let file = o
+        .out
+        .clone()
+        .map_or_else(|| cwd.join(format!("{}.{}", wisp_share_core::slug(s(&bundle, "title")), wisp_share_api::EXTENSION)), PathBuf::from);
     std::fs::write(&file, &text)?;
     if to == "gist" {
-        let out = tokio::process::Command::new("gh").args(["gist", "create", "--secret"]).arg(&file).output().await.map_err(|e| CliError::said(format!("gh: {e} (install the GitHub CLI and gh auth login)")))?;
+        let out = tokio::process::Command::new("gh")
+            .args(["gist", "create", "--secret"])
+            .arg(&file)
+            .output()
+            .await
+            .map_err(|e| CliError::said(format!("gh: {e} (install the GitHub CLI and gh auth login)")))?;
         if !out.status.success() {
             return Err(CliError::said(format!("gh gist create: {}", String::from_utf8_lossy(&out.stderr).trim())));
         }
@@ -109,20 +117,23 @@ pub async fn share(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
 
 /// A bundle from a file, a URL or `gist:<id>`.
 fn read(src: &str, cwd: &Path) -> Result<Value> {
-    let (text, _) = wisp_resources_core::formula::Source::load(&mut crate::code::Files { cwd: cwd.to_owned() }, src, None).map_err(CliError::said)?;
+    let (text, _) =
+        wisp_resources_core::formula::Source::load(&mut crate::code::Files { cwd: cwd.to_owned() }, src, None).map_err(CliError::said)?;
     serde_json::from_str(&text).map_err(|e| CliError::said(format!("{src}: not a .wisp-task ({e})")))
 }
 
 /// The profile the bundle's task ran with, from its snapshot.
 fn their_profile(b: &Value) -> Option<Value> {
     let agent = s(&b["spec"], "agent");
-    b.pointer("/formula/agents").and_then(Value::as_array).and_then(|a| a.iter().find(|p| s(p, "name") == agent).or_else(|| a.first())).map(|p| {
-        let mut p = p.clone();
-        if let Some(o) = p.as_object_mut() {
-            o.remove("name");
-        }
-        p
-    })
+    b.pointer("/formula/agents").and_then(Value::as_array).and_then(|a| a.iter().find(|p| s(p, "name") == agent).or_else(|| a.first())).map(
+        |p| {
+            let mut p = p.clone();
+            if let Some(o) = p.as_object_mut() {
+                o.remove("name");
+            }
+            p
+        },
+    )
 }
 
 /// A task from the bundle's spec, on this folder's code; `theirs`: with the sharer's setup.
@@ -160,7 +171,16 @@ pub async fn open_bundle(c: &Client, o: &Opts, cwd: &Path, bundle: Value) -> Res
     let opened = c.cmd("share.open", json!({ "bundle": bundle })).await?;
     let b = &opened["bundle"];
     let ok = opened["verified"] == json!(true);
-    say(&format!("{} {}  {}", paint(&st, BOLD, s(b, "title")), paint(&st, DIM, &format!("({})", s(&opened, "level"))), if ok { paint(&st, GREEN, &format!("✓ signed by {} ({})", s(&opened["signer"], "name"), s(&opened, "fingerprint"))) } else { paint(&st, RED, "✗ its signature doesn't match: it was changed after signing") }));
+    say(&format!(
+        "{} {}  {}",
+        paint(&st, BOLD, s(b, "title")),
+        paint(&st, DIM, &format!("({})", s(&opened, "level"))),
+        if ok {
+            paint(&st, GREEN, &format!("✓ signed by {} ({})", s(&opened["signer"], "name"), s(&opened, "fingerprint")))
+        } else {
+            paint(&st, RED, "✗ its signature doesn't match: it was changed after signing")
+        }
+    ));
     say(&format!("  asks: {}", s(&b["spec"], "prompt").lines().next().unwrap_or("")));
     if let Some(p) = their_profile(b) {
         say(&format!("  ran with: {} {}", s(&b["spec"], "agent"), paint(&st, DIM, &p.to_string())));

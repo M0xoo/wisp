@@ -6,16 +6,16 @@
 #![cfg_attr(test, allow(clippy::assert_is_empty))] // `assert!(x.is_empty())` reads better in tests
 
 pub mod bootstrap;
+pub mod conn;
 pub mod hint;
 pub mod hosts;
-pub mod reachable;
-pub mod reply;
-pub mod shell;
-pub mod sse;
-pub mod ssh;
-pub mod conn;
 pub mod mirror;
 pub mod negotiate;
 pub mod peer_client;
+pub mod reachable;
+pub mod reply;
 pub mod route;
+pub mod shell;
+pub mod sse;
+pub mod ssh;
 pub mod view;

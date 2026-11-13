@@ -21,8 +21,7 @@ impl History {
     /// What was saved, minus what's over 24 h old by `now`.
     pub fn load(saved: Vec<HistoryPoint>, now: i64) -> Self {
         let from = now - HISTORY_MS;
-        let mut points: VecDeque<HistoryPoint> =
-            saved.into_iter().filter(|p| p.at > from).collect();
+        let mut points: VecDeque<HistoryPoint> = saved.into_iter().filter(|p| p.at > from).collect();
         while points.len() > MAX_POINTS {
             points.pop_front();
         }

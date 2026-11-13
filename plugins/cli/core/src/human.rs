@@ -52,7 +52,8 @@ pub fn render(v: &Value, s: &Style) -> Vec<String> {
         Value::Array(list) if list.is_empty() => vec![paint(s, DIM, "(none)")],
         Value::Array(list) if list.iter().all(Value::is_object) => {
             let cols = columns(list, if s.width >= 80 { 5 } else { 3 });
-            let cells: Vec<Vec<String>> = list.iter().map(|x| cols.iter().map(|c| x.get(c).map(short).unwrap_or_default()).collect()).collect();
+            let cells: Vec<Vec<String>> =
+                list.iter().map(|x| cols.iter().map(|c| x.get(c).map(short).unwrap_or_default()).collect()).collect();
             let n = cols.len().max(1);
             let room = s.width.saturating_sub(2 * (n - 1));
             let mut widths: Vec<usize> = (0..cols.len()).map(|i| cells.iter().map(|r| term::width(&r[i])).max().unwrap_or(0)).collect();
@@ -64,7 +65,13 @@ pub fn render(v: &Value, s: &Style) -> Vec<String> {
             cells
                 .iter()
                 .map(|r| {
-                    let parts: Vec<String> = r.iter().enumerate().map(|(i, c)| if i + 1 == n { term::truncate(c, widths[i]) } else { term::pad(&term::truncate(c, widths[i]), widths[i]) }).collect();
+                    let parts: Vec<String> =
+                        r.iter()
+                            .enumerate()
+                            .map(|(i, c)| {
+                                if i + 1 == n { term::truncate(c, widths[i]) } else { term::pad(&term::truncate(c, widths[i]), widths[i]) }
+                            })
+                            .collect();
                     let line = parts.join("  ");
                     line.trim_end().to_owned()
                 })

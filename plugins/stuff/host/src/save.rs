@@ -78,7 +78,8 @@ impl Shelf {
             return Err(too_big());
         }
         let name = safe_name(o.name.as_deref().unwrap_or_default(), "file");
-        let head = (matches!(kind_of(&name), StuffKind::Doc | StuffKind::Code) && texty(&name)).then(|| String::from_utf8_lossy(&bytes[..bytes.len().min(HEAD_BYTES)]).into_owned());
+        let head = (matches!(kind_of(&name), StuffKind::Doc | StuffKind::Code) && texty(&name))
+            .then(|| String::from_utf8_lossy(&bytes[..bytes.len().min(HEAD_BYTES)]).into_owned());
         let size = bytes.len() as u64;
         let _w = self.write.lock().await;
         let (old, id) = self.slot(o.replace.as_deref())?;

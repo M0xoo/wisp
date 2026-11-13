@@ -138,7 +138,11 @@ impl Budget {
             if was.is_none() && acc.windows.len() >= MAX_WINDOWS {
                 continue;
             }
-            let next = Win { used: w.used.clamp(0.0, 1.0), resets_at: w.resets_at.filter(|r| *r != 0), ms: w.ms.filter(|m| *m != 0).or_else(|| known_ms(&w.id)) };
+            let next = Win {
+                used: w.used.clamp(0.0, 1.0),
+                resets_at: w.resets_at.filter(|r| *r != 0),
+                ms: w.ms.filter(|m| *m != 0).or_else(|| known_ms(&w.id)),
+            };
             if let Some(was) = was
                 && close
                 && was.resets_at == next.resets_at
@@ -163,7 +167,13 @@ impl Budget {
             };
             if d > 0.0 {
                 for (e, part) in &share {
-                    let s = Share { agent: agent.to_owned(), account: account.clone(), window: w.id.clone(), used: d * part, resets_at: next.resets_at };
+                    let s = Share {
+                        agent: agent.to_owned(),
+                        account: account.clone(),
+                        window: w.id.clone(),
+                        used: d * part,
+                        resets_at: next.resets_at,
+                    };
                     out.shares.push((e.sid.clone(), e.tid.clone(), s));
                 }
             }

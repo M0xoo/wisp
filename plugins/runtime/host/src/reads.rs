@@ -39,8 +39,23 @@ fn project(cwd: &str) -> &str {
 
 fn line(x: &Summary, now: i64) -> String {
     let model = if x.model.is_empty() { String::new() } else { format!(" ({})", x.model) };
-    let tail = if state(x.state) == "running" && !x.live.is_empty() { format!(": {}", x.live) } else if x.preview.is_empty() { String::new() } else { format!(": {}", clip(&x.preview, 160)) };
-    format!("- `{}` **{}** — {}{}, {}{model}, {}, {}{tail}", x.id, x.title, if x.archived { "archived, " } else { "" }, state(x.state), x.agent, project(&x.cwd), age(now, x.updated_at))
+    let tail = if state(x.state) == "running" && !x.live.is_empty() {
+        format!(": {}", x.live)
+    } else if x.preview.is_empty() {
+        String::new()
+    } else {
+        format!(": {}", clip(&x.preview, 160))
+    };
+    format!(
+        "- `{}` **{}** — {}{}, {}{model}, {}, {}{tail}",
+        x.id,
+        x.title,
+        if x.archived { "archived, " } else { "" },
+        state(x.state),
+        x.agent,
+        project(&x.cwd),
+        age(now, x.updated_at)
+    )
 }
 
 impl Runtime {
@@ -54,7 +69,8 @@ impl Runtime {
         let me = self.get(&a.session).await?;
         let now = self.now();
         let states: Option<Vec<String>> = a.state.as_ref().map(|s| s.split(',').map(|x| x.trim().to_owned()).collect());
-        let words: Vec<String> = a.query.as_deref().unwrap_or("").to_lowercase().split_whitespace().map(|w| w.trim_start_matches('#').to_owned()).collect();
+        let words: Vec<String> =
+            a.query.as_deref().unwrap_or("").to_lowercase().split_whitespace().map(|w| w.trim_start_matches('#').to_owned()).collect();
         let mut all = Vec::new();
         for x in self.list(&ListArgs::default()) {
             let parent = me.parent_id.as_ref().map(|p| p.0.as_str());
@@ -77,22 +93,47 @@ impl Runtime {
             "No tasks match.".to_owned()
         } else {
             let more = if all.len() > list.len() { format!(", the newest {}", list.len()) } else { String::new() };
-            format!("{} task{}{more}. Read one with wisp_session; show one in your answer with a task block.\n\n{}", all.len(), if all.len() == 1 { "" } else { "s" }, list.join("\n"))
+            format!(
+                "{} task{}{more}. Read one with wisp_session; show one in your answer with a task block.\n\n{}",
+                all.len(),
+                if all.len() == 1 { "" } else { "s" },
+                list.join("\n")
+            )
         };
         Ok(AgentText { text: Some(text), error: None })
     }
 
     pub async fn agent_session(&self, a: &AgentSessionArgs, capped: bool) -> Result<AgentText> {
         let id = a.of.trim().trim_start_matches("wisp:");
-        let missing = || AgentText { text: Some(format!("No wisp task `{id}` on this computer. It may have been deleted, or it ran on another machine. List tasks with wisp_sessions.")), error: None };
+        let missing = || AgentText {
+            text: Some(format!(
+                "No wisp task `{id}` on this computer. It may have been deleted, or it ran on another machine. List tasks with wisp_sessions."
+            )),
+            error: None,
+        };
         let Ok(x) = self.get(id).await else { return Ok(missing()) };
         if !self.capped_sees(&a.session, id, capped).await {
-            return Ok(AgentText { text: Some("Refused: this task was started with a mode cap, so it reads only its own task and the ones under it.".into()), error: None });
+            return Ok(AgentText {
+                text: Some("Refused: this task was started with a mode cap, so it reads only its own task and the ones under it.".into()),
+                error: None,
+            });
         }
         let turns = self.turns(id, None, None).await?;
         let now = self.now();
         let model = if x.model.is_empty() { String::new() } else { format!(" ({})", x.model) };
-        let mut out = vec![format!("# {}", x.title), format!("Task `{}` · {}{} · {}{model} · project {} · updated {}", x.id, if x.archived { "archived · " } else { "" }, state(x.state), x.agent, project(&x.cwd), age(now, x.updated_at)), format!("Folder: `{}`", x.cwd)];
+        let mut out = vec![
+            format!("# {}", x.title),
+            format!(
+                "Task `{}` · {}{} · {}{model} · project {} · updated {}",
+                x.id,
+                if x.archived { "archived · " } else { "" },
+                state(x.state),
+                x.agent,
+                project(&x.cwd),
+                age(now, x.updated_at)
+            ),
+            format!("Folder: `{}`", x.cwd),
+        ];
         let asks: Vec<String> = turns
             .iter()
             .enumerate()
@@ -108,12 +149,22 @@ impl Runtime {
             .collect();
         let pick = a.turn.filter(|n| *n > 0).map_or_else(|| turns.last(), |n| turns.get(n as usize - 1));
         let Some(t) = pick else {
-            out.extend([String::new(), format!("Turn {} doesn't exist; this task has {}.", a.turn.unwrap_or(0), turns.len()), String::new(), "## Requests".into()]);
+            out.extend([
+                String::new(),
+                format!("Turn {} doesn't exist; this task has {}.", a.turn.unwrap_or(0), turns.len()),
+                String::new(),
+                "## Requests".into(),
+            ]);
             out.extend(asks);
             return Ok(AgentText { text: Some(out.join("\n")), error: None });
         };
         let i = turns.iter().position(|x| x.id == t.id).unwrap_or(0);
-        out.extend([String::new(), format!("## Turn {} of {}", i + 1, turns.len()), format!("Asked: {}", clip(&t.prompt, 600)), String::new()]);
+        out.extend([
+            String::new(),
+            format!("## Turn {} of {}", i + 1, turns.len()),
+            format!("Asked: {}", clip(&t.prompt, 600)),
+            String::new(),
+        ]);
         out.push(t.text.clone().unwrap_or_else(|| "(no answer yet)".into()));
         out.extend([String::new(), "## Requests".into()]);
         out.extend(asks);

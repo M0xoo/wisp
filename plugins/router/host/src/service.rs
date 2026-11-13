@@ -107,7 +107,10 @@ pub fn telemetry_of(o: &Outcome) -> Option<(&'static str, serde_json::Value)> {
             let to = chose.split(':').next().unwrap_or_default();
             Some(("auto_override", serde_json::json!({ "type": kind, "from": from, "to": to, "sameHarness": from == to })))
         }
-        Outcome::Launched { route, .. } => Some(("auto_settled", serde_json::json!({ "strategy": route.goal, "escalated": false, "escalation": false, "routeType": route.kind }))),
+        Outcome::Launched { route, .. } => Some((
+            "auto_settled",
+            serde_json::json!({ "strategy": route.goal, "escalated": false, "escalation": false, "routeType": route.kind }),
+        )),
         _ => None,
     }
 }
@@ -120,10 +123,21 @@ mod tests {
 
     #[test]
     fn an_override_and_a_settled_auto_launch_count_as_telemetry() {
-        let o = Outcome::Override { kind: Some("bug".into()), auto: "claude:opus:high".into(), chose: "codex:gpt-6".into(), prompt: String::new() };
+        let o = Outcome::Override {
+            kind: Some("bug".into()),
+            auto: "claude:opus:high".into(),
+            chose: "codex:gpt-6".into(),
+            prompt: String::new(),
+        };
         let (e, p) = telemetry_of(&o).unwrap();
-        assert_eq!((e, p["from"].as_str(), p["to"].as_str(), p["sameHarness"].as_bool()), ("auto_override", Some("claude"), Some("codex"), Some(false)));
-        let l = Outcome::Launched { id: "t".into(), route: StoredRoute { key: "claude:opus".into(), kind: "bug".into(), ..StoredRoute::default() } };
+        assert_eq!(
+            (e, p["from"].as_str(), p["to"].as_str(), p["sameHarness"].as_bool()),
+            ("auto_override", Some("claude"), Some("codex"), Some(false))
+        );
+        let l = Outcome::Launched {
+            id: "t".into(),
+            route: StoredRoute { key: "claude:opus".into(), kind: "bug".into(), ..StoredRoute::default() },
+        };
         assert_eq!(telemetry_of(&l).unwrap().0, "auto_settled");
         assert!(telemetry_of(&Outcome::Agents { agents: Vec::new(), more: false }).is_none());
     }
@@ -132,7 +146,21 @@ mod tests {
     fn auto_learns_from_a_routed_tasks_turn_end_and_cools_at_a_limit() {
         use wisp_runtime_api::events::TurnEnded;
         use wisp_runtime_api::model::TurnStatus;
-        let e = TurnEnded { session_id: "t1".into(), turn_id: "u1".into(), status: TurnStatus::Done, interrupted: false, error_text: None, cost_usd: Some(0.4), changed_files: None, agent: "claude".into(), model: "opus".into(), account: None, tokens: None, first: true, inner: false };
+        let e = TurnEnded {
+            session_id: "t1".into(),
+            turn_id: "u1".into(),
+            status: TurnStatus::Done,
+            interrupted: false,
+            error_text: None,
+            cost_usd: Some(0.4),
+            changed_files: None,
+            agent: "claude".into(),
+            model: "opus".into(),
+            account: None,
+            tokens: None,
+            first: true,
+            inner: false,
+        };
         assert_eq!(turn_outcome(&e, None, 0), None, "a task nobody routed teaches nothing");
         let route = StoredRoute { key: "claude:opus".into(), ..StoredRoute::default() };
         match turn_outcome(&e, Some(&route), 0) {
@@ -141,8 +169,15 @@ mod tests {
         }
         let mut seen = route.clone();
         seen.signals.cost_usd = Some(0.4);
-        assert!(matches!(turn_outcome(&e, Some(&seen), 0), Some(Outcome::TurnEnded { first: false, .. })), "a follow-up isn't the pick's doing");
+        assert!(
+            matches!(turn_outcome(&e, Some(&seen), 0), Some(Outcome::TurnEnded { first: false, .. })),
+            "a follow-up isn't the pick's doing"
+        );
         let limited = TurnEnded { status: TurnStatus::Error, error_text: Some("Claude AI usage limit reached|1767225600".into()), ..e };
-        assert!(matches!(turn_outcome(&limited, Some(&route), 0), Some(Outcome::Limited { .. })), "{:?}", turn_outcome(&limited, Some(&route), 0));
+        assert!(
+            matches!(turn_outcome(&limited, Some(&route), 0), Some(Outcome::Limited { .. })),
+            "{:?}",
+            turn_outcome(&limited, Some(&route), 0)
+        );
     }
 }

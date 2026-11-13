@@ -1,13 +1,7 @@
 //! wisp's git reads never take `index.lock` (edge case Git 1, #756 CI: `serve_code.rs:33` saw the user's
 //! `git commit` fail with `index.lock: File exists` while wisp refreshed the same repo).
 #![cfg(unix)]
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::assert_is_empty,
-    reason = "a test: failing loudly is the point"
-)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::assert_is_empty, reason = "a test: failing loudly is the point")]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

@@ -73,7 +73,12 @@ pub struct Tasks {
 impl Tasks {
     /// The tasks in their sections, newest first in each; archived ones left out.
     pub fn ordered(&self) -> Vec<(Section, &String, &Value)> {
-        let mut v: Vec<(Section, &String, &Value)> = self.rows.iter().filter(|(_, t)| t.get("archived").and_then(Value::as_bool) != Some(true)).map(|(id, t)| (Section::of(t), id, t)).collect();
+        let mut v: Vec<(Section, &String, &Value)> = self
+            .rows
+            .iter()
+            .filter(|(_, t)| t.get("archived").and_then(Value::as_bool) != Some(true))
+            .map(|(id, t)| (Section::of(t), id, t))
+            .collect();
         v.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| updated(b.2).cmp(&updated(a.2))));
         v
     }
@@ -156,7 +161,8 @@ impl Transcript {
         for r in rows {
             self.rows.insert((r.e, r.id), r.v);
         }
-        let stubs: BTreeSet<String> = self.rows.iter().filter(|((e, _), v)| e == "turn" && is_stub(v)).map(|((_, id), _)| id.clone()).collect();
+        let stubs: BTreeSet<String> =
+            self.rows.iter().filter(|((e, _), v)| e == "turn" && is_stub(v)).map(|((_, id), _)| id.clone()).collect();
         if stubs.is_empty() {
             return;
         }
@@ -190,7 +196,10 @@ impl Transcript {
                 // an event log: `append` carries the new rows, each with its own id
                 Change::Append { v } => {
                     for item in v {
-                        let id = item.get("id").map_or_else(|| item.get("seq").map(Value::to_string).unwrap_or_default(), |i| i.as_str().map_or_else(|| i.to_string(), str::to_owned));
+                        let id = item.get("id").map_or_else(
+                            || item.get("seq").map(Value::to_string).unwrap_or_default(),
+                            |i| i.as_str().map_or_else(|| i.to_string(), str::to_owned),
+                        );
                         self.rows.insert((key.0.clone(), id), item);
                     }
                 }
@@ -215,7 +224,12 @@ impl Transcript {
             .rows
             .iter()
             .filter(|((e, _), v)| e == "event" && s(v, "turn_id") == turn)
-            .map(|(_, v)| (v.get("seq").and_then(Value::as_i64).unwrap_or(0), v.get("body").filter(|b| b.is_object()).cloned().unwrap_or_else(|| v.clone())))
+            .map(|(_, v)| {
+                (
+                    v.get("seq").and_then(Value::as_i64).unwrap_or(0),
+                    v.get("body").filter(|b| b.is_object()).cloned().unwrap_or_else(|| v.clone()),
+                )
+            })
             .collect();
         e.sort_by_key(|x| x.0);
         e
@@ -231,13 +245,27 @@ impl Transcript {
         if ask.is_null() {
             return None;
         }
-        let options = ask.get("options").and_then(Value::as_array).map(|o| o.iter().map(|x| x.as_str().map_or_else(|| s(x, "label").to_owned(), str::to_owned)).collect()).unwrap_or_default();
-        Some(Ask { id: if s(ask, "id").is_empty() { s(ask, "question").to_owned() } else { s(ask, "id").to_owned() }, question: s(ask, "question").to_owned(), options })
+        let options = ask
+            .get("options")
+            .and_then(Value::as_array)
+            .map(|o| o.iter().map(|x| x.as_str().map_or_else(|| s(x, "label").to_owned(), str::to_owned)).collect())
+            .unwrap_or_default();
+        Some(Ask {
+            id: if s(ask, "id").is_empty() { s(ask, "question").to_owned() } else { s(ask, "id").to_owned() },
+            question: s(ask, "question").to_owned(),
+            options,
+        })
     }
 
     /// Follow-ups waiting while a turn runs: `(item id, text)`.
     pub fn queue(&self) -> Vec<(String, String)> {
-        self.session().get("queue").and_then(Value::as_array).into_iter().flatten().map(|q| (s(q, "id").to_owned(), s(q, "text").to_owned())).collect()
+        self.session()
+            .get("queue")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(|q| (s(q, "id").to_owned(), s(q, "text").to_owned()))
+            .collect()
     }
 
     /// Toggles a tool row open or closed.
@@ -266,7 +294,12 @@ mod tests {
         let row = &t.rows["s1"];
         assert_eq!((s(row, "cwd"), s(row, "status"), s(row, "state")), ("/w/api", "blocked", "review"), "the top wins over the body");
         assert_eq!(Section::of(row), Section::Later);
-        let op = EntityOp { topic: Topic::parse("list").unwrap(), e: "session".into(), id: "s1".into(), change: Change::Patch { ops: vec![PatchOp::Replace { path: "/summary/forLater".into(), value: Value::Null }] } };
+        let op = EntityOp {
+            topic: Topic::parse("list").unwrap(),
+            e: "session".into(),
+            id: "s1".into(),
+            change: Change::Patch { ops: vec![PatchOp::Replace { path: "/summary/forLater".into(), value: Value::Null }] },
+        };
         assert_eq!(t.fold(None, vec![op]), vec!["s1".to_owned()]);
         assert_eq!(Section::of(&t.rows["s1"]), Section::Done, "unsaved: back with the rest");
         let del = EntityOp { topic: Topic::parse("list").unwrap(), e: "session".into(), id: "s1".into(), change: Change::Del };

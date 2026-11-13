@@ -24,7 +24,8 @@ pub const KINDS: [&str; 13] = [
 
 type Matcher = fn(&[u8], usize) -> Option<usize>;
 
-const MATCHERS: [Matcher; 13] = [private_key, github, anthropic, openai, aws, google, slack, discord, stripe, npm, jwt, url_password, secret_value];
+const MATCHERS: [Matcher; 13] =
+    [private_key, github, anthropic, openai, aws, google, slack, discord, stripe, npm, jwt, url_password, secret_value];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecretHit {
@@ -149,11 +150,7 @@ pub(crate) fn key_marker(b: &[u8], i: usize, head: &[u8]) -> Option<usize> {
             return None;
         }
         let k = k + 11;
-        if starts(b, k, b" BLOCK-----") {
-            Some(k + 11)
-        } else {
-            starts(b, k, b"-----").then_some(k + 5)
-        }
+        if starts(b, k, b" BLOCK-----") { Some(k + 11) } else { starts(b, k, b"-----").then_some(k + 5) }
     })
 }
 
@@ -283,7 +280,8 @@ fn url_password(b: &[u8], i: usize) -> Option<usize> {
     (pe - p >= 4 && b.get(pe) == Some(&b'@')).then_some(pe + 1)
 }
 
-const KEYWORDS: [&[u8]; 9] = [b"api_key", b"api-key", b"apikey", b"secret", b"token", b"password", b"passwd", b"private_key", b"private-key"];
+const KEYWORDS: [&[u8]; 9] =
+    [b"api_key", b"api-key", b"apikey", b"secret", b"token", b"password", b"passwd", b"private_key", b"private-key"];
 const PLACEHOLDERS: [&[u8]; 6] = [b"xxx", b"***", b"your_", b"your-", b"example", b"placeholder"];
 
 fn value_char(c: u8) -> bool {

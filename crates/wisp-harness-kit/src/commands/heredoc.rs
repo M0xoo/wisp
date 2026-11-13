@@ -49,11 +49,7 @@ pub(super) fn strip(s: &str) -> Cow<'_, str> {
 /// newline) and the end of the whole match (after the closing delimiter line).
 fn match_at(c: &[char], p: usize) -> Option<(usize, usize)> {
     let q = p + 2;
-    let dashes: &[usize] = if c.get(q) == Some(&'-') {
-        &[1, 0]
-    } else {
-        &[0]
-    };
+    let dashes: &[usize] = if c.get(q) == Some(&'-') { &[1, 0] } else { &[0] };
     for &dash in dashes {
         let mut r = q + dash;
         while c.get(r).is_some_and(|&x| is_space(x)) {
@@ -62,10 +58,7 @@ fn match_at(c: &[char], p: usize) -> Option<(usize, usize)> {
         // `(['"]?)`: with a quote there, leaving it out would start the delimiter on it, which fails.
         let quote = c.get(r).copied().filter(|&x| x == '\'' || x == '"');
         let start = r + usize::from(quote.is_some());
-        let max = c[start.min(c.len())..]
-            .iter()
-            .take_while(|&&x| word_char(x))
-            .count();
+        let max = c[start.min(c.len())..].iter().take_while(|&&x| word_char(x)).count();
         if max == 0 {
             continue;
         }
@@ -77,11 +70,7 @@ fn match_at(c: &[char], p: usize) -> Option<(usize, usize)> {
         };
         for len in lens {
             let after = start + len + usize::from(quote.is_some());
-            let Some(nl) = c[after..]
-                .iter()
-                .position(|&x| x == '\n')
-                .map(|i| i + after)
-            else {
+            let Some(nl) = c[after..].iter().position(|&x| x == '\n').map(|i| i + after) else {
                 return None; // no newline after the header: nothing else can match here either
             };
             if let Some(end) = closing(c, nl, &c[start..start + len]) {
@@ -123,10 +112,7 @@ mod tests {
 
     #[test]
     fn drops_bodies() {
-        assert_eq!(
-            strip("cat <<'EOF' > f\nhello\nrm -rf /\nEOF\nls"),
-            "cat <<'EOF' > f\nls"
-        );
+        assert_eq!(strip("cat <<'EOF' > f\nhello\nrm -rf /\nEOF\nls"), "cat <<'EOF' > f\nls");
         assert_eq!(strip("x <<-END\n\tbody\n\tEND"), "x <<-END");
         assert_eq!(strip("x <<EOF\nEOF"), "x <<EOF\nEOF"); // the body needs a line of its own
         assert_eq!(strip("x <<EOF\n\nEOF"), "x <<EOF");

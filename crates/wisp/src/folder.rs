@@ -66,12 +66,20 @@ pub fn files_in(dir: &Path) -> Vec<(String, String)> {
 
 /// The workspace selected in `dir` (`.wisp/.workspace`; `default` when none).
 pub fn workspace(dir: &Path) -> String {
-    std::fs::read_to_string(dir.join(".workspace")).map(|s| s.trim().to_owned()).ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "default".into())
+    std::fs::read_to_string(dir.join(".workspace"))
+        .map(|s| s.trim().to_owned())
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "default".into())
 }
 
 fn yaml_map(path: &Path) -> Result<Map<String, Value>> {
     let text = std::fs::read_to_string(path).map_err(|e| CliError::said(format!("{}: {e}", path.display())))?;
-    let v = formula::documents(&text, formula::format_of(&path.display().to_string())).map_err(CliError::said)?.into_iter().next().unwrap_or_default();
+    let v = formula::documents(&text, formula::format_of(&path.display().to_string()))
+        .map_err(CliError::said)?
+        .into_iter()
+        .next()
+        .unwrap_or_default();
     Ok(v.as_object().cloned().unwrap_or_default())
 }
 
@@ -98,7 +106,11 @@ pub fn vars(o: &Opts, dir: &Path) -> Result<Map<String, Value>> {
 
 /// Each declared variable with no value and no default, asked for (`ask` gets the question, answers a line);
 /// an answer that isn't its type is refused.
-pub fn ask_missing(declared: &[module::Variable], have: &mut Map<String, Value>, ask: &mut dyn FnMut(&str) -> Option<String>) -> Result<()> {
+pub fn ask_missing(
+    declared: &[module::Variable],
+    have: &mut Map<String, Value>,
+    ask: &mut dyn FnMut(&str) -> Option<String>,
+) -> Result<()> {
     let missing: Vec<&module::Variable> = declared.iter().filter(|v| v.default.is_none() && !have.contains_key(&v.name)).collect();
     for v in missing {
         let about = if v.description.is_empty() { String::new() } else { format!(" ({})", v.description) };
@@ -184,7 +196,12 @@ pub fn config(o: &Opts, ks: &[KindInfo], dir: &Path) -> Result<Config> {
 }
 
 fn git(args: &[&str], cwd: &Path) -> Result<String> {
-    let o = std::process::Command::new("git").args(args).current_dir(cwd).env("GIT_OPTIONAL_LOCKS", "0").output().map_err(|e| CliError::said(format!("git: {e}")))?;
+    let o = std::process::Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .map_err(|e| CliError::said(format!("git: {e}")))?;
     if !o.status.success() {
         return Err(CliError::said(format!("git {}: {}", args.join(" "), String::from_utf8_lossy(&o.stderr).trim())));
     }
@@ -265,7 +282,8 @@ pub fn init_modules(dir: &Path, upgrade: bool) -> Result<Vec<String>> {
                 _ if !r.is_empty() => r.clone(),
                 _ => "origin/HEAD".into(),
             };
-            git(&["checkout", "--quiet", &want], &at).or_else(|_| git(&["checkout", "--quiet", "FETCH_HEAD"], &at).map(|_| String::new()))?;
+            git(&["checkout", "--quiet", &want], &at)
+                .or_else(|_| git(&["checkout", "--quiet", "FETCH_HEAD"], &at).map(|_| String::new()))?;
             let commit = git(&["rev-parse", "HEAD"], &at)?;
             said.push(format!("{name}: {source} at {}", &commit[..commit.len().min(10)]));
             lock.insert(name, json!({ "source": source, "commit": commit }));
@@ -277,7 +295,8 @@ pub fn init_modules(dir: &Path, upgrade: bool) -> Result<Vec<String>> {
         }
     }
     if !lock.is_empty() {
-        let text = format!("# wisp's module lock (wisp init; wisp init -upgrade to move them)\n{}", formula_yaml(&json!({ "modules": lock })));
+        let text =
+            format!("# wisp's module lock (wisp init; wisp init -upgrade to move them)\n{}", formula_yaml(&json!({ "modules": lock })));
         std::fs::write(&lock_path, text).map_err(|e| CliError::said(e.to_string()))?;
     }
     Ok(said)
@@ -291,7 +310,11 @@ fn formula_yaml(v: &Value) -> String {
 pub fn output(c: &Config, o: &Opts) -> i32 {
     let pick: Vec<(&String, &Value)> = c.outputs.iter().filter(|(k, _)| o.words.is_empty() || o.words.contains(k)).collect();
     if o.json || (o.words.len() == 1 && pick.len() == 1) {
-        let v = if o.words.len() == 1 { pick.first().map_or(Value::Null, |(_, v)| (*v).clone()) } else { Value::Object(pick.iter().map(|(k, v)| ((*k).clone(), (*v).clone())).collect()) };
+        let v = if o.words.len() == 1 {
+            pick.first().map_or(Value::Null, |(_, v)| (*v).clone())
+        } else {
+            Value::Object(pick.iter().map(|(k, v)| ((*k).clone(), (*v).clone())).collect())
+        };
         say(&match &v {
             Value::String(s) if !o.json => s.clone(),
             other => serde_json::to_string_pretty(other).unwrap_or_default(),
@@ -299,10 +322,13 @@ pub fn output(c: &Config, o: &Opts) -> i32 {
         return 0;
     }
     for (k, v) in pick {
-        say(&format!("{k} = {}", match v {
-            Value::String(s) => s.clone(),
-            other => other.to_string(),
-        }));
+        say(&format!(
+            "{k} = {}",
+            match v {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            }
+        ));
     }
     0
 }
@@ -447,7 +473,8 @@ fn names_in(v: &Value, key: &str, out: &mut Vec<(String, String)>) {
 
 /// `addresses` and everything they reference, transitively (`--with-deps`).
 pub fn with_deps(all: &[Resource], addresses: &[String]) -> Vec<Resource> {
-    let mut want: Vec<(String, String)> = addresses.iter().filter_map(|a| a.split_once('.').map(|(k, n)| (k.to_owned(), n.to_owned()))).collect();
+    let mut want: Vec<(String, String)> =
+        addresses.iter().filter_map(|a| a.split_once('.').map(|(k, n)| (k.to_owned(), n.to_owned()))).collect();
     let mut i = 0;
     while i < want.len() {
         let (k, n) = want[i].clone();
@@ -489,7 +516,8 @@ pub fn write_folder(list: &[Resource], ks: &[KindInfo], out: &Path, single: bool
 pub async fn import_address(c: &Client, ks: &[KindInfo], dir: &Path, address: &str) -> Result<i32> {
     let (kind, name) = address.split_once('.').ok_or_else(|| CliError::said("wisp import <kind>.<name>"))?;
     let k = ks.iter().find(|k| k.named(kind)).ok_or_else(|| CliError::said(format!("no kind {kind}")))?;
-    let list: Vec<Resource> = serde_json::from_value(c.cmd("resources.export", json!({ "kinds": [k.kind] })).await?).map_err(|e| CliError::said(e.to_string()))?;
+    let list: Vec<Resource> = serde_json::from_value(c.cmd("resources.export", json!({ "kinds": [k.kind] })).await?)
+        .map_err(|e| CliError::said(e.to_string()))?;
     let r = list.into_iter().find(|r| r.name == name).ok_or_else(|| CliError::said(format!("wisp has no {kind} named {name}")))?;
     if files_in(dir).iter().any(|(_, t)| t.contains(&format!("name: {name}")) || t.contains(&format!("\n  {name}:"))) {
         return Err(CliError::said(format!("{address} is in the files already")));
@@ -515,14 +543,22 @@ pub fn workspace_cmd(dir: &Path, words: &[String]) -> Result<i32> {
     match words.first().map(String::as_str) {
         None | Some("show") => say(&now),
         Some("list") => {
-            let mut names: BTreeSet<String> = std::fs::read_dir(&ws_dir).into_iter().flatten().flatten().filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".vars.yml")).map(str::to_owned)).collect();
+            let mut names: BTreeSet<String> = std::fs::read_dir(&ws_dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".vars.yml")).map(str::to_owned))
+                .collect();
             names.insert("default".into());
             for n in names {
                 say(&format!("{} {n}", if n == now { "*" } else { " " }));
             }
         }
         Some(verb @ ("select" | "new")) => {
-            let name = words.get(1).filter(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')).ok_or_else(|| CliError::said(format!("wisp workspace {verb} <name>")))?;
+            let name = words
+                .get(1)
+                .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+                .ok_or_else(|| CliError::said(format!("wisp workspace {verb} <name>")))?;
             let file = ws_dir.join(format!("{name}.vars.yml"));
             if verb == "new" {
                 std::fs::create_dir_all(&ws_dir).map_err(|e| CliError::said(e.to_string()))?;
@@ -557,7 +593,10 @@ pub fn init(cwd: &Path, o: &Opts) -> Result<i32> {
     }
     let readme = dir.join("README.md");
     if !readme.exists() {
-        let _ = std::fs::write(&readme, "# .wisp\n\nThis repo's agent setup and history (wisp, ADR-0033/0034):\n\n- `*.wisp.yml`: the formula (agents, crew, workflows, rules).\n- `tasks/`: one file per task that built this code (`<id>.task.yml`, `<id>.report.md`), and `history/<id>.jsonl.zst`, its transcript, scrubbed.\n- `lock.yml`: the modules' pinned versions.\n\n`wisp log`, `wisp blame <file>:<line>`, `wisp tasks --touching <path>`, `wisp resume <id>`.\n");
+        let _ = std::fs::write(
+            &readme,
+            "# .wisp\n\nThis repo's agent setup and history (wisp, ADR-0033/0034):\n\n- `*.wisp.yml`: the formula (agents, crew, workflows, rules).\n- `tasks/`: one file per task that built this code (`<id>.task.yml`, `<id>.report.md`), and `history/<id>.jsonl.zst`, its transcript, scrubbed.\n- `lock.yml`: the modules' pinned versions.\n\n`wisp log`, `wisp blame <file>:<line>`, `wisp tasks --touching <path>`, `wisp resume <id>`.\n",
+        );
     }
     let root = dir.parent().unwrap_or(cwd);
     for name in ["AGENTS.md", "CLAUDE.md"] {
@@ -597,20 +636,34 @@ mod tests {
     fn mv_renames_the_declaration_and_its_references_only() {
         let t = "agents:\n  - name: reviewer\n    model: x\ncrew:\n  ada: { agent: \"${agent.reviewer}\", model: \"${agent.reviewer.model}\", other: \"${agent.reviewers}\" }\n";
         let out = rename_text(t, "agent.reviewer", "agent.critic", Some(2));
-        assert!(out.contains("- name: critic") && out.contains("${agent.critic}") && out.contains("${agent.critic.model}") && out.contains("${agent.reviewers}"), "{out}");
+        assert!(
+            out.contains("- name: critic")
+                && out.contains("${agent.critic}")
+                && out.contains("${agent.critic.model}")
+                && out.contains("${agent.reviewers}"),
+            "{out}"
+        );
     }
 
     #[test]
     fn deps_follow_the_names_a_spec_holds() {
         let r = |k: &str, n: &str, s: Value| Resource::new(k, n, s);
-        let all = vec![r("crew", "ada", json!({ "agent": "reviewer" })), r("agent", "reviewer", json!({ "skills": ["tidy"], "harness": "codex" })), r("skill", "tidy", json!({})), r("agent", "other", json!({}))];
+        let all = vec![
+            r("crew", "ada", json!({ "agent": "reviewer" })),
+            r("agent", "reviewer", json!({ "skills": ["tidy"], "harness": "codex" })),
+            r("skill", "tidy", json!({})),
+            r("agent", "other", json!({})),
+        ];
         let got: Vec<String> = with_deps(&all, &["crew.ada".into()]).iter().map(|r| format!("{}.{}", r.kind, r.name)).collect();
         assert_eq!(got, ["crew.ada", "agent.reviewer", "skill.tidy"]);
     }
 
     #[test]
     fn a_missing_variable_is_asked_in_a_tty() {
-        let files = vec![("a.wisp.yml".to_owned(), "variables:\n  model: { type: string, description: the reviewer's model }\n  n: { type: number, default: 2 }\n".to_owned())];
+        let files = vec![(
+            "a.wisp.yml".to_owned(),
+            "variables:\n  model: { type: string, description: the reviewer's model }\n  n: { type: number, default: 2 }\n".to_owned(),
+        )];
         let mut have = Map::new();
         let mut asked = Vec::new();
         ask_missing(&module::declared(&files), &mut have, &mut |q| {

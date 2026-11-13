@@ -58,7 +58,16 @@ pub struct Conn {
 }
 
 pub fn fresh_steps(steps: &[(&str, &str)]) -> Vec<Step> {
-    steps.iter().enumerate().map(|(i, (id, label))| Step { id: (*id).into(), label: (*label).into(), status: if i == 0 { StepStatus::Run } else { StepStatus::Pending }, detail: String::new() }).collect()
+    steps
+        .iter()
+        .enumerate()
+        .map(|(i, (id, label))| Step {
+            id: (*id).into(),
+            label: (*label).into(),
+            status: if i == 0 { StepStatus::Run } else { StepStatus::Pending },
+            detail: String::new(),
+        })
+        .collect()
 }
 
 /// v1 `#step`: set one step; a step done starts the next pending one.
@@ -69,9 +78,10 @@ pub fn move_step(steps: &mut [Step], id: &str, status: StepStatus, detail: Optio
         d.clone_into(&mut steps[i].detail);
     }
     if status == StepStatus::Done
-        && let Some(next) = steps.get_mut(i + 1).filter(|n| n.status == StepStatus::Pending) {
-            next.status = StepStatus::Run;
-        }
+        && let Some(next) = steps.get_mut(i + 1).filter(|n| n.status == StepStatus::Pending)
+    {
+        next.status = StepStatus::Run;
+    }
     true
 }
 
@@ -83,7 +93,17 @@ impl Conn {
         status.steps = fresh_steps(steps);
         status.attempt = if retry { prev.map_or(0, |p| p.status.attempt) } else { 0 };
         status.remote = prev.and_then(|p| p.status.remote.clone());
-        Self { status, log: Vec::new(), stderr: String::new(), give_up: false, was_online: retry && prev.is_some_and(|p| p.was_online), stopped: false, hung_up: false, waking: grid, grid }
+        Self {
+            status,
+            log: Vec::new(),
+            stderr: String::new(),
+            give_up: false,
+            was_online: retry && prev.is_some_and(|p| p.was_online),
+            stopped: false,
+            hung_up: false,
+            waking: grid,
+            grid,
+        }
     }
 
     pub fn push_log(&mut self, line: &str) {
@@ -177,7 +197,11 @@ impl Conn {
         let lost = self.status.state == PeerState::Online || self.was_online;
         if self.status.error.is_empty() {
             let last = self.stderr.lines().rev().find(|l| !l.trim().is_empty()).map(str::trim);
-            self.status.error = if lost { "Connection lost.".into() } else { last.map_or_else(|| format!("ssh exited ({}).", code.map_or_else(|| "signal".into(), |c| c.to_string())), str::to_owned) };
+            self.status.error = if lost {
+                "Connection lost.".into()
+            } else {
+                last.map_or_else(|| format!("ssh exited ({}).", code.map_or_else(|| "signal".into(), |c| c.to_string())), str::to_owned)
+            };
             self.status.hint = crate::hint::ssh_hint(&self.stderr, target);
             let words = self.status.hint.as_ref().and_then(|h| h.title.clone()).unwrap_or_else(|| self.status.error.clone());
             if let Some(s) = self.status.steps.iter_mut().find(|s| s.status == StepStatus::Run) {
@@ -199,10 +223,26 @@ impl Conn {
 
     /// The tunnel answered `/health`, with the peer's harnesses: online.
     #[allow(clippy::too_many_arguments)] // each is one field of the /health answer
-    pub fn online(&mut self, label: &str, agents: Vec<RemoteAgent>, home: Option<String>, version: Option<String>, pid: Option<u32>, proto: u32, now: i64) {
+    pub fn online(
+        &mut self,
+        label: &str,
+        agents: Vec<RemoteAgent>,
+        home: Option<String>,
+        version: Option<String>,
+        pid: Option<u32>,
+        proto: u32,
+        now: i64,
+    ) {
         self.step(if self.grid { "wake" } else { TUNNEL }, StepStatus::Done, Some(label));
         let ready: Vec<&str> = agents.iter().filter(|a| a.available).map(|a| a.name.as_str()).collect();
-        let (st, detail) = if ready.is_empty() { (StepStatus::Warn, "No coding agent installed there yet. Install Claude Code, Codex or opencode on that computer and sign in once.".to_owned()) } else { (StepStatus::Done, ready.join(", ")) };
+        let (st, detail) = if ready.is_empty() {
+            (
+                StepStatus::Warn,
+                "No coding agent installed there yet. Install Claude Code, Codex or opencode on that computer and sign in once.".to_owned(),
+            )
+        } else {
+            (StepStatus::Done, ready.join(", "))
+        };
         self.step(AGENTS, st, Some(&detail));
         let r = self.status.remote.get_or_insert_with(RemoteInfo::default);
         r.version = version.or(r.version.take());
@@ -281,7 +321,9 @@ pub enum WakeAnswer {
 pub fn wake_answer(status: Option<u16>, message: &str, computer: bool) -> WakeAnswer {
     match status {
         Some(503) if computer => WakeAnswer::Asleep,
-        Some(401 | 403) => WakeAnswer::SignedOut(Hint::titled("Signed out", "The device was revoked or expired. Settings → Cloud → Sign in again.")),
+        Some(401 | 403) => {
+            WakeAnswer::SignedOut(Hint::titled("Signed out", "The device was revoked or expired. Settings → Cloud → Sign in again."))
+        }
         Some(503) => WakeAnswer::Again("Starting…".into()),
         _ => WakeAnswer::Again(message.to_owned()),
     }
@@ -299,7 +341,10 @@ pub fn no_token_hint() -> Hint {
 
 /// ssh itself couldn't run.
 pub fn no_ssh(err: &str) -> (String, Hint) {
-    (format!("Could not run ssh: {err}"), Hint { text: "wisp needs the OpenSSH client (`ssh`) on this computer.".into(), ..Hint::default() })
+    (
+        format!("Could not run ssh: {err}"),
+        Hint { text: "wisp needs the OpenSSH client (`ssh`) on this computer.".into(), ..Hint::default() },
+    )
 }
 
 /// Why a request to a peer can't go now (v1 `#online`), with its 503 words; `None`: it can go.

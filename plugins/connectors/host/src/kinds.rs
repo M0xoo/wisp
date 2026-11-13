@@ -118,7 +118,8 @@ pub fn gets(name: &str, c: &ConnectorSpec, profile: &str, mode: &str, named: &[S
     if c.enabled == Some(false) {
         return false;
     }
-    named.iter().any(|n| n == name) || ((c.agents.is_empty() || c.agents.iter().any(|a| a == profile)) && (c.modes.is_empty() || c.modes.iter().any(|m| m == mode)))
+    named.iter().any(|n| n == name)
+        || ((c.agents.is_empty() || c.agents.iter().any(|a| a == profile)) && (c.modes.is_empty() || c.modes.iter().any(|m| m == mode)))
 }
 
 /// A `wisp run --formula` overlay's connectors with their `${secret:}` read, by task: in memory only (a
@@ -134,12 +135,25 @@ impl RunPart for Runs {
     fn mcp_servers(&self, session: &Session, q: &McpQuery) -> BTreeMap<String, Value> {
         let spec = session.ext.get("wisp.runtime").and_then(|m| m.get("spec"));
         let profile = spec.and_then(|s| s.get("agent")).and_then(Value::as_str).unwrap_or_default();
-        let named: Vec<String> = spec.and_then(|s| s.get("connectors")).and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect()).unwrap_or_default();
+        let named: Vec<String> = spec
+            .and_then(|s| s.get("connectors"))
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
+            .unwrap_or_default();
         let mode = serde_json::to_value(q.mode).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
         // a `wisp run --formula` overlay's connectors first: they're this task's alone
-        let only = self.1.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(session.id.as_str()).cloned().unwrap_or_else(|| overlay_of(session.ext.get("wisp.runtime")));
-        let mut out: BTreeMap<String, Value> = only.iter().filter(|(n, c)| gets(n, c, profile, &mode, &named)).map(|(n, c)| (n.clone(), server_of(c))).collect();
-        for (n, c) in self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().filter(|(n, c)| gets(n, c, profile, &mode, &named)) {
+        let only = self
+            .1
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(session.id.as_str())
+            .cloned()
+            .unwrap_or_else(|| overlay_of(session.ext.get("wisp.runtime")));
+        let mut out: BTreeMap<String, Value> =
+            only.iter().filter(|(n, c)| gets(n, c, profile, &mode, &named)).map(|(n, c)| (n.clone(), server_of(c))).collect();
+        for (n, c) in
+            self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().filter(|(n, c)| gets(n, c, profile, &mode, &named))
+        {
             out.entry(n.clone()).or_insert_with(|| server_of(c));
         }
         out
@@ -148,7 +162,12 @@ impl RunPart for Runs {
 
 /// The overlay's connectors as the task carries them (secrets still `${secret:NAME}`).
 fn overlay_of(own: Option<&Value>) -> Vec<(String, ConnectorSpec)> {
-    own.and_then(|m| m.get("connectors")).and_then(Value::as_object).into_iter().flatten().filter_map(|(n, v)| Some((n.clone(), serde_json::from_value(v.clone()).ok()?))).collect()
+    own.and_then(|m| m.get("connectors"))
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter_map(|(n, v)| Some((n.clone(), serde_json::from_value(v.clone()).ok()?)))
+        .collect()
 }
 
 /// Before a run of a task with overlay connectors: their secrets read into memory.
@@ -170,7 +189,10 @@ async fn reveal_overlay(ctx: &Ctx, call: &Call, revealed: &Revealed, session: &s
 }
 
 pub fn register(s: &mut Setup) -> (Arc<StoredKind>, Arc<dyn ResourceKind>) {
-    let inner = Arc::new(StoredKind::new(KindInfo::new("connector", "connectors", "wisp.connectors", schema_of::<ConnectorSpec>()).order(18), s.ctx()));
+    let inner = Arc::new(StoredKind::new(
+        KindInfo::new("connector", "connectors", "wisp.connectors", schema_of::<ConnectorSpec>()).order(18),
+        s.ctx(),
+    ));
     let cache: Cache = Arc::default();
     let k: Arc<dyn ResourceKind> = Arc::new(ConnectorKind { inner: inner.clone(), cache: cache.clone() });
     s.contribute(&RESOURCE_KIND, k.clone());
@@ -178,13 +200,16 @@ pub fn register(s: &mut Setup) -> (Arc<StoredKind>, Arc<dyn ResourceKind>) {
     let revealed: Revealed = Arc::default();
     let runs: Arc<dyn RunPart> = Arc::new(Runs(cache.clone(), revealed.clone()));
     s.contribute(&RUN, runs);
-    s.intercept::<wisp_runtime_api::hooks::BeforeRun, _, _>(wisp_kernel::InterceptOpts { priority: 60, failure: wisp_kernel::Failure::Open, timeout_ms: 2000 }, move |ctx, call, c| {
-        let revealed = revealed.clone();
-        async move {
-            reveal_overlay(&ctx, &call, &revealed, c.session_id.as_str()).await;
-            wisp_kernel::Verdict::Continue
-        }
-    });
+    s.intercept::<wisp_runtime_api::hooks::BeforeRun, _, _>(
+        wisp_kernel::InterceptOpts { priority: 60, failure: wisp_kernel::Failure::Open, timeout_ms: 2000 },
+        move |ctx, call, c| {
+            let revealed = revealed.clone();
+            async move {
+                reveal_overlay(&ctx, &call, &revealed, c.session_id.as_str()).await;
+                wisp_kernel::Verdict::Continue
+            }
+        },
+    );
     s.on_start(move |_ctx| async move {
         refresh(&inner, &cache).await;
         Ok(())
@@ -204,6 +229,9 @@ mod tests {
         assert!(gets("linear", &c, "fixer", "plan", &["linear".into()]), "the task names it");
         c.enabled = Some(false);
         assert!(!gets("linear", &c, "reviewer", "plan", &[]));
-        assert_eq!(server_of(&ConnectorSpec { command: "npx".into(), args: vec!["x".into()], ..ConnectorSpec::default() })["type"], "stdio");
+        assert_eq!(
+            server_of(&ConnectorSpec { command: "npx".into(), args: vec!["x".into()], ..ConnectorSpec::default() })["type"],
+            "stdio"
+        );
     }
 }

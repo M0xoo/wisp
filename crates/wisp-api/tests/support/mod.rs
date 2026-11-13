@@ -43,10 +43,7 @@ fn spec(method: &str, pattern: &str, permission: &str) -> Spec {
     }
 }
 
-fn bind(
-    spec: Spec,
-    f: impl Fn(Caller, wisp_kernel::http::Request) -> Result<Response> + Send + Sync + 'static,
-) -> Binding {
+fn bind(spec: Spec, f: impl Fn(Caller, wisp_kernel::http::Request) -> Result<Response> + Send + Sync + 'static) -> Binding {
     let f = Arc::new(f);
     let invoke: Invoke = Arc::new(move |c, r| {
         let f = f.clone();
@@ -55,9 +52,8 @@ fn bind(
     Binding { spec, invoke }
 }
 
-pub static BIG: std::sync::LazyLock<Arc<Value>> = std::sync::LazyLock::new(|| {
-    Arc::new(json!({ "rows": (0..2000).map(|i| format!("row {i}")).collect::<Vec<_>>() }))
-});
+pub static BIG: std::sync::LazyLock<Arc<Value>> =
+    std::sync::LazyLock::new(|| Arc::new(json!({ "rows": (0..2000).map(|i| format!("row {i}")).collect::<Vec<_>>() })));
 
 fn echo(c: Caller, r: wisp_kernel::http::Request) -> Result<Response> {
     Response::ok(
@@ -77,30 +73,14 @@ impl Backend for Fake {
             bind(spec("POST", "/internal/ask", "agent:write"), echo),
             bind(spec("GET", "/settings", "settings:read"), echo),
             upload,
-            bind(spec("GET", "/big", "settings:read"), |_, _| {
-                Response::ok(&*BIG.clone())
-            }),
-            bind(spec("GET", "/prepared", "settings:read"), |_, _| {
-                Ok(Response::Prepared {
-                    status: 200,
-                    body: BIG.clone(),
-                })
-            }),
+            bind(spec("GET", "/big", "settings:read"), |_, _| Response::ok(&*BIG.clone())),
+            bind(spec("GET", "/prepared", "settings:read"), |_, _| Ok(Response::Prepared { status: 200, body: BIG.clone() })),
             bind(spec("GET", "/hold", "settings:read"), |_, _| {
-                Err(WireError::conflict("near the limit")
-                    .with_details(json!({"hold": {"window": "5h"}})))
+                Err(WireError::conflict("near the limit").with_details(json!({"hold": {"window": "5h"}})))
             }),
-            bind(spec("GET", "/boom", "settings:read"), |_, _| {
-                Err(WireError::internal("boom"))
-            }),
+            bind(spec("GET", "/boom", "settings:read"), |_, _| Err(WireError::internal("boom"))),
             hidden,
-            bind(
-                Spec {
-                    raw: true,
-                    ..spec("POST", "/hooks/:id", OPEN)
-                },
-                echo,
-            ),
+            bind(Spec { raw: true, ..spec("POST", "/hooks/:id", OPEN) }, echo),
             bind(spec("POST", "/channels/inbound", OPEN_QUIET), echo),
             bind(spec("POST", "/apikeys", "apikeys:create"), echo),
         ]
@@ -112,11 +92,7 @@ impl Backend for Fake {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let cmd = cmd.to_owned();
         Box::pin(async move {
-            if cmd == "no.such" {
-                Err(WireError::not_found("no.such"))
-            } else {
-                Ok(json!({"cmd": cmd, "args": args, "set": caller.set}))
-            }
+            if cmd == "no.such" { Err(WireError::not_found("no.such")) } else { Ok(json!({"cmd": cmd, "args": args, "set": caller.set})) }
         })
     }
     fn explain(&self, caller: &Caller, permission: &str) -> std::result::Result<(), String> {
@@ -131,11 +107,7 @@ impl Backend for Fake {
 struct Part(u32);
 impl StatusPart for Part {
     fn liveness(&self) -> Liveness {
-        Liveness {
-            live: self.0,
-            next_wake_at: Some(123),
-            ..Liveness::default()
-        }
+        Liveness { live: self.0, next_wake_at: Some(123), ..Liveness::default() }
     }
 }
 
@@ -144,10 +116,7 @@ pub fn config() -> EdgeConfig {
 }
 
 pub async fn start(cfg: EdgeConfig) -> (Server, Arc<Fake>) {
-    let fake = Arc::new(Fake {
-        calls: AtomicUsize::new(0),
-        live: 2,
-    });
+    let fake = Arc::new(Fake { calls: AtomicUsize::new(0), live: 2 });
     let edge = Edge::new(cfg, fake.clone(), Hub::new());
     let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
     (wisp_api::serve(edge, l).await.unwrap(), fake)
@@ -170,18 +139,9 @@ impl Resp {
 }
 
 /// One request on its own connection: `headers` as written (the test picks Host and Origin).
-pub async fn send(
-    port: u16,
-    method: &str,
-    path: &str,
-    headers: &[(&str, &str)],
-    body: &[u8],
-) -> Resp {
+pub async fn send(port: u16, method: &str, path: &str, headers: &[(&str, &str)], body: &[u8]) -> Resp {
     let mut s = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-    let mut head = format!(
-        "{method} {path} HTTP/1.1\r\nconnection: close\r\ncontent-length: {}\r\n",
-        body.len()
-    );
+    let mut head = format!("{method} {path} HTTP/1.1\r\nconnection: close\r\ncontent-length: {}\r\n", body.len());
     if !headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("host")) {
         head.push_str(&format!("host: 127.0.0.1:{port}\r\n"));
     }
@@ -197,38 +157,15 @@ pub async fn send(
 }
 
 pub fn parse(raw: &[u8]) -> Resp {
-    let end = raw
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .expect("a response head");
+    let end = raw.windows(4).position(|w| w == b"\r\n\r\n").expect("a response head");
     let head = String::from_utf8_lossy(&raw[..end]);
     let mut lines = head.split("\r\n");
-    let status = lines
-        .next()
-        .unwrap()
-        .split(' ')
-        .nth(1)
-        .unwrap()
-        .parse()
-        .unwrap();
-    let headers: BTreeMap<String, String> = lines
-        .filter_map(|l| l.split_once(':'))
-        .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_owned()))
-        .collect();
+    let status = lines.next().unwrap().split(' ').nth(1).unwrap().parse().unwrap();
+    let headers: BTreeMap<String, String> =
+        lines.filter_map(|l| l.split_once(':')).map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_owned())).collect();
     let rest = &raw[end + 4..];
-    let body = if headers
-        .get("transfer-encoding")
-        .is_some_and(|t| t.contains("chunked"))
-    {
-        unchunk(rest)
-    } else {
-        rest.to_vec()
-    };
-    Resp {
-        status,
-        headers,
-        body,
-    }
+    let body = if headers.get("transfer-encoding").is_some_and(|t| t.contains("chunked")) { unchunk(rest) } else { rest.to_vec() };
+    Resp { status, headers, body }
 }
 
 fn unchunk(mut b: &[u8]) -> Vec<u8> {

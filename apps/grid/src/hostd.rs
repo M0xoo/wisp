@@ -71,7 +71,6 @@ impl BoxProc {
     }
 }
 
-
 impl std::fmt::Debug for ProcessOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProcessOptions").field("bin", &self.bin).field("data", &self.data).finish_non_exhaustive()
@@ -128,7 +127,16 @@ impl ProcessHost {
     pub fn new(o: ProcessOptions, clock: SharedClock) -> Arc<Self> {
         let (tx, _) = broadcast::channel(64);
         let http = reqwest::Client::builder().no_proxy().connect_timeout(Duration::from_secs(2)).build().unwrap_or_default();
-        let h = Arc::new(Self { o, clock, inst: Arc::new(Mutex::new(HashMap::new())), starts: Mutex::new(HashMap::new()), tx, peak: Mutex::new((0, 0)), http, env_for: EnvSlot::default() });
+        let h = Arc::new(Self {
+            o,
+            clock,
+            inst: Arc::new(Mutex::new(HashMap::new())),
+            starts: Mutex::new(HashMap::new()),
+            tx,
+            peak: Mutex::new((0, 0)),
+            http,
+            env_for: EnvSlot::default(),
+        });
         let me = Arc::downgrade(&h);
         let every = Duration::from_millis(u64::try_from(h.o.check_ms.max(200)).unwrap_or(5000));
         tokio::spawn(async move {
@@ -157,13 +165,27 @@ impl ProcessHost {
     }
 
     fn change(&self, user: &BoxUser, state: BoxState, event: &str) {
-        let (started_at, stopped_at, last) = lock(&self.inst).get(&user.id).map_or((None, None, None), |i| (i.started_at, i.stopped_at, Some(i.last_touch)));
-        let _ = self.tx.send(BoxChange { user: BoxUserWire::from(user), state, event: event.into(), started_at, stopped_at, next_wake_at: None, last_active_at: last, error: String::new() });
+        let (started_at, stopped_at, last) =
+            lock(&self.inst).get(&user.id).map_or((None, None, None), |i| (i.started_at, i.stopped_at, Some(i.last_touch)));
+        let _ = self.tx.send(BoxChange {
+            user: BoxUserWire::from(user),
+            state,
+            event: event.into(),
+            started_at,
+            stopped_at,
+            next_wake_at: None,
+            last_active_at: last,
+            error: String::new(),
+        });
     }
 
     async fn check_idle(&self) {
         let now = self.clock.now_ms();
-        let quiet: Vec<(String, u16, i64)> = lock(&self.inst).iter().filter(|(_, i)| i.state == BoxState::Running && i.inflight == 0 && now - i.last_touch > self.o.idle_ms).filter_map(|(id, i)| i.port.map(|p| (id.clone(), p, i.last_touch))).collect();
+        let quiet: Vec<(String, u16, i64)> = lock(&self.inst)
+            .iter()
+            .filter(|(_, i)| i.state == BoxState::Running && i.inflight == 0 && now - i.last_touch > self.o.idle_ms)
+            .filter_map(|(id, i)| i.port.map(|p| (id.clone(), p, i.last_touch)))
+            .collect();
         for (id, port, touched) in quiet {
             let s: serde_json::Value = match self.http.get(format!("http://127.0.0.1:{port}/api/status")).send().await {
                 Ok(r) => r.json().await.unwrap_or_default(),
@@ -181,7 +203,12 @@ impl ProcessHost {
 
     /// The environment every box gets (its secret goes in boxd's 0600 env file, never on a command line).
     fn box_env(&self, user: &BoxUser, port: u16, secret: &str) -> Vec<(String, String)> {
-        let mut env = vec![("WISP_PORT".to_owned(), port.to_string()), ("WISP_BOX".to_owned(), "1".to_owned()), ("WISP_TRUSTED_PROXY_SECRET".to_owned(), secret.to_owned()), ("WISP_PUBLIC_URL".to_owned(), (self.o.url_of)(&user.handle))];
+        let mut env = vec![
+            ("WISP_PORT".to_owned(), port.to_string()),
+            ("WISP_BOX".to_owned(), "1".to_owned()),
+            ("WISP_TRUSTED_PROXY_SECRET".to_owned(), secret.to_owned()),
+            ("WISP_PUBLIC_URL".to_owned(), (self.o.url_of)(&user.handle)),
+        ];
         env.extend(self.o.env.iter().cloned());
         // a sandbox's wisp knows it is one: it takes a project in, and publishes, shares and makes nothing (ADR-0047)
         if user.sandbox.is_some() {
@@ -198,7 +225,8 @@ impl ProcessHost {
         let logs = self.o.data.join("users").join(&user.id);
         std::fs::create_dir_all(&logs).map_err(|e| bad(format!("the box's folder: {e}"), 500))?;
         if let Some(d) = &self.o.boxd {
-            let env: serde_json::Map<String, serde_json::Value> = self.box_env(user, port, secret).into_iter().map(|(k, v)| (k, serde_json::Value::String(v))).collect();
+            let env: serde_json::Map<String, serde_json::Value> =
+                self.box_env(user, port, secret).into_iter().map(|(k, v)| (k, serde_json::Value::String(v))).collect();
             let mut req = serde_json::json!({ "id": user.id, "port": port, "env": env, "sandbox": user.sandbox.is_some() });
             if !d.limits.is_null() {
                 req["limits"] = d.limits.clone();
@@ -273,7 +301,8 @@ impl ProcessHost {
         {
             let mut m = lock(&self.inst);
             let i = m.entry(user.id.clone()).or_default();
-            (i.state, i.port, i.secret, i.child, i.started_at, i.last_touch) = (BoxState::Running, Some(port), secret, child.take(), Some(now), now);
+            (i.state, i.port, i.secret, i.child, i.started_at, i.last_touch) =
+                (BoxState::Running, Some(port), secret, child.take(), Some(now), now);
             let up = m.values().filter(|i| i.state == BoxState::Running).count();
             let mut p = lock(&self.peak);
             p.0 = p.0.max(up);

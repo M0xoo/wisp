@@ -35,27 +35,14 @@ pub struct ChannelRequest {
 
 impl ChannelRequest {
     pub fn get(path: impl Into<String>) -> Self {
-        Self {
-            method: "GET".into(),
-            path: path.into(),
-            ..Self::default()
-        }
+        Self { method: "GET".into(), path: path.into(), ..Self::default() }
     }
     /// JSON with an explicit content-length, always: a DELETE's body sent unframed reads as a
     /// broken next request on the far side (an empty 400 in v1).
     pub fn json(method: &str, path: impl Into<String>, body: &Value) -> Self {
         let bytes = serde_json::to_vec(body).unwrap_or_else(|_| b"{}".to_vec());
-        let headers = vec![
-            ("content-type".into(), "application/json".into()),
-            ("content-length".into(), bytes.len().to_string()),
-        ];
-        Self {
-            method: method.to_owned(),
-            path: path.into(),
-            headers,
-            body: Body::Bytes(bytes),
-            ..Self::default()
-        }
+        let headers = vec![("content-type".into(), "application/json".into()), ("content-length".into(), bytes.len().to_string())];
+        Self { method: method.to_owned(), path: path.into(), headers, body: Body::Bytes(bytes), ..Self::default() }
     }
 }
 
@@ -71,10 +58,7 @@ pub struct ChannelResponse {
 
 impl ChannelResponse {
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case(name))
-            .map(|(_, v)| v.as_str())
+        self.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
     }
     /// The whole body (bounded by `max` bytes; the rest is dropped).
     pub async fn bytes(mut self, max: usize) -> Vec<u8> {
@@ -155,10 +139,7 @@ pub enum FailKind {
 
 impl TransportFailure {
     pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            ..Self::default()
-        }
+        Self { message: message.into(), ..Self::default() }
     }
     #[must_use]
     pub fn with_hint(mut self, hint: Hint) -> Self {
@@ -224,12 +205,7 @@ pub trait Transport: Send + Sync + 'static {
     #[allow(clippy::result_large_err)] // a failure carries its hint and steps; it is rare and never hot
     fn clean(&self, input: &AddArgs, prev: Option<&PeerRow>) -> Failing<Cleaned>;
     /// opens the way; resolves once requests go through
-    fn connect(
-        &self,
-        peer: PeerRow,
-        io: Arc<dyn ConnectIo>,
-        cancel: CancellationToken,
-    ) -> BoxFuture<'static, Failing<Arc<dyn Channel>>>;
+    fn connect(&self, peer: PeerRow, io: Arc<dyn ConnectIo>, cancel: CancellationToken) -> BoxFuture<'static, Failing<Arc<dyn Channel>>>;
     /// checked while asleep, without waking the box
     fn probe(&self, _peer: PeerRow, _io: Arc<dyn ConnectIo>) -> BoxFuture<'static, Probe> {
         Box::pin(async { Probe::Asleep })
@@ -243,18 +219,10 @@ pub trait Transport: Send + Sync + 'static {
         None
     }
     /// stops wisp over there; restarting is the manager's
-    fn stop_remote(
-        &self,
-        peer: PeerRow,
-        _pid: Option<u32>,
-        _io: Arc<dyn ConnectIo>,
-    ) -> BoxFuture<'static, Failing<Stopped>> {
+    fn stop_remote(&self, peer: PeerRow, _pid: Option<u32>, _io: Arc<dyn ConnectIo>) -> BoxFuture<'static, Failing<Stopped>> {
         let name = peer.name;
         Box::pin(async move {
-            Err(TransportFailure {
-                status: Some(400),
-                ..TransportFailure::new(format!("wisp on {name} can’t be stopped from here."))
-            })
+            Err(TransportFailure { status: Some(400), ..TransportFailure::new(format!("wisp on {name} can’t be stopped from here.")) })
         })
     }
     /// the peer is about to go: tidy up over there; returns other peers that go with it
@@ -270,9 +238,7 @@ pub trait Transport: Send + Sync + 'static {
         Box::pin(async {
             Err(TransportFailure {
                 status: Some(400),
-                ..TransportFailure::new(
-                    "A cloud computer signs in through its grid: Settings → Cloud.",
-                )
+                ..TransportFailure::new("A cloud computer signs in through its grid: Settings → Cloud.")
             })
         })
     }

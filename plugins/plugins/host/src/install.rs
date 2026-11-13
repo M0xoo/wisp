@@ -44,10 +44,17 @@ pub fn read(dir: &Path, text: &str, trusted: bool) -> Result<UserPlugin> {
     let mut m = Manifest::parse(text)?;
     m.trust = Some(if trusted { "trusted" } else { "untrusted" }.to_owned());
     if !m.id.starts_with("user.") {
-        return Err(WireError::invalid(format!("{} isn't a user plugin's id: a plugin you install is named user.<something> (built-in ids are wisp's own)", m.id)));
+        return Err(WireError::invalid(format!(
+            "{} isn't a user plugin's id: a plugin you install is named user.<something> (built-in ids are wisp's own)",
+            m.id
+        )));
     }
     m.validate()?;
-    Ok(if m.exec().is_some() { UserPlugin::Exec(ExecPlugin::new(m, Some(dir.to_owned()))) } else { UserPlugin::Declarative(Declarative(m)) })
+    Ok(if m.exec().is_some() {
+        UserPlugin::Exec(ExecPlugin::new(m, Some(dir.to_owned())))
+    } else {
+        UserPlugin::Declarative(Declarative(m))
+    })
 }
 
 /// The folder a plugin goes in: `user.my-tool` → `my-tool`.
@@ -60,7 +67,11 @@ pub fn slug(id: &str) -> String {
 pub fn at_start(plugins: &Path) -> Vec<UserPlugin> {
     let mut out = Vec::new();
     let Ok(rd) = std::fs::read_dir(plugins) else { return out };
-    let mut dirs: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|p| p.is_dir() && !p.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.'))).collect();
+    let mut dirs: Vec<PathBuf> = rd
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir() && !p.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.')))
+        .collect();
     dirs.sort();
     for d in dirs {
         let Ok(text) = std::fs::read_to_string(d.join(MANIFEST)) else { continue };
@@ -137,9 +148,11 @@ pub async fn install(ctx: &Ctx, a: &InstallArgs) -> Result<Installed> {
     let staging = root.join(format!(".incoming-{}", wisp_kernel::ids::uuid7()));
     let fetched: std::result::Result<(), String> = if IS_URL.iter().any(|p| source.starts_with(p)) {
         let proc = ctx.service::<Proc>()?;
-        let opts = ExecOpts { cwd: Some(root.clone()), timeout: Some(Duration::from_secs(120)), max_output: 1 << 20, ..ExecOpts::default() };
+        let opts =
+            ExecOpts { cwd: Some(root.clone()), timeout: Some(Duration::from_secs(120)), max_output: 1 << 20, ..ExecOpts::default() };
         let _ = tokio::fs::create_dir_all(&root).await;
-        let args: Vec<String> = ["clone", "--depth", "1", "--", source, &staging.display().to_string()].iter().map(|x| (*x).to_owned()).collect();
+        let args: Vec<String> =
+            ["clone", "--depth", "1", "--", source, &staging.display().to_string()].iter().map(|x| (*x).to_owned()).collect();
         match proc.exec("git", &args, opts).await {
             Ok(r) if r.exit.success() => Ok(()),
             Ok(r) => Err(format!("git couldn't clone it: {}", r.stderr_text().trim())),
@@ -179,7 +192,13 @@ pub async fn install(ctx: &Ctx, a: &InstallArgs) -> Result<Installed> {
     let text = tokio::fs::read_to_string(dir.join(MANIFEST)).await.unwrap_or_default();
     // what's installed starts untrusted, a reinstall too: trusting it again is your call
     ctx.install_plugin(Arc::new(read(&dir, &text, false)?)).await?;
-    Ok(Installed { id: m.id.clone(), name: m.name.clone().unwrap_or_else(|| m.id.clone()), version: m.version.clone(), permissions: m.permissions.clone(), folder: dir.display().to_string() })
+    Ok(Installed {
+        id: m.id.clone(),
+        name: m.name.clone().unwrap_or_else(|| m.id.clone()),
+        version: m.version.clone(),
+        permissions: m.permissions.clone(),
+        folder: dir.display().to_string(),
+    })
 }
 
 /// `plugins.uninstall`: off, out of the kernel, and its folder deleted.
@@ -204,7 +223,8 @@ pub async fn trust(ctx: &Ctx, a: &TrustArgs) -> Result<serde_json::Value> {
     }
     let home = ctx.service::<wisp_kernel::services::Paths>()?;
     let dir = home.join("plugins").join(slug(&a.id));
-    let text = tokio::fs::read_to_string(dir.join(MANIFEST)).await.map_err(|_| WireError::not_found(format!("{} isn't installed.", a.id)))?;
+    let text =
+        tokio::fs::read_to_string(dir.join(MANIFEST)).await.map_err(|_| WireError::not_found(format!("{} isn't installed.", a.id)))?;
     let was_on = ctx.plugins()?.iter().any(|p| p.id == a.id && p.state != "off");
     if a.trusted {
         tokio::fs::write(dir.join(TRUSTED), b"").await.map_err(|e| WireError::internal(e.to_string()))?;

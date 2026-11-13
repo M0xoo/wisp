@@ -21,28 +21,15 @@ impl Drop for Tmp {
 }
 
 pub fn tmp(name: &str) -> Tmp {
-    let d = std::env::temp_dir().join(format!(
-        "wisp-git-{name}-{}-{}",
-        std::process::id(),
-        N.fetch_add(1, Ordering::SeqCst)
-    ));
+    let d = std::env::temp_dir().join(format!("wisp-git-{name}-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     Tmp(std::fs::canonicalize(&d).unwrap())
 }
 
 pub fn git(dir: &Path, args: &[&str]) -> String {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "git {args:?}: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    let out = Command::new("git").args(args).current_dir(dir).env("GIT_CONFIG_NOSYSTEM", "1").output().unwrap();
+    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
     String::from_utf8_lossy(&out.stdout).trim().to_owned()
 }
 
@@ -60,11 +47,7 @@ pub fn repo(t: &Tmp) -> PathBuf {
     let dir = t.0.join("repo");
     std::fs::create_dir_all(&dir).unwrap();
     git(&dir, &["init", "-q", "-b", "main"]);
-    for (k, v) in [
-        ("user.email", "qa@wisp.test"),
-        ("user.name", "QA"),
-        ("commit.gpgsign", "false"),
-    ] {
+    for (k, v) in [("user.email", "qa@wisp.test"), ("user.name", "QA"), ("commit.gpgsign", "false")] {
         git(&dir, &["config", k, v]);
     }
     let lines: Vec<String> = (1..=30).map(|i| format!("line {i}")).collect();
@@ -91,11 +74,7 @@ pub fn user() -> Call {
 }
 
 pub fn stranger() -> Call {
-    Call::new_root(Caller {
-        set: "preview".into(),
-        session: None,
-        plugin: None,
-    })
+    Call::new_root(Caller { set: "preview".into(), session: None, plugin: None })
 }
 
 pub fn owner() -> CancellationToken {

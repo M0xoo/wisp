@@ -28,9 +28,7 @@ impl Rng {
     }
     /// up to `max` chars of mixed text: letters, digits, punctuation, spaces, a few non-ASCII
     pub fn text(&mut self, max: u64) -> String {
-        const POOL: &[char] = &[
-            'a', 'Z', 'q', '0', '9', ' ', '-', '_', '!', '/', '.', 'é', '✓', '\t', 'K',
-        ];
+        const POOL: &[char] = &['a', 'Z', 'q', '0', '9', ' ', '-', '_', '!', '/', '.', 'é', '✓', '\t', 'K'];
         (0..self.below(max + 1)).map(|_| *self.pick(POOL)).collect()
     }
     /// 1..=max chars of [a-z0-9]

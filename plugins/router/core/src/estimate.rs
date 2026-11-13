@@ -156,7 +156,18 @@ pub fn estimate(st: &RouterState, kind: &str, key: &str, now: i64) -> Estimate {
     let minutes = blend(all.ms.map(|m| m / 60_000.0), all.n, p.as_ref().map_or(5.0, |p| p.min));
     let mean = if a + b > 0.0 { a / (a + b) } else { 0.5 };
     let inherited = p.as_ref().is_some_and(|p| p.inherited);
-    Estimate { a, b, mean, n: mine.n, n_all: all.n, usd: round(usd, 4), minutes, prior: p.is_some() && !inherited, inherited, from: p.map(|p| p.from).unwrap_or_default() }
+    Estimate {
+        a,
+        b,
+        mean,
+        n: mine.n,
+        n_all: all.n,
+        usd: round(usd, 4),
+        minutes,
+        prior: p.is_some() && !inherited,
+        inherited,
+        from: p.map(|p| p.from).unwrap_or_default(),
+    }
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -199,9 +210,10 @@ pub fn picks(st: &RouterState, kind: &str, key: &str) -> (u32, u32) {
 pub fn form_of(st: &RouterState, c: &str) -> Option<String> {
     let raw = &st.taste("*", c)?.raw;
     // the most used; on a tie the first (v1 iterates in insertion order, here in key order)
-    raw.iter().fold(None::<(&String, u32)>, |best, (k, v)| match best {
-        Some((_, n)) if n >= *v => best,
-        _ => Some((k, *v)),
-    })
-    .map(|(k, _)| k.clone())
+    raw.iter()
+        .fold(None::<(&String, u32)>, |best, (k, v)| match best {
+            Some((_, n)) if n >= *v => best,
+            _ => Some((k, *v)),
+        })
+        .map(|(k, _)| k.clone())
 }

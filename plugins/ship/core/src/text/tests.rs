@@ -5,13 +5,7 @@ use wisp_ship_api::{PrSummary, Worktree};
 use super::*;
 
 fn input<'a>(title: &'a str, prompt: &'a str) -> DraftInput<'a> {
-    DraftInput {
-        hero_title: Some(title),
-        hero_summary: Some("No question asked."),
-        session_title: "s",
-        first_prompt: prompt,
-        markdown: "",
-    }
+    DraftInput { hero_title: Some(title), hero_summary: Some("No question asked."), session_title: "s", first_prompt: prompt, markdown: "" }
 }
 
 #[test]
@@ -19,58 +13,23 @@ fn draft_is_conventional_from_the_hero_title() {
     let d = draft(&input("Fake claude finished", "fix the flaky login"));
     assert_eq!(d.title, "fix: fake claude finished");
     assert!(d.body.starts_with("No question asked."));
-    assert!(
-        d.body
-            .ends_with("_Shipped from [wisp](https://github.com/WispAgents/wisp)._")
-    );
-    assert_eq!(
-        draft(&input("feat(ui): already conventional", "")).title,
-        "feat(ui): already conventional"
-    );
-    assert_eq!(
-        draft(&input("Update the README", "")).title,
-        "docs: update the README"
-    );
-    assert_eq!(
-        draft(&input("Clean up the store", "")).title,
-        "refactor: clean up the store"
-    );
-    assert_eq!(
-        draft(&input("Add tests for git", "")).title,
-        "test: add tests for git"
-    );
-    assert_eq!(
-        draft(&input("Add a button", "")).title,
-        "feat: add a button"
-    );
-    assert_eq!(
-        draft(&input("Prefix fixture", "")).title,
-        "fix: prefix fixture",
-        "\\bfix matches a word start, as v1's regex"
-    );
+    assert!(d.body.ends_with("_Shipped from [wisp](https://github.com/WispAgents/wisp)._"));
+    assert_eq!(draft(&input("feat(ui): already conventional", "")).title, "feat(ui): already conventional");
+    assert_eq!(draft(&input("Update the README", "")).title, "docs: update the README");
+    assert_eq!(draft(&input("Clean up the store", "")).title, "refactor: clean up the store");
+    assert_eq!(draft(&input("Add tests for git", "")).title, "test: add tests for git");
+    assert_eq!(draft(&input("Add a button", "")).title, "feat: add a button");
+    assert_eq!(draft(&input("Prefix fixture", "")).title, "fix: prefix fixture", "\\bfix matches a word start, as v1's regex");
     let long = "x".repeat(300);
     assert_eq!(draft(&input(&long, "")).title.chars().count(), 100);
-    let none = draft(&DraftInput {
-        hero_title: None,
-        session_title: "Task title",
-        ..DraftInput::default()
-    });
+    let none = draft(&DraftInput { hero_title: None, session_title: "Task title", ..DraftInput::default() });
     assert_eq!(none.title, "feat: task title");
 }
 
 #[test]
 fn conflict_prompt_merges_never_rebases() {
-    let pr = PrSummary {
-        number: 7,
-        url: "https://github.com/o/r/pull/7".into(),
-        ..PrSummary::default()
-    };
-    let wt = Worktree {
-        base: "main".into(),
-        branch: "wisp/x-1".into(),
-        remote: Some("origin".into()),
-        ..Worktree::default()
-    };
+    let pr = PrSummary { number: 7, url: "https://github.com/o/r/pull/7".into(), ..PrSummary::default() };
+    let wt = Worktree { base: "main".into(), branch: "wisp/x-1".into(), remote: Some("origin".into()), ..Worktree::default() };
     let p = conflict_prompt(&pr, &wt);
     assert!(p.starts_with("PR #7 (https://github.com/o/r/pull/7) can no longer merge into `main`"));
     assert!(p.contains("`git merge origin/main`. Don't rebase"));
@@ -80,40 +39,21 @@ fn conflict_prompt_merges_never_rebases() {
 
 #[test]
 fn attach_and_across_texts() {
-    let pr = PrSummary {
-        number: 3,
-        url: "u".into(),
-        title: "T".into(),
-        state: "OPEN".into(),
-        draft: true,
-        ..PrSummary::default()
-    };
+    let pr = PrSummary { number: 3, url: "u".into(), title: "T".into(), state: "OPEN".into(), draft: true, ..PrSummary::default() };
     assert_eq!(
         attach_text(&pr, true, 1),
         "Attached PR #3 “T” (open, draft): u. It shows on the task, and wisp follows its checks and reviews. It is the PR of this task’s own branch: Ship it pushes to it."
     );
-    assert!(
-        attach_text(&pr, false, 2)
-            .ends_with("The task has 2 PRs now; attach each one you open or work on.")
-    );
+    assert!(attach_text(&pr, false, 2).ends_with("The task has 2 PRs now; attach each one you open or work on."));
     assert!(attach_text(&pr, false, 1).ends_with("checks and reviews."));
     assert_eq!(detach_text(&pr), "Detached PR #3 (u).");
-    assert_eq!(
-        across_note(&["api", "web"]),
-        "\n\nPart of one task across `api`, `web`: wisp opens a pull request in each."
-    );
+    assert_eq!(across_note(&["api", "web"]), "\n\nPart of one task across `api`, `web`: wisp opens a pull request in each.");
 }
 
 #[test]
 fn check_log_job_urls() {
-    assert_eq!(
-        check_log_job("https://github.com/o/r/actions/runs/123/job/456"),
-        Some(("o".into(), "r".into(), "456".into()))
-    );
-    assert_eq!(
-        check_log_job("https://github.com/o/r/actions/runs/123/job/456?pr=9").map(|j| j.2),
-        Some("456".into())
-    );
+    assert_eq!(check_log_job("https://github.com/o/r/actions/runs/123/job/456"), Some(("o".into(), "r".into(), "456".into())));
+    assert_eq!(check_log_job("https://github.com/o/r/actions/runs/123/job/456?pr=9").map(|j| j.2), Some("456".into()));
     for bad in [
         "https://github.com/o/r/pull/1",
         "https://evil.com/o/r/actions/runs/1/job/2",

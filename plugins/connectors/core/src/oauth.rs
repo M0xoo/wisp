@@ -64,7 +64,8 @@ fn string(m: Option<&Map<String, Value>>, k: &str) -> Option<String> {
 
 /// The issuer: the protected resource metadata's first authorization server, else the server's origin.
 pub fn issuer(prm: Option<&Map<String, Value>>, server_url: &str) -> String {
-    prm.and_then(|p| p.get("authorization_servers")?.as_array()?.first()?.as_str().filter(|s| !s.is_empty()).map(str::to_owned)).unwrap_or_else(|| origin_of(server_url))
+    prm.and_then(|p| p.get("authorization_servers")?.as_array()?.first()?.as_str().filter(|s| !s.is_empty()).map(str::to_owned))
+        .unwrap_or_else(|| origin_of(server_url))
 }
 
 /// Where to look for the issuer's metadata, in order.
@@ -94,7 +95,13 @@ pub fn meta_from(prm: Option<&Map<String, Value>>, meta: Option<&Map<String, Val
 pub fn reuse_client(had: Option<&OAuthMeta>, found: &OAuthMeta, redirect: &str) -> Option<OAuthMeta> {
     let had = had?;
     let fits = had.client_id.is_some() && had.redirect.as_deref() == Some(redirect) && had.issuer == found.issuer;
-    fits.then(|| OAuthMeta { client_id: had.client_id.clone(), redirect: had.redirect.clone(), expires_at: had.expires_at, signed_in_at: had.signed_in_at, ..found.clone() })
+    fits.then(|| OAuthMeta {
+        client_id: had.client_id.clone(),
+        redirect: had.redirect.clone(),
+        expires_at: had.expires_at,
+        signed_in_at: had.signed_in_at,
+        ..found.clone()
+    })
 }
 
 /// The RFC 7591 registration wisp sends: a public client (PKCE, no secret needed).
@@ -103,14 +110,19 @@ pub fn registration_body(redirect: &str) -> Value {
 }
 
 pub fn no_registration(issuer: &str) -> ConnectorError {
-    ConnectorError::invalid(format!("{} doesn’t let apps register themselves, so wisp can’t sign in there. Add its API key as a header instead", host_of(issuer)))
+    ConnectorError::invalid(format!(
+        "{} doesn’t let apps register themselves, so wisp can’t sign in there. Add its API key as a header instead",
+        host_of(issuer)
+    ))
 }
 
 /// A registration reply (`None`: the request failed) → (client id, client secret).
 pub fn registered(issuer: &str, status: Option<u16>, body: Option<&Value>) -> Result<(String, Option<String>)> {
     let ok = status.is_some_and(|s| (200..300).contains(&s));
     let field = |k: &str| body.and_then(|b| b.get(k)).and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned);
-    if let (true, Some(id)) = (ok, field("client_id")) { Ok((id, field("client_secret"))) } else {
+    if let (true, Some(id)) = (ok, field("client_id")) {
+        Ok((id, field("client_secret")))
+    } else {
         let why = status.map(|s| format!(" (HTTP {s})")).unwrap_or_default();
         Err(ConnectorError::Upstream(format!("{} didn’t register wisp{why}. Add its API key as a header instead", host_of(issuer))))
     }
@@ -120,18 +132,28 @@ pub fn registered(issuer: &str, status: Option<u16>, body: Option<&Value>) -> Re
 pub fn authorize_url(o: &OAuthMeta, redirect: &str, challenge: &str, state: &str) -> Result<String> {
     let mut u = url::Url::parse(&o.authorize).map_err(|_| ConnectorError::invalid("The sign-in server gave no address to sign in at"))?;
     let scope = o.scopes.join(" ");
-    let mut ours: Vec<(&str, &str)> = vec![("response_type", "code"), ("client_id", o.client_id.as_deref().unwrap_or("")), ("redirect_uri", redirect), ("code_challenge", challenge), ("code_challenge_method", "S256"), ("state", state), ("resource", &o.resource)];
+    let mut ours: Vec<(&str, &str)> = vec![
+        ("response_type", "code"),
+        ("client_id", o.client_id.as_deref().unwrap_or("")),
+        ("redirect_uri", redirect),
+        ("code_challenge", challenge),
+        ("code_challenge_method", "S256"),
+        ("state", state),
+        ("resource", &o.resource),
+    ];
     if !o.scopes.is_empty() {
         ours.push(("scope", &scope));
     }
-    let kept: Vec<(String, String)> = u.query_pairs().filter(|(k, _)| !ours.iter().any(|(o, _)| o == k)).map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
+    let kept: Vec<(String, String)> =
+        u.query_pairs().filter(|(k, _)| !ours.iter().any(|(o, _)| o == k)).map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
     u.query_pairs_mut().clear().extend_pairs(kept).extend_pairs(ours);
     Ok(u.into())
 }
 
 /// Where the browser comes back to on this wisp: the page's own origin (so it works through a grid).
 pub fn redirect_for(origin: &str) -> Result<String> {
-    resolve(origin, wisp_connectors_api::OAUTH_CALLBACK).ok_or_else(|| ConnectorError::invalid("origin: the page’s own address, where the browser comes back to"))
+    resolve(origin, wisp_connectors_api::OAUTH_CALLBACK)
+        .ok_or_else(|| ConnectorError::invalid("origin: the page’s own address, where the browser comes back to"))
 }
 
 /// A sign-in waiting for the browser to come back.
@@ -187,13 +209,25 @@ pub fn callback_refusal(q: &BTreeMap<String, String>) -> Result<()> {
 
 /// The code for tokens.
 pub fn code_form(o: &OAuthMeta, code: &str, p: &Pending, secret: Option<&str>) -> Vec<(String, String)> {
-    let mut f = vec![("grant_type", "authorization_code"), ("code", code), ("redirect_uri", &p.redirect), ("client_id", o.client_id.as_deref().unwrap_or("")), ("code_verifier", &p.verifier), ("resource", &o.resource)];
+    let mut f = vec![
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("redirect_uri", &p.redirect),
+        ("client_id", o.client_id.as_deref().unwrap_or("")),
+        ("code_verifier", &p.verifier),
+        ("resource", &o.resource),
+    ];
     f.extend(secret.map(|s| ("client_secret", s)));
     f.into_iter().map(|(k, v)| (k.to_owned(), v.to_owned())).collect()
 }
 
 pub fn refresh_form(o: &OAuthMeta, refresh: &str, secret: Option<&str>) -> Vec<(String, String)> {
-    let mut f = vec![("grant_type", "refresh_token"), ("refresh_token", refresh), ("client_id", o.client_id.as_deref().unwrap_or("")), ("resource", &o.resource)];
+    let mut f = vec![
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh),
+        ("client_id", o.client_id.as_deref().unwrap_or("")),
+        ("resource", &o.resource),
+    ];
     f.extend(secret.map(|s| ("client_secret", s)));
     f.into_iter().map(|(k, v)| (k.to_owned(), v.to_owned())).collect()
 }

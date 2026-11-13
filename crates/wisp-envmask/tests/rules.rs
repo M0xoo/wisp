@@ -5,8 +5,7 @@
 
 use serde_json::json;
 use wisp_envmask::{
-    DOTS, env_file_named, is_env_file, mask_block, mask_diffs, mask_edit, mask_line, mask_on, mask_text,
-    names_env_file, reads_env_file,
+    DOTS, env_file_named, is_env_file, mask_block, mask_diffs, mask_edit, mask_line, mask_on, mask_text, names_env_file, reads_env_file,
 };
 
 #[test]
@@ -14,7 +13,19 @@ fn is_env_file_takes_env_and_env_star_not_the_templates_v1_cases() {
     for f in [".env", ".env.local", "apps/web/.env.production", "C:\\app\\.env.test", "/abs/.env.development.local"] {
         assert!(is_env_file(f), "{f}");
     }
-    for f in [".env.example", ".env.sample", "web/.env.local.example", ".ENV.SAMPLE", "env", "my.env", ".envrc", ".environment", "src/env.js", "", ".env."] {
+    for f in [
+        ".env.example",
+        ".env.sample",
+        "web/.env.local.example",
+        ".ENV.SAMPLE",
+        "env",
+        "my.env",
+        ".envrc",
+        ".environment",
+        "src/env.js",
+        "",
+        ".env.",
+    ] {
         assert!(!is_env_file(f), "{f}");
     }
 }
@@ -22,7 +33,10 @@ fn is_env_file_takes_env_and_env_star_not_the_templates_v1_cases() {
 #[test]
 fn mask_text_takes_values_keeps_keys_comments_and_blanks_v1_cases() {
     let text = "# db\nDATABASE_URL=postgres://me:pw@db/app\nexport TOKEN=\"ghp_x\" # mine\nEMPTY=\nyaml_like: value\n\n  INDENTED = 3";
-    assert_eq!(mask_text(text), format!("# db\nDATABASE_URL={DOTS}\nexport TOKEN={DOTS}\nEMPTY=\nyaml_like: {DOTS}\n\n  INDENTED = {DOTS}"));
+    assert_eq!(
+        mask_text(text),
+        format!("# db\nDATABASE_URL={DOTS}\nexport TOKEN={DOTS}\nEMPTY=\nyaml_like: {DOTS}\n\n  INDENTED = {DOTS}")
+    );
     assert_eq!(mask_line("sk-live-bare-value"), DOTS, "a line with no key goes whole (an edit snippet)");
     assert_eq!(mask_line("  # a comment"), "  # a comment");
     assert_eq!(mask_line("export=1"), format!("export={DOTS}"), "export can be the key");
@@ -70,7 +84,10 @@ fn names_env_file_finds_a_command_that_read_one_not_a_template_v1_cases() {
 #[test]
 fn mask_block_masks_a_code_or_diff_block_about_a_env_file_and_nothing_else() {
     let d = mask_block(&json!({ "type": "diff", "file": "cfg/.env.local", "before": "K=a", "after": "K=b" })).unwrap();
-    assert_eq!((d["before"].as_str(), d["after"].as_str()), (Some(format!("K={DOTS}").as_str()), Some(format!("K={DOTS} (changed)").as_str())));
+    assert_eq!(
+        (d["before"].as_str(), d["after"].as_str()),
+        (Some(format!("K={DOTS}").as_str()), Some(format!("K={DOTS} (changed)").as_str()))
+    );
     assert_eq!(mask_block(&json!({ "type": "code", "file": ".env", "code": "K=v" })).unwrap()["code"], format!("K={DOTS}"));
     assert_eq!(mask_block(&json!({ "type": "code", "path": ".env", "code": "K=v" })).unwrap()["code"], format!("K={DOTS}"));
     assert!(mask_block(&json!({ "type": "diff", "file": ".env" })).is_none(), "nothing of its own to show");
@@ -87,12 +104,24 @@ fn mask_diffs_masks_the_env_files_hunks_only() {
     let unified = "diff --git a/.env b/.env\n--- a/.env\n+++ b/.env\n@@ -1,2 +1,2 @@\n # keys\n-API_KEY=sk-1\n+API_KEY=sk-2\ndiff --git a/a.ts b/a.ts\n+++ b/a.ts\n+const K=1";
     assert_eq!(
         mask_diffs(unified, false),
-        format!("diff --git a/.env b/.env\n--- a/.env\n+++ b/.env\n@@ -1,2 +1,2 @@\n # keys\n-API_KEY={DOTS}\n+API_KEY={DOTS}\ndiff --git a/a.ts b/a.ts\n+++ b/a.ts\n+const K=1")
+        format!(
+            "diff --git a/.env b/.env\n--- a/.env\n+++ b/.env\n@@ -1,2 +1,2 @@\n # keys\n-API_KEY={DOTS}\n+API_KEY={DOTS}\ndiff --git a/a.ts b/a.ts\n+++ b/a.ts\n+const K=1"
+        )
     );
-    assert!(!mask_diffs("--- .env\n+++ .env\n@@ -1 +1 @@\n-API_KEY=sk-live-1\n+API_KEY=sk-live-2", false).contains("sk-live"), "--no-prefix");
+    assert!(
+        !mask_diffs("--- .env\n+++ .env\n@@ -1 +1 @@\n-API_KEY=sk-live-1\n+API_KEY=sk-live-2", false).contains("sk-live"),
+        "--no-prefix"
+    );
     let dash_u = "--- .env\t2026-01-01 10:00\n+++ .env\t2026-01-02 10:00\n@@ -1,2 +1,2 @@\n----BEGIN=x\n+---token=abc\n # c";
-    assert_eq!(mask_diffs(dash_u, false), format!("--- .env\t2026-01-01 10:00\n+++ .env\t2026-01-02 10:00\n@@ -1,2 +1,2 @@\n-{DOTS}\n+{DOTS}\n # c"), "a changed line that reads like a header");
-    assert_eq!(mask_diffs("--- a/.env\n+++ /dev/null\n@@ -1 +0,0 @@\n-K=gone", false), format!("--- a/.env\n+++ /dev/null\n@@ -1 +0,0 @@\n-K={DOTS}"));
+    assert_eq!(
+        mask_diffs(dash_u, false),
+        format!("--- .env\t2026-01-01 10:00\n+++ .env\t2026-01-02 10:00\n@@ -1,2 +1,2 @@\n-{DOTS}\n+{DOTS}\n # c"),
+        "a changed line that reads like a header"
+    );
+    assert_eq!(
+        mask_diffs("--- a/.env\n+++ /dev/null\n@@ -1 +0,0 @@\n-K=gone", false),
+        format!("--- a/.env\n+++ /dev/null\n@@ -1 +0,0 @@\n-K={DOTS}")
+    );
     assert!(mask_diffs("--- /dev/null\n+++ b/.env.local\n@@ -0,0 +1 @@\n+K=new", false).contains(&format!("+K={DOTS}")));
     let two = "diff --git a/.env b/.env\n--- a/.env\n+++ b/.env\n@@ -1 +1 @@\n-K=1\n+K=2\ndiff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-const K=1\n+const K=2";
     assert!(mask_diffs(two, false).contains("+const K=2") && !mask_diffs(two, false).contains("+K=2"));

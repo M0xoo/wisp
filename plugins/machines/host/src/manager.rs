@@ -8,7 +8,9 @@ use std::time::Duration;
 use serde_json::{Value, json};
 use wisp_kernel::CancellationToken;
 use wisp_kernel::services;
-use wisp_machines_api::{AutoStart, Channel, ChannelRequest, ConnectIo, Offline, Online, PeerState, Probe, RemoteAgent, StepStatus, Transport, secret_key};
+use wisp_machines_api::{
+    AutoStart, Channel, ChannelRequest, ConnectIo, Offline, Online, PeerState, Probe, RemoteAgent, StepStatus, Transport, secret_key,
+};
 use wisp_machines_core::bootstrap::{AGENTS, TUNNEL};
 use wisp_machines_core::conn::{Conn, GRID_WATCH_MS, NO_TUNNEL, Next, TUNNEL_GAP_MS, TUNNEL_TRIES};
 use wisp_machines_core::{reply, view};
@@ -166,7 +168,14 @@ async fn attempt(st: &Arc<State>, id: &str, t: &dyn Transport, token: &Cancellat
     let health = if lists(TUNNEL) { tunnel(st, id, ch.as_ref(), token).await } else { health(ch.as_ref()).await };
     let Some(health) = health else {
         ch.close();
-        return if token.is_cancelled() { Next::Nothing } else { on_conn(st, id, |c| { c.fail(NO_TUNNEL, None, false); c.closed(None, &row.address) }) };
+        return if token.is_cancelled() {
+            Next::Nothing
+        } else {
+            on_conn(st, id, |c| {
+                c.fail(NO_TUNNEL, None, false);
+                c.closed(None, &row.address)
+            })
+        };
     };
     let agents = if lists(AGENTS) { agents(ch.as_ref(), None).await } else { Vec::new() };
     let (now, label) = (st.now(), ch.label());

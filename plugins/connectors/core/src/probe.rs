@@ -26,7 +26,10 @@ pub struct Step {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome {
-    Ok { tools: Vec<String>, count: u32 },
+    Ok {
+        tools: Vec<String>,
+        count: u32,
+    },
     /// the fallback reason (stderr's tail wins over it when there is one)
     Failed(String),
 }
@@ -80,7 +83,10 @@ impl Probe {
                 if m.get("error").is_some() {
                     return Step { send: Vec::new(), done: Some(self.error_of(&m, "It refused to start")) };
                 }
-                let send = vec![line(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })), line(&json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {} }))];
+                let send = vec![
+                    line(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })),
+                    line(&json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {} })),
+                ];
                 Step { send, done: None }
             }
             Some(n) if n >= 2 => {
@@ -88,17 +94,36 @@ impl Probe {
                     return Step { send: Vec::new(), done: Some(self.error_of(&m, "It wouldn’t list its tools")) };
                 }
                 let result = m.get("result");
-                let names = result.and_then(|r| r.get("tools")).and_then(Value::as_array).into_iter().flatten().filter_map(|t| t.get("name")?.as_str().filter(|s| !s.is_empty()));
+                let names = result
+                    .and_then(|r| r.get("tools"))
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|t| t.get("name")?.as_str().filter(|s| !s.is_empty()));
                 self.tools.extend(names.map(str::to_owned));
                 match result.and_then(|r| r.get("nextCursor")).filter(|c| !c.is_null() && *c != "") {
-                    Some(cursor) if n < LAST_PAGE_ID => Step { send: vec![line(&json!({ "jsonrpc": "2.0", "id": n + 1, "method": "tools/list", "params": { "cursor": cursor } }))], done: None },
-                    _ => Step { send: Vec::new(), done: Some(Outcome::Ok { tools: self.tools.iter().take(SHOWN).cloned().collect(), count: u32::try_from(self.tools.len()).unwrap_or(u32::MAX) }) },
+                    Some(cursor) if n < LAST_PAGE_ID => Step {
+                        send: vec![line(&json!({ "jsonrpc": "2.0", "id": n + 1, "method": "tools/list", "params": { "cursor": cursor } }))],
+                        done: None,
+                    },
+                    _ => Step {
+                        send: Vec::new(),
+                        done: Some(Outcome::Ok {
+                            tools: self.tools.iter().take(SHOWN).cloned().collect(),
+                            count: u32::try_from(self.tools.len()).unwrap_or(u32::MAX),
+                        }),
+                    },
                 }
             }
             _ if crate::rpc::is_request(&m) => {
                 // the server asks something of the client: wisp only lists tools
                 let id = m.get("id").cloned().unwrap_or(Value::Null);
-                Step { send: vec![line(&json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": "wisp is only listing tools" } }))], done: None }
+                Step {
+                    send: vec![line(
+                        &json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": "wisp is only listing tools" } }),
+                    )],
+                    done: None,
+                }
             }
             _ => Step::default(),
         }

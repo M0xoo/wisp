@@ -6,7 +6,22 @@ use std::path::{Path, PathBuf};
 use wisp_runtime_api::commands::FoundRepo;
 
 /// The folders under your home v1 looked in (`REPO_ROOTS`).
-pub const ROOTS: [&str; 14] = ["code", "Code", "dev", "Developer", "projects", "Projects", "src", "repos", "work", "git", "GitHub", "Documents", "Downloads", "Desktop"];
+pub const ROOTS: [&str; 14] = [
+    "code",
+    "Code",
+    "dev",
+    "Developer",
+    "projects",
+    "Projects",
+    "src",
+    "repos",
+    "work",
+    "git",
+    "GitHub",
+    "Documents",
+    "Downloads",
+    "Desktop",
+];
 const MAX_SEEN: usize = 60;
 const SHOWN: usize = 24;
 
@@ -51,7 +66,11 @@ pub async fn discover(home: &Path, known: &[String]) -> Vec<FoundRepo> {
             let path = real(&dir).await;
             if seen.insert(path.clone()) && !known_real.contains(&path) {
                 let mtime = ms(tokio::fs::metadata(&dir).await.and_then(|m| m.modified()));
-                found.push(FoundRepo { name: Path::new(&path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), path, mtime });
+                found.push(FoundRepo {
+                    name: Path::new(&path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+                    path,
+                    mtime,
+                });
             }
             continue;
         }
@@ -72,7 +91,9 @@ const FOLDERS_SHOWN: usize = 12;
 /// none: v1 read it against the server's own working folder, which is no folder of yours.
 pub async fn folders(q: &str, home: Option<&Path>) -> Vec<String> {
     let (raw, tilde) = match (q.strip_prefix('~'), home) {
-        (Some(rest), Some(h)) if rest.is_empty() || rest.starts_with(['/', '\\']) => (format!("{}{rest}", h.display()), Some(h.display().to_string())),
+        (Some(rest), Some(h)) if rest.is_empty() || rest.starts_with(['/', '\\']) => {
+            (format!("{}{rest}", h.display()), Some(h.display().to_string()))
+        }
         (Some(_), _) => return Vec::new(),
         (None, _) => (q.to_owned(), None),
     };
@@ -81,7 +102,14 @@ pub async fn folders(q: &str, home: Option<&Path>) -> Vec<String> {
     }
     let trailing = raw.ends_with(['/', '\\']);
     let p = Path::new(&raw);
-    let (dir, prefix) = if trailing { (p.to_owned(), String::new()) } else { (p.parent().map_or_else(|| p.to_owned(), Path::to_owned), p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default()) };
+    let (dir, prefix) = if trailing {
+        (p.to_owned(), String::new())
+    } else {
+        (
+            p.parent().map_or_else(|| p.to_owned(), Path::to_owned),
+            p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default(),
+        )
+    };
     let Ok(mut rd) = tokio::fs::read_dir(&dir).await else { return Vec::new() };
     let mut out = Vec::new();
     while let Ok(Some(e)) = rd.next_entry().await {
@@ -117,7 +145,16 @@ mod tests {
     #[tokio::test]
     async fn repos_on_this_computer_that_arent_projects_yet_are_found() {
         let home = std::env::temp_dir().join(format!("wisp-found-{}", wisp_kernel::ids::uuid7()));
-        for d in ["code/web/.git", "code/group/api/.git", "code/group/api/sub/.git", "code/node_modules/x/.git", "code/.hidden/y/.git", "Projects/known/.git", "elsewhere/z/.git", "code/a/b/c/.git"] {
+        for d in [
+            "code/web/.git",
+            "code/group/api/.git",
+            "code/group/api/sub/.git",
+            "code/node_modules/x/.git",
+            "code/.hidden/y/.git",
+            "Projects/known/.git",
+            "elsewhere/z/.git",
+            "code/a/b/c/.git",
+        ] {
             std::fs::create_dir_all(home.join(d)).unwrap();
         }
         let known = vec![home.join("Projects/known").display().to_string()];

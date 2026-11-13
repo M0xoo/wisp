@@ -115,23 +115,43 @@ mod tests {
         assert_eq!((p.as_deref(), a), (Some("studio"), json!({ "id": "x" })));
         assert_eq!(split_peer(&json!({ "peer": "studio" }), true).0, None);
         let list = json!([{ "id": "aa11bb", "name": "Studio" }, { "id": "cc22dd", "name": "Cloud" }]);
-        assert_eq!((find_peer(&list, "studio").as_deref(), find_peer(&list, "cc22dd").as_deref(), find_peer(&list, "x")), (Some("aa11bb"), Some("cc22dd"), None));
+        assert_eq!(
+            (find_peer(&list, "studio").as_deref(), find_peer(&list, "cc22dd").as_deref(), find_peer(&list, "x")),
+            (Some("aa11bb"), Some("cc22dd"), None)
+        );
     }
 
     fn cmd(id: &str, args: Option<&str>, ui: Option<&str>) -> CommandInfo {
-        CommandInfo { id: id.into(), plugin: "p".into(), title: Some(format!("Do {id}")), read_only: false, permission: "x:y".into(), args: args.map(str::to_owned), ui_only: ui.map(str::to_owned) }
+        CommandInfo {
+            id: id.into(),
+            plugin: "p".into(),
+            title: Some(format!("Do {id}")),
+            read_only: false,
+            permission: "x:y".into(),
+            args: args.map(str::to_owned),
+            ui_only: ui.map(str::to_owned),
+        }
     }
 
     #[test]
     fn the_input_schema_follows_the_args_type() {
-        let c = cmd("history.track", Some("/** Track a task */ { \n/** the task */ id: string, level?: \"full\" | \"report\" | \"spec\", n?: number, quiet?: boolean, tags?: Array<string>, extra?: Foo, }"), None);
+        let c = cmd(
+            "history.track",
+            Some(
+                "/** Track a task */ { \n/** the task */ id: string, level?: \"full\" | \"report\" | \"spec\", n?: number, quiet?: boolean, tags?: Array<string>, extra?: Foo, }",
+            ),
+            None,
+        );
         let t = &tools(&[c], &[])[0];
         assert_eq!(t.0, "history_track");
         let s = &t.3["inputSchema"];
         assert_eq!(s["required"], json!(["id"]));
         assert_eq!(s["properties"]["id"], json!({ "type": "string", "description": "the task" }));
         assert_eq!(s["properties"]["level"]["enum"], json!(["full", "report", "spec"]));
-        assert_eq!((s["properties"]["n"]["type"].clone(), s["properties"]["quiet"]["type"].clone(), s["properties"]["tags"]["type"].clone()), (json!("number"), json!("boolean"), json!("array")));
+        assert_eq!(
+            (s["properties"]["n"]["type"].clone(), s["properties"]["quiet"]["type"].clone(), s["properties"]["tags"]["type"].clone()),
+            (json!("number"), json!("boolean"), json!("array"))
+        );
         assert!(t.3["description"].as_str().unwrap().contains("wisp command history.track"));
     }
 

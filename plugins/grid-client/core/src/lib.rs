@@ -7,7 +7,8 @@ pub const RETRY_MS: [u64; 5] = [1_000, 2_000, 5_000, 15_000, 30_000];
 /// The grid pings every 25 s: this long without a byte, the tunnel is dead.
 pub const IDLE_MS: u64 = 70_000;
 /// Hop-by-hop, or not allowed in HTTP/2.
-pub const HOP: &[&str] = &["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer", "host", "http2-settings"];
+pub const HOP: &[&str] =
+    &["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer", "host", "http2-settings"];
 /// What a computer sends in `Upgrade:`.
 pub const TUNNEL_PROTOCOL: &str = "wisp-tunnel";
 /// The mark on every request that came through the tunnel.
@@ -41,10 +42,14 @@ pub fn dialed(status: u16) -> Dialed {
 /// this computer's own Host, no Origin (the grid checked who's asking), and the mark. `x-wisp-preview`
 /// and `x-wisp-upgrade` stay for the dialer to read.
 pub fn local_headers(from: &[(String, String)], port: u16, mark: &str) -> Vec<(String, String)> {
-    let mut out: Vec<(String, String)> = from.iter().filter(|(k, _)| {
-        let k = k.to_ascii_lowercase();
-        !k.starts_with(':') && !HOP.contains(&k.as_str()) && k != "origin" && k != MARK_HEADER
-    }).cloned().collect();
+    let mut out: Vec<(String, String)> = from
+        .iter()
+        .filter(|(k, _)| {
+            let k = k.to_ascii_lowercase();
+            !k.starts_with(':') && !HOP.contains(&k.as_str()) && k != "origin" && k != MARK_HEADER
+        })
+        .cloned()
+        .collect();
     out.push(("host".into(), format!("127.0.0.1:{port}")));
     out.push((MARK_HEADER.into(), mark.to_owned()));
     out
@@ -74,7 +79,13 @@ pub fn grid_url(raw: &str) -> Option<String> {
     if t.is_empty() || t.contains(char::is_whitespace) {
         return None;
     }
-    let with = if t.starts_with("http://") || t.starts_with("https://") { t.to_owned() } else if t.ends_with(".localhost") || t.contains(".localhost:") || t.starts_with("localhost") || t.starts_with("127.0.0.1") { format!("http://{t}") } else { format!("https://{t}") };
+    let with = if t.starts_with("http://") || t.starts_with("https://") {
+        t.to_owned()
+    } else if t.ends_with(".localhost") || t.contains(".localhost:") || t.starts_with("localhost") || t.starts_with("127.0.0.1") {
+        format!("http://{t}")
+    } else {
+        format!("https://{t}")
+    };
     let rest = with.split_once("://").map(|(_, r)| r)?;
     let host = rest.split('/').next().unwrap_or_default();
     (!host.is_empty()).then(|| with[..with.len() - rest.len() + host.len()].to_owned())
@@ -102,7 +113,11 @@ pub fn link(raw: &str) -> Option<Link> {
     if let Some(rest) = raw.strip_prefix("grid://") {
         let (path, version) = split_ref(rest);
         let (handle, name) = path.trim_end_matches('/').split_once('/')?;
-        return (!handle.is_empty() && !name.is_empty() && !name.contains('/')).then(|| Link::Name { handle: handle.into(), name: name.into(), version });
+        return (!handle.is_empty() && !name.is_empty() && !name.contains('/')).then(|| Link::Name {
+            handle: handle.into(),
+            name: name.into(),
+            version,
+        });
     }
     if let Some(id) = raw.strip_prefix("wisp://open/") {
         let (id, version) = split_ref(id);
@@ -114,7 +129,11 @@ pub fn link(raw: &str) -> Option<Link> {
         return (!id.is_empty() && !id.contains('/')).then(|| Link::Id { grid: grid_url(origin), id: id.into(), version });
     }
     let (id, version) = split_ref(raw);
-    (!id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')).then(|| Link::Id { grid: None, id: id.into(), version })
+    (!id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')).then(|| Link::Id {
+        grid: None,
+        id: id.into(),
+        version,
+    })
 }
 
 /// A box's host under the grid's domain (`ada.wisp.localhost:8080` for `http://wisp.localhost:8080`).
@@ -135,7 +154,10 @@ mod tests {
 
     #[test]
     fn a_tunnel_401_or_404_is_gone() {
-        assert_eq!((dialed(101), dialed(401), dialed(404), dialed(502), dialed(503), dialed(200)), (Dialed::Up, Dialed::Gone, Dialed::Gone, Dialed::Retry, Dialed::Retry, Dialed::Retry));
+        assert_eq!(
+            (dialed(101), dialed(401), dialed(404), dialed(502), dialed(503), dialed(200)),
+            (Dialed::Up, Dialed::Gone, Dialed::Gone, Dialed::Retry, Dialed::Retry, Dialed::Retry)
+        );
     }
 
     #[test]
@@ -149,9 +171,19 @@ mod tests {
             ("accept".to_owned(), "text/event-stream".to_owned()),
         ];
         let out = local_headers(&from, 4477, "m4rk");
-        assert_eq!(out, vec![("accept".to_owned(), "text/event-stream".to_owned()), ("host".to_owned(), "127.0.0.1:4477".to_owned()), ("x-wisp-tunnel".to_owned(), "m4rk".to_owned())]);
+        assert_eq!(
+            out,
+            vec![
+                ("accept".to_owned(), "text/event-stream".to_owned()),
+                ("host".to_owned(), "127.0.0.1:4477".to_owned()),
+                ("x-wisp-tunnel".to_owned(), "m4rk".to_owned())
+            ]
+        );
         assert!(is_mark(b"m4rk", b"m4rk") && !is_mark(b"m4rx", b"m4rk") && !is_mark(b"m4r", b"m4rk") && !is_mark(b"", b"m4rk"));
-        assert_eq!((preview_port(Some("5173")), preview_port(Some("0")), preview_port(Some("x")), preview_port(None)), (Some(5173), None, None, None));
+        assert_eq!(
+            (preview_port(Some("5173")), preview_port(Some("0")), preview_port(Some("x")), preview_port(None)),
+            (Some(5173), None, None, None)
+        );
     }
 
     #[test]
@@ -165,8 +197,14 @@ mod tests {
         assert_eq!(grid_url("http://wisp.localhost:8080/").as_deref(), Some("http://wisp.localhost:8080"));
         assert_eq!(grid_url("wisp.localhost:8080").as_deref(), Some("http://wisp.localhost:8080"));
         assert_eq!(grid_url(" "), None);
-        assert_eq!(link("http://wisp.localhost:8080/s/AbC_1?ref=v2"), Some(Link::Id { grid: Some("http://wisp.localhost:8080".into()), id: "AbC_1".into(), version: Some("v2".into()) }));
-        assert_eq!(link("grid://ada/review?ref=v1"), Some(Link::Name { handle: "ada".into(), name: "review".into(), version: Some("v1".into()) }));
+        assert_eq!(
+            link("http://wisp.localhost:8080/s/AbC_1?ref=v2"),
+            Some(Link::Id { grid: Some("http://wisp.localhost:8080".into()), id: "AbC_1".into(), version: Some("v2".into()) })
+        );
+        assert_eq!(
+            link("grid://ada/review?ref=v1"),
+            Some(Link::Name { handle: "ada".into(), name: "review".into(), version: Some("v1".into()) })
+        );
         assert_eq!(link("wisp://open/AbC"), Some(Link::Id { grid: None, id: "AbC".into(), version: None }));
         assert_eq!(link("AbC"), Some(Link::Id { grid: None, id: "AbC".into(), version: None }));
         assert_eq!((link("grid://ada"), link("../x")), (None, None));

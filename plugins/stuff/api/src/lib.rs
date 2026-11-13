@@ -38,15 +38,7 @@ pub enum StuffKind {
 }
 
 impl StuffKind {
-    pub const ALL: [StuffKind; 7] = [
-        Self::Image,
-        Self::Video,
-        Self::Doc,
-        Self::Code,
-        Self::File,
-        Self::Link,
-        Self::App,
-    ];
+    pub const ALL: [StuffKind; 7] = [Self::Image, Self::Video, Self::Doc, Self::Code, Self::File, Self::Link, Self::App];
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Image => "image",

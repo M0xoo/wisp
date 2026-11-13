@@ -69,11 +69,12 @@ struct Decl {
 }
 
 fn line_of(text: &str, name: &str) -> usize {
-    text.lines().position(|l| {
-        let t = l.trim_start().trim_start_matches("- ");
-        t == format!("name: {name}") || t.starts_with(&format!("{name}:")) || t.contains(&format!("name: \"{name}\""))
-    })
-    .map_or(1, |i| i + 1)
+    text.lines()
+        .position(|l| {
+            let t = l.trim_start().trim_start_matches("- ");
+            t == format!("name: {name}") || t.starts_with(&format!("{name}:")) || t.contains(&format!("name: \"{name}\""))
+        })
+        .map_or(1, |i| i + 1)
 }
 
 fn items(kind: &KindInfo, v: &Value, at: &str) -> Result<Vec<(String, Value)>, String> {
@@ -119,8 +120,19 @@ pub fn declared(files: &[(String, String)]) -> Vec<Variable> {
 pub fn typed(v: &Variable, value: Value) -> Result<Value, String> {
     let bad = |want: &str| Err(format!("var.{}: {want}, not {value}", v.name));
     match (v.ty.as_str(), &value) {
-        ("" | "any", _) | ("string", Value::String(_)) | ("number", Value::Number(_)) | ("bool", Value::Bool(_)) | ("list", Value::Array(_)) | ("map", Value::Object(_)) => Ok(value),
-        ("number", Value::String(s)) => s.trim().parse::<f64>().ok().and_then(serde_json::Number::from_f64).map(|n| if n.as_f64().is_some_and(|f| f.fract() == 0.0) { json!(n.as_f64().map_or(0, whole)) } else { Value::Number(n) }).map_or_else(|| bad("a number"), Ok),
+        ("" | "any", _)
+        | ("string", Value::String(_))
+        | ("number", Value::Number(_))
+        | ("bool", Value::Bool(_))
+        | ("list", Value::Array(_))
+        | ("map", Value::Object(_)) => Ok(value),
+        ("number", Value::String(s)) => s
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .and_then(serde_json::Number::from_f64)
+            .map(|n| if n.as_f64().is_some_and(|f| f.fract() == 0.0) { json!(n.as_f64().map_or(0, whole)) } else { Value::Number(n) })
+            .map_or_else(|| bad("a number"), Ok),
         ("bool", Value::String(s)) if s == "true" || s == "false" => Ok(Value::Bool(s == "true")),
         ("list" | "map", Value::String(s)) => match serde_json::from_str::<Value>(s) {
             Ok(x) if (v.ty == "list" && x.is_array()) || (v.ty == "map" && x.is_object()) => Ok(x),
@@ -142,8 +154,20 @@ struct View<'a> {
 impl Scope for View<'_> {
     fn get(&self, path: &[Seg]) -> Result<Value, String> {
         let Some(Seg::Key(head)) = path.first() else { return Err("a reference starts with a name".into()) };
-        let shown = |p: &[Seg]| p.iter().map(|s| match s { Seg::Key(k) => k.clone(), Seg::Index(i) => format!("[{i}]") }).collect::<Vec<_>>().join(".");
-        let mut v = self.extra.get(head).or_else(|| self.known.get(head)).ok_or_else(|| format!("`{}` isn't declared", shown(&path[..path.len().min(2)])))?;
+        let shown = |p: &[Seg]| {
+            p.iter()
+                .map(|s| match s {
+                    Seg::Key(k) => k.clone(),
+                    Seg::Index(i) => format!("[{i}]"),
+                })
+                .collect::<Vec<_>>()
+                .join(".")
+        };
+        let mut v = self
+            .extra
+            .get(head)
+            .or_else(|| self.known.get(head))
+            .ok_or_else(|| format!("`{}` isn't declared", shown(&path[..path.len().min(2)])))?;
         for (n, seg) in path.iter().enumerate().skip(1) {
             v = match seg {
                 Seg::Key(k) => v.get(k),
@@ -182,7 +206,13 @@ struct Graph {
 impl Graph {
     /// Every node after what it references; a cycle is an error naming it.
     fn order(&self) -> Result<Vec<String>, String> {
-        fn visit<'a>(g: &'a Graph, n: &'a str, st: &mut HashMap<&'a str, u8>, path: &mut Vec<&'a str>, out: &mut Vec<String>) -> Result<(), String> {
+        fn visit<'a>(
+            g: &'a Graph,
+            n: &'a str,
+            st: &mut HashMap<&'a str, u8>,
+            path: &mut Vec<&'a str>,
+            out: &mut Vec<String>,
+        ) -> Result<(), String> {
             match st.get(n) {
                 Some(2) => return Ok(()),
                 Some(1) => {
@@ -233,7 +263,12 @@ fn read(input: &Input, kinds: &[KindInfo]) -> Result<Read, String> {
             }
             for (name, d) in m.get("variables").and_then(Value::as_object).into_iter().flatten() {
                 let s = |k: &str| d.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-                r.vars.push(Variable { name: name.clone(), ty: s("type"), default: d.get("default").cloned(), description: s("description") });
+                r.vars.push(Variable {
+                    name: name.clone(),
+                    ty: s("type"),
+                    default: d.get("default").cloned(),
+                    description: s("description"),
+                });
             }
             r.locals.extend(m.get("locals").and_then(Value::as_object).cloned().unwrap_or_default());
             for (k, o) in m.get("outputs").and_then(Value::as_object).into_iter().flatten() {
@@ -270,7 +305,12 @@ fn variables(input: &Input, vars: &[Variable]) -> Result<Map<String, Value>, Str
     }
     let mut out = Map::new();
     for v in vars {
-        let value = input.vars.get(&v.name).cloned().or_else(|| v.default.clone()).ok_or_else(|| format!("var.{} has no value: -var {}=…, a var file or WISP_VAR_{}", v.name, v.name, v.name))?;
+        let value = input
+            .vars
+            .get(&v.name)
+            .cloned()
+            .or_else(|| v.default.clone())
+            .ok_or_else(|| format!("var.{} has no value: -var {}=…, a var file or WISP_VAR_{}", v.name, v.name, v.name))?;
         out.insert(v.name.clone(), typed(v, value)?);
     }
     Ok(out)
@@ -284,7 +324,9 @@ fn instances(d: &Decl, prefix: &str, view: &View<'_>) -> Result<Vec<Instance>, S
     let base = format!("{prefix}{}", d.name);
     if let Some(c) = &d.count {
         let n = eval_value(c, view)?.as_u64().ok_or_else(|| format!("{}: count is a whole number", d.at))?;
-        return Ok((0..n).map(|i| (format!("{base}-{i}"), Some(json!(i)), Map::from_iter([("count".to_owned(), json!({ "index": i }))]))).collect());
+        return Ok((0..n)
+            .map(|i| (format!("{base}-{i}"), Some(json!(i)), Map::from_iter([("count".to_owned(), json!({ "index": i }))])))
+            .collect());
     }
     if let Some(e) = &d.each {
         let pairs: Vec<(String, Value)> = match eval_value(e, view)? {
@@ -292,7 +334,10 @@ fn instances(d: &Decl, prefix: &str, view: &View<'_>) -> Result<Vec<Instance>, S
             Value::Object(m) => m.into_iter().collect(),
             _ => return Err(format!("{}: for_each takes a list or a map", d.at)),
         };
-        return Ok(pairs.into_iter().map(|(k, v)| (format!("{base}-{k}"), Some(json!(k)), Map::from_iter([("each".to_owned(), json!({ "key": k, "value": v }))]))).collect());
+        return Ok(pairs
+            .into_iter()
+            .map(|(k, v)| (format!("{base}-{k}"), Some(json!(k)), Map::from_iter([("each".to_owned(), json!({ "key": k, "value": v }))])))
+            .collect());
     }
     Ok(vec![(base, None, Map::new())])
 }
@@ -341,7 +386,13 @@ pub fn configure(input: &Input, kinds: &[KindInfo], env: &mut dyn Env) -> Result
                 let source = d.get("source").and_then(Value::as_str).ok_or_else(|| format!("module.{m}: it needs a source"))?.to_owned();
                 let inputs = eval_value(d.get("inputs").unwrap_or(&json!({})), &View { known: &known, extra: Map::new(), env })?;
                 let files = env.module(m, &source, from)?;
-                let sub = Input { files, vars: inputs.as_object().cloned().unwrap_or_default(), workspace: input.workspace.clone(), prefix: format!("{}{m}-", input.prefix), at: format!("{}module.{m}.", input.at) };
+                let sub = Input {
+                    files,
+                    vars: inputs.as_object().cloned().unwrap_or_default(),
+                    workspace: input.workspace.clone(),
+                    prefix: format!("{}{m}-", input.prefix),
+                    at: format!("{}module.{m}.", input.at),
+                };
                 let c = configure(&sub, kinds, env).map_err(|e| format!("module.{m} ({source}): {e}"))?;
                 cfg.modules.push((format!("{}{m}", input.at), source));
                 cfg.modules.extend(c.modules);
@@ -361,7 +412,13 @@ pub fn configure(input: &Input, kinds: &[KindInfo], env: &mut dyn Env) -> Result
                     attrs.insert("$name".into(), json!(stored));
                     made.push((key, Value::Object(attrs)));
                     let addr = match &made.last().and_then(|(k, _)| k.clone()) {
-                        Some(k) => format!("{}{}.{}[{}]", input.at, d.kind, d.name, k.as_str().map_or_else(|| k.to_string(), |s| format!("\"{s}\""))),
+                        Some(k) => format!(
+                            "{}{}.{}[{}]",
+                            input.at,
+                            d.kind,
+                            d.name,
+                            k.as_str().map_or_else(|| k.to_string(), |s| format!("\"{s}\""))
+                        ),
                         None => format!("{}{}.{}", input.at, d.kind, d.name),
                     };
                     cfg.addresses.push((addr, d.kind.clone(), stored.clone(), d.at.clone()));
@@ -370,7 +427,9 @@ pub fn configure(input: &Input, kinds: &[KindInfo], env: &mut dyn Env) -> Result
                 let entry = if d.count.is_some() {
                     Value::Array(made.into_iter().map(|(_, v)| v).collect())
                 } else if d.each.is_some() {
-                    Value::Object(made.into_iter().map(|(k, v)| (k.and_then(|k| k.as_str().map(str::to_owned)).unwrap_or_default(), v)).collect())
+                    Value::Object(
+                        made.into_iter().map(|(k, v)| (k.and_then(|k| k.as_str().map(str::to_owned)).unwrap_or_default(), v)).collect(),
+                    )
                 } else {
                     made.pop().map(|(_, v)| v).unwrap_or_default()
                 };
@@ -413,7 +472,8 @@ mod tests {
 
     #[allow(clippy::needless_pass_by_value)]
     fn run(f: &[(&str, &str)], vars: Value, mods: &[(&str, &[(&str, &str)])]) -> Result<Config, String> {
-        let input = Input { files: files(f), vars: vars.as_object().cloned().unwrap_or_default(), workspace: "dev".into(), ..Input::default() };
+        let input =
+            Input { files: files(f), vars: vars.as_object().cloned().unwrap_or_default(), workspace: "dev".into(), ..Input::default() };
         let mut env = NoIo(mods.iter().map(|(s, f)| ((*s).to_owned(), files(f))).collect());
         configure(&input, &kinds(), &mut env)
     }
@@ -441,21 +501,44 @@ mod tests {
 
     #[test]
     fn what_it_refuses() {
-        let e = run(&[("a.wisp.yml", "agents:\n  x: { model: \"${agent.y.model}\" }\n  y: { model: \"${agent.x.model}\" }\n")], json!({}), &[]).unwrap_err();
+        let e =
+            run(&[("a.wisp.yml", "agents:\n  x: { model: \"${agent.y.model}\" }\n  y: { model: \"${agent.x.model}\" }\n")], json!({}), &[])
+                .unwrap_err();
         assert!(e.contains("a cycle: agent.x → agent.y → agent.x") || e.contains("a cycle: agent.y → agent.x → agent.y"), "{e}");
         let e = run(&[("a.wisp.yml", "agents: { x: {} }"), ("b.wisp.yml", "\n\nagents:\n  x: {}\n")], json!({}), &[]).unwrap_err();
         assert!(e.contains("agent.x is declared twice: a.wisp.yml:1 and b.wisp.yml:4"), "{e}");
         assert!(run(&[("a.wisp.yml", "variables: { n: { type: number } }")], json!({}), &[]).unwrap_err().contains("var.n has no value"));
-        assert!(run(&[("a.wisp.yml", "variables: { n: { type: number } }")], json!({ "n": "lots" }), &[]).unwrap_err().contains("a number"));
-        assert_eq!(run(&[("a.wisp.yml", "variables: { n: { type: number } }\nagents: { x: { n: \"${var.n}\" } }")], json!({ "n": "3" }), &[]).unwrap().resources[0].spec, json!({ "n": 3 }));
+        assert!(
+            run(&[("a.wisp.yml", "variables: { n: { type: number } }")], json!({ "n": "lots" }), &[]).unwrap_err().contains("a number")
+        );
+        assert_eq!(
+            run(&[("a.wisp.yml", "variables: { n: { type: number } }\nagents: { x: { n: \"${var.n}\" } }")], json!({ "n": "3" }), &[])
+                .unwrap()
+                .resources[0]
+                .spec,
+            json!({ "n": 3 })
+        );
         assert!(run(&[("a.wisp.yml", "")], json!({ "zzz": 1 }), &[]).unwrap_err().contains("no file declares it"));
-        assert!(run(&[("a.wisp.yml", "agents: { x: { m: \"${agent.nope.model}\" } }")], json!({}), &[]).unwrap_err().contains("agent.nope"));
+        assert!(
+            run(&[("a.wisp.yml", "agents: { x: { m: \"${agent.nope.model}\" } }")], json!({}), &[]).unwrap_err().contains("agent.nope")
+        );
     }
 
     #[test]
     fn a_module_is_prefixed_takes_inputs_and_gives_outputs() {
-        let module: &[(&str, &str)] = &[("team.wisp.yml", "variables: { model: { type: string } }\nagents:\n  reviewer: { model: \"${var.model}\" }\ncrew:\n  lead: { agent: \"${agent.reviewer}\" }\noutputs:\n  reviewer: { value: \"${agent.reviewer}\" }\n")];
-        let c = run(&[("main.wisp.yml", "modules:\n  rev: { source: ./mods/team, inputs: { model: haiku } }\ncrew:\n  ada: { agent: \"${module.rev.reviewer}\" }\n")], json!({}), &[("./mods/team", module)]).unwrap();
+        let module: &[(&str, &str)] = &[(
+            "team.wisp.yml",
+            "variables: { model: { type: string } }\nagents:\n  reviewer: { model: \"${var.model}\" }\ncrew:\n  lead: { agent: \"${agent.reviewer}\" }\noutputs:\n  reviewer: { value: \"${agent.reviewer}\" }\n",
+        )];
+        let c = run(
+            &[(
+                "main.wisp.yml",
+                "modules:\n  rev: { source: ./mods/team, inputs: { model: haiku } }\ncrew:\n  ada: { agent: \"${module.rev.reviewer}\" }\n",
+            )],
+            json!({}),
+            &[("./mods/team", module)],
+        )
+        .unwrap();
         let names: Vec<&str> = c.resources.iter().map(|r| r.name.as_str()).collect();
         assert_eq!(names, ["rev-reviewer", "rev-lead", "ada"]);
         assert_eq!(c.resources[1].spec, json!({ "agent": "rev-reviewer" }), "inside the module, its own names");

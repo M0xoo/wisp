@@ -9,15 +9,7 @@ pub const PR_FIELDS: &str = "number,url,title,state,isDraft,reviewDecision,merge
 pub const DETAIL_FIELDS: &str = "number,url,title,state,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,headRefOid,headRefName,baseRefName,mergedAt,body,author,additions,deletions,changedFiles,files,reviews,comments,updatedAt";
 
 const PASS: [&str; 3] = ["SUCCESS", "NEUTRAL", "SKIPPED"];
-const FAIL: [&str; 7] = [
-    "FAILURE",
-    "ERROR",
-    "TIMED_OUT",
-    "CANCELLED",
-    "ACTION_REQUIRED",
-    "STARTUP_FAILURE",
-    "STALE",
-];
+const FAIL: [&str; 7] = ["FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "STALE"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Class {
@@ -58,9 +50,7 @@ pub(crate) fn stringish(v: Option<&Value>) -> String {
 }
 
 pub(crate) fn uint(j: &Value, key: &str) -> u32 {
-    j.get(key)
-        .and_then(Value::as_u64)
-        .map_or(0, |n| u32::try_from(n).unwrap_or(u32::MAX))
+    j.get(key).and_then(Value::as_u64).map_or(0, |n| u32::try_from(n).unwrap_or(u32::MAX))
 }
 
 fn truthy(v: Option<&Value>) -> bool {
@@ -77,9 +67,7 @@ fn truthy(v: Option<&Value>) -> bool {
 pub fn checks_of(rollup: Option<&Value>) -> Checks {
     let mut c = Checks::default();
     for e in rollup.and_then(Value::as_array).into_iter().flatten() {
-        let v = text(e, "conclusion")
-            .or_else(|| text(e, "state"))
-            .unwrap_or_default();
+        let v = text(e, "conclusion").or_else(|| text(e, "state")).unwrap_or_default();
         match classify(v) {
             Class::Pass => c.pass += 1,
             Class::Fail => c.fail += 1,
@@ -138,13 +126,7 @@ pub fn is_bot(login: &str, kind: Option<&str>) -> bool {
 
 /// A login as v1 read it: `a.login || a.name || ''`.
 pub(crate) fn login(a: Option<&Value>) -> String {
-    a.map(|a| {
-        text(a, "login")
-            .or_else(|| text(a, "name"))
-            .unwrap_or_default()
-            .to_owned()
-    })
-    .unwrap_or_default()
+    a.map(|a| text(a, "login").or_else(|| text(a, "name")).unwrap_or_default().to_owned()).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -158,47 +140,19 @@ mod tests {
             "reviewDecision": "", "mergeStateStatus": "CLEAN", "headRefOid": "abc", "headRefName": "wisp/x", "baseRefName": "main", "mergedAt": null,
             "statusCheckRollup": [{"__typename": "CheckRun", "status": "IN_PROGRESS", "conclusion": ""}]});
         let pr = pr_summary(&j, 42);
-        assert_eq!(
-            pr.checks,
-            Checks {
-                pass: 0,
-                fail: 0,
-                pending: 1
-            }
-        );
+        assert_eq!(pr.checks, Checks { pass: 0, fail: 0, pending: 1 });
         assert!(!pr.conflict && !pr.draft);
-        assert_eq!(
-            (
-                pr.number,
-                pr.head.as_str(),
-                pr.branch.as_str(),
-                pr.checked_at
-            ),
-            (1, "abc", "wisp/x", 42)
-        );
+        assert_eq!((pr.number, pr.head.as_str(), pr.branch.as_str(), pr.checked_at), (1, "abc", "wisp/x", 42));
         assert_eq!(pr.merged_at, None);
 
         let green = json!({"statusCheckRollup": [{"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"}, {"__typename": "StatusContext", "state": "SUCCESS"}], "reviewDecision": "APPROVED"});
         let pr = pr_summary(&green, 0);
-        assert_eq!(
-            pr.checks,
-            Checks {
-                pass: 2,
-                fail: 0,
-                pending: 0
-            }
-        );
+        assert_eq!(pr.checks, Checks { pass: 2, fail: 0, pending: 0 });
         assert_eq!(pr.review, "APPROVED");
 
         assert!(pr_summary(&json!({"mergeable": "CONFLICTING"}), 0).conflict);
         assert!(pr_summary(&json!({"mergeStateStatus": "DIRTY"}), 0).conflict);
-        assert!(
-            !pr_summary(
-                &json!({"mergeable": "UNKNOWN", "mergeStateStatus": "UNKNOWN"}),
-                0
-            )
-            .conflict
-        );
+        assert!(!pr_summary(&json!({"mergeable": "UNKNOWN", "mergeStateStatus": "UNKNOWN"}), 0).conflict);
     }
 
     #[test]
@@ -210,14 +164,7 @@ mod tests {
         for v in FAIL {
             assert_eq!(classify(v), Class::Fail);
         }
-        for v in [
-            "",
-            "PENDING",
-            "QUEUED",
-            "IN_PROGRESS",
-            "EXPECTED",
-            "whatever",
-        ] {
+        for v in ["", "PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED", "whatever"] {
             assert_eq!(classify(v), Class::Pending);
         }
     }
@@ -236,30 +183,15 @@ mod tests {
     /// Property: the counts always add up to the rollup's length, whatever the entries hold.
     #[test]
     fn counts_add_up() {
-        let vals = [
-            "SUCCESS",
-            "FAILURE",
-            "",
-            "NEUTRAL",
-            "IN_PROGRESS",
-            "STALE",
-            "skipped",
-            "x",
-        ];
+        let vals = ["SUCCESS", "FAILURE", "", "NEUTRAL", "IN_PROGRESS", "STALE", "skipped", "x"];
         let mut seed: u64 = 7;
         for _ in 0..500 {
-            seed = seed
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
             let n = usize::try_from(seed >> 59).unwrap_or(0);
             let list: Vec<Value> = (0..n)
                 .map(|i| {
                     let v = vals[(usize::try_from(seed >> 32).unwrap_or(0) + i * 3) % vals.len()];
-                    if i % 2 == 0 {
-                        json!({"conclusion": v})
-                    } else {
-                        json!({"state": v})
-                    }
+                    if i % 2 == 0 { json!({"conclusion": v}) } else { json!({"state": v}) }
                 })
                 .collect();
             let c = checks_of(Some(&Value::Array(list)));

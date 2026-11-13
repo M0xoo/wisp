@@ -195,24 +195,10 @@ mod tests {
 
     #[test]
     fn wire_names_are_v1_s() {
-        assert_eq!(
-            serde_json::to_string(&TermKind::Takeover).ok().as_deref(),
-            Some("\"takeover\"")
-        );
-        assert_eq!(
-            serde_json::to_string(&TermState::Stopping).ok().as_deref(),
-            Some("\"stopping\"")
-        );
-        let s = ShellStarted {
-            ok: true,
-            started: false,
-            dir: None,
-            gone: None,
-        };
-        assert_eq!(
-            serde_json::to_string(&s).ok().as_deref(),
-            Some("{\"ok\":true,\"started\":false}")
-        );
+        assert_eq!(serde_json::to_string(&TermKind::Takeover).ok().as_deref(), Some("\"takeover\""));
+        assert_eq!(serde_json::to_string(&TermState::Stopping).ok().as_deref(), Some("\"stopping\""));
+        let s = ShellStarted { ok: true, started: false, dir: None, gone: None };
+        assert_eq!(serde_json::to_string(&s).ok().as_deref(), Some("{\"ok\":true,\"started\":false}"));
     }
 
     #[test]

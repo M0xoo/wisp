@@ -57,7 +57,6 @@ impl FileSecrets {
 }
 
 impl Inner {
-
     async fn load(&self, slot: &mut Option<Data>) -> Data {
         if let Some(d) = slot {
             return d.clone();
@@ -65,7 +64,11 @@ impl Inner {
         let d: Data = match tokio::fs::read(&self.file).await {
             // a value that isn't a string (a v1 bug, a hand edit) is dropped, not fatal
             Ok(b) => serde_json::from_slice::<BTreeMap<String, BTreeMap<String, Value>>>(&b)
-                .map(|m| m.into_iter().map(|(ns, kv)| (ns, kv.into_iter().filter_map(|(k, v)| v.as_str().map(|s| (k, s.to_owned()))).collect())).collect())
+                .map(|m| {
+                    m.into_iter()
+                        .map(|(ns, kv)| (ns, kv.into_iter().filter_map(|(k, v)| v.as_str().map(|s| (k, s.to_owned()))).collect()))
+                        .collect()
+                })
                 .unwrap_or_default(),
             Err(_) => Data::new(),
         };
@@ -147,7 +150,11 @@ impl Secrets for FileSecrets {
         Box::pin(async move {
             let mut slot = me.data.lock().await;
             let d = me.load(&mut slot).await;
-            let mut out: Vec<String> = d.iter().flat_map(|(ns, kv)| kv.keys().map(move |k| if ns == "wisp" { k.clone() } else { format!("{ns}/{k}") })).filter(|k| k.starts_with(&prefix)).collect();
+            let mut out: Vec<String> = d
+                .iter()
+                .flat_map(|(ns, kv)| kv.keys().map(move |k| if ns == "wisp" { k.clone() } else { format!("{ns}/{k}") }))
+                .filter(|k| k.starts_with(&prefix))
+                .collect();
             out.sort();
             Ok(out)
         })
@@ -162,7 +169,11 @@ pub struct ReqwestNet {
 
 impl ReqwestNet {
     pub fn new(version: &str) -> Self {
-        let client = reqwest::Client::builder().user_agent(format!("wisp/{version}")).connect_timeout(Duration::from_secs(10)).build().unwrap_or_default();
+        let client = reqwest::Client::builder()
+            .user_agent(format!("wisp/{version}"))
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_default();
         Self { client }
     }
 }
@@ -171,7 +182,8 @@ impl Net for ReqwestNet {
     fn fetch(&self, req: NetRequest) -> BoxFuture<'static, Result<NetResponse>> {
         let client = self.client.clone();
         Box::pin(async move {
-            let method = reqwest::Method::from_bytes(req.method.to_ascii_uppercase().as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
+            let method =
+                reqwest::Method::from_bytes(req.method.to_ascii_uppercase().as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
             let timeout = Duration::from_millis(if req.timeout_ms == 0 { 30_000 } else { req.timeout_ms });
             let mut b = client.request(method, &req.url).timeout(timeout).body(req.body);
             for (k, v) in &req.headers {

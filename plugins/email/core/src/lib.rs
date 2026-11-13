@@ -80,15 +80,18 @@ fn entity(e: &str) -> Option<String> {
         };
         return char::from_u32(n).filter(|_| n > 0).map(String::from).or(Some(String::new()));
     }
-    Some(match e.to_lowercase().as_str() {
-        "amp" => "&",
-        "lt" => "<",
-        "gt" => ">",
-        "quot" => "\"",
-        "apos" => "'",
-        "nbsp" => " ",
-        _ => return None,
-    }.to_owned())
+    Some(
+        match e.to_lowercase().as_str() {
+            "amp" => "&",
+            "lt" => "<",
+            "gt" => ">",
+            "quot" => "\"",
+            "apos" => "'",
+            "nbsp" => " ",
+            _ => return None,
+        }
+        .to_owned(),
+    )
 }
 
 /// An HTML message's text, up to where a client's quote or signature begins.
@@ -139,12 +142,20 @@ pub fn is_forward(subject: &str) -> bool {
 
 /// A reply (to something wisp may know).
 pub fn is_reply(m: &Value) -> bool {
-    m["inReplyTo"].as_str().is_some_and(|s| !s.is_empty()) || m["references"].as_array().is_some_and(|r| !r.is_empty()) || starts_with_word(m["subject"].as_str().unwrap_or_default(), &["re", "aw", "sv"])
+    m["inReplyTo"].as_str().is_some_and(|s| !s.is_empty())
+        || m["references"].as_array().is_some_and(|r| !r.is_empty())
+        || starts_with_word(m["subject"].as_str().unwrap_or_default(), &["re", "aw", "sv"])
 }
 
 /// The ids a message names (what it replies to).
 pub fn refs(m: &Value) -> Vec<String> {
-    m["inReplyTo"].as_str().into_iter().chain(m["references"].as_array().into_iter().flatten().filter_map(Value::as_str)).filter(|s| !s.is_empty()).map(str::to_owned).collect()
+    m["inReplyTo"]
+        .as_str()
+        .into_iter()
+        .chain(m["references"].as_array().into_iter().flatten().filter_map(Value::as_str))
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 /// At most `max` bytes of `s`, cut between characters.
@@ -161,7 +172,11 @@ pub fn clip_bytes(s: &str, max: usize) -> String {
 
 /// The reply's subject.
 pub fn reply_subject(subject: &str) -> String {
-    if starts_with_word(subject, &["re"]) { subject.to_owned() } else { format!("Re: {}", if subject.trim().is_empty() { "your message" } else { subject }) }
+    if starts_with_word(subject, &["re"]) {
+        subject.to_owned()
+    } else {
+        format!("Re: {}", if subject.trim().is_empty() { "your message" } else { subject })
+    }
 }
 
 /// When a message was sent, ms: the grid writes `date` as ms or ISO 8601 (UTC).
@@ -185,7 +200,10 @@ pub fn date_ms(v: &Value) -> Option<i64> {
 pub fn is_address(s: &str) -> bool {
     let bad = |c: char| c.is_whitespace() || matches!(c, '<' | '>' | '@');
     let Some((local, domain)) = s.split_once('@') else { return false };
-    !local.is_empty() && !local.chars().any(bad) && !domain.chars().any(bad) && domain.split_once('.').is_some_and(|(a, b)| !a.is_empty() && !b.is_empty())
+    !local.is_empty()
+        && !local.chars().any(bad)
+        && !domain.chars().any(bad)
+        && domain.split_once('.').is_some_and(|(a, b)| !a.is_empty() && !b.is_empty())
 }
 
 /// The files a mail brought, as the grid handed them on (`files: [{name, mime, data}]`, base64): name, type, bytes.
@@ -209,7 +227,14 @@ pub fn files_of(m: &Value) -> Vec<(String, String, Vec<u8>)> {
 pub fn left_out(m: &Value, kept: usize) -> Option<String> {
     let all = usize::try_from(m.get("attachments").and_then(Value::as_u64).unwrap_or(0)).unwrap_or(usize::MAX);
     let n = all.saturating_sub(kept);
-    (n > 0).then(|| format!("{n} attachment{} didn’t come along (too big for mail: 1 MB each at most). Add {} in wisp if the task needs {}.", if n == 1 { "" } else { "s" }, if n == 1 { "it" } else { "them" }, if n == 1 { "it" } else { "them" }))
+    (n > 0).then(|| {
+        format!(
+            "{n} attachment{} didn’t come along (too big for mail: 1 MB each at most). Add {} in wisp if the task needs {}.",
+            if n == 1 { "" } else { "s" },
+            if n == 1 { "it" } else { "them" },
+            if n == 1 { "it" } else { "them" }
+        )
+    })
 }
 
 #[cfg(test)]
@@ -231,7 +256,11 @@ mod tests {
         assert_eq!(mail_words(&json!({ "html": "<p>hi&nbsp;there</p><blockquote>no</blockquote>" })), "hi there");
         assert_eq!(mail_words(&json!({ "text": "plain", "html": "<p>html</p>" })), "plain");
         assert!(is_forward("Fwd: x") && is_forward(" TR : y") && !is_forward("Fix fwd"));
-        assert!(is_reply(&json!({ "subject": "Re: x" })) && is_reply(&json!({ "references": ["<a>"] })) && !is_reply(&json!({ "subject": "fix" })));
+        assert!(
+            is_reply(&json!({ "subject": "Re: x" }))
+                && is_reply(&json!({ "references": ["<a>"] }))
+                && !is_reply(&json!({ "subject": "fix" }))
+        );
         assert_eq!(refs(&json!({ "inReplyTo": "<a>", "references": ["<b>", ""] })), ["<a>", "<b>"]);
         assert_eq!(clip_bytes("ééé", 5), "é…", "cut between characters, the … counted");
         assert_eq!(clip_bytes("abc", 5), "abc");
@@ -249,8 +278,17 @@ mod tests {
     fn a_mails_files_decode_and_the_ones_left_out_are_said() {
         let m = json!({ "attachments": 3, "files": [{ "name": "shot.png", "mime": "image/png", "data": "aGVsbG8=" }, { "name": "bad", "data": "!!" }, { "data": "eA==" }] });
         let f = files_of(&m);
-        assert_eq!(f, vec![("shot.png".to_owned(), "image/png".to_owned(), b"hello".to_vec()), ("attachment".to_owned(), "application/octet-stream".to_owned(), b"x".to_vec())]);
-        assert_eq!(left_out(&m, 2).as_deref(), Some("1 attachment didn’t come along (too big for mail: 1 MB each at most). Add it in wisp if the task needs it."));
+        assert_eq!(
+            f,
+            vec![
+                ("shot.png".to_owned(), "image/png".to_owned(), b"hello".to_vec()),
+                ("attachment".to_owned(), "application/octet-stream".to_owned(), b"x".to_vec())
+            ]
+        );
+        assert_eq!(
+            left_out(&m, 2).as_deref(),
+            Some("1 attachment didn’t come along (too big for mail: 1 MB each at most). Add it in wisp if the task needs it.")
+        );
         assert_eq!(left_out(&json!({ "attachments": 2 }), 2), None);
         assert_eq!(files_of(&json!({})), Vec::new());
     }

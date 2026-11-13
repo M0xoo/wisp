@@ -38,7 +38,15 @@ mod tests {
     use crate::cron::Utc;
 
     fn member(cron: &str) -> Member {
-        Member { id: "m".into(), name: "Ada".into(), agent: "claude".into(), mode: "auto".into(), cron: cron.into(), parallel: 2, ..Member::default() }
+        Member {
+            id: "m".into(),
+            name: "Ada".into(),
+            agent: "claude".into(),
+            mode: "auto".into(),
+            cron: cron.into(),
+            parallel: 2,
+            ..Member::default()
+        }
     }
 
     #[test]

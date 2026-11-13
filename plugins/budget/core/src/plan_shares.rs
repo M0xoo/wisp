@@ -67,14 +67,27 @@ fn runs_of<'a>(sessions: &'a [RunLike], now: i64) -> Vec<Run<'a>> {
                     let from = t.started_at?;
                     let agent = t.agent.as_deref().filter(|a| !a.is_empty()).or(s.agent.as_deref()).unwrap_or_default();
                     let account = t.account.as_deref().filter(|a| !a.is_empty()).or(s.account.as_deref()).unwrap_or_default();
-                    Some(Span { t, key: share_key(agent, account), from, to: t.ended_at.unwrap_or(now), cost: work.get(&ti).and_then(|w| w.cost), pooled: false })
+                    Some(Span {
+                        t,
+                        key: share_key(agent, account),
+                        from,
+                        to: t.ended_at.unwrap_or(now),
+                        cost: work.get(&ti).and_then(|w| w.cost),
+                        pooled: false,
+                    })
                 })
                 .collect();
             Run { i, turns, solo: Vec::new() }
         })
         .collect();
     let overlap = |a: &Span<'_>, b: &Span<'_>| a.key == b.key && a.from < b.to && b.from < a.to;
-    let flags: Vec<Vec<bool>> = runs.iter().enumerate().map(|(ri, r)| r.turns.iter().map(|x| runs.iter().enumerate().any(|(oi, o)| oi != ri && o.turns.iter().any(|y| overlap(x, y)))).collect()).collect();
+    let flags: Vec<Vec<bool>> = runs
+        .iter()
+        .enumerate()
+        .map(|(ri, r)| {
+            r.turns.iter().map(|x| runs.iter().enumerate().any(|(oi, o)| oi != ri && o.turns.iter().any(|y| overlap(x, y)))).collect()
+        })
+        .collect();
     for (r, f) in runs.iter_mut().zip(flags) {
         for (x, p) in r.turns.iter_mut().zip(f) {
             x.pooled = p;
@@ -96,7 +109,15 @@ fn pools_of(runs: &mut [Run<'_>]) -> Vec<Pool> {
                 let key = share_key(&p.agent, &p.account);
                 match pools.iter_mut().find(|q| q.key == key && q.window == p.window) {
                     Some(q) => q.used += p.used,
-                    None => pools.push(Pool { key, window: p.window, used: p.used, members: Vec::new(), split: false, costs: 0.0, waiting: false }),
+                    None => pools.push(Pool {
+                        key,
+                        window: p.window,
+                        used: p.used,
+                        members: Vec::new(),
+                        split: false,
+                        costs: 0.0,
+                        waiting: false,
+                    }),
                 }
             }
         }
@@ -110,7 +131,9 @@ fn pools_of(runs: &mut [Run<'_>]) -> Vec<Pool> {
             let mine: Vec<usize> = (0..r.turns.len())
                 .filter(|&si| {
                     let x = &r.turns[si];
-                    x.pooled && (x.key == pool.key || turn_plan(x.t).iter().any(|p| p.window == pool.window && share_key(&p.agent, &p.account) == pool.key))
+                    x.pooled
+                        && (x.key == pool.key
+                            || turn_plan(x.t).iter().any(|p| p.window == pool.window && share_key(&p.agent, &p.account) == pool.key))
                 })
                 .collect();
             if !mine.is_empty() {
@@ -162,7 +185,8 @@ fn cell_of(ri: usize, r: &Run<'_>, shared: &[Pool]) -> Cell {
     let part: f64 = here
         .iter()
         .map(|p| {
-            let cost: f64 = p.members.iter().filter(|(m, _)| *m == ri).flat_map(|(_, ss)| ss.iter().map(|si| r.turns[*si].cost.unwrap_or(0.0))).sum();
+            let cost: f64 =
+                p.members.iter().filter(|(m, _)| *m == ri).flat_map(|(_, ss)| ss.iter().map(|si| r.turns[*si].cost.unwrap_or(0.0))).sum();
             p.used * cost / if p.costs == 0.0 { 1.0 } else { p.costs }
         })
         .sum();
@@ -194,6 +218,7 @@ pub fn plan_shares(sessions: &[RunLike], now: i64) -> (Vec<Cell>, String) {
             format!("All {k} runs")
         }
     };
-    let total = longest.iter().map(|p| format!("{} took {} of {}.", who(p), pct(p.used), window_name(&p.window))).collect::<Vec<_>>().join(" ");
+    let total =
+        longest.iter().map(|p| format!("{} took {} of {}.", who(p), pct(p.used), window_name(&p.window))).collect::<Vec<_>>().join(" ");
     (cells, total)
 }

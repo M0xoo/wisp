@@ -24,7 +24,11 @@ pub fn job_run(m: &Member, run: Option<&RunPick>, picked: bool, harness_ok: &dyn
     }
     let on = swap.unwrap_or(&m.agent);
     if on == "auto" && (model.is_some() || effort.is_some()) {
-        return Err(Error::Invalid(if swap.is_none() { format!("{} is on Auto, which picks the model itself.", m.name) } else { "Auto picks the model itself.".to_owned() }));
+        return Err(Error::Invalid(if swap.is_none() {
+            format!("{} is on Auto, which picks the model itself.", m.name)
+        } else {
+            "Auto picks the model itself.".to_owned()
+        }));
     }
     if mode.as_deref().is_some_and(|x| !MODES.contains(&x)) {
         return Err(Error::Invalid("mode must be plan, edits or auto.".into()));
@@ -42,7 +46,12 @@ pub fn job_body(m: &Member, run: Option<&RunPick>) -> (String, String, String, S
     let r = run.cloned().unwrap_or_default();
     let own = r.agent.is_none();
     let keep = |pick: Option<String>, mine: &str| pick.unwrap_or_else(|| if own { mine.to_owned() } else { String::new() });
-    (r.agent.clone().unwrap_or_else(|| m.agent.clone()), keep(r.model, &m.model), keep(r.effort, &m.effort), r.mode.unwrap_or_else(|| m.mode.clone()))
+    (
+        r.agent.clone().unwrap_or_else(|| m.agent.clone()),
+        keep(r.model, &m.model),
+        keep(r.effort, &m.effort),
+        r.mode.unwrap_or_else(|| m.mode.clone()),
+    )
 }
 
 #[cfg(test)]
@@ -51,7 +60,14 @@ mod tests {
     use super::*;
 
     fn ada() -> Member {
-        Member { name: "Ada".into(), agent: "claude".into(), model: "opus".into(), effort: "high".into(), mode: "auto".into(), ..Member::default() }
+        Member {
+            name: "Ada".into(),
+            agent: "claude".into(),
+            model: "opus".into(),
+            effort: "high".into(),
+            mode: "auto".into(),
+            ..Member::default()
+        }
     }
     fn pick(agent: &str, model: &str, effort: &str) -> RunPick {
         let s = |x: &str| (!x.is_empty()).then(|| x.to_owned());

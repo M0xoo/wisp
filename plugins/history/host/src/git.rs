@@ -74,7 +74,15 @@ impl BlameSource for Git {
     }
     fn grep(&self, root: PathBuf, needle: String) -> BoxFuture<'static, Vec<String>> {
         let p = self.0.clone();
-        Box::pin(async move { run(&p, "git", &root, &["log", "--all", "--format=%H", "--fixed-strings", &format!("--grep={needle}")]).await.unwrap_or_default().lines().filter(|l| !l.is_empty()).map(str::to_owned).collect() })
+        Box::pin(async move {
+            run(&p, "git", &root, &["log", "--all", "--format=%H", "--fixed-strings", &format!("--grep={needle}")])
+                .await
+                .unwrap_or_default()
+                .lines()
+                .filter(|l| !l.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
     }
     fn added(&self, root: PathBuf, sha: String) -> BoxFuture<'static, Vec<(String, u32)>> {
         let p = self.0.clone();
@@ -106,11 +114,16 @@ pub async fn pr_of(proc: &Proc, root: &std::path::Path, commits: &[String], bran
     let pick = |out: Option<String>| -> Option<String> {
         let v: serde_json::Value = serde_json::from_str(&out?).ok()?;
         let list = v.as_array()?;
-        let hit = list.iter().find(|p| !branch.is_empty() && p["headRefName"] == branch).or_else(|| list.iter().find(|p| commits.iter().any(|c| p["headRefOid"] == c.as_str())))?;
+        let hit = list
+            .iter()
+            .find(|p| !branch.is_empty() && p["headRefName"] == branch)
+            .or_else(|| list.iter().find(|p| commits.iter().any(|c| p["headRefOid"] == c.as_str())))?;
         hit["url"].as_str().map(str::to_owned)
     };
     if !branch.is_empty()
-        && let Some(u) = pick(run(proc, &gh, root, &["pr", "list", "--state", "all", "--head", branch, "--json", "number,url,headRefName,headRefOid"]).await)
+        && let Some(u) = pick(
+            run(proc, &gh, root, &["pr", "list", "--state", "all", "--head", branch, "--json", "number,url,headRefName,headRefOid"]).await,
+        )
     {
         return Some(u);
     }

@@ -104,15 +104,44 @@ fn str_of(v: Option<&Value>) -> Option<String> {
 /// someone speaking.
 fn slack_noise(j: &Value) -> bool {
     let e = &j["event"];
-    e.is_object() && (e.get("bot_id").is_some_and(|b| !b.is_null()) || e.get("subtype").and_then(Value::as_str).is_some_and(|s| s != "file_share"))
+    e.is_object()
+        && (e.get("bot_id").is_some_and(|b| !b.is_null()) || e.get("subtype").and_then(Value::as_str).is_some_and(|s| s != "file_share"))
 }
 
 pub const CHANNELS: [ChannelDef; 4] = [
-    ChannelDef { name: "telegram", headers: &["x-telegram-bot-api-secret-token"], event_id: |j| str_of(j.get("update_id")), live: |_| false, skip: |_| false, early: |_| None },
-    ChannelDef { name: "slack", headers: &["x-slack-signature", "x-slack-request-timestamp"], event_id: |j| str_of(j.get("event_id")), live: |j| j.get("type").and_then(Value::as_str) == Some("url_verification"), skip: slack_noise, early: |_| None },
-    ChannelDef { name: "discord", headers: &["x-signature-ed25519", "x-signature-timestamp"], event_id: |j| str_of(j.get("id")), live: |j| matches!(kind_of(j), Some(1 | 4)), skip: |j| !matches!(kind_of(j), Some(2 | 3)), early: discord_early },
+    ChannelDef {
+        name: "telegram",
+        headers: &["x-telegram-bot-api-secret-token"],
+        event_id: |j| str_of(j.get("update_id")),
+        live: |_| false,
+        skip: |_| false,
+        early: |_| None,
+    },
+    ChannelDef {
+        name: "slack",
+        headers: &["x-slack-signature", "x-slack-request-timestamp"],
+        event_id: |j| str_of(j.get("event_id")),
+        live: |j| j.get("type").and_then(Value::as_str) == Some("url_verification"),
+        skip: slack_noise,
+        early: |_| None,
+    },
+    ChannelDef {
+        name: "discord",
+        headers: &["x-signature-ed25519", "x-signature-timestamp"],
+        event_id: |j| str_of(j.get("id")),
+        live: |j| matches!(kind_of(j), Some(1 | 4)),
+        skip: |j| !matches!(kind_of(j), Some(2 | 3)),
+        early: discord_early,
+    },
     // held by the grid's mail (mail/service.rs), never by a request: its headers are the grid's own verdict
-    ChannelDef { name: "email", headers: &["x-wisp-mail-from", "x-wisp-mail-dmarc", "x-wisp-mail-id"], event_id: |j| str_of(j.get("messageId")), live: |_| false, skip: |_| false, early: |_| None },
+    ChannelDef {
+        name: "email",
+        headers: &["x-wisp-mail-from", "x-wisp-mail-dmarc", "x-wisp-mail-id"],
+        event_id: |j| str_of(j.get("messageId")),
+        live: |_| false,
+        skip: |_| false,
+        early: |_| None,
+    },
 ];
 
 /// A held message its box accepted (a 2xx): `(user id, the delivery)`. Mail keeps the thread then.
@@ -145,7 +174,17 @@ pub struct Opts {
 
 impl Default for Opts {
     fn default() -> Self {
-        Self { enabled: false, max_rows: 200, max_bytes: 2 * 1024 * 1024, ttl_ms: TTL_MS, retry_ms: 2000, wake_retry_ms: 30_000, wake_strikes: 3, wake_gap_ms: 10 * 60_000, live_ms: 2500 }
+        Self {
+            enabled: false,
+            max_rows: 200,
+            max_bytes: 2 * 1024 * 1024,
+            ttl_ms: TTL_MS,
+            retry_ms: 2000,
+            wake_retry_ms: 30_000,
+            wake_strikes: 3,
+            wake_gap_ms: 10 * 60_000,
+            live_ms: 2500,
+        }
     }
 }
 
@@ -225,8 +264,27 @@ impl std::fmt::Debug for Inbox {
 pub type Answer = Option<(u16, Value)>;
 
 impl Inbox {
-    pub fn new(db: Arc<Db>, clock: SharedClock, secrets: Option<Arc<Secrets>>, boxes: Arc<dyn Boxes>, deliver: Arc<dyn Deliver>, opts: Opts, url_of: Arc<dyn Fn(&str) -> String + Send + Sync>) -> Self {
-        Self { db, clock, secrets, boxes, deliver, opts, url_of, wakes: Mutex::default(), busy: tokio::sync::Mutex::new(()), delivered: std::sync::OnceLock::new() }
+    pub fn new(
+        db: Arc<Db>,
+        clock: SharedClock,
+        secrets: Option<Arc<Secrets>>,
+        boxes: Arc<dyn Boxes>,
+        deliver: Arc<dyn Deliver>,
+        opts: Opts,
+        url_of: Arc<dyn Fn(&str) -> String + Send + Sync>,
+    ) -> Self {
+        Self {
+            db,
+            clock,
+            secrets,
+            boxes,
+            deliver,
+            opts,
+            url_of,
+            wakes: Mutex::default(),
+            busy: tokio::sync::Mutex::new(()),
+            delivered: std::sync::OnceLock::new(),
+        }
     }
 
     fn secrets(&self) -> Result<&Secrets> {
@@ -234,7 +292,9 @@ impl Inbox {
     }
 
     fn count(&self, user_id: &str, ch: &str) -> Result<()> {
-        self.db.with(|c| c.execute("UPDATE channel_urls SET dropped = dropped + 1 WHERE user_id = ?1 AND channel = ?2", params![user_id, ch]))?;
+        self.db.with(|c| {
+            c.execute("UPDATE channel_urls SET dropped = dropped + 1 WHERE user_id = ?1 AND channel = ?2", params![user_id, ch])
+        })?;
         tracing::info!(channel = ch, "grid: inbox dropped a message");
         Ok(())
     }
@@ -261,17 +321,30 @@ impl Inbox {
         channel(ch).ok_or_else(|| bad("No such channel here.", 404))?;
         let fresh = token("", 32);
         self.secrets()?.seal(&user.id, &format!("channel:{ch}"), &fresh)?;
-        self.db.with(|c| c.execute("UPDATE channel_urls SET token_hash = ?1 WHERE user_id = ?2 AND channel = ?3", params![sha256(&fresh), user.id, ch]))?;
+        self.db.with(|c| {
+            c.execute("UPDATE channel_urls SET token_hash = ?1 WHERE user_id = ?2 AND channel = ?3", params![sha256(&fresh), user.id, ch])
+        })?;
         Ok(json!({ "url": format!("{}/_in/{fresh}", (self.url_of)(&user.handle)) }))
     }
 
     /// `(user id, channel)` for a URL's token.
     pub fn by_token(&self, t: &str) -> Result<Option<(String, String)>> {
-        self.db.with(|c| c.query_row("SELECT user_id, channel FROM channel_urls WHERE token_hash = ?1 AND channel != 'email'", [sha256(t)], |r| Ok((r.get(0)?, r.get(1)?))).optional())
+        self.db.with(|c| {
+            c.query_row("SELECT user_id, channel FROM channel_urls WHERE token_hash = ?1 AND channel != 'email'", [sha256(t)], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .optional()
+        })
     }
 
     fn held(&self, user_id: &str) -> Result<(i64, i64)> {
-        self.db.with(|c| c.query_row("SELECT count(*), coalesce(sum(size), 0) FROM channel_inbox WHERE user_id = ?1 AND done_at IS NULL", [user_id], |r| Ok((r.get(0)?, r.get(1)?))))
+        self.db.with(|c| {
+            c.query_row(
+                "SELECT count(*), coalesce(sum(size), 0) FROM channel_inbox WHERE user_id = ?1 AND done_at IS NULL",
+                [user_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+        })
     }
 
     /// The key a channel's requests are checked with at the edge (Discord's application public key, hex), set by
@@ -285,12 +358,25 @@ impl Inbox {
             return Err(bad("That isn't a Discord public key (64 hex characters).", 400));
         }
         self.url_for(user, ch)?;
-        self.db.with(|c| c.execute("UPDATE channel_urls SET channel_key = ?1 WHERE user_id = ?2 AND channel = ?3", params![Some(key).filter(|k| !k.is_empty()), user.id, ch]))?;
+        self.db.with(|c| {
+            c.execute(
+                "UPDATE channel_urls SET channel_key = ?1 WHERE user_id = ?2 AND channel = ?3",
+                params![Some(key).filter(|k| !k.is_empty()), user.id, ch],
+            )
+        })?;
         Ok(())
     }
 
     fn key_of(&self, user_id: &str, ch: &str) -> Result<Option<String>> {
-        Ok(self.db.with(|c| c.query_row("SELECT channel_key FROM channel_urls WHERE user_id = ?1 AND channel = ?2", params![user_id, ch], |r| r.get::<_, Option<String>>(0)).optional())?.flatten())
+        Ok(self
+            .db
+            .with(|c| {
+                c.query_row("SELECT channel_key FROM channel_urls WHERE user_id = ?1 AND channel = ?2", params![user_id, ch], |r| {
+                    r.get::<_, Option<String>>(0)
+                })
+                .optional()
+            })?
+            .flatten())
     }
 
     /// Keep what came. `body`: None when it was over `BODY_MAX`. → the sender's answer beyond the 200, if any.
@@ -309,7 +395,11 @@ impl Inbox {
                 return Ok(Some((401, json!({ "error": "Bad signature." }))));
             }
         }
-        let kept: Vec<(String, String)> = def.headers.iter().filter_map(|h| headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(h)).map(|(_, v)| ((*h).to_owned(), v.clone()))).collect();
+        let kept: Vec<(String, String)> = def
+            .headers
+            .iter()
+            .filter_map(|h| headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(h)).map(|(_, v)| ((*h).to_owned(), v.clone())))
+            .collect();
         let j: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
         if (def.live)(&j) {
             return Ok(Some(self.live(user, ch, kept, body).await));
@@ -324,9 +414,21 @@ impl Inbox {
     /// A request that can't wait: the box's answer if it's up; asleep or starting, 503 (never woken).
     async fn live(&self, user: &UserRow, ch: &str, headers: Vec<(String, String)>, body: &[u8]) -> (u16, Value) {
         let asleep = (503, json!({ "error": "wisp is asleep: try again with it open." }));
-        let (Some(port), Some(secret)) = (self.boxes.port(&user.id).filter(|_| self.boxes.state(&user.id) == BoxState::Running), self.boxes.secret(&user.id)) else { return asleep };
+        let (Some(port), Some(secret)) =
+            (self.boxes.port(&user.id).filter(|_| self.boxes.state(&user.id) == BoxState::Running), self.boxes.secret(&user.id))
+        else {
+            return asleep;
+        };
         let _busy = self.boxes.begin(&user.id);
-        let d = Delivery { channel: ch.into(), headers, body: body.to_vec(), at: self.clock.now_ms(), dropped: 0, verified: false, key: format!("live:{}", sha256(body)) };
+        let d = Delivery {
+            channel: ch.into(),
+            headers,
+            body: body.to_vec(),
+            at: self.clock.now_ms(),
+            dropped: 0,
+            verified: false,
+            key: format!("live:{}", sha256(body)),
+        };
         match self.deliver.deliver(port, &secret, &d, self.opts.live_ms).await {
             Ok((s, v)) if s < 500 => (s, v),
             _ => asleep,
@@ -335,7 +437,15 @@ impl Inbox {
 
     /// Hold one message. `verified`: the grid checked it itself (a route); nothing from a request sets it. → false
     /// when it was dropped (over the caps).
-    pub fn hold(&self, user: &UserRow, def: &ChannelDef, body: &[u8], headers: &[(String, String)], verified: bool, j: &Value) -> Result<bool> {
+    pub fn hold(
+        &self,
+        user: &UserRow,
+        def: &ChannelDef,
+        body: &[u8],
+        headers: &[(String, String)],
+        verified: bool,
+        j: &Value,
+    ) -> Result<bool> {
         let hj = serde_json::to_string(headers).unwrap_or_default();
         let size = i64::try_from(body.len() + hj.len()).unwrap_or(i64::MAX);
         let (n, bytes) = self.held(&user.id)?;
@@ -400,9 +510,29 @@ impl Inbox {
                 self.strikes().insert(user.id.clone(), Strikes { n: w.n + 1, at: now });
                 continue;
             }
-            let (Some(port), Some(secret)) = (self.boxes.port(&user.id), self.boxes.secret(&user.id)) else { return Ok(Some(self.opts.retry_ms)) };
-            let dropped: i64 = self.db.with(|c| c.query_row("SELECT dropped FROM channel_urls WHERE user_id = ?1 AND channel = ?2", params![user.id, row.channel], |r| r.get(0)).optional())?.unwrap_or(0);
-            let d = Delivery { channel: row.channel.clone(), headers: serde_json::from_str(&row.headers).unwrap_or_default(), body: row.body.clone(), at: row.at, dropped, verified: row.verified, key: row.key.clone() };
+            let (Some(port), Some(secret)) = (self.boxes.port(&user.id), self.boxes.secret(&user.id)) else {
+                return Ok(Some(self.opts.retry_ms));
+            };
+            let dropped: i64 = self
+                .db
+                .with(|c| {
+                    c.query_row(
+                        "SELECT dropped FROM channel_urls WHERE user_id = ?1 AND channel = ?2",
+                        params![user.id, row.channel],
+                        |r| r.get(0),
+                    )
+                    .optional()
+                })?
+                .unwrap_or(0);
+            let d = Delivery {
+                channel: row.channel.clone(),
+                headers: serde_json::from_str(&row.headers).unwrap_or_default(),
+                body: row.body.clone(),
+                at: row.at,
+                dropped,
+                verified: row.verified,
+                key: row.key.clone(),
+            };
             let status = {
                 let _busy = self.boxes.begin(&user.id); // not stopped under it, and it isn't use
                 self.deliver.deliver(port, &secret, &d, 30_000).await.map_or(0, |(s, _)| s)
@@ -414,7 +544,12 @@ impl Inbox {
                     f(&user.id, &d);
                 }
                 if dropped > 0 {
-                    self.db.with(|c| c.execute("UPDATE channel_urls SET dropped = max(0, dropped - ?1) WHERE user_id = ?2 AND channel = ?3", params![dropped, user.id, row.channel]))?;
+                    self.db.with(|c| {
+                        c.execute(
+                            "UPDATE channel_urls SET dropped = max(0, dropped - ?1) WHERE user_id = ?2 AND channel = ?3",
+                            params![dropped, user.id, row.channel],
+                        )
+                    })?;
                 }
             }
             // 4xx: the box read it and said no (a bad signature, a stranger, the channel off): retrying can't help
@@ -429,7 +564,9 @@ impl Inbox {
                 continue;
             }
             let next = self.opts.retry_ms * 2i64.pow(u32::try_from(tries - 1).unwrap_or(0));
-            self.db.with(|c| c.execute("UPDATE channel_inbox SET tries = ?1, next_at = ?2 WHERE id = ?3", params![tries, now + next, row.id]))?;
+            self.db.with(|c| {
+                c.execute("UPDATE channel_inbox SET tries = ?1, next_at = ?2 WHERE id = ?3", params![tries, now + next, row.id])
+            })?;
             return Ok(Some(next));
         }
     }
@@ -437,7 +574,11 @@ impl Inbox {
     /// Past their hour: gone. One that never got there counts as lost; a delivered one just stops guarding.
     pub fn sweep(&self) -> Result<usize> {
         let before = self.clock.now_ms() - self.opts.ttl_ms;
-        let lost: Vec<(String, String)> = self.db.with(|c| c.prepare_cached("SELECT user_id, channel FROM channel_inbox WHERE at < ?1 AND done_at IS NULL")?.query_map([before], |r| Ok((r.get(0)?, r.get(1)?)))?.collect())?;
+        let lost: Vec<(String, String)> = self.db.with(|c| {
+            c.prepare_cached("SELECT user_id, channel FROM channel_inbox WHERE at < ?1 AND done_at IS NULL")?
+                .query_map([before], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect()
+        })?;
         for (u, ch) in &lost {
             self.count(u, ch)?;
         }
@@ -455,7 +596,9 @@ impl Inbox {
 
     /// The users with something held (after a restart, each is drained).
     pub fn waiting(&self) -> Result<Vec<String>> {
-        self.db.with(|c| c.prepare_cached("SELECT DISTINCT user_id FROM channel_inbox WHERE done_at IS NULL")?.query_map([], |r| r.get(0))?.collect())
+        self.db.with(|c| {
+            c.prepare_cached("SELECT DISTINCT user_id FROM channel_inbox WHERE done_at IS NULL")?.query_map([], |r| r.get(0))?.collect()
+        })
     }
 }
 
@@ -497,7 +640,10 @@ impl Deliver for HttpDeliver {
         let v: Value = r.json().await.unwrap_or(Value::Null);
         // the command answered: the transport's own status and body; else the edge's status
         Ok(match v.get("result") {
-            Some(out) if status == 200 => (out.get("status").and_then(Value::as_u64).and_then(|s| u16::try_from(s).ok()).unwrap_or(200), out.get("body").cloned().unwrap_or(Value::Null)),
+            Some(out) if status == 200 => (
+                out.get("status").and_then(Value::as_u64).and_then(|s| u16::try_from(s).ok()).unwrap_or(200),
+                out.get("body").cloned().unwrap_or(Value::Null),
+            ),
             _ => (status, v),
         })
     }

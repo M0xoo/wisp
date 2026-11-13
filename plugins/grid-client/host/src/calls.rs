@@ -62,7 +62,12 @@ pub(crate) async fn bundle(ctx: &Ctx, call: &wisp_kernel::Call, id: &str) -> Res
 }
 
 /// `stuff.setPublished`: the link recorded (`None` takes it off).
-pub(crate) async fn set_published(ctx: &Ctx, call: &wisp_kernel::Call, id: &str, published: Option<wisp_stuff_api::Published>) -> Result<()> {
+pub(crate) async fn set_published(
+    ctx: &Ctx,
+    call: &wisp_kernel::Call,
+    id: &str,
+    published: Option<wisp_stuff_api::Published>,
+) -> Result<()> {
     ctx.run::<s::SetPublished>(call, s::SetPublishedArgs { id: id.to_owned(), published }).await.map(|_| ())
 }
 

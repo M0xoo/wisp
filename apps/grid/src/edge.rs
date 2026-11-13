@@ -45,20 +45,20 @@ use crate::teams::Teams;
 use crate::trust::{Credential, Reach, Verdict, may};
 use crate::tunnels::{TUNNEL_PROTOCOL, Tunnels};
 
+#[path = "edge_inbox.rs"]
+mod inbox;
+#[path = "edge_mail.rs"]
+mod mail;
+#[path = "edge_pages.rs"]
+mod pages_route;
+#[path = "edge_route.rs"]
+mod route;
 #[path = "edge_sandboxes.rs"]
 mod sandboxes;
 #[path = "edge_signin.rs"]
 mod signin;
 #[path = "edge_sites.rs"]
 mod sites;
-#[path = "edge_inbox.rs"]
-mod inbox;
-#[path = "edge_route.rs"]
-mod route;
-#[path = "edge_mail.rs"]
-mod mail;
-#[path = "edge_pages.rs"]
-mod pages_route;
 pub use signin::{Reqwest, SignIn};
 
 /// The grid's session cookie.
@@ -168,7 +168,10 @@ fn split(path_q: &str) -> (Vec<&str>, &str) {
 }
 
 fn query(q: &str, k: &str) -> Option<String> {
-    q.split('&').filter_map(|kv| kv.split_once('=')).find(|(a, _)| *a == k).map(|(_, v)| url::form_urlencoded::parse(format!("x={v}").as_bytes()).next().map(|(_, v)| v.into_owned()).unwrap_or_default())
+    q.split('&')
+        .filter_map(|kv| kv.split_once('='))
+        .find(|(a, _)| *a == k)
+        .map(|(_, v)| url::form_urlencoded::parse(format!("x={v}").as_bytes()).next().map(|(_, v)| v.into_owned()).unwrap_or_default())
 }
 
 fn incoming(b: Incoming) -> Body {
@@ -185,25 +188,53 @@ impl Grid {
         let client = Client::builder(TokioExecutor::new()).build_http();
         let signin = SignIn::new(&cfg);
         // the master key seals a sandbox's token and sign-ins; without one, sandboxes are off and say why
-        let secrets = crate::secrets::Secrets::open(db.clone(), &cfg.data_dir, &crate::config::process_env()).map(Arc::new).map_err(|e| tracing::warn!("grid: no master key, so no sandboxes: {e}")).ok();
+        let secrets = crate::secrets::Secrets::open(db.clone(), &cfg.data_dir, &crate::config::process_env())
+            .map(Arc::new)
+            .map_err(|e| tracing::warn!("grid: no master key, so no sandboxes: {e}"))
+            .ok();
         let sb_cfg = cfg.sandboxes.clone().unwrap_or_default();
-        let sandboxes = crate::sandboxes::Sandboxes { db: db.clone(), clock: clock.clone(), secrets: secrets.clone(), enabled: sb_cfg.enabled != Some(false), per_user: sb_cfg.per_user.unwrap_or(10) };
+        let sandboxes = crate::sandboxes::Sandboxes {
+            db: db.clone(),
+            clock: clock.clone(),
+            secrets: secrets.clone(),
+            enabled: sb_cfg.enabled != Some(false),
+            per_user: sb_cfg.per_user.unwrap_or(10),
+        };
         let sb = sandboxes.clone();
         // a sandbox's box starts with its owner's sandbox env and sign-ins; the user's own box never does
-        boxes.set_env_for(Arc::new(move |u: &BoxUser| u.owner.as_deref().filter(|_| u.sandbox.is_some()).map(|o| sb.env_for(o)).unwrap_or_default()));
+        boxes.set_env_for(Arc::new(move |u: &BoxUser| {
+            u.owner.as_deref().filter(|_| u.sandbox.is_some()).map(|o| sb.env_for(o)).unwrap_or_default()
+        }));
         let urls = cfg.clone();
-        let sites = crate::sites::Sites::new(db.clone(), clock.clone(), &cfg.data_dir, cfg.file_cfg.sites.as_ref(), Arc::new(move |l: &str| urls.instance_url(l)));
-        let inbox = crate::inbox::Inbox::new(db.clone(), clock.clone(), secrets.clone(), boxes.clone(), Arc::new(crate::inbox::HttpDeliver::default()), inbox_opts(cfg.file_cfg.channels.as_ref()), {
-            let urls = cfg.clone();
-            Arc::new(move |h: &str| urls.instance_url(h))
-        });
+        let sites = crate::sites::Sites::new(
+            db.clone(),
+            clock.clone(),
+            &cfg.data_dir,
+            cfg.file_cfg.sites.as_ref(),
+            Arc::new(move |l: &str| urls.instance_url(l)),
+        );
+        let inbox = crate::inbox::Inbox::new(
+            db.clone(),
+            clock.clone(),
+            secrets.clone(),
+            boxes.clone(),
+            Arc::new(crate::inbox::HttpDeliver::default()),
+            inbox_opts(cfg.file_cfg.channels.as_ref()),
+            {
+                let urls = cfg.clone();
+                Arc::new(move |h: &str| urls.instance_url(h))
+            },
+        );
         let tunnels = Arc::new(Tunnels::default());
         let ch = cfg.file_cfg.channels.clone().unwrap_or_default();
         let routes = crate::route::Routes {
             db: db.clone(),
             clock: clock.clone(),
             secrets: secrets.clone(),
-            telegram: Arc::new(crate::route::HttpTelegram { base: ch.telegram_api.clone().unwrap_or_else(|| "https://api.telegram.org".into()), client: reqwest::Client::new() }),
+            telegram: Arc::new(crate::route::HttpTelegram {
+                base: ch.telegram_api.clone().unwrap_or_else(|| "https://api.telegram.org".into()),
+                client: reqwest::Client::new(),
+            }),
             computers: Arc::new(route::TunnelComputers(tunnels.clone())),
             public_url: cfg.public_url.clone(),
             on: inbox.opts.enabled && ch.route == Some(true),
@@ -218,7 +249,25 @@ impl Grid {
                 }
             }));
         }
-        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels, boxes, roots, page, client, signin, sandboxes, sites, inbox, routes, mail })
+        Arc::new(Self {
+            cfg,
+            db,
+            clock,
+            accounts,
+            shares,
+            teams,
+            tunnels,
+            boxes,
+            roots,
+            page,
+            client,
+            signin,
+            sandboxes,
+            sites,
+            inbox,
+            routes,
+            mail,
+        })
     }
 
     fn who(&self, h: &HeaderMap) -> Who {
@@ -227,7 +276,9 @@ impl Grid {
             // the running box's own secret, never a stopped one's: a box asks only for itself
             let (handle, secret) = rest.trim().split_once(' ').unwrap_or((rest.trim(), ""));
             return match self.accounts.user_by_handle(handle).ok().flatten() {
-                Some(u) if !secret.is_empty() && self.boxes.secret(&u.id).is_some_and(|s| crate::secrets::safe_equal(&s, secret)) => Who::Box(u),
+                Some(u) if !secret.is_empty() && self.boxes.secret(&u.id).is_some_and(|s| crate::secrets::safe_equal(&s, secret)) => {
+                    Who::Box(u)
+                }
                 _ => Who::Nobody,
             };
         }
@@ -313,7 +364,10 @@ impl Grid {
             ("GET", ["api", "me"]) => {
                 let Who::Device(u, _) = &who else { return Err(bad("Sign in first.", 401)) };
                 let computers: Vec<Value> = self.accounts.computers(&u.id)?.iter().map(|c| self.computer_view(c)).collect();
-                Ok(json(200, &json!({ "user": { "handle": u.handle, "name": u.name }, "instance": self.instance(u), "computers": computers, "teams": self.teams.of(&u.id)? })))
+                Ok(json(
+                    200,
+                    &json!({ "user": { "handle": u.handle, "name": u.name }, "instance": self.instance(u), "computers": computers, "teams": self.teams.of(&u.id)? }),
+                ))
             }
             ("POST", ["api", "computers"]) => {
                 let Who::Device(user, device) = &who else { return Err(bad("Sign in with this computer first.", 401)) };
@@ -329,10 +383,14 @@ impl Grid {
                 let list: Vec<Value> = self.accounts.computers(&u.id)?.iter().map(|c| self.computer_view(c)).collect();
                 Ok(json(200, &json!(list)))
             }
-            (_, ["api", "shares", ..] | ["api", "gallery"] | ["s", ..]) | ("GET", ["gallery"]) => self.shares_route(&method, &parts, q, &head.headers, &bytes, &who),
+            (_, ["api", "shares", ..] | ["api", "gallery"] | ["s", ..]) | ("GET", ["gallery"]) => {
+                self.shares_route(&method, &parts, q, &head.headers, &bytes, &who)
+            }
             (_, ["api", "sandboxes", ..]) => self.sandboxes_route(&method, &parts, &head.headers, &bytes, &who).await,
             (_, ["api", "teams", ..]) => self.teams_route(&method, &parts, &head.headers, &bytes, &who),
-            (_, ["api", "channels", which @ ("url" | "rotate" | "key")]) => self.channels_route(&method, which, q, &head.headers, &bytes, &who),
+            (_, ["api", "channels", which @ ("url" | "rotate" | "key")]) => {
+                self.channels_route(&method, which, q, &head.headers, &bytes, &who)
+            }
             (_, ["api", "channels", which @ ("route" | "reply")]) => self.route_api(&method, which, &head.headers, &bytes, &who).await,
             ("POST", ["_route", tok]) => self.route_in(&head.headers, tok, &bytes),
             ("POST", ["_mail", provider]) => self.mail_in(provider, &bytes).await,
@@ -352,7 +410,10 @@ impl Grid {
         let b = parse_body(h, bytes)?;
         let code = b.get("device_code").and_then(Value::as_str).unwrap_or_default();
         Ok(match self.accounts.poll(code)? {
-            Poll::Token { token, user } => json(200, &json!({ "token": token, "user": { "handle": user.handle, "name": user.name }, "instance": self.instance(&user) })),
+            Poll::Token { token, user } => json(
+                200,
+                &json!({ "token": token, "user": { "handle": user.handle, "name": user.name }, "instance": self.instance(&user) }),
+            ),
             other => json(400, &json!({ "error": other.error().unwrap_or("invalid_grant") })),
         })
     }
@@ -362,8 +423,24 @@ impl Grid {
         let cookie = cookies(h).get(COOKIE).cloned().unwrap_or_default();
         let Some(user) = self.accounts.session(&cookie)? else {
             let back = format!("/activate?{q}");
-            let link = if self.cfg.auth.dev && self.signin.providers.is_empty() { format!("/auth/dev?next={}", crate::http::encode_component(&back)) } else { format!("/signin?return={}", crate::http::encode_component(&back)) };
-            return Ok(html(401, pages::message_page(&self.page, &MessagePage { title: "Sign in first".into(), text: "Sign in to the grid to let a device in.".into(), link: Some((link, "Sign in".into())), tone: Tone::Plain }), &[]));
+            let link = if self.cfg.auth.dev && self.signin.providers.is_empty() {
+                format!("/auth/dev?next={}", crate::http::encode_component(&back))
+            } else {
+                format!("/signin?return={}", crate::http::encode_component(&back))
+            };
+            return Ok(html(
+                401,
+                pages::message_page(
+                    &self.page,
+                    &MessagePage {
+                        title: "Sign in first".into(),
+                        text: "Sign in to the grid to let a device in.".into(),
+                        link: Some((link, "Sign in".into())),
+                        tone: Tone::Plain,
+                    },
+                ),
+                &[],
+            ));
         };
         let pu = PageUser { handle: user.handle.clone(), name: user.name.clone(), ..PageUser::default() };
         let csrf = Self::csrf(&cookie);
@@ -376,11 +453,31 @@ impl Grid {
             let allow = field("answer") == "allow";
             self.accounts.decide(&field("code"), &user.id, allow)?;
             let text = if allow { "It's in. You can close this page and go back to it." } else { "It wasn't let in." };
-            return Ok(html(200, pages::message_page(&self.page, &MessagePage { title: if allow { "Device connected".into() } else { "Not allowed".into() }, text: text.into(), link: None, tone: Tone::Plain }), &[]));
+            return Ok(html(
+                200,
+                pages::message_page(
+                    &self.page,
+                    &MessagePage {
+                        title: if allow { "Device connected".into() } else { "Not allowed".into() },
+                        text: text.into(),
+                        link: None,
+                        tone: Tone::Plain,
+                    },
+                ),
+                &[],
+            ));
         }
         let code = query(q, "code").unwrap_or_default();
-        let device = if code.is_empty() { None } else { self.accounts.pending(&code)?.map(|name| DeviceAsk { name, user_code: crate::accounts::normal_code(&code) }) };
-        let error = if !code.is_empty() && device.is_none() { "That code expired or was already used. Start again on the device.".to_owned() } else { String::new() };
+        let device = if code.is_empty() {
+            None
+        } else {
+            self.accounts.pending(&code)?.map(|name| DeviceAsk { name, user_code: crate::accounts::normal_code(&code) })
+        };
+        let error = if !code.is_empty() && device.is_none() {
+            "That code expired or was already used. Start again on the device.".to_owned()
+        } else {
+            String::new()
+        };
         Ok(html(200, pages::activate_page(&self.page, &pu, &ActivatePage { code, device, app: false, csrf, error }), &[]))
     }
 
@@ -391,20 +488,46 @@ impl Grid {
         }
         let Some(handle) = query(q, "handle").filter(|h| !h.is_empty()) else {
             let next = query(q, "next").unwrap_or_default();
-            let body = format!(r#"<form method="get" action="/auth/dev"><input class="input" name="handle" placeholder="handle" autofocus required><input type="hidden" name="next" value="{}"><button class="primary tall">Sign in</button></form>"#, pages::esc(&next));
-            return Ok(html(200, pages::message_page(&self.page, &MessagePage { title: "Sign in (development)".into(), text: String::new(), link: None, tone: Tone::Plain }).replace("</h1>", &format!("</h1>{body}")), &[]));
+            let body = format!(
+                r#"<form method="get" action="/auth/dev"><input class="input" name="handle" placeholder="handle" autofocus required><input type="hidden" name="next" value="{}"><button class="primary tall">Sign in</button></form>"#,
+                pages::esc(&next)
+            );
+            return Ok(html(
+                200,
+                pages::message_page(
+                    &self.page,
+                    &MessagePage { title: "Sign in (development)".into(), text: String::new(), link: None, tone: Tone::Plain },
+                )
+                .replace("</h1>", &format!("</h1>{body}")),
+                &[],
+            ));
         };
         let user = self.accounts.dev_user(&handle)?;
         let t = self.accounts.new_session(&user.id)?;
         let next = query(q, "next").unwrap_or_default();
         let mut r = redirect(safe_path(&next, "/"), &[]);
-        crate::http::add_cookie(&mut r, &crate::http::cookie(COOKIE, &t, crate::http::CookieOptions { secure: self.cfg.secure, max_age: Some(30 * 86_400), path: None, framed: false }));
+        crate::http::add_cookie(
+            &mut r,
+            &crate::http::cookie(
+                COOKIE,
+                &t,
+                crate::http::CookieOptions { secure: self.cfg.secure, max_age: Some(30 * 86_400), path: None, framed: false },
+            ),
+        );
         Ok(r)
     }
 
     // --- shares, the gallery, teams -------------------------------------------------------------------
 
-    fn read_share(&self, id: &str, q: &str, h: &HeaderMap, who: &Who, password: Option<String>, count: bool) -> Result<std::result::Result<(crate::shares::Rec, crate::shares::Content), Refused>> {
+    fn read_share(
+        &self,
+        id: &str,
+        q: &str,
+        h: &HeaderMap,
+        who: &Who,
+        password: Option<String>,
+        count: bool,
+    ) -> Result<std::result::Result<(crate::shares::Rec, crate::shares::Content), Refused>> {
         let s = self.shares.get(id)?.ok_or_else(|| bad("There's no share with that id.", 404))?;
         let pass = password.or_else(|| h.get("x-wisp-share-password").and_then(|v| v.to_str().ok()).map(str::to_owned));
         if let Err(r) = self.shares.may_read(&s, who.user(), pass.as_deref())? {
@@ -423,7 +546,9 @@ impl Grid {
     }
 
     fn content_json(&self, s: &crate::shares::Rec, c: &crate::shares::Content) -> Result<Value> {
-        Ok(json!({ "card": self.shares.card(s), "version": c.version, "ref": format!("v{}", c.version), "latest": s.version, "body": B64.encode(&c.body), "sig": c.sig, "signer": c.signer, "versions": self.shares.versions(s)? }))
+        Ok(
+            json!({ "card": self.shares.card(s), "version": c.version, "ref": format!("v{}", c.version), "latest": s.version, "body": B64.encode(&c.body), "sig": c.sig, "signer": c.signer, "versions": self.shares.versions(s)? }),
+        )
     }
 
     #[allow(clippy::too_many_lines)] // one match over the shares API, each arm a line or two
@@ -464,18 +589,32 @@ impl Grid {
                 }
                 Err(r) => Ok(Self::refused(&r)),
             },
-            ("GET", ["api", "gallery"]) => Ok(json(200, &json!(self.shares.gallery(&query(q, "q").unwrap_or_default(), query(q, "kind").as_deref())?))),
+            ("GET", ["api", "gallery"]) => {
+                Ok(json(200, &json!(self.shares.gallery(&query(q, "q").unwrap_or_default(), query(q, "kind").as_deref())?)))
+            }
             ("GET", ["gallery"]) => {
                 let qs = query(q, "q").unwrap_or_default();
                 Ok(html(200, pages::gallery_page(&self.page, &qs, &self.shares.gallery(&qs, None)?), &[]))
             }
             ("GET" | "POST", ["s", id]) => {
-                let password = if *method == Method::POST { parse_body(h, bytes)?.get("password").and_then(Value::as_str).map(str::to_owned) } else { None };
+                let password = if *method == Method::POST {
+                    parse_body(h, bytes)?.get("password").and_then(Value::as_str).map(str::to_owned)
+                } else {
+                    None
+                };
                 let tried = password.is_some();
                 match self.read_share(id, q, h, who, password, true)? {
                     Ok((s, c)) => {
                         let content: Value = serde_json::from_slice(&c.body).unwrap_or(Value::Null);
-                        let card = ShareCard { id: s.id.clone(), kind: s.kind.clone(), title: s.title.clone(), summary: s.summary.clone(), from: s.handle.clone(), version: c.version, source: format!("grid://{}/{}", s.handle, s.key) };
+                        let card = ShareCard {
+                            id: s.id.clone(),
+                            kind: s.kind.clone(),
+                            title: s.title.clone(),
+                            summary: s.summary.clone(),
+                            from: s.handle.clone(),
+                            version: c.version,
+                            source: format!("grid://{}/{}", s.handle, s.key),
+                        };
                         Ok(html(200, pages::share_page(&self.page, &card, &content), &[]))
                     }
                     Err(Refused::Gone(why)) => Ok(html(410, pages::gone_page(&self.page, why), &[])),
@@ -521,7 +660,11 @@ impl Grid {
             return Ok(r);
         }
         let Who::Device(u, d) = who else { return Err(bad("This device isn't signed in.", 401)) };
-        let comp = self.accounts.computer(id)?.filter(|c| c.user_id == u.id && c.device_id == d.id).ok_or_else(|| bad("The grid doesn't know this computer any more.", 404))?;
+        let comp = self
+            .accounts
+            .computer(id)?
+            .filter(|c| c.user_id == u.id && c.device_id == d.id)
+            .ok_or_else(|| bad("The grid doesn't know this computer any more.", 404))?;
         if !header_str(req.headers(), "upgrade").eq_ignore_ascii_case(TUNNEL_PROTOCOL) {
             return Err(bad(format!("Upgrade: {TUNNEL_PROTOCOL}"), 400));
         }
@@ -537,7 +680,12 @@ impl Grid {
                 Err(e) => tracing::warn!("grid: tunnel {cid}: {e}"),
             }
         });
-        let mut r = crate::http::respond(101, "", empty(), &[("upgrade", TUNNEL_PROTOCOL.to_owned()), ("connection", "Upgrade".to_owned()), ("cache-control", String::new())]);
+        let mut r = crate::http::respond(
+            101,
+            "",
+            empty(),
+            &[("upgrade", TUNNEL_PROTOCOL.to_owned()), ("connection", "Upgrade".to_owned()), ("cache-control", String::new())],
+        );
         *r.status_mut() = http::StatusCode::SWITCHING_PROTOCOLS;
         Ok(r)
     }
@@ -546,7 +694,9 @@ impl Grid {
     async fn computer_reach(&self, req: http::Request<Incoming>, c: &ComputerRow, preview: Option<u16>) -> Result<Resp> {
         let who = self.who(req.headers());
         let cred = who.credential().ok_or_else(|| bad("Sign in first.", 401))?;
-        if let Some(r) = no(&may(cred, if preview.is_some() { Reach::Preview } else { Reach::Computer })).filter(|_| !(preview.is_some() && cred == Credential::Device)) {
+        if let Some(r) = no(&may(cred, if preview.is_some() { Reach::Preview } else { Reach::Computer }))
+            .filter(|_| !(preview.is_some() && cred == Credential::Device))
+        {
             return Ok(r);
         }
         if who.user().is_none_or(|u| u.id != c.user_id) {
@@ -567,13 +717,19 @@ impl Grid {
             head.headers.insert("x-wisp-preview", v);
         }
         let req = http::Request::from_parts(head, incoming(body));
-        Ok(self.tunnels.forward(&c.id, req, preview.is_some()).await.unwrap_or_else(|| json(503, &json!({ "error": "This computer isn’t online.", "offline": true }))))
+        Ok(self
+            .tunnels
+            .forward(&c.id, req, preview.is_some())
+            .await
+            .unwrap_or_else(|| json(503, &json!({ "error": "This computer isn’t online.", "offline": true }))))
     }
 
     // --- <handle>.<domain>: a user's box -----------------------------------------------------------
 
     async fn edge(&self, req: http::Request<Incoming>, handle: &str) -> Result<Resp> {
-        let Some(user) = self.accounts.user_by_handle(handle)? else { return Ok(json(404, &json!({ "error": "There's nobody with that handle here." }))) };
+        let Some(user) = self.accounts.user_by_handle(handle)? else {
+            return Ok(json(404, &json!({ "error": "There's nobody with that handle here." })));
+        };
         let who = self.who(req.headers());
         let cred = who.credential().ok_or_else(|| bad("Sign in first.", 401))?;
         if let Some(r) = no(&may(cred, Reach::Box)).filter(|_| cred != Credential::Session) {
@@ -608,7 +764,16 @@ impl Grid {
         head.uri = format!("http://127.0.0.1:{}{pq}", running.port).parse().map_err(|_| bad("Bad path.", 400))?;
         let public = self.cfg.instance_url(handle);
         let fwd_host = public.split("://").nth(1).unwrap_or_default().to_owned();
-        for k in ["authorization", "cookie", "x-wisp-proxy-secret", "x-wisp-proxy-via", "x-forwarded-host", "x-forwarded-proto", PASSIVE, "x-wisp-relay"] {
+        for k in [
+            "authorization",
+            "cookie",
+            "x-wisp-proxy-secret",
+            "x-wisp-proxy-via",
+            "x-forwarded-host",
+            "x-forwarded-proto",
+            PASSIVE,
+            "x-wisp-relay",
+        ] {
             head.headers.remove(k);
         }
         let set = |h: &mut HeaderMap, k: &'static str, v: &str| {
@@ -620,7 +785,11 @@ impl Grid {
         set(&mut head.headers, "x-forwarded-host", &fwd_host);
         set(&mut head.headers, "x-forwarded-proto", &self.cfg.scheme);
         set(&mut head.headers, "host", &format!("127.0.0.1:{}", running.port));
-        let up = self.client.request(http::Request::from_parts(head, incoming(body))).await.map_err(|e| bad(format!("Your wisp didn't answer: {e}"), 502))?;
+        let up = self
+            .client
+            .request(http::Request::from_parts(head, incoming(body)))
+            .await
+            .map_err(|e| bad(format!("Your wisp didn't answer: {e}"), 502))?;
         let (parts, b) = up.into_parts();
         // the request counts as open (and, unless passive, as use) until its answer has been read
         let b = b.map_err(std::io::Error::other).map_frame(move |f| {
@@ -633,14 +802,31 @@ impl Grid {
 
 /// The inbox's settings from grid.json's `channels` (off unless `enabled: true`).
 /// Mail, when grid.json has it, channels are held, and there's a master key (the addresses are sealed).
-fn mail_of(cfg: &GridConfig, db: &Arc<crate::db::Db>, clock: &crate::clock::SharedClock, inbox: &crate::inbox::Inbox) -> Option<Arc<crate::mail::service::MailService>> {
+fn mail_of(
+    cfg: &GridConfig,
+    db: &Arc<crate::db::Db>,
+    clock: &crate::clock::SharedClock,
+    inbox: &crate::inbox::Inbox,
+) -> Option<Arc<crate::mail::service::MailService>> {
     use crate::mail::service::{Http, MailService, Opts, Outbound};
     let m = cfg.file_cfg.mail.as_ref()?;
     if !inbox.opts.enabled || inbox.secrets.is_none() || m.inbound.provider != "ses" || m.outbound.provider != "ses" {
         return None;
     }
-    let out = Outbound { region: m.outbound.region.clone(), access_key_id: m.outbound.access_key_id.clone(), secret_access_key: m.outbound.secret_access_key.clone().unwrap_or_default(), endpoint: m.outbound.extra.get("endpoint").and_then(Value::as_str).map(str::to_owned) };
-    let opts = Opts { domain: m.domain.to_lowercase(), topic_arn: m.inbound.topic_arn.clone(), keys: m.inbound.keys.clone().unwrap_or_default(), outbound: out.clone(), send_per_hour: m.send_per_hour.unwrap_or(30), thread_days: m.thread_days.unwrap_or(7) };
+    let out = Outbound {
+        region: m.outbound.region.clone(),
+        access_key_id: m.outbound.access_key_id.clone(),
+        secret_access_key: m.outbound.secret_access_key.clone().unwrap_or_default(),
+        endpoint: m.outbound.extra.get("endpoint").and_then(Value::as_str).map(str::to_owned),
+    };
+    let opts = Opts {
+        domain: m.domain.to_lowercase(),
+        topic_arn: m.inbound.topic_arn.clone(),
+        keys: m.inbound.keys.clone().unwrap_or_default(),
+        outbound: out.clone(),
+        send_per_hour: m.send_per_hour.unwrap_or(30),
+        thread_days: m.thread_days.unwrap_or(7),
+    };
     // a dev grid has no real senders, so grid.json can name their keys; nothing else skips DNS
     let txt: Arc<crate::dkim::Txt> = if let (true, Some(keys)) = (cfg.file_cfg.auth.dev, m.inbound.dkim_keys.clone()) {
         Arc::new(move |name: String| {
@@ -654,7 +840,11 @@ fn mail_of(cfg: &GridConfig, db: &Arc<crate::db::Db>, clock: &crate::clock::Shar
         };
         t
     };
-    let wire = Arc::new(Http { client: reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().ok()?, out, clock: clock.clone() });
+    let wire = Arc::new(Http {
+        client: reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().ok()?,
+        out,
+        clock: clock.clone(),
+    });
     Some(Arc::new(MailService::new(db.clone(), clock.clone(), opts, txt, wire)))
 }
 
@@ -713,21 +903,42 @@ pub async fn serve(grid: Arc<Grid>, listener: TcpListener, stop: CancellationTok
                 let g = g.clone();
                 async move { Ok::<_, std::convert::Infallible>(g.handle(req).await) }
             });
-            let _ = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new()).serve_connection_with_upgrades(TokioIo::new(sock), svc).await;
+            let _ = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+                .serve_connection_with_upgrades(TokioIo::new(sock), svc)
+                .await;
         });
     }
 }
 
 /// A grid on this machine for development and tests: `auth.dev` on, boxes as `wisp serve` processes.
-pub async fn dev(data: &std::path::Path, port: u16, wisp_bin: std::path::PathBuf, env: Vec<(String, String)>, idle_ms: i64) -> Result<(Arc<Grid>, u16, CancellationToken)> {
+pub async fn dev(
+    data: &std::path::Path,
+    port: u16,
+    wisp_bin: std::path::PathBuf,
+    env: Vec<(String, String)>,
+    idle_ms: i64,
+) -> Result<(Arc<Grid>, u16, CancellationToken)> {
     let listener = TcpListener::bind(("127.0.0.1", port)).await.map_err(|e| bad(format!("can't listen on {port}: {e}"), 500))?;
     let port = listener.local_addr().map_err(|e| bad(e.to_string(), 500))?.port();
-    let cfg = crate::config::for_test(data, json!({ "domain": "wisp.localhost", "listen": { "host": "127.0.0.1", "port": port }, "auth": { "dev": true } }))?;
+    let cfg = crate::config::for_test(
+        data,
+        json!({ "domain": "wisp.localhost", "listen": { "host": "127.0.0.1", "port": port }, "auth": { "dev": true } }),
+    )?;
     let clock = crate::clock::system();
     let db = Arc::new(Db::open(data, clock.now_ms())?);
     let url_cfg = cfg.clone();
     let boxes = ProcessHost::new(
-        crate::hostd::ProcessOptions { bin: wisp_bin, data: data.to_owned(), idle_ms, check_ms: 1000, start_ms: 30_000, max_running: 8, env, url_of: Arc::new(move |h| url_cfg.instance_url(h)), boxd: None },
+        crate::hostd::ProcessOptions {
+            bin: wisp_bin,
+            data: data.to_owned(),
+            idle_ms,
+            check_ms: 1000,
+            start_ms: 30_000,
+            max_running: 8,
+            env,
+            url_of: Arc::new(move |h| url_cfg.instance_url(h)),
+            boxd: None,
+        },
         clock.clone(),
     );
     let grid = Grid::new(cfg, db, clock, boxes);

@@ -60,7 +60,13 @@ pub(crate) fn register(s: &mut Setup, cell: &Cell) {
             let files = files_of(std::path::Path::new(&dir)).await?;
             let size = files.iter().map(|f| f.1.len() as u64).sum();
             let body = base64::engine::general_purpose::STANDARD.encode(pack(&files));
-            Ok(c::AppBundle { title: it.title.clone(), entry: it.entry.clone().unwrap_or_else(|| "index.html".into()), files: u32::try_from(files.len()).unwrap_or(u32::MAX), size, body })
+            Ok(c::AppBundle {
+                title: it.title.clone(),
+                entry: it.entry.clone().unwrap_or_else(|| "index.html".into()),
+                files: u32::try_from(files.len()).unwrap_or(u32::MAX),
+                size,
+                body,
+            })
         }
     });
 }

@@ -93,13 +93,32 @@ pub fn locked_card(tried: bool) -> Value {
 
 async fn create(ctx: &Ctx, call: &Call, a: CreateArgs) -> Result<Value> {
     let dests = ctx.run::<Destinations>(call, NoArgs {}).await?;
-    let to = dests.as_array().into_iter().flatten().find(|d| d.get("ready") == Some(&json!(true))).and_then(|d| d.get("id")).and_then(Value::as_str).map(str::to_owned);
+    let to = dests
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|d| d.get("ready") == Some(&json!(true)))
+        .and_then(|d| d.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     let Some(to) = to else {
-        let why = dests.as_array().and_then(|d| d.first()).and_then(|d| d.get("why")).and_then(Value::as_str).unwrap_or("Sign in to wisp Cloud to share a link.").to_owned();
+        let why = dests
+            .as_array()
+            .and_then(|d| d.first())
+            .and_then(|d| d.get("why"))
+            .and_then(Value::as_str)
+            .unwrap_or("Sign in to wisp Cloud to share a link.")
+            .to_owned();
         return Err(WireError::invalid(why));
     };
     let locked = a.passkey.as_deref().is_some_and(|p| !p.trim().is_empty());
-    let args = SendArgs { to, id: Some(a.session.clone()), level: if a.work { Level::Report } else { Level::Spec }, access: Some(access_of(a.passkey.as_deref())), ..SendArgs::default() };
+    let args = SendArgs {
+        to,
+        id: Some(a.session.clone()),
+        level: if a.work { Level::Report } else { Level::Spec },
+        access: Some(access_of(a.passkey.as_deref())),
+        ..SendArgs::default()
+    };
     let sent = ctx.run::<SendCmd>(call, args).await?;
     let at = ctx.clock().map_or(0, |c| c.now_ms());
     let keep = kept(&sent, locked, at);
@@ -124,7 +143,9 @@ async fn peek(ctx: &Ctx, call: &Call, a: PeekArgs) -> Result<Value> {
     let tried = a.passkey.as_deref().is_some_and(|p| !p.is_empty());
     match calls::fetch(ctx, call, a.url, a.passkey).await {
         Ok(f) => Ok(card_of(&f.content, &f.card, f.verified)),
-        Err(e) if e.message.contains("password") || e.message.contains("people only") || e.message.contains("for a team") => Ok(locked_card(tried)),
+        Err(e) if e.message.contains("password") || e.message.contains("people only") || e.message.contains("for a team") => {
+            Ok(locked_card(tried))
+        }
         Err(e) => Err(e),
     }
 }

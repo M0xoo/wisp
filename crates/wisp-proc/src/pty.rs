@@ -22,9 +22,7 @@ use crate::child::{ChildControl, ChildHandle};
 use crate::pipes::{DRAIN, kill_tree, signal_tree};
 use crate::resolve::Resolved;
 use crate::tree::Tree;
-use crate::{
-    Child, Exit, KillReport, Output, ProcError, PtySize, Result, Signal, SpawnOpts, Stream,
-};
+use crate::{Child, Exit, KillReport, Output, ProcError, PtySize, Result, Signal, SpawnOpts, Stream};
 
 const CHUNK: usize = 64 * 1024;
 /// ^D: a terminal's end of input.
@@ -37,33 +35,15 @@ type Slot = Arc<Mutex<Option<mpsc::Sender<Output>>>>;
 pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts, size: PtySize) -> Result<Child> {
     // The size goes on when the PTY is made, before the program starts: v1 learned that a size set
     // afterwards races the program's first look (`stty size` said 0 0 on a busy machine).
-    let size = Size {
-        rows: size.rows.max(1),
-        cols: size.cols.max(1),
-        pixel_width: 0,
-        pixel_height: 0,
-    };
-    let pair = portable_pty::native_pty_system()
-        .openpty(size)
-        .map_err(|e| ProcError::spawn(bin, e))?;
-    let child = pair
-        .slave
-        .spawn_command(command(r, opts))
-        .map_err(|e| ProcError::spawn(bin, e))?;
+    let size = Size { rows: size.rows.max(1), cols: size.cols.max(1), pixel_width: 0, pixel_height: 0 };
+    let pair = portable_pty::native_pty_system().openpty(size).map_err(|e| ProcError::spawn(bin, e))?;
+    let child = pair.slave.spawn_command(command(r, opts)).map_err(|e| ProcError::spawn(bin, e))?;
     // Our copy of the slave side would keep the terminal open after the program exits.
     drop(pair.slave);
-    let pid = child
-        .process_id()
-        .ok_or_else(|| ProcError::spawn(bin, "no pid"))?;
+    let pid = child.process_id().ok_or_else(|| ProcError::spawn(bin, "no pid"))?;
     let tree = Tree::new(pid);
-    let reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|e| ProcError::spawn(bin, e))?;
-    let writer = pair
-        .master
-        .take_writer()
-        .map_err(|e| ProcError::spawn(bin, e))?;
+    let reader = pair.master.try_clone_reader().map_err(|e| ProcError::spawn(bin, e))?;
+    let writer = pair.master.take_writer().map_err(|e| ProcError::spawn(bin, e))?;
     let (out_tx, out_rx) = crate::output_channel();
     let slot: Slot = Arc::new(Mutex::new(Some(out_tx)));
     let (done_tx, done_rx) = std_mpsc::channel();
@@ -72,52 +52,28 @@ pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts, size: PtySize) ->
     let (exit_tx, exit_rx) = watch::channel(None);
     let name = format!("pty-{pid}");
     let reader_slot = slot.clone();
-    thread::Builder::new()
-        .name(format!("{name}-read"))
-        .spawn(move || read(reader, &reader_slot, &done_tx))?;
-    thread::Builder::new()
-        .name(format!("{name}-write"))
-        .spawn(move || feed(&in_rx, writer))?;
+    thread::Builder::new().name(format!("{name}-read")).spawn(move || read(reader, &reader_slot, &done_tx))?;
+    thread::Builder::new().name(format!("{name}-write")).spawn(move || feed(&in_rx, writer))?;
     let alive2 = alive.clone();
-    thread::Builder::new()
-        .name(format!("{name}-wait"))
-        .spawn(move || {
-            let exit = wait(child);
-            alive2.store(false, Ordering::SeqCst);
-            // Output first, then the exit: the last screen includes the final lines.
-            let _ = done_rx.recv_timeout(DRAIN);
-            slot.lock().unwrap_or_else(PoisonError::into_inner).take();
-            tracing::debug!(pid, code = ?exit.code, signal = ?exit.signal, "pty exit");
-            let _ = exit_tx.send(Some(exit));
-        })?;
-    let control = PtyControl {
-        input: Mutex::new(Some(in_tx)),
-        master: Mutex::new(pair.master),
-        tree,
-        alive,
-    };
-    let handle = ChildHandle::new(
-        pid,
-        true,
-        opts.grace.unwrap_or(crate::KILL_GRACE),
-        Arc::new(control),
-        exit_rx,
-    );
-    Ok(Child {
-        handle,
-        output: out_rx,
-    })
+    thread::Builder::new().name(format!("{name}-wait")).spawn(move || {
+        let exit = wait(child);
+        alive2.store(false, Ordering::SeqCst);
+        // Output first, then the exit: the last screen includes the final lines.
+        let _ = done_rx.recv_timeout(DRAIN);
+        slot.lock().unwrap_or_else(PoisonError::into_inner).take();
+        tracing::debug!(pid, code = ?exit.code, signal = ?exit.signal, "pty exit");
+        let _ = exit_tx.send(Some(exit));
+    })?;
+    let control = PtyControl { input: Mutex::new(Some(in_tx)), master: Mutex::new(pair.master), tree, alive };
+    let handle = ChildHandle::new(pid, true, opts.grace.unwrap_or(crate::KILL_GRACE), Arc::new(control), exit_rx);
+    Ok(Child { handle, output: out_rx })
 }
 
 fn command(r: &Resolved, opts: &SpawnOpts) -> CommandBuilder {
     let mut cmd = CommandBuilder::new(&r.command);
     cmd.args(&r.args);
     // portable-pty starts in $HOME without one; a piped child starts where wisp is: keep them alike.
-    let cwd = opts
-        .cwd
-        .clone()
-        .or_else(|| std::env::current_dir().ok())
-        .unwrap_or_else(|| PathBuf::from("/"));
+    let cwd = opts.cwd.clone().or_else(|| std::env::current_dir().ok()).unwrap_or_else(|| PathBuf::from("/"));
     cmd.cwd(cwd);
     if opts.env.clear {
         cmd.env_clear();
@@ -141,10 +97,7 @@ fn read(mut reader: Box<dyn Read + Send>, slot: &Slot, done: &std_mpsc::Sender<(
                 let tx = slot.lock().unwrap_or_else(PoisonError::into_inner).clone();
                 match tx {
                     Some(tx) => {
-                        let _ = tx.blocking_send(Output {
-                            stream: Stream::Stdout,
-                            data: buf[..n].to_vec(),
-                        });
+                        let _ = tx.blocking_send(Output { stream: Stream::Stdout, data: buf[..n].to_vec() });
                     }
                     None => break, // the exit was announced: it is the last word
                 }
@@ -159,11 +112,7 @@ fn read(mut reader: Box<dyn Read + Send>, slot: &Slot, done: &std_mpsc::Sender<(
 
 fn feed(rx: &std_mpsc::Receiver<Vec<u8>>, mut writer: Box<dyn Write + Send>) {
     while let Ok(bytes) = rx.recv() {
-        if writer
-            .write_all(&bytes)
-            .and_then(|()| writer.flush())
-            .is_err()
-        {
+        if writer.write_all(&bytes).and_then(|()| writer.flush()).is_err() {
             break;
         }
     }
@@ -174,13 +123,7 @@ fn wait(child: Box<dyn portable_pty::Child + Send + Sync>) -> Exit {
     let child: Box<dyn portable_pty::Child> = child;
     match child.downcast::<std::process::Child>() {
         Ok(mut c) => c.wait().map(crate::pipes::exit_of).unwrap_or_default(),
-        Err(mut other) => other
-            .wait()
-            .map(|s| Exit {
-                code: i32::try_from(s.exit_code()).ok(),
-                signal: None,
-            })
-            .unwrap_or_default(),
+        Err(mut other) => other.wait().map(|s| Exit { code: i32::try_from(s.exit_code()).ok(), signal: None }).unwrap_or_default(),
     }
 }
 
@@ -194,11 +137,7 @@ struct PtyControl {
 impl ChildControl for PtyControl {
     fn write(&self, data: Vec<u8>) -> Result<()> {
         let guard = self.input.lock().unwrap_or_else(PoisonError::into_inner);
-        guard
-            .as_ref()
-            .ok_or(ProcError::StdinClosed)?
-            .send(data)
-            .map_err(|_| ProcError::Exited)
+        guard.as_ref().ok_or(ProcError::StdinClosed)?.send(data).map_err(|_| ProcError::Exited)
     }
     fn close_stdin(&self) {
         let _ = self.write(vec![EOT]);
@@ -207,27 +146,13 @@ impl ChildControl for PtyControl {
         if !self.alive.load(Ordering::SeqCst) {
             return Err(ProcError::Exited);
         }
-        let size = Size {
-            rows: size.rows.max(1),
-            cols: size.cols.max(1),
-            pixel_width: 0,
-            pixel_height: 0,
-        };
-        self.master
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .resize(size)
-            .map_err(|e| ProcError::Io(io::Error::other(e.to_string())))
+        let size = Size { rows: size.rows.max(1), cols: size.cols.max(1), pixel_width: 0, pixel_height: 0 };
+        self.master.lock().unwrap_or_else(PoisonError::into_inner).resize(size).map_err(|e| ProcError::Io(io::Error::other(e.to_string())))
     }
     fn signal(&self, sig: Signal, whole: bool) -> Result<()> {
         signal_tree(&self.tree, &self.alive, sig, whole)
     }
     fn kill(&self, sig: Signal, grace: Duration) -> BoxFuture<'static, KillReport> {
-        kill_tree(
-            self.tree.clone(),
-            self.alive.load(Ordering::SeqCst),
-            sig,
-            grace,
-        )
+        kill_tree(self.tree.clone(), self.alive.load(Ordering::SeqCst), sig, grace)
     }
 }

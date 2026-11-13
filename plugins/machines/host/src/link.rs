@@ -144,7 +144,11 @@ pub(crate) async fn run(st: &State, id: &str, ch: &Arc<dyn Channel>, token: &Can
     let (tx, rx) = mpsc::unbounded_channel();
     st.with_link(id, |l| l.post = Some(tx));
     let _ = carry(st, id, outs);
-    let req = ChannelRequest { headers: vec![("accept".into(), "text/event-stream".into())], passive: true, ..ChannelRequest::get(format!("/events?{}", query(&params))) };
+    let req = ChannelRequest {
+        headers: vec![("accept".into(), "text/event-stream".into())],
+        passive: true,
+        ..ChannelRequest::get(format!("/events?{}", query(&params)))
+    };
     let resp = tokio::select! {
         () = token.cancelled() => return End::Cancelled,
         r = ch.request(req) => r,

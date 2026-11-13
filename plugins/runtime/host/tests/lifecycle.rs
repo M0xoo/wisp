@@ -12,28 +12,15 @@ use wisp_runtime_api::commands::{FollowUpArgs, ListArgs, QueueEditArgs, StartArg
 use wisp_runtime_api::model::{Activity, QueueItem, SessionState, TurnStatus};
 
 fn start(prompt: &str) -> StartArgs {
-    StartArgs {
-        prompt: prompt.into(),
-        cwd: Some("/tmp".into()),
-        ..StartArgs::default()
-    }
+    StartArgs { prompt: prompt.into(), cwd: Some("/tmp".into()), ..StartArgs::default() }
 }
 
 fn follow(id: &wisp_runtime_api::SessionId, text: &str, queue: bool) -> FollowUpArgs {
-    FollowUpArgs {
-        id: id.clone(),
-        text: text.into(),
-        queue: Some(queue),
-        ..FollowUpArgs::default()
-    }
+    FollowUpArgs { id: id.clone(), text: text.into(), queue: Some(queue), ..FollowUpArgs::default() }
 }
 
 async fn last_status(r: &common::Rig, id: &str) -> Option<TurnStatus> {
-    r.rt.turns(id, None, Some(1))
-        .await
-        .unwrap()
-        .pop()
-        .map(|t| t.status)
+    r.rt.turns(id, None, Some(1)).await.unwrap().pop().map(|t| t.status)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -41,41 +28,24 @@ async fn a_task_runs_its_first_turn_and_is_named_after_its_topic() {
     let r = rig().await;
     let c = r.rt.create(start("fix the login")).await.unwrap();
     let id = c.id.0.clone();
-    until("the turn to end", || async {
-        last_status(&r, &id).await == Some(TurnStatus::Done)
-    })
-    .await;
-    until("the run to let go", || async {
-        r.sim.spawned().len() == 1
-            && r.rt.list(&ListArgs::default())[0].state == SessionState::Review
-    })
-    .await;
+    until("the turn to end", || async { last_status(&r, &id).await == Some(TurnStatus::Done) }).await;
+    until("the run to let go", || async { r.sim.spawned().len() == 1 && r.rt.list(&ListArgs::default())[0].state == SessionState::Review })
+        .await;
     let s = r.rt.get(&id).await.unwrap();
     assert_eq!(s.title, "Topic of fix the login");
     assert_eq!(s.resume_id.as_deref(), Some("conv-1"));
     assert!(s.unread);
     let t = r.rt.turns(&id, None, None).await.unwrap().pop().unwrap();
-    assert_eq!(
-        t.presentation.as_ref().unwrap().blocks[0]["summary"],
-        "done: fix the login"
-    );
+    assert_eq!(t.presentation.as_ref().unwrap().blocks[0]["summary"], "done: fix the login");
     assert_eq!(t.changed_files, Some(1));
     assert_eq!(t.stats.as_ref().unwrap().cost_usd, Some(0.01));
     let steps = r.rt.activity(t.id.as_str(), None).await.unwrap().items;
     assert!(matches!(&steps[0].activity, Activity::Tool { label, .. } if label == "Run tests"));
     assert!(steps.windows(2).all(|w| w[0].seq < w[1].seq));
     let row = &r.rt.list(&ListArgs::default())[0];
-    assert_eq!(
-        (row.status.as_str(), row.preview.as_str(), row.turn_count),
-        ("done", "done: fix the login", 1)
-    );
+    assert_eq!((row.status.as_str(), row.preview.as_str(), row.turn_count), ("done", "done: fix the login", 1));
     let names = r.host.names();
-    let pos = |n: &str| {
-        names
-            .iter()
-            .position(|x| *x == n)
-            .unwrap_or_else(|| panic!("{n} in {names:?}"))
-    };
+    let pos = |n: &str| names.iter().position(|x| *x == n).unwrap_or_else(|| panic!("{n} in {names:?}"));
     assert!(
         pos("session.created") < pos("turn.started")
             && pos("turn.started") < pos("turn.activity")
@@ -90,26 +60,17 @@ async fn a_task_runs_its_first_turn_and_is_named_after_its_topic() {
 async fn a_failed_run_shows_the_harness_error() {
     let r = rig().await;
     let id = r.rt.create(start("fail now")).await.unwrap().id.0;
-    until("the turn to fail", || async {
-        last_status(&r, &id).await == Some(TurnStatus::Error)
-    })
-    .await;
+    until("the turn to fail", || async { last_status(&r, &id).await == Some(TurnStatus::Error) }).await;
     let t = r.rt.turns(&id, None, None).await.unwrap().pop().unwrap();
     let hero = &t.presentation.unwrap().blocks[0];
-    assert_eq!(
-        (hero["title"].as_str(), hero["summary"].as_str()),
-        (Some("Fake CLI failed"), Some("Error: boom"))
-    );
+    assert_eq!((hero["title"].as_str(), hero["summary"].as_str()), (Some("Fake CLI failed"), Some("Error: boom")));
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_turn_the_model_turned_down_records_who_refused_for_the_hand_off_card() {
     let r = rig().await;
     let id = r.rt.create(start("refuse this")).await.unwrap().id.0;
-    until("the turn to end", || async {
-        last_status(&r, &id).await.is_some_and(|s| s != TurnStatus::Running)
-    })
-    .await;
+    until("the turn to end", || async { last_status(&r, &id).await.is_some_and(|s| s != TurnStatus::Running) }).await;
     let t = r.rt.turns(&id, None, None).await.unwrap().pop().unwrap();
     let refusal = t.refusal.expect("the refusal is on the turn");
     assert_eq!((refusal.agent.as_str(), refusal.kind.as_str()), ("fake", "policy"));
@@ -119,10 +80,7 @@ async fn a_turn_the_model_turned_down_records_who_refused_for_the_hand_off_card(
     assert_eq!(blocks[1]["text"], "I can't help with that.");
     // a turn that did its work has none
     let ok = r.rt.create(start("fix it")).await.unwrap().id.0;
-    until("the other turn to end", || async {
-        last_status(&r, &ok).await == Some(TurnStatus::Done)
-    })
-    .await;
+    until("the other turn to end", || async { last_status(&r, &ok).await == Some(TurnStatus::Done) }).await;
     assert!(r.rt.turns(&ok, None, None).await.unwrap().pop().unwrap().refusal.is_none());
 }
 
@@ -134,14 +92,33 @@ async fn settings_decide_what_a_run_is_offered_and_whether_a_follow_up_queues() 
     let r = rig().await;
     let id = r.rt.create(start("fix it")).await.unwrap().id;
     until("the run", || async { r.sim.spawned().len() == 1 }).await;
-    assert!(has(&r, 0, "--app") && has(&r, 0, "--watch") && !has(&r, 0, "--plain"), "on unless switched off: {:?}", r.sim.spawned()[0].args);
+    assert!(
+        has(&r, 0, "--app") && has(&r, 0, "--watch") && !has(&r, 0, "--plain"),
+        "on unless switched off: {:?}",
+        r.sim.spawned()[0].args
+    );
     assert!(!r.sim.spawned()[0].args.iter().any(|a| a.starts_with("--sub=")));
     until("it ends", || async { last_status(&r, &id.0).await == Some(TurnStatus::Done) }).await;
     let set = |k: &str, v: serde_json::Value| (k.to_owned(), v);
-    let off = rig_with(Recorder { settings: [set("runtime.apps", false.into()), set("runtime.watch", false.into()), set("runtime.blocks", false.into()), set("runtime.subagentModel", "haiku".into()), set("runtime.followUp", "queue".into())].into(), ..Default::default() }).await;
+    let off = rig_with(Recorder {
+        settings: [
+            set("runtime.apps", false.into()),
+            set("runtime.watch", false.into()),
+            set("runtime.blocks", false.into()),
+            set("runtime.subagentModel", "haiku".into()),
+            set("runtime.followUp", "queue".into()),
+        ]
+        .into(),
+        ..Default::default()
+    })
+    .await;
     let o = off.rt.create(start("slow work")).await.unwrap().id;
     until("the run", || async { off.sim.spawned().len() == 1 }).await;
-    assert!(!has(&off, 0, "--app") && !has(&off, 0, "--watch") && has(&off, 0, "--plain") && has(&off, 0, "--sub=haiku"), "{:?}", off.sim.spawned()[0].args);
+    assert!(
+        !has(&off, 0, "--app") && !has(&off, 0, "--watch") && has(&off, 0, "--plain") && has(&off, 0, "--sub=haiku"),
+        "{:?}",
+        off.sim.spawned()[0].args
+    );
     // a follow-up sent without saying, while it works: queued after it
     let mut f = follow(&o, "then this", false);
     f.queue = None;
@@ -163,7 +140,8 @@ async fn a_tasks_run_is_lean_when_settings_say_all_or_the_task_asks_and_the_task
     until("the second run", || async { r.sim.spawned().len() == 2 }).await;
     assert!(quiet(&r, 1), "the task asked");
     assert!(r.rt.set_lean(&id.0, Some("sometimes".into())).await.is_err());
-    let all = rig_with(Recorder { settings: [("runtime.leanRuns".to_owned(), serde_json::json!("all"))].into(), ..Default::default() }).await;
+    let all =
+        rig_with(Recorder { settings: [("runtime.leanRuns".to_owned(), serde_json::json!("all"))].into(), ..Default::default() }).await;
     let a = all.rt.create(start("fix it")).await.unwrap().id;
     until("the run", || async { all.sim.spawned().len() == 1 }).await;
     assert!(quiet(&all, 0), "Settings: every run");
@@ -179,58 +157,23 @@ async fn a_follow_up_while_running_interrupts_and_runs_next_without_a_notificati
     let r = rig().await;
     let id = r.rt.create(start("slow work")).await.unwrap().id;
     until("the run to report its conversation", || async {
-        !r.rt
-            .activity(
-                &r.rt.turns(id.as_str(), None, Some(1)).await.unwrap()[0]
-                    .id
-                    .0,
-                None,
-            )
-            .await
-            .unwrap()
-            .items
-            .is_empty()
+        !r.rt.activity(&r.rt.turns(id.as_str(), None, Some(1)).await.unwrap()[0].id.0, None).await.unwrap().items.is_empty()
     })
     .await;
     r.host.taken();
-    r.rt.follow_up(follow(&id, "do this instead", false))
-        .await
-        .unwrap();
+    r.rt.follow_up(follow(&id, "do this instead", false)).await.unwrap();
     until("the follow-up's turn to end", || async {
-        r.rt.turns(id.as_str(), None, None).await.unwrap().len() == 2
-            && last_status(&r, id.as_str()).await == Some(TurnStatus::Done)
+        r.rt.turns(id.as_str(), None, None).await.unwrap().len() == 2 && last_status(&r, id.as_str()).await == Some(TurnStatus::Done)
     })
     .await;
     let turns = r.rt.turns(id.as_str(), None, None).await.unwrap();
     assert_eq!(turns[0].status, TurnStatus::Stopped);
-    assert_eq!(
-        turns[0].presentation.as_ref().unwrap().blocks[0]["title"],
-        "Interrupted"
-    );
+    assert_eq!(turns[0].presentation.as_ref().unwrap().blocks[0]["title"], "Interrupted");
     // the follow-up resumed the conversation
-    assert!(
-        r.sim.spawned()[1]
-            .args
-            .iter()
-            .any(|a| a == "--resume=conv-1")
-    );
-    let finished: Vec<_> = r
-        .host
-        .taken()
-        .into_iter()
-        .filter_map(|e| {
-            if let Emitted::Finished(f) = e {
-                Some(f.turn_id)
-            } else {
-                None
-            }
-        })
-        .collect();
-    assert_eq!(
-        finished,
-        vec![turns[1].id.clone()],
-        "no notification for the run it replaced"
-    );
+    assert!(r.sim.spawned()[1].args.iter().any(|a| a == "--resume=conv-1"));
+    let finished: Vec<_> =
+        r.host.taken().into_iter().filter_map(|e| if let Emitted::Finished(f) = e { Some(f.turn_id) } else { None }).collect();
+    assert_eq!(finished, vec![turns[1].id.clone()], "no notification for the run it replaced");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -238,44 +181,23 @@ async fn a_stop_holds_the_queue_and_your_next_message_carries_it_on() {
     let r = rig().await;
     let id = r.rt.create(start("slow work")).await.unwrap().id;
     until("the run to start", || async { r.sim.spawned().len() == 1 }).await;
-    r.rt.follow_up(follow(&id, "queued one", true))
-        .await
-        .unwrap();
+    r.rt.follow_up(follow(&id, "queued one", true)).await.unwrap();
     r.rt.stop(id.as_str(), false).await.unwrap();
-    until("the turn to stop", || async {
-        last_status(&r, id.as_str()).await == Some(TurnStatus::Stopped)
-    })
-    .await;
+    until("the turn to stop", || async { last_status(&r, id.as_str()).await == Some(TurnStatus::Stopped) }).await;
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     let s = r.rt.get(id.as_str()).await.unwrap();
     assert!(s.queue_held);
     assert_eq!(s.queue.len(), 1, "a Stop never discards queued follow-ups");
-    assert_eq!(
-        r.sim.spawned().len(),
-        1,
-        "nothing goes out by itself after a Stop"
-    );
-    let t =
-        r.rt.turns(id.as_str(), None, None)
-            .await
-            .unwrap()
-            .pop()
-            .unwrap();
+    assert_eq!(r.sim.spawned().len(), 1, "nothing goes out by itself after a Stop");
+    let t = r.rt.turns(id.as_str(), None, None).await.unwrap().pop().unwrap();
     assert_eq!(t.presentation.unwrap().blocks[0]["title"], "Stopped");
     // your next message goes now, and the held one after it
     r.rt.follow_up(follow(&id, "carry on", true)).await.unwrap();
     until("both to run", || async {
-        r.rt.turns(id.as_str(), None, None).await.unwrap().len() == 3
-            && last_status(&r, id.as_str()).await == Some(TurnStatus::Done)
+        r.rt.turns(id.as_str(), None, None).await.unwrap().len() == 3 && last_status(&r, id.as_str()).await == Some(TurnStatus::Done)
     })
     .await;
-    let prompts: Vec<String> =
-        r.rt.turns(id.as_str(), None, None)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|t| t.prompt)
-            .collect();
+    let prompts: Vec<String> = r.rt.turns(id.as_str(), None, None).await.unwrap().into_iter().map(|t| t.prompt).collect();
     assert_eq!(prompts, ["slow work", "carry on", "queued one"]);
 }
 
@@ -289,115 +211,49 @@ async fn queued_follow_ups_can_be_edited_reordered_merged_and_taken_back() {
     }
     let q = r.rt.get(id.as_str()).await.unwrap().queue;
     let ids: Vec<String> = q.iter().map(|x| x.id.clone()).collect();
-    r.rt.queue_text(id.as_str(), &ids[0], "one, edited")
-        .await
-        .unwrap();
-    let order = vec![QueueItem {
-        id: ids[2].clone(),
-        text: "three".into(),
-        ..QueueItem::default()
-    }];
-    r.rt.queue_edit(QueueEditArgs {
-        id: id.clone(),
-        items: order,
-        remove: vec![],
-        held: None,
-    })
-    .await
-    .unwrap();
+    r.rt.queue_text(id.as_str(), &ids[0], "one, edited").await.unwrap();
+    let order = vec![QueueItem { id: ids[2].clone(), text: "three".into(), ..QueueItem::default() }];
+    r.rt.queue_edit(QueueEditArgs { id: id.clone(), items: order, remove: vec![], held: None }).await.unwrap();
     let texts = |q: Vec<QueueItem>| q.into_iter().map(|x| x.text).collect::<Vec<_>>();
-    assert_eq!(
-        texts(r.rt.get(id.as_str()).await.unwrap().queue),
-        ["three", "one, edited", "two"]
-    );
-    r.rt.queue_merge(id.as_str(), &[ids[0].clone(), ids[1].clone()])
-        .await
-        .unwrap();
-    assert_eq!(
-        texts(r.rt.get(id.as_str()).await.unwrap().queue),
-        ["three", "one, edited\n\ntwo"]
-    );
-    r.rt.queue_edit(QueueEditArgs {
-        id: id.clone(),
-        items: vec![],
-        remove: vec![ids[2].clone()],
-        held: None,
-    })
-    .await
-    .unwrap();
+    assert_eq!(texts(r.rt.get(id.as_str()).await.unwrap().queue), ["three", "one, edited", "two"]);
+    r.rt.queue_merge(id.as_str(), &[ids[0].clone(), ids[1].clone()]).await.unwrap();
+    assert_eq!(texts(r.rt.get(id.as_str()).await.unwrap().queue), ["three", "one, edited\n\ntwo"]);
+    r.rt.queue_edit(QueueEditArgs { id: id.clone(), items: vec![], remove: vec![ids[2].clone()], held: None }).await.unwrap();
     assert_eq!(r.rt.get(id.as_str()).await.unwrap().queue.len(), 1);
     r.rt.stop(id.as_str(), true).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn before_run_can_veto_or_hold_a_run() {
-    let r = rig_with(Recorder {
-        veto: Some("Daily budget $20 reached ($20.40)".into()),
-        ..Recorder::default()
-    })
-    .await;
+    let r = rig_with(Recorder { veto: Some("Daily budget $20 reached ($20.40)".into()), ..Recorder::default() }).await;
     let id = r.rt.create(start("anything")).await.unwrap().id;
-    let t =
-        r.rt.turns(id.as_str(), None, None)
-            .await
-            .unwrap()
-            .pop()
-            .unwrap();
+    let t = r.rt.turns(id.as_str(), None, None).await.unwrap().pop().unwrap();
     assert_eq!(t.status, TurnStatus::Error);
-    assert_eq!(
-        t.presentation.unwrap().blocks[0]["summary"],
-        "Daily budget $20 reached ($20.40)"
-    );
+    assert_eq!(t.presentation.unwrap().blocks[0]["summary"], "Daily budget $20 reached ($20.40)");
     assert_eq!(r.sim.spawned().len(), 0, "nothing spawned");
-    let r = rig_with(Recorder {
-        hold: Some("limit".into()),
-        ..Recorder::default()
-    })
-    .await;
+    let r = rig_with(Recorder { hold: Some("limit".into()), ..Recorder::default() }).await;
     let id = r.rt.create(start("held work")).await.unwrap().id;
-    let t =
-        r.rt.turns(id.as_str(), None, None)
-            .await
-            .unwrap()
-            .pop()
-            .unwrap();
+    let t = r.rt.turns(id.as_str(), None, None).await.unwrap().pop().unwrap();
     assert_eq!(t.status, TurnStatus::Held);
     assert!(r.host.names().contains(&"turn.held"));
     assert_eq!(r.rt.list(&ListArgs::default())[0].status, "held");
     // Skip: it stays, stopped, saying why
-    r.rt.release(id.as_str(), t.id.as_str(), false)
-        .await
-        .unwrap();
-    assert_eq!(
-        last_status(&r, id.as_str()).await,
-        Some(TurnStatus::Stopped)
-    );
+    r.rt.release(id.as_str(), t.id.as_str(), false).await.unwrap();
+    assert_eq!(last_status(&r, id.as_str()).await, Some(TurnStatus::Stopped));
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn edits_reads_and_delete() {
     let r = rig().await;
     let id = r.rt.create(start("x")).await.unwrap().id.0;
-    until("the turn to end", || async {
-        last_status(&r, &id).await == Some(TurnStatus::Done)
-    })
-    .await;
+    until("the turn to end", || async { last_status(&r, &id).await == Some(TurnStatus::Done) }).await;
     r.rt.rename(&id, "  Named  ").await.unwrap();
     r.rt.archive(&id, true).await.unwrap();
-    r.rt.set_ext(&id, "wisp.goal", serde_json::json!({"text": "green"}))
-        .await
-        .unwrap();
+    r.rt.set_ext(&id, "wisp.goal", serde_json::json!({"text": "green"})).await.unwrap();
     let s = r.rt.get(&id).await.unwrap();
     assert_eq!((s.title.as_str(), s.archived), ("Named", true));
     assert_eq!(s.ext["wisp.goal"]["text"], "green");
-    assert_eq!(
-        r.rt.list(&ListArgs {
-            archived: Some(false),
-            limit: None
-        })
-        .len(),
-        0
-    );
+    assert_eq!(r.rt.list(&ListArgs { archived: Some(false), limit: None }).len(), 0);
     assert!(r.rt.rename(&id, " ").await.is_err());
     let hits = r.rt.search("Named", 10).await.unwrap();
     assert_eq!(hits.len(), 1);
@@ -422,12 +278,7 @@ async fn a_restart_marks_turns_it_left_running_as_stopped() {
     rt2.start().await.unwrap();
     let t = rt2.turns(&id, None, None).await.unwrap().pop().unwrap();
     assert_eq!(t.status, TurnStatus::Stopped);
-    assert!(
-        t.presentation.unwrap().blocks[0]["summary"]
-            .as_str()
-            .unwrap()
-            .contains("wisp restarted")
-    );
+    assert!(t.presentation.unwrap().blocks[0]["summary"].as_str().unwrap().contains("wisp restarted"));
     r.rt.stop(&id, true).await.unwrap();
 }
 
@@ -470,9 +321,14 @@ async fn a_turn_keeps_what_run_parts_give_it_before_it_runs() {
         fn id(&self) -> &'static str {
             "wisp.git"
         }
-        fn before_turn(&self, s: &wisp_runtime_api::model::Session) -> wisp_kernel::BoxFuture<'static, Option<(String, serde_json::Value)>> {
+        fn before_turn(
+            &self,
+            s: &wisp_runtime_api::model::Session,
+        ) -> wisp_kernel::BoxFuture<'static, Option<(String, serde_json::Value)>> {
             let cwd = s.cwd.clone();
-            Box::pin(async move { Some(("wisp.git".to_owned(), serde_json::json!({ "checkpoint": { "to": "snap", "head": "head" }, "cwd": cwd }))) })
+            Box::pin(async move {
+                Some(("wisp.git".to_owned(), serde_json::json!({ "checkpoint": { "to": "snap", "head": "head" }, "cwd": cwd })))
+            })
         }
     }
     let r = rig_with(Recorder { parts: vec![std::sync::Arc::new(Keep)], ..Recorder::default() }).await;
@@ -512,13 +368,28 @@ struct Auto {
 }
 
 impl wisp_router_api::service::RouterApi for Auto {
-    fn pick(&self, _call: &wisp_kernel::Call, req: wisp_router_api::service::PickRequest) -> wisp_kernel::Result<Option<wisp_router_api::Pick>> {
+    fn pick(
+        &self,
+        _call: &wisp_kernel::Call,
+        req: wisp_router_api::service::PickRequest,
+    ) -> wisp_kernel::Result<Option<wisp_router_api::Pick>> {
         *self.picks.lock().unwrap() += 1;
         assert_eq!(req.choose.prompt, "fix the login");
         let route = wisp_router_api::Route { key: "fake:m1:high".into(), kind: "bug".into(), ..wisp_router_api::Route::default() };
-        Ok(Some(wisp_router_api::Pick { agent: "fake".into(), model: "m1".into(), effort: "high".into(), key: "fake:m1:high".into(), label: "Fake".into(), route }))
+        Ok(Some(wisp_router_api::Pick {
+            agent: "fake".into(),
+            model: "m1".into(),
+            effort: "high".into(),
+            key: "fake:m1:high".into(),
+            label: "Fake".into(),
+            route,
+        }))
     }
-    fn classify(&self, _call: &wisp_kernel::Call, _err: &wisp_router_api::service::RunError) -> wisp_kernel::Result<Option<wisp_router_api::Limit>> {
+    fn classify(
+        &self,
+        _call: &wisp_kernel::Call,
+        _err: &wisp_router_api::service::RunError,
+    ) -> wisp_kernel::Result<Option<wisp_router_api::Limit>> {
         Ok(None)
     }
     fn report(&self, _call: &wisp_kernel::Call, o: wisp_router_api::service::Outcome) -> wisp_kernel::Result<()> {
@@ -550,7 +421,8 @@ async fn a_task_on_auto_runs_on_the_routers_pick_and_teaches_it() {
 async fn a_turn_keeps_what_the_cli_was() {
     let r = rig().await;
     let id = r.rt.create(start("cli 2.1.0")).await.unwrap().id;
-    until("the turn to end", || async { r.rt.turns(id.as_str(), None, None).await.unwrap().first().is_some_and(|t| t.ended_at.is_some()) }).await;
+    until("the turn to end", || async { r.rt.turns(id.as_str(), None, None).await.unwrap().first().is_some_and(|t| t.ended_at.is_some()) })
+        .await;
     let t = &r.rt.turns(id.as_str(), None, None).await.unwrap()[0];
     assert_eq!(t.ext["wisp.runtime"]["cli"]["version"], "2.1.0");
 }
@@ -559,11 +431,24 @@ async fn a_turn_keeps_what_the_cli_was() {
 struct Limits;
 
 impl wisp_router_api::service::RouterApi for Limits {
-    fn pick(&self, _call: &wisp_kernel::Call, _req: wisp_router_api::service::PickRequest) -> wisp_kernel::Result<Option<wisp_router_api::Pick>> {
+    fn pick(
+        &self,
+        _call: &wisp_kernel::Call,
+        _req: wisp_router_api::service::PickRequest,
+    ) -> wisp_kernel::Result<Option<wisp_router_api::Pick>> {
         Ok(None)
     }
-    fn classify(&self, _call: &wisp_kernel::Call, err: &wisp_router_api::service::RunError) -> wisp_kernel::Result<Option<wisp_router_api::Limit>> {
-        Ok(err.text.contains("usage limit").then_some(wisp_router_api::Limit { scope: wisp_router_api::LimitScope::Agent, ms: 3_600_000, kind: None, blip: None }))
+    fn classify(
+        &self,
+        _call: &wisp_kernel::Call,
+        err: &wisp_router_api::service::RunError,
+    ) -> wisp_kernel::Result<Option<wisp_router_api::Limit>> {
+        Ok(err.text.contains("usage limit").then_some(wisp_router_api::Limit {
+            scope: wisp_router_api::LimitScope::Agent,
+            ms: 3_600_000,
+            kind: None,
+            blip: None,
+        }))
     }
     fn report(&self, _call: &wisp_kernel::Call, _o: wisp_router_api::service::Outcome) -> wisp_kernel::Result<()> {
         Ok(())
@@ -580,9 +465,14 @@ async fn a_run_at_its_usage_limit_gets_its_card_and_waits_for_the_reset_when_set
     let acct = |id: &str, label: &str, state: &str, kind: &str| serde_json::json!({ "id": id, "label": label, "email": "", "plan": "", "default": id == "default", "kind": kind, "state": state, "until": null, "why": "" });
     let accounts = serde_json::json!({ "accounts": [acct("default", "Me", "limit", "personal"), acct("w", "Work", "ready", "work")] });
     let answers = |wait: bool| {
-        let mut a: std::collections::BTreeMap<String, serde_json::Value> = [("budget.resetAt".to_owned(), serde_json::json!(4_102_444_800_000_i64)), ("accounts.cool".to_owned(), accounts.clone())].into();
+        let mut a: std::collections::BTreeMap<String, serde_json::Value> =
+            [("budget.resetAt".to_owned(), serde_json::json!(4_102_444_800_000_i64)), ("accounts.cool".to_owned(), accounts.clone())]
+                .into();
         if wait {
-            a.insert("later.waitAtLimit".into(), serde_json::json!({ "id": "l1", "sessionId": "t", "at": 4_102_444_800_000_i64, "text": "", "by": "limit", "setAt": 0 }));
+            a.insert(
+                "later.waitAtLimit".into(),
+                serde_json::json!({ "id": "l1", "sessionId": "t", "at": 4_102_444_800_000_i64, "text": "", "by": "limit", "setAt": 0 }),
+            );
         }
         a
     };
@@ -601,7 +491,13 @@ async fn a_run_at_its_usage_limit_gets_its_card_and_waits_for_the_reset_when_set
     assert!(asked.iter().any(|(c, a)| c == "accounts.cool" && a["until"] == 4_102_444_800_000_i64), "{asked:?}");
     assert!(!asked.iter().any(|(c, _)| c == "later.waitAtLimit"));
     // Wait for the reset on: quiet, under Scheduled
-    let w = rig_with(Recorder { router: Some(std::sync::Arc::new(Limits)), answers: answers(true), settings: [("runtime.limitWait".to_owned(), serde_json::json!(true))].into(), ..Default::default() }).await;
+    let w = rig_with(Recorder {
+        router: Some(std::sync::Arc::new(Limits)),
+        answers: answers(true),
+        settings: [("runtime.limitWait".to_owned(), serde_json::json!(true))].into(),
+        ..Default::default()
+    })
+    .await;
     let wid = w.rt.create(start("limit hit")).await.unwrap().id.0;
     until("it waits", || async { w.host.asked.lock().unwrap().iter().any(|(c, _)| c == "later.waitAtLimit") }).await;
     let s = w.rt.get(&wid).await.unwrap();
@@ -610,7 +506,13 @@ async fn a_run_at_its_usage_limit_gets_its_card_and_waits_for_the_reset_when_set
     assert!(t.limit.unwrap().waiting);
     assert_eq!(t.presentation.unwrap().blocks[0]["status"], "partial");
     // later refuses (five already waiting): it lands in Needs you after all
-    let n = rig_with(Recorder { router: Some(std::sync::Arc::new(Limits)), answers: answers(false), settings: [("runtime.limitWait".to_owned(), serde_json::json!(true))].into(), ..Default::default() }).await;
+    let n = rig_with(Recorder {
+        router: Some(std::sync::Arc::new(Limits)),
+        answers: answers(false),
+        settings: [("runtime.limitWait".to_owned(), serde_json::json!(true))].into(),
+        ..Default::default()
+    })
+    .await;
     let nid = n.rt.create(start("limit hit")).await.unwrap().id.0;
     until("back in Needs you", || async { n.rt.get(&nid).await.unwrap().state == SessionState::Review }).await;
 }

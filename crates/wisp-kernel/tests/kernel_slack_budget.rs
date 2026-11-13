@@ -19,8 +19,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wisp_kernel::{
-    Call, Caller, Code, Event, Failure, FollowUp, Hook, InterceptOpts, Kernel, PluginGroup, Result,
-    Service, Verdict, WireError,
+    Call, Caller, Code, Event, Failure, FollowUp, Hook, InterceptOpts, Kernel, PluginGroup, Result, Service, Verdict, WireError,
 };
 
 struct BeforeRun;
@@ -91,10 +90,7 @@ fn runtime(w: Arc<World>) -> common::P {
             let w = w2.clone();
             async move {
                 let id = a["session"].as_str().unwrap_or_default().to_owned();
-                if let Err(e) = ctx
-                    .run_hook::<BeforeRun>(&call, json!({ "session": id, "origin": a["origin"] }))
-                    .await
-                {
+                if let Err(e) = ctx.run_hook::<BeforeRun>(&call, json!({ "session": id, "origin": a["origin"] })).await {
                     let by = e
                         .details
                         .as_ref()
@@ -104,10 +100,7 @@ fn runtime(w: Arc<World>) -> common::P {
                         .nth(1)
                         .unwrap_or_default()
                         .to_owned();
-                    w.sessions
-                        .lock()
-                        .unwrap()
-                        .insert(id, format!("refused: {by}"));
+                    w.sessions.lock().unwrap().insert(id, format!("refused: {by}"));
                     return Err(e);
                 }
                 w.spawned.lock().unwrap().push(id.clone());
@@ -127,23 +120,11 @@ fn channels() -> common::P {
                 if a["from"] != "U-owner" {
                     return Err(WireError::forbidden("not allowed to start tasks here"));
                 }
-                ctx.run::<Create>(
-                    &call,
-                    json!({ "prompt": a["text"], "capped": { "mode": "edits" } }),
-                )
-                .await
+                ctx.run::<Create>(&call, json!({ "prompt": a["text"], "capped": { "mode": "edits" } })).await
             });
-            s.command::<ChStart, _, _>(
-                |ctx, call, a| async move { ctx.run::<Start>(&call, a).await },
-            );
+            s.command::<ChStart, _, _>(|ctx, call, a| async move { ctx.run::<Start>(&call, a).await });
             s.command::<Notice, _, _>(|ctx, call, a| async move {
-                ctx.emit(
-                    &call,
-                    &Noticed {
-                        to: a["to"].clone(),
-                        text: a["text"].as_str().unwrap_or_default().to_owned(),
-                    },
-                );
+                ctx.emit(&call, &Noticed { to: a["to"].clone(), text: a["text"].as_str().unwrap_or_default().to_owned() });
                 Ok(())
             });
         },
@@ -170,14 +151,9 @@ fn slack(w: Arc<World>) -> common::P {
 
 fn guard(id: &str, priority: i32) -> common::P {
     common::plugin(id, json!({}), move |s| {
-        s.intercept::<BeforeRun, _, _>(
-            InterceptOpts {
-                priority,
-                failure: Failure::Closed,
-                ..Default::default()
-            },
-            |_, _, _| async { Verdict::Continue },
-        );
+        s.intercept::<BeforeRun, _, _>(InterceptOpts { priority, failure: Failure::Closed, ..Default::default() }, |_, _, _| async {
+            Verdict::Continue
+        });
     })
 }
 
@@ -187,17 +163,24 @@ fn budget(spent: f64) -> common::P {
         json!({ "provides": { "budget.service": { "version": "1.0.0" } }, "permissions": ["budget:read", "channels:notice"] }),
         move |s| {
             s.provide::<BudgetService>(Arc::new(Day(spent)));
-            s.intercept::<BeforeRun, _, _>(InterceptOpts { priority: 2, failure: Failure::Closed, ..Default::default() }, |ctx, call, c| async move {
-            // a read-only service method: allowed inside an interceptor
-            let Ok((spent, limit)) = ctx.use_service::<BudgetService>().and_then(|b| b.day(&call)) else {
-                return Verdict::Veto { code: "budget_unknown".into(), message: "budget unavailable".into(), then: Vec::new() };
-            };
-            if spent < limit {
-                return Verdict::Continue;
-            }
-            let text = format!("Daily budget reached: ${spent:.2} of ${limit}. Raise it in Settings → Budget.");
-            Verdict::Veto { code: "budget_exceeded".into(), message: format!("Daily budget ${limit} reached (${spent:.2})"), then: vec![FollowUp { cmd: "channels.notice".into(), args: json!({ "to": c["origin"], "text": text }) }] }
-        });
+            s.intercept::<BeforeRun, _, _>(
+                InterceptOpts { priority: 2, failure: Failure::Closed, ..Default::default() },
+                |ctx, call, c| async move {
+                    // a read-only service method: allowed inside an interceptor
+                    let Ok((spent, limit)) = ctx.use_service::<BudgetService>().and_then(|b| b.day(&call)) else {
+                        return Verdict::Veto { code: "budget_unknown".into(), message: "budget unavailable".into(), then: Vec::new() };
+                    };
+                    if spent < limit {
+                        return Verdict::Continue;
+                    }
+                    let text = format!("Daily budget reached: ${spent:.2} of ${limit}. Raise it in Settings → Budget.");
+                    Verdict::Veto {
+                        code: "budget_exceeded".into(),
+                        message: format!("Daily budget ${limit} reached (${spent:.2})"),
+                        then: vec![FollowUp { cmd: "channels.notice".into(), args: json!({ "to": c["origin"], "text": text }) }],
+                    }
+                },
+            );
         },
     )
 }
@@ -234,46 +217,24 @@ async fn world(spent: f64, budget_on: bool) -> (Kernel, Arc<World>) {
 async fn inbound(k: &Kernel, text: &str) -> Result<Value> {
     let slack = k.ctx("wisp.slack").unwrap();
     let call = slack.root_call();
-    let session = slack
-        .run::<Inbound>(
-            &call,
-            json!({ "transport": "slack", "from": "U-owner", "text": text }),
-        )
-        .await?;
+    let session = slack.run::<Inbound>(&call, json!({ "transport": "slack", "from": "U-owner", "text": text })).await?;
     // a second root command: the session above committed (tx 1) before this one runs
-    slack
-        .run::<ChStart>(
-            &call,
-            json!({ "session": session, "origin": { "transport": "slack", "channel": "#dev" } }),
-        )
-        .await
-        .map(Value::from)
+    slack.run::<ChStart>(&call, json!({ "session": session, "origin": { "transport": "slack", "channel": "#dev" } })).await.map(Value::from)
 }
 
 #[tokio::test]
 async fn the_budget_refuses_the_run_nothing_spawns_and_slack_hears_why() {
     let (k, w) = world(20.4, true).await;
-    let e = inbound(&k, "@wisp fix the flaky login test")
-        .await
-        .unwrap_err();
+    let e = inbound(&k, "@wisp fix the flaky login test").await.unwrap_err();
     assert_eq!(e.code, Code::Vetoed);
     assert_eq!(e.message, "Daily budget $20 reached ($20.40)");
-    assert_eq!(
-        e.details.unwrap(),
-        json!({ "by": "wisp.budget", "reason": "budget_exceeded", "hook": "before:run" })
-    );
+    assert_eq!(e.details.unwrap(), json!({ "by": "wisp.budget", "reason": "budget_exceeded", "hook": "before:run" }));
     assert!(w.spawned.lock().unwrap().is_empty(), "no harness spawned");
     k.idle().await;
-    assert_eq!(
-        *w.outbound.lock().unwrap(),
-        ["Daily budget reached: $20.40 of $20. Raise it in Settings → Budget."]
-    );
+    assert_eq!(*w.outbound.lock().unwrap(), ["Daily budget reached: $20.40 of $20. Raise it in Settings → Budget."]);
     assert_eq!(w.sessions.lock().unwrap()["s1"], "refused: budget");
     // the list saw the new session (tx 1 committed) and the veto; runtime.start wrote nothing
-    assert_eq!(
-        *w.heard.lock().unwrap(),
-        ["runtime.created", "kernel.vetoed", "channels.noticed"]
-    );
+    assert_eq!(*w.heard.lock().unwrap(), ["runtime.created", "kernel.vetoed", "channels.noticed"]);
     assert_eq!(k.failures("wisp.runtime").last().unwrap().code, "vetoed");
 }
 
@@ -291,18 +252,9 @@ async fn switching_budget_off_removes_one_interceptor_and_the_task_runs() {
     let (k, w) = world(99.0, false).await;
     assert_eq!(inbound(&k, "@wisp go").await.unwrap(), json!("started"));
     k.set_enabled("wisp.budget", true).await.unwrap();
-    assert!(
-        inbound(&k, "@wisp again")
-            .await
-            .unwrap_err()
-            .message
-            .contains("Daily budget")
-    );
+    assert!(inbound(&k, "@wisp again").await.unwrap_err().message.contains("Daily budget"));
     k.set_enabled("wisp.budget", false).await.unwrap();
-    assert_eq!(
-        inbound(&k, "@wisp once more").await.unwrap(),
-        json!("started")
-    );
+    assert_eq!(inbound(&k, "@wisp once more").await.unwrap(), json!("started"));
     assert_eq!(*w.spawned.lock().unwrap(), ["s1", "s3"]);
     k.idle().await;
     assert_eq!(w.outbound.lock().unwrap().len(), 1);
@@ -312,38 +264,18 @@ async fn switching_budget_off_removes_one_interceptor_and_the_task_runs() {
 async fn switching_channels_off_takes_slack_with_it_with_the_reason() {
     let (k, _) = world(0.0, true).await;
     k.set_enabled("wisp.channels", false).await.unwrap();
-    assert_eq!(
-        common::state(&k, "wisp.channels"),
-        ("off".into(), Some("wisp.channels was switched off".into()))
-    );
-    assert_eq!(
-        common::state(&k, "wisp.slack"),
-        (
-            "refused".into(),
-            Some("wisp.slack extends wisp.channels, which is off".into())
-        )
-    );
+    assert_eq!(common::state(&k, "wisp.channels"), ("off".into(), Some("wisp.channels was switched off".into())));
+    assert_eq!(common::state(&k, "wisp.slack"), ("refused".into(), Some("wisp.slack extends wisp.channels, which is off".into())));
 }
 
 #[tokio::test]
 async fn someone_the_channel_policy_refuses_never_creates_anything() {
     let (k, w) = world(0.0, true).await;
     let slack = k.ctx("wisp.slack").unwrap();
-    let e = slack
-        .run::<Inbound>(
-            &slack.root_call(),
-            json!({ "transport": "slack", "from": "U-stranger", "text": "hi" }),
-        )
-        .await
-        .unwrap_err();
+    let e =
+        slack.run::<Inbound>(&slack.root_call(), json!({ "transport": "slack", "from": "U-stranger", "text": "hi" })).await.unwrap_err();
     assert!(e.message.contains("not allowed to start tasks here"));
     assert!(w.sessions.lock().unwrap().is_empty());
     // and an agent token can't reach the channel's commands at all
-    assert_eq!(
-        k.call(Caller::agent("s1", true), "channels.inbound", json!({}))
-            .await
-            .unwrap_err()
-            .code,
-        Code::Forbidden
-    );
+    assert_eq!(k.call(Caller::agent("s1", true), "channels.inbound", json!({})).await.unwrap_err().code, Code::Forbidden);
 }

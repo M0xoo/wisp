@@ -120,9 +120,8 @@ pub fn turn_tokens(st: &TurnStats) -> u64 {
     let read = st.input_tokens.unwrap_or(0) + st.cache_tokens.unwrap_or(0);
     let output = st.output_tokens.unwrap_or(0);
     let models = st.models.as_ref().map(|m| {
-        m.values().fold((0, 0), |(r, o), x| {
-            (r + n(x.get("input")) + n(x.get("cacheRead")) + n(x.get("cacheWrite")), o + n(x.get("output")))
-        })
+        m.values()
+            .fold((0, 0), |(r, o), x| (r + n(x.get("input")) + n(x.get("cacheRead")) + n(x.get("cacheWrite")), o + n(x.get("output"))))
     });
     match models {
         Some((r, o)) if r + o > read + output => r + o,
@@ -219,7 +218,11 @@ pub fn own_of(turns: &[TurnUsage]) -> Own {
 pub fn agents_of(turns: &[TurnUsage]) -> Vec<Agents> {
     let mut by: BTreeMap<(String, String), Agents> = BTreeMap::new();
     for x in turns.iter().flat_map(|t| &t.agents) {
-        let e = by.entry((x.kind.clone(), x.model.clone())).or_insert_with(|| Agents { kind: x.kind.clone(), model: x.model.clone(), ..Agents::default() });
+        let e = by.entry((x.kind.clone(), x.model.clone())).or_insert_with(|| Agents {
+            kind: x.kind.clone(),
+            model: x.model.clone(),
+            ..Agents::default()
+        });
         e.calls += x.calls;
         e.output += x.output;
     }

@@ -10,8 +10,7 @@ use wisp_kernel::{BoxFuture, Result};
 
 use crate::transport::Status;
 use crate::views::{
-    ActArgs, ActionKind, ChannelCtx, Parsed, ProjectView, Remote, RunOpts, SessionView, Signed,
-    StartOpts, Started, Thread, ThreadCtx,
+    ActArgs, ActionKind, ChannelCtx, Parsed, ProjectView, Remote, RunOpts, SessionView, Signed, StartOpts, Started, Thread, ThreadCtx,
 };
 
 // ---------- IO handles ----------
@@ -28,11 +27,7 @@ pub struct HttpRequest {
 
 impl HttpRequest {
     pub fn get(url: impl Into<String>) -> Self {
-        Self {
-            method: "GET".into(),
-            url: url.into(),
-            ..Self::default()
-        }
+        Self { method: "GET".into(), url: url.into(), ..Self::default() }
     }
     pub fn post_json(url: impl Into<String>, body: &Value) -> Self {
         Self {
@@ -139,13 +134,7 @@ pub struct ExecOut {
 /// A child process through the proc service (`proc:spawn{bin:gh}`); never `std::process` in a transport.
 #[async_trait]
 pub trait Exec: Send + Sync + 'static {
-    async fn run(
-        &self,
-        bin: &str,
-        args: &[String],
-        stdin: Option<String>,
-        timeout_ms: u64,
-    ) -> Result<ExecOut>;
+    async fn run(&self, bin: &str, args: &[String], stdin: Option<String>, timeout_ms: u64) -> Result<ExecOut>;
 }
 
 // ---------- the grid, from a cloud wisp's side (v1 channels/box.js) ----------
@@ -176,28 +165,10 @@ pub trait BoxApi: Send + Sync + 'static {
     fn in_box(&self) -> bool;
     /// proof of the token, not the token
     fn bot_mark(&self, token: &str) -> String;
-    async fn channel_url(
-        &self,
-        b: &BoxGrid,
-        channel: &str,
-        bot: Option<&str>,
-        gone: bool,
-    ) -> Result<Option<ChannelUrl>>;
+    async fn channel_url(&self, b: &BoxGrid, channel: &str, bot: Option<&str>, gone: bool) -> Result<Option<ChannelUrl>>;
     async fn rotate_url(&self, b: &BoxGrid, channel: &str) -> Result<ChannelUrl>;
-    async fn mail_reply(
-        &self,
-        b: &BoxGrid,
-        reply_to: &str,
-        subject: &str,
-        text: &str,
-    ) -> Result<Option<String>>;
-    async fn set_channel_key(
-        &self,
-        b: &BoxGrid,
-        channel: &str,
-        key: &str,
-        linked: &[String],
-    ) -> Result<bool>;
+    async fn mail_reply(&self, b: &BoxGrid, reply_to: &str, subject: &str, text: &str) -> Result<Option<String>>;
+    async fn set_channel_key(&self, b: &BoxGrid, channel: &str, key: &str, linked: &[String]) -> Result<bool>;
 }
 
 // ---------- what channels needs of wisp ----------
@@ -225,13 +196,7 @@ pub trait Phone: Send + Sync + 'static {
     async fn stop(&self, session_id: &str) -> Result<String>;
     async fn status(&self, session_id: &str) -> Result<String>;
     /// `later`: where an answer that comes after the reply goes (a `/btw` answer, a queued follow-up)
-    async fn run(
-        &self,
-        session_id: &str,
-        p: &Parsed,
-        o: &RunOpts,
-        later: Option<Later>,
-    ) -> Result<String>;
+    async fn run(&self, session_id: &str, p: &Parsed, o: &RunOpts, later: Option<Later>) -> Result<String>;
     async fn mention(&self, session_id: &str, p: &Parsed, o: &StartOpts) -> Result<Started>;
     async fn launch(&self, project: &ProjectView, prompt: &str) -> Result<Option<SessionView>>;
     /// A file a message brought, kept as an upload (`stuff.receive`): `{id, name, mime, size}` for a task's
@@ -297,13 +262,7 @@ pub trait ChannelHub: Send + Sync + 'static {
     /// where a task started: `(channel, by)`
     fn started_from(&self, session_id: &str) -> Option<(String, Option<String>)>;
     fn mark_started(&self, session_id: &str, channel: &str, by: Option<&str>);
-    fn thread_started(
-        &self,
-        s: Option<&SessionView>,
-        thread: Option<&Thread>,
-        by: Option<&str>,
-        err: Option<&str>,
-    );
+    fn thread_started(&self, s: Option<&SessionView>, thread: Option<&Thread>, by: Option<&str>, err: Option<&str>);
     async fn default_project(&self) -> Option<ProjectView>;
     async fn act(&self, a: &ActArgs) -> Result<String>;
 

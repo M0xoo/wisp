@@ -79,7 +79,9 @@ fn field(name: &str, lo: u32, hi: u32, part: &str) -> Result<u64> {
             Some((r, s)) => (r, Some(s.parse::<u32>().map_err(|_| wrong())?)),
             None => (piece, None),
         };
-        let num = |s: &str| if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) { s.parse::<u32>().map_err(|_| wrong()) } else { Err(wrong()) };
+        let num = |s: &str| {
+            if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) { s.parse::<u32>().map_err(|_| wrong()) } else { Err(wrong()) }
+        };
         // `*` and `n/step` run to the field's top; dow's top is Saturday (7 is only an alias for 0).
         let top = if name == "dow" { 6 } else { hi };
         let (a, b) = if range == "*" {

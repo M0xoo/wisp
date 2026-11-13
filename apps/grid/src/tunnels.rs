@@ -28,7 +28,8 @@ const PING: Duration = Duration::from_secs(25);
 const WINDOW: u32 = 1 << 20;
 const ASK_MAX: usize = 64 * 1024;
 /// Hop-by-hop, or not allowed in HTTP/2.
-pub const HOP: &[&str] = &["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer", "host", "http2-settings"];
+pub const HOP: &[&str] =
+    &["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer", "host", "http2-settings"];
 
 /// One request the grid itself makes to a computer (route delivery, a status check).
 #[derive(Debug, Clone, Default)]
@@ -160,7 +161,10 @@ impl Tunnels {
     /// One request to a computer through its tunnel, its answer whole; 502 when it isn't online.
     pub async fn ask(&self, id: &str, opts: AskOptions) -> Result<Asked> {
         let Some(mut send) = self.sender(id) else { return Err(bad("This computer isn’t online.", 502)) };
-        let mut b = http::Request::builder().method(if opts.method.is_empty() { "POST" } else { opts.method.as_str() }).uri(format!("http://computer{}", opts.path)).version(http::Version::HTTP_2);
+        let mut b = http::Request::builder()
+            .method(if opts.method.is_empty() { "POST" } else { opts.method.as_str() })
+            .uri(format!("http://computer{}", opts.path))
+            .version(http::Version::HTTP_2);
         for (k, v) in &opts.headers {
             b = b.header(k, v);
         }
@@ -173,10 +177,11 @@ impl Tunnels {
             let body = crate::http::read_bytes(r.into_body(), ASK_MAX).await.unwrap_or_default();
             Ok(Asked { status, headers, body })
         };
-        tokio::time::timeout(Duration::from_millis(opts.timeout_ms.unwrap_or(30_000)), go).await.map_err(|_| bad("The computer took too long.", 504))?
+        tokio::time::timeout(Duration::from_millis(opts.timeout_ms.unwrap_or(30_000)), go)
+            .await
+            .map_err(|_| bad("The computer took too long.", 504))?
     }
 }
-
 
 #[cfg(test)]
 mod tests {

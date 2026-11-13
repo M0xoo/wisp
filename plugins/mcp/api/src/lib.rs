@@ -17,9 +17,8 @@ use serde_json::Value;
 use wisp_kernel::{BoxFuture, Call, Command, Ctx, Point, Result};
 
 pub use asks::{
-    Answered, Ask, AskAnswer, AskAnswerArgs, AskCancel, AskCancelArgs, AskClosed, AskOpen,
-    AskOpenArgs, AskOpened, AskPending, AskPendingArgs, AskReply, AskShown, Cancelled, Decision,
-    Outcome,
+    Answered, Ask, AskAnswer, AskAnswerArgs, AskCancel, AskCancelArgs, AskClosed, AskOpen, AskOpenArgs, AskOpened, AskPending,
+    AskPendingArgs, AskReply, AskShown, Cancelled, Decision, Outcome,
 };
 
 pub const PLUGIN_ID: &str = "wisp.mcp";
@@ -138,8 +137,7 @@ pub enum Audience {
     Both,
 }
 
-pub type ToolFn =
-    Arc<dyn Fn(Ctx, Call, ToolCall) -> BoxFuture<'static, Result<ToolText>> + Send + Sync>;
+pub type ToolFn = Arc<dyn Fn(Ctx, Call, ToolCall) -> BoxFuture<'static, Result<ToolText>> + Send + Sync>;
 
 /// A tool call as a contributed tool sees it: the arguments, and the session it speaks for (the caller's).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -173,10 +171,7 @@ pub struct ToolContribution {
 
 impl std::fmt::Debug for ToolContribution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ToolContribution")
-            .field("tool", &self.tool.get("name"))
-            .field("audience", &self.audience)
-            .finish_non_exhaustive()
+        f.debug_struct("ToolContribution").field("tool", &self.tool.get("name")).field("audience", &self.audience).finish_non_exhaustive()
     }
 }
 

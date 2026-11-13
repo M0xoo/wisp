@@ -126,7 +126,10 @@ mod tests {
         }))
         .unwrap();
         let w = wt_of(&v);
-        assert_eq!(w.items.iter().map(|i| (i.id.as_str(), i.idle, i.size)).collect::<Vec<_>>(), [("t1", true, Some(10)), ("t2", false, None)]);
+        assert_eq!(
+            w.items.iter().map(|i| (i.id.as_str(), i.idle, i.size)).collect::<Vec<_>>(),
+            [("t1", true, Some(10)), ("t2", false, None)]
+        );
         assert_eq!((w.leftovers[0].name.as_str(), w.leftovers[0].size, w.leftovers[0].only), ("x", Some(5), Some(2)));
         assert_eq!((w.size, w.disk), (Some(30), Some((1, 2))));
     }

@@ -52,12 +52,7 @@ pub struct BoxUser {
 
 impl BoxUser {
     pub fn user(u: &UserRow) -> Self {
-        Self {
-            id: u.id.clone(),
-            handle: u.handle.clone(),
-            sandbox: None,
-            owner: None,
-        }
+        Self { id: u.id.clone(), handle: u.handle.clone(), sandbox: None, owner: None }
     }
 }
 
@@ -67,46 +62,21 @@ pub mod find {
 
     use super::{ComputerRow, SandboxRow, SiteRow, UserRow};
 
-    fn one<T>(
-        c: &Connection,
-        sql: &str,
-        p: impl Params,
-        f: fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
-    ) -> rusqlite::Result<Option<T>> {
+    fn one<T>(c: &Connection, sql: &str, p: impl Params, f: fn(&rusqlite::Row<'_>) -> rusqlite::Result<T>) -> rusqlite::Result<Option<T>> {
         c.prepare_cached(sql)?.query_row(p, f).optional()
     }
 
     pub fn user_by_id(c: &Connection, id: &str) -> rusqlite::Result<Option<UserRow>> {
-        one(
-            c,
-            "SELECT * FROM users WHERE id = ?1",
-            [id],
-            UserRow::from_row,
-        )
+        one(c, "SELECT * FROM users WHERE id = ?1", [id], UserRow::from_row)
     }
     pub fn user_by_handle(c: &Connection, handle: &str) -> rusqlite::Result<Option<UserRow>> {
-        one(
-            c,
-            "SELECT * FROM users WHERE handle = ?1",
-            [handle],
-            UserRow::from_row,
-        )
+        one(c, "SELECT * FROM users WHERE handle = ?1", [handle], UserRow::from_row)
     }
     pub fn computer_by_id(c: &Connection, id: &str) -> rusqlite::Result<Option<ComputerRow>> {
-        one(
-            c,
-            "SELECT * FROM computers WHERE id = ?1",
-            [id],
-            ComputerRow::from_row,
-        )
+        one(c, "SELECT * FROM computers WHERE id = ?1", [id], ComputerRow::from_row)
     }
     pub fn computer_by_label(c: &Connection, label: &str) -> rusqlite::Result<Option<ComputerRow>> {
-        one(
-            c,
-            "SELECT * FROM computers WHERE label = ?1",
-            [label],
-            ComputerRow::from_row,
-        )
+        one(c, "SELECT * FROM computers WHERE label = ?1", [label], ComputerRow::from_row)
     }
     pub fn computers_of(c: &Connection, user_id: &str) -> rusqlite::Result<Vec<ComputerRow>> {
         c.prepare_cached("SELECT * FROM computers WHERE user_id = ?1 ORDER BY created_at, id")?
@@ -114,36 +84,19 @@ pub mod find {
             .collect()
     }
     pub fn sandbox_by_label(c: &Connection, label: &str) -> rusqlite::Result<Option<SandboxRow>> {
-        one(
-            c,
-            "SELECT * FROM sandboxes WHERE label = ?1",
-            [label],
-            SandboxRow::from_row,
-        )
+        one(c, "SELECT * FROM sandboxes WHERE label = ?1", [label], SandboxRow::from_row)
     }
     pub fn site_by_label(c: &Connection, label: &str) -> rusqlite::Result<Option<SiteRow>> {
-        one(
-            c,
-            "SELECT * FROM sites WHERE label = ?1",
-            [label],
-            SiteRow::from_row,
-        )
+        one(c, "SELECT * FROM sites WHERE label = ?1", [label], SiteRow::from_row)
     }
     /// v1's `accounts.audit`: one line of what happened, for `wisp grid audit`.
-    pub fn audit(
-        c: &Connection,
-        user_id: Option<&str>,
-        action: &str,
-        meta: Option<&serde_json::Value>,
-        at: i64,
-    ) -> rusqlite::Result<()> {
-        c.prepare_cached("INSERT INTO audit (user_id, action, meta, at) VALUES (?1, ?2, ?3, ?4)")?
-            .execute(rusqlite::params![
-                user_id,
-                action,
-                meta.map(ToString::to_string),
-                at
-            ])?;
+    pub fn audit(c: &Connection, user_id: Option<&str>, action: &str, meta: Option<&serde_json::Value>, at: i64) -> rusqlite::Result<()> {
+        c.prepare_cached("INSERT INTO audit (user_id, action, meta, at) VALUES (?1, ?2, ?3, ?4)")?.execute(rusqlite::params![
+            user_id,
+            action,
+            meta.map(ToString::to_string),
+            at
+        ])?;
         Ok(())
     }
 }

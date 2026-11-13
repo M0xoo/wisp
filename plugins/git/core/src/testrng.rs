@@ -53,11 +53,7 @@ fn script(a: &[String], b: &[String]) -> Vec<Op> {
     let mut t = vec![vec![0u32; m + 1]; n + 1];
     for i in (0..n).rev() {
         for j in (0..m).rev() {
-            t[i][j] = if a[i] == b[j] {
-                t[i + 1][j + 1] + 1
-            } else {
-                t[i + 1][j].max(t[i][j + 1])
-            };
+            t[i][j] = if a[i] == b[j] { t[i + 1][j + 1] + 1 } else { t[i + 1][j].max(t[i][j + 1]) };
         }
     }
     let (mut i, mut j, mut out) = (0, 0, Vec::new());
@@ -80,12 +76,7 @@ fn script(a: &[String], b: &[String]) -> Vec<Op> {
 /// `git diff -U3` of `a` → `b` (both ending in a newline) for file `name`.
 pub fn unified(name: &str, a: &[String], b: &[String]) -> String {
     let ops = script(a, b);
-    let changed: Vec<usize> = ops
-        .iter()
-        .enumerate()
-        .filter(|(_, o)| **o != Op::Keep)
-        .map(|(k, _)| k)
-        .collect();
+    let changed: Vec<usize> = ops.iter().enumerate().filter(|(_, o)| **o != Op::Keep).map(|(k, _)| k).collect();
     if changed.is_empty() {
         return String::new();
     }

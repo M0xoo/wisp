@@ -53,7 +53,11 @@ fn fake_ntfy() -> (u16, Arc<Fake>) {
             let answer = if method == "GET" { f.tap.lock().unwrap().take().unwrap_or_default() } else { "{}".into() };
             f.got.lock().unwrap().push((method, path, body));
             let mut s = s;
-            let _ = write!(s, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{answer}", answer.len());
+            let _ = write!(
+                s,
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{answer}",
+                answer.len()
+            );
         }
     });
     (port, fake)
@@ -98,9 +102,13 @@ async fn an_ntfy_channel_and_a_webhook_hear_a_finished_task_and_a_tap_marks_it_d
     assert_eq!(r["ok"], true, "{r}");
     let view = api.cmd("channels.view", json!({})).await;
     assert_eq!(view["channels"][0]["running"], true, "{view}");
-    wait_for("it polls the reply topic", || fake.got.lock().unwrap().iter().any(|(m, p, _)| m == "GET" && p.starts_with("/wisp-test-reply/json?poll=1"))).await;
+    wait_for("it polls the reply topic", || {
+        fake.got.lock().unwrap().iter().any(|(m, p, _)| m == "GET" && p.starts_with("/wisp-test-reply/json?poll=1"))
+    })
+    .await;
 
-    let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug TOPIC[Fix add]", "cwd": dir.join("proj"), "agent": "claude" })).await;
+    let made =
+        api.cmd("runtime.create", json!({ "prompt": "fix the add bug TOPIC[Fix add]", "cwd": dir.join("proj"), "agent": "claude" })).await;
     let id = made["id"].as_str().unwrap().to_owned();
     api.until(&id, "the turn ends", |t| t.last().is_some_and(ended)).await;
     wait_for("the topic and the webhook hear it", || !posts(&fake, "/").is_empty() && !posts(&fake, "/hook").is_empty()).await;
@@ -160,14 +168,27 @@ async fn a_channel_task_lands_in_the_project_it_names_else_the_picked_else_the_l
     let other = if first == "api" { "web" } else { "api" };
     api.cmd("settings.set", json!({ "key": "channels.acceptChannels", "value": true })).await;
 
-    let tasks = || async { api.cmd("runtime.list", json!({})).await.as_array().unwrap().iter().map(|t| (t["prompt"].as_str().or(t["title"].as_str()).unwrap_or("").to_lowercase(), t["cwd"].clone())).collect::<Vec<_>>() };
+    let tasks = || async {
+        api.cmd("runtime.list", json!({}))
+            .await
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| (t["prompt"].as_str().or(t["title"].as_str()).unwrap_or("").to_lowercase(), t["cwd"].clone()))
+            .collect::<Vec<_>>()
+    };
     // one message, then where its task runs (the next is sent once it has started, so "last used" is this one)
     let n = std::sync::atomic::AtomicUsize::new(0);
     let send = |text: &'static str| {
         let (api, tasks, n) = (&api, &tasks, &n);
         async move {
             let k = n.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-            let said = api.cmd("channels.routed", json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": text, "thread": format!("t{k}") })).await;
+            let said = api
+                .cmd(
+                    "channels.routed",
+                    json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": text, "thread": format!("t{k}") }),
+                )
+                .await;
             assert_eq!(said["status"], 200, "{said}");
             let at = Instant::now();
             loop {

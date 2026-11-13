@@ -77,7 +77,11 @@ fn user_plugins_load_at_start() {
     let home = dir("start");
     let plugins = home.join("plugins");
     std::fs::create_dir_all(plugins.join("theme")).unwrap();
-    std::fs::write(plugins.join("theme/wisp-plugin.json"), json!({ "wispPlugin": 1, "id": "user.theme", "version": "1.0.0", "api": "^1" }).to_string()).unwrap();
+    std::fs::write(
+        plugins.join("theme/wisp-plugin.json"),
+        json!({ "wispPlugin": 1, "id": "user.theme", "version": "1.0.0", "api": "^1" }).to_string(),
+    )
+    .unwrap();
     std::fs::create_dir_all(plugins.join("broken")).unwrap();
     std::fs::write(plugins.join("broken/wisp-plugin.json"), "nope").unwrap();
     let got = wisp_plugins::user_plugins(&plugins);
@@ -132,7 +136,10 @@ async fn an_untrusted_plugins_calls_are_checked_against_its_own_permissions() {
     assert_eq!(k.call(Caller::user(), "plugins.ui", json!({})).await.unwrap(), json!([]), "off: nothing shows");
     k.call(Caller::user(), "plugins.setEnabled", json!({ "id": "user.pane", "enabled": true })).await.unwrap();
     let ui = k.call(Caller::user(), "plugins.ui", json!({})).await.unwrap();
-    assert_eq!((ui[0]["plugin"].as_str(), ui[0]["place"].as_str(), ui[0]["module"].as_str()), (Some("user.pane"), Some("shell.settings"), Some("wisp.render({ c: 'Text', text: 'hi' });")));
+    assert_eq!(
+        (ui[0]["plugin"].as_str(), ui[0]["place"].as_str(), ui[0]["module"].as_str()),
+        (Some("user.pane"), Some("shell.settings"), Some("wisp.render({ c: 'Text', text: 'hi' });"))
+    );
     // as itself: what it asked for, and nothing it didn't
     let me = Caller::set("plugin:user.pane");
     assert!(k.call(me.clone(), "plugins.list", json!({})).await.is_ok(), "plugins:read it asked for");

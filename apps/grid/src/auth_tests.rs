@@ -106,7 +106,11 @@ fn github_identity_is_the_numeric_id_and_a_verified_email() {
     let user = json!({ "id": 583231, "login": "Octocat", "name": "", "avatar_url": "https://a/x.png" });
     let emails = json!([{ "email": "fake@evil.com", "primary": true, "verified": false }, { "email": "Octo@GitHub.com", "primary": false, "verified": true }]);
     let i = github_identity(&user, &emails, Some(&json!([{ "login": "WispAgents" }]))).unwrap();
-    assert_eq!((i.subject.as_str(), i.login.as_str(), i.name.as_str()), ("583231", "Octocat", "Octocat"), "the id, never the login; the login when there's no name");
+    assert_eq!(
+        (i.subject.as_str(), i.login.as_str(), i.name.as_str()),
+        ("583231", "Octocat", "Octocat"),
+        "the id, never the login; the login when there's no name"
+    );
     assert_eq!((i.email.as_str(), i.email_verified), ("octo@github.com", true), "an unverified primary is never taken");
     assert_eq!(i.orgs, Some(vec!["wispagents".to_owned()]));
     let none = github_identity(&user, &json!([{ "email": "a@b.c", "verified": false }]), None).unwrap();
@@ -156,7 +160,13 @@ struct FakeHttp {
 }
 
 impl AuthHttp for FakeHttp {
-    fn call(&self, method: &str, url: &str, _h: Vec<(String, String)>, body: Option<(String, Vec<u8>)>) -> futures::future::BoxFuture<'static, std::result::Result<(u16, Vec<u8>), String>> {
+    fn call(
+        &self,
+        method: &str,
+        url: &str,
+        _h: Vec<(String, String)>,
+        body: Option<(String, Vec<u8>)>,
+    ) -> futures::future::BoxFuture<'static, std::result::Result<(u16, Vec<u8>), String>> {
         self.asked.lock().unwrap().push((method.to_owned(), url.to_owned(), body.map(|(_, b)| String::from_utf8_lossy(&b).into_owned())));
         let a = self.answers.iter().find(|(u, _, _)| url.ends_with(u)).map(|(_, s, v)| (*s, v.to_string().into_bytes()));
         Box::pin(async move { a.ok_or_else(|| "no route".to_owned()) })
@@ -165,8 +175,21 @@ impl AuthHttp for FakeHttp {
 
 #[tokio::test]
 async fn github_sign_in_sends_state_and_pkce_and_reads_the_user() {
-    let p = Provider { id: "github".into(), label: "GitHub".into(), client_id: "cid".into(), client_secret: "sec".into(), kind: Kind::Github { auth_base: "https://gh.test".into(), api_base: "https://api.gh.test".into(), want_orgs: false } };
-    let http = FakeHttp { answers: vec![("/login/oauth/access_token", 200, json!({ "access_token": "gho_1" })), ("/user", 200, json!({ "id": 9, "login": "ada" })), ("/user/emails", 200, json!([{ "email": "ada@x.io", "primary": true, "verified": true }]))], ..FakeHttp::default() };
+    let p = Provider {
+        id: "github".into(),
+        label: "GitHub".into(),
+        client_id: "cid".into(),
+        client_secret: "sec".into(),
+        kind: Kind::Github { auth_base: "https://gh.test".into(), api_base: "https://api.gh.test".into(), want_orgs: false },
+    };
+    let http = FakeHttp {
+        answers: vec![
+            ("/login/oauth/access_token", 200, json!({ "access_token": "gho_1" })),
+            ("/user", 200, json!({ "id": 9, "login": "ada" })),
+            ("/user/emails", 200, json!([{ "email": "ada@x.io", "primary": true, "verified": true }])),
+        ],
+        ..FakeHttp::default()
+    };
     let flows = Flows::default();
     let f = flows.begin("github", "/", None, NOW);
     let to = p.start(&http, "https://grid.test/auth/github/callback", &f).await.unwrap();
@@ -180,7 +203,14 @@ async fn github_sign_in_sends_state_and_pkce_and_reads_the_user() {
     let token_call = http.asked.lock().unwrap().iter().find(|(_, u, _)| u.ends_with("/access_token")).cloned().unwrap();
     assert!(token_call.2.as_deref().unwrap().contains(&f.verifier), "the verifier goes with the code");
     // a GitHub that refuses the code says why
-    let bad_code = FakeHttp { answers: vec![("/login/oauth/access_token", 200, json!({ "error": "bad_verification_code", "error_description": "The code passed is incorrect or expired." }))], ..FakeHttp::default() };
+    let bad_code = FakeHttp {
+        answers: vec![(
+            "/login/oauth/access_token",
+            200,
+            json!({ "error": "bad_verification_code", "error_description": "The code passed is incorrect or expired." }),
+        )],
+        ..FakeHttp::default()
+    };
     let e = p.finish(&bad_code, "old", "x", &f, NOW).await.unwrap_err().to_string();
     assert!(e.contains("incorrect or expired"), "{e}");
 }
@@ -194,7 +224,15 @@ fn auth_cfg(extra: Value) -> crate::config::AuthConfig {
 }
 
 fn idn(provider: &str, subject: &str, email: &str, login: &str) -> Identity {
-    Identity { provider: provider.into(), subject: subject.into(), email: email.into(), email_verified: true, name: login.into(), login: login.into(), ..Identity::default() }
+    Identity {
+        provider: provider.into(),
+        subject: subject.into(),
+        email: email.into(),
+        email_verified: true,
+        name: login.into(),
+        login: login.into(),
+        ..Identity::default()
+    }
 }
 
 fn accounts() -> Accounts {
@@ -215,11 +253,16 @@ fn sign_in_never_links_by_email() {
 
 #[test]
 fn allow_lists_by_account_verified_email_domain_and_org() {
-    let cfg = auth_cfg(json!({ "allow": { "emails": ["Bo@x.io"], "domains": ["@corp.com"], "githubOrgs": ["WispAgents"], "accounts": ["github:octocat"] } }));
+    let cfg = auth_cfg(
+        json!({ "allow": { "emails": ["Bo@x.io"], "domains": ["@corp.com"], "githubOrgs": ["WispAgents"], "accounts": ["github:octocat"] } }),
+    );
     assert!(allowed(&cfg, &idn("github", "5", "", "octocat")), "by login");
     assert!(allowed(&cfg, &idn("github", "5", "bo@x.io", "bo")));
     assert!(allowed(&cfg, &idn("google", "7", "cy@corp.com", "")));
-    assert!(!allowed(&cfg, &Identity { email_verified: false, ..idn("google", "7", "cy@corp.com", "") }), "an unverified email counts for nothing");
+    assert!(
+        !allowed(&cfg, &Identity { email_verified: false, ..idn("google", "7", "cy@corp.com", "") }),
+        "an unverified email counts for nothing"
+    );
     assert!(allowed(&cfg, &Identity { orgs: Some(vec!["wispagents".into()]), ..idn("github", "8", "", "dee") }));
     assert!(!allowed(&cfg, &idn("github", "9", "eve@evil.com", "eve")));
     let a = accounts();

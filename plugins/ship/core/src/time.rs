@@ -5,13 +5,7 @@
 #[allow(clippy::many_single_char_names)] // y m d h mi s: the date's own fields
 pub fn parse_ms(s: &str) -> Option<i64> {
     let b = s.trim().as_bytes();
-    if b.len() < 19
-        || b[4] != b'-'
-        || b[7] != b'-'
-        || !matches!(b[10], b'T' | b't' | b' ')
-        || b[13] != b':'
-        || b[16] != b':'
-    {
+    if b.len() < 19 || b[4] != b'-' || b[7] != b'-' || !matches!(b[10], b'T' | b't' | b' ') || b[13] != b':' || b[16] != b':' {
         return None;
     }
     let num = |from: usize, to: usize| -> Option<i64> {
@@ -38,11 +32,7 @@ pub fn parse_ms(s: &str) -> Option<i64> {
             return None;
         }
         // milliseconds: the first three digits, padded
-        let digits: String = s.trim()[start..i]
-            .chars()
-            .chain("000".chars())
-            .take(3)
-            .collect();
+        let digits: String = s.trim()[start..i].chars().chain("000".chars()).take(3).collect();
         ms = digits.parse().ok()?;
     }
     let offset_min = match b.get(i) {
@@ -83,12 +73,7 @@ pub fn format_ms(ms: i64) -> String {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = yoe + era * 400 + i64::from(m <= 2);
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
-        rem / 3600,
-        rem % 3600 / 60,
-        rem % 60
-    )
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
 }
 
 #[cfg(test)]
@@ -98,20 +83,9 @@ mod tests {
     #[test]
     fn parses_github_stamps() {
         assert_eq!(parse_ms("1970-01-01T00:00:00Z"), Some(0));
-        assert_eq!(
-            parse_ms("2026-10-28T09:01:05Z")
-                .zip(parse_ms("2026-10-28T09:00:00Z"))
-                .map(|(a, b)| a - b),
-            Some(65_000)
-        );
-        assert_eq!(
-            parse_ms("2026-10-28T09:00:00.5Z"),
-            parse_ms("2026-10-28T09:00:00Z").map(|x| x + 500)
-        );
-        assert_eq!(
-            parse_ms("2026-10-28T11:00:00+02:00"),
-            parse_ms("2026-10-28T09:00:00Z")
-        );
+        assert_eq!(parse_ms("2026-10-28T09:01:05Z").zip(parse_ms("2026-10-28T09:00:00Z")).map(|(a, b)| a - b), Some(65_000));
+        assert_eq!(parse_ms("2026-10-28T09:00:00.5Z"), parse_ms("2026-10-28T09:00:00Z").map(|x| x + 500));
+        assert_eq!(parse_ms("2026-10-28T11:00:00+02:00"), parse_ms("2026-10-28T09:00:00Z"));
         assert_eq!(parse_ms("2000-03-01T00:00:00Z"), Some(951_868_800_000));
     }
 

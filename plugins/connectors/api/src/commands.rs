@@ -9,8 +9,7 @@ use ts_rs::TS;
 use wisp_kernel::{Command, Event};
 
 use crate::rows::{
-    AgentSigninOut, AgentText, ConnectorsView, ImportView, McpServers, ProxySpec, SignedInName,
-    SigninUrl, TokenOut, Transport,
+    AgentSigninOut, AgentText, ConnectorsView, ImportView, McpServers, ProxySpec, SignedInName, SigninUrl, TokenOut, Transport,
 };
 
 // ---------- argument shapes ----------
@@ -202,46 +201,18 @@ command!(
     /// Adds one; its secrets go to the secrets file, and it is tested in the background.
     Add, "connectors.add", "connectors:add", false, ConnectorBody, ConnectorsView
 );
-command!(
-    Update,
-    "connectors.update",
-    "connectors:update",
-    false,
-    UpdateArgs,
-    ConnectorsView
-);
-command!(
-    Remove,
-    "connectors.remove",
-    "connectors:remove",
-    false,
-    IdArgs,
-    ConnectorsView
-);
+command!(Update, "connectors.update", "connectors:update", false, UpdateArgs, ConnectorsView);
+command!(Remove, "connectors.remove", "connectors:remove", false, IdArgs, ConnectorsView);
 command!(
     /// Starts it through the proxy, the way an agent would, and keeps the outcome on the row.
     Test, "connectors.test", "connectors:test", false, IdArgs, ConnectorsView
 );
-command!(
-    Import,
-    "connectors.import",
-    "connectors:import",
-    false,
-    ImportArgs,
-    ImportView
-);
+command!(Import, "connectors.import", "connectors:import", false, ImportArgs, ImportView);
 command!(
     /// OAuth sign-in (discovery, dynamic registration, PKCE): the URL the page opens.
     Signin, "connectors.signin", "connectors:signin", false, SigninArgs, SigninUrl
 );
-command!(
-    Signout,
-    "connectors.signout",
-    "connectors:signout",
-    false,
-    IdArgs,
-    ConnectorsView
-);
+command!(Signout, "connectors.signout", "connectors:signout", false, IdArgs, ConnectorsView);
 command!(
     /// The browser came back from the sign-in page: trade the code for tokens.
     OauthFinish, "connectors.oauthFinish", "connectors:oauthFinish", false, OauthFinishArgs, SignedInName

@@ -53,11 +53,17 @@ impl Grid {
         match (method.as_str(), parts) {
             ("GET", ["api", "sandboxes"]) => {
                 let list: Vec<Value> = s.list(&user.id)?.iter().map(|r| self.sandbox_view(r)).collect();
-                Ok(json(200, &json!({ "enabled": s.enabled && s.secrets.is_some(), "logins": s.logins(&user.id), "env": s.env_keys(&user.id), "sandboxes": list })))
+                Ok(json(
+                    200,
+                    &json!({ "enabled": s.enabled && s.secrets.is_some(), "logins": s.logins(&user.id), "env": s.env_keys(&user.id), "sandboxes": list }),
+                ))
             }
             ("POST", ["api", "sandboxes"]) => {
                 let b = body()?;
-                let taken = |label: &str| self.accounts.computer_by_label(label).ok().flatten().is_some() || self.accounts.user_by_handle(label).ok().flatten().is_some();
+                let taken = |label: &str| {
+                    self.accounts.computer_by_label(label).ok().flatten().is_some()
+                        || self.accounts.user_by_handle(label).ok().flatten().is_some()
+                };
                 let (row, token) = s.create(&user, b.get("name").and_then(Value::as_str).unwrap_or_default(), &taken)?;
                 tracing::info!("grid: {} made sandbox {}", user.handle, row.id);
                 let mut v = self.sandbox_view(&row);

@@ -87,7 +87,10 @@ async fn a_wake_set_during_a_running_turn_fires_once_the_turn_ends_v1_never_fire
     rt.set(SessionState::Running);
     let k = kernel(&rt, &clock).await;
     // the agent's own wake-up, set from inside its running turn
-    let out = k.call(Caller::user(), "later.agent.schedule", json!({ "session": "t1", "minutes": 1, "message": "see if CI passed" })).await.unwrap();
+    let out = k
+        .call(Caller::user(), "later.agent.schedule", json!({ "session": "t1", "minutes": 1, "message": "see if CI passed" }))
+        .await
+        .unwrap();
     assert!(out["text"].as_str().unwrap().starts_with("Scheduled (id "), "{out}");
     clock.advance(90_000);
     // due, but the turn still runs: held, not dropped

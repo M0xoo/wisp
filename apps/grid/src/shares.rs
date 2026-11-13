@@ -58,7 +58,10 @@ fn hex(b: &[u8]) -> String {
 }
 
 fn unhex(s: &str) -> Option<Vec<u8>> {
-    s.len().is_multiple_of(2).then(|| (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect::<Option<Vec<u8>>>()).flatten()
+    s.len()
+        .is_multiple_of(2)
+        .then(|| (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect::<Option<Vec<u8>>>())
+        .flatten()
 }
 
 pub fn check_password(kept: &str, pass: &str) -> bool {
@@ -340,7 +343,8 @@ impl Shares {
         let title: String = p.title.trim().chars().take(200).collect();
         let title = if title.is_empty() { p.key.clone() } else { title };
         let summary: String = p.summary.chars().take(500).collect();
-        let tags: Vec<String> = p.tags.iter().map(|t| t.trim().to_lowercase()).filter(|t| !t.is_empty() && t.len() <= 30).take(12).collect();
+        let tags: Vec<String> =
+            p.tags.iter().map(|t| t.trim().to_lowercase()).filter(|t| !t.is_empty() && t.len() <= 30).take(12).collect();
         let id = have.as_ref().map_or_else(|| crate::accounts::token("").chars().take(16).collect(), |h| h.id.clone());
         let expires = p.expires_at.map(|e| (e > 0).then_some(e));
         self.db.tx(|tx| {
@@ -383,7 +387,10 @@ impl Shares {
         let access = p.access.as_ref().map(|a| self.check_access(user, a)).transpose()?;
         self.db.tx(|tx| {
             if let Some((kind, people, teams, pass)) = &access {
-                tx.execute("UPDATE shares SET access = ?1, people = ?2, teams = ?3, pass = ?4 WHERE id = ?5", params![kind, people, teams, pass, s.id])?;
+                tx.execute(
+                    "UPDATE shares SET access = ?1, people = ?2, teams = ?3, pass = ?4 WHERE id = ?5",
+                    params![kind, people, teams, pass, s.id],
+                )?;
             }
             if let Some(e) = p.expires_at {
                 tx.execute("UPDATE shares SET expires_at = ?1 WHERE id = ?2", params![(e > 0).then_some(e), s.id])?;
@@ -437,7 +444,12 @@ impl Shares {
     /// A version's content (the latest, or `version`). Counts a view unless it's the sharer's own.
     pub fn read(&self, s: &Rec, who: Option<&UserRow>, version: Option<i64>, count: bool) -> Result<std::result::Result<Content, Refused>> {
         let v = version.unwrap_or(s.version);
-        let row: Option<(Vec<u8>, String)> = self.db.with(|c| c.query_row("SELECT body, sig FROM share_versions WHERE share_id = ?1 AND version = ?2", params![s.id, v], |r| Ok((r.get(0)?, r.get(1)?))).optional())?;
+        let row: Option<(Vec<u8>, String)> = self.db.with(|c| {
+            c.query_row("SELECT body, sig FROM share_versions WHERE share_id = ?1 AND version = ?2", params![s.id, v], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .optional()
+        })?;
         let Some((body, sig)) = row else { return Ok(Err(Refused::NoVersion)) };
         if count {
             self.count_view(s, who)?;
@@ -507,11 +519,23 @@ mod tests {
         let db = Arc::new(Db::memory().unwrap());
         let clock = ManualClock::new(1_000);
         let teams = Teams { db: db.clone(), clock: clock.clone() };
-        T { a: Accounts { db: db.clone(), clock: clock.clone() }, s: Shares { db, clock: clock.clone(), teams, public_url: "http://wisp.localhost:8080".into() }, clock }
+        T {
+            a: Accounts { db: db.clone(), clock: clock.clone() },
+            s: Shares { db, clock: clock.clone(), teams, public_url: "http://wisp.localhost:8080".into() },
+            clock,
+        }
     }
 
     fn put(key: &SigningKey, k: &str, body: &str) -> Put {
-        Put { kind: "setup".into(), key: k.into(), title: "Review team".into(), body: B64.encode(body), signer: B64.encode(key.verifying_key().to_bytes()), sig: B64.encode(key.sign(body.as_bytes()).to_bytes()), ..Put::default() }
+        Put {
+            kind: "setup".into(),
+            key: k.into(),
+            title: "Review team".into(),
+            body: B64.encode(body),
+            signer: B64.encode(key.verifying_key().to_bytes()),
+            sig: B64.encode(key.sign(body.as_bytes()).to_bytes()),
+            ..Put::default()
+        }
     }
 
     #[test]
@@ -560,7 +584,10 @@ mod tests {
         assert_eq!(may(None, None), Ok(()));
         let set = |a: Access| t.s.patch(&ada, &id, &Patch { access: Some(a), ..Patch::default() });
         set(Access { kind: "people".into(), people: vec!["bo".into()], ..Access::default() }).unwrap();
-        assert_eq!((may(Some(&bo), None), may(Some(&cy), None), may(None, None)), (Ok(()), Err(Refused::Locked("people".into())), Err(Refused::Locked("people".into()))));
+        assert_eq!(
+            (may(Some(&bo), None), may(Some(&cy), None), may(None, None)),
+            (Ok(()), Err(Refused::Locked("people".into())), Err(Refused::Locked("people".into())))
+        );
         // the sharer always reads it
         assert_eq!(may(Some(&ada), None), Ok(()));
         // teams: only a member (not a viewer) shares to one; any member reads
@@ -572,7 +599,10 @@ mod tests {
         assert_eq!((may(Some(&cy), None), may(None, None)), (Ok(()), Err(Refused::Locked("teams".into()))));
         // a password, kept hashed
         set(Access { kind: "password".into(), password: Some("hunter2".into()), ..Access::default() }).unwrap();
-        assert_eq!((may(None, Some("hunter2")), may(None, Some("nope")), may(None, None)), (Ok(()), Err(Refused::Locked("password".into())), Err(Refused::Locked("password".into()))));
+        assert_eq!(
+            (may(None, Some("hunter2")), may(None, Some("nope")), may(None, None)),
+            (Ok(()), Err(Refused::Locked("password".into())), Err(Refused::Locked("password".into())))
+        );
         let kept = t.s.get(&id).unwrap().unwrap().pass.unwrap();
         assert!(!kept.contains("hunter2") && check_password(&kept, "hunter2"));
         assert_eq!(set(Access { kind: "secret".into(), ..Access::default() }).unwrap_err().status(), 400);
@@ -618,7 +648,12 @@ mod tests {
         let t = t();
         let ada = t.a.dev_user("ada").unwrap();
         let k = SigningKey::from_bytes(&[1; 32]);
-        let one = t.s.put(&ada, &Put { publish: Some(true), summary: "reviews every PR".into(), tags: vec!["Review".into()], ..put(&k, "review", "a") }).unwrap();
+        let one =
+            t.s.put(
+                &ada,
+                &Put { publish: Some(true), summary: "reviews every PR".into(), tags: vec!["Review".into()], ..put(&k, "review", "a") },
+            )
+            .unwrap();
         t.s.put(&ada, &put(&k, "private", "b")).unwrap();
         let found = t.s.gallery("", None).unwrap();
         assert_eq!(found.len(), 1);
@@ -628,7 +663,15 @@ mod tests {
         assert_eq!(t.s.gallery("", Some("task")).unwrap().len(), 0);
         // locked or revoked: out of the gallery
         let id = one["id"].as_str().unwrap();
-        t.s.patch(&ada, id, &Patch { access: Some(Access { kind: "password".into(), password: Some("p".into()), ..Access::default() }), ..Patch::default() }).unwrap();
+        t.s.patch(
+            &ada,
+            id,
+            &Patch {
+                access: Some(Access { kind: "password".into(), password: Some("p".into()), ..Access::default() }),
+                ..Patch::default()
+            },
+        )
+        .unwrap();
         assert_eq!(t.s.gallery("", None).unwrap().len(), 0);
     }
 }

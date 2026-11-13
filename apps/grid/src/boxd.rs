@@ -27,12 +27,21 @@ impl Driver {
     pub fn of(c: &crate::config::ContainerConfig) -> Option<Self> {
         let socket = c.boxd.as_ref().filter(|s| !s.is_empty())?;
         let mut limits = serde_json::Map::new();
-        for (k, v) in [("memory", c.memory.clone().map(Value::from)), ("memorySwap", c.memory_swap.clone().map(Value::from)), ("cpus", c.cpus.map(Value::from)), ("pids", c.pids.map(Value::from))] {
+        for (k, v) in [
+            ("memory", c.memory.clone().map(Value::from)),
+            ("memorySwap", c.memory_swap.clone().map(Value::from)),
+            ("cpus", c.cpus.map(Value::from)),
+            ("pids", c.pids.map(Value::from)),
+        ] {
             if let Some(v) = v {
                 limits.insert(k.into(), v);
             }
         }
-        Some(Self { socket: socket.into(), limits: if limits.is_empty() { Value::Null } else { Value::Object(limits) }, dns: c.dns.clone() })
+        Some(Self {
+            socket: socket.into(),
+            limits: if limits.is_empty() { Value::Null } else { Value::Object(limits) },
+            dns: c.dns.clone(),
+        })
     }
 }
 
@@ -108,7 +117,11 @@ impl BoxdRun {
                         let _ = f.write_all(format!("boxd: {e}\n").as_bytes()).await;
                     }
                 } else if m.get("exit").is_some() {
-                    ended = Some(format!("exit {}{}", m["exit"], m.get("signal").and_then(Value::as_str).map(|s| format!(" ({s})")).unwrap_or_default()));
+                    ended = Some(format!(
+                        "exit {}{}",
+                        m["exit"],
+                        m.get("signal").and_then(Value::as_str).map(|s| format!(" ({s})")).unwrap_or_default()
+                    ));
                     break;
                 }
             }

@@ -32,7 +32,8 @@ impl TermSource for Builtin {
 
 /// The sources that are this terminal, in order, with their read commands.
 pub fn readers(sources: &[Arc<dyn TermSource>], env: &BTreeMap<String, String>, lines: usize) -> Vec<Reader> {
-    let env: BTreeMap<String, String> = env.iter().filter(|(k, _)| wisp_termctx_api::ENV_KEYS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
+    let env: BTreeMap<String, String> =
+        env.iter().filter(|(k, _)| wisp_termctx_api::ENV_KEYS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
     let n = if lines == 0 { core::LINES } else { lines.min(5_000) };
     sources.iter().filter_map(|s| s.argv(&env, n).map(|argv| Reader { id: s.id().to_owned(), label: s.label().to_owned(), argv })).collect()
 }
@@ -59,7 +60,14 @@ async fn poll(ctx: Ctx, spec: Value, cursor: Value) -> Result<Polled> {
             if !(project.is_empty() || cwd == project || cwd.starts_with(&format!("{}/", project.trim_end_matches('/')))) {
                 continue;
             }
-            events.push(TriggerEvent { on: "terminal.failed".into(), key: v["key"].as_str().unwrap_or_default().to_owned(), at: v["at"].as_i64().unwrap_or(now), summary: v["summary"].as_str().unwrap_or_default().to_owned(), payload: v["payload"].clone(), ..TriggerEvent::default() });
+            events.push(TriggerEvent {
+                on: "terminal.failed".into(),
+                key: v["key"].as_str().unwrap_or_default().to_owned(),
+                at: v["at"].as_i64().unwrap_or(now),
+                summary: v["summary"].as_str().unwrap_or_default().to_owned(),
+                payload: v["payload"].clone(),
+                ..TriggerEvent::default()
+            });
         }
     }
     Ok(Polled { events, cursor: cur, retry_at: None })
@@ -70,7 +78,13 @@ impl TriggerSource for Failed {
         wisp_termctx_api::PLUGIN_ID
     }
     fn ons(&self) -> Vec<SourceOn> {
-        vec![SourceOn { on: "terminal.failed".into(), title: "A command failed in a tracked terminal".into(), fields: json!({ "type": "object", "properties": { "project": { "type": "string" }, "match": { "type": "object" } } }), mode: "poll".into(), every: Some(1) }]
+        vec![SourceOn {
+            on: "terminal.failed".into(),
+            title: "A command failed in a tracked terminal".into(),
+            fields: json!({ "type": "object", "properties": { "project": { "type": "string" }, "match": { "type": "object" } } }),
+            mode: "poll".into(),
+            every: Some(1),
+        }]
     }
     fn poll(&self, _on: &str, spec: &Value, cursor: Value) -> BoxFuture<'static, Result<Polled>> {
         Box::pin(poll(self.0.clone(), spec.clone(), cursor))
@@ -116,7 +130,10 @@ mod tests {
     #[test]
     fn readers_see_only_the_terminal_variables() {
         let all: Vec<Arc<dyn TermSource>> = core::SOURCES.iter().map(|s| Arc::new(Builtin(*s)) as Arc<dyn TermSource>).collect();
-        let env: BTreeMap<String, String> = [("TMUX", "x"), ("TMUX_PANE", "%1"), ("AWS_SECRET_ACCESS_KEY", "nope")].iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+        let env: BTreeMap<String, String> = [("TMUX", "x"), ("TMUX_PANE", "%1"), ("AWS_SECRET_ACCESS_KEY", "nope")]
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect();
         let r = readers(&all, &env, 0);
         assert_eq!(r.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(), ["tmux"]);
         assert!(r[0].argv.contains(&"-200".to_owned()), "200 lines unless said");

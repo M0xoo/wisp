@@ -76,12 +76,8 @@ impl<'de> Deserialize<'de> for MaxUsers {
         let v = Value::deserialize(d)?;
         match &v {
             Value::String(s) if s == "auto" => Ok(Self::Auto),
-            Value::Number(n) if n.as_i64().is_some_and(|n| n > 0) => {
-                Ok(Self::Fixed(n.as_i64().unwrap_or(1)))
-            }
-            _ => Err(serde::de::Error::custom(
-                "auth.maxUsers: a whole number above 0, \"auto\", or leave it out for no limit.",
-            )),
+            Value::Number(n) if n.as_i64().is_some_and(|n| n > 0) => Ok(Self::Fixed(n.as_i64().unwrap_or(1))),
+            _ => Err(serde::de::Error::custom("auth.maxUsers: a whole number above 0, \"auto\", or leave it out for no limit.")),
         }
     }
 }

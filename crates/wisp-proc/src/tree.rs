@@ -46,18 +46,11 @@ impl Tree {
             if let Err(e) = &job {
                 tracing::warn!(pid, error = %e, "no job object");
             }
-            Tree {
-                root: pid,
-                seen: Arc::default(),
-                job: job.ok(),
-            }
+            Tree { root: pid, seen: Arc::default(), job: job.ok() }
         }
         #[cfg(not(windows))]
         {
-            Tree {
-                root: pid,
-                seen: Arc::default(),
-            }
+            Tree { root: pid, seen: Arc::default() }
         }
     }
 }
@@ -96,16 +89,11 @@ mod imp {
         let known = |p: &sys::ProcInfo| p.start != 0 && seen.get(&p.pid) == Some(&p.start);
         // An exited root's pid may belong to a stranger by now; its group id can't (a pgid is
         // not reused while the group has members), so only the group and known members seed then.
-        let mut set: BTreeSet<u32> = live()
-            .filter(|p| p.pgid == tree.root || (root_alive && p.pid == tree.root) || known(p))
-            .map(|p| p.pid)
-            .collect();
+        let mut set: BTreeSet<u32> =
+            live().filter(|p| p.pgid == tree.root || (root_alive && p.pid == tree.root) || known(p)).map(|p| p.pid).collect();
         loop {
             let before = set.len();
-            let children: Vec<u32> = live()
-                .filter(|p| set.contains(&p.ppid))
-                .map(|p| p.pid)
-                .collect();
+            let children: Vec<u32> = live().filter(|p| set.contains(&p.ppid)).map(|p| p.pid).collect();
             set.extend(children);
             if set.len() == before {
                 break;
@@ -134,11 +122,7 @@ mod imp {
         let Ok(table) = sys::processes() else {
             return BTreeSet::new();
         };
-        table
-            .iter()
-            .filter(|p| !p.zombie && pids.contains(&p.pid))
-            .map(|p| p.pid)
-            .collect()
+        table.iter().filter(|p| !p.zombie && pids.contains(&p.pid)).map(|p| p.pid).collect()
     }
 
     fn send(tree: &Tree, pids: &BTreeSet<u32>, sig: i32) {
@@ -149,12 +133,7 @@ mod imp {
         }
     }
 
-    pub(super) fn signal(
-        tree: &Tree,
-        root_alive: bool,
-        sig: i32,
-        whole: bool,
-    ) -> std::io::Result<()> {
+    pub(super) fn signal(tree: &Tree, root_alive: bool, sig: i32, whole: bool) -> std::io::Result<()> {
         if !whole {
             return sys::signal_pid(tree.root, sig);
         }
@@ -184,10 +163,7 @@ mod imp {
             seen.extend(now.iter().copied());
             now.len()
         });
-        Report {
-            signalled,
-            survivors,
-        }
+        Report { signalled, survivors }
     }
 }
 
@@ -202,11 +178,7 @@ mod imp {
         let mut set = BTreeSet::from([root]);
         loop {
             let before = set.len();
-            let kids: Vec<u32> = table
-                .iter()
-                .filter(|p| set.contains(&p.ppid))
-                .map(|p| p.pid)
-                .collect();
+            let kids: Vec<u32> = table.iter().filter(|p| set.contains(&p.ppid)).map(|p| p.pid).collect();
             set.extend(kids);
             if set.len() == before {
                 return set;
@@ -214,12 +186,7 @@ mod imp {
         }
     }
 
-    pub(super) fn signal(
-        tree: &Tree,
-        root_alive: bool,
-        sig: i32,
-        whole: bool,
-    ) -> std::io::Result<()> {
+    pub(super) fn signal(tree: &Tree, root_alive: bool, sig: i32, whole: bool) -> std::io::Result<()> {
         // Windows has no signals to deliver; every one that may end a process ends it.
         if sig == sys::SIGKILL || sig == sys::SIGTERM || sig == sys::SIGHUP {
             match (&tree.job, whole) {
@@ -236,17 +203,11 @@ mod imp {
             let signalled = job.active().map_or(0, |n| n as usize);
             let _ = job.terminate(1);
             let survivors = wait_until_gone(KILL_WAIT, || job.active().map_or(0, |n| n as usize));
-            return Report {
-                signalled,
-                survivors,
-            };
+            return Report { signalled, survivors };
         }
         // Not in a job (it couldn't be assigned): v1's taskkill /T, by hand.
         if !root_alive {
-            return Report {
-                signalled: 0,
-                survivors: 0,
-            };
+            return Report { signalled: 0, survivors: 0 };
         }
         let pids = descendants(tree.root);
         for &pid in &pids {
@@ -258,10 +219,7 @@ mod imp {
             };
             table.iter().filter(|p| pids.contains(&p.pid)).count()
         });
-        Report {
-            signalled: pids.len(),
-            survivors,
-        }
+        Report { signalled: pids.len(), survivors }
     }
 }
 
@@ -270,13 +228,7 @@ mod tests {
     use super::*;
 
     fn p(pid: u32, ppid: u32, pgid: u32) -> sys::ProcInfo {
-        sys::ProcInfo {
-            pid,
-            ppid,
-            pgid,
-            zombie: false,
-            start: u64::from(pid) * 10,
-        }
+        sys::ProcInfo { pid, ppid, pgid, zombie: false, start: u64::from(pid) * 10 }
     }
 
     #[test]
@@ -288,13 +240,7 @@ mod tests {
             p(102, 101, 102), // left the group (setsid): found through its parent
             p(103, 102, 103),
             p(200, 50, 200), // a stranger
-            sys::ProcInfo {
-                pid: 104,
-                ppid: 100,
-                pgid: 100,
-                zombie: true,
-                start: 1,
-            },
+            sys::ProcInfo { pid: 104, ppid: 100, pgid: 100, zombie: true, start: 1 },
         ];
         let got: Vec<u32> = imp::members(&tree, true, &table).into_iter().collect();
         assert_eq!(got, [100, 101, 102, 103]);
@@ -317,13 +263,8 @@ mod tests {
         // The root died; 102 is init's now. 103 got a remembered pid? No: 103 is new, and 104 is a
         // stranger that reuses pid 104 of an old member with another start.
         imp::members(&tree, true, &[p(100, 50, 100), p(104, 100, 100)]);
-        let stranger = sys::ProcInfo {
-            start: 1,
-            ..p(104, 1, 104)
-        };
-        let got: Vec<u32> = imp::members(&tree, false, &[p(102, 1, 102), stranger])
-            .into_iter()
-            .collect();
+        let stranger = sys::ProcInfo { start: 1, ..p(104, 1, 104) };
+        let got: Vec<u32> = imp::members(&tree, false, &[p(102, 1, 102), stranger]).into_iter().collect();
         assert_eq!(got, [102]);
     }
 }

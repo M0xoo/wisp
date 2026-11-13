@@ -93,7 +93,10 @@ pub fn commits(b: &Value, st: &Style) -> Vec<String> {
         out.push(format!("{} {}", paint(st, MAGENTA, "⎇"), paint(st, BOLD, branch)));
     }
     for i in items(b) {
-        let files = i.get("files").and_then(Value::as_u64).map_or(String::new(), |n| paint(st, DIM, &format!("  {n} file{}", if n == 1 { "" } else { "s" })));
+        let files = i
+            .get("files")
+            .and_then(Value::as_u64)
+            .map_or(String::new(), |n| paint(st, DIM, &format!("  {n} file{}", if n == 1 { "" } else { "s" })));
         let tail = format!("{}{files}", counts(st, i));
         let head = format!("{} ", paint(st, YELLOW, short(s(i, "hash"))));
         let room = st.width.saturating_sub(term::width(&head) + term::width(&tail));
@@ -105,12 +108,23 @@ pub fn commits(b: &Value, st: &Style) -> Vec<String> {
 pub fn graph(b: &Value, st: &Style) -> Vec<String> {
     let mut out = Vec::new();
     let state = [s(b, "state"), s(b, "merge")].iter().filter(|x| !x.is_empty()).copied().collect::<Vec<_>>().join(" · ");
-    let head = format!("{}{}{}", paint(st, BOLD, s(b, "title")), if s(b, "ref").is_empty() { String::new() } else { format!(" {}", s(b, "ref")) }, if state.is_empty() { String::new() } else { format!("  {}", paint(st, DIM, &format!("[{state}]"))) });
+    let head = format!(
+        "{}{}{}",
+        paint(st, BOLD, s(b, "title")),
+        if s(b, "ref").is_empty() { String::new() } else { format!(" {}", s(b, "ref")) },
+        if state.is_empty() { String::new() } else { format!("  {}", paint(st, DIM, &format!("[{state}]"))) }
+    );
     out.extend(term::wrap(&head, st.width));
     let into = s(b, "into");
     for c in b.get("commits").and_then(Value::as_array).into_iter().flatten() {
         let on_base = !into.is_empty() && s(c, "branch") == into;
-        let dot = if c.get("conflict").and_then(Value::as_bool) == Some(true) { paint(st, RED, "✗") } else if on_base { paint(st, DIM, "○") } else { paint(st, GREEN, "●") };
+        let dot = if c.get("conflict").and_then(Value::as_bool) == Some(true) {
+            paint(st, RED, "✗")
+        } else if on_base {
+            paint(st, DIM, "○")
+        } else {
+            paint(st, GREEN, "●")
+        };
         let lane = if on_base { "  " } else { "" };
         let br = if s(c, "branch").is_empty() { String::new() } else { paint(st, DIM, &format!("  [{}]", s(c, "branch"))) };
         out.push(term::truncate(&format!("{lane}{dot} {} {}{br}", paint(st, YELLOW, short(s(c, "hash"))), s(c, "message")), st.width));
@@ -165,9 +179,16 @@ fn draw(st: &Style, n: &Node<'_>, lead: &str, out: &mut Vec<String>) {
         let name = if folder { paint(st, BLUE, &format!("{}/", k.name)) } else { k.name.to_owned() };
         let tail = k.item.map_or(String::new(), |item| {
             let (c, note) = (s(item, "change"), s(item, "note"));
-            format!("{}{}", if c.is_empty() { String::new() } else { format!(" {}", change(st, c)) }, if note.is_empty() { String::new() } else { paint(st, DIM, &format!("  {note}")) })
+            format!(
+                "{}{}",
+                if c.is_empty() { String::new() } else { format!(" {}", change(st, c)) },
+                if note.is_empty() { String::new() } else { paint(st, DIM, &format!("  {note}")) }
+            )
         });
-        out.push(term::truncate(&format!("{}{name}{tail}", paint(st, DIM, &format!("{lead}{}", if last { "└── " } else { "├── " }))), st.width));
+        out.push(term::truncate(
+            &format!("{}{name}{tail}", paint(st, DIM, &format!("{lead}{}", if last { "└── " } else { "├── " }))),
+            st.width,
+        ));
         if folder {
             draw(st, k, &format!("{lead}{}", if last { "    " } else { "│   " }), out);
         }
@@ -190,7 +211,8 @@ pub fn tree(b: &Value, st: &Style) -> Vec<String> {
 fn side<'a>(b: &'a Value, k: &str) -> (&'a str, Vec<&'a str>) {
     let v = b.get(k);
     let label = v.and_then(|x| x.get("label")).and_then(Value::as_str).unwrap_or(if k == "before" { "Before" } else { "After" });
-    let list = v.and_then(|x| x.get("items")).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+    let list =
+        v.and_then(|x| x.get("items")).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
     (label, list)
 }
 
@@ -230,7 +252,10 @@ pub fn flow(b: &Value, st: &Style) -> Vec<String> {
             let a = e.as_array().map_or(&[][..], Vec::as_slice);
             let txt = |i: usize| a.get(i).and_then(Value::as_str).unwrap_or("");
             let via = if txt(2).is_empty() { String::new() } else { paint(st, DIM, &format!("  ({})", txt(2))) };
-            out.extend(term::wrap(&format!("{} {} {}{via}", paint(st, BOLD, &label(txt(0))), paint(st, DIM, "→"), paint(st, BOLD, &label(txt(1)))), st.width));
+            out.extend(term::wrap(
+                &format!("{} {} {}{via}", paint(st, BOLD, &label(txt(0))), paint(st, DIM, "→"), paint(st, BOLD, &label(txt(1)))),
+                st.width,
+            ));
         }
     }
     for n in &nodes {
@@ -256,7 +281,12 @@ pub fn chart(b: &Value, st: &Style) -> Vec<String> {
         // whole cells of the room, rounded half up, at least one for a value above zero
         let cells = if max > 0.0 { (v / max * f64::from(u32::try_from(room).unwrap_or(u32::MAX))).round() } else { 0.0 };
         let n = if *v > 0.0 { format!("{cells:.0}").parse::<usize>().unwrap_or(0).max(1) } else { 0 };
-        out.push(format!("{}  {} {}", term::pad(&term::truncate(label, lw), lw), paint(st, CYAN, &"█".repeat(n.min(room))), paint(st, DIM, &val)));
+        out.push(format!(
+            "{}  {} {}",
+            term::pad(&term::truncate(label, lw), lw),
+            paint(st, CYAN, &"█".repeat(n.min(room))),
+            paint(st, DIM, &val)
+        ));
     }
     out
 }
@@ -317,7 +347,9 @@ pub fn stuff(b: &Value, st: &Style) -> Vec<String> {
 }
 
 fn enc(x: &str) -> String {
-    x.bytes().map(|c| if c.is_ascii_alphanumeric() || b"-_.~".contains(&c) { (c as char).to_string() } else { format!("%{c:02X}") }).collect()
+    x.bytes()
+        .map(|c| if c.is_ascii_alphanumeric() || b"-_.~".contains(&c) { (c as char).to_string() } else { format!("%{c:02X}") })
+        .collect()
 }
 
 pub fn map(b: &Value, st: &Style) -> Vec<String> {
@@ -325,7 +357,11 @@ pub fn map(b: &Value, st: &Style) -> Vec<String> {
     title(st, b, &mut out);
     let places: Vec<&Value> = b.get("places").and_then(Value::as_array).into_iter().flatten().collect();
     for p in &places {
-        let q = if s(p, "address").is_empty() { format!("{},{}", text_of(p.get("lat")), text_of(p.get("lng"))) } else { s(p, "address").to_owned() };
+        let q = if s(p, "address").is_empty() {
+            format!("{},{}", text_of(p.get("lat")), text_of(p.get("lng")))
+        } else {
+            s(p, "address").to_owned()
+        };
         let url = format!("https://www.google.com/maps/search/?api=1&query={}", enc(&q));
         out.extend(term::wrap(&format!("{} {}", paint(st, RED, "◉"), term::link(st, &paint(st, BOLD, s(p, "name")), &url)), st.width));
         out.extend(term::hang("  ", &q, st.width));
@@ -335,7 +371,8 @@ pub fn map(b: &Value, st: &Style) -> Vec<String> {
         }
     }
     if b.get("route").and_then(Value::as_bool) == Some(true) && places.len() > 1 {
-        let stops: Vec<String> = places.iter().map(|p| enc(if s(p, "address").is_empty() { s(p, "name") } else { s(p, "address") })).collect();
+        let stops: Vec<String> =
+            places.iter().map(|p| enc(if s(p, "address").is_empty() { s(p, "name") } else { s(p, "address") })).collect();
         out.push(term::link(st, "Directions", &format!("https://www.google.com/maps/dir/{}", stops.join("/"))));
     }
     out

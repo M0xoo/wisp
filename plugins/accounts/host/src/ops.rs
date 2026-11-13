@@ -71,7 +71,8 @@ macro_rules! on {
 
 #[allow(clippy::many_single_char_names)] // s, a, st: the same names in every handler
 pub(crate) fn register(s: &mut Setup, slot: &Slot) {
-    keyed_and_more(s, slot);
+    keys(s, slot);
+    install_and_more(s, slot);
     on!(s, slot, c::List, |st, ctx, a| Ok(out(&ctx, &st, &a.agent)));
     on!(s, slot, c::Harnesses, |st, ctx, _a| {
         let mut v = Vec::new();
@@ -161,9 +162,9 @@ impl Drop for Installing {
     }
 }
 
-/// Keys, install, re-check and live limits.
+/// API keys: view, set, remove and test.
 #[allow(clippy::many_single_char_names)]
-fn keyed_and_more(s: &mut Setup, slot: &Slot) {
+fn keys(s: &mut Setup, slot: &Slot) {
     on!(s, slot, c::Keys, |_st, ctx, a| {
         let (h, k) = keyed(&ctx, &a.agent)?;
         let _ = h;
@@ -188,16 +189,39 @@ fn keyed_and_more(s: &mut Setup, slot: &Slot) {
         }
         // one model list on that provider: it answers with its models only when it took the key
         let bin = h.program().unwrap_or_else(|| a.agent.clone());
-        let r = st.proc.exec(&bin, &["models".to_owned(), a.provider.clone()], wisp_proc::ExecOpts { timeout: Some(std::time::Duration::from_secs(20)), ..wisp_proc::ExecOpts::default() }).await;
+        let r = st
+            .proc
+            .exec(
+                &bin,
+                &["models".to_owned(), a.provider.clone()],
+                wisp_proc::ExecOpts { timeout: Some(std::time::Duration::from_secs(20)), ..wisp_proc::ExecOpts::default() },
+            )
+            .await;
         Ok(match r {
-            Ok(r) if r.exit.code == Some(0) && !r.stdout_text().trim().is_empty() => c::KeyTested { ok: true, message: "The provider took the key.".into() },
-            Ok(r) => c::KeyTested { ok: false, message: wisp_accounts_core::login::last_line(&format!("{}{}", r.stdout_text(), r.stderr_text())).unwrap_or_else(|| "The provider didn’t take the key.".into()) },
+            Ok(r) if r.exit.code == Some(0) && !r.stdout_text().trim().is_empty() => {
+                c::KeyTested { ok: true, message: "The provider took the key.".into() }
+            }
+            Ok(r) => c::KeyTested {
+                ok: false,
+                message: wisp_accounts_core::login::last_line(&format!("{}{}", r.stdout_text(), r.stderr_text()))
+                    .unwrap_or_else(|| "The provider didn’t take the key.".into()),
+            },
             Err(e) => c::KeyTested { ok: false, message: e.to_string() },
         })
     });
+}
+
+/// Install, re-check and live limits.
+#[allow(clippy::many_single_char_names)]
+fn install_and_more(s: &mut Setup, slot: &Slot) {
     on!(s, slot, c::Install, |st, ctx, a| {
         let h = harness(&ctx, &a.agent).ok_or_else(|| WireError::not_found("No such harness."))?;
-        let pkg = a.package.clone().filter(|p| !p.is_empty()).or_else(|| h.npm_package()).ok_or_else(|| WireError::invalid(format!("wisp can’t install {}. Install it yourself, then re-check.", h.info().name)))?;
+        let pkg = a
+            .package
+            .clone()
+            .filter(|p| !p.is_empty())
+            .or_else(|| h.npm_package())
+            .ok_or_else(|| WireError::invalid(format!("wisp can’t install {}. Install it yourself, then re-check.", h.info().name)))?;
         // `name@version` (a pin) stays; a bare name gets the latest
         let pkg = if pkg[1..].contains('@') { pkg } else { format!("{pkg}@latest") };
         lock(&st.installing).insert(a.agent.clone());
@@ -206,15 +230,46 @@ fn keyed_and_more(s: &mut Setup, slot: &Slot) {
         let dir = st.home.join("tools");
         tokio::fs::create_dir_all(&dir).await.map_err(|e| WireError::invalid(e.to_string()))?;
         let npm = std::env::var("WISP_NPM").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "npm".into());
-        let args: Vec<String> = ["install", "--prefix", &dir.to_string_lossy(), "--no-audit", "--no-fund", "--loglevel=error", &pkg].map(str::to_owned).to_vec();
-        let r = st.proc.exec(&npm, &args, wisp_proc::ExecOpts { env: wisp_proc::Env { remove: vec!["ELECTRON_RUN_AS_NODE".into()], ..wisp_proc::Env::default() }, timeout: Some(std::time::Duration::from_secs(300)), ..wisp_proc::ExecOpts::default() }).await;
+        let args: Vec<String> = ["install", "--prefix", &dir.to_string_lossy(), "--no-audit", "--no-fund", "--loglevel=error", &pkg]
+            .map(str::to_owned)
+            .to_vec();
+        let r = st
+            .proc
+            .exec(
+                &npm,
+                &args,
+                wisp_proc::ExecOpts {
+                    env: wisp_proc::Env { remove: vec!["ELECTRON_RUN_AS_NODE".into()], ..wisp_proc::Env::default() },
+                    timeout: Some(std::time::Duration::from_secs(300)),
+                    ..wisp_proc::ExecOpts::default()
+                },
+            )
+            .await;
         match r {
             Ok(r) if r.exit.code == Some(0) => {}
             Ok(r) => {
-                let tail = format!("{}{}", r.stdout_text(), r.stderr_text()).trim().lines().filter(|l| !l.is_empty()).rev().take(3).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join(" ");
-                return Err(WireError::invalid(format!("npm install {pkg} {}{}", if r.timed_out { "timed out" } else { "failed" }, if tail.is_empty() { String::new() } else { format!(": {tail}") })));
+                let tail = format!("{}{}", r.stdout_text(), r.stderr_text())
+                    .trim()
+                    .lines()
+                    .filter(|l| !l.is_empty())
+                    .rev()
+                    .take(3)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                return Err(WireError::invalid(format!(
+                    "npm install {pkg} {}{}",
+                    if r.timed_out { "timed out" } else { "failed" },
+                    if tail.is_empty() { String::new() } else { format!(": {tail}") }
+                )));
             }
-            Err(_) => return Err(WireError::invalid("npm isn’t on PATH, so wisp can’t install it. Install Node.js (it comes with npm), then try again.")),
+            Err(_) => {
+                return Err(WireError::invalid(
+                    "npm isn’t on PATH, so wisp can’t install it. Install Node.js (it comes with npm), then try again.",
+                ));
+            }
         }
         let agents = ctx.run_json(&ctx.root_call(), "runtime.agents", json!({ "fresh": "all" })).await?;
         let ok = agents.as_array().and_then(|l| l.iter().find(|x| x["id"] == a.agent.as_str())).is_some_and(|x| x["available"] == true);

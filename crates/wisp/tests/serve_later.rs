@@ -38,7 +38,9 @@ async fn a_follow_up_is_scheduled_sent_and_mirrored_on_its_task() {
     assert_eq!(api.cmd("later.list", json!({ "sessionId": id })).await.as_array().unwrap().len(), 1, "the sent one is gone");
     // times are written in the user's zone (the lead's decision): UTC and India differ by 5h30
     assert_ne!(api.try_cmd("later.zone", json!({ "zone": "Mars/Olympus" })).await["ok"], true);
-    let hm = |t: &str| t.split(" for ").nth(1).and_then(|r| r.split(',').next()).unwrap_or_default().split(' ').nth(1).unwrap_or_default().to_owned();
+    let hm = |t: &str| {
+        t.split(" for ").nth(1).and_then(|r| r.split(',').next()).unwrap_or_default().split(' ').nth(1).unwrap_or_default().to_owned()
+    };
     api.cmd("later.zone", json!({ "zone": "UTC" })).await;
     let utc = api.cmd("later.agent.schedule", json!({ "session": id, "minutes": 10, "message": "a" })).await;
     // the client's zone, sent with settings

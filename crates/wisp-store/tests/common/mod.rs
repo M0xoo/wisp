@@ -17,16 +17,10 @@ pub const MIGRATIONS: &[Migration] = &[Migration::sql(
 )];
 
 fn session_topics(r: &Row) -> Vec<String> {
-    vec![
-        "list".into(),
-        format!("session:{}", r["id"].as_str().unwrap_or("")),
-    ]
+    vec!["list".into(), format!("session:{}", r["id"].as_str().unwrap_or(""))]
 }
 fn event_topics(r: &Row) -> Vec<String> {
-    vec![format!(
-        "session:{}",
-        r["session_id"].as_str().unwrap_or("")
-    )]
+    vec![format!("session:{}", r["session_id"].as_str().unwrap_or(""))]
 }
 
 pub const SESSION: EntityDef = EntityDef {
@@ -51,13 +45,7 @@ pub const EVENT: EntityDef = EntityDef {
     kind: "event",
     table: "t_event",
     key: "id",
-    columns: &[
-        ("id", Col::Int),
-        ("session_id", Col::Text),
-        ("seq", Col::Int),
-        ("kind", Col::Text),
-        ("body", Col::Text),
-    ],
+    columns: &[("id", Col::Int), ("session_id", Col::Text), ("seq", Col::Int), ("kind", Col::Text), ("body", Col::Text)],
     json_columns: &["body"],
     parent: Some("session_id"),
     seq: Some("seq"),
@@ -98,11 +86,7 @@ pub fn open() -> Fixture {
 pub fn open_disk(home: Option<PathBuf>) -> Fixture {
     let home = home.unwrap_or_else(tmp_home);
     let clock = Arc::new(ManualClock::new(1_000_000));
-    open_with(
-        options(Location::Path(home.join("wisp.db")), clock.clone()),
-        clock,
-        Some(home),
-    )
+    open_with(options(Location::Path(home.join("wisp.db")), clock.clone()), clock, Some(home))
 }
 
 pub fn session(id: &str) -> Row {

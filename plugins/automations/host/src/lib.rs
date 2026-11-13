@@ -17,26 +17,47 @@ use serde_json::{Value, json};
 use wisp_automations_api::tasks::{NamedTask, RunTask, TaskDecl, TaskRemove, TaskRun, TaskSet, Tasks, fill};
 use wisp_automations_api::{Utc, matches, parse_cron, read_schedule};
 use wisp_kernel::{BoxFuture, Call, Command, Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_resources_api::{CrudKind, KindInfo, Op, RESOURCE_KIND, Resource, ResourceKind, schema_of};
 use wisp_runtime_api::Mode;
 use wisp_runtime_api::commands::{Create, StartArgs};
 use wisp_runtime_api::spec::Lineage;
-use wisp_resources_api::{CrudKind, KindInfo, Op, RESOURCE_KIND, Resource, ResourceKind, schema_of};
 use wisp_store::{Col, EntityDef, Migration, Query, Row, Store};
 
 pub const OWNER: &str = "automations";
 
-const MIGRATIONS: &[Migration] = &[Migration::sql(
-    1,
-    "CREATE TABLE automations_task (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+const MIGRATIONS: &[Migration] = &[
+    Migration::sql(
+        1,
+        "CREATE TABLE automations_task (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE automations_task_run (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
-), Migration::sql(2, "CREATE TABLE automations_trigger_state (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")];
+    ),
+    Migration::sql(2, "CREATE TABLE automations_trigger_state (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
+];
 
 fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.automations:tasks".into()]
 }
 
-const TASK: EntityDef = EntityDef { kind: "automations_task", table: "automations_task", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
-const RUN: EntityDef = EntityDef { kind: "automations_task_run", table: "automations_task_run", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+const TASK: EntityDef = EntityDef {
+    kind: "automations_task",
+    table: "automations_task",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
+const RUN: EntityDef = EntityDef {
+    kind: "automations_task_run",
+    table: "automations_task_run",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 #[allow(clippy::needless_pass_by_value)] // for map_err
 fn store_err(e: wisp_store::StoreError) -> WireError {
@@ -89,7 +110,8 @@ pub fn start_args(t: &NamedTask, run: &RunTask, by: &str) -> Result<StartArgs> {
         }
     }
     let prompt = fill(&t.spec.prompt, &values).map_err(WireError::invalid)?;
-    let steps: Vec<String> = t.spec.steps.iter().map(|s| fill(s, &values)).collect::<std::result::Result<_, _>>().map_err(WireError::invalid)?;
+    let steps: Vec<String> =
+        t.spec.steps.iter().map(|s| fill(s, &values)).collect::<std::result::Result<_, _>>().map_err(WireError::invalid)?;
     let d = &t.spec;
     let opt = |s: &str| (!s.is_empty()).then(|| s.to_owned());
     let args = StartArgs {
@@ -177,7 +199,8 @@ async fn tick(ctx: &Ctx, store: &Store, now: i64) {
         if fresh {
             let call = ctx.root_call();
             let name = t.name.clone();
-            if let Err(e) = run(ctx, &call, store, RunTask { name: name.clone(), ..RunTask::default() }, &format!("schedule:{name}")).await {
+            if let Err(e) = run(ctx, &call, store, RunTask { name: name.clone(), ..RunTask::default() }, &format!("schedule:{name}")).await
+            {
                 tracing::warn!(task = %name, "scheduled run failed: {}", e.message);
             }
         }
@@ -203,7 +226,12 @@ impl ResourceKind for TaskKind {
         r.spec.get("schedule").and_then(Value::as_str).and_then(|s| read_schedule(s).err()).map(|e| vec![e.0]).unwrap_or_default()
     }
     fn describe(&self, op: &Op) -> Option<String> {
-        let when = op.spec.get("schedule").and_then(Value::as_str).filter(|s| !s.is_empty()).map_or_else(|| "when it's run".to_owned(), |s| format!("by itself on schedule {s}"));
+        let when = op
+            .spec
+            .get("schedule")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map_or_else(|| "when it's run".to_owned(), |s| format!("by itself on schedule {s}"));
         let verb = match op.op {
             wisp_resources_api::OpKind::Create => "adds",
             wisp_resources_api::OpKind::Update => "changes",
@@ -229,8 +257,19 @@ impl Plugin for AutomationsPlugin {
         crate::trigger::register(s, &engine);
         let started = engine.clone();
         // a scheduled task acts without you: a foreign formula's needs --trust (ADR-0028)
-        let info = KindInfo::new("task", "tasks", wisp_automations_api::PLUGIN_ID, schema_of::<TaskDecl>()).order(80).sensitive().alias("recipes");
-        let kind: Arc<dyn ResourceKind> = Arc::new(TaskKind(CrudKind::new::<TaskDecl>(info, s.ctx(), "automations.tasks", "automations.task.set", "automations.task.set", "automations.task.remove").keyed("name", "name", "name")));
+        let info =
+            KindInfo::new("task", "tasks", wisp_automations_api::PLUGIN_ID, schema_of::<TaskDecl>()).order(80).sensitive().alias("recipes");
+        let kind: Arc<dyn ResourceKind> = Arc::new(TaskKind(
+            CrudKind::new::<TaskDecl>(
+                info,
+                s.ctx(),
+                "automations.tasks",
+                "automations.task.set",
+                "automations.task.set",
+                "automations.task.remove",
+            )
+            .keyed("name", "name", "name"),
+        ));
         s.contribute(&RESOURCE_KIND, kind);
         s.command::<Tasks, _, _>(|ctx, _, _| async move { list(&*ctx.service::<Store>()?).await });
         s.command::<TaskSet, _, _>(|ctx, _, t| async move { put(&*ctx.service::<Store>()?, t).await });
@@ -278,10 +317,27 @@ mod tests {
 
     #[test]
     fn a_run_fills_params_and_takes_the_runs_fields_over_the_spec() {
-        let t = NamedTask { name: "fix-issue".into(), spec: TaskDecl { prompt: "fix issue {n}".into(), steps: vec!["test {n}".into()], project: "/w".into(), agent: "reviewer".into(), ..TaskDecl::default() } };
-        let r = RunTask { name: "fix-issue".into(), words: vec!["42".into()], over: [("agent".to_owned(), json!("codex"))].into_iter().collect(), ..RunTask::default() };
+        let t = NamedTask {
+            name: "fix-issue".into(),
+            spec: TaskDecl {
+                prompt: "fix issue {n}".into(),
+                steps: vec!["test {n}".into()],
+                project: "/w".into(),
+                agent: "reviewer".into(),
+                ..TaskDecl::default()
+            },
+        };
+        let r = RunTask {
+            name: "fix-issue".into(),
+            words: vec!["42".into()],
+            over: [("agent".to_owned(), json!("codex"))].into_iter().collect(),
+            ..RunTask::default()
+        };
         let a = start_args(&t, &r, "hand").unwrap();
-        assert_eq!((a.prompt.as_str(), a.steps[0].as_str(), a.cwd.as_deref(), a.agent.as_deref()), ("fix issue 42", "test 42", Some("/w"), Some("codex")));
+        assert_eq!(
+            (a.prompt.as_str(), a.steps[0].as_str(), a.cwd.as_deref(), a.agent.as_deref()),
+            ("fix issue 42", "test 42", Some("/w"), Some("codex"))
+        );
         assert_eq!(a.lineage.triggered_by.as_deref(), Some("hand"));
         assert!(start_args(&t, &RunTask::default(), "hand").is_err(), "a missing param says which");
     }

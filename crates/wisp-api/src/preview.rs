@@ -13,17 +13,8 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 
 use crate::respond::{self, Answer};
 
-const HOP: [&str; 9] = [
-    "connection",
-    "keep-alive",
-    "proxy-connection",
-    "transfer-encoding",
-    "upgrade",
-    "te",
-    "trailer",
-    "host",
-    "http2-settings",
-];
+const HOP: [&str; 9] =
+    ["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer", "host", "http2-settings"];
 
 pub type PreviewClient = Client<HttpConnector, Incoming>;
 
@@ -55,10 +46,7 @@ pub fn request_headers(h: &HeaderMap, port: u16, upgrade: bool) -> HeaderMap {
         out.insert(http::header::HOST, v);
     }
     if upgrade {
-        out.insert(
-            http::header::CONNECTION,
-            HeaderValue::from_static("Upgrade"),
-        );
+        out.insert(http::header::CONNECTION, HeaderValue::from_static("Upgrade"));
         if let Some(u) = h.get(http::header::UPGRADE) {
             out.insert(http::header::UPGRADE, u.clone());
         }
@@ -90,16 +78,12 @@ pub fn answer_headers(h: &HeaderMap, port: u16, upgrade: bool) -> HeaderMap {
     let mut out = HeaderMap::with_capacity(h.len());
     for (k, v) in h {
         // an upgrade's answer keeps its Connection and Upgrade: the client needs them to switch
-        let keep = !HOP.contains(&k.as_str())
-            || (upgrade && (k == http::header::CONNECTION || k == http::header::UPGRADE));
+        let keep = !HOP.contains(&k.as_str()) || (upgrade && (k == http::header::CONNECTION || k == http::header::UPGRADE));
         if keep {
             out.append(k.clone(), v.clone());
         }
     }
-    if let Some(loc) = out
-        .get(http::header::LOCATION)
-        .and_then(|v| v.to_str().ok())
-        .map(|l| local_redirect(l, port))
+    if let Some(loc) = out.get(http::header::LOCATION).and_then(|v| v.to_str().ok()).map(|l| local_redirect(l, port))
         && let Ok(v) = HeaderValue::from_str(&loc)
     {
         out.insert(http::header::LOCATION, v);
@@ -108,18 +92,12 @@ pub fn answer_headers(h: &HeaderMap, port: u16, upgrade: bool) -> HeaderMap {
 }
 
 fn escape(s: &str) -> String {
-    s.chars()
-        .filter(|c| !matches!(c, '<' | '>' | '&'))
-        .collect()
+    s.chars().filter(|c| !matches!(c, '<' | '>' | '&')).collect()
 }
 
 /// Nothing answered on that port: a page saying so, in the frame.
 pub fn failed_page(port: u16, refused: bool, detail: &str) -> Answer {
-    let title = if refused {
-        format!("Nothing answers on port {port} of this computer")
-    } else {
-        format!("Port {port} didn’t answer")
-    };
+    let title = if refused { format!("Nothing answers on port {port} of this computer") } else { format!("Port {port} didn’t answer") };
     let text = if refused {
         "The server the agent started there has stopped, or listens on another port. Ask it to start it again."
     } else {
@@ -130,12 +108,7 @@ pub fn failed_page(port: u16, refused: bool, detail: &str) -> Answer {
         t = escape(&title),
         x = escape(text)
     );
-    respond::text(
-        502,
-        "text/html; charset=utf-8",
-        body,
-        &[("cache-control".into(), "no-store".into())],
-    )
+    respond::text(502, "text/html; charset=utf-8", body, &[("cache-control".into(), "no-store".into())])
 }
 
 fn refused(e: &hyper_util::client::legacy::Error) -> bool {
@@ -151,17 +124,9 @@ fn refused(e: &hyper_util::client::legacy::Error) -> bool {
 }
 
 /// Passes the request to localhost:<port>; an upgrade (a websocket) is then piped both ways.
-pub async fn forward(
-    client: &PreviewClient,
-    mut req: http::Request<Incoming>,
-    port: u16,
-) -> Answer {
+pub async fn forward(client: &PreviewClient, mut req: http::Request<Incoming>, port: u16) -> Answer {
     let upgrade = req.headers().contains_key(http::header::UPGRADE);
-    let path = req
-        .uri()
-        .path_and_query()
-        .map_or("/", http::uri::PathAndQuery::as_str)
-        .to_owned();
+    let path = req.uri().path_and_query().map_or("/", http::uri::PathAndQuery::as_str).to_owned();
     let Ok(uri) = format!("http://localhost:{port}{path}").parse::<http::Uri>() else {
         return failed_page(port, false, "bad path");
     };
@@ -181,8 +146,7 @@ pub async fn forward(
         let client_side = hyper::upgrade::on(&mut resp);
         tokio::spawn(async move {
             if let (Ok(a), Ok(b)) = (server_side.await, client_side.await) {
-                let _ =
-                    tokio::io::copy_bidirectional(&mut TokioIo::new(a), &mut TokioIo::new(b)).await;
+                let _ = tokio::io::copy_bidirectional(&mut TokioIo::new(a), &mut TokioIo::new(b)).await;
             }
         });
         let mut out = http::Response::new(respond::empty());
@@ -210,21 +174,10 @@ mod tests {
 
     #[test]
     fn ports() {
-        assert_eq!(
-            preview_port(&hm(&[("x-wisp-preview", "5173")]), 4477),
-            Some(5173)
-        );
-        assert_eq!(
-            preview_port(&hm(&[("x-wisp-preview", "4477")]), 4477),
-            None,
-            "never this wisp itself"
-        );
+        assert_eq!(preview_port(&hm(&[("x-wisp-preview", "5173")]), 4477), Some(5173));
+        assert_eq!(preview_port(&hm(&[("x-wisp-preview", "4477")]), 4477), None, "never this wisp itself");
         for bad in ["0", "65536", "123456", "", "80a", "-1", " 80"] {
-            assert_eq!(
-                preview_port(&hm(&[("x-wisp-preview", bad)]), 4477),
-                None,
-                "{bad}"
-            );
+            assert_eq!(preview_port(&hm(&[("x-wisp-preview", bad)]), 4477), None, "{bad}");
         }
         assert_eq!(preview_port(&hm(&[]), 4477), None);
     }
@@ -241,43 +194,20 @@ mod tests {
         ]);
         let out = request_headers(&h, 5173, false);
         assert_eq!(out["host"], "localhost:5173");
-        assert!(
-            out.get("x-wisp-proxy-secret").is_none()
-                && out.get("x-wisp-preview").is_none()
-                && out.get("connection").is_none()
-        );
+        assert!(out.get("x-wisp-proxy-secret").is_none() && out.get("x-wisp-preview").is_none() && out.get("connection").is_none());
         assert_eq!(out["cookie"], "a=1");
-        let up = request_headers(
-            &hm(&[("upgrade", "websocket"), ("connection", "Upgrade")]),
-            5173,
-            true,
-        );
-        assert_eq!(
-            (
-                up["connection"].to_str().unwrap(),
-                up["upgrade"].to_str().unwrap()
-            ),
-            ("Upgrade", "websocket")
-        );
+        let up = request_headers(&hm(&[("upgrade", "websocket"), ("connection", "Upgrade")]), 5173, true);
+        assert_eq!((up["connection"].to_str().unwrap(), up["upgrade"].to_str().unwrap()), ("Upgrade", "websocket"));
     }
 
     #[test]
     fn redirects_stay_on_the_preview() {
-        assert_eq!(
-            local_redirect("http://localhost:5173/login?x=1", 5173),
-            "/login?x=1"
-        );
+        assert_eq!(local_redirect("http://localhost:5173/login?x=1", 5173), "/login?x=1");
         assert_eq!(local_redirect("http://127.0.0.1:5173", 5173), "/");
         assert_eq!(local_redirect("https://[::1]:5173/a", 5173), "/a");
         assert_eq!(local_redirect("http://LOCALHOST:5173/a", 5173), "/a");
-        assert_eq!(
-            local_redirect("http://localhost:51730/a", 5173),
-            "http://localhost:51730/a"
-        );
-        assert_eq!(
-            local_redirect("https://github.com/login", 5173),
-            "https://github.com/login"
-        );
+        assert_eq!(local_redirect("http://localhost:51730/a", 5173), "http://localhost:51730/a");
+        assert_eq!(local_redirect("https://github.com/login", 5173), "https://github.com/login");
         assert_eq!(local_redirect("/rel", 5173), "/rel");
     }
 

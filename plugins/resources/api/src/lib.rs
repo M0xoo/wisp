@@ -128,7 +128,20 @@ pub struct KindInfo {
 impl KindInfo {
     pub fn new(kind: &str, section: &str, owner: &str, schema: Value) -> Self {
         let doc = schema.get("description").and_then(Value::as_str).unwrap_or_default().to_owned();
-        Self { kind: kind.into(), section: section.into(), owner: owner.into(), scope: Scope::Shared, sensitive: false, order: 100, map_form: false, singleton: false, claims_settings: false, aliases: Vec::new(), schema, doc }
+        Self {
+            kind: kind.into(),
+            section: section.into(),
+            owner: owner.into(),
+            scope: Scope::Shared,
+            sensitive: false,
+            order: 100,
+            map_form: false,
+            singleton: false,
+            claims_settings: false,
+            aliases: Vec::new(),
+            schema,
+            doc,
+        }
     }
     #[must_use]
     pub fn order(mut self, n: i32) -> Self {
@@ -208,10 +221,37 @@ pub trait ResourceKind: Send + Sync {
     fn rename<'a>(&'a self, call: &'a Call, from: &'a str, to: &'a str) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let now = self.read(call).await?;
-            let r = now.iter().find(|r| r.name == from).ok_or_else(|| wisp_kernel::WireError::not_found(format!("wisp has no {} named {from}", self.info().kind)))?;
+            let r = now
+                .iter()
+                .find(|r| r.name == from)
+                .ok_or_else(|| wisp_kernel::WireError::not_found(format!("wisp has no {} named {from}", self.info().kind)))?;
             let kind = self.info().kind;
-            self.apply(call, &Op { op: OpKind::Create, kind: kind.clone(), name: to.to_owned(), spec: r.spec.clone(), id: None, changes: Vec::new(), before: None }).await?;
-            self.apply(call, &Op { op: OpKind::Delete, kind, name: from.to_owned(), spec: r.spec.clone(), id: r.id.clone(), changes: Vec::new(), before: None }).await
+            self.apply(
+                call,
+                &Op {
+                    op: OpKind::Create,
+                    kind: kind.clone(),
+                    name: to.to_owned(),
+                    spec: r.spec.clone(),
+                    id: None,
+                    changes: Vec::new(),
+                    before: None,
+                },
+            )
+            .await?;
+            self.apply(
+                call,
+                &Op {
+                    op: OpKind::Delete,
+                    kind,
+                    name: from.to_owned(),
+                    spec: r.spec.clone(),
+                    id: r.id.clone(),
+                    changes: Vec::new(),
+                    before: None,
+                },
+            )
+            .await
         })
     }
 }

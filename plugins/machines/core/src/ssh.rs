@@ -23,28 +23,13 @@ pub fn connect_args(target: &str, local_port: u16, remote_port: u16) -> Vec<Stri
     ]
     .map(str::to_owned)
     .to_vec();
-    a.extend([
-        "-L".to_owned(),
-        format!("{local_port}:127.0.0.1:{remote_port}"),
-        target.to_owned(),
-        "sh -s".to_owned(),
-    ]);
+    a.extend(["-L".to_owned(), format!("{local_port}:127.0.0.1:{remote_port}"), target.to_owned(), "sh -s".to_owned()]);
     a
 }
 
 /// One command over there (stop wisp there): keys only, no forward.
 pub fn run_args(target: &str, command: &str) -> Vec<String> {
-    [
-        "-T",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ConnectTimeout=15",
-        target,
-        command,
-    ]
-    .map(str::to_owned)
-    .to_vec()
+    ["-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", target, command].map(str::to_owned).to_vec()
 }
 
 /// Stops wisp there by its pid (a number: nothing else reaches the remote shell).
@@ -59,11 +44,7 @@ pub fn terminal_argv(ssh: &str, target: &str, command: &str) -> Vec<String> {
         ssh.to_owned(),
         "-t".to_owned(),
         target.to_owned(),
-        format!(
-            "sh -c {} {}",
-            shq(r#"exec "${SHELL:-/bin/sh}" -lic "$0""#),
-            shq(command)
-        ),
+        format!("sh -c {} {}", shq(r#"exec "${SHELL:-/bin/sh}" -lic "$0""#), shq(command)),
     ]
 }
 
@@ -95,12 +76,7 @@ pub fn let_in_args(target: &str, method: &str) -> Vec<String> {
     ]
     .map(str::to_owned)
     .to_vec();
-    a.extend([
-        "-o".to_owned(),
-        format!("PreferredAuthentications={method}"),
-        target.to_owned(),
-        add_key_command(),
-    ]);
+    a.extend(["-o".to_owned(), format!("PreferredAuthentications={method}"), target.to_owned(), add_key_command()]);
     a
 }
 
@@ -123,19 +99,7 @@ pub fn askpass_env(askpass: &str, password: &str, display: Option<&str>) -> Vec<
 pub const KEYS: [&str; 3] = ["id_ed25519", "id_ecdsa", "id_rsa"];
 
 pub fn keygen_args(file: &str, hostname: &str) -> Vec<String> {
-    [
-        "-q",
-        "-t",
-        "ed25519",
-        "-N",
-        "",
-        "-C",
-        &format!("wisp@{hostname}"),
-        "-f",
-        file,
-    ]
-    .map(str::to_owned)
-    .to_vec()
+    ["-q", "-t", "ed25519", "-N", "", "-C", &format!("wisp@{hostname}"), "-f", file].map(str::to_owned).to_vec()
 }
 
 /// What the server accepts, from `Permission denied (publickey,password).`
@@ -169,29 +133,16 @@ pub fn let_in_verdict(code: Option<i32>, out: &str, first: bool) -> LetInVerdict
     match code {
         None => LetInVerdict::TimedOut,
         Some(0) => LetInVerdict::Ok,
-        Some(_) if first && off.contains("keyboard-interactive") && !off.contains("password") => {
-            LetInVerdict::TryKeyboard
-        }
+        Some(_) if first && off.contains("keyboard-interactive") && !off.contains("password") => LetInVerdict::TryKeyboard,
         Some(_)
-            if [
-                "Permission denied",
-                "Authentication failed",
-                "Too many authentication failures",
-            ]
-            .iter()
-            .any(|n| out.to_ascii_lowercase().contains(&n.to_ascii_lowercase())) =>
+            if ["Permission denied", "Authentication failed", "Too many authentication failures"]
+                .iter()
+                .any(|n| out.to_ascii_lowercase().contains(&n.to_ascii_lowercase())) =>
         {
-            LetInVerdict::Refused {
-                passwords_off: !off.is_empty()
-                    && !off.contains("password")
-                    && !off.contains("keyboard-interactive"),
-            }
+            LetInVerdict::Refused { passwords_off: !off.is_empty() && !off.contains("password") && !off.contains("keyboard-interactive") }
         }
         Some(c) => LetInVerdict::Other(
-            out.lines()
-                .rev()
-                .find(|l| !l.trim().is_empty())
-                .map_or_else(|| format!("ssh exited ({c})."), |l| l.trim().to_owned()),
+            out.lines().rev().find(|l| !l.trim().is_empty()).map_or_else(|| format!("ssh exited ({c})."), |l| l.trim().to_owned()),
         ),
     }
 }
@@ -212,45 +163,27 @@ mod tests {
     #[test]
     fn the_forward_and_the_target_come_last() {
         let a = connect_args("me@devbox", 51234, 4477);
-        assert_eq!(
-            a[a.len() - 3..],
-            ["51234:127.0.0.1:4477", "me@devbox", "sh -s"]
-        );
-        assert!(
-            a.iter().any(|x| x == "BatchMode=yes")
-                && a.iter().any(|x| x == "ExitOnForwardFailure=yes")
-        );
-        assert_eq!(
-            run_args("box", &kill_command(42))
-                .last()
-                .map(String::as_str),
-            Some("kill 42 2>&1 || true")
-        );
+        assert_eq!(a[a.len() - 3..], ["51234:127.0.0.1:4477", "me@devbox", "sh -s"]);
+        assert!(a.iter().any(|x| x == "BatchMode=yes") && a.iter().any(|x| x == "ExitOnForwardFailure=yes"));
+        assert_eq!(run_args("box", &kill_command(42)).last().map(String::as_str), Some("kill 42 2>&1 || true"));
     }
 
     #[test]
     fn a_take_over_runs_in_the_login_shell_under_sh() {
         let a = terminal_argv("ssh", "box", "claude --resume 'x'");
         assert_eq!(a[..3], ["ssh", "-t", "box"]);
-        assert_eq!(
-            a[3],
-            r#"sh -c 'exec "${SHELL:-/bin/sh}" -lic "$0"' 'claude --resume '\''x'\'''"#
-        );
+        assert_eq!(a[3], r#"sh -c 'exec "${SHELL:-/bin/sh}" -lic "$0"' 'claude --resume '\''x'\'''"#);
     }
 
     #[test]
     fn let_in_is_one_method_per_try_and_the_password_stays_out_of_argv() {
         let a = let_in_args("box", "password");
         assert!(a.iter().any(|x| x == "PreferredAuthentications=password"));
-        assert!(
-            a.iter().any(|x| x == "PubkeyAuthentication=no")
-                && a.iter().any(|x| x == "NumberOfPasswordPrompts=1")
-        );
+        assert!(a.iter().any(|x| x == "PubkeyAuthentication=no") && a.iter().any(|x| x == "NumberOfPasswordPrompts=1"));
         let env = askpass_env("/tmp/a.sh", "open sesame", None);
         assert!(!a.iter().any(|x| x.contains("open sesame")));
         assert!(
-            env.contains(&("SSH_ASKPASS_REQUIRE".into(), "force".into()))
-                && env.contains(&("WISP_ASKPASS".into(), "open sesame".into()))
+            env.contains(&("SSH_ASKPASS_REQUIRE".into(), "force".into())) && env.contains(&("WISP_ASKPASS".into(), "open sesame".into()))
         );
         assert!(add_key_command().contains("grep -qxF"), "never added twice");
     }
@@ -260,47 +193,23 @@ mod tests {
         assert_eq!(let_in_verdict(Some(0), "", true), LetInVerdict::Ok);
         assert_eq!(let_in_verdict(None, "", true), LetInVerdict::TimedOut);
         assert_eq!(
-            let_in_verdict(
-                Some(255),
-                "me@box: Permission denied (publickey,keyboard-interactive).",
-                true
-            ),
+            let_in_verdict(Some(255), "me@box: Permission denied (publickey,keyboard-interactive).", true),
             LetInVerdict::TryKeyboard
         );
         assert_eq!(
-            let_in_verdict(
-                Some(255),
-                "me@box: Permission denied (publickey,keyboard-interactive).",
-                false
-            ),
-            LetInVerdict::Refused {
-                passwords_off: false
-            }
+            let_in_verdict(Some(255), "me@box: Permission denied (publickey,keyboard-interactive).", false),
+            LetInVerdict::Refused { passwords_off: false }
         );
         assert_eq!(
             let_in_verdict(Some(255), "Permission denied (publickey,password).", true),
-            LetInVerdict::Refused {
-                passwords_off: false
-            }
+            LetInVerdict::Refused { passwords_off: false }
         );
+        assert_eq!(let_in_verdict(Some(255), "Permission denied (publickey).", true), LetInVerdict::Refused { passwords_off: true });
         assert_eq!(
-            let_in_verdict(Some(255), "Permission denied (publickey).", true),
-            LetInVerdict::Refused {
-                passwords_off: true
-            }
-        );
-        assert_eq!(
-            let_in_verdict(
-                Some(255),
-                "ssh: connect to host x: Connection refused\n",
-                true
-            ),
+            let_in_verdict(Some(255), "ssh: connect to host x: Connection refused\n", true),
             LetInVerdict::Other("ssh: connect to host x: Connection refused".into())
         );
-        assert_eq!(
-            let_in_verdict(Some(1), "", true),
-            LetInVerdict::Other("ssh exited (1).".into())
-        );
+        assert_eq!(let_in_verdict(Some(1), "", true), LetInVerdict::Other("ssh exited (1).".into()));
         assert!(let_in_refusal(false).starts_with("Wrong password"));
     }
 }

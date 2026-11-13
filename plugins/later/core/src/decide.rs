@@ -70,23 +70,11 @@ impl Task {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     /// archived: what it had scheduled and came due lapses
-    Lapse {
-        session_id: String,
-        ids: Vec<String>,
-    },
+    Lapse { session_id: String, ids: Vec<String> },
     /// not the user's, and its account is past Automations stop at: moved to `at` with `held`
-    Hold {
-        session_id: String,
-        id: String,
-        at: i64,
-        held: LaterHeld,
-    },
+    Hold { session_id: String, id: String, at: i64, held: LaterHeld },
     /// a follow-up goes into its task; `late`: more than 2 minutes late
-    Fire {
-        session_id: String,
-        id: String,
-        late: bool,
-    },
+    Fire { session_id: String, id: String, late: bool },
     /// a reminder comes due
     Remind { session_id: String, id: String },
     /// a follow-up more than a day late: the task comes back to Needs you with it, unsent
@@ -139,30 +127,18 @@ pub fn due(
             continue;
         };
         if task.archived {
-            d.actions.push(Action::Lapse {
-                session_id: sid,
-                ids: due.iter().map(|l| l.id.clone()).collect(),
-            });
+            d.actions.push(Action::Lapse { session_id: sid, ids: due.iter().map(|l| l.id.clone()).collect() });
             continue;
         }
         // Not the user's, and the plan holds: it waits for the reset, and the next due one goes instead.
         let mut next = None;
         for l in due {
-            let h = if l.remind || !l.unattended() || !task.free() {
-                None
-            } else {
-                hold(task)
-            };
+            let h = if l.remind || !l.unattended() || !task.free() { None } else { hold(task) };
             let Some(h) = h else {
                 next = Some(l);
                 break;
             };
-            d.actions.push(Action::Hold {
-                session_id: sid.clone(),
-                id: l.id.clone(),
-                at: held_at(&h, now),
-                held: h,
-            });
+            d.actions.push(Action::Hold { session_id: sid.clone(), id: l.id.clone(), at: held_at(&h, now), held: h });
         }
         let Some(l) = next else { continue };
         if !l.remind && !task.free() {
@@ -180,11 +156,7 @@ pub fn due(
         } else if now - l.at > MISSED_MS {
             Action::Missed { session_id, id }
         } else {
-            Action::Fire {
-                session_id,
-                id,
-                late: now - l.at > LATE_MS,
-            }
+            Action::Fire { session_id, id, late: now - l.at > LATE_MS }
         });
     }
     d
@@ -210,17 +182,9 @@ pub struct PlanDecision {
 
 /// Which plans start (v1 later.js:363-392): timed ones that came due, then `/after` ones whose task is
 /// done. At most `room` start; a draft never comes due by itself.
-pub fn due_plans(
-    plans: &[Plan],
-    tasks: &BTreeMap<String, Task>,
-    now: i64,
-    room: usize,
-) -> PlanDecision {
+pub fn due_plans(plans: &[Plan], tasks: &BTreeMap<String, Task>, now: i64, room: usize) -> PlanDecision {
     let mut d = PlanDecision::default();
-    let mut timed: Vec<&Plan> = plans
-        .iter()
-        .filter(|p| p.at.is_some_and(|at| at <= now))
-        .collect();
+    let mut timed: Vec<&Plan> = plans.iter().filter(|p| p.at.is_some_and(|at| at <= now)).collect();
     timed.sort_by_key(|p| p.sort_key());
     for p in timed {
         if d.used >= room {
@@ -229,11 +193,7 @@ pub fn due_plans(
         }
         d.used += 1;
         let missed = p.kind == PlanKind::Task && p.at.is_some_and(|at| now - at > MISSED_MS);
-        d.actions.push(if missed {
-            PlanAction::Missed { id: p.id.clone() }
-        } else {
-            PlanAction::Run { id: p.id.clone() }
-        });
+        d.actions.push(if missed { PlanAction::Missed { id: p.id.clone() } } else { PlanAction::Run { id: p.id.clone() } });
     }
     for p in plans.iter().filter(|p| p.at.is_none()) {
         let Some(after) = &p.after else { continue };
@@ -246,15 +206,9 @@ pub fn due_plans(
                 d.used += 1;
                 d.actions.push(PlanAction::Run { id: p.id.clone() });
             }
-            Some(t) if t.archived => d.actions.push(PlanAction::Lose {
-                id: p.id.clone(),
-                why: "archived",
-            }),
+            Some(t) if t.archived => d.actions.push(PlanAction::Lose { id: p.id.clone(), why: "archived" }),
             Some(_) => {}
-            None => d.actions.push(PlanAction::Lose {
-                id: p.id.clone(),
-                why: "deleted",
-            }),
+            None => d.actions.push(PlanAction::Lose { id: p.id.clone(), why: "deleted" }),
         }
     }
     d
@@ -263,19 +217,9 @@ pub fn due_plans(
 /// A window of `agent`'s `account` reset early (v1 pullForward): a follow-up moved by Automations stop at
 /// (on a task that runs on that plan) or one waiting at that limit comes due now, `held` cleared.
 /// → the entries it moved. The caller checks first that nothing holds the account any more.
-pub fn pull_forward(
-    entries: &[LaterEntry],
-    tasks: &BTreeMap<String, Task>,
-    agent: &str,
-    account: &str,
-    now: i64,
-) -> Vec<LaterEntry> {
+pub fn pull_forward(entries: &[LaterEntry], tasks: &BTreeMap<String, Task>, agent: &str, account: &str, now: i64) -> Vec<LaterEntry> {
     let acct = |a: &str| {
-        if a.is_empty() {
-            "default".to_owned()
-        } else {
-            a.to_owned()
-        }
+        if a.is_empty() { "default".to_owned() } else { a.to_owned() }
     };
     entries
         .iter()
@@ -285,36 +229,17 @@ pub fn pull_forward(
                 return false;
             };
             let mine = t.agent == agent && acct(&t.account) == account;
-            (l.held.is_some() && mine)
-                || l.limit
-                    .as_ref()
-                    .is_some_and(|x| x.agent == agent && acct(&x.account) == account)
+            (l.held.is_some() && mine) || l.limit.as_ref().is_some_and(|x| x.agent == agent && acct(&x.account) == account)
         })
-        .map(|l| LaterEntry {
-            at: now,
-            held: None,
-            ..l.clone()
-        })
+        .map(|l| LaterEntry { at: now, held: None, ..l.clone() })
         .collect()
 }
 
 /// The soonest thing that will run, for `GET /api/status` (v1 nextAt): a host starts a stopped wisp for
 /// it. Never in the past, or a host would never let an idle wisp stop; a task that asks the user wakes
 /// nothing but its reminders.
-pub fn next_at(
-    entries: &[LaterEntry],
-    plans: &[Plan],
-    tasks: &BTreeMap<String, Task>,
-    now: i64,
-) -> Option<i64> {
-    let ents = entries
-        .iter()
-        .filter(|l| {
-            tasks
-                .get(&l.session_id)
-                .is_some_and(|t| !t.archived && (l.remind || !t.asking))
-        })
-        .map(|l| l.at);
+pub fn next_at(entries: &[LaterEntry], plans: &[Plan], tasks: &BTreeMap<String, Task>, now: i64) -> Option<i64> {
+    let ents = entries.iter().filter(|l| tasks.get(&l.session_id).is_some_and(|t| !t.archived && (l.remind || !t.asking))).map(|l| l.at);
     let next = plans.iter().filter_map(|p| p.at).chain(ents).min()?;
     Some(next.max(now + MIN_MS))
 }

@@ -13,9 +13,7 @@ use crate::{ConnId, Output};
 
 impl<C> Core<C> {
     pub(crate) fn maybe_flush(&mut self, c: &mut Conn<C>, now: u64) {
-        let due = c
-            .last_flush_at
-            .is_none_or(|at| now.saturating_sub(at) >= self.opts.flush_ms);
+        let due = c.last_flush_at.is_none_or(|at| now.saturating_sub(at) >= self.opts.flush_ms);
         if due && self.pending(c) {
             self.flush(c, now);
         }
@@ -36,23 +34,14 @@ impl<C> Core<C> {
         if c.buffered > high {
             self.shed(c);
         }
-        let taken = if c.buffered > high {
-            Taken::default()
-        } else {
-            c.out.take(high - c.buffered)
-        };
+        let taken = if c.buffered > high { Taken::default() } else { c.out.take(high - c.buffered) };
         let w = self.watermark(c);
         let mut parts: Vec<String> = Vec::with_capacity(c.control.len() + taken.fronts.len() + 2);
         c.acks.retain_mut(|a| {
             if a.seq > w {
                 return true;
             }
-            let ack = wisp_protocol::Ack {
-                t: tag::Ack,
-                mid: std::mem::take(&mut a.mid),
-                seq: a.seq,
-                result: a.result.take(),
-            };
+            let ack = wisp_protocol::Ack { t: tag::Ack, mid: std::mem::take(&mut a.mid), seq: a.seq, result: a.result.take() };
             parts.push(json(&ack));
             false
         });
@@ -94,20 +83,11 @@ impl<C> Core<C> {
             sub.buffer.clear();
             sub.buffer_bytes = 0;
             self.stats.resyncs += 1;
-            c.control.push(json(&Resync {
-                t: tag::Resync,
-                topic,
-            }));
+            c.control.push(json(&Resync { t: tag::Resync, topic }));
         }
     }
 
-    pub(crate) fn write<S: AsRef<str>>(
-        &mut self,
-        c: &mut Conn<C>,
-        messages: &[S],
-        now: u64,
-        id: u64,
-    ) {
+    pub(crate) fn write<S: AsRef<str>>(&mut self, c: &mut Conn<C>, messages: &[S], now: u64, id: u64) {
         let frame = encode_frame(Some(id), messages);
         c.buffered += frame.len(); // until the host reports the socket's real number
         c.last_write_at = now;

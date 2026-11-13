@@ -21,31 +21,17 @@ pub fn tailscale_self(status: Option<&str>, prefs: Option<&str>) -> TailscaleSel
         return TailscaleSelf::default();
     };
     let Ok(j) = serde_json::from_str::<Value>(status) else {
-        return TailscaleSelf {
-            installed: true,
-            ..TailscaleSelf::default()
-        };
+        return TailscaleSelf { installed: true, ..TailscaleSelf::default() };
     };
     let me = j.get("Self").cloned().unwrap_or(Value::Null);
-    let name = me
-        .get("DNSName")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim_end_matches('.')
-        .to_owned();
+    let name = me.get("DNSName").and_then(Value::as_str).unwrap_or("").trim_end_matches('.').to_owned();
     let ip = me
         .get("TailscaleIPs")
         .and_then(Value::as_array)
-        .and_then(|a| {
-            a.iter()
-                .filter_map(Value::as_str)
-                .find(|x| !x.contains(':'))
-        })
+        .and_then(|a| a.iter().filter_map(Value::as_str).find(|x| !x.contains(':')))
         .unwrap_or("")
         .to_owned();
-    let ssh = prefs
-        .and_then(|p| serde_json::from_str::<Value>(p).ok())
-        .and_then(|p| p.get("RunSSH").and_then(Value::as_bool));
+    let ssh = prefs.and_then(|p| serde_json::from_str::<Value>(p).ok()).and_then(|p| p.get("RunSSH").and_then(Value::as_bool));
     TailscaleSelf {
         installed: true,
         running: j.get("BackendState").and_then(Value::as_str) == Some("Running"),
@@ -57,12 +43,7 @@ pub fn tailscale_self(status: Option<&str>, prefs: Option<&str>) -> TailscaleSel
 
 /// Keys in `authorized_keys` (comments and blank lines aside).
 pub fn authorized_keys(text: &str) -> u32 {
-    u32::try_from(
-        text.lines()
-            .filter(|l| !l.trim().is_empty() && !l.trim().starts_with('#'))
-            .count(),
-    )
-    .unwrap_or(u32::MAX)
+    u32::try_from(text.lines().filter(|l| !l.trim().is_empty() && !l.trim().starts_with('#')).count()).unwrap_or(u32::MAX)
 }
 
 #[derive(Debug)]
@@ -77,21 +58,13 @@ pub struct Facts<'a> {
 }
 
 pub fn reachability(f: Facts<'_>) -> Reachability {
-    let ts_name = f
-        .tailscale
-        .name
-        .clone()
-        .filter(|n| f.tailscale.running && !n.is_empty());
+    let ts_name = f.tailscale.name.clone().filter(|n| f.tailscale.running && !n.is_empty());
     let host = ts_name.unwrap_or_else(|| f.hostname.to_owned());
     Reachability {
         os: f.os.to_owned(),
         user: f.user.to_owned(),
         hostname: f.hostname.to_owned(),
-        ssh: SshServer {
-            running: f.banner.is_some(),
-            banner: f.banner.unwrap_or_default(),
-            port: f.ssh_port,
-        },
+        ssh: SshServer { running: f.banner.is_some(), banner: f.banner.unwrap_or_default(), port: f.ssh_port },
         target: format!("{}@{host}", f.user),
         supported: f.os != "win32" && f.os != "windows",
         tailscale: f.tailscale,
@@ -105,10 +78,7 @@ mod tests {
 
     #[test]
     fn banners() {
-        assert_eq!(
-            banner(b"SSH-2.0-OpenSSH_test\r\n"),
-            Some(Some("SSH-2.0-OpenSSH_test".into()))
-        );
+        assert_eq!(banner(b"SSH-2.0-OpenSSH_test\r\n"), Some(Some("SSH-2.0-OpenSSH_test".into())));
         assert_eq!(banner(b"HTTP/1.1 400 Bad Request\r\n"), Some(None));
         assert_eq!(banner(b"SSH-2.0"), None);
         assert_eq!(banner(&[b'x'; 300]), Some(None));
@@ -128,14 +98,8 @@ mod tests {
                 ssh: Some(true)
             }
         );
-        assert_eq!(
-            serde_json::to_value(tailscale_self(None, None)).ok(),
-            Some(serde_json::json!({"installed": false, "running": false}))
-        );
-        assert_eq!(
-            authorized_keys("# mine\nssh-ed25519 AAAA laptop\n\nssh-ed25519 BBBB wisp-phone\n"),
-            2
-        );
+        assert_eq!(serde_json::to_value(tailscale_self(None, None)).ok(), Some(serde_json::json!({"installed": false, "running": false})));
+        assert_eq!(authorized_keys("# mine\nssh-ed25519 AAAA laptop\n\nssh-ed25519 BBBB wisp-phone\n"), 2);
         let r = reachability(Facts {
             os: "darwin",
             user: "me",

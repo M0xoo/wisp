@@ -49,15 +49,34 @@ fn world(answer: (u16, Value)) -> World {
     db.with(|c| {
         c.execute("INSERT INTO users (id, handle, created_at) VALUES ('u1', 'pia', 0)", [])?;
         c.execute("INSERT INTO devices (id, user_id, name, token_hash, created_at) VALUES ('d1', 'u1', 'laptop', 'h', 0)", [])?;
-        c.execute("INSERT INTO computers (id, user_id, device_id, name, label, created_at) VALUES ('c1', 'u1', 'd1', 'laptop', 'laptop--pia', 0)", [])
+        c.execute(
+            "INSERT INTO computers (id, user_id, device_id, name, label, created_at) VALUES ('c1', 'u1', 'd1', 'laptop', 'laptop--pia', 0)",
+            [],
+        )
     })
     .unwrap();
     let user = UserRow { id: "u1".into(), handle: "pia".into(), email: None, name: None, avatar: None, created_at: 0, disabled: 0 };
-    let laptop = ComputerRow { id: "c1".into(), user_id: "u1".into(), device_id: "d1".into(), name: "laptop".into(), label: "laptop--pia".into(), created_at: 0, last_seen_at: None };
+    let laptop = ComputerRow {
+        id: "c1".into(),
+        user_id: "u1".into(),
+        device_id: "d1".into(),
+        name: "laptop".into(),
+        label: "laptop--pia".into(),
+        created_at: 0,
+        last_seen_at: None,
+    };
     let tg = Arc::new(FakeTelegram::default());
     let pcs = Arc::new(FakeComputers(Mutex::default(), answer));
     let secrets = Arc::new(Secrets::for_test(db.clone(), [3; 32]).unwrap());
-    let r = Routes { db, clock: ManualClock::new(1_000_000), secrets: Some(secrets), telegram: tg.clone(), computers: pcs.clone(), public_url: "https://grid.test".into(), on: true };
+    let r = Routes {
+        db,
+        clock: ManualClock::new(1_000_000),
+        secrets: Some(secrets),
+        telegram: tg.clone(),
+        computers: pcs.clone(),
+        public_url: "https://grid.test".into(),
+        on: true,
+    };
     World { r, tg, pcs, user, laptop }
 }
 
@@ -92,10 +111,18 @@ async fn on_laptop_goes_to_that_computer_and_its_answer_back_to_the_chat() {
     let Next::Forward { computer, ref body, .. } = next.clone() else { panic!("{next:?}") };
     assert_eq!((computer.as_str(), body["text"].as_str(), body["follow"].as_bool()), ("c1", Some("fix the login"), Some(false)));
     w.r.run("u1", &b, next, "laptop").await.unwrap();
-    let said = w.tg.calls.lock().unwrap().iter().filter(|c| c.0 == "sendMessage").map(|c| c.1["text"].as_str().unwrap().to_owned()).collect::<Vec<_>>();
+    let said =
+        w.tg.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|c| c.0 == "sendMessage")
+            .map(|c| c.1["text"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
     assert_eq!(said, ["▶ api · Plan"]);
     // a reply in the chat to what the grid said there is a follow-up, to the same computer
-    let sent_id = w.tg.calls.lock().unwrap().iter().rev().find(|c| c.0 == "sendMessage").map(|_| 1000 + *w.tg.next_id.lock().unwrap()).unwrap();
+    let sent_id =
+        w.tg.calls.lock().unwrap().iter().rev().find(|c| c.0 == "sendMessage").map(|_| 1000 + *w.tg.next_id.lock().unwrap()).unwrap();
     let mut follow = msg("also the signup", 42, "private");
     follow["update_id"] = json!(78);
     follow["message"]["reply_to_message"] = json!({ "message_id": sent_id });

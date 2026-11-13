@@ -28,12 +28,7 @@ fn peer() -> PeerInfo {
 }
 
 fn sources() -> Vec<TopicSource> {
-    vec![TopicSource {
-        kind: "setting",
-        key: "key",
-        matches: |t| t == "config",
-        query: |_| Query::new(),
-    }]
+    vec![TopicSource { kind: "setting", key: "key", matches: |t| t == "config", query: |_| Query::new() }]
 }
 
 fn store() -> Store {
@@ -42,10 +37,7 @@ fn store() -> Store {
 
 async fn set(s: &Store, key: &'static str, value: &'static str) {
     s.write(move |w| {
-        w.upsert(
-            "setting",
-            row!({"key": key, "value": value, "locked_by": null}),
-        )?;
+        w.upsert("setting", row!({"key": key, "value": value, "locked_by": null}))?;
         Ok(())
     })
     .await
@@ -61,10 +53,7 @@ async fn snapshot_then_delta_from_the_store() {
     let full = snaps.snapshot(&config, None).await;
     assert!(full.full);
     assert_eq!(full.rows.len(), 1);
-    assert_eq!(
-        (full.rows[0].e.as_str(), full.rows[0].id.as_str()),
-        ("setting", "theme")
-    );
+    assert_eq!((full.rows[0].e.as_str(), full.rows[0].id.as_str()), ("setting", "theme"));
     assert_eq!(snaps.head_seq(), full.seq, "the head follows the commits");
 
     set(&s, "volume", "3").await;
@@ -72,11 +61,7 @@ async fn snapshot_then_delta_from_the_store() {
     let delta = snaps.snapshot(&config, Some(full.seq)).await;
     assert!(!delta.full);
     let ids: Vec<&str> = delta.rows.iter().map(|r| r.id.as_str()).collect();
-    assert_eq!(
-        ids,
-        ["volume", "theme"],
-        "each row once, at its latest change"
-    );
+    assert_eq!(ids, ["volume", "theme"], "each row once, at its latest change");
     assert_eq!(delta.rows[1].v["value"], "light");
     assert_eq!(snaps.head_seq(), delta.seq);
 
@@ -120,10 +105,7 @@ async fn commits_become_wire_changes() {
     assert_eq!(first[0].topic.as_str(), "config");
     assert!(matches!(&first[0].change, Change::Upsert { v } if v["value"] == "dark"));
     let second = rx.recv().await.unwrap();
-    assert!(
-        matches!(&second[0].change, Change::Patch { ops } if !ops.is_empty()),
-        "an update is a patch"
-    );
+    assert!(matches!(&second[0].change, Change::Patch { ops } if !ops.is_empty()), "an update is a patch");
     assert!(second[0].seq > first[0].seq);
 }
 
@@ -131,10 +113,7 @@ async fn until(c: &mut tokio::net::TcpStream, seen: &mut String, want: &str) {
     let mut buf = vec![0u8; 8192];
     let end = tokio::time::Instant::now() + Duration::from_secs(3);
     while !seen.contains(want) {
-        let n = tokio::time::timeout_at(end, c.read(&mut buf))
-            .await
-            .unwrap_or_else(|_| panic!("no {want} in {seen}"))
-            .unwrap();
+        let n = tokio::time::timeout_at(end, c.read(&mut buf)).await.unwrap_or_else(|_| panic!("no {want} in {seen}")).unwrap();
         assert!(n > 0, "stream closed before {want}: {seen}");
         seen.push_str(&String::from_utf8_lossy(&buf[..n]));
     }
@@ -144,46 +123,21 @@ async fn until(c: &mut tokio::net::TcpStream, seen: &mut String, want: &str) {
 async fn a_commit_reaches_an_open_stream() {
     let s = store();
     set(&s, "theme", "dark").await;
-    let fake = Arc::new(Fake {
-        calls: std::sync::atomic::AtomicUsize::new(0),
-        live: 0,
-    });
+    let fake = Arc::new(Fake { calls: std::sync::atomic::AtomicUsize::new(0), live: 0 });
     let hub = Hub::new();
-    let driver = Driver::start(
-        Arc::new(StoreSnapshots::new(s.clone(), sources(), Vec::new())),
-        fake.clone(),
-        peer(),
-    );
+    let driver = Driver::start(Arc::new(StoreSnapshots::new(s.clone(), sources(), Vec::new())), fake.clone(), peer());
     let _feed = feed(&s, driver.clone());
     hub.mount(driver);
-    let server = wisp_api::serve(
-        Edge::new(config(), fake, hub),
-        tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap(),
-    )
-    .await
-    .unwrap();
+    let server =
+        wisp_api::serve(Edge::new(config(), fake, hub), tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap()).await.unwrap();
     let p = server.addr.port();
-    let mut c = tokio::net::TcpStream::connect(("127.0.0.1", p))
-        .await
-        .unwrap();
+    let mut c = tokio::net::TcpStream::connect(("127.0.0.1", p)).await.unwrap();
     let q = "proto_min=2&proto_max=2&client_id=c1&build=t";
-    c.write_all(format!("GET /api/events?{q} HTTP/1.1\r\nhost: 127.0.0.1:{p}\r\n\r\n").as_bytes())
-        .await
-        .unwrap();
+    c.write_all(format!("GET /api/events?{q} HTTP/1.1\r\nhost: 127.0.0.1:{p}\r\n\r\n").as_bytes()).await.unwrap();
     let mut seen = String::new();
     until(&mut c, &mut seen, "welcome").await;
-    assert!(
-        seen.contains(&format!("\"epoch\":\"{}\"", s.epoch())),
-        "the store's epoch: {seen}"
-    );
-    let sub = send(
-        p,
-        "POST",
-        "/api/events",
-        &[json_h(), ("x-wisp-client", "c1")],
-        br#"{"t":"sub","topic":"config"}"#,
-    )
-    .await;
+    assert!(seen.contains(&format!("\"epoch\":\"{}\"", s.epoch())), "the store's epoch: {seen}");
+    let sub = send(p, "POST", "/api/events", &[json_h(), ("x-wisp-client", "c1")], br#"{"t":"sub","topic":"config"}"#).await;
     assert_eq!(sub.status, 200);
     until(&mut c, &mut seen, "\"theme\"").await;
     set(&s, "volume", "3").await;
@@ -233,7 +187,14 @@ async fn a_live_reader_sends_a_change_as_its_rows_and_a_resume_through_its_delta
     let got: Vec<(&str, &str)> = sent.iter().map(|c| (c.topic.as_str(), c.id.as_str())).collect();
     assert_eq!(got, [("config", "theme"), ("list", "theme")], "its rows, in their order, on their topics");
     assert!(sent.iter().all(|c| c.seq == seq && matches!(&c.change, Change::Upsert { v } if v["value"] == "stubbed")));
-    let untouched = vec![wisp_sync::ChangeRow { seq, topic: Topic::parse("config").unwrap(), entity: "other".into(), id: "x".into(), change: Change::Del, at: 0 }];
+    let untouched = vec![wisp_sync::ChangeRow {
+        seq,
+        topic: Topic::parse("config").unwrap(),
+        entity: "other".into(),
+        id: "x".into(),
+        change: Change::Del,
+        at: 0,
+    }];
     assert_eq!(live_changes(&s, &[stubbing()], untouched.clone()), untouched, "another kind, or a del, goes as committed");
     let resumed = snaps.snapshot(&Topic::parse("config").unwrap(), Some(head)).await;
     assert!(!resumed.full);

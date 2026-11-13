@@ -180,34 +180,16 @@ mod tests {
 
     #[test]
     fn ids_and_permissions() {
-        assert_eq!(
-            (Open::ID, Open::PERMISSION),
-            ("terminal.open", Some("terminal:open"))
-        );
+        assert_eq!((Open::ID, Open::PERMISSION), ("terminal.open", Some("terminal:open")));
         assert_eq!(ShellStart::PERMISSION, Some("terminal:shell"));
-        assert_eq!(
-            [
-                Get::READ_ONLY,
-                ShellInfoOf::READ_ONLY,
-                Apps::READ_ONLY,
-                Input::READ_ONLY
-            ],
-            [true, true, true, false]
-        );
+        assert_eq!([Get::READ_ONLY, ShellInfoOf::READ_ONLY, Apps::READ_ONLY, Input::READ_ONLY], [true, true, true, false]);
     }
 
     #[test]
     fn args_read_as_v1_bodies() {
-        let a: InputArgs =
-            serde_json::from_value(json!({"id": "s", "data": "x", "seq": 3, "from": "p"}))
-                .unwrap_or_default();
-        assert_eq!(
-            (a.kind, a.seq, a.from.as_deref()),
-            (TermKind::Takeover, Some(3), Some("p"))
-        );
-        let o: OpenArgs =
-            serde_json::from_value(json!({"kind": "shell", "id": "s", "argv": ["sh"], "cwd": "/"}))
-                .unwrap_or_default();
+        let a: InputArgs = serde_json::from_value(json!({"id": "s", "data": "x", "seq": 3, "from": "p"})).unwrap_or_default();
+        assert_eq!((a.kind, a.seq, a.from.as_deref()), (TermKind::Takeover, Some(3), Some("p")));
+        let o: OpenArgs = serde_json::from_value(json!({"kind": "shell", "id": "s", "argv": ["sh"], "cwd": "/"})).unwrap_or_default();
         assert_eq!((o.kind, o.cols, o.tui), (TermKind::Shell, None, false));
     }
 }

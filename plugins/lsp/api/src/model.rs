@@ -19,14 +19,7 @@ pub enum Op {
 
 impl Op {
     /// v1's order, which its 400 message lists.
-    pub const ALL: [Op; 6] = [
-        Op::Definition,
-        Op::References,
-        Op::Hover,
-        Op::Diagnostics,
-        Op::Rename,
-        Op::Completion,
-    ];
+    pub const ALL: [Op; 6] = [Op::Definition, Op::References, Op::Hover, Op::Diagnostics, Op::Rename, Op::Completion];
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -164,32 +157,12 @@ pub struct AskArgs {
 #[serde(untagged)]
 #[ts(export, export_to = "lsp/")]
 pub enum LspAnswer {
-    NoServer {
-        lsp: (),
-        lang: Option<Lang>,
-        install: Option<String>,
-    },
-    Diagnostics {
-        lsp: String,
-        diagnostics: Vec<Diagnostic>,
-    },
-    Hover {
-        lsp: String,
-        hover: String,
-    },
-    Completion {
-        lsp: String,
-        items: Vec<CompletionItem>,
-    },
-    Renamed {
-        lsp: String,
-        files: Vec<String>,
-        count: u32,
-    },
-    Hits {
-        lsp: String,
-        hits: Vec<Hit>,
-    },
+    NoServer { lsp: (), lang: Option<Lang>, install: Option<String> },
+    Diagnostics { lsp: String, diagnostics: Vec<Diagnostic> },
+    Hover { lsp: String, hover: String },
+    Completion { lsp: String, items: Vec<CompletionItem> },
+    Renamed { lsp: String, files: Vec<String>, count: u32 },
+    Hits { lsp: String, hits: Vec<Hit> },
 }
 
 /// `POST /lsp/install`'s body.

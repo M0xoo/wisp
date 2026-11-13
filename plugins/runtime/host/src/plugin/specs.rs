@@ -15,11 +15,24 @@ pub(super) fn specs(s: &mut Setup, slot: &Slot) {
     use wisp_resources_api::{CrudKind, KindInfo, RESOURCE_KIND, ResourceKind, schema_of};
     use wisp_runtime_api::spec::AgentSpec;
     let info = KindInfo::new("agent", "agents", "wisp.runtime", schema_of::<AgentSpec>()).order(20);
-    let kind: Arc<dyn ResourceKind> = Arc::new(CrudKind::new::<AgentSpec>(info, s.ctx(), "runtime.profiles", "runtime.profile.set", "runtime.profile.set", "runtime.profile.remove").keyed("name", "name", "name").renames("runtime.profile.rename"));
+    let kind: Arc<dyn ResourceKind> = Arc::new(
+        CrudKind::new::<AgentSpec>(
+            info,
+            s.ctx(),
+            "runtime.profiles",
+            "runtime.profile.set",
+            "runtime.profile.set",
+            "runtime.profile.remove",
+        )
+        .keyed("name", "name", "name")
+        .renames("runtime.profile.rename"),
+    );
     s.contribute(&RESOURCE_KIND, kind);
     s.command::<c::Profiles, _, _>(|ctx, _, _| async move { crate::specs::profiles(&*ctx.service::<Store>()?).await });
     s.command::<c::ProfileSet, _, _>(|ctx, _, p| async move { crate::specs::set_profile(&*ctx.service::<Store>()?, p).await });
-    s.command::<c::ProfileRename, _, _>(|ctx, _, a| async move { crate::specs::rename_profile(&*ctx.service::<Store>()?, &a.from, &a.to).await });
+    s.command::<c::ProfileRename, _, _>(|ctx, _, a| async move {
+        crate::specs::rename_profile(&*ctx.service::<Store>()?, &a.from, &a.to).await
+    });
     s.command::<c::ProfileRemove, _, _>(|ctx, _, a| async move {
         crate::specs::remove_profile(&*ctx.service::<Store>()?, &a.name).await?;
         Ok(c::Ack {})
@@ -50,7 +63,9 @@ pub(super) fn specs(s: &mut Setup, slot: &Slot) {
             let store = ctx.service::<Store>()?;
             // a task's id: its spec names the hash
             let hash = match rt(&slot)?.repo.session(&a.of).await {
-                Ok(s) => crate::specs::spec_of(&s, &[]).formula.ok_or_else(|| WireError::not_found(format!("task {} ran before snapshots were kept", a.of)))?,
+                Ok(s) => crate::specs::spec_of(&s, &[])
+                    .formula
+                    .ok_or_else(|| WireError::not_found(format!("task {} ran before snapshots were kept", a.of)))?,
                 Err(_) => a.of.clone(),
             };
             crate::specs::snapshot(&store, &hash).await
@@ -61,7 +76,14 @@ pub(super) fn specs(s: &mut Setup, slot: &Slot) {
 /// `runtime.history`: every task's spec, with its cost, filtered by the profiles asked for.
 async fn history(rt: &Runtime, store: &Store, a: &HistoryArgs) -> WireResult<Vec<HistoryRow>> {
     let sessions = rt.repo.sessions().await.map_err(WireError::from)?;
-    let costs: std::collections::HashMap<String, f64> = rt.repo.summaries().await.map_err(WireError::from)?.into_iter().filter_map(|s| s.cost_usd.map(|c| (s.id.as_str().to_owned(), c))).collect();
+    let costs: std::collections::HashMap<String, f64> = rt
+        .repo
+        .summaries()
+        .await
+        .map_err(WireError::from)?
+        .into_iter()
+        .filter_map(|s| s.cost_usd.map(|c| (s.id.as_str().to_owned(), c)))
+        .collect();
     // the snapshots the profile filter needs, read once each
     let mut snaps: std::collections::HashMap<String, Option<serde_json::Value>> = std::collections::HashMap::new();
     if !a.profiles.is_empty() {

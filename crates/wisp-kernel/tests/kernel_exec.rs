@@ -17,9 +17,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use wisp_kernel::{
-    Caller, Code, Event, ExecOptions, ExecPlugin, Hook, Kernel, Manifest, PluginGroup,
-};
+use wisp_kernel::{Caller, Code, Event, ExecOptions, ExecPlugin, Hook, Kernel, Manifest, PluginGroup};
 
 cmd!(Read, "host.read", (), u32, read_only);
 cmd!(Record, "host.record", Value, ());
@@ -87,12 +85,7 @@ async fn world(mode: &str, opts: ExecOptions) -> World {
             });
         },
     );
-    let k = common::start(
-        PluginGroup::new()
-            .add(host)
-            .add(ExecPlugin::new(echo(mode), None).with_options(opts)),
-    )
-    .await;
+    let k = common::start(PluginGroup::new().add(host).add(ExecPlugin::new(echo(mode), None).with_options(opts))).await;
     World { k, records, events }
 }
 
@@ -111,20 +104,9 @@ async fn an_exec_plugin_registers_and_answers_over_rpc() {
     let w = world("ok", ExecOptions::default()).await;
     let k = &w.k;
     assert_eq!(common::state(k, "acme.echo"), ("active".into(), None));
-    assert!(
-        !k.status()
-            .iter()
-            .find(|s| s.id == "acme.echo")
-            .unwrap()
-            .builtin
-    );
+    assert!(!k.status().iter().find(|s| s.id == "acme.echo").unwrap().builtin);
     let u = Caller::user();
-    assert_eq!(
-        k.call(u.clone(), "echo.say", json!({ "a": 1 }))
-            .await
-            .unwrap(),
-        json!({ "echoed": { "a": 1 } })
-    );
+    assert_eq!(k.call(u.clone(), "echo.say", json!({ "a": 1 })).await.unwrap(), json!({ "echoed": { "a": 1 } }));
     k.idle().await;
     assert_eq!(
         *w.events.lock().unwrap(),
@@ -132,120 +114,49 @@ async fn an_exec_plugin_registers_and_answers_over_rpc() {
         "emitted inside the call, published after it"
     );
     // a nested call from the child continues the trace
-    assert_eq!(
-        k.call(u.clone(), "echo.nested", json!(null)).await.unwrap(),
-        json!({ "depth": 0, "inner": 1 })
-    );
-    assert_eq!(
-        k.call(u.clone(), "echo.deep", json!(null))
-            .await
-            .unwrap_err()
-            .code,
-        Code::DepthExceeded
-    );
+    assert_eq!(k.call(u.clone(), "echo.nested", json!(null)).await.unwrap(), json!({ "depth": 0, "inner": 1 }));
+    assert_eq!(k.call(u.clone(), "echo.deep", json!(null)).await.unwrap_err().code, Code::DepthExceeded);
     // its interceptor: modify, and a veto keeps its code across the boundary
     let host = k.ctx("wisp.host").unwrap();
-    assert_eq!(
-        host.run_hook::<Go>(&host.root_call(), json!({}))
-            .await
-            .unwrap(),
-        json!({ "seen": "echo" })
-    );
-    let e = k
-        .call(u.clone(), "echo.hook", json!({ "block": true }))
-        .await
-        .unwrap_err();
+    assert_eq!(host.run_hook::<Go>(&host.root_call(), json!({})).await.unwrap(), json!({ "seen": "echo" }));
+    let e = k.call(u.clone(), "echo.hook", json!({ "block": true })).await.unwrap_err();
     assert_eq!((e.code, e.message.as_str()), (Code::Vetoed, "echo says no"));
-    assert_eq!(
-        k.call(u.clone(), "echo.setting", json!(null))
-            .await
-            .unwrap(),
-        json!("hi")
-    );
+    assert_eq!(k.call(u.clone(), "echo.setting", json!(null)).await.unwrap(), json!("hi"));
     // its subscriber runs a command back in the kernel
-    k.call(u.clone(), "host.ping", json!({ "x": 1 }))
-        .await
-        .unwrap();
+    k.call(u.clone(), "host.ping", json!({ "x": 1 })).await.unwrap();
     until(|| !w.records.lock().unwrap().is_empty()).await;
     assert_eq!(w.records.lock().unwrap()[0], json!({ "x": 1 }));
-    assert_eq!(
-        k.declared("host.list"),
-        [("acme.echo".to_owned(), json!({ "id": "echo" }))]
-    );
+    assert_eq!(k.declared("host.list"), [("acme.echo".to_owned(), json!({ "id": "echo" }))]);
     // permissions apply: an agent can't call it, and switching it off removes everything
-    assert_eq!(
-        k.call(Caller::agent("s1", false), "echo.say", json!(1))
-            .await
-            .unwrap_err()
-            .code,
-        Code::Forbidden
-    );
+    assert_eq!(k.call(Caller::agent("s1", false), "echo.say", json!(1)).await.unwrap_err().code, Code::Forbidden);
     k.set_enabled("acme.echo", false).await.unwrap();
     assert_eq!(k.registrations("acme.echo"), 0);
-    assert_eq!(
-        k.call(u, "echo.say", json!(1)).await.unwrap_err().code,
-        Code::PluginOff
-    );
+    assert_eq!(k.call(u, "echo.say", json!(1)).await.unwrap_err().code, Code::PluginOff);
 }
 
 #[tokio::test]
 async fn a_dead_child_is_off_with_the_reason_then_restarts() {
-    let w = world(
-        "ok",
-        ExecOptions {
-            restart_base_ms: 50,
-            ..ExecOptions::default()
-        },
-    )
-    .await;
+    let w = world("ok", ExecOptions { restart_base_ms: 50, ..ExecOptions::default() }).await;
     let k = &w.k;
-    assert!(
-        k.call(Caller::user(), "echo.crash", json!(null))
-            .await
-            .is_err()
-    );
+    assert!(k.call(Caller::user(), "echo.crash", json!(null)).await.is_err());
     until(|| common::state(k, "acme.echo").0 == "off").await;
     let why = common::state(k, "acme.echo").1.unwrap();
-    assert!(
-        why.starts_with("acme.echo's process exited (code 3); restarting in 50 ms"),
-        "{why}"
-    );
+    assert!(why.starts_with("acme.echo's process exited (code 3); restarting in 50 ms"), "{why}");
     until(|| common::state(k, "acme.echo").0 == "active").await;
-    assert_eq!(
-        k.call(Caller::user(), "echo.say", json!(2)).await.unwrap(),
-        json!({ "echoed": 2 })
-    );
+    assert_eq!(k.call(Caller::user(), "echo.say", json!(2)).await.unwrap(), json!({ "echoed": 2 }));
 }
 
 #[tokio::test]
 async fn a_child_that_never_finishes_setup_or_dies_at_once_is_refused() {
-    let w = world(
-        "slowinit",
-        ExecOptions {
-            init_timeout_ms: 100,
-            ..ExecOptions::default()
-        },
-    )
-    .await;
+    let w = world("slowinit", ExecOptions { init_timeout_ms: 100, ..ExecOptions::default() }).await;
     let (state, why) = common::state(&w.k, "acme.echo");
     assert_eq!(state, "refused");
     assert!(why.unwrap().contains("didn't finish setup within 100 ms"));
-    let w = world(
-        "dies",
-        ExecOptions {
-            restart_base_ms: 10,
-            max_restarts: 1,
-            ..ExecOptions::default()
-        },
-    )
-    .await;
+    let w = world("dies", ExecOptions { restart_base_ms: 10, max_restarts: 1, ..ExecOptions::default() }).await;
     // dying before `initialize` answers is a failed start: refused with why, not a restart loop
     let (state, why) = common::state(&w.k, "acme.echo");
     assert_eq!(state, "refused", "{why:?}");
-    assert!(
-        why.as_deref().unwrap_or_default().contains("start failed"),
-        "{why:?}"
-    );
+    assert!(why.as_deref().unwrap_or_default().contains("start failed"), "{why:?}");
 }
 
 /// ADR-0048: an untrusted plugin's child starts with none of wisp's environment (its keys and tokens), only a PATH,
@@ -254,7 +165,14 @@ async fn a_child_that_never_finishes_setup_or_dies_at_once_is_refused() {
 async fn an_untrusted_exec_plugin_starts_with_an_empty_environment() {
     let names = |k: &Kernel| {
         let k = k.clone();
-        async move { k.call(Caller::user(), "echo.env", json!(null)).await.unwrap()["names"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_owned()).collect::<Vec<_>>() }
+        async move {
+            k.call(Caller::user(), "echo.env", json!(null)).await.unwrap()["names"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        }
     };
     let dir = std::env::temp_dir().join(format!("wisp-untrusted-{}", wisp_kernel::ids::uuid7()));
     std::fs::create_dir_all(&dir).unwrap();

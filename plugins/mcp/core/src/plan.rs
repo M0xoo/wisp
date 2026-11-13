@@ -39,7 +39,10 @@ fn with_session(mut a: Args, session: &str) -> Value {
 
 /// The fields v1 put in a query string: those given, not empty.
 fn query(a: &Args, keys: &[&str], session: &str) -> Value {
-    let mut out: Args = keys.iter().filter_map(|k| a.get(*k).filter(|v| !v.is_null() && v.as_str() != Some("")).map(|v| ((*k).to_owned(), v.clone()))).collect();
+    let mut out: Args = keys
+        .iter()
+        .filter_map(|k| a.get(*k).filter(|v| !v.is_null() && v.as_str() != Some("")).map(|v| ((*k).to_owned(), v.clone())))
+        .collect();
     out.insert("session".into(), Value::String(session.to_owned()));
     Value::Object(out)
 }
@@ -72,7 +75,9 @@ pub fn agent_action(name: &str, a: Args, session: &str, info: &SessionInfo) -> R
         "wisp_stats" => owner(owners::STATS, query(&a, &["days", "agent", "project"], s)),
         "wisp_sessions" => owner(owners::SESSIONS, query(&a, &a.keys().map(String::as_str).collect::<Vec<_>>(), s)),
         "wisp_session" => session_read(&a, s)?,
-        "wisp_crew" => owner(owners::CREW_LIST, if a.get("member").is_some_and(truthy) { query(&a, &["member"], s) } else { json!({ "session": s }) }),
+        "wisp_crew" => {
+            owner(owners::CREW_LIST, if a.get("member").is_some_and(truthy) { query(&a, &["member"], s) } else { json!({ "session": s }) })
+        }
         "wisp_crew_add" => owner(owners::CREW_ADD, with_session(a, s)),
         "wisp_crew_edit" => owner(owners::CREW_EDIT, with_session(a, s)),
         "wisp_crew_kit" => owner(owners::CREW_KIT, with_session(a, s)),
@@ -82,11 +87,15 @@ pub fn agent_action(name: &str, a: Args, session: &str, info: &SessionInfo) -> R
         "wisp_connector_signin" => AgentAction::ConnectorSignin { args: with_session(a, s) },
         "wisp_available" => owner(owners::AVAILABLE, json!({ "session": s })),
         "wisp_launch" => launch(a, s),
-        "wisp_task" if a.get("action").and_then(Value::as_str) == Some("wait") => AgentAction::TaskWait { task: text(a.get("task")), wait_ms: words::task_wait_ms(a.get("timeout_seconds")) },
+        "wisp_task" if a.get("action").and_then(Value::as_str) == Some("wait") => {
+            AgentAction::TaskWait { task: text(a.get("task")), wait_ms: words::task_wait_ms(a.get("timeout_seconds")) }
+        }
         "wisp_task" => owner(owners::TASK, with_session(a, s)),
         "approve" if info.approve => approve(&a, s),
         // v1's default parameter: only a missing `wait` waits by default; a falsy one doesn't.
-        "delegate" => AgentAction::Delegate { wait: a.get("wait").is_none_or(truthy), args: json!({ "session": s, "tasks": a.get("tasks") }) },
+        "delegate" => {
+            AgentAction::Delegate { wait: a.get("wait").is_none_or(truthy), args: json!({ "session": s, "tasks": a.get("tasks") }) }
+        }
         "subagent_results" => results(&a, s, info),
         "wisp_spells" if info.spells => owner(owners::SPELLS, json!({ "session": s })),
         "wisp_spell_schema" if info.spells => owner(owners::SPELL_SCHEMA, json!({ "session": s })),
@@ -104,7 +113,11 @@ fn ask(a: &Args) -> Result<AgentAction, McpError> {
         return Err(McpError::Required("question"));
     }
     let context = a.get("context").map(|v| text(Some(v))).filter(|c| !c.is_empty());
-    let options = a.get("options").and_then(Value::as_array).map(|o| o.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect()).unwrap_or_default();
+    let options = a
+        .get("options")
+        .and_then(Value::as_array)
+        .map(|o| o.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect())
+        .unwrap_or_default();
     Ok(AgentAction::Ask { question, context, options })
 }
 
@@ -119,7 +132,8 @@ fn session_read(a: &Args, s: &str) -> Result<AgentAction, McpError> {
 
 fn connector_add(mut a: Args, s: &str) -> AgentAction {
     let remote = a.get("url").is_some_and(truthy);
-    let consent = (a.get("command").is_some_and(truthy) && !remote).then(|| words::connector_question(&text(a.get("name")), &text(a.get("command"))));
+    let consent =
+        (a.get("command").is_some_and(truthy) && !remote).then(|| words::connector_question(&text(a.get("name")), &text(a.get("command"))));
     a.insert("transport".into(), Value::String(if remote { "remote" } else { "local" }.into()));
     AgentAction::ConnectorAdd { consent, args: with_session(a, s) }
 }

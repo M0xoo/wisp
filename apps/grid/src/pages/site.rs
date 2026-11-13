@@ -5,7 +5,8 @@ use super::scripts::{PENDING, POSTHOG_STUB};
 use super::site_css::SITE_CSS;
 use super::{ASSETS, PageCfg, esc};
 
-const DESC: &str = "Your own wisp on a server: Claude Code, Codex and the rest keep working when your laptop closes, and the report waits on your phone.";
+const DESC: &str =
+    "Your own wisp on a server: Claude Code, Codex and the rest keep working when your laptop closes, and the report waits on your phone.";
 
 /// The word beside the logo follows the grid's name, so grid.json's "name": "wisp Cloud" shows Cloud.
 pub(super) fn tag(cfg: &PageCfg) -> String {

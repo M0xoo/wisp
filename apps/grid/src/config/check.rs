@@ -11,25 +11,13 @@ pub(super) fn resolve_providers(cfg: &mut GridConfig, dir: &Path, env: &Env) -> 
     cfg.auth.providers.retain(|_, p| p.enabled != Some(false));
     for (id, p) in &mut cfg.auth.providers {
         if p.client_id.is_empty() {
-            return Err(GridError::Config(format!(
-                "auth.providers.{id}: clientId is missing."
-            )));
+            return Err(GridError::Config(format!("auth.providers.{id}: clientId is missing.")));
         }
         let file = p.client_secret_file.as_ref().map(|f| dir.join(f));
-        let secret = read_secret(
-            p.client_secret.as_deref(),
-            file.as_deref(),
-            p.client_secret_env.as_deref(),
-            env,
-        )?;
+        let secret = read_secret(p.client_secret.as_deref(), file.as_deref(), p.client_secret_env.as_deref(), env)?;
         if secret.is_empty() {
-            let var = p
-                .client_secret_env
-                .clone()
-                .unwrap_or_else(|| format!("GRID_{}_CLIENT_SECRET", id.to_uppercase()));
-            return Err(GridError::Config(format!(
-                "auth.providers.{id}: no client secret (clientSecretFile, or {var})."
-            )));
+            let var = p.client_secret_env.clone().unwrap_or_else(|| format!("GRID_{}_CLIENT_SECRET", id.to_uppercase()));
+            return Err(GridError::Config(format!("auth.providers.{id}: no client secret (clientSecretFile, or {var}).")));
         }
         p.client_secret = Some(secret);
     }
@@ -46,22 +34,16 @@ pub(super) fn validate_auth(cfg: &GridConfig) -> Result<()> {
         return e("auth.seats.min: a whole number above 0 (the seats \"auto\" starts with).");
     }
     if st.cap < st.min {
-        return e(
-            "auth.seats.cap: a whole number, at least auth.seats.min (the most seats \"auto\" opens).",
-        );
+        return e("auth.seats.cap: a whole number, at least auth.seats.min (the most seats \"auto\" opens).");
     }
     if !(st.target > 0.0 && st.target <= 1.0) {
-        return e(
-            "auth.seats.target: a share of the host above 0, up to 1 (0.7: open seats while under 70% busy).",
-        );
+        return e("auth.seats.target: a share of the host above 0, up to 1 (0.7: open seats while under 70% busy).");
     }
     if st.every_hours <= 0.0 {
         return e("auth.seats.everyHours: hours between new seats, above 0.");
     }
     if st.hold_days < 0.0 {
-        return e(
-            "auth.seats.holdDays: days a seat stays held for an invited person on the waitlist, 0 or more.",
-        );
+        return e("auth.seats.holdDays: days a seat stays held for an invited person on the waitlist, 0 or more.");
     }
     Ok(())
 }
@@ -84,23 +66,19 @@ pub(super) fn validate_hostd(cfg: &GridConfig) -> Result<()> {
     if let Some(ad) = &h.admit {
         let ok = match ad {
             Value::Bool(false) => true,
-            Value::Object(o) => ["boxMb", "reserveMb"].iter().all(|k| {
-                o.get(*k)
-                    .is_none_or(|v| v.is_null() || v.as_u64().is_some())
-            }),
+            Value::Object(o) => ["boxMb", "reserveMb"].iter().all(|k| o.get(*k).is_none_or(|v| v.is_null() || v.as_u64().is_some())),
             _ => false,
         };
         if !ok {
             return Err(GridError::Config(
-                "hostd.admit: false, or { boxMb, reserveMb } in MiB (the memory one more box needs, and what the host keeps for itself).".into(),
+                "hostd.admit: false, or { boxMb, reserveMb } in MiB (the memory one more box needs, and what the host keeps for itself)."
+                    .into(),
             ));
         }
     }
     for (k, v) in [("evictAfterMs", h.evict_after_ms), ("queueMs", h.queue_ms)] {
         if v.is_some_and(|v| v < 0) {
-            return Err(GridError::Config(format!(
-                "hostd.{k}: milliseconds, a whole number."
-            )));
+            return Err(GridError::Config(format!("hostd.{k}: milliseconds, a whole number.")));
         }
     }
     Ok(())
@@ -110,9 +88,7 @@ pub(super) fn validate_channels(cfg: &mut GridConfig, dir: &Path, env: &Env) -> 
     if let Some(ch) = &cfg.channels {
         for (k, v) in [("maxRows", ch.max_rows), ("maxBytes", ch.max_bytes)] {
             if v.is_some_and(|v| v < 1) {
-                return Err(GridError::Config(format!(
-                    "channels.{k}: a whole number above 0."
-                )));
+                return Err(GridError::Config(format!("channels.{k}: a whole number above 0.")));
             }
         }
         if ch.route == Some(true) && ch.enabled != Some(true) {
@@ -129,31 +105,20 @@ pub(super) fn validate_channels(cfg: &mut GridConfig, dir: &Path, env: &Env) -> 
 
 fn mail_domain_ok(d: &str) -> bool {
     let parts: Vec<&str> = d.split('.').collect();
-    parts.len() >= 2
-        && parts
-            .iter()
-            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+    parts.len() >= 2 && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
 }
 
 pub(super) fn topic_arn_ok(arn: &str) -> bool {
     // arn:aws[\w-]*:sns:[a-z0-9-]+:\d+:[\w-]+
     let p: Vec<&str> = arn.split(':').collect();
-    let word = |s: &str| {
-        !s.is_empty()
-            && s.chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-    };
+    let word = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
     p.len() == 6
         && p[0] == "arn"
         && p[1].starts_with("aws")
-        && p[1][3..]
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        && p[1][3..].chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
         && p[2] == "sns"
         && !p[3].is_empty()
-        && p[3]
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && p[3].chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         && !p[4].is_empty()
         && p[4].chars().all(|c| c.is_ascii_digit())
         && word(p[5])
@@ -162,9 +127,7 @@ pub(super) fn topic_arn_ok(arn: &str) -> bool {
 fn validate_mail(cfg: &mut GridConfig, dir: &Path, env: &Env) -> Result<()> {
     let e = |m: &str| Err(GridError::Config(m.to_owned()));
     if !cfg.channels_on() {
-        return e(
-            "mail needs channels: { enabled: true }: mail reaches a box through the same held inbox.",
-        );
+        return e("mail needs channels: { enabled: true }: mail reaches a box through the same held inbox.");
     }
     let Some(mail) = cfg.file_cfg.mail.as_mut() else {
         return Ok(());
@@ -183,28 +146,15 @@ fn validate_mail(cfg: &mut GridConfig, dir: &Path, env: &Env) -> Result<()> {
         return e("mail.outbound: region and accessKeyId are needed.");
     }
     let file = o.secret_access_key_file.as_ref().map(|f| dir.join(f));
-    let env_name = o
-        .secret_access_key_env
-        .clone()
-        .unwrap_or_else(|| "GRID_MAIL_SECRET".into());
-    let secret = read_secret(
-        o.secret_access_key.as_deref(),
-        file.as_deref(),
-        Some(&env_name),
-        env,
-    )?;
+    let env_name = o.secret_access_key_env.clone().unwrap_or_else(|| "GRID_MAIL_SECRET".into());
+    let secret = read_secret(o.secret_access_key.as_deref(), file.as_deref(), Some(&env_name), env)?;
     if secret.is_empty() {
         return e("mail.outbound: no secret key (secretAccessKeyFile, or GRID_MAIL_SECRET).");
     }
     o.secret_access_key = Some(secret);
-    for (k, v) in [
-        ("sendPerHour", mail.send_per_hour),
-        ("threadDays", mail.thread_days),
-    ] {
+    for (k, v) in [("sendPerHour", mail.send_per_hour), ("threadDays", mail.thread_days)] {
         if v.is_some_and(|v| v < 1) {
-            return Err(GridError::Config(format!(
-                "mail.{k}: a whole number above 0."
-            )));
+            return Err(GridError::Config(format!("mail.{k}: a whole number above 0.")));
         }
     }
     Ok(())

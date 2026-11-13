@@ -66,21 +66,14 @@ pub fn split(text: &str, max: usize) -> Vec<String> {
 /// The texts a report goes as: title, text, and, about a task, how to answer. Long reports go in up
 /// to `CHUNKS_MAX` messages; the last one is cut.
 pub fn publish_text(msg: &Msg, about_a_task: bool) -> Vec<String> {
-    let hint = if about_a_task {
-        format!("\n\n{REPLY_HINT}")
-    } else {
-        String::new()
-    };
+    let hint = if about_a_task { format!("\n\n{REPLY_HINT}") } else { String::new() };
     let whole = format!("{}\n\n{}{hint}", msg.title, msg.text);
     let mut parts = split(&whole, CHUNK_MAX);
     if parts.len() > CHUNKS_MAX {
         let tail = parts.split_off(CHUNKS_MAX - 1).join("\n");
         // The hint is what the reader acts on: it stays at the end, whatever was cut.
         let room = CHUNK_MAX.saturating_sub(hint.encode_utf16().count());
-        parts.push(format!(
-            "{}{hint}",
-            truncate(tail.strip_suffix(hint.as_str()).unwrap_or(&tail), room)
-        ));
+        parts.push(format!("{}{hint}", truncate(tail.strip_suffix(hint.as_str()).unwrap_or(&tail), room)));
     }
     parts
 }
@@ -106,32 +99,18 @@ mod tests {
         let t = format!("{} {}", "a".repeat(60), "b".repeat(60));
         assert_eq!(split(&t, 100), vec!["a".repeat(60), "b".repeat(60)]);
         let t = "c".repeat(250);
-        assert_eq!(
-            split(&t, 100).iter().map(String::len).collect::<Vec<_>>(),
-            vec![100, 100, 50]
-        );
+        assert_eq!(split(&t, 100).iter().map(String::len).collect::<Vec<_>>(), vec![100, 100, 50]);
         assert_eq!(split("", 100), vec![String::new()]);
     }
 
     #[test]
     fn a_report_keeps_its_hint() {
-        let msg = Msg {
-            title: "Done".into(),
-            text: "x ".repeat(9000),
-            actions: vec![],
-        };
+        let msg = Msg { title: "Done".into(), text: "x ".repeat(9000), actions: vec![] };
         let parts = publish_text(&msg, true);
         assert_eq!(parts.len(), CHUNKS_MAX);
         assert!(parts.iter().all(|p| p.encode_utf16().count() <= CHUNK_MAX));
         assert!(parts[CHUNKS_MAX - 1].ends_with(REPLY_HINT));
-        let short = publish_text(
-            &Msg {
-                title: "Q".into(),
-                text: "which?".into(),
-                actions: vec![],
-            },
-            false,
-        );
+        let short = publish_text(&Msg { title: "Q".into(), text: "which?".into(), actions: vec![] }, false);
         assert_eq!(short, vec!["Q\n\nwhich?".to_owned()]);
     }
 
@@ -146,14 +125,9 @@ mod tests {
             x ^= x << 17;
             let len = usize::try_from(x % 600).unwrap();
             let max = 10 + usize::try_from(x % 90).unwrap();
-            let text: String = (0..len)
-                .map(|i| pool[(usize::try_from(x >> (i % 50)).unwrap() + i) % pool.len()])
-                .collect();
+            let text: String = (0..len).map(|i| pool[(usize::try_from(x >> (i % 50)).unwrap() + i) % pool.len()]).collect();
             let parts = split(&text, max);
-            assert!(
-                parts.iter().all(|p| p.encode_utf16().count() <= max),
-                "max {max}"
-            );
+            assert!(parts.iter().all(|p| p.encode_utf16().count() <= max), "max {max}");
             let squash = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
             assert_eq!(squash(&parts.concat()), squash(&text));
         }

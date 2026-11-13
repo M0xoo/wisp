@@ -32,6 +32,5 @@ pub use parse::{ParsedHello, Passive, parse_client_message, parse_hello};
 pub use rows::window_page;
 pub use server::SyncServer;
 pub use types::{
-    CanRead, ChangeRow, CloseReason, CommandOutcome, ConnId, ConnectQuery, Gone, Input, Output,
-    SnapshotAnswer, Stats, SyncOptions,
+    CanRead, ChangeRow, CloseReason, CommandOutcome, ConnId, ConnectQuery, Gone, Input, Output, SnapshotAnswer, Stats, SyncOptions,
 };

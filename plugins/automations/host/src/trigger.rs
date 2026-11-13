@@ -22,7 +22,13 @@ struct TriggerKind {
 }
 
 async fn refresh(inner: &StoredKind, engine: &Engine) {
-    let list = inner.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value::<TriggerSpec>(v).ok()?))).collect();
+    let list = inner
+        .specs()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(n, v)| Some((n, serde_json::from_value::<TriggerSpec>(v).ok()?)))
+        .collect();
     *engine.declared.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = list;
 }
 
@@ -109,19 +115,33 @@ async fn webhook(ctx: Ctx, engine: Shared, req: wisp_kernel::http::Request) -> R
         Some(t) => secret_of(&ctx, &t.spec.secret).await,
         None => None,
     };
-    let given = req.header("x-wisp-secret").map(str::to_owned).or_else(|| req.header("authorization").and_then(|a| a.strip_prefix("Bearer ")).map(str::to_owned)).or_else(|| req.query("secret").map(str::to_owned)).unwrap_or_default();
+    let given = req
+        .header("x-wisp-secret")
+        .map(str::to_owned)
+        .or_else(|| req.header("authorization").and_then(|a| a.strip_prefix("Bearer ")).map(str::to_owned))
+        .or_else(|| req.query("secret").map(str::to_owned))
+        .unwrap_or_default();
     if let Some(status) = webhook_verdict(req.body.len(), want.as_deref(), &given) {
         let msg = if status == 413 { "the body is over 1 MB" } else { "no such trigger" };
         return Ok(answer(status, json!({ "error": msg })));
     }
     let now = ctx.clock()?.now_ms();
-    let payload = serde_json::from_slice::<Value>(&req.body).unwrap_or_else(|_| json!({ "text": String::from_utf8_lossy(&req.body).chars().take(4000).collect::<String>() }));
-    let key = req.header("x-wisp-delivery").or_else(|| req.header("x-github-delivery")).map_or_else(|| format!("webhook:{now}"), str::to_owned);
-    let summary = payload.get("summary").or_else(|| payload.get("text")).and_then(Value::as_str).map_or_else(|| format!("{name} was called"), |s| s.chars().take(160).collect());
+    let payload = serde_json::from_slice::<Value>(&req.body)
+        .unwrap_or_else(|_| json!({ "text": String::from_utf8_lossy(&req.body).chars().take(4000).collect::<String>() }));
+    let key =
+        req.header("x-wisp-delivery").or_else(|| req.header("x-github-delivery")).map_or_else(|| format!("webhook:{now}"), str::to_owned);
+    let summary = payload
+        .get("summary")
+        .or_else(|| payload.get("text"))
+        .and_then(Value::as_str)
+        .map_or_else(|| format!("{name} was called"), |s| s.chars().take(160).collect());
     let ev = TriggerEvent { on: "webhook".into(), key, at: now, payload, summary, ..TriggerEvent::default() };
     let call = ctx.root_call();
     let out = engine.dispatch(&ctx, &call, &ev, Some(&name), now).await;
-    let o = out.into_iter().next().map_or_else(|| c::FireOut { result: "nothing".into(), why: "seen before".into(), session: None }, |(_, o)| o);
+    let o = out
+        .into_iter()
+        .next()
+        .map_or_else(|| c::FireOut { result: "nothing".into(), why: "seen before".into(), session: None }, |(_, o)| o);
     Ok(answer(202, json!({ "result": o.result, "why": o.why, "id": o.session })))
 }
 
@@ -169,7 +189,8 @@ async fn lineage(ctx: &Ctx, call: &Call, engine: &Engine, env: &wisp_kernel::Eve
         return (Some(b.to_owned()), 0);
     }
     let Some(subject) = &env.subject else { return (None, 0) };
-    let spec = ctx.run::<wisp_runtime_api::commands::SpecOf>(call, wisp_runtime_api::commands::IdArgs { id: subject.as_str().into() }).await;
+    let spec =
+        ctx.run::<wisp_runtime_api::commands::SpecOf>(call, wisp_runtime_api::commands::IdArgs { id: subject.as_str().into() }).await;
     let by = spec.ok().and_then(|s| s.lineage.triggered_by);
     let depth = engine.states().await.iter().filter_map(|(_, st)| st.depths.get(subject).copied()).max().unwrap_or(0);
     (by, depth)
@@ -242,7 +263,10 @@ async fn mentions(ctx: &Ctx, call: &Call, ev: &TriggerEvent) {
 }
 
 pub fn register(s: &mut Setup, engine: &Shared) {
-    let inner = Arc::new(StoredKind::new(KindInfo::new("trigger", "triggers", "wisp.automations", schema_of::<TriggerSpec>()).order(85).sensitive(), s.ctx()));
+    let inner = Arc::new(StoredKind::new(
+        KindInfo::new("trigger", "triggers", "wisp.automations", schema_of::<TriggerSpec>()).order(85).sensitive(),
+        s.ctx(),
+    ));
     let k: Arc<dyn ResourceKind> = Arc::new(TriggerKind { inner: inner.clone(), engine: engine.clone() });
     s.contribute(&RESOURCE_KIND, k);
     let e = engine.clone();

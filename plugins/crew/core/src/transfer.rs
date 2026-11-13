@@ -12,7 +12,7 @@ use crate::error::{Error, Result, bad};
 use crate::kit::Ids;
 use crate::member::{Checks, normalize_member, normalize_team};
 use crate::mentions::handle_of;
-use crate::share::{BpTeam, Blueprint, CREW_FILE, harness_name, normalize_blueprint, unique_name};
+use crate::share::{Blueprint, BpTeam, CREW_FILE, harness_name, normalize_blueprint, unique_name};
 use crate::text::{squash, str_of};
 
 /// A member as the import would add it, with notes on what changed on the way in.
@@ -44,7 +44,10 @@ pub fn plan_import(members: &[Blueprint], taken: &[String], agents: &[String], c
             let c = choice(&bp.key);
             let asked = squash(&Some(str_of(c.get("name"))).filter(|n| !n.is_empty()).unwrap_or_else(|| bp.name.clone()));
             if !crate::member::is_name(&asked) {
-                return Err(bad(format!("{}: up to 24 letters, digits, spaces, dots, dashes or underscores.", if asked.is_empty() { "A name" } else { &asked })));
+                return Err(bad(format!(
+                    "{}: up to 24 letters, digits, spaces, dots, dashes or underscores.",
+                    if asked.is_empty() { "A name" } else { &asked }
+                )));
             }
             let skipped = skip(&bp.key);
             let name = if skipped { asked.clone() } else { unique_name(&asked, &taken) };
@@ -63,20 +66,31 @@ pub fn plan_import(members: &[Blueprint], taken: &[String], agents: &[String], c
                 .team
                 .iter()
                 .filter(|t| match (&t.crew, &t.agent) {
-                    (Some(k), _) => keys.contains(&k.as_str()) || {
-                        let who = members.iter().find(|b| b.key == *k).map_or(k.as_str(), |b| b.name.as_str());
-                        notes.push(format!("Delegates to {who}, who you left out"));
-                        false
-                    },
-                    (None, Some(a)) => known(a) || a == "auto" || {
-                        notes.push(format!("Delegates to {a}, a harness this wisp doesn't know"));
-                        false
-                    },
+                    (Some(k), _) => {
+                        keys.contains(&k.as_str()) || {
+                            let who = members.iter().find(|b| b.key == *k).map_or(k.as_str(), |b| b.name.as_str());
+                            notes.push(format!("Delegates to {who}, who you left out"));
+                            false
+                        }
+                    }
+                    (None, Some(a)) => {
+                        known(a) || a == "auto" || {
+                            notes.push(format!("Delegates to {a}, a harness this wisp doesn't know"));
+                            false
+                        }
+                    }
                     (None, None) => false,
                 })
                 .cloned()
                 .collect();
-            let bp = Blueprint { name, agent: if here { bp.agent.clone() } else { "auto".into() }, model: if here { bp.model.clone() } else { String::new() }, effort: if here { bp.effort.clone() } else { String::new() }, team, ..bp.clone() };
+            let bp = Blueprint {
+                name,
+                agent: if here { bp.agent.clone() } else { "auto".into() },
+                model: if here { bp.model.clone() } else { String::new() },
+                effort: if here { bp.effort.clone() } else { String::new() },
+                team,
+                ..bp.clone()
+            };
             Ok(PlanItem { needs_project: bp.on.iter().any(|k| k == "ci"), cwd: str_of(c.get("cwd")), skip: skipped, notes, bp })
         })
         .collect()
@@ -112,7 +126,10 @@ pub fn import_members(plan: &[PlanItem], c: &Checks, ids: &mut dyn Ids, now: i64
     }
     let crew = c.taken.len();
     if crew + list.len() > MAX_CREW {
-        return Err(bad(format!("Your crew has room for {} more (at most {MAX_CREW}). Leave some out, or remove someone first.", MAX_CREW.saturating_sub(crew))));
+        return Err(bad(format!(
+            "Your crew has room for {} more (at most {MAX_CREW}). Leave some out, or remove someone first.",
+            MAX_CREW.saturating_sub(crew)
+        )));
     }
     if let Some(p) = list.iter().find(|p| p.needs_project && p.cwd.is_empty()) {
         return Err(bad(format!("{} starts when CI fails: pick the project whose GitHub repo they watch.", p.bp.name)));
@@ -126,15 +143,14 @@ pub fn import_members(plan: &[PlanItem], c: &Checks, ids: &mut dyn Ids, now: i64
     // Delegates in the same file are the members just made.
     let ids_of: Vec<String> = made.iter().map(|m| m.id.clone()).collect();
     for (m, p) in made.iter_mut().zip(&list) {
-        let rows: Vec<Value> = p
-            .bp
-            .team
-            .iter()
-            .map(|t| match t.crew.as_deref().and_then(|k| list.iter().position(|q| q.bp.key == k)) {
-                Some(i) => json!({ "crew": ids_of[i], "name": list[i].bp.name, "role": list[i].bp.role, "agent": list[i].bp.agent }),
-                None => serde_json::to_value(t).unwrap_or(Value::Null),
-            })
-            .collect();
+        let rows: Vec<Value> =
+            p.bp.team
+                .iter()
+                .map(|t| match t.crew.as_deref().and_then(|k| list.iter().position(|q| q.bp.key == k)) {
+                    Some(i) => json!({ "crew": ids_of[i], "name": list[i].bp.name, "role": list[i].bp.role, "agent": list[i].bp.agent }),
+                    None => serde_json::to_value(t).unwrap_or(Value::Null),
+                })
+                .collect();
         m.team = normalize_team(&Value::Array(rows))?;
     }
     Ok(made.into_iter().zip(list).map(|(m, p)| (m, p.bp.on.clone())).collect())
@@ -142,16 +158,37 @@ pub fn import_members(plan: &[PlanItem], c: &Checks, ids: &mut dyn Ids, now: i64
 
 /// A member → its blueprint and notes on what stays here. `key_of(id)`: the key of a delegate shared in
 /// the same file. `on`: the kinds of the triggers that send it work.
-pub fn to_blueprint(m: &Member, on: &[String], kit: bool, notebook: bool, key: &str, key_of: &dyn Fn(&str) -> Option<String>, name_of: &dyn Fn(&str) -> String) -> Result<(Blueprint, Vec<String>)> {
+pub fn to_blueprint(
+    m: &Member,
+    on: &[String],
+    kit: bool,
+    notebook: bool,
+    key: &str,
+    key_of: &dyn Fn(&str) -> Option<String>,
+    name_of: &dyn Fn(&str) -> String,
+) -> Result<(Blueprint, Vec<String>)> {
     let mut notes = Vec::new();
     let mut team = Vec::new();
     for t in &m.team {
         match t.crew.as_deref() {
-            None => team.push(BpTeam { agent: Some(t.agent.clone()), name: (!t.name.is_empty() && t.name != t.agent).then(|| t.name.clone()), model: Some(t.model.clone()).filter(|s| !s.is_empty()), effort: Some(t.effort.clone()).filter(|s| !s.is_empty()), use_: Some(t.use_.clone()).filter(|s| !s.is_empty()), count: (t.count > 1).then_some(t.count), crew: None }),
-            Some(id) => if let Some(k) = key_of(id) { team.push(BpTeam { crew: Some(k), ..BpTeam::default() }) } else {
-                let who = Some(name_of(id)).filter(|n| !n.is_empty()).or_else(|| t.label.clone()).unwrap_or_else(|| "another member".into());
-                notes.push(format!("{} delegates to {who}, who stays here (tick Who they delegate to)", m.name));
-            },
+            None => team.push(BpTeam {
+                agent: Some(t.agent.clone()),
+                name: (!t.name.is_empty() && t.name != t.agent).then(|| t.name.clone()),
+                model: Some(t.model.clone()).filter(|s| !s.is_empty()),
+                effort: Some(t.effort.clone()).filter(|s| !s.is_empty()),
+                use_: Some(t.use_.clone()).filter(|s| !s.is_empty()),
+                count: (t.count > 1).then_some(t.count),
+                crew: None,
+            }),
+            Some(id) => {
+                if let Some(k) = key_of(id) {
+                    team.push(BpTeam { crew: Some(k), ..BpTeam::default() });
+                } else {
+                    let who =
+                        Some(name_of(id)).filter(|n| !n.is_empty()).or_else(|| t.label.clone()).unwrap_or_else(|| "another member".into());
+                    notes.push(format!("{} delegates to {who}, who stays here (tick Who they delegate to)", m.name));
+                }
+            }
         }
     }
     let mut files = Vec::new();
@@ -182,7 +219,14 @@ fn find<'a>(crew: &'a [Member], key: &str) -> Option<&'a Member> {
 }
 
 /// Members to share (ids, names or handles). `team`: their crew delegates come too (and theirs).
-pub fn export_crew(crew: &[Member], ids: &[String], on_of: &dyn Fn(&Member) -> Vec<String>, kit: bool, notebook: bool, team: bool) -> Result<Export> {
+pub fn export_crew(
+    crew: &[Member],
+    ids: &[String],
+    on_of: &dyn Fn(&Member) -> Vec<String>,
+    kit: bool,
+    notebook: bool,
+    team: bool,
+) -> Result<Export> {
     let mut list: Vec<&Member> = Vec::new();
     for id in ids {
         let m = find(crew, id).ok_or_else(|| Error::NotFound(format!("No one called “{id}” on your crew.")))?;
@@ -229,7 +273,11 @@ pub fn export_crew(crew: &[Member], ids: &[String], on_of: &dyn Fn(&Member) -> V
         texts.push((format!("{} · role", b.name), b.role.clone()));
         texts.push((format!("{} · brief", b.name), b.brief.clone()));
         texts.push((format!("{} · notebook", b.name), b.notebook.clone().unwrap_or_default()));
-        texts.extend(b.kit.iter().map(|k| (format!("{} · {}", b.name, k.name), format!("{}\n{}", k.description.clone().unwrap_or_default(), k.body))));
+        texts.extend(
+            b.kit
+                .iter()
+                .map(|k| (format!("{} · {}", b.name, k.name), format!("{}\n{}", k.description.clone().unwrap_or_default(), k.body))),
+        );
     }
     let file = if members.len() == 1 { format!("{}.crew.json", members[0].key) } else { "crew.crew.json".into() };
     Ok(Export { bundle: json!({ "wispCrew": CREW_FILE, "members": members }), notes, file, texts })

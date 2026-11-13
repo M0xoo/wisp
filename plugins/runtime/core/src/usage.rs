@@ -16,7 +16,8 @@ fn asked(t: &Turn) -> bool {
 /// didn't fail; None when none ended.
 pub fn summarize(turns: &[Turn], from: i64) -> UsageSummary {
     let mine: Vec<&Turn> = turns.iter().filter(|t| t.started_at >= from).collect();
-    let ended: Vec<&&Turn> = mine.iter().filter(|t| matches!(t.status, TurnStatus::Done | TurnStatus::Error | TurnStatus::Stopped)).collect();
+    let ended: Vec<&&Turn> =
+        mine.iter().filter(|t| matches!(t.status, TurnStatus::Done | TurnStatus::Error | TurnStatus::Stopped)).collect();
     let ok = ended.iter().filter(|t| t.status == TurnStatus::Done && !t.is_error).count();
     #[allow(clippy::cast_precision_loss)] // counts of turns
     let worked = (!ended.is_empty()).then(|| (ok as f64 * 100.0 / ended.len() as f64).round());
@@ -56,7 +57,10 @@ fn row(key: String, name: String, agent: String, turns: &[&Turn]) -> UsageRow {
     let ok = done.iter().filter(|t| t.status == TurnStatus::Done && !t.is_error).count();
     let lens: Vec<i64> = done.iter().filter_map(|t| t.ended_at.map(|e| e - t.started_at)).filter(|ms| *ms >= 0).collect();
     #[allow(clippy::cast_precision_loss)] // counts and lengths
-    let (worked, avg_ms) = ((!done.is_empty()).then(|| (ok as f64 * 100.0 / done.len() as f64).round()), (!lens.is_empty()).then(|| lens.iter().sum::<i64>() as f64 / lens.len() as f64));
+    let (worked, avg_ms) = (
+        (!done.is_empty()).then(|| (ok as f64 * 100.0 / done.len() as f64).round()),
+        (!lens.is_empty()).then(|| lens.iter().sum::<i64>() as f64 / lens.len() as f64),
+    );
     let costs: Vec<f64> = turns.iter().filter_map(|t| t.stats.as_ref().and_then(|s| s.cost_usd)).collect();
     UsageRow {
         key,
@@ -119,12 +123,24 @@ mod tests {
 
     fn turn(at: i64, status: TurnStatus, cost: f64, question: bool) -> Turn {
         let blocks = if question { vec![json!({ "type": "question", "question": "which?" })] } else { vec![] };
-        Turn { started_at: at, status, stats: Some(TurnStats { cost_usd: Some(cost), ..TurnStats::default() }), presentation: Some(Presentation { blocks, v: 1, ..Presentation::default() }), ..Turn::default() }
+        Turn {
+            started_at: at,
+            status,
+            stats: Some(TurnStats { cost_usd: Some(cost), ..TurnStats::default() }),
+            presentation: Some(Presentation { blocks, v: 1, ..Presentation::default() }),
+            ..Turn::default()
+        }
     }
 
     #[test]
     fn usage_sums_spend_counts_turns_and_says_how_many_worked() {
-        let turns = vec![turn(10, TurnStatus::Done, 0.5, false), turn(20, TurnStatus::Error, 0.25, false), turn(30, TurnStatus::Done, 0.25, true), turn(40, TurnStatus::Running, 0.0, false), turn(1, TurnStatus::Done, 9.0, false)];
+        let turns = vec![
+            turn(10, TurnStatus::Done, 0.5, false),
+            turn(20, TurnStatus::Error, 0.25, false),
+            turn(30, TurnStatus::Done, 0.25, true),
+            turn(40, TurnStatus::Running, 0.0, false),
+            turn(1, TurnStatus::Done, 9.0, false),
+        ];
         let u = summarize(&turns, 5);
         assert_eq!(u.turns, 4, "the one before the window is left out");
         assert_eq!(u.spend, 1.0);
@@ -148,7 +164,11 @@ mod tests {
         b.stats = None; // Codex reports no price
         let cwd = |id: &str| (id == "s1").then(|| "/home/me/code/wisp/".to_owned());
         let u = breakdown(&[a, b], D, 3 * D + 100, &cwd);
-        assert_eq!(u.daily.iter().map(|d| (d.date.as_str(), d.turns)).collect::<Vec<_>>(), vec![("1970-01-02", 1), ("1970-01-03", 0), ("1970-01-04", 1)], "a day with nothing is still a bar");
+        assert_eq!(
+            u.daily.iter().map(|d| (d.date.as_str(), d.turns)).collect::<Vec<_>>(),
+            vec![("1970-01-02", 1), ("1970-01-03", 0), ("1970-01-04", 1)],
+            "a day with nothing is still a bar"
+        );
         assert_eq!((u.priced, u.sessions), (1, 2));
         assert_eq!(u.projects[0].name, "wisp", "the folder's last part, most spent first");
         assert_eq!(u.projects[1].key, "s2", "a task it can't place goes under its id");

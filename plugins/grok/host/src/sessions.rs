@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 use wisp_kernel::BoxFuture;
-use wisp_runtime_api::harness::sessions::{HarnessSessions, OutsideSession, SessionTurn, content_text, folder_forms, iso_ms, safe_id, tagged};
+use wisp_runtime_api::harness::sessions::{
+    HarnessSessions, OutsideSession, SessionTurn, content_text, folder_forms, iso_ms, safe_id, tagged,
+};
 
 /// The folder name Grok keeps a project's sessions under: the path, percent-encoded.
 pub fn project_dir(cwd: &str) -> String {
@@ -79,7 +81,8 @@ impl GrokSessions {
 
 async fn load(dir: &Path, id: &str) -> Option<(OutsideSession, Vec<SessionTurn>)> {
     let text = tokio::fs::read_to_string(dir.join("chat_history.jsonl")).await.ok()?;
-    let summary: Value = tokio::fs::read(dir.join("summary.json")).await.ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null);
+    let summary: Value =
+        tokio::fs::read(dir.join("summary.json")).await.ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null);
     let mut turns = parse(&text);
     let s = session(id, &summary, &mut turns);
     Some((s, turns))

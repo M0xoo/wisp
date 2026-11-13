@@ -73,15 +73,9 @@ fn coords(p: &Map<String, Value>) -> Option<(f64, f64)> {
             let mut parts = s.split(',');
             (num_str(parts.next()), num_str(parts.next()))
         }
-        Some(Value::Object(o)) => (
-            num(js::nullish(o.get("lat"), o.get("latitude"))),
-            num(lng_of(o)),
-        ),
+        Some(Value::Object(o)) => (num(js::nullish(o.get("lat"), o.get("latitude"))), num(lng_of(o))),
         Some(Value::Array(a)) => (num(a.first()), num(a.get(1))),
-        _ => (
-            num(js::nullish(p.get("lat"), p.get("latitude"))),
-            num(lng_of(p)),
-        ),
+        _ => (num(js::nullish(p.get("lat"), p.get("latitude"))), num(lng_of(p))),
     };
     let (lat, lng) = (lat?, lng?);
     (lat.abs() <= 90.0 && lng.abs() <= 180.0).then_some((lat, lng))
@@ -93,9 +87,7 @@ pub fn map_places(b: &Map<String, Value>) -> Vec<Place> {
     let one = [Value::Null];
     let (raw, whole): (&[Value], bool) = match (b.get("places"), b.get("addresses")) {
         (Some(Value::Array(a)), _) | (_, Some(Value::Array(a))) => (a, false),
-        _ if js::truthy(b.get("address")) || js::truthy(b.get("query")) || coords(b).is_some() => {
-            (&one, true)
-        }
+        _ if js::truthy(b.get("address")) || js::truthy(b.get("query")) || coords(b).is_some() => (&one, true),
         _ => (&[], false),
     };
     let mut out = Vec::new();
@@ -114,18 +106,9 @@ pub fn map_places(b: &Map<String, Value>) -> Vec<Place> {
             _ => continue,
         };
         let own = |k: &'static str| if whole { None } else { o.get(k) };
-        let address = text(js::nullish(
-            js::nullish(o.get("address"), o.get("query")),
-            own("q"),
-        ));
-        let name = text(js::nullish(
-            js::nullish(o.get("name"), o.get("label")),
-            own("title"),
-        ));
-        let note = text(js::nullish(
-            js::nullish(o.get("note"), o.get("detail")),
-            own("caption"),
-        ));
+        let address = text(js::nullish(js::nullish(o.get("address"), o.get("query")), own("q")));
+        let name = text(js::nullish(js::nullish(o.get("name"), o.get("label")), own("title")));
+        let note = text(js::nullish(js::nullish(o.get("note"), o.get("detail")), own("caption")));
         let at = coords(o);
         let q = match at {
             Some((lat, lng)) => format!("{},{}", js::number(lat), js::number(lng)),
@@ -136,15 +119,7 @@ pub fn map_places(b: &Map<String, Value>) -> Vec<Place> {
             continue;
         }
         let (cut, torn) = js::slice_utf16(&q, Q_MAX);
-        out.push(Place {
-            name,
-            address,
-            note,
-            lat: at.map(|c| c.0),
-            lng: at.map(|c| c.1),
-            q: cut.to_owned(),
-            torn,
-        });
+        out.push(Place { name, address, note, lat: at.map(|c| c.0), lng: at.map(|c| c.1), q: cut.to_owned(), torn });
     }
     out
 }
@@ -156,28 +131,18 @@ pub fn map_zoom(b: &Map<String, Value>) -> u8 {
         return 15;
     }
     // Math.round: halves go up
-    let z = if z - z.floor() >= 0.5 {
-        z.ceil()
-    } else {
-        z.floor()
-    };
+    let z = if z - z.floor() >= 0.5 { z.ceil() } else { z.floor() };
     (1_u8..=21).find(|&k| f64::from(k) >= z).unwrap_or(21)
 }
 
 /// The map in the answer: Google's embed, which needs no API key.
 pub fn embed_url(p: &Place, zoom: u8) -> String {
-    format!(
-        "https://maps.google.com/maps?q={}&z={zoom}&output=embed",
-        js::encode_uri_component(&p.q)
-    )
+    format!("https://maps.google.com/maps?q={}&z={zoom}&output=embed", js::encode_uri_component(&p.q))
 }
 
 /// The place in Google Maps (the app on a phone): a search for its address, or a pin at its coordinates.
 pub fn open_url(p: &Place) -> String {
-    format!(
-        "https://www.google.com/maps/search/?api=1&query={}",
-        js::encode_uri_component(&p.q)
-    )
+    format!("https://www.google.com/maps/search/?api=1&query={}", js::encode_uri_component(&p.q))
 }
 
 /// Directions through the places in order, from the first to the last (at most [`ROUTE_MAX`]).
@@ -187,11 +152,7 @@ pub fn route_url(places: &[Place]) -> Option<String> {
         return None;
     };
     let enc = js::encode_uri_component;
-    let mut url = format!(
-        "https://www.google.com/maps/dir/?api=1&origin={}&destination={}",
-        enc(&first.q),
-        enc(&last.q)
-    );
+    let mut url = format!("https://www.google.com/maps/dir/?api=1&origin={}&destination={}", enc(&first.q), enc(&last.q));
     if !mid.is_empty() {
         let joined: Vec<&str> = mid.iter().map(|p| p.q.as_str()).collect();
         url.push_str("&waypoints=");

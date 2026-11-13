@@ -62,10 +62,7 @@ impl ApiError {
 pub fn error_body(e: &WireError) -> Value {
     let mut out = Map::new();
     out.insert("error".into(), json!(e.message));
-    out.insert(
-        "code".into(),
-        serde_json::to_value(e.code).unwrap_or(Value::Null),
-    );
+    out.insert("code".into(), serde_json::to_value(e.code).unwrap_or(Value::Null));
     out.insert("message".into(), json!(e.message));
     out.insert("retry".into(), json!(e.retry));
     if let Some(d) = &e.details {
@@ -88,8 +85,7 @@ mod tests {
 
     #[test]
     fn extras_stay_top_level() {
-        let e = WireError::conflict("near the limit")
-            .with_details(json!({"hold": {"window": "5h"}, "sandboxLogin": true}));
+        let e = WireError::conflict("near the limit").with_details(json!({"hold": {"window": "5h"}, "sandboxLogin": true}));
         let b = error_body(&e);
         assert_eq!(b["error"], "near the limit");
         assert_eq!(b["code"], "conflict");

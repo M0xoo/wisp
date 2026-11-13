@@ -9,10 +9,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use serde_json::Value;
-use wisp_machines_api::AddArgs;
-use wisp_kernel::{BoxFuture, Call, Result, Setup};
 use crate::calls;
+use serde_json::Value;
+use wisp_kernel::{BoxFuture, Call, Result, Setup};
+use wisp_machines_api::AddArgs;
 use wisp_resources_api::{KindInfo, Op, OpKind, RESOURCE_KIND, Resource, ResourceKind, StoredKind, schema_of};
 
 /// What a computer may take on before automations wait.
@@ -69,7 +69,13 @@ impl MachineKind {
         let call = ctx.root_call();
         let m: MachineSpec = serde_json::from_value(op.spec.clone()).unwrap_or_default();
         let had = calls::peers(ctx, &call).await?.into_iter().find(|p| p.name == op.name).map(|p| p.id);
-        let set = AddArgs { name: Some(op.name.clone()), transport: Some(m.transport.clone()), address: Some(m.address.clone()), port: m.port.map(Value::from), ..AddArgs::default() };
+        let set = AddArgs {
+            name: Some(op.name.clone()),
+            transport: Some(m.transport.clone()),
+            address: Some(m.address.clone()),
+            port: m.port.map(Value::from),
+            ..AddArgs::default()
+        };
         match (op.op == OpKind::Delete || !is_peer(&m), had) {
             (true, Some(id)) => calls::remove_peer(ctx, &call, id).await,
             (true, None) => Ok(()),
@@ -88,7 +94,8 @@ impl ResourceKind for MachineKind {
     }
     fn describe(&self, op: &Op) -> Option<String> {
         let t = op.spec.get("transport").and_then(Value::as_str).unwrap_or_default();
-        (op.op != OpKind::Delete && !matches!(t, "" | "this" | "local")).then(|| format!("adds the machine {} ({t}): tasks may run there", op.name))
+        (op.op != OpKind::Delete && !matches!(t, "" | "this" | "local"))
+            .then(|| format!("adds the machine {} ({t}): tasks may run there", op.name))
     }
     fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -99,7 +106,10 @@ impl ResourceKind for MachineKind {
 }
 
 pub fn register(s: &mut Setup) {
-    let inner = Arc::new(StoredKind::new(KindInfo::new("machine", "machines", "wisp.machine", schema_of::<MachineSpec>()).order(8).sensitive(), s.ctx()));
+    let inner = Arc::new(StoredKind::new(
+        KindInfo::new("machine", "machines", "wisp.machine", schema_of::<MachineSpec>()).order(8).sensitive(),
+        s.ctx(),
+    ));
     let k: Arc<dyn ResourceKind> = Arc::new(MachineKind(inner));
     s.contribute(&RESOURCE_KIND, k);
 }

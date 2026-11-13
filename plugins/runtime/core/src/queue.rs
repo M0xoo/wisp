@@ -85,31 +85,15 @@ fn front(items: &[QueueItem]) -> usize {
 
 /// A follow-up arrives (v1 `reply`). `asking`: the task has an open ask; `last_held`: its last turn is
 /// held. Edits the queue and says what to do.
-pub fn follow_up(
-    q: &mut Queue<'_>,
-    run: Run,
-    asking: bool,
-    last_held: bool,
-    inc: Incoming,
-) -> Decision {
-    let Incoming {
-        item,
-        mut queue,
-        has_extras,
-        hold,
-    } = inc;
+pub fn follow_up(q: &mut Queue<'_>, run: Run, asking: bool, last_held: bool, inc: Incoming) -> Decision {
+    let Incoming { item, mut queue, has_extras, hold } = inc;
     let you = from_you(by(&item));
     let cancel_after = by(&item) != Some("compact");
     // You're back: a queue a Stop held carries on after this one.
     if you {
         *q.held = false;
     }
-    let mk = |plan, release_held, release_linger| Decision {
-        plan,
-        release_held,
-        release_linger,
-        cancel_after,
-    };
+    let mk = |plan, release_held, release_linger| Decision { plan, release_held, release_linger, cancel_after };
     if asking && !has_extras {
         return mk(Plan::Answer(item), false, false);
     }
@@ -132,33 +116,15 @@ pub fn follow_up(
         // The held turn starts now and holds the run: this one waits behind it.
         Run::Idle => {
             q.items.push(item);
-            mk(
-                Plan::Queued {
-                    ahead: q.items.len() - 1,
-                },
-                true,
-                release_linger,
-            )
+            mk(Plan::Queued { ahead: q.items.len() - 1 }, true, release_linger)
         }
         Run::Lingering => {
             q.items.push(item);
-            mk(
-                Plan::Queued {
-                    ahead: q.items.len() - 1,
-                },
-                release_held,
-                true,
-            )
+            mk(Plan::Queued { ahead: q.items.len() - 1 }, release_held, true)
         }
         Run::Running { resumable } if queue || !resumable => {
             q.items.push(item);
-            mk(
-                Plan::Queued {
-                    ahead: q.items.len() - 1,
-                },
-                release_held,
-                false,
-            )
+            mk(Plan::Queued { ahead: q.items.len() - 1 }, release_held, false)
         }
         Run::Running { .. } => {
             let at = front(q.items);
@@ -180,9 +146,7 @@ pub fn stop(q: &mut Queue<'_>, run: Run) -> StopPlan {
     if !q.items.is_empty() {
         *q.held = true;
     }
-    StopPlan {
-        stop_run: run != Run::Idle,
-    }
+    StopPlan { stop_run: run != Run::Idle }
 }
 
 /// The run let go (exit, linger timeout, or a follow-up): the next queued item, unless a Stop held them.
@@ -220,18 +184,8 @@ pub fn send_now(q: &mut Queue<'_>, run: Run, item_id: &str) -> Option<(SendNow, 
         }
         Run::Running { resumable } => {
             let at = front(q.items);
-            q.items.insert(
-                at,
-                QueueItem {
-                    now: resumable,
-                    ..item
-                },
-            );
-            if resumable {
-                SendNow::Interrupt
-            } else {
-                SendNow::Next
-            }
+            q.items.insert(at, QueueItem { now: resumable, ..item });
+            if resumable { SendNow::Interrupt } else { SendNow::Next }
         }
     };
     Some((plan, cancel_after))
@@ -252,28 +206,15 @@ pub fn remove(q: &mut Queue<'_>, item_id: &str) -> bool {
 /// Combine queued follow-ups into one, in the queue's order (v1 `mergeQueued`): it goes where the first
 /// was, with its mode and harness, saying each in turn, with all their files. Only yours.
 pub fn merge(q: &mut Queue<'_>, ids: &[String]) -> bool {
-    let picked: Vec<usize> = q
-        .items
-        .iter()
-        .enumerate()
-        .filter(|(_, x)| ids.contains(&x.id) && !x.by_wisp())
-        .map(|(i, _)| i)
-        .collect();
+    let picked: Vec<usize> = q.items.iter().enumerate().filter(|(_, x)| ids.contains(&x.id) && !x.by_wisp()).map(|(i, _)| i).collect();
     let [first, rest @ ..] = picked.as_slice() else {
         return false;
     };
     if rest.is_empty() {
         return false;
     }
-    let text = picked
-        .iter()
-        .map(|&i| q.items[i].text.trim())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    let attachments = picked
-        .iter()
-        .flat_map(|&i| q.items[i].attachments.clone())
-        .collect();
+    let text = picked.iter().map(|&i| q.items[i].text.trim()).collect::<Vec<_>>().join("\n\n");
+    let attachments = picked.iter().flat_map(|&i| q.items[i].attachments.clone()).collect();
     let item = &mut q.items[*first];
     item.text = text;
     item.attachments = attachments;
@@ -315,12 +256,7 @@ pub fn reorder(q: &mut Queue<'_>, ids: &[String]) -> bool {
             out.push(x.clone());
         }
     }
-    out.extend(
-        q.items
-            .iter()
-            .filter(|x| !seen.contains(&x.id.as_str()))
-            .cloned(),
-    );
+    out.extend(q.items.iter().filter(|x| !seen.contains(&x.id.as_str())).cloned());
     *q.items = out;
     true
 }
@@ -338,13 +274,7 @@ pub enum ReportBack {
 
 /// `ending`: called as the lead's own turn ends (its release starts the queue). `item` carries the
 /// header and the reports as its text, `by: wisp`, `reports: true`.
-pub fn report_back(
-    q: &mut Queue<'_>,
-    run: Run,
-    ending: bool,
-    item: QueueItem,
-    reports: &str,
-) -> ReportBack {
+pub fn report_back(q: &mut Queue<'_>, run: Run, ending: bool, item: QueueItem, reports: &str) -> ReportBack {
     if let Some(waiting) = q.items.iter_mut().find(|x| x.reports) {
         waiting.text.push_str("\n\n---\n\n");
         waiting.text.push_str(reports);
@@ -353,9 +283,7 @@ pub fn report_back(
     let lingering = !ending && run == Run::Lingering;
     if ending || lingering || matches!(run, Run::Running { .. }) {
         q.items.push(item);
-        return ReportBack::Queued {
-            release_linger: lingering,
-        };
+        return ReportBack::Queued { release_linger: lingering };
     }
     ReportBack::Start(item)
 }

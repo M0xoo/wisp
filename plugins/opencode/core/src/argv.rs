@@ -38,7 +38,8 @@ pub struct OpencodeArgs<'a> {
 }
 
 pub fn args(a: &OpencodeArgs<'_>) -> Vec<String> {
-    let mut out: Vec<String> = ["run", "--format", "json", "--print-logs", "--log-level", if a.v2 { "error" } else { "ERROR" }].map(str::to_owned).to_vec();
+    let mut out: Vec<String> =
+        ["run", "--format", "json", "--print-logs", "--log-level", if a.v2 { "error" } else { "ERROR" }].map(str::to_owned).to_vec();
     let mut push = |x: &[&str]| out.extend(x.iter().map(|s| (*s).to_owned()));
     if a.mode == "plan" {
         push(&["--agent", "plan"]);
@@ -85,12 +86,20 @@ fn server(srv: &Value) -> Value {
 }
 
 /// The `OPENCODE_CONFIG_CONTENT` for a run, over `inline` (the user's own); None: nothing to add.
-pub fn config(inline: Option<&str>, mcp_servers: &BTreeMap<String, Value>, grants: &[String], mode: &str, delegating: bool, capped: bool) -> Option<String> {
+pub fn config(
+    inline: Option<&str>,
+    mcp_servers: &BTreeMap<String, Value>,
+    grants: &[String],
+    mode: &str,
+    delegating: bool,
+    capped: bool,
+) -> Option<String> {
     let allow: Vec<(String, Vec<String>)> = grants.iter().filter_map(|g| grant(g)).collect();
     if mcp_servers.is_empty() && allow.is_empty() && !capped {
         return None;
     }
-    let inline: Map<String, Value> = inline.and_then(|s| serde_json::from_str::<Value>(s).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default();
+    let inline: Map<String, Value> =
+        inline.and_then(|s| serde_json::from_str::<Value>(s).ok()).and_then(|v| v.as_object().cloned()).unwrap_or_default();
     let mut permission: Map<String, Value> = match inline.get("permission") {
         Some(Value::Object(o)) => o.clone(),
         Some(v) if wisp_harness_kit::js::truthy(v) => Map::from_iter([("*".to_owned(), v.clone())]),
@@ -162,7 +171,11 @@ mod tests {
         let mut m = BTreeMap::new();
         m.insert("wisp".to_owned(), json!({ "type": "http", "url": "http://127.0.0.1:1/api/mcp", "headers": { "x-wisp-token": "t" } }));
         let g = vec![json!({ "permission": "bash", "patterns": ["npm publish"] }).to_string()];
-        let c: Value = serde_json::from_str(&config(Some(r#"{"permission":{"bash":"ask"},"mcp":{"mine":{"type":"local"}},"theme":"x"}"#), &m, &g, "edits", true, false).unwrap_or_default()).unwrap_or_default();
+        let c: Value = serde_json::from_str(
+            &config(Some(r#"{"permission":{"bash":"ask"},"mcp":{"mine":{"type":"local"}},"theme":"x"}"#), &m, &g, "edits", true, false)
+                .unwrap_or_default(),
+        )
+        .unwrap_or_default();
         assert_eq!(c["theme"], "x");
         assert_eq!(c["mcp"]["mine"]["type"], "local");
         assert_eq!(c["mcp"]["wisp"]["type"], "remote");
@@ -170,7 +183,8 @@ mod tests {
         assert_eq!(c["permission"]["bash"], json!({ "*": "ask", "npm publish": "allow" }));
         assert_eq!(c["permission"]["task"], "deny");
         assert!(config(None, &BTreeMap::new(), &[], "edits", false, false).is_none());
-        let capped: Value = serde_json::from_str(&config(None, &BTreeMap::new(), &[], "edits", false, true).unwrap_or_default()).unwrap_or_default();
+        let capped: Value =
+            serde_json::from_str(&config(None, &BTreeMap::new(), &[], "edits", false, true).unwrap_or_default()).unwrap_or_default();
         assert_eq!(capped["permission"]["webfetch"], "ask");
     }
 }

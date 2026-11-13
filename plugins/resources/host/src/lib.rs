@@ -19,7 +19,10 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_resources_api::{Applied, Apply, Export, ExportArgs, Read, ReadOut, Write, WriteOut, KindInfo, Kinds, Op, OpKind, Plan, PlanArgs, PlanCmd, RESOURCE_KIND, Refresh, RefreshArgs, Rename, RenameArgs, Resource, ResourceKind, Scope};
+use wisp_resources_api::{
+    Applied, Apply, Export, ExportArgs, KindInfo, Kinds, Op, OpKind, Plan, PlanArgs, PlanCmd, RESOURCE_KIND, Read, ReadOut, Refresh,
+    RefreshArgs, Rename, RenameArgs, Resource, ResourceKind, Scope, Write, WriteOut,
+};
 use wisp_resources_core::{formula, plan, schema};
 
 pub use wisp_resources_api::PLUGIN_ID;
@@ -46,6 +49,33 @@ fn verb(op: OpKind) -> &'static str {
     }
 }
 
+/// The plan's drift (wisp's copy isn't what was last applied) and the secrets it names that aren't here.
+async fn drift_and_secrets(ctx: &Ctx, out: &mut Plan) -> Result<()> {
+    // drift: wisp's copy isn't what was last applied (the files' change is the rest of the diff)
+    let base = applied::all(ctx).await.unwrap_or_default();
+    for o in out.ops.iter().filter(|o| o.op == OpKind::Update) {
+        if let (Some(was), Some(now)) = (base.get(&applied::key(&o.kind, &o.name)), o.before.as_ref())
+            && was != now
+        {
+            out.drift.push(applied::key(&o.kind, &o.name));
+        }
+    }
+    // a secret is referenced, never copied: it must already be here
+    let mut names = BTreeSet::new();
+    for o in out.ops.iter().filter(|o| o.op != OpKind::Delete) {
+        formula::secrets_in(&o.spec, &mut names);
+    }
+    if !names.is_empty() {
+        let secrets = wisp_kernel::services::secrets(ctx)?;
+        for n in names {
+            if secrets.get(&n).await?.is_none() {
+                out.missing_secrets.push(n);
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
     let ks = kinds(ctx);
     let mut out = Plan::default();
@@ -69,7 +99,8 @@ async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
                 Resource { kind: info.kind.clone(), spec, ..r.clone() }
             })
             .collect();
-        let gone: Vec<&str> = a.destroy.iter().filter_map(|d| d.split_once('.')).filter(|(kind, _)| info.named(kind)).map(|(_, n)| n).collect();
+        let gone: Vec<&str> =
+            a.destroy.iter().filter_map(|d| d.split_once('.')).filter(|(kind, _)| info.named(kind)).map(|(_, n)| n).collect();
         if desired.is_empty() && gone.is_empty() {
             continue;
         }
@@ -78,7 +109,15 @@ async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
             let ops: Vec<Op> = current
                 .iter()
                 .filter(|c| gone.contains(&c.name.as_str()))
-                .map(|c| Op { op: OpKind::Delete, kind: info.kind.clone(), name: c.name.clone(), spec: c.spec.clone(), id: c.id.clone(), changes: Vec::new(), before: None })
+                .map(|c| Op {
+                    op: OpKind::Delete,
+                    kind: info.kind.clone(),
+                    name: c.name.clone(),
+                    spec: c.spec.clone(),
+                    id: c.id.clone(),
+                    changes: Vec::new(),
+                    before: None,
+                })
                 .collect();
             if info.sensitive {
                 for o in &ops {
@@ -112,34 +151,15 @@ async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
         }
         // the kind's resources as the apply leaves them: what's kept, what's made or changed
         let mut after: Vec<Resource> = current.iter().filter(|c| !ops.iter().any(|o| o.name == c.name)).cloned().collect();
-        after.extend(ops.iter().filter(|o| o.op != OpKind::Delete).map(|o| Resource::new(info.kind.clone(), o.name.clone(), o.spec.clone())));
+        after.extend(
+            ops.iter().filter(|o| o.op != OpKind::Delete).map(|o| Resource::new(info.kind.clone(), o.name.clone(), o.spec.clone())),
+        );
         out.problems.extend(k.check_all(&after).into_iter().map(|p| format!("{}: {p}", info.section)));
         out.ops.extend(ops);
         infos.push(info);
     }
     plan::order(&mut out.ops, &infos);
-    // drift: wisp's copy isn't what was last applied (the files' change is the rest of the diff)
-    let base = applied::all(ctx).await.unwrap_or_default();
-    for o in out.ops.iter().filter(|o| o.op == OpKind::Update) {
-        if let (Some(was), Some(now)) = (base.get(&applied::key(&o.kind, &o.name)), o.before.as_ref())
-            && was != now
-        {
-            out.drift.push(applied::key(&o.kind, &o.name));
-        }
-    }
-    // a secret is referenced, never copied: it must already be here
-    let mut names = BTreeSet::new();
-    for o in out.ops.iter().filter(|o| o.op != OpKind::Delete) {
-        formula::secrets_in(&o.spec, &mut names);
-    }
-    if !names.is_empty() {
-        let secrets = wisp_kernel::services::secrets(ctx)?;
-        for n in names {
-            if secrets.get(&n).await?.is_none() {
-                out.missing_secrets.push(n);
-            }
-        }
-    }
+    drift_and_secrets(ctx, &mut out).await?;
     Ok(out)
 }
 
@@ -152,7 +172,10 @@ async fn apply(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Applied> {
         return Err(WireError::invalid(format!("these secrets aren't set here: {} (wisp secret set NAME)", p.missing_secrets.join(", "))));
     }
     if a.foreign && !a.trust && !p.sensitive.is_empty() {
-        return Err(WireError::forbidden(format!("this formula comes from elsewhere and changes who may act: {}. Apply it with --trust once you've read it", p.sensitive.join("; "))));
+        return Err(WireError::forbidden(format!(
+            "this formula comes from elsewhere and changes who may act: {}. Apply it with --trust once you've read it",
+            p.sensitive.join("; ")
+        )));
     }
     let ks = kinds(ctx);
     let mut done: Vec<&Op> = Vec::new();
@@ -161,12 +184,17 @@ async fn apply(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Applied> {
         if let Err(e) = apply_one(k.as_ref(), call, op).await {
             // all or nothing: what went before is undone, last first, through the same owners
             let left = rollback(&ks, call, &done).await;
-            let tail = if left.is_empty() { format!("nothing was changed ({} undone)", done.len()) } else { format!("these couldn't be undone: {}", left.join("; ")) };
+            let tail = if left.is_empty() {
+                format!("nothing was changed ({} undone)", done.len())
+            } else {
+                format!("these couldn't be undone: {}", left.join("; "))
+            };
             return Err(WireError::new(e.code, format!("{} ({tail})", e.message)));
         }
         done.push(op);
     }
-    let base: Vec<(String, Option<serde_json::Value>)> = done.iter().map(|o| (applied::key(&o.kind, &o.name), (o.op != OpKind::Delete).then(|| o.spec.clone()))).collect();
+    let base: Vec<(String, Option<serde_json::Value>)> =
+        done.iter().map(|o| (applied::key(&o.kind, &o.name), (o.op != OpKind::Delete).then(|| o.spec.clone()))).collect();
     if let Err(e) = applied::set(ctx, base).await {
         tracing::warn!("resources: the applied baseline wasn't kept: {}", e.message);
     }
@@ -287,7 +315,10 @@ impl Plugin for ResourcesPlugin {
         s.command::<Write, _, _>(|ctx, call, a| async move {
             let ks: Vec<KindInfo> = kinds(&ctx).iter().map(|k| k.info()).collect();
             let list = export(&ctx, &call, &ExportArgs { kinds: a.kinds.clone(), include: Vec::new() }).await?;
-            Ok(WriteOut { text: wisp_resources_core::export::write(&list, &ks, format_named(&a.format)), count: u32::try_from(list.len()).unwrap_or(u32::MAX) })
+            Ok(WriteOut {
+                text: wisp_resources_core::export::write(&list, &ks, format_named(&a.format)),
+                count: u32::try_from(list.len()).unwrap_or(u32::MAX),
+            })
         });
         Ok(())
     }

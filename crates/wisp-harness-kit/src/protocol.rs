@@ -16,10 +16,7 @@ pub const ASK_TIMEOUT_MS: u64 = 7 * 24 * 3600 * 1000;
 pub fn exit_text(bin: &str, code: Option<i32>, signal: Option<&str>) -> String {
     match signal.filter(|s| !s.is_empty()) {
         Some(s) => format!("{bin} exited with {s}"),
-        None => format!(
-            "{bin} exited with code {}",
-            code.map_or_else(|| "null".to_owned(), |c| c.to_string())
-        ),
+        None => format!("{bin} exited with code {}", code.map_or_else(|| "null".to_owned(), |c| c.to_string())),
     }
 }
 
@@ -41,11 +38,7 @@ pub fn attachment_note(files: &[FileNote], how: Option<&str>) -> String {
         .iter()
         .map(|f| {
             // Math.max(1, Math.round(size / 1024)): round half up, as JavaScript's Math.round does.
-            #[allow(
-                clippy::cast_precision_loss,
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss
-            )]
+            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let kb = ((f.size as f64 / 1024.0 + 0.5).floor() as u64).max(1);
             format!("- {}  ({}, {kb} KB)", f.path, f.mime)
         })
@@ -109,29 +102,20 @@ pub fn crew_tool_label(tool: &str, input: &Value) -> Option<Tool> {
     let who_v = js::or(&input["member"], &input["name"]);
     let who = clip(&js::str(who_v), 40);
     let or = |fallback: &str| {
-        if who.is_empty() {
-            fallback.to_owned()
-        } else {
-            who.clone()
-        }
+        if who.is_empty() { fallback.to_owned() } else { who.clone() }
     };
     let t = |label: String| Some(Tool::new(ToolKind::Tool, label));
     match tool {
-        "wisp_crew" => t(if who.is_empty() {
-            "Listing your crew".to_owned()
-        } else {
-            format!("Reading {who}’s brief, notebook and kit")
-        }),
+        "wisp_crew" => {
+            t(if who.is_empty() { "Listing your crew".to_owned() } else { format!("Reading {who}’s brief, notebook and kit") })
+        }
         "wisp_crew_add" => t(format!("Adding {} to your crew", or("a member"))),
         "wisp_crew_edit" => t(format!("Changing {}", or("a crew member"))),
         "wisp_crew_kit" => t(format!("Writing skills for {}", or("a crew member"))),
         "wisp_crew_remove" => t(format!("Removing {} from your crew", or("a member"))),
         "wisp_connectors" => t("Listing your connectors".to_owned()),
         "wisp_connector_add" => t(format!("Adding {} to your connectors", or("a connector"))),
-        "wisp_connector_signin" => Some(Tool::new(
-            ToolKind::Ask,
-            format!("Waiting for you to sign in to {}", or("a connector")),
-        )),
+        "wisp_connector_signin" => Some(Tool::new(ToolKind::Ask, format!("Waiting for you to sign in to {}", or("a connector")))),
         _ => None,
     }
 }
@@ -142,10 +126,7 @@ pub fn write_change(file: &str, before: Option<&str>, after: &str) -> HarnessEve
     HarnessEvent::Change(Change {
         file: file.to_owned(),
         op: if before.is_none() { "create" } else { "write" }.to_owned(),
-        edits: vec![Edit {
-            before: before.unwrap_or("").to_owned(),
-            after: js::head16(after, MAX_SNAPSHOT).to_owned(),
-        }],
+        edits: vec![Edit { before: before.unwrap_or("").to_owned(), after: js::head16(after, MAX_SNAPSHOT).to_owned() }],
         early: Some(true),
         before_file: None,
     })
@@ -158,62 +139,35 @@ mod tests {
 
     #[test]
     fn exit_texts() {
-        assert_eq!(
-            exit_text("claude", Some(1), None),
-            "claude exited with code 1"
-        );
-        assert_eq!(
-            exit_text("codex", None, Some("SIGTERM")),
-            "codex exited with SIGTERM"
-        );
+        assert_eq!(exit_text("claude", Some(1), None), "claude exited with code 1");
+        assert_eq!(exit_text("codex", None, Some("SIGTERM")), "codex exited with SIGTERM");
         assert_eq!(exit_text("x", None, None), "x exited with code null");
     }
 
     #[test]
     fn attachments() {
         assert_eq!(attachment_note(&[], None), "");
-        let n = attachment_note(
-            &[FileNote {
-                path: "/a.png".into(),
-                mime: "image/png".into(),
-                size: 100,
-            }],
-            None,
-        );
+        let n = attachment_note(&[FileNote { path: "/a.png".into(), mime: "image/png".into(), size: 100 }], None);
         assert!(n.contains("- /a.png  (image/png, 1 KB)"), "{n}");
-        let n = attachment_note(
-            &[FileNote {
-                path: "/b".into(),
-                mime: "x".into(),
-                size: 1536,
-            }],
-            Some("Look"),
-        );
+        let n = attachment_note(&[FileNote { path: "/b".into(), mime: "x".into(), size: 1536 }], Some("Look"));
         assert!(n.contains("(x, 2 KB)") && n.contains("files. Look;"), "{n}");
     }
 
     #[test]
     fn protocol_only_on_the_first_turn() {
-        assert_eq!(
-            with_protocol("p", " sys \n", None),
-            "sys\n\n---\n\n# Task\n\np"
-        );
+        assert_eq!(with_protocol("p", " sys \n", None), "sys\n\n---\n\n# Task\n\np");
         assert_eq!(with_protocol("p", "sys", Some("r1")), "p");
     }
 
     #[test]
     fn crew_labels() {
-        assert_eq!(
-            crew_tool_label("wisp_crew", &json!({})).map(|t| t.label),
-            Some("Listing your crew".into())
-        );
+        assert_eq!(crew_tool_label("wisp_crew", &json!({})).map(|t| t.label), Some("Listing your crew".into()));
         assert_eq!(
             crew_tool_label("wisp_crew", &json!({"member": "Ada"})).map(|t| t.label),
             Some("Reading Ada’s brief, notebook and kit".into())
         );
         assert_eq!(
-            crew_tool_label("wisp_connector_signin", &json!({"name": "Slack"}))
-                .map(|t| (t.kind, t.label)),
+            crew_tool_label("wisp_connector_signin", &json!({"name": "Slack"})).map(|t| (t.kind, t.label)),
             Some((ToolKind::Ask, "Waiting for you to sign in to Slack".into()))
         );
         assert!(crew_tool_label("Read", &json!({})).is_none());

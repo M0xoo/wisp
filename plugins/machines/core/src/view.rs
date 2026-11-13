@@ -32,7 +32,9 @@ pub fn clean_ssh(input: &AddArgs, prev: Option<&PeerRow>) -> Result<Cleaned, Str
     if !is_target(&target) {
         return Err("SSH host: user@host, a host name, or a Host from ~/.ssh/config.".into());
     }
-    let port = port_value(input.port.as_ref(), prev.map(|p| p.port)).filter(|p| p.fract() == 0.0 && (1.0..=65535.0).contains(p)).ok_or("Port: a number from 1 to 65535.")?;
+    let port = port_value(input.port.as_ref(), prev.map(|p| p.port))
+        .filter(|p| p.fract() == 0.0 && (1.0..=65535.0).contains(p))
+        .ok_or("Port: a number from 1 to 65535.")?;
     let command = input.command.clone().or_else(|| prev.map(|p| p.command.clone())).unwrap_or_default().trim().to_owned();
     let name = input.name.clone().or_else(|| prev.map(|p| p.name.clone())).unwrap_or_default();
     let name = cut(name.trim(), MAX_NAME);
@@ -71,7 +73,11 @@ pub fn clean_loopback(input: &AddArgs, prev: Option<&PeerRow>) -> Result<Cleaned
 /// A grid peer's address comes from the grid: only its name and auto-connect change here.
 pub fn clean_grid(input: &AddArgs, prev: &PeerRow) -> Cleaned {
     let name = cut(input.name.as_deref().unwrap_or(&prev.name).trim(), MAX_NAME);
-    Cleaned { name: Some(if name.is_empty() { prev.name.clone() } else { name }), auto_connect: Some(input.auto_connect.unwrap_or(prev.auto_connect)), ..Cleaned::default() }
+    Cleaned {
+        name: Some(if name.is_empty() { prev.name.clone() } else { name }),
+        auto_connect: Some(input.auto_connect.unwrap_or(prev.auto_connect)),
+        ..Cleaned::default()
+    }
 }
 
 /// A cloud computer's name: a second account's same-named one gets " (<handle>)", so Run on, the
@@ -109,7 +115,10 @@ pub fn newer(a: &str, b: &str) -> bool {
     fn parse(v: &str) -> (Vec<u64>, Vec<String>) {
         let v = v.trim_start_matches('v').split('+').next().unwrap_or("");
         let (core, pre) = v.split_once('-').map_or((v, ""), |(c, p)| (c, p));
-        (core.split('.').map(|n| n.parse().unwrap_or(0)).collect(), if pre.is_empty() { Vec::new() } else { pre.split('.').map(str::to_owned).collect() })
+        (
+            core.split('.').map(|n| n.parse().unwrap_or(0)).collect(),
+            if pre.is_empty() { Vec::new() } else { pre.split('.').map(str::to_owned).collect() },
+        )
     }
     let ((x, xp), (y, yp)) = (parse(a), parse(b));
     for i in 0..3 {

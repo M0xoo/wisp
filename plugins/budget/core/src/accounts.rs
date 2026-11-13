@@ -143,7 +143,17 @@ pub fn compare_accounts(sessions: &[RunLike], agent: &str, now: i64, days: Optio
             .map(|(account, e)| {
                 let cache = (e.read_sum != 0.0 && e.cached != 0.0).then(|| e.cached / e.read_sum);
                 let tools = e.tools.as_ref().and_then(|h| lists.get(h)).cloned();
-                (AccountTurns { account, turns: e.out.len(), output: js_round(median(&e.out)), input: js_round(median(&e.read)), cache, missing: Vec::new() }, tools)
+                (
+                    AccountTurns {
+                        account,
+                        turns: e.out.len(),
+                        output: js_round(median(&e.out)),
+                        input: js_round(median(&e.read)),
+                        cache,
+                        missing: Vec::new(),
+                    },
+                    tools,
+                )
             })
             .collect();
         rows.sort_by_key(|r| std::cmp::Reverse(r.0.output));

@@ -89,13 +89,7 @@ pub struct Sim {
 }
 
 impl Sim {
-    pub fn new(
-        store: FakeStore,
-        server: SyncServer<String>,
-        clients: Vec<SimClient>,
-        rand: Rng,
-        opts: SimOpts,
-    ) -> Self {
+    pub fn new(store: FakeStore, server: SyncServer<String>, clients: Vec<SimClient>, rand: Rng, opts: SimOpts) -> Self {
         Self {
             now: 1000,
             store,
@@ -139,10 +133,7 @@ impl Sim {
                     self.bytes += frame.len() as u64;
                     self.clients[ci].transit.push_back(frame);
                     let backlog = self.clients[ci].backlog;
-                    self.server_in(Input::Drained {
-                        conn,
-                        buffered_bytes: backlog,
-                    });
+                    self.server_in(Input::Drained { conn, buffered_bytes: backlog });
                     if !self.opts.wire {
                         self.deliver(ci, usize::MAX);
                     }
@@ -152,27 +143,12 @@ impl Sim {
                         self.lose(ci);
                     }
                 }
-                Output::SnapshotRequest {
-                    conn,
-                    topic,
-                    since,
-                    req,
-                } => {
+                Output::SnapshotRequest { conn, topic, since, req } => {
                     self.requests.push((topic.clone(), since));
-                    let r = Request {
-                        conn,
-                        topic,
-                        since,
-                        req,
-                    };
-                    if self.opts.async_answers {
-                        self.answers.push_back(r)
-                    } else {
-                        self.answer(&r)
-                    }
+                    let r = Request { conn, topic, since, req };
+                    if self.opts.async_answers { self.answers.push_back(r) } else { self.answer(&r) }
                 }
-                Output::WindowRequest { .. } | Output::Command { .. } | Output::Activity { .. } => {
-                }
+                Output::WindowRequest { .. } | Output::Command { .. } | Output::Activity { .. } => {}
             }
         }
     }
@@ -184,16 +160,7 @@ impl Sim {
             Some(since) => self.store.delta(&r.topic, since),
             None => (self.store.snapshot(&r.topic), vec![]),
         };
-        let a = SnapshotAnswer {
-            conn: r.conn,
-            topic: r.topic.clone(),
-            req: r.req,
-            seq: self.store.seq,
-            rows,
-            full,
-            deleted,
-            more: false,
-        };
+        let a = SnapshotAnswer { conn: r.conn, topic: r.topic.clone(), req: r.req, seq: self.store.seq, rows, full, deleted, more: false };
         self.server_in(Input::SnapshotRows(a));
     }
 
@@ -243,11 +210,7 @@ impl Sim {
                     c.conn = Some(conn);
                     c.parser = SseParser::new();
                     let caller = c.name.clone();
-                    self.server_in(Input::Connect {
-                        conn,
-                        caller,
-                        query,
-                    });
+                    self.server_in(Input::Connect { conn, caller, query });
                 }
                 Out::Send(m) => {
                     if let Some(conn) = self.clients[ci].conn {
@@ -259,9 +222,7 @@ impl Sim {
                     self.clients[ci].resets += 1;
                     self.clients[ci].map.clear();
                 }
-                Out::Snapshot { topic, rows } => {
-                    apply_snapshot(&mut self.clients[ci].map, &topic, rows)
-                }
+                Out::Snapshot { topic, rows } => apply_snapshot(&mut self.clients[ci].map, &topic, rows),
                 Out::EntityOps(ops) => {
                     for t in apply_entity_ops(&mut self.clients[ci].map, &ops) {
                         self.clients[ci].drifts += 1;

@@ -30,8 +30,8 @@ mod proxy;
 mod service;
 mod ssh;
 mod state;
-mod sys;
 mod store;
+mod sys;
 
 use std::sync::{Arc, OnceLock};
 

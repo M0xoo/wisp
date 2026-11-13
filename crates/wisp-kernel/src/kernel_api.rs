@@ -16,10 +16,7 @@ use crate::settings::{SettingInfo, SettingsBackend};
 use crate::state::KernelState;
 use crate::{BoxFuture, Call, Code, Plugin, Point, Result, Service, WireError};
 
-pub(crate) fn contributions<T: ?Sized + Send + Sync + 'static>(
-    k: &KernelState,
-    p: &Point<T>,
-) -> Vec<(Ctx, Arc<T>)> {
+pub(crate) fn contributions<T: ?Sized + Send + Sync + 'static>(k: &KernelState, p: &Point<T>) -> Vec<(Ctx, Arc<T>)> {
     // The registry's entries first, its guard dropped before the plugins' lock: life.rs `plan` takes the plugins'
     // lock, then the registry's write, so holding a registry read while waiting on the plugins deadlocked the two
     // (and every reader queued behind the writer): a quit then never finished (DESK2-05)
@@ -40,41 +37,19 @@ pub(crate) fn contributions<T: ?Sized + Send + Sync + 'static>(
     }
     let owners: Vec<(Arc<str>, Ctx)> = k
         .lock_plugins()
-        .map(|ps| {
-            ps.slots
-                .iter()
-                .filter_map(|s| s.ctx.clone().map(|c| (c.inner.id.clone(), c)))
-                .collect()
-        })
+        .map(|ps| ps.slots.iter().filter_map(|s| s.ctx.clone().map(|c| (c.inner.id.clone(), c))).collect())
         .unwrap_or_default();
-    items
-        .into_iter()
-        .filter_map(|(owner, item)| Some((owners.iter().find(|(o, _)| *o == owner)?.1.clone(), item)))
-        .collect()
+    items.into_iter().filter_map(|(owner, item)| Some((owners.iter().find(|(o, _)| *o == owner)?.1.clone(), item))).collect()
 }
 
 pub(crate) fn use_service<S: Service>(k: &KernelState) -> Result<Arc<S::Api>> {
     let reg = k.read_reg()?;
-    let gone = || {
-        WireError::new(
-            Code::ServiceGone,
-            format!("{}@{}: no plugin that is on provides it", S::ID, S::MAJOR),
-        )
-    };
-    let list = reg
-        .services
-        .get(&service_key(S::ID, S::MAJOR))
-        .ok_or_else(gone)?;
+    let gone = || WireError::new(Code::ServiceGone, format!("{}@{}: no plugin that is on provides it", S::ID, S::MAJOR));
+    let list = reg.services.get(&service_key(S::ID, S::MAJOR)).ok_or_else(gone)?;
     let chosen = reg.chosen.get(S::ID);
-    let e = chosen
-        .and_then(|c| list.iter().find(|p| *p.owner == **c))
-        .or_else(|| list.first())
-        .ok_or_else(gone)?;
-    let item = e
-        .item
-        .clone()
-        .downcast::<Arc<S::Api>>()
-        .map_err(|_| WireError::internal(format!("{}: provided with another type", S::ID)))?;
+    let e = chosen.and_then(|c| list.iter().find(|p| *p.owner == **c)).or_else(|| list.first()).ok_or_else(gone)?;
+    let item =
+        e.item.clone().downcast::<Arc<S::Api>>().map_err(|_| WireError::internal(format!("{}: provided with another type", S::ID)))?;
     Ok((*item).clone())
 }
 
@@ -103,17 +78,11 @@ pub struct CommitHook {
 
 impl CommitHook {
     pub(crate) fn of(k: &Arc<KernelState>) -> Self {
-        Self {
-            k: Arc::downgrade(k),
-        }
+        Self { k: Arc::downgrade(k) }
     }
     /// How many events the call's root command has buffered so far.
     pub fn mark(&self, call: &Call) -> usize {
-        call.inner
-            .tx
-            .as_ref()
-            .and_then(|tx| tx.events.lock().ok().map(|e| e.len()))
-            .unwrap_or(0)
+        call.inner.tx.as_ref().and_then(|tx| tx.events.lock().ok().map(|e| e.len())).unwrap_or(0)
     }
     /// The transaction committed: publish what the root buffered (all of it: what was emitted before
     /// was committed by an earlier transaction or needs none).
@@ -151,9 +120,7 @@ impl Kernel {
         CallInner::detached(&self.state, caller, None, self.state.root.child_token()).into_call()
     }
     pub fn commit_hook(&self) -> CommitHook {
-        CommitHook {
-            k: Arc::downgrade(&self.state),
-        }
+        CommitHook { k: Arc::downgrade(&self.state) }
     }
     /// Activates every lazy plugin waiting on `event` (`onTopic:session:abc`, `onView:shell.task`,
     /// `onBlock:chart`, `onSchedule:nightly`, `onCommand:x.y`). Returns how many woke.
@@ -175,16 +142,7 @@ impl Kernel {
     }
     /// The contract → provider choice resolution made.
     pub fn providers(&self) -> Vec<(String, String)> {
-        self.state
-            .lock_plugins()
-            .map(|ps| {
-                ps.res
-                    .providers
-                    .iter()
-                    .map(|(a, b)| (a.clone(), b.clone()))
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.state.lock_plugins().map(|ps| ps.res.providers.iter().map(|(a, b)| (a.clone(), b.clone())).collect()).unwrap_or_default()
     }
     /// Adds or replaces a capability set (a crew member's, a pane's allowed list).
     pub fn define_set(&self, set: &CapabilitySet) {
@@ -203,29 +161,13 @@ impl Kernel {
             .map(|ps| {
                 ps.slots
                     .iter()
-                    .filter(|s| {
-                        !matches!(
-                            s.phase,
-                            crate::life::Phase::Off | crate::life::Phase::Refused
-                        )
-                    })
-                    .flat_map(|s| {
-                        s.manifest
-                            .contributions(point)
-                            .into_iter()
-                            .map(|v| (s.manifest.id.clone(), v))
-                    })
+                    .filter(|s| !matches!(s.phase, crate::life::Phase::Off | crate::life::Phase::Refused))
+                    .flat_map(|s| s.manifest.contributions(point).into_iter().map(|v| (s.manifest.id.clone(), v)))
                     .collect()
             })
             .unwrap_or_default();
         if let Ok(reg) = self.state.reg.read() {
-            out.extend(
-                reg.points
-                    .get(point)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|e| e.json.clone().map(|j| (e.owner.to_string(), j))),
-            );
+            out.extend(reg.points.get(point).into_iter().flatten().filter_map(|e| e.json.clone().map(|j| (e.owner.to_string(), j))));
         }
         out
     }
@@ -241,9 +183,7 @@ impl Kernel {
     /// The user's write; `None` resets to the default. Refused when another plugin locked it.
     pub fn set_setting(&self, key: &str, value: Option<Value>) -> Result<()> {
         let b = self.state.service::<Arc<dyn SettingsBackend>>();
-        self.state
-            .settings
-            .set(key, value, b.as_deref().map(|b| &**b))
+        self.state.settings.set(key, value, b.as_deref().map(|b| &**b))
     }
     /// The last failures of a plugin (Settings → Diagnostics).
     pub fn failures(&self, plugin: &str) -> Vec<FailureRecord> {
@@ -270,14 +210,7 @@ impl Kernel {
     }
     /// The context of a plugin that is on (tests, the exec bridge).
     pub fn ctx(&self, plugin: &str) -> Option<Ctx> {
-        self.state
-            .lock_plugins()
-            .ok()?
-            .slots
-            .iter()
-            .find(|s| s.manifest.id == plugin)?
-            .ctx
-            .clone()
+        self.state.lock_plugins().ok()?.slots.iter().find(|s| s.manifest.id == plugin)?.ctx.clone()
     }
     /// Test knobs (plan §6.11.2 rule 8): shuffle interceptors of equal priority with `seed`, and delay
     /// (plugin, hook) by some milliseconds.
@@ -291,20 +224,12 @@ impl Kernel {
     pub fn routes(&self) -> Vec<RouteEntry> {
         self.contributions_owned(&crate::http::ROUTES)
             .into_iter()
-            .map(|(ctx, route)| RouteEntry {
-                plugin: ctx.plugin().to_owned(),
-                ctx,
-                route,
-            })
+            .map(|(ctx, route)| RouteEntry { plugin: ctx.plugin().to_owned(), ctx, route })
             .collect()
     }
     /// Serves one HTTP request: matches a route (activating a lazy plugin by `onRoute` first),
     /// checks the caller's permission, runs the handler in a new root call.
-    pub fn serve(
-        &self,
-        caller: Caller,
-        req: crate::http::Request,
-    ) -> BoxFuture<'static, Result<crate::http::Response>> {
+    pub fn serve(&self, caller: Caller, req: crate::http::Request) -> BoxFuture<'static, Result<crate::http::Response>> {
         crate::routes::serve(self.clone(), caller, req)
     }
 }
@@ -440,23 +365,26 @@ impl Ctx {
     /// ADR-0046: adds a plugin while wisp runs (a user's install), off until switched on. Needs `plugins:manage`.
     /// Additive (2026-11-11).
     pub fn install_plugin(&self, plugin: Arc<dyn Plugin>) -> crate::BoxFuture<'static, Result<()>> {
-        let k = if self.may("plugins:manage") { self.k() } else { Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin()))) };
+        let k = if self.may("plugins:manage") {
+            self.k()
+        } else {
+            Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin())))
+        };
         Box::pin(async move { crate::life::add(k?, plugin).await })
     }
     /// ADR-0046: takes a `user.` plugin out (off, then gone). Needs `plugins:manage`. Additive (2026-11-11).
     pub fn uninstall_plugin(&self, id: &str) -> crate::BoxFuture<'static, Result<()>> {
-        let k = if self.may("plugins:manage") { self.k() } else { Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin()))) };
+        let k = if self.may("plugins:manage") {
+            self.k()
+        } else {
+            Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin())))
+        };
         let id = id.to_owned();
         Box::pin(async move { crate::life::remove(k?, id).await })
     }
     /// The plugin's own capability set allows `permission`? (its manifest's permissions)
     pub fn may(&self, permission: &str) -> bool {
-        crate::perm::parse(permission).is_some_and(|p| {
-            self.inner
-                .set
-                .as_ref()
-                .is_some_and(|s| s.explain(&p).is_ok())
-        })
+        crate::perm::parse(permission).is_some_and(|p| self.inner.set.as_ref().is_some_and(|s| s.explain(&p).is_ok()))
     }
 }
 

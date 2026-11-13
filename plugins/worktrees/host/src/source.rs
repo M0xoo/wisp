@@ -50,7 +50,8 @@ pub(crate) fn register(s: &mut Setup) {
         let file = inside(&root, &a.path).ok_or_else(gone)?;
         let now = tokio::fs::read(&file).await.map_err(|_| gone())?;
         if !a.hash.is_empty() && hash_of(&now) != a.hash {
-            return Err(WireError::conflict("The file changed since you opened it.").with_details(json!({ "text": String::from_utf8_lossy(&now), "hash": hash_of(&now) })));
+            return Err(WireError::conflict("The file changed since you opened it.")
+                .with_details(json!({ "text": String::from_utf8_lossy(&now), "hash": hash_of(&now) })));
         }
         tokio::fs::write(&file, a.text.as_bytes()).await.map_err(|e| WireError::internal(format!("couldn't save it: {e}")))?;
         Ok(api::Saved { hash: hash_of(a.text.as_bytes()) })
@@ -60,7 +61,13 @@ pub(crate) fn register(s: &mut Setup) {
         let name = ident(&a.def).ok_or_else(|| WireError::invalid("Go to definition looks for a name (letters, digits, _)."))?;
         let proc = ctx.service::<Proc>()?;
         let args: Vec<String> = ["grep", "-n", "-I", "-E", &def_pattern(name)].map(str::to_owned).to_vec();
-        let opts = ExecOpts { cwd: Some(root), env: Env::default().with("GIT_OPTIONAL_LOCKS", "0"), timeout: Some(Duration::from_secs(15)), max_output: 1 << 20, ..ExecOpts::default() };
+        let opts = ExecOpts {
+            cwd: Some(root),
+            env: Env::default().with("GIT_OPTIONAL_LOCKS", "0"),
+            timeout: Some(Duration::from_secs(15)),
+            max_output: 1 << 20,
+            ..ExecOpts::default()
+        };
         Ok(match proc.exec("git", &args, opts).await {
             Ok(r) if r.exit.success() => hits(&r.stdout_text(), 20),
             _ => Vec::new(),
@@ -70,7 +77,9 @@ pub(crate) fn register(s: &mut Setup) {
         // a project of yours by its folder (New task's @), else the task's folder
         let root = if a.id.is_empty() {
             let mine = ctx.run_json(&call, "resources.export", json!({ "kinds": ["project"] })).await.unwrap_or_default();
-            let known = mine.as_array().into_iter().flatten().any(|r| r.pointer("/spec/path").and_then(Value::as_str).is_some_and(|p| p.trim_end_matches('/') == a.path.trim_end_matches('/')));
+            let known = mine.as_array().into_iter().flatten().any(|r| {
+                r.pointer("/spec/path").and_then(Value::as_str).is_some_and(|p| p.trim_end_matches('/') == a.path.trim_end_matches('/'))
+            });
             if !known {
                 return Err(WireError::forbidden("Only a project of yours lists its files here."));
             }
@@ -80,7 +89,13 @@ pub(crate) fn register(s: &mut Setup) {
         };
         let proc = ctx.service::<Proc>()?;
         let args: Vec<String> = ["ls-files", "--cached", "--others", "--exclude-standard", "-z"].map(str::to_owned).to_vec();
-        let opts = ExecOpts { cwd: Some(root), env: Env::default().with("GIT_OPTIONAL_LOCKS", "0"), timeout: Some(Duration::from_secs(15)), max_output: 8 << 20, ..ExecOpts::default() };
+        let opts = ExecOpts {
+            cwd: Some(root),
+            env: Env::default().with("GIT_OPTIONAL_LOCKS", "0"),
+            timeout: Some(Duration::from_secs(15)),
+            max_output: 8 << 20,
+            ..ExecOpts::default()
+        };
         Ok(match proc.exec("git", &args, opts).await {
             Ok(r) if r.exit.success() => {
                 let (files, more) = file_list(&r.stdout_text());

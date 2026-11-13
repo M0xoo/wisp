@@ -36,7 +36,15 @@ impl Runtime {
             return Ok(false);
         }
         let s = self.repo.session(id).await?;
-        self.sign_ins().insert(t.id.0.clone(), SignIn { session: id.to_owned(), agent: t.agent.clone(), account: account_of(s.account.as_deref()), until: self.now() + SIGN_IN_MS });
+        self.sign_ins().insert(
+            t.id.0.clone(),
+            SignIn {
+                session: id.to_owned(),
+                agent: t.agent.clone(),
+                account: account_of(s.account.as_deref()),
+                until: self.now() + SIGN_IN_MS,
+            },
+        );
         Ok(true)
     }
 

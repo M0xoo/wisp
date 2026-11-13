@@ -32,7 +32,15 @@ fn name_of(path: &str) -> String {
 /// The offer for one project, or None when there's nothing to bring in. Left out: the main checkout,
 /// wisp's own worktrees (`<home>/worktrees/…`), folders a task already has, bare and prunable entries;
 /// a dismissed project offers nothing.
-pub fn offer<S: std::hash::BuildHasher>(project: &str, root: &str, listed: &[Listed], known: &HashSet<String, S>, wisp_dir: &str, user_home: &str, dismissed: &[String]) -> Option<Offer> {
+pub fn offer<S: std::hash::BuildHasher>(
+    project: &str,
+    root: &str,
+    listed: &[Listed],
+    known: &HashSet<String, S>,
+    wisp_dir: &str,
+    user_home: &str,
+    dismissed: &[String],
+) -> Option<Offer> {
     if dismissed.iter().any(|d| d == project) {
         return None;
     }
@@ -56,7 +64,13 @@ pub fn offer<S: std::hash::BuildHasher>(project: &str, root: &str, listed: &[Lis
         return None;
     }
     items.sort_by(|a, b| a.name.cmp(&b.name));
-    Some(Offer { project: project.to_owned(), name: project.to_owned(), from: if conductor { "Conductor" } else { "git" }.to_owned(), items, detached })
+    Some(Offer {
+        project: project.to_owned(),
+        name: project.to_owned(),
+        from: if conductor { "Conductor" } else { "git" }.to_owned(),
+        items,
+        detached,
+    })
 }
 
 /// The paths a Bring in may take: the offer's own, in its order (a path that isn't one, or no longer is, is

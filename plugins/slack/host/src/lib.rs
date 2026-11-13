@@ -19,8 +19,8 @@ use serde_json::{Value, json};
 use wisp_channels_api::hub::WsFrame;
 use wisp_channels_api::policy::{Gate, GateArgs, RateHit, RateLimit, Seen, gate};
 use wisp_channels_api::scrub::{defuse, scrub_out};
-use wisp_channels_api::views::{Msg, SessionView};
 use wisp_channels_api::transport::{Headers, InboundOpts, InboundResult, header};
+use wisp_channels_api::views::{Msg, SessionView};
 use wisp_channels_api::{ChannelHub, HttpRequest, Status, TRANSPORTS, Transport, TransportDef, TransportKind};
 use wisp_kernel::{BoxFuture, CancellationToken, Manifest, Plugin, Result, Setup, WireError};
 use wisp_slack_core::socket::{Dial, Listen, Next, Step};
@@ -31,7 +31,8 @@ pub const NAME: &str = "slack";
 const BACKOFF_MS: u64 = 2_000;
 /// Slack's hello comes within two of these (the keep-alive beat, `slackPingMs` in tests).
 const PING_MS: u64 = 30_000;
-pub const STRANGER: &str = "This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Slack, here.";
+pub const STRANGER: &str =
+    "This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Slack, here.";
 pub const LINKED: &str = "✓ Linked to wisp. Say what you’d type in wisp, here or with @wisp in a channel.";
 pub const WRONG_CODE: &str = "That code doesn’t match. Send `link` and the code shown in wisp → Settings → Phone → Slack.";
 
@@ -49,7 +50,15 @@ impl TransportDef for Def {
         NAME
     }
     fn create(&self, hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
-        Arc::new_cyclic(|this| Slack { this: this.clone(), hub, seen: Mutex::default(), limit: Mutex::default(), strangers: Mutex::new(RateLimit::new(3, 60_000)), me: Mutex::default(), turns: turns::Turns::default() })
+        Arc::new_cyclic(|this| Slack {
+            this: this.clone(),
+            hub,
+            seen: Mutex::default(),
+            limit: Mutex::default(),
+            strangers: Mutex::new(RateLimit::new(3, 60_000)),
+            me: Mutex::default(),
+            turns: turns::Turns::default(),
+        })
     }
     fn secrets(&self) -> &'static [&'static str] {
         &["botToken", "appToken", "signingSecret"]
@@ -115,7 +124,8 @@ impl Slack {
         let req = HttpRequest::post_json(url, body).header("authorization", format!("Bearer {token}")).timeout(15_000);
         let r = self.hub.net().fetch(req).await.map_err(|e| SlackError::Net(format!("Slack: {e}")))?;
         if r.status == 429 {
-            let retry_after_s = r.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("retry-after")).and_then(|(_, v)| v.parse().ok()).unwrap_or(1);
+            let retry_after_s =
+                r.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("retry-after")).and_then(|(_, v)| v.parse().ok()).unwrap_or(1);
             return Err(SlackError::RateLimited { retry_after_s });
         }
         let j = r.json();
@@ -133,12 +143,19 @@ impl Slack {
 
     async fn who_am_i(&self, token: &str) -> std::result::Result<(), SlackError> {
         let me = self.call("auth.test", &json!({}), token).await?;
-        *lock(&self.me) = Some(Me { user: s(&me, "user_id").to_owned(), name: Some(s(&me, "user")).filter(|n| !n.is_empty()).unwrap_or("wisp").to_owned() });
+        *lock(&self.me) = Some(Me {
+            user: s(&me, "user_id").to_owned(),
+            name: Some(s(&me, "user")).filter(|n| !n.is_empty()).unwrap_or("wisp").to_owned(),
+        });
         Ok(())
     }
 
     /// One connection, until it ends, Slack asks for another, or `stop`.
-    async fn listen(self: &Arc<Self>, url: &str, stop: &CancellationToken) -> std::result::Result<wisp_slack_core::socket::End, SlackError> {
+    async fn listen(
+        self: &Arc<Self>,
+        url: &str,
+        stop: &CancellationToken,
+    ) -> std::result::Result<wisp_slack_core::socket::End, SlackError> {
         let conn = self.hub.ws().connect(url).await.map_err(|e| SlackError::Net(format!("Slack: {e}")))?;
         let beat = self.hub.tune("slackPingMs").unwrap_or(PING_MS);
         let mut l = Listen::new(self.hub.now_ms(), beat);
@@ -249,13 +266,25 @@ impl Slack {
             self.post(&m.channel, &root, LINKED).await?;
             return Ok(());
         }
-        let senders: Vec<String> = cfg.get("senders").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+        let senders: Vec<String> =
+            cfg.get("senders").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
         let g = {
             let (mut seen, mut limit) = (lock(&self.seen), lock(&self.limit));
             let id = m.ids().join(",");
             #[allow(clippy::cast_possible_truncation)]
             let at_s = m.at_s().map(|t| t as i64);
-            gate(GateArgs { sender: Some(&m.user), senders: &senders, id: Some(&id), at_s, seen: Some(&mut seen), limit: Some(&mut limit), now_ms: self.hub.now_ms(), dm: m.dm, stranger_line: STRANGER, ..GateArgs::default() })
+            gate(GateArgs {
+                sender: Some(&m.user),
+                senders: &senders,
+                id: Some(&id),
+                at_s,
+                seen: Some(&mut seen),
+                limit: Some(&mut limit),
+                now_ms: self.hub.now_ms(),
+                dm: m.dm,
+                stranger_line: STRANGER,
+                ..GateArgs::default()
+            })
         };
         if let Gate::Refused { reply, why } = g {
             self.hub.phone().count("refused", Some(&format!("{why:?}").to_lowercase()));
@@ -268,7 +297,13 @@ impl Slack {
         let phone = self.hub.phone();
         let ctx = phone.context().await?;
         // Slack keeps a leading / for itself: `new …` is `/new …`
-        let typed = if text.is_empty() { "help".to_owned() } else if text.to_lowercase().starts_with("new ") || text.eq_ignore_ascii_case("new") { format!("/{text}") } else { text };
+        let typed = if text.is_empty() {
+            "help".to_owned()
+        } else if text.to_lowercase().starts_with("new ") || text.eq_ignore_ascii_case("new") {
+            format!("/{text}")
+        } else {
+            text
+        };
         let session = m.thread_ts.as_ref().and_then(|_| self.thread_of(&m.channel, &root));
         let c = conv::SlackConv { slack: self, phone, ctx, m: &m, root: root.clone() };
         self.hub.converse(&c, &typed, session.as_deref(), None).await.map(|_| ())
@@ -365,7 +400,8 @@ impl Transport for Slack {
         let Some(t) = self.hub.remote_of(&sv.id).and_then(|r| r.get(NAME).cloned()) else { return Ok(()) };
         let (chat, ts) = (s(&t, "channel").to_owned(), s(&t, "ts").to_owned());
         let by = self.hub.started_from(&sv.id).and_then(|(_, by)| by);
-        let choices: Vec<String> = msg.actions.iter().filter(|a| !matches!(a.kind, wisp_channels_api::views::ActionKind::Done)).map(|a| a.label.clone()).collect();
+        let choices: Vec<String> =
+            msg.actions.iter().filter(|a| !matches!(a.kind, wisp_channels_api::views::ActionKind::Done)).map(|a| a.label.clone()).collect();
         let me = lock(&self.me).as_ref().map(|m| m.name.clone());
         let text = post::report(&msg.title, &msg.text, &choices, by.as_deref(), chat.starts_with('D'), me.as_deref());
         let hub = self.hub.clone();
@@ -399,7 +435,11 @@ impl Transport for Slack {
         let taken = if opts.at_ms > 0 { opts.at_ms.min(now) } else { now };
         if !opts.verified {
             let secret = s(&c, "signingSecret");
-            let checked = if secret.is_empty() { Err(SlackError::Signature(sign::MISSING)) } else { sign::verify(secret, raw, header(headers, "x-slack-request-timestamp"), header(headers, "x-slack-signature"), taken) };
+            let checked = if secret.is_empty() {
+                Err(SlackError::Signature(sign::MISSING))
+            } else {
+                sign::verify(secret, raw, header(headers, "x-slack-request-timestamp"), header(headers, "x-slack-signature"), taken)
+            };
             if let Err(e) = checked {
                 // wisp is open: a wrong secret is the likeliest slip in setup
                 if checking {
@@ -471,6 +511,9 @@ mod tests {
         assert!(!code_matches(Some(""), ""), "no code set: nobody links");
         assert!(!code_matches(None, "ab12"));
         let b = body("C1", "1.2", "hi");
-        assert_eq!((b["thread_ts"].as_str(), b["unfurl_links"].as_bool(), b["link_names"].as_bool()), (Some("1.2"), Some(false), Some(false)));
+        assert_eq!(
+            (b["thread_ts"].as_str(), b["unfurl_links"].as_bool(), b["link_names"].as_bool()),
+            (Some("1.2"), Some(false), Some(false))
+        );
     }
 }

@@ -10,8 +10,8 @@ use wisp_crew_api::{CrewExt, JobKind, JobSummary, Member, MemberView, PLUGIN_ID,
 use wisp_crew_core::cron::Utc;
 use wisp_crew_core::layout::{layout_of, normalize_layout};
 use wisp_crew_core::note::checkin_prompt;
-use wisp_crew_core::run::{job_body, job_run};
 use wisp_crew_core::queue::{Placement, checkin_already, count_checkin, drain_count, place};
+use wisp_crew_core::run::{job_body, job_run};
 use wisp_crew_core::tick::tick;
 use wisp_kernel::{Call, Command as _, Ctx, Setup, WireError};
 use wisp_runtime_api::commands as rt;
@@ -34,7 +34,13 @@ pub(crate) async fn job_task(ctx: &Ctx, call: &Call, id: &str) -> Result<Value, 
 pub(crate) async fn job_turns(ctx: &Ctx, call: &Call, id: &str) -> Result<Vec<wisp_runtime_api::model::Turn>, WireError> {
     match id.split_once('|') {
         Some((machine, task)) => {
-            let v = calls::routed::<rt::Turns>(ctx, call, machine, calls::to_json(&rt::TurnsArgs { id: task.into(), before: None, limit: None, masked: None })?).await?;
+            let v = calls::routed::<rt::Turns>(
+                ctx,
+                call,
+                machine,
+                calls::to_json(&rt::TurnsArgs { id: task.into(), before: None, limit: None, masked: None })?,
+            )
+            .await?;
             serde_json::from_value(v).map_err(|e| WireError::internal(format!("{}: {e}", rt::Turns::ID)))
         }
         None => calls::turns(ctx, call, id).await,
@@ -110,7 +116,10 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
             let made = calls::routed::<rt::Create>(ctx, call, machine, args).await?;
             let id = format!("{machine}|{}", made.get("id").and_then(Value::as_str).unwrap_or_default());
             if m.sandbox == "job" {
-                calls::warn("a job's sandbox isn't kept as the job's", calls::own(ctx, call, machine, json!({ "crew": m.id, "job": id })).await);
+                calls::warn(
+                    "a job's sandbox isn't kept as the job's",
+                    calls::own(ctx, call, machine, json!({ "crew": m.id, "job": id })).await,
+                );
             }
             let mut made = made;
             made["id"] = json!(id);
@@ -259,7 +268,8 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         st.put(m.clone());
         st.save().await;
         ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "create".into() });
-        let session = if a.checkin == Some(true) { checkin(&ctx, &call, &st, &m.id, false).await.ok().and_then(|s| s.session) } else { None };
+        let session =
+            if a.checkin == Some(true) { checkin(&ctx, &call, &st, &m.id, false).await.ok().and_then(|s| s.session) } else { None };
         Ok(c::Created { member: view(&ctx, &call, &st, &m).await, session })
     });
     on!(s, st, c::Update, |st, ctx, call, a| {
@@ -291,10 +301,18 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         st.save().await;
         Ok(view(&ctx, &call, &st, &m).await)
     });
+    work_commands(s, st);
+}
+
+/// Giving a member work: assign, check in, wake, and the per-member stats.
+fn work_commands(s: &mut Setup, st: &Arc<State>) {
     on!(s, st, c::Assign, |st, ctx, call, a| {
         let m = st.member(&a.id)?;
         let prompt = if a.prompt.trim().is_empty() && a.kit {
-            format!("Build your kit: make yourself excellent{}.", if m.role.is_empty() { " at your job".to_owned() } else { format!(" as our {}", m.role) })
+            format!(
+                "Build your kit: make yourself excellent{}.",
+                if m.role.is_empty() { " at your job".to_owned() } else { format!(" as our {}", m.role) }
+            )
         } else {
             a.prompt.trim().to_owned()
         };
@@ -313,7 +331,14 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         for m in &crew {
             let jobs = jobs_of(&ctx, &call, &st, m).await;
             let n = |f: &dyn Fn(&JobSummary) -> bool| u32::try_from(jobs.iter().filter(|j| f(j)).count()).unwrap_or(u32::MAX);
-            out.push(c::MemberStats { id: m.id.clone(), jobs: n(&|_| true), done: n(&|j| j.state == "done" || j.state == "review"), failed: n(&|j| j.state == "error"), quiet: u32::try_from(m.log.iter().filter(|l| l.quiet).count()).unwrap_or(0), ..c::MemberStats::default() });
+            out.push(c::MemberStats {
+                id: m.id.clone(),
+                jobs: n(&|_| true),
+                done: n(&|j| j.state == "done" || j.state == "review"),
+                failed: n(&|j| j.state == "error"),
+                quiet: u32::try_from(m.log.iter().filter(|l| l.quiet).count()).unwrap_or(0),
+                ..c::MemberStats::default()
+            });
         }
         Ok(out)
     });

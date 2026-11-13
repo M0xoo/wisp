@@ -81,12 +81,23 @@ pub async fn remember(inner: &StoredKind, call: &Call, id: &str, on: bool) -> Re
         return Ok(());
     }
     let had = inner.specs().await?.into_iter().any(|(n, _)| n == id);
-    let op = Op { op: if had { OpKind::Update } else { OpKind::Create }, kind: "plugin".into(), name: id.to_owned(), spec: serde_json::json!({ "enabled": on }), id: None, changes: Vec::new(), before: None };
+    let op = Op {
+        op: if had { OpKind::Update } else { OpKind::Create },
+        kind: "plugin".into(),
+        name: id.to_owned(),
+        spec: serde_json::json!({ "enabled": on }),
+        id: None,
+        changes: Vec::new(),
+        before: None,
+    };
     inner.apply(call, &op).await
 }
 
 pub fn register(s: &mut Setup) -> Arc<StoredKind> {
-    let inner = Arc::new(StoredKind::new(KindInfo::new("plugin", "plugins", "wisp.plugins", schema_of::<PluginSpec>()).order(2).sensitive(), s.ctx()));
+    let inner = Arc::new(StoredKind::new(
+        KindInfo::new("plugin", "plugins", "wisp.plugins", schema_of::<PluginSpec>()).order(2).sensitive(),
+        s.ctx(),
+    ));
     let k: Arc<dyn ResourceKind> = Arc::new(PluginKind(inner.clone()));
     s.contribute(&RESOURCE_KIND, k);
     let back = inner.clone();

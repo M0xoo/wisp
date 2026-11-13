@@ -35,11 +35,7 @@ fn source() -> common::P {
     common::plugin("wisp.src", json!({}), |s| {
         s.command::<Make, _, _>(|ctx, call, (n, fail)| async move {
             ctx.emit(&call, &Made { n });
-            if fail {
-                Err(WireError::conflict("no"))
-            } else {
-                Ok(())
-            }
+            if fail { Err(WireError::conflict("no")) } else { Ok(()) }
         });
         s.command::<Burst, _, _>(|ctx, call, n| async move {
             for i in 0..n {
@@ -67,10 +63,7 @@ fn sink(got: Arc<Mutex<Vec<u32>>>, fails: Arc<AtomicU32>) -> common::P {
         s.on::<Made, _, _>(move |_, e| {
             let (got, fails) = (got.clone(), fails.clone());
             async move {
-                assert!(
-                    !(e.n == 99 && fails.fetch_add(1, Ordering::SeqCst) < 2),
-                    "flaky subscriber"
-                );
+                assert!(!(e.n == 99 && fails.fetch_add(1, Ordering::SeqCst) < 2), "flaky subscriber");
                 got.lock().unwrap().push(e.n);
             }
         });
@@ -79,35 +72,15 @@ fn sink(got: Arc<Mutex<Vec<u32>>>, fails: Arc<AtomicU32>) -> common::P {
 
 #[tokio::test]
 async fn after_ok_only_in_order_and_at_least_once() {
-    let (got, fails) = (
-        Arc::<Mutex<Vec<u32>>>::default(),
-        Arc::new(AtomicU32::new(0)),
-    );
-    let k = common::start(
-        PluginGroup::new()
-            .add(source())
-            .add(sink(got.clone(), fails.clone())),
-    )
-    .await;
-    k.call(Caller::user(), "src.make", json!([1, false]))
-        .await
-        .unwrap();
-    assert!(
-        k.call(Caller::user(), "src.make", json!([2, true]))
-            .await
-            .is_err()
-    );
-    k.call(Caller::user(), "src.burst", json!(100))
-        .await
-        .unwrap();
+    let (got, fails) = (Arc::<Mutex<Vec<u32>>>::default(), Arc::new(AtomicU32::new(0)));
+    let k = common::start(PluginGroup::new().add(source()).add(sink(got.clone(), fails.clone()))).await;
+    k.call(Caller::user(), "src.make", json!([1, false])).await.unwrap();
+    assert!(k.call(Caller::user(), "src.make", json!([2, true])).await.is_err());
+    k.call(Caller::user(), "src.burst", json!(100)).await.unwrap();
     k.idle().await;
     let g = got.lock().unwrap().clone();
     assert_eq!(g[0], 1, "the failed command's event never went out");
-    assert_eq!(
-        &g[1..],
-        (0..100).collect::<Vec<_>>().as_slice(),
-        "in order, and 99 delivered after two panics"
-    );
+    assert_eq!(&g[1..], (0..100).collect::<Vec<_>>().as_slice(), "in order, and 99 delivered after two panics");
     assert_eq!(fails.load(Ordering::SeqCst), 3);
 }
 
@@ -123,13 +96,7 @@ async fn lagging_ephemeral_subscriber_drops_and_records_diag() {
         });
     });
     let k = common::start(PluginGroup::new().add(source()).add(slow)).await;
-    k.call(
-        Caller::user(),
-        "src.burst",
-        json!(wisp_kernel::QUEUE_CAP + 5),
-    )
-    .await
-    .unwrap();
+    k.call(Caller::user(), "src.burst", json!(wisp_kernel::QUEUE_CAP + 5)).await.unwrap();
     assert!(k.lagging("wisp.slow").is_some());
     assert_eq!(k.failures("wisp.slow").last().unwrap().code, "lagging");
     k.caught_up("wisp.slow");
@@ -147,9 +114,7 @@ async fn the_commit_hook_publishes_on_commit_and_drops_on_rollback() {
         s.on_raw("src.*", move |_, env| {
             let seen = seen.clone();
             async move {
-                seen.lock()
-                    .unwrap()
-                    .push((env.get::<Made>().map_or(0, |m| m.n), env.cursor));
+                seen.lock().unwrap().push((env.get::<Made>().map_or(0, |m| m.n), env.cursor));
                 Ok(())
             }
         });
@@ -196,5 +161,9 @@ async fn event_v2_type_and_v1_type_both_emitted_for_one_minor() {
     let k = common::start(PluginGroup::new().add(src).add(old).add(new)).await;
     k.call(Caller::user(), "src.both", json!(7)).await.unwrap();
     k.idle().await;
-    assert_eq!((v1.lock().unwrap().clone(), v2.lock().unwrap().clone()), (vec![7], vec!["ada".to_owned()]), "an old subscriber keeps getting the old shape");
+    assert_eq!(
+        (v1.lock().unwrap().clone(), v2.lock().unwrap().clone()),
+        (vec![7], vec!["ada".to_owned()]),
+        "an old subscriber keeps getting the old shape"
+    );
 }

@@ -15,7 +15,10 @@ use wisp_harness_kit::RunPaths;
 use wisp_harness_kit::detect::{help_efforts, version_in};
 use wisp_harness_kit::protocol::{FileNote, attachment_note};
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
-use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
+use wisp_runtime_api::harness::{
+    ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip,
+    Stdin,
+};
 use wisp_runtime_api::model::Mode;
 use wisp_runtime_api::{HARNESS, Harness};
 
@@ -25,7 +28,12 @@ pub fn info() -> HarnessInfo {
     HarnessInfo {
         id: "copilot".into(),
         name: "Copilot".into(),
-        models: vec![HarnessModel { id: String::new(), label: "Default".into(), hint: Some("Whatever Copilot is set to".into()), efforts: Vec::new() }],
+        models: vec![HarnessModel {
+            id: String::new(),
+            label: "Default".into(),
+            hint: Some("Whatever Copilot is set to".into()),
+            efforts: Vec::new(),
+        }],
         efforts: ["low", "medium", "high", "xhigh"].map(str::to_owned).to_vec(),
         ask_tool: Some("wisp-ask_user".into()),
         session_ids: true,
@@ -55,7 +63,10 @@ fn mode(m: Mode) -> &'static str {
 
 /// The session a run continues, or the id a new one gets (the turn's, a uuid).
 pub fn session_of(run: &HarnessRun) -> String {
-    run.resume_id.clone().filter(|r| !r.is_empty()).unwrap_or_else(|| if run.turn_id.is_empty() { run.session_id.clone() } else { run.turn_id.clone() })
+    run.resume_id
+        .clone()
+        .filter(|r| !r.is_empty())
+        .unwrap_or_else(|| if run.turn_id.is_empty() { run.session_id.clone() } else { run.turn_id.clone() })
 }
 
 /// The launch (the runtime already put wisp's protocol ahead of a new session's prompt).
@@ -77,7 +88,11 @@ pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
         images: &images,
         dirs: &dirs,
     };
-    let notes: Vec<FileNote> = with_path.iter().filter(|a| !is_image(&a.mime)).map(|a| FileNote { path: a.path.clone().unwrap_or_default(), mime: a.mime.clone(), size: a.size }).collect();
+    let notes: Vec<FileNote> = with_path
+        .iter()
+        .filter(|a| !is_image(&a.mime))
+        .map(|a| FileNote { path: a.path.clone().unwrap_or_default(), mime: a.mime.clone(), size: a.size })
+        .collect();
     let input = format!("{}{}", run.prompt, attachment_note(&notes, Some("Read them with your view tool")));
     Launch {
         program: bin.to_owned(),
@@ -91,7 +106,8 @@ pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
 }
 
 async fn output(sys: &dyn HarnessSys, bin: &str, args: &[&str]) -> Option<String> {
-    let req = ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
+    let req =
+        ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
     match sys.exec(req).await {
         Ok(o) if o.code == Some(0) && !o.timed_out => Some(o.stdout),
         _ => None,
@@ -112,7 +128,12 @@ impl Default for CopilotHarness {
 
 impl CopilotHarness {
     fn bin(&self) -> String {
-        self.bin.lock().ok().and_then(|b| b.clone()).or_else(|| std::env::var("WISP_COPILOT_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned())
+        self.bin
+            .lock()
+            .ok()
+            .and_then(|b| b.clone())
+            .or_else(|| std::env::var("WISP_COPILOT_BIN").ok().filter(|b| !b.is_empty()))
+            .unwrap_or_else(|| DEFAULT_BIN.to_owned())
     }
 }
 
@@ -139,13 +160,23 @@ impl Harness for CopilotHarness {
             let ids = model_ids(&output(sys, &bin, &["help", "config"]).await.unwrap_or_default());
             let efforts = help_efforts(&output(sys, &bin, &["--help"]).await.unwrap_or_default());
             let v = version_in(&line);
-            let mut found = HarnessFound { available: true, version: Some(if v.is_empty() { line.trim().to_owned() } else { v }), bin: Some(bin), ..HarnessFound::default() };
+            let mut found = HarnessFound {
+                available: true,
+                version: Some(if v.is_empty() { line.trim().to_owned() } else { v }),
+                bin: Some(bin),
+                ..HarnessFound::default()
+            };
             if !efforts.is_empty() {
                 found.efforts = Some(efforts);
             }
             if !ids.is_empty() {
                 let mut all = vec![self.info.models[0].clone()];
-                all.extend(ids.into_iter().map(|id| HarnessModel { label: model_label(&id), hint: Some(id.clone()), id, efforts: Vec::new() }));
+                all.extend(ids.into_iter().map(|id| HarnessModel {
+                    label: model_label(&id),
+                    hint: Some(id.clone()),
+                    id,
+                    efforts: Vec::new(),
+                }));
                 found.models = Some(all);
             }
             found
@@ -166,7 +197,11 @@ impl Harness for CopilotHarness {
     }
 
     fn setup(&self, _platform: &str) -> Option<SetupTip> {
-        Some(SetupTip { tip: "Install the GitHub Copilot CLI, then run copilot login. It needs a GitHub Copilot plan".into(), command: Some("npm i -g @github/copilot".into()), url: Some("https://github.com/features/copilot/cli".into()) })
+        Some(SetupTip {
+            tip: "Install the GitHub Copilot CLI, then run copilot login. It needs a GitHub Copilot plan".into(),
+            command: Some("npm i -g @github/copilot".into()),
+            url: Some("https://github.com/features/copilot/cli".into()),
+        })
     }
 
     fn resume_command(&self, o: &ResumeOptions) -> Option<ResumeCommand> {

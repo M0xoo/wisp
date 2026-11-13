@@ -83,10 +83,19 @@ pub fn refused(e: &Ended<'_>, blocks: &[Value]) -> Option<(TurnRefusal, Vec<Valu
         RefusalKind::Policy => "policy",
         RefusalKind::Declined => "declined",
     };
-    let refusal = TurnRefusal { agent: e.agent.to_owned(), model: e.model.to_owned(), vendor: vendor_of(e.model, e.home), kind: kind.into(), line: (!r.line.is_empty()).then_some(r.line) };
+    let refusal = TurnRefusal {
+        agent: e.agent.to_owned(),
+        model: e.model.to_owned(),
+        vendor: vendor_of(e.model, e.home),
+        kind: kind.into(),
+        line: (!r.line.is_empty()).then_some(r.line),
+    };
     let name = if e.name.is_empty() { "This harness" } else { e.name };
-    let rest: Vec<Value> = blocks.iter().filter(|b| !matches!(b.get("type").and_then(Value::as_str), Some("hero" | "next"))).cloned().collect();
-    let mut out = vec![json!({ "type": "hero", "title": format!("{name} turned this task down"), "summary": "Hand the same prompt, with what this task has seen, to another agent, or rephrase it and follow up.", "status": "blocked" })];
+    let rest: Vec<Value> =
+        blocks.iter().filter(|b| !matches!(b.get("type").and_then(Value::as_str), Some("hero" | "next"))).cloned().collect();
+    let mut out = vec![
+        json!({ "type": "hero", "title": format!("{name} turned this task down"), "summary": "Hand the same prompt, with what this task has seen, to another agent, or rephrase it and follow up.", "status": "blocked" }),
+    ];
     if rest.is_empty() {
         out.push(json!({ "type": "markdown", "text": if e.text.is_empty() { "No answer." } else { e.text } }));
     } else {
@@ -101,7 +110,18 @@ mod tests {
 
     #[test]
     fn a_models_vendor_is_read_from_its_id_or_the_harness_default() {
-        for (m, v) in [("claude-sonnet-4.5", "anthropic"), ("anthropic/claude-x", "anthropic"), ("opus", "anthropic"), ("fable", "anthropic"), ("openrouter/openai/gpt-5", "openai"), ("o4-mini", "openai"), ("gemini-3-pro", "google"), ("grok-4", "xai"), ("qwen3-coder", "alibaba"), ("composer-1", "cursor")] {
+        for (m, v) in [
+            ("claude-sonnet-4.5", "anthropic"),
+            ("anthropic/claude-x", "anthropic"),
+            ("opus", "anthropic"),
+            ("fable", "anthropic"),
+            ("openrouter/openai/gpt-5", "openai"),
+            ("o4-mini", "openai"),
+            ("gemini-3-pro", "google"),
+            ("grok-4", "xai"),
+            ("qwen3-coder", "alibaba"),
+            ("composer-1", "cursor"),
+        ] {
             assert_eq!(vendor_of(m, None).as_deref(), Some(v), "{m}");
         }
         assert_eq!(vendor_of("", Some("anthropic")).as_deref(), Some("anthropic"), "the harness's own");
@@ -111,9 +131,19 @@ mod tests {
 
     #[test]
     fn a_turn_turned_down_says_so_and_keeps_the_refusal() {
-        let e = Ended { text: "I can't help with that.", agent: "claude", model: "opus", name: "Claude Code", home: Some("anthropic"), ..Ended::default() };
+        let e = Ended {
+            text: "I can't help with that.",
+            agent: "claude",
+            model: "opus",
+            name: "Claude Code",
+            home: Some("anthropic"),
+            ..Ended::default()
+        };
         let (r, blocks) = refused(&e, &[json!({ "type": "hero", "title": "x" })]).unwrap();
-        assert_eq!((r.kind.as_str(), r.vendor.as_deref(), r.line.as_deref()), ("declined", Some("anthropic"), Some("I can't help with that.")));
+        assert_eq!(
+            (r.kind.as_str(), r.vendor.as_deref(), r.line.as_deref()),
+            ("declined", Some("anthropic"), Some("I can't help with that."))
+        );
         assert_eq!(blocks[0]["title"], "Claude Code turned this task down");
         assert_eq!(blocks[1]["text"], "I can't help with that.", "the answer stays under it");
         let policy = Ended { text: "x", stop_reason: "refusal", ..e };

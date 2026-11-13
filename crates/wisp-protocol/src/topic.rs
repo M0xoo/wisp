@@ -11,9 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// `list` · `config` · `crew` · `machines` · `stuff` · `session:<id>` · `plugin:<id>:<topic>` ·
 /// `events:*` / `events:<area>.*` / `events:<type>` (the durable event log, ADR-0044; additive 2026-11-09).
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, ts_rs::TS)]
-#[ts(
-    type = "'list' | 'config' | 'crew' | 'machines' | 'stuff' | `session:${string}` | `plugin:${string}:${string}` | `events:${string}`"
-)]
+#[ts(type = "'list' | 'config' | 'crew' | 'machines' | 'stuff' | `session:${string}` | `plugin:${string}:${string}` | `events:${string}`")]
 pub struct Topic(Arc<str>);
 
 /// Topics every wisp has; the rest are `session:<id>` and `plugin:<id>:<topic>`.
@@ -72,10 +70,7 @@ pub fn is_topic(s: &str) -> bool {
             return false;
         };
         let ok = |part: &str, extra: &[char]| {
-            !part.is_empty()
-                && part.chars().all(|c| {
-                    c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || extra.contains(&c)
-                })
+            !part.is_empty() && part.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || extra.contains(&c))
         };
         return ok(id, &['.']) && ok(name, &['.', '_']);
     }

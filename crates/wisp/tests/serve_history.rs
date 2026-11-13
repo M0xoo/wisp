@@ -38,7 +38,15 @@ fn wisp(dir: &Path, cwd: &Path, port: u16, args: &[&str], stdin: Option<&str>) -
 }
 
 fn git(dir: &Path, args: &[&str]) -> String {
-    let o = Command::new("git").args(args).current_dir(dir).env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t").output().unwrap();
+    let o = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
+        .output()
+        .unwrap();
     assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
     String::from_utf8_lossy(&o.stdout).trim().to_owned()
 }
@@ -85,11 +93,17 @@ async fn track_blame_log_resume_mcp_and_auto_track() {
     assert!(std::fs::read_to_string(repo.join("AGENTS.md")).unwrap().contains("wisp tasks --touching"));
 
     // a task runs (in the repo: it gets the history tools), then is tracked: spec, report, transcript
-    let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug TOPIC[Fix add]", "cwd": repo, "agent": "claude", "worktree": false })).await;
+    let made = api
+        .cmd("runtime.create", json!({ "prompt": "fix the add bug TOPIC[Fix add]", "cwd": repo, "agent": "claude", "worktree": false }))
+        .await;
     let id = made["id"].as_str().unwrap().to_owned();
     api.until(&id, "the turn ends", |t| t.last().is_some_and(ended)).await;
     let argv = common::record_text(&rec.join("claude.jsonl"));
-    assert!(argv.contains("wisp-history") && argv.contains("\\\"mcp\\\""), "a run in the repo gets wisp mcp: {}", &argv[..argv.len().min(400)]);
+    assert!(
+        argv.contains("wisp-history") && argv.contains("\\\"mcp\\\""),
+        "a run in the repo gets wisp mcp: {}",
+        &argv[..argv.len().min(400)]
+    );
     let (code, out, err) = wisp(&dir, &repo, port, &["track", &id], None);
     assert_eq!(code, 0, "{out}{err}");
     let files = task_files(&repo);
@@ -124,7 +138,12 @@ async fn track_blame_log_resume_mcp_and_auto_track() {
     assert_eq!(serde_json::from_str::<Value>(&out).unwrap().as_array().unwrap().len(), 1, "{out}");
 
     // wisp mcp, with no wisp needed: the history tools over stdio
-    let msgs = [json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }), json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }), json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "wisp_blame", "arguments": { "target": "math.js:1" } } }), json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": { "name": "wisp_task", "arguments": { "id": short } } })];
+    let msgs = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
+        json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "wisp_blame", "arguments": { "target": "math.js:1" } } }),
+        json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": { "name": "wisp_task", "arguments": { "id": short } } }),
+    ];
     let input: String = msgs.iter().map(|m| format!("{m}\n")).collect();
     let (code, out, err) = wisp(&dir, &repo, 1, &["mcp"], Some(&input));
     assert_eq!(code, 0, "{err}");
@@ -150,7 +169,9 @@ async fn track_blame_log_resume_mcp_and_auto_track() {
 
     // track: auto: a task marked done is saved by itself
     std::fs::write(repo.join(".wisp/wisp.yml"), "wisp: 1\nhistory: { track: auto }\n").unwrap();
-    let made = api.cmd("runtime.create", json!({ "prompt": "write the notes TOPIC[Notes]", "cwd": repo, "agent": "claude", "worktree": false })).await;
+    let made = api
+        .cmd("runtime.create", json!({ "prompt": "write the notes TOPIC[Notes]", "cwd": repo, "agent": "claude", "worktree": false }))
+        .await;
     let auto = made["id"].as_str().unwrap().to_owned();
     api.until(&auto, "the turn ends", |t| t.last().is_some_and(ended)).await;
     api.cmd("runtime.setState", json!({ "id": auto, "state": "done" })).await;
@@ -165,7 +186,8 @@ async fn a_claude_code_session_is_adopted_tracked_and_continued() {
     let repo = std::fs::canonicalize(dir.join("proj")).unwrap();
     git(&repo, &["init", "-q", "-b", "main"]);
     let cwd = repo.display().to_string();
-    let store = dir.join("claude-cfg/projects").join(cwd.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>());
+    let store =
+        dir.join("claude-cfg/projects").join(cwd.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>());
     std::fs::create_dir_all(&store).unwrap();
     let sid = "5f1c2e1a-0000-4000-8000-00000000abcd";
     let lines = [
@@ -177,7 +199,8 @@ async fn a_claude_code_session_is_adopted_tracked_and_continued() {
     std::fs::write(store.join(format!("{sid}.jsonl")), lines.iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
     let rec = dir.join("rec");
     std::fs::create_dir_all(&rec).unwrap();
-    let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap()), ("CLAUDE_CONFIG_DIR", dir.join("claude-cfg").to_str().unwrap())]);
+    let (serve, port) =
+        start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap()), ("CLAUDE_CONFIG_DIR", dir.join("claude-cfg").to_str().unwrap())]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     assert_eq!(wisp(&dir, &repo, port, &["init"], None).0, 0);
 
@@ -212,7 +235,11 @@ async fn a_claude_code_session_is_adopted_tracked_and_continued() {
     let before = api.cmd("runtime.list", json!({})).await.as_array().unwrap().len();
     let (code, out, err) = wisp(&dir, &repo, port, &["adopt", "--hook"], Some(&hook_in));
     assert_eq!(code, 0, "{out}{err}");
-    assert_eq!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().len(), before, "auto, the same session: its task, never a second");
+    assert_eq!(
+        api.cmd("runtime.list", json!({})).await.as_array().unwrap().len(),
+        before,
+        "auto, the same session: its task, never a second"
+    );
     // a session the hook hasn't seen: adopted
     let sid2 = "5f1c2e1a-0000-4000-8000-00000000abce";
     std::fs::write(store.join(format!("{sid2}.jsonl")), format!("{}\n", lines[0])).unwrap();
@@ -230,10 +257,17 @@ async fn the_same_session_is_adopted_once_and_the_pr_comes_from_gh() {
     git(&repo, &["add", "."]);
     git(&repo, &["commit", "-qm", "init"]);
     let cwd = repo.display().to_string();
-    let store = dir.join("claude-cfg/projects").join(cwd.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>());
+    let store =
+        dir.join("claude-cfg/projects").join(cwd.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>());
     std::fs::create_dir_all(&store).unwrap();
     let sid = "6a2d3f2b-0000-4000-8000-00000000beef";
-    let line = |role: &str, text: &str, at: &str| if role == "user" { json!({ "type": "user", "message": { "role": "user", "content": text }, "cwd": cwd, "timestamp": at }) } else { json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "text", "text": text }] }, "timestamp": at }) };
+    let line = |role: &str, text: &str, at: &str| {
+        if role == "user" {
+            json!({ "type": "user", "message": { "role": "user", "content": text }, "cwd": cwd, "timestamp": at })
+        } else {
+            json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "text", "text": text }] }, "timestamp": at })
+        }
+    };
     let file = store.join(format!("{sid}.jsonl"));
     let write = |lines: &[Value]| std::fs::write(&file, lines.iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
     let mut lines = vec![line("user", "rename it", "2026-11-08T10:00:00.000Z"), line("assistant", "Done.", "2026-11-08T10:00:05.000Z")];
@@ -242,7 +276,14 @@ async fn the_same_session_is_adopted_once_and_the_pr_comes_from_gh() {
     let bin = dir.join("ghbin");
     common::install_fakes(&bin, &["gh"]);
     let state = dir.join("gh-state.json");
-    let (serve, port) = start_with(&dir, &[("CLAUDE_CONFIG_DIR", dir.join("claude-cfg").to_str().unwrap()), ("WISP_GH_BIN", bin.join("gh").to_str().unwrap()), ("FAKE_GH_STATE", state.to_str().unwrap())]);
+    let (serve, port) = start_with(
+        &dir,
+        &[
+            ("CLAUDE_CONFIG_DIR", dir.join("claude-cfg").to_str().unwrap()),
+            ("WISP_GH_BIN", bin.join("gh").to_str().unwrap()),
+            ("FAKE_GH_STATE", state.to_str().unwrap()),
+        ],
+    );
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     assert_eq!(wisp(&dir, &repo, port, &["init"], None).0, 0);
 
@@ -356,7 +397,9 @@ async fn offers_the_mark_resume_requests_and_injection() {
     let made = api2.cmd("runtime.create", json!({ "prompt": "make it faster", "cwd": repo, "agent": "claude", "worktree": false })).await;
     api2.until(made["id"].as_str().unwrap(), "ends", |t| t.last().is_some_and(ended)).await;
     assert!(!argv().contains("Earlier tasks on these files"), "a prompt naming no file gets nothing");
-    let made = api2.cmd("runtime.create", json!({ "prompt": "the bug in math.js again", "cwd": repo, "agent": "claude", "worktree": false })).await;
+    let made = api2
+        .cmd("runtime.create", json!({ "prompt": "the bug in math.js again", "cwd": repo, "agent": "claude", "worktree": false }))
+        .await;
     api2.until(made["id"].as_str().unwrap(), "ends", |t| t.last().is_some_and(ended)).await;
     assert!(argv().contains("Earlier tasks on these files") && argv().contains("Fix add"), "{}", &argv()[..argv().len().min(300)]);
     drop(serve);

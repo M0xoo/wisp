@@ -14,11 +14,7 @@ pub fn load_session(r: &wisp_store::Reader<'_>, id: &str) -> wisp_store::Result<
     let Some(row) = r.get("session", id)? else {
         return Ok(None);
     };
-    let queue = r
-        .query("queue_item", &Query::new().eq("session_id", id).asc("pos"))?
-        .iter()
-        .filter_map(rows::queue_of)
-        .collect();
+    let queue = r.query("queue_item", &Query::new().eq("session_id", id).asc("pos"))?.iter().filter_map(rows::queue_of).collect();
     Ok(rows::session_of(row, queue).ok())
 }
 
@@ -32,12 +28,7 @@ pub fn save_session(w: &mut Writer<'_>, s: &Session, summary: &Summary) -> Resul
 /// rows still write (their `pos` may be the same): the queue is short, a handful of rows at most.
 pub fn save_queue(w: &mut Writer<'_>, s: &Session) -> Result<()> {
     let id = s.id.as_str();
-    let had = w.query(
-        "queue_item",
-        &Query::new()
-            .select(&["id", "pos", "body"])
-            .eq("session_id", id),
-    )?;
+    let had = w.query("queue_item", &Query::new().select(&["id", "pos", "body"]).eq("session_id", id))?;
     for row in &had {
         let rid = row.get("id").and_then(Value::as_str).unwrap_or_default();
         if !s.queue.iter().any(|q| q.id == rid) {
@@ -46,11 +37,7 @@ pub fn save_queue(w: &mut Writer<'_>, s: &Session) -> Result<()> {
     }
     for (pos, q) in s.queue.iter().enumerate() {
         let row = rows::queue_row(id, pos, q)?;
-        let same = had.iter().any(|h| {
-            h.get("id") == row.get("id")
-                && h.get("pos") == row.get("pos")
-                && h.get("body") == row.get("body")
-        });
+        let same = had.iter().any(|h| h.get("id") == row.get("id") && h.get("pos") == row.get("pos") && h.get("body") == row.get("body"));
         if !same {
             w.upsert("queue_item", row)?;
         }
@@ -75,19 +62,11 @@ impl Repo {
 
     pub async fn session(&self, id: &str) -> Result<Session> {
         let key = id.to_owned();
-        self.store
-            .read_async(move |r| load_session(r, &key))
-            .await?
-            .ok_or_else(|| RuntimeError::NoTask(id.to_owned()))
+        self.store.read_async(move |r| load_session(r, &key)).await?.ok_or_else(|| RuntimeError::NoTask(id.to_owned()))
     }
 
     /// The task's turns, newest last: `limit` of them before index `before` (all when not given).
-    pub async fn turns(
-        &self,
-        id: &str,
-        before: Option<u32>,
-        limit: Option<u32>,
-    ) -> Result<Vec<Turn>> {
+    pub async fn turns(&self, id: &str, before: Option<u32>, limit: Option<u32>) -> Result<Vec<Turn>> {
         let mut q = Query::new().eq("session_id", id).desc("idx");
         if let Some(b) = before {
             q = q.cond("idx", Cond::Lt(b.into()));
@@ -111,14 +90,8 @@ impl Repo {
     /// One turn by id.
     pub async fn turn(&self, id: &str) -> Result<Turn> {
         let key = id.to_owned();
-        let row = self
-            .store
-            .read_async(move |r| r.get("turn", key.as_str()))
-            .await?;
-        row.as_ref()
-            .map(rows::turn_of)
-            .transpose()?
-            .ok_or_else(|| RuntimeError::NoTurn(id.to_owned()))
+        let row = self.store.read_async(move |r| r.get("turn", key.as_str())).await?;
+        row.as_ref().map(rows::turn_of).transpose()?.ok_or_else(|| RuntimeError::NoTurn(id.to_owned()))
     }
 
     /// A turn's steps after `since` (its per-session seq), oldest first.
@@ -133,26 +106,15 @@ impl Repo {
 
     /// The next free seq of a task's event log.
     pub async fn next_seq(&self, session: &str) -> Result<u64> {
-        let q = Query::new()
-            .select(&["seq"])
-            .eq("session_id", session)
-            .desc("seq")
-            .limit(1);
+        let q = Query::new().select(&["seq"]).eq("session_id", session).desc("seq").limit(1);
         let rows = self.store.read_async(move |r| r.query("event", &q)).await?;
-        Ok(rows
-            .first()
-            .and_then(|r| r.get("seq"))
-            .and_then(Value::as_u64)
-            .map_or(1, |s| s + 1))
+        Ok(rows.first().and_then(|r| r.get("seq")).and_then(Value::as_u64).map_or(1, |s| s + 1))
     }
 
     /// Every list row, from the cached `summary` column only (a projection: one small JSON per task).
     pub async fn summaries(&self) -> Result<Vec<Summary>> {
         let q = Query::new().select(&["id", "summary"]).desc("updated_at");
-        let rows = self
-            .store
-            .read_async(move |r| r.query("session", &q))
-            .await?;
+        let rows = self.store.read_async(move |r| r.query("session", &q)).await?;
         Ok(rows.iter().filter_map(rows::summary_of).collect())
     }
 

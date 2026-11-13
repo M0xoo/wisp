@@ -41,8 +41,7 @@ pub struct When {
 impl When {
     /// A time was given (an edit without one keeps the time it had).
     pub fn given(&self) -> bool {
-        self.at.as_ref().is_some_and(|v| !v.is_null())
-            || self.in_min.as_ref().is_some_and(|v| !v.is_null())
+        self.at.as_ref().is_some_and(|v| !v.is_null()) || self.in_min.as_ref().is_some_and(|v| !v.is_null())
     }
 }
 

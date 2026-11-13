@@ -5,7 +5,10 @@
 use serde_json::{Map, Value};
 use wisp_harness_kit::js::{self, truthy};
 use wisp_harness_kit::protocol::exit_text;
-use wisp_harness_kit::{Change, Edit, Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, json_line, rel_value};
+use wisp_harness_kit::{
+    Change, Edit, Exit, HarnessEvent, IoStep, LineParser, Out, Re, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value,
+    json_line, rel_value,
+};
 
 static REFUSED: Re = Re::new(r"(?i)reject|denied|permission");
 static IN_PROGRESS: Re = Re::new(r"(?i)in_?progress");
@@ -121,10 +124,14 @@ impl CursorParser {
         let (outcome, value) = result_of(&body["result"]).unwrap_or_default();
         let short = name.strip_suffix("ToolCall").unwrap_or(name).to_owned();
         if !outcome.is_empty() && outcome != "success" {
-            let why = [&value["error"], &value["message"], &value["reason"], &value["stderr"]].into_iter().find(|v| truthy(v)).map_or_else(|| outcome.clone(), js::string);
+            let why = [&value["error"], &value["message"], &value["reason"], &value["stderr"]]
+                .into_iter()
+                .find(|v| truthy(v))
+                .map_or_else(|| outcome.clone(), js::string);
             out.push(HarnessEvent::ToolError { name: Some(short.clone()), text: clip(&why, 400), id: None }.into());
             if REFUSED.is_match(&outcome) {
-                let d = [&args["command"], &args["path"], &args["url"]].into_iter().find(|v| !v.is_null()).map_or_else(String::new, js::string);
+                let d =
+                    [&args["command"], &args["path"], &args["url"]].into_iter().find(|v| !v.is_null()).map_or_else(String::new, js::string);
                 out.push(HarnessEvent::Blocked { tool: short, detail: d, rule: None }.into());
             }
         } else if name == "editToolCall" || name == "deleteToolCall" {
@@ -137,12 +144,22 @@ impl CursorParser {
                 out.push(Out::Io(IoStep::Sync { file: file.clone() })); // keep the snapshot current
                 let before = &value["beforeFullFileContent"];
                 let op = if before.is_null() { "create" } else { "write" };
-                out.push(HarnessEvent::Change(Change { file, op: op.into(), edits: vec![Edit { before: js::str(before), after: after.to_owned() }], early: None, before_file: None }).into());
+                out.push(
+                    HarnessEvent::Change(Change {
+                        file,
+                        op: op.into(),
+                        edits: vec![Edit { before: js::str(before), after: after.to_owned() }],
+                        early: None,
+                        before_file: None,
+                    })
+                    .into(),
+                );
             } else {
                 out.push(Out::Io(IoStep::Changed { file }));
             }
         } else {
-            let parts: Vec<&str> = [&value["stdout"], &value["stderr"]].into_iter().filter_map(Value::as_str).filter(|s| !s.is_empty()).collect();
+            let parts: Vec<&str> =
+                [&value["stdout"], &value["stderr"]].into_iter().filter_map(Value::as_str).filter(|s| !s.is_empty()).collect();
             let text = if parts.is_empty() { value["content"].as_str().unwrap_or("").to_owned() } else { parts.join("\n") };
             if !text.is_empty() {
                 out.push(HarnessEvent::ToolOutput { id: js::str(&msg["call_id"]), text }.into());
@@ -192,7 +209,11 @@ impl LineParser for CursorParser {
                 self.saw_result = true;
                 let usage = &msg["usage"];
                 let mut stats = Map::new();
-                for (k, v) in [("durationMs", &msg["duration_ms"]), ("inputTokens", js::or(&usage["inputTokens"], &usage["input_tokens"])), ("outputTokens", js::or(&usage["outputTokens"], &usage["output_tokens"]))] {
+                for (k, v) in [
+                    ("durationMs", &msg["duration_ms"]),
+                    ("inputTokens", js::or(&usage["inputTokens"], &usage["input_tokens"])),
+                    ("outputTokens", js::or(&usage["outputTokens"], &usage["output_tokens"])),
+                ] {
                     if !v.is_null() {
                         stats.insert(k.into(), v.clone());
                     }
@@ -200,7 +221,9 @@ impl LineParser for CursorParser {
                 let sub = js::str(&msg["subtype"]);
                 let is_error = truthy(&msg["is_error"]) || (!sub.is_empty() && sub != "success");
                 let stats: Option<Box<Stats>> = serde_json::from_value(Value::Object(stats)).ok().map(Box::new);
-                out.push(HarnessEvent::Result(TurnResult { text: js::str(&msg["result"]), is_error, stats, ..TurnResult::default() }).into());
+                out.push(
+                    HarnessEvent::Result(TurnResult { text: js::str(&msg["result"]), is_error, stats, ..TurnResult::default() }).into(),
+                );
             }
             _ => {}
         }
@@ -240,7 +263,10 @@ mod tests {
 
     #[test]
     fn oneofs_both_ways() {
-        assert_eq!(tool_of(&json!({ "tool": { "case": "readToolCall", "value": { "args": {} } } })).map(|x| x.0).as_deref(), Some("readToolCall"));
+        assert_eq!(
+            tool_of(&json!({ "tool": { "case": "readToolCall", "value": { "args": {} } } })).map(|x| x.0).as_deref(),
+            Some("readToolCall")
+        );
         assert_eq!(result_of(&json!({ "result": { "case": "success", "value": {} } })).map(|x| x.0).as_deref(), Some("success"));
     }
 }

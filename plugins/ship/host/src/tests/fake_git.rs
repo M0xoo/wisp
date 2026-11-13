@@ -34,12 +34,7 @@ impl FakeGit {
         self.st.lock().unwrap_or_else(PoisonError::into_inner)
     }
     pub fn logged(&self, prefix: &str) -> Vec<String> {
-        self.lock()
-            .log
-            .iter()
-            .filter(|l| l.starts_with(prefix))
-            .cloned()
-            .collect()
+        self.lock().log.iter().filter(|l| l.starts_with(prefix)).cloned().collect()
     }
 }
 
@@ -54,16 +49,8 @@ impl GitService for FakeGit {
         if let Err(e) = call.require("git:repo") {
             return Box::pin(async move { Err(e) });
         }
-        let info = RepoInfo {
-            path: path.into(),
-            top: path.into(),
-            root: path.into(),
-            sub: String::new(),
-        };
-        done(Arc::new(FakeRepo {
-            git: self.clone(),
-            info,
-        }) as Arc<dyn Repo>)
+        let info = RepoInfo { path: path.into(), top: path.into(), root: path.into(), sub: String::new() };
+        done(Arc::new(FakeRepo { git: self.clone(), info }) as Arc<dyn Repo>)
     }
     fn clone_repo(&self, _call: &Call, _req: CloneRequest) -> F<Cloned> {
         Box::pin(async { Err(WireError::invalid("not in the fake")) })
@@ -94,17 +81,8 @@ impl Repo for FakeRepo {
     }
     fn status(&self, _call: &Call) -> F<Status> {
         let n = self.git.lock().dirty.get(&self.p()).copied().unwrap_or(0);
-        let entries = (0..n)
-            .map(|i| StatusEntry {
-                path: format!("f{i}"),
-                xy: ".M".into(),
-                from: None,
-            })
-            .collect();
-        done(Status {
-            entries,
-            ..Status::default()
-        })
+        let entries = (0..n).map(|i| StatusEntry { path: format!("f{i}"), xy: ".M".into(), from: None }).collect();
+        done(Status { entries, ..Status::default() })
     }
     fn changes(&self, _call: &Call, _base: &str) -> F<Option<Changes>> {
         done(None)
@@ -133,9 +111,7 @@ impl Repo for FakeRepo {
         let n = match st.counts.get(range) {
             Some(n) => *n,
             None if range.starts_with("origin/main..") => Some(ahead),
-            None if range.starts_with("refs/remotes/") => {
-                st.pushed.get(&self.p()).map(|p| ahead.saturating_sub(*p))
-            }
+            None if range.starts_with("refs/remotes/") => st.pushed.get(&self.p()).map(|p| ahead.saturating_sub(*p)),
             None => None,
         };
         done(n)
@@ -148,19 +124,10 @@ impl Repo for FakeRepo {
     }
     fn merge_tree(&self, _call: &Call, a: &str, b: &str) -> F<MergeTree> {
         self.log(format!("merge-tree {a} {b}"));
-        done(
-            self.git
-                .lock()
-                .merge_tree
-                .clone()
-                .unwrap_or(MergeTree::Unknown),
-        )
+        done(self.git.lock().merge_tree.clone().unwrap_or(MergeTree::Unknown))
     }
     fn base_merged(&self, _call: &Call, _base: &str) -> F<BaseMerged> {
-        done(self.git.lock().base_merged.clone().unwrap_or(BaseMerged {
-            ok: true,
-            why: None,
-        }))
+        done(self.git.lock().base_merged.clone().unwrap_or(BaseMerged { ok: true, why: None }))
     }
     fn show(&self, _call: &Call, _rev: &str, _path: &str) -> F<Option<Vec<u8>>> {
         done(None)
@@ -172,21 +139,13 @@ impl Repo for FakeRepo {
         done(None)
     }
     fn fetch(&self, _call: &Call, req: FetchRequest) -> F<()> {
-        self.log(format!(
-            "fetch {} {}",
-            req.remote.unwrap_or_default(),
-            req.refspec.unwrap_or_default()
-        ));
+        self.log(format!("fetch {} {}", req.remote.unwrap_or_default(), req.refspec.unwrap_or_default()));
         done(())
     }
     fn worktree_add(&self, _call: &Call, req: WorktreeAdd) -> F<WorktreeEntry> {
         let _ = std::fs::create_dir_all(&req.path);
         self.log(format!("worktree add {} {}", req.path, req.branch));
-        done(WorktreeEntry {
-            path: req.path,
-            branch: req.branch,
-            ..WorktreeEntry::default()
-        })
+        done(WorktreeEntry { path: req.path, branch: req.branch, ..WorktreeEntry::default() })
     }
     fn worktree_remove(&self, _call: &Call, path: &str) -> F<()> {
         let _ = std::fs::remove_dir_all(path);
@@ -214,10 +173,7 @@ impl Repo for FakeRepo {
         }
         st.dirty.insert(p.clone(), 0);
         *st.ahead.entry(p.clone()).or_default() += 1;
-        st.log.push(format!(
-            "commit {p} {}|{}|all={}",
-            req.message, req.body, req.all
-        ));
+        st.log.push(format!("commit {p} {}|{}|all={}", req.message, req.body, req.all));
         done(Some(format!("sha-{p}-{}", st.ahead[&p])))
     }
     fn push(&self, _call: &Call, req: PushRequest) -> F<()> {
@@ -226,24 +182,12 @@ impl Repo for FakeRepo {
         if let Some(why) = st.push_fails.clone() {
             return Box::pin(async move { Err(WireError::invalid(why)) });
         }
-        st.log.push(format!(
-            "push {} {}{}",
-            req.remote,
-            if req.delete { "--delete " } else { "" },
-            req.refspec
-        ));
+        st.log.push(format!("push {} {}{}", req.remote, if req.delete { "--delete " } else { "" }, req.refspec));
         if !req.delete {
             let ahead = st.ahead.get(&p).copied().unwrap_or(0);
             st.pushed.insert(p.clone(), ahead);
-            let branch = req
-                .refspec
-                .trim_start_matches("HEAD:refs/heads/")
-                .to_owned();
-            self.git
-                .gh
-                .lock()
-                .heads
-                .insert(branch, format!("sha-{p}-{ahead}"));
+            let branch = req.refspec.trim_start_matches("HEAD:refs/heads/").to_owned();
+            self.git.gh.lock().heads.insert(branch, format!("sha-{p}-{ahead}"));
         }
         done(())
     }
@@ -253,10 +197,7 @@ impl Repo for FakeRepo {
     }
     fn sync_base(&self, _call: &Call, base: &str) -> F<Synced> {
         self.log(format!("sync {} {base}", self.p()));
-        done(Synced {
-            ok: true,
-            text: format!("Local {base} is up to date with origin/{base}."),
-        })
+        done(Synced { ok: true, text: format!("Local {base} is up to date with origin/{base}.") })
     }
     fn snapshot(&self, _call: &Call) -> F<Option<String>> {
         done(None)
@@ -264,12 +205,7 @@ impl Repo for FakeRepo {
     fn patch(&self, _call: &Call, _base: &str) -> F<String> {
         done(String::new())
     }
-    fn on_change(
-        &self,
-        _call: &Call,
-        owner: &CancellationToken,
-        _cb: ChangeFn,
-    ) -> Result<Subscription> {
+    fn on_change(&self, _call: &Call, owner: &CancellationToken, _cb: ChangeFn) -> Result<Subscription> {
         Ok(Subscription::new(owner.child_token()))
     }
     fn touch(&self, _call: &Call, _kind: &str) -> Result<()> {

@@ -18,14 +18,7 @@ fn parse(v: &str) -> Parsed<'_> {
     for (slot, part) in nums.iter_mut().zip(core.split('.')) {
         *slot = part.parse().unwrap_or(0);
     }
-    Parsed {
-        core: nums,
-        pre: if pre.is_empty() && !v.contains('-') {
-            Vec::new()
-        } else {
-            pre.split('.').collect()
-        },
-    }
+    Parsed { core: nums, pre: if pre.is_empty() && !v.contains('-') { Vec::new() } else { pre.split('.').collect() } }
 }
 
 fn numeric(s: &str) -> bool {
@@ -77,13 +70,10 @@ pub fn compare(a: &str, b: &str) -> Ordering {
 
 /// The newest of `versions`, skipping empty ones; the first wins a tie (v1's reduce).
 pub fn newest<'a>(versions: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
-    versions
-        .into_iter()
-        .filter(|v| !v.is_empty())
-        .fold(None, |best, v| match best {
-            Some(b) if !newer(v, b) => Some(b),
-            _ => Some(v),
-        })
+    versions.into_iter().filter(|v| !v.is_empty()).fold(None, |best, v| match best {
+        Some(b) if !newer(v, b) => Some(b),
+        _ => Some(v),
+    })
 }
 
 /// The first `\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?` in `text` (the rolling nightly's title, "wisp 0.38.0-nightly.…").
@@ -117,10 +107,7 @@ pub fn find_version(text: &str) -> Option<&str> {
             continue;
         }
         if b.get(end) == Some(&b'-') {
-            let rest = b[end + 1..]
-                .iter()
-                .take_while(|c| c.is_ascii_alphanumeric() || **c == b'.' || **c == b'-')
-                .count();
+            let rest = b[end + 1..].iter().take_while(|c| c.is_ascii_alphanumeric() || **c == b'.' || **c == b'-').count();
             if rest > 0 {
                 end += 1 + rest;
             }

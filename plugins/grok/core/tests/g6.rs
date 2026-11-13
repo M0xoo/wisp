@@ -16,7 +16,11 @@ fn dir() -> std::path::PathBuf {
 }
 
 fn names() -> Vec<String> {
-    let mut n: Vec<String> = std::fs::read_dir(dir()).unwrap().filter_map(Result::ok).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned)).collect();
+    let mut n: Vec<String> = std::fs::read_dir(dir())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned))
+        .collect();
     n.sort();
     n
 }
@@ -67,7 +71,16 @@ fn every_fixture_builds_v1s_argv() {
             agent_file: o["mcpServers"].is_object().then_some("AGENT"),
         });
         // v1's prompt and agent files had random temp names
-        let want: Vec<String> = m["argv"].as_array().unwrap().iter().map(|x| match s(x) { p if p.ends_with("/prompt.md") => "PROMPT".to_owned(), p if p.ends_with("/wisp.md") => "AGENT".to_owned(), p => p.to_owned() }).collect();
+        let want: Vec<String> = m["argv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| match s(x) {
+                p if p.ends_with("/prompt.md") => "PROMPT".to_owned(),
+                p if p.ends_with("/wisp.md") => "AGENT".to_owned(),
+                p => p.to_owned(),
+            })
+            .collect();
         assert_eq!(a, want, "{name}");
     }
 }

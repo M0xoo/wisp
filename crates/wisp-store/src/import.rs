@@ -27,13 +27,11 @@ pub struct ImportFile {
 
 impl ImportFile {
     pub fn text(&self) -> Result<&str> {
-        std::str::from_utf8(&self.bytes)
-            .map_err(|e| invalid(format!("{} is not UTF-8: {e}", self.name)))
+        std::str::from_utf8(&self.bytes).map_err(|e| invalid(format!("{} is not UTF-8: {e}", self.name)))
     }
     /// Parsed JSON; a cut-off or corrupt file fails, and the file is recorded as failed.
     pub fn json<T: DeserializeOwned>(&self) -> Result<T> {
-        serde_json::from_slice(&self.bytes)
-            .map_err(|e| invalid(format!("{} is not valid JSON: {e}", self.name)))
+        serde_json::from_slice(&self.bytes).map_err(|e| invalid(format!("{} is not valid JSON: {e}", self.name)))
     }
 }
 
@@ -54,21 +52,13 @@ pub struct ImportOptions {
 
 impl std::fmt::Debug for ImportOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ImportOptions")
-            .field("name", &self.name)
-            .field("dir", &self.dir)
-            .finish_non_exhaustive()
+        f.debug_struct("ImportOptions").field("name", &self.name).field("dir", &self.dir).finish_non_exhaustive()
     }
 }
 
 impl ImportOptions {
     pub fn new(name: &str, dir: impl Into<PathBuf>) -> Self {
-        Self {
-            name: name.to_owned(),
-            dir: dir.into(),
-            pattern: None,
-            cancel: None,
-        }
+        Self { name: name.to_owned(), dir: dir.into(), pattern: None, cancel: None }
     }
 }
 
@@ -95,9 +85,7 @@ fn valid_name(s: &str) -> bool {
 }
 
 fn has_ext(name: &str, ext: &str) -> bool {
-    Path::new(name)
-        .extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case(ext))
+    Path::new(name).extension().is_some_and(|e| e.eq_ignore_ascii_case(ext))
 }
 
 fn mark_key(import: &str, file: &str) -> String {
@@ -105,24 +93,13 @@ fn mark_key(import: &str, file: &str) -> String {
 }
 
 async fn stat(path: &Path) -> Option<(u64, u64)> {
-    let m = tokio::fs::metadata(path)
-        .await
-        .ok()
-        .filter(std::fs::Metadata::is_file)?;
-    let mtime = m
-        .modified()
-        .ok()?
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?;
+    let m = tokio::fs::metadata(path).await.ok().filter(std::fs::Metadata::is_file)?;
+    let mtime = m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
     Some((u64::try_from(mtime.as_nanos()).unwrap_or(u64::MAX), m.len()))
 }
 
 /// Imports every matching file in `opts.dir` that is new or changed since its last import.
-pub async fn import_files(
-    store: &Store,
-    opts: ImportOptions,
-    handle: ImportHandler,
-) -> Result<ImportReport> {
+pub async fn import_files(store: &Store, opts: ImportOptions, handle: ImportHandler) -> Result<ImportReport> {
     if !valid_name(&opts.name) {
         return Err(invalid(format!("bad import name: {}", opts.name)));
     }
@@ -135,21 +112,14 @@ pub async fn import_files(
     };
     while let Some(e) = dir.next_entry().await? {
         let n = e.file_name().to_string_lossy().into_owned();
-        let wanted = opts
-            .pattern
-            .as_ref()
-            .map_or_else(|| has_ext(&n, "json"), |p| p(&n));
+        let wanted = opts.pattern.as_ref().map_or_else(|| has_ext(&n, "json"), |p| p(&n));
         if wanted && !has_ext(&n, "tmp") {
             names.push(n);
         }
     }
     names.sort();
     for name in names {
-        if opts
-            .cancel
-            .as_ref()
-            .is_some_and(CancellationToken::is_cancelled)
-        {
+        if opts.cancel.as_ref().is_some_and(CancellationToken::is_cancelled) {
             report.stopped = true;
             break;
         }
@@ -158,13 +128,7 @@ pub async fn import_files(
     Ok(report)
 }
 
-async fn import_one(
-    store: &Store,
-    opts: &ImportOptions,
-    handle: &ImportHandler,
-    name: &str,
-    report: &mut ImportReport,
-) -> Result<()> {
+async fn import_one(store: &Store, opts: &ImportOptions, handle: &ImportHandler, name: &str, report: &mut ImportReport) -> Result<()> {
     let path = opts.dir.join(name);
     let Some((mtime_ns, size)) = stat(&path).await else {
         return Ok(());
@@ -173,10 +137,7 @@ async fn import_one(
     let had: Option<Mark> = store
         .read_async({
             let key = key.clone();
-            move |r| {
-                Ok(r.get_meta(&key)?
-                    .and_then(|v| serde_json::from_str(&v).ok()))
-            }
+            move |r| Ok(r.get_meta(&key)?.and_then(|v| serde_json::from_str(&v).ok()))
         })
         .await?;
     if had.is_some_and(|m| m.mtime_ns == mtime_ns && m.size == size) {
@@ -186,18 +147,8 @@ async fn import_one(
     let Ok(bytes) = tokio::fs::read(&path).await else {
         return Ok(());
     };
-    let file = ImportFile {
-        path,
-        name: name.to_owned(),
-        mtime_ns,
-        size,
-        bytes,
-    };
-    let mark = serde_json::to_string(&Mark {
-        mtime_ns,
-        size,
-        error: None,
-    })?;
+    let file = ImportFile { path, name: name.to_owned(), mtime_ns, size, bytes };
+    let mark = serde_json::to_string(&Mark { mtime_ns, size, error: None })?;
     let (h, k) = (handle.clone(), key.clone());
     match store
         .write(move |w| {
@@ -211,14 +162,8 @@ async fn import_one(
         Err(e) => {
             let error = e.to_string();
             // Recorded so it isn't retried on every start; a new mtime or size retries it.
-            let failed = serde_json::to_string(&Mark {
-                mtime_ns,
-                size,
-                error: Some(error.clone()),
-            })?;
-            store
-                .write(move |w| w.set_meta(&key, Some(&failed)))
-                .await?;
+            let failed = serde_json::to_string(&Mark { mtime_ns, size, error: Some(error.clone()) })?;
+            store.write(move |w| w.set_meta(&key, Some(&failed))).await?;
             report.failed.push((name.to_owned(), error));
         }
     }

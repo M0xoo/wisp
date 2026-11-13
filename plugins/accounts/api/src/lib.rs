@@ -18,9 +18,8 @@ pub mod model;
 use wisp_kernel::{BoxFuture, Point};
 
 pub use model::{
-    AccountKind, AccountState, AccountView, AccountsOut, AddOut, ChangeKind, CleanOut, DiskHarness,
-    DiskPart, DiskRemovable, DiskView, Fingerprint, KeyProviderView, KeysView, LoginState,
-    LoginStatus, LoginView, Note, WatchChange, WatchView,
+    AccountKind, AccountState, AccountView, AccountsOut, AddOut, ChangeKind, CleanOut, DiskHarness, DiskPart, DiskRemovable, DiskView,
+    Fingerprint, KeyProviderView, KeysView, LoginState, LoginStatus, LoginView, Note, WatchChange, WatchView,
 };
 
 /// The plugin id (manifest `id`).
@@ -83,11 +82,7 @@ pub enum Counter {
 
 impl Default for Meter {
     fn default() -> Self {
-        Self {
-            unit: "mtok".into(),
-            counter: Counter::TurnTokens,
-            plan_change: None,
-        }
+        Self { unit: "mtok".into(), counter: Counter::TurnTokens, plan_change: None }
     }
 }
 

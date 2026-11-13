@@ -52,11 +52,7 @@ impl PeerRow {
     }
     /// v1's `kind`: 'grid' for both grid transports, else the transport.
     pub fn kind(&self) -> &str {
-        if self.transport == GRID_TUNNEL {
-            GRID
-        } else {
-            &self.transport
-        }
+        if self.transport == GRID_TUNNEL { GRID } else { &self.transport }
     }
     /// another of your computers on a grid (v1 `computer`): only its owner turns it on
     pub fn computer(&self) -> Option<&str> {
@@ -134,11 +130,7 @@ pub struct Hint {
 
 impl Hint {
     pub fn titled(title: &str, text: impl Into<String>) -> Self {
-        Self {
-            title: Some(title.to_owned()),
-            text: text.into(),
-            ..Self::default()
-        }
+        Self { title: Some(title.to_owned()), text: text.into(), ..Self::default() }
     }
 }
 

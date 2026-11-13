@@ -38,13 +38,20 @@ pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) {
 
 /// `runtime.create`: a task forked from `of` (a resumed one).
 pub(crate) async fn create_fork(ctx: &Ctx, call: &Call, prompt: String, title: String, cwd: String, of: String) -> Result<String> {
-    let a = r::StartArgs { prompt, title: Some(title), cwd: Some(cwd), lineage: Lineage { fork_of: Some(of), ..Lineage::default() }, ..r::StartArgs::default() };
+    let a = r::StartArgs {
+        prompt,
+        title: Some(title),
+        cwd: Some(cwd),
+        lineage: Lineage { fork_of: Some(of), ..Lineage::default() },
+        ..r::StartArgs::default()
+    };
     ctx.run::<r::Create>(call, a).await.map(|c| c.id.as_str().to_owned())
 }
 
 /// `share.preview` at `level` (`spec` | `report` | `full`; anything else is refused).
 pub(crate) async fn preview(ctx: &Ctx, call: &Call, id: &str, level: &str) -> Result<Preview> {
-    let level: Level = serde_json::from_value(Value::String(level.to_owned())).map_err(|_| WireError::invalid(format!("no share level `{level}` (spec | report | full)")))?;
+    let level: Level = serde_json::from_value(Value::String(level.to_owned()))
+        .map_err(|_| WireError::invalid(format!("no share level `{level}` (spec | report | full)")))?;
     ctx.run::<PreviewCmd>(call, ShareArgs { id: id.to_owned(), level }).await
 }
 

@@ -43,7 +43,10 @@ async fn a_second_codex_account_signs_in_and_its_runs_use_its_folder() {
     let st = api.cmd("accounts.login.status", json!({ "agent": "codex", "account": "w1" })).await;
     assert_eq!(st["signedIn"], true, "{st}");
     // a task on that account runs with its folder as CODEX_HOME
-    let id = api.cmd("runtime.create", json!({ "prompt": "fix", "cwd": dir.join("proj"), "agent": "codex", "account": "w1" })).await["id"].as_str().unwrap().to_owned();
+    let id = api.cmd("runtime.create", json!({ "prompt": "fix", "cwd": dir.join("proj"), "agent": "codex", "account": "w1" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     api.until(&id, "the turn ends", |t| t.len() == 1 && ended(&t[0])).await;
     let runs = common::records(&rec.join("codex.jsonl"));
     let home = runs.iter().rev().find(|r| r["argv"][0] == "exec").map(|r| r["codexHome"].clone()).unwrap();
@@ -74,7 +77,10 @@ async fn a_changed_harness_holds_its_turn_until_trusted() {
     std::fs::write(&bin, bytes).unwrap();
     #[cfg(unix)]
     std::fs::set_permissions(&bin, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
-    let id = api.cmd("runtime.create", json!({ "prompt": "again", "cwd": dir.join("proj"), "agent": "codex" })).await["id"].as_str().unwrap().to_owned();
+    let id = api.cmd("runtime.create", json!({ "prompt": "again", "cwd": dir.join("proj"), "agent": "codex" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let t = api.until(&id, "held", |t| t.len() == 1 && t[0]["status"] == "held").await;
     assert_eq!(t[0]["held"]["kind"], "harness-changed", "{:?}", t[0]);
     assert_eq!(api.cmd("accounts.watch", json!({ "agent": "codex" })).await["changed"]["kind"], "warn");

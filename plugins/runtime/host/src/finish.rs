@@ -22,12 +22,7 @@ impl Runtime {
     pub(crate) async fn finish(self: &Arc<Self>, d: &mut Drive, e: Effect) {
         d.finished = true;
         d.coal.flush().await;
-        if let Some(l) = self
-            .live
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get_mut(&d.sid)
-        {
+        if let Some(l) = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(&d.sid) {
             l.finished = true;
         }
         let n_events = u32::try_from(d.seq).unwrap_or(u32::MAX);
@@ -36,23 +31,8 @@ impl Runtime {
         }
     }
 
-    async fn end_turn(
-        self: &Arc<Self>,
-        sid: &str,
-        tid: &str,
-        head: &Head,
-        e: Effect,
-        n_events: u32,
-    ) -> Result<()> {
-        let Effect::Finish {
-            text,
-            is_error,
-            stopped,
-            stats,
-            auth_failed,
-            stop_reason,
-        } = e
-        else {
+    async fn end_turn(self: &Arc<Self>, sid: &str, tid: &str, head: &Head, e: Effect, n_events: u32) -> Result<()> {
+        let Effect::Finish { text, is_error, stopped, stats, auth_failed, stop_reason } = e else {
             return Ok(());
         };
         let _guard = self.task_lock(sid).await;
@@ -63,9 +43,7 @@ impl Runtime {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(sid)
-            .map_or((false, false), |l| {
-                (l.stopping || l.interrupting, l.interrupting)
-            });
+            .map_or((false, false), |l| (l.stopping || l.interrupting, l.interrupting));
         let h = self.harness(&turn.agent).ok();
         let harness = h.as_ref().map(|h| h.info().name.clone()).unwrap_or_default();
         let ending = Ending {
@@ -78,9 +56,7 @@ impl Runtime {
             reason: None,
         };
         let blocks = self.host.blocks();
-        let (status, mut presentation) = land::end_presentation(&ending, |t| {
-            wisp_runtime_core::blocks::presentation(t, &blocks)
-        });
+        let (status, mut presentation) = land::end_presentation(&ending, |t| wisp_runtime_core::blocks::presentation(t, &blocks));
         // a usage limit first (v1 `#atLimit`), then a refusal (v1 `#refused`, never at a limit)
         let ours = s.parent_id.is_none() && !(stopped || stopping);
         let limited = ours && is_error && self.at_limit(&s, &mut turn, &text, &mut presentation).await;
@@ -90,10 +66,7 @@ impl Runtime {
         turn.status = status;
         turn.ended_at = Some(self.now());
         turn.stats = stats.as_ref().map(land::turn_stats);
-        turn.text = head
-            .text
-            .clone()
-            .or_else(|| (!text.is_empty()).then(|| text.clone()));
+        turn.text = head.text.clone().or_else(|| (!text.is_empty()).then(|| text.clone()));
         turn.is_error = status == TurnStatus::Error;
         turn.changed_files = u32::try_from(head.changes.len()).ok().filter(|n| *n > 0);
         turn.n_events = n_events;
@@ -102,7 +75,10 @@ impl Runtime {
         let blocked = wisp_runtime_core::activity::allowable(turn.mode, &head.blocked);
         if !head.changes.is_empty() || !blocked.is_empty() || auth_failed || head.cli.is_some() {
             // `cli`: what the CLI was this turn (version, catalog), for the page's "since the last turn" line
-            turn.ext.insert("wisp.runtime".into(), json!({ "changes": head.changes, "blocked": blocked, "authFailed": auth_failed, "cli": head.cli }));
+            turn.ext.insert(
+                "wisp.runtime".into(),
+                json!({ "changes": head.changes, "blocked": blocked, "authFailed": auth_failed, "cli": head.cli }),
+            );
         }
         if status == TurnStatus::Done
             && turn.idx == 0
@@ -149,12 +125,7 @@ impl Runtime {
     }
 
     fn landing(&self, s: &Session, turn: &Turn, stopped: bool, interrupted: bool) -> land::Landing {
-        let outcome = self
-            .host
-            .outcomes()
-            .iter()
-            .find_map(|o| o.outcome(s, turn))
-            .unwrap_or_default();
+        let outcome = self.host.outcomes().iter().find_map(|o| o.outcome(s, turn)).unwrap_or_default();
         let facts = Facts {
             stopped,
             interrupted,
@@ -163,18 +134,10 @@ impl Runtime {
             sub: s.parent_id.is_some(),
             ..Facts::default()
         };
-        let end = wisp_runtime_api::points::TurnEnd {
-            stopped,
-            is_error: turn.is_error,
-        };
+        let end = wisp_runtime_api::points::TurnEnd { stopped, is_error: turn.is_error };
         let mut steps = self.host.after_steps();
         steps.sort_by_key(|a| a.order());
-        land::land(facts, outcome, || {
-            steps
-                .iter()
-                .find(|a| a.wants(s, turn, end))
-                .map(|a| a.id().to_owned())
-        })
+        land::land(facts, outcome, || steps.iter().find(|a| a.wants(s, turn, end)).map(|a| a.id().to_owned()))
     }
 
     fn emit_end(
@@ -225,12 +188,7 @@ impl Runtime {
     }
 
     /// A turn that failed before its process ran (the spawn failed).
-    pub(crate) async fn finish_now(
-        self: &Arc<Self>,
-        sid: &str,
-        tid: &str,
-        why: &str,
-    ) -> Result<()> {
+    pub(crate) async fn finish_now(self: &Arc<Self>, sid: &str, tid: &str, why: &str) -> Result<()> {
         let e = Effect::Finish {
             text: why.to_owned(),
             is_error: true,
@@ -243,11 +201,7 @@ impl Runtime {
     }
 
     /// A turn a crash or restart left running never finished: it shows stopped (v1 `restartReason`).
-    pub(crate) async fn end_unfinished(
-        self: &Arc<Self>,
-        mut s: Session,
-        mut t: Turn,
-    ) -> Result<()> {
+    pub(crate) async fn end_unfinished(self: &Arc<Self>, mut s: Session, mut t: Turn) -> Result<()> {
         let ending = Ending {
             stopped: true,
             interrupted: false,
@@ -255,14 +209,9 @@ impl Runtime {
             text: "",
             harness: "",
             changes: &[],
-            reason: Some((
-                "Stopped",
-                "wisp restarted while this was running. Follow up to pick it back up.",
-            )),
+            reason: Some(("Stopped", "wisp restarted while this was running. Follow up to pick it back up.")),
         };
-        let (status, p) = land::end_presentation(&ending, |_| {
-            wisp_runtime_api::model::Presentation::default()
-        });
+        let (status, p) = land::end_presentation(&ending, |_| wisp_runtime_api::model::Presentation::default());
         t.status = status;
         t.presentation = Some(p);
         t.ended_at = Some(t.started_at);
@@ -273,20 +222,14 @@ impl Runtime {
 
     /// The run let go: the live entry goes, and the next queued follow-up starts (unless a Stop held them).
     pub(crate) async fn release_run(self: &Arc<Self>, sid: &str) {
-        self.live
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .remove(sid);
+        self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(sid);
         let next = {
             let _guard = self.task_lock(sid).await;
             let Ok(mut s) = self.repo.session(sid).await else {
                 return;
             };
             let mut held = s.queue_held;
-            let next = queue::next_after_release(&mut Queue {
-                items: &mut s.queue,
-                held: &mut held,
-            });
+            let next = queue::next_after_release(&mut Queue { items: &mut s.queue, held: &mut held });
             if next.is_some() && self.persist(&mut s, Vec::new()).await.is_err() {
                 return;
             }
@@ -314,18 +257,32 @@ impl Runtime {
 /// one ask, and one run's answer shouldn't name it: v1 runner.js `!session.groupId`).
 fn title_auto(s: &Session) -> bool {
     crate::group::group_of(s).is_none()
-        && s.ext
-        .get("wisp.runtime")
-        .and_then(|v| v.get("titleAuto"))
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
+        && s.ext.get("wisp.runtime").and_then(|v| v.get("titleAuto")).and_then(serde_json::Value::as_bool).unwrap_or(false)
 }
 
 /// v1 runner.js `#refused`: a turn the model turned down says so, and the card offers another vendor's harness;
 /// never for a subagent's run (its lead reads the answer as it is), nor a stopped one.
 #[allow(clippy::too_many_arguments, reason = "the turn's end, as the refusal check reads it")]
-fn refuse(turn: &mut Turn, p: &mut wisp_runtime_api::model::Presentation, text: &str, stop_reason: &str, is_error: bool, changes: usize, name: &str, h: Option<&dyn Harness>) {
-    let ended = wisp_runtime_core::refused::Ended { text, stop_reason, is_error, changes, agent: &turn.agent, model: &turn.model, name, home: h.and_then(Harness::vendor) };
+fn refuse(
+    turn: &mut Turn,
+    p: &mut wisp_runtime_api::model::Presentation,
+    text: &str,
+    stop_reason: &str,
+    is_error: bool,
+    changes: usize,
+    name: &str,
+    h: Option<&dyn Harness>,
+) {
+    let ended = wisp_runtime_core::refused::Ended {
+        text,
+        stop_reason,
+        is_error,
+        changes,
+        agent: &turn.agent,
+        model: &turn.model,
+        name,
+        home: h.and_then(Harness::vendor),
+    };
     if let Some((r, blocks)) = wisp_runtime_core::refused::refused(&ended, &p.blocks) {
         turn.refusal = Some(r);
         p.blocks = blocks;

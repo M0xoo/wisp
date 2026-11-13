@@ -123,13 +123,18 @@ pub enum Decision {
     /// not for this trigger (its filters, its `if`): nothing recorded
     Nothing,
     Skipped(String),
-    Batched { due: i64 },
+    Batched {
+        due: i64,
+    },
     Queued(String),
     /// held back (rate, budget, cooldown, a paused member), queued with why
     Held(String),
     Awaiting(Job),
     /// stop these runs, then start the job (`concurrency: replace`)
-    Replace { stop: Vec<String>, job: Job },
+    Replace {
+        stop: Vec<String>,
+        job: Job,
+    },
     Start(Job),
 }
 
@@ -553,11 +558,7 @@ pub fn in_window(w: &When, local_ms: i64) -> bool {
     if a <= b {
         return day_in(&w.days, l.weekday) && now >= a && now < b;
     }
-    if now >= a {
-        day_in(&w.days, l.weekday)
-    } else {
-        now < b && day_in(&w.days, (l.weekday + 6) % 7)
-    }
+    if now >= a { day_in(&w.days, l.weekday) } else { now < b && day_in(&w.days, (l.weekday + 6) % 7) }
 }
 
 /// Whether a trigger on `on` can run: some plugin offers `on` (a durable event type in its manifest or a

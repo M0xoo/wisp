@@ -15,8 +15,22 @@ pub fn in_sandbox(env: &dyn Fn(&str) -> Option<String>) -> bool {
     env("WISP_SANDBOX").is_some_and(|v| v == "1")
 }
 
-async fn run(proc: &Proc, cwd: &Path, bin: &str, args: &[String], input: Option<Vec<u8>>, secs: u64) -> std::result::Result<String, String> {
-    let opts = ExecOpts { cwd: Some(cwd.to_owned()), env: Env::default().with("GIT_TERMINAL_PROMPT", "0"), input, timeout: Some(Duration::from_secs(secs)), max_output: 1 << 20, ..ExecOpts::default() };
+async fn run(
+    proc: &Proc,
+    cwd: &Path,
+    bin: &str,
+    args: &[String],
+    input: Option<Vec<u8>>,
+    secs: u64,
+) -> std::result::Result<String, String> {
+    let opts = ExecOpts {
+        cwd: Some(cwd.to_owned()),
+        env: Env::default().with("GIT_TERMINAL_PROMPT", "0"),
+        input,
+        timeout: Some(Duration::from_secs(secs)),
+        max_output: 1 << 20,
+        ..ExecOpts::default()
+    };
     let r = proc.exec(bin, args, opts).await.map_err(|e| e.to_string())?;
     if r.exit.success() { Ok(r.stdout_text()) } else { Err(format!("{}{}", r.stdout_text(), r.stderr_text()).trim().to_owned()) }
 }
@@ -32,7 +46,8 @@ pub async fn seed(ctx: &Ctx, home: &Path, a: &api::SeedArgs) -> Result<api::Seed
         tokio::fs::create_dir_all(&dir).await.map_err(|e| WireError::internal(format!("{name}: {e}")))?;
         return Ok(api::Seeded { cwd: dir.display().to_string(), setup: None });
     }
-    let bytes = base64::engine::general_purpose::STANDARD.decode(a.bundle.as_bytes()).map_err(|_| WireError::invalid("the bundle isn't base64"))?;
+    let bytes =
+        base64::engine::general_purpose::STANDARD.decode(a.bundle.as_bytes()).map_err(|_| WireError::invalid("the bundle isn't base64"))?;
     let bundle = home.join(format!(".sandbox/{name}.bundle"));
     if let Some(p) = bundle.parent() {
         let _ = tokio::fs::create_dir_all(p).await;
@@ -41,7 +56,9 @@ pub async fn seed(ctx: &Ctx, home: &Path, a: &api::SeedArgs) -> Result<api::Seed
     // the same project again (a member's own sandbox, the next job): a fresh copy of what came now
     let _ = tokio::fs::remove_dir_all(&dir).await;
     for args in core::seed_commands(&bundle.display().to_string(), &dir.display().to_string(), &a.branch, &a.origin) {
-        run(&proc, &code, "git", &args, None, 300).await.map_err(|e| WireError::internal(format!("git {}: {e}", args.first().map_or("", String::as_str))))?;
+        run(&proc, &code, "git", &args, None, 300)
+            .await
+            .map_err(|e| WireError::internal(format!("git {}: {e}", args.first().map_or("", String::as_str))))?;
     }
     let _ = tokio::fs::remove_file(&bundle).await;
     let set = |k: &str, v: &str| ["config", k, v].map(str::to_owned).to_vec();
@@ -53,7 +70,9 @@ pub async fn seed(ctx: &Ctx, home: &Path, a: &api::SeedArgs) -> Result<api::Seed
     }
     if !a.patch.trim().is_empty() {
         let apply = ["apply", "--whitespace=nowarn", "-"].map(str::to_owned).to_vec();
-        run(&proc, &dir, "git", &apply, Some(a.patch.clone().into_bytes()), 60).await.map_err(|e| WireError::internal(format!("the uncommitted changes didn't apply: {e}")))?;
+        run(&proc, &dir, "git", &apply, Some(a.patch.clone().into_bytes()), 60)
+            .await
+            .map_err(|e| WireError::internal(format!("the uncommitted changes didn't apply: {e}")))?;
     }
     // what it was when it came: a delegate's changes go back as the difference from this (no commit made, no ref moved)
     let base = match run(&proc, &dir, "git", &["stash".to_owned(), "create".to_owned()], None, 30).await {
@@ -91,9 +110,13 @@ pub async fn patch(ctx: &Ctx, home: &Path, cwd: &str) -> Result<api::Patch> {
     if !dir.starts_with(home.join("code")) {
         return Err(WireError::invalid("only a project under ~/code has changes to give back"));
     }
-    let base = tokio::fs::read_to_string(home.join(format!(".sandbox/base-{name}"))).await.map_err(|_| WireError::not_found("That project didn't come in through a seed."))?;
+    let base = tokio::fs::read_to_string(home.join(format!(".sandbox/base-{name}")))
+        .await
+        .map_err(|_| WireError::not_found("That project didn't come in through a seed."))?;
     // new files count: marked as intended, so the diff has them
     let _ = run(&proc, &dir, "git", &["add".to_owned(), "-N".to_owned(), ".".to_owned()], None, 30).await;
-    let diff = run(&proc, &dir, "git", &["diff".to_owned(), base.trim().to_owned(), "--binary".to_owned()], None, 120).await.map_err(|e| WireError::internal(format!("git diff: {e}")))?;
+    let diff = run(&proc, &dir, "git", &["diff".to_owned(), base.trim().to_owned(), "--binary".to_owned()], None, 120)
+        .await
+        .map_err(|e| WireError::internal(format!("git diff: {e}")))?;
     Ok(api::Patch { patch: diff })
 }

@@ -138,7 +138,10 @@ mod tests {
     use crate::Budget;
 
     fn at(used: f64) -> LimitsReport {
-        LimitsReport { windows: vec![LimitWindow { id: "five_hour".into(), used, resets_at: Some(30 * 24 * H), ms: Some(5 * H), slot: None }], ..LimitsReport::default() }
+        LimitsReport {
+            windows: vec![LimitWindow { id: "five_hour".into(), used, resets_at: Some(30 * 24 * H), ms: Some(5 * H), slot: None }],
+            ..LimitsReport::default()
+        }
     }
 
     /// v1 test/budget.test.js "drain watch": two weeks of usual runs, then two recent runs that take four times the

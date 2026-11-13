@@ -34,7 +34,9 @@ pub fn turns(c: &Connection, id: &str) -> Vec<SessionTurn> {
     let Ok(mut st) = c.prepare("SELECT m.id, m.time_created, m.data, p.data FROM message m LEFT JOIN part p ON p.message_id = m.id WHERE m.session_id = ?1 ORDER BY m.time_created, m.id, p.time_created, p.id") else {
         return Vec::new();
     };
-    let Ok(rows) = st.query_map(params![id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?, r.get::<_, Option<String>>(3)?))) else {
+    let Ok(rows) = st.query_map(params![id], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?, r.get::<_, Option<String>>(3)?))
+    }) else {
         return Vec::new();
     };
     let mut out: Vec<SessionTurn> = Vec::new();
@@ -42,7 +44,8 @@ pub fn turns(c: &Connection, id: &str) -> Vec<SessionTurn> {
     for (mid, at, data, part) in rows.flatten() {
         let m: Value = serde_json::from_str(&data).unwrap_or(Value::Null);
         let p: Value = part.and_then(|p| serde_json::from_str(&p).ok()).unwrap_or(Value::Null);
-        let text = (p.get("type").and_then(Value::as_str) == Some("text") && p.get("synthetic") != Some(&Value::Bool(true))).then(|| p.get("text").and_then(Value::as_str).unwrap_or_default().to_owned());
+        let text = (p.get("type").and_then(Value::as_str) == Some("text") && p.get("synthetic") != Some(&Value::Bool(true)))
+            .then(|| p.get("text").and_then(Value::as_str).unwrap_or_default().to_owned());
         let new_msg = mid != last_msg;
         last_msg = mid;
         match m.get("role").and_then(Value::as_str) {
@@ -78,7 +81,15 @@ pub fn turns(c: &Connection, id: &str) -> Vec<SessionTurn> {
 
 fn session(row: (String, String, String, i64, i64), n: usize) -> OutsideSession {
     let (id, cwd, title, started_at, updated_at) = row;
-    OutsideSession { harness: "opencode".into(), id, cwd, title: title.chars().take(80).collect(), started_at, updated_at, prompts: u32::try_from(n).unwrap_or(u32::MAX) }
+    OutsideSession {
+        harness: "opencode".into(),
+        id,
+        cwd,
+        title: title.chars().take(80).collect(),
+        started_at,
+        updated_at,
+        prompts: u32::try_from(n).unwrap_or(u32::MAX),
+    }
 }
 
 type Row = (String, String, String, i64, i64);
@@ -90,7 +101,9 @@ fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
 pub fn list_in(c: &Connection, forms: &[String]) -> Vec<OutsideSession> {
     let mut out = Vec::new();
     for f in forms {
-        let Ok(mut st) = c.prepare("SELECT id, directory, title, time_created, time_updated FROM session WHERE directory = ?1") else { continue };
+        let Ok(mut st) = c.prepare("SELECT id, directory, title, time_created, time_updated FROM session WHERE directory = ?1") else {
+            continue;
+        };
         let rows: Vec<Row> = st.query_map(params![f], row).map(|r| r.flatten().collect()).unwrap_or_default();
         for r in rows {
             let n = turns(c, &r.0).len();

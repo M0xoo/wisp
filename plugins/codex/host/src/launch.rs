@@ -54,8 +54,16 @@ pub fn launch(run: &HarnessRun, bin: &str, developer: bool) -> Launch {
         images: &images,
         attachment_dirs: &attachment_dirs,
     };
-    let mut input = if developer.is_some() || run.system_prompt.trim().is_empty() { run.prompt.clone() } else { with_protocol(&run.prompt, &run.system_prompt, resume) };
-    let notes: Vec<FileNote> = with_path.iter().filter(|a| !is_image(&a.mime)).map(|a| FileNote { path: a.path.clone().unwrap_or_default(), mime: a.mime.clone(), size: a.size }).collect();
+    let mut input = if developer.is_some() || run.system_prompt.trim().is_empty() {
+        run.prompt.clone()
+    } else {
+        with_protocol(&run.prompt, &run.system_prompt, resume)
+    };
+    let notes: Vec<FileNote> = with_path
+        .iter()
+        .filter(|a| !is_image(&a.mime))
+        .map(|a| FileNote { path: a.path.clone().unwrap_or_default(), mime: a.mime.clone(), size: a.size })
+        .collect();
     input.push_str(&attachment_note(&notes, Some("Read text files and PDFs from disk")));
     if !images.is_empty() {
         let n = images.len();
@@ -77,7 +85,13 @@ mod tests {
     use wisp_runtime_api::model::Attachment;
 
     fn run() -> HarnessRun {
-        HarnessRun { prompt: "fix the add bug".into(), cwd: "/w".into(), system_prompt: "# You are running inside wisp".into(), mode: Mode::Edits, ..HarnessRun::default() }
+        HarnessRun {
+            prompt: "fix the add bug".into(),
+            cwd: "/w".into(),
+            system_prompt: "# You are running inside wisp".into(),
+            mode: Mode::Edits,
+            ..HarnessRun::default()
+        }
     }
 
     fn stdin(l: &Launch) -> String {

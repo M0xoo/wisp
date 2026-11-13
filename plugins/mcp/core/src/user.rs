@@ -13,7 +13,8 @@ pub const NO_CREW: &str = "No crew yet. Add a member with wisp_crew_add.";
 pub const SPELL_NOT_CREW: &str = "That is a spell, not a crew file: add it with `wisp spell install`.";
 pub const TIMED_OUT: &str = " (timed out waiting; still running)";
 /// What a member's edit may set (crew-tools.js `MEMBER_PROPS`, then the notebook).
-pub const EDIT_FIELDS: &[&str] = &["name", "role", "brief", "cwd", "agent", "model", "effort", "mode", "cron", "parallel", "paused", "avatar", "notebook"];
+pub const EDIT_FIELDS: &[&str] =
+    &["name", "role", "brief", "cwd", "agent", "model", "effort", "mode", "cron", "parallel", "paused", "avatar", "notebook"];
 
 fn s<'a>(v: &'a Value, k: &str) -> &'a str {
     v.get(k).and_then(Value::as_str).unwrap_or("")
@@ -52,9 +53,17 @@ pub fn session_line(x: &Value) -> String {
     } else {
         String::new()
     };
-    let question = Some(shown(x, "question")).filter(|q| !q.is_empty()).or_else(|| x.get("ask").map(|a| shown(a, "question")).filter(|q| !q.is_empty()));
+    let question = Some(shown(x, "question"))
+        .filter(|q| !q.is_empty())
+        .or_else(|| x.get("ask").map(|a| shown(a, "question")).filter(|q| !q.is_empty()));
     let asks = question.map(|q| format!(" — asks: {q}")).unwrap_or_default();
-    format!("- `{}` **{}** — {state}{later}{tail}{asks} [{}, {}]", shown(x, "id"), shown(x, "title"), shown(x, "agent"), shown(x, "project"))
+    format!(
+        "- `{}` **{}** — {state}{later}{tail}{asks} [{}, {}]",
+        shown(x, "id"),
+        shown(x, "title"),
+        shown(x, "agent"),
+        shown(x, "project")
+    )
 }
 
 /// `wisp_get`: the session's head, its latest presentation, and what to do next.
@@ -70,7 +79,8 @@ pub fn describe(id: &str, session: &Value, markdown: &str, extra: &str) -> Strin
 
 /// `wisp_list`'s filter, as v1's `GET /api/sessions?state&cwd&limit` did it.
 pub fn list(all: &[Value], a: &Map<String, Value>) -> String {
-    let states: Option<Vec<String>> = a.get("state").filter(|v| truthy(v)).map(|v| as_text(v).split(',').map(|x| x.trim().to_owned()).collect());
+    let states: Option<Vec<String>> =
+        a.get("state").filter(|v| truthy(v)).map(|v| as_text(v).split(',').map(|x| x.trim().to_owned()).collect());
     let cwd = a.get("cwd").and_then(Value::as_str).unwrap_or("");
     let under = format!("{}/", cwd.trim_end_matches('/'));
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // a count, floored at 1 below
@@ -86,7 +96,14 @@ pub fn list(all: &[Value], a: &Map<String, Value>) -> String {
 }
 
 pub fn launched(x: &Value) -> String {
-    format!("Launched session `{}` (“{}”) on {} in {}, mode {}. Call wisp_wait or wisp_get with this id for the result.", shown(x, "id"), shown(x, "title"), shown(x, "agent"), shown(x, "cwd"), shown(x, "mode"))
+    format!(
+        "Launched session `{}` (“{}”) on {} in {}, mode {}. Call wisp_wait or wisp_get with this id for the result.",
+        shown(x, "id"),
+        shown(x, "title"),
+        shown(x, "agent"),
+        shown(x, "cwd"),
+        shown(x, "mode")
+    )
 }
 
 pub fn replied(r: &Value) -> &'static str {
@@ -115,7 +132,11 @@ pub fn agents(here: &[Value], machines: &[Value]) -> String {
 fn harness_line(x: &Value) -> String {
     let what = if on(x, "available") {
         let version = Some(shown(x, "version")).filter(|v| !v.is_empty()).map(|v| format!(" {v}")).unwrap_or_default();
-        let models = x.get("models").and_then(Value::as_array).map(|m| m.iter().map(|m| shown(m, "id")).filter(|id| !id.is_empty()).take(12).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+        let models = x
+            .get("models")
+            .and_then(Value::as_array)
+            .map(|m| m.iter().map(|m| shown(m, "id")).filter(|id| !id.is_empty()).take(12).collect::<Vec<_>>().join(", "))
+            .unwrap_or_default();
         format!("installed{version}; models: {}", if models.is_empty() { "default" } else { &models })
     } else {
         "not installed".into()
@@ -159,7 +180,10 @@ pub fn member_line(m: &Value) -> String {
     if let Some(q) = m.get("queue").and_then(Value::as_array).filter(|q| !q.is_empty()) {
         bits.push(format!("{} waiting", q.len()));
     }
-    let brief = Some(shown(m, "brief")).filter(|b| !b.is_empty()).map(|b| format!("\n  Brief: {}", clip(&b.split_whitespace().collect::<Vec<_>>().join(" "), 200))).unwrap_or_default();
+    let brief = Some(shown(m, "brief"))
+        .filter(|b| !b.is_empty())
+        .map(|b| format!("\n  Brief: {}", clip(&b.split_whitespace().collect::<Vec<_>>().join(" "), 200)))
+        .unwrap_or_default();
     format!("- **{}** (@{}, id `{}`){role} · {}{brief}", shown(m, "name"), shown(m, "handle"), shown(m, "id"), bits.join(" · "))
 }
 
@@ -172,8 +196,12 @@ pub fn member_detail(m: &Value) -> String {
     let brief = Some(shown(m, "brief")).filter(|b| !b.is_empty()).unwrap_or_else(|| "(none)".into());
     let notebook = shown(m, "notebook");
     // v1 counted UTF-16 units (JavaScript's length).
-    let notebook = if notebook.is_empty() { "(empty)".into() } else { format!("{notebook}\n\n({} characters)", notebook.encode_utf16().count()) };
-    let kit = m.get("kit").and_then(Value::as_array).filter(|k| !k.is_empty()).map_or_else(|| "No skills or instructions files yet. Propose some with wisp_crew_kit.".to_owned(), |k| k.iter().map(kit_file).collect::<Vec<_>>().join("\n\n"));
+    let notebook =
+        if notebook.is_empty() { "(empty)".into() } else { format!("{notebook}\n\n({} characters)", notebook.encode_utf16().count()) };
+    let kit = m.get("kit").and_then(Value::as_array).filter(|k| !k.is_empty()).map_or_else(
+        || "No skills or instructions files yet. Propose some with wisp_crew_kit.".to_owned(),
+        |k| k.iter().map(kit_file).collect::<Vec<_>>().join("\n\n"),
+    );
     [member_line(&head), format!("\n## Brief\n\n{brief}"), format!("\n## Notebook\n\n{notebook}"), format!("\n## Kit\n\n{kit}")].join("\n")
 }
 
@@ -191,7 +219,14 @@ pub fn pick(a: &Map<String, Value>) -> Map<String, Value> {
 
 /// `remember`: lines added to the end of the notebook, at most 12, each on one line.
 pub fn remembered(notebook: &str, remember: Option<&Value>) -> Option<String> {
-    let lines: Vec<String> = remember.and_then(Value::as_array)?.iter().filter_map(Value::as_str).filter(|x| !x.trim().is_empty()).take(12).map(|x| format!("- {}", x.split_whitespace().collect::<Vec<_>>().join(" "))).collect();
+    let lines: Vec<String> = remember
+        .and_then(Value::as_array)?
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|x| !x.trim().is_empty())
+        .take(12)
+        .map(|x| format!("- {}", x.split_whitespace().collect::<Vec<_>>().join(" ")))
+        .collect();
     if lines.is_empty() {
         return None;
     }
@@ -205,7 +240,8 @@ pub fn handle(v: Option<&Value>) -> String {
 }
 
 pub fn added(m: &Value) -> String {
-    let checkin = m.get("session").map(|x| format!("\n\nTheir first check-in is running (session `{}`).", shown(x, "id"))).unwrap_or_default();
+    let checkin =
+        m.get("session").map(|x| format!("\n\nTheir first check-in is running (session `{}`).", shown(x, "id"))).unwrap_or_default();
     format!("Added {} to the crew.\n\n{}{checkin}", shown(m, "name"), member_line(m))
 }
 
@@ -227,5 +263,9 @@ pub fn removed(m: &Value) -> String {
 pub fn crew_source(from: &str) -> Value {
     let from = from.trim();
     let lower = from.to_ascii_lowercase();
-    if lower.starts_with("https:") || lower.starts_with("gist:") { serde_json::json!({ "url": from }) } else { serde_json::json!({ "text": from }) }
+    if lower.starts_with("https:") || lower.starts_with("gist:") {
+        serde_json::json!({ "url": from })
+    } else {
+        serde_json::json!({ "text": from })
+    }
 }

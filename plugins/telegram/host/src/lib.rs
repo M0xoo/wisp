@@ -12,10 +12,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use wisp_channels_api::views::{ActArgs, ActKind, Msg, SessionView, Signed};
-use wisp_channels_api::{ChannelHub, HttpRequest, Status, TRANSPORTS, Transport, TransportDef, TransportKind};
 use wisp_channels_api::policy::{Gate, GateArgs, RateLimit, STALE_S, gate};
 use wisp_channels_api::scrub::scrub_out;
+use wisp_channels_api::views::{ActArgs, ActKind, Msg, SessionView, Signed};
+use wisp_channels_api::{ChannelHub, HttpRequest, Status, TRANSPORTS, Transport, TransportDef, TransportKind};
 use wisp_kernel::{CancellationToken, Manifest, Plugin, Result, Setup, WireError};
 use wisp_telegram_core::{self as core, Message, Update, encode_tap, forwarded, links_it, parse_tap, publish_text, truncate};
 
@@ -69,10 +69,18 @@ impl Telegram {
         let cfg = self.cfg();
         let base = std::env::var("WISP_TELEGRAM_API").unwrap_or_else(|_| "https://api.telegram.org".into());
         let url = format!("{}/bot{}/{method}", base.trim_end_matches('/'), s(&cfg, "token"));
-        let r = self.hub.net().fetch(HttpRequest::post_json(url, &body).timeout(timeout_ms)).await.map_err(|e| WireError::unavailable(format!("Telegram: {e}")))?;
+        let r = self
+            .hub
+            .net()
+            .fetch(HttpRequest::post_json(url, &body).timeout(timeout_ms))
+            .await
+            .map_err(|e| WireError::unavailable(format!("Telegram: {e}")))?;
         let j = r.json();
         if j.get("ok") != Some(&Value::Bool(true)) {
-            return Err(WireError::unavailable(format!("Telegram: {}", j.get("description").and_then(Value::as_str).map_or_else(|| r.status.to_string(), str::to_owned))));
+            return Err(WireError::unavailable(format!(
+                "Telegram: {}",
+                j.get("description").and_then(Value::as_str).map_or_else(|| r.status.to_string(), str::to_owned)
+            )));
         }
         Ok(j.get("result").cloned().unwrap_or(Value::Null))
     }
@@ -115,7 +123,12 @@ impl Telegram {
     }
 
     fn session_of(&self, message_id: i64) -> Option<String> {
-        self.hub.find_remote(&move |r, _| r.get("tg").and_then(Value::as_array).is_some_and(|a| a.iter().any(|x| x.as_i64() == Some(message_id)))).into_iter().next()
+        self.hub
+            .find_remote(&move |r, _| {
+                r.get("tg").and_then(Value::as_array).is_some_and(|a| a.iter().any(|x| x.as_i64() == Some(message_id)))
+            })
+            .into_iter()
+            .next()
     }
 
     async fn on_update(&self, u: Update) {
@@ -138,9 +151,22 @@ impl Telegram {
         let session = tap.as_ref().and_then(|t| t.session.clone()).or_else(|| q.message_id().and_then(|m| self.session_of(m)));
         let result = match (tap, session) {
             (Some(t), Some(session)) => {
-                let signed = Signed { s: session.clone(), k: t.kind.code().into(), r: t.reference.clone().unwrap_or_default(), i: t.index, sig: t.sig.clone() };
+                let signed = Signed {
+                    s: session.clone(),
+                    k: t.kind.code().into(),
+                    r: t.reference.clone().unwrap_or_default(),
+                    i: t.index,
+                    sig: t.sig.clone(),
+                };
                 if self.hub.verify(&signed) {
-                    let a = ActArgs { session_id: session, kind: t.kind.into(), reference: t.reference, index: Some(t.index), text: None, approvals: false };
+                    let a = ActArgs {
+                        session_id: session,
+                        kind: t.kind.into(),
+                        reference: t.reference,
+                        index: Some(t.index),
+                        text: None,
+                        approvals: false,
+                    };
                     self.hub.act(&a).await.unwrap_or_else(|e| e.message)
                 } else {
                     "That button is out of date.".to_owned()
@@ -148,9 +174,21 @@ impl Telegram {
             }
             _ => "Unknown button.".to_owned(),
         };
-        let _ = self.api("answerCallbackQuery", json!({ "callback_query_id": q.id, "text": truncate(&scrub_out(&result, false).text, core::text::TAP_ANSWER_MAX) }), 15_000).await;
+        let _ = self
+            .api(
+                "answerCallbackQuery",
+                json!({ "callback_query_id": q.id, "text": truncate(&scrub_out(&result, false).text, core::text::TAP_ANSWER_MAX) }),
+                15_000,
+            )
+            .await;
         if let Some(mid) = q.message_id() {
-            let _ = self.api("editMessageReplyMarkup", json!({ "chat_id": chat, "message_id": mid, "reply_markup": { "inline_keyboard": [] } }), 15_000).await;
+            let _ = self
+                .api(
+                    "editMessageReplyMarkup",
+                    json!({ "chat_id": chat, "message_id": mid, "reply_markup": { "inline_keyboard": [] } }),
+                    15_000,
+                )
+                .await;
         }
     }
 
@@ -174,7 +212,14 @@ impl Telegram {
         let (senders, key) = (vec![chat.clone()], m.rate_key());
         let g = {
             let mut limit = self.limit.lock().unwrap_or_else(PoisonError::into_inner);
-            gate(GateArgs { sender: Some(&m.chat.id), senders: &senders, limit: Some(&mut limit), rate_key: Some(&key), now_ms: self.hub.now_ms(), ..GateArgs::default() })
+            gate(GateArgs {
+                sender: Some(&m.chat.id),
+                senders: &senders,
+                limit: Some(&mut limit),
+                rate_key: Some(&key),
+                now_ms: self.hub.now_ms(),
+                ..GateArgs::default()
+            })
         };
         if let Gate::Refused { reply, .. } = g {
             if let Some(r) = reply {
@@ -197,11 +242,26 @@ impl Telegram {
             return self.command(&cmd, arg.trim(), m, &cfg).await;
         }
         let Some(session) = m.reply_to().and_then(|r| self.session_of(r)) else {
-            let line = if cfg["allowStart"] == true { "Reply to one of wisp’s messages to answer it or follow up, or send /new <task> to start one." } else { "Reply to one of wisp’s messages to answer it or send a follow-up." };
+            let line = if cfg["allowStart"] == true {
+                "Reply to one of wisp’s messages to answer it or follow up, or send /new <task> to start one."
+            } else {
+                "Reply to one of wisp’s messages to answer it or send a follow-up."
+            };
             self.say(line, None).await?;
             return Ok(());
         };
-        let said = self.hub.act(&ActArgs { session_id: session, kind: ActKind::Text, reference: None, index: None, text: Some(text.to_owned()), approvals: false }).await.unwrap_or_else(|e| e.message);
+        let said = self
+            .hub
+            .act(&ActArgs {
+                session_id: session,
+                kind: ActKind::Text,
+                reference: None,
+                index: None,
+                text: Some(text.to_owned()),
+                approvals: false,
+            })
+            .await
+            .unwrap_or_else(|e| e.message);
         self.say(&said, Some(m.message_id)).await?;
         Ok(())
     }
@@ -210,7 +270,11 @@ impl Telegram {
         let off = "Starting tasks from Telegram is off. Turn it on in wisp → Phone → Telegram.";
         let allow = cfg["allowStart"] == true;
         if name == "help" || name == "start" {
-            let line = if allow { "Send /new <task> to start a task in your default project, or /new @project <task> to pick one (/projects lists them). Reply to wisp’s messages to answer or follow up.".to_owned() } else { format!("Reply to wisp’s messages to answer or follow up. {off}") };
+            let line = if allow {
+                "Send /new <task> to start a task in your default project, or /new @project <task> to pick one (/projects lists them). Reply to wisp’s messages to answer or follow up.".to_owned()
+            } else {
+                format!("Reply to wisp’s messages to answer or follow up. {off}")
+            };
             self.say(&line, None).await?;
             return Ok(());
         }
@@ -220,7 +284,8 @@ impl Telegram {
         }
         // Telegram keeps updates for a day: what was sent while wisp was off doesn't start
         if name == "new" && m.date.is_some_and(|d| self.hub.now_ms() / 1000 - d > STALE_S) {
-            self.say("That /new arrived while wisp was offline, so it didn’t start. Send it again to run it now.", Some(m.message_id)).await?;
+            self.say("That /new arrived while wisp was offline, so it didn’t start. Send it again to run it now.", Some(m.message_id))
+                .await?;
             return Ok(());
         }
         let phone = self.hub.phone();
@@ -231,7 +296,17 @@ impl Telegram {
                 return Ok(());
             }
             let def = self.hub.default_project().await.map(|p| p.id);
-            let lines: Vec<String> = projects.iter().map(|p| format!("• {}{}{}", p.name, p.machine.as_ref().map(|x| format!(" (on {x})")).unwrap_or_default(), if def.as_deref() == Some(p.id.as_str()) { "  ← default" } else { "" })).collect();
+            let lines: Vec<String> = projects
+                .iter()
+                .map(|p| {
+                    format!(
+                        "• {}{}{}",
+                        p.name,
+                        p.machine.as_ref().map(|x| format!(" (on {x})")).unwrap_or_default(),
+                        if def.as_deref() == Some(p.id.as_str()) { "  ← default" } else { "" }
+                    )
+                })
+                .collect();
             self.say(&format!("Projects:\n{}\n\n/new @name <task> runs in one of them.", lines.join("\n")), None).await?;
             return Ok(());
         }
@@ -345,7 +420,9 @@ impl Transport for Telegram {
     }
     fn view(&self) -> Option<Value> {
         let c = self.cfg();
-        Some(json!({ "enabled": c["enabled"] == true, "token": core::mask(s(&c, "token")), "linked": !self.chat().is_empty(), "chatName": s(&c, "chatName"), "allowStart": c["allowStart"] == true }))
+        Some(
+            json!({ "enabled": c["enabled"] == true, "token": core::mask(s(&c, "token")), "linked": !self.chat().is_empty(), "chatName": s(&c, "chatName"), "allowStart": c["allowStart"] == true }),
+        )
     }
 }
 
@@ -372,6 +449,9 @@ mod tests {
 
     #[test]
     fn a_chat_id_reads_as_text_either_way() {
-        assert_eq!((id_text(&json!(-1_001_234)), id_text(&json!("42")), id_text(&Value::Null)), ("-1001234".to_owned(), "42".to_owned(), String::new()));
+        assert_eq!(
+            (id_text(&json!(-1_001_234)), id_text(&json!("42")), id_text(&Value::Null)),
+            ("-1001234".to_owned(), "42".to_owned(), String::new())
+        );
     }
 }

@@ -32,7 +32,8 @@ impl Runtime {
         let account = turn.account.clone().or_else(|| s.account.clone()).unwrap_or_default();
         let now = self.now();
         let host = &*self.host;
-        let reset = match calls::run::<budget::ResetAt>(host, budget::AccountArgs { agent: agent.clone(), account: account.clone() }).await {
+        let reset = match calls::run::<budget::ResetAt>(host, budget::AccountArgs { agent: agent.clone(), account: account.clone() }).await
+        {
             Ok(r) => r,
             Err(err) => {
                 tracing::warn!(error = %err.message, "runtime: budget.resetAt (the router's guess instead)");
@@ -59,7 +60,10 @@ impl Runtime {
             account: account.clone(),
             until,
             others: limit::others(&listed, &account),
-            kind: from.and_then(|a| serde_json::to_value(a.kind).ok()).and_then(|k| k.as_str().map(str::to_owned)).unwrap_or_else(|| "personal".to_owned()),
+            kind: from
+                .and_then(|a| serde_json::to_value(a.kind).ok())
+                .and_then(|k| k.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "personal".to_owned()),
             extra: h.as_ref().and_then(|h| h.accounts()).map(|a| a.extra.clone()).unwrap_or_default(),
             waiting: false,
         };

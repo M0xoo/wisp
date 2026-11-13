@@ -131,7 +131,6 @@ mod tests {
     use super::*;
     use crate::kinds::brief::brief_text;
 
-
     /// `wisp add .` (or a resource applied by hand) stored "/repo/."; on apply the project kind stores it canonical.
     #[test]
     fn a_project_applied_with_a_trailing_dot_or_verbatim_prefix_is_stored_canonical() {
@@ -171,11 +170,19 @@ mod tests {
 
     #[test]
     fn the_deepest_project_holds_the_folder_and_the_brief_reads() {
-        let ps = vec![("mono".to_owned(), json!({ "path": "/w" })), ("api".to_owned(), json!({ "path": "/w/api", "instructions": "small PRs" }))];
+        let ps = vec![
+            ("mono".to_owned(), json!({ "path": "/w" })),
+            ("api".to_owned(), json!({ "path": "/w/api", "instructions": "small PRs" })),
+        ];
         assert_eq!(project_for(&ps, "/w/api/src").unwrap().0, "api");
         assert_eq!(project_for(&ps, "/w/web").unwrap().0, "mono");
         assert!(project_for(&ps, "/x").is_none());
-        let b = brief_text(&json!({ "project": "small PRs", "agent": "plan first", "skills": [{ "name": "notes", "description": "release notes", "body": "Keep it short." }] }));
-        assert!(b.contains("## This project's instructions\n\nsmall PRs") && b.contains("## Your instructions") && b.contains("### notes"), "{b}");
+        let b = brief_text(
+            &json!({ "project": "small PRs", "agent": "plan first", "skills": [{ "name": "notes", "description": "release notes", "body": "Keep it short." }] }),
+        );
+        assert!(
+            b.contains("## This project's instructions\n\nsmall PRs") && b.contains("## Your instructions") && b.contains("### notes"),
+            "{b}"
+        );
     }
 }

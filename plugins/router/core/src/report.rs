@@ -102,28 +102,28 @@ fn arm_row(r: &Router, k: &str, label: Option<&String>, prefs: &Prefs, now: i64)
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn report(r: &Router, agents: &[AgentInfo], prefs: &Prefs, now: i64) -> RouterReport {
     let (rows, labels) = keys_of(r, agents);
-    let mut arms: Vec<ArmReport> = rows.iter().map(|k| arm_row(r, k, labels.get(k), prefs, now)).filter(|a| a.state != "gone" || a.n > 0).collect();
+    let mut arms: Vec<ArmReport> =
+        rows.iter().map(|k| arm_row(r, k, labels.get(k), prefs, now)).filter(|a| a.state != "gone" || a.n > 0).collect();
     arms.sort_by(|x, y| y.picks.cmp(&x.picks).then(y.chance.total_cmp(&x.chance)));
     let picks: f64 = r.st.taste_of("*").map(|(_, x)| x.n).sum();
-    let mut recent: Vec<RecentRoute> = r
-        .st
-        .routes()
-        .filter(|(_, x)| !x.manual)
-        .map(|(id, x)| RecentRoute {
-            id: id.to_owned(),
-            key: x.key.clone(),
-            label: x.label.clone(),
-            kind: x.kind.clone(),
-            goal: x.goal.clone(),
-            chance: x.chance,
-            r: x.r,
-            explored: x.explored,
-            trying: x.trying,
-            why: x.why.clone(),
-            at: x.at,
-            signals: x.signals.clone(),
-        })
-        .collect();
+    let mut recent: Vec<RecentRoute> =
+        r.st.routes()
+            .filter(|(_, x)| !x.manual)
+            .map(|(id, x)| RecentRoute {
+                id: id.to_owned(),
+                key: x.key.clone(),
+                label: x.label.clone(),
+                kind: x.kind.clone(),
+                goal: x.goal.clone(),
+                chance: x.chance,
+                r: x.r,
+                explored: x.explored,
+                trying: x.trying,
+                why: x.why.clone(),
+                at: x.at,
+                signals: x.signals.clone(),
+            })
+            .collect();
     recent.sort_by_key(|x| std::cmp::Reverse(x.at));
     recent.truncate(30);
     let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);

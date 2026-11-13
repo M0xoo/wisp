@@ -37,19 +37,13 @@ impl Rpc {
             if m.get("method").is_some() {
                 self.serve(&m);
             } else if m["id"] == id {
-                return m
-                    .get("error")
-                    .map_or_else(|| Ok(m["result"].clone()), |e| Err(e.clone()));
+                return m.get("error").map_or_else(|| Ok(m["result"].clone()), |e| Err(e.clone()));
             }
         }
     }
 
     fn read(&mut self) -> Result<Value, Value> {
-        let line = self
-            .lines
-            .next()
-            .ok_or(Value::Null)?
-            .map_err(|_| Value::Null)?;
+        let line = self.lines.next().ok_or(Value::Null)?.map_err(|_| Value::Null)?;
         serde_json::from_str(&line).map_err(|_| Value::Null)
     }
 
@@ -73,21 +67,11 @@ impl Rpc {
                     }
                 }
                 for c in ["say", "nested", "deep", "hook", "setting", "crash", "env"] {
-                    self.request("command.register", json!({ "id": format!("echo.{c}") }))
-                        .unwrap();
+                    self.request("command.register", json!({ "id": format!("echo.{c}") })).unwrap();
                 }
-                self.request(
-                    "intercept.register",
-                    json!({ "n": 0, "hook": "before:go", "failure": "closed" }),
-                )
-                .unwrap();
-                self.request("on", json!({ "n": 0, "type": "host.ping" }))
-                    .unwrap();
-                self.request(
-                    "contribute",
-                    json!({ "point": "host.list", "item": { "id": "echo" } }),
-                )
-                .unwrap();
+                self.request("intercept.register", json!({ "n": 0, "hook": "before:go", "failure": "closed" })).unwrap();
+                self.request("on", json!({ "n": 0, "type": "host.ping" })).unwrap();
+                self.request("contribute", json!({ "point": "host.list", "item": { "id": "echo" } })).unwrap();
                 Ok(json!({ "ok": true }))
             }
             "command.run" => self.command(p),
@@ -96,12 +80,7 @@ impl Rpc {
             } else {
                 json!({ "kind": "modify", "ctx": { "seen": "echo" } })
             }),
-            "event" => self
-                .request(
-                    "run",
-                    json!({ "cmd": "host.record", "args": p["e"]["data"] }),
-                )
-                .map(|_| Value::Null),
+            "event" => self.request("run", json!({ "cmd": "host.record", "args": p["e"]["data"] })).map(|_| Value::Null),
             "settings.changed" => Ok(Value::Null),
             other => Err(json!({ "code": -32601, "message": format!("no method {other}") })),
         };
@@ -112,27 +91,15 @@ impl Rpc {
         let call = p["call"].clone();
         match p["id"].as_str().unwrap_or_default() {
             "echo.say" => {
-                self.request(
-                    "emit",
-                    json!({ "type": "echo.said", "data": p["args"], "call": call }),
-                )?;
+                self.request("emit", json!({ "type": "echo.said", "data": p["args"], "call": call }))?;
                 Ok(json!({ "echoed": p["args"] }))
             }
             "echo.nested" => {
-                let inner = self.request(
-                    "run",
-                    json!({ "cmd": "host.read", "args": null, "call": call }),
-                )?;
+                let inner = self.request("run", json!({ "cmd": "host.read", "args": null, "call": call }))?;
                 Ok(json!({ "depth": p["trace"]["depth"], "inner": inner }))
             }
-            "echo.deep" => self.request(
-                "run",
-                json!({ "cmd": "echo.deep", "args": null, "call": call }),
-            ),
-            "echo.hook" => self.request(
-                "hook",
-                json!({ "hook": "before:go", "ctx": p["args"], "call": call }),
-            ),
+            "echo.deep" => self.request("run", json!({ "cmd": "echo.deep", "args": null, "call": call })),
+            "echo.hook" => self.request("hook", json!({ "hook": "before:go", "ctx": p["args"], "call": call })),
             "echo.setting" => self.request("settings.get", json!({ "key": "echo.greeting" })),
             "echo.crash" => std::process::exit(3),
             // what its environment holds (names only): an untrusted plugin's is nearly empty (ADR-0048)
@@ -150,10 +117,7 @@ fn main() {
     if std::env::args().nth(1).as_deref() == Some("dies") {
         std::process::exit(1);
     }
-    let mut rpc = Rpc {
-        lines: std::io::stdin().lock().lines(),
-        next: 0,
-    };
+    let mut rpc = Rpc { lines: std::io::stdin().lock().lines(), next: 0 };
     while let Ok(m) = rpc.read() {
         if m.get("method").is_some() {
             rpc.serve(&m);

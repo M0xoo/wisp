@@ -46,7 +46,13 @@ pub fn named(args: &Value, keys: &[&str]) -> Vec<String> {
 }
 
 /// Ok when `caller` may act on every task in `ids` (and on all tasks, when `all`).
-pub(crate) async fn check(trees: Vec<std::sync::Arc<dyn TaskTree>>, caller: &Caller, what: &str, ids: Vec<String>, all: bool) -> Result<()> {
+pub(crate) async fn check(
+    trees: Vec<std::sync::Arc<dyn TaskTree>>,
+    caller: &Caller,
+    what: &str,
+    ids: Vec<String>,
+    all: bool,
+) -> Result<()> {
     let Some(own) = agent_task(caller) else { return Ok(()) };
     if all {
         return Err(refused(what));

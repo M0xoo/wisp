@@ -15,23 +15,26 @@ use wisp_store::{Col, EntityDef, ImportFile, ImportOptions, Migration, Query, Ro
 pub const OWNER: &str = "router";
 pub const TOPIC: &str = "plugin:wisp.router:auto";
 
-pub const MIGRATIONS: &[Migration] = &[Migration::sql(
-    1,
-    "CREATE TABLE router_arm (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+pub const MIGRATIONS: &[Migration] = &[
+    Migration::sql(
+        1,
+        "CREATE TABLE router_arm (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE router_stat (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE router_taste (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE router_cool (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE router_route (id TEXT PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL) STRICT;
      CREATE INDEX router_route_at ON router_route (at);
      CREATE TABLE router_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
-), Migration::sql(
-    2,
-    // Auto's whole view as one row (Settings → Auto reads it live; added 2026-11-10: the UI watched a row no
-    // server wrote)
-    "CREATE TABLE router_view (id TEXT PRIMARY KEY, goals TEXT NOT NULL, goal TEXT NOT NULL, settings TEXT NOT NULL,
+    ),
+    Migration::sql(
+        2,
+        // Auto's whole view as one row (Settings → Auto reads it live; added 2026-11-10: the UI watched a row no
+        // server wrote)
+        "CREATE TABLE router_view (id TEXT PRIMARY KEY, goals TEXT NOT NULL, goal TEXT NOT NULL, settings TEXT NOT NULL,
        projects TEXT NOT NULL, priors TEXT NOT NULL, learned INTEGER NOT NULL, routed INTEGER NOT NULL, picks INTEGER NOT NULL,
        corrections INTEGER NOT NULL, arms TEXT NOT NULL, recent TEXT NOT NULL) STRICT;",
-)];
+    ),
+];
 
 /// The topic Settings → Auto watches: one `router_view` row, id `view`, the whole of `router.view`.
 pub const VIEW_TOPIC: &str = "plugin:wisp.router:view";
@@ -83,7 +86,16 @@ fn topics(_: &Row) -> Vec<String> {
 
 macro_rules! doc {
     ($name:ident, $kind:literal) => {
-        pub const $name: EntityDef = EntityDef { kind: $kind, table: $kind, key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+        pub const $name: EntityDef = EntityDef {
+            kind: $kind,
+            table: $kind,
+            key: "id",
+            columns: &[("id", Col::Text), ("body", Col::Text)],
+            json_columns: &["body"],
+            parent: None,
+            seq: None,
+            topics,
+        };
     };
 }
 doc!(ARM, "router_arm");
@@ -156,7 +168,9 @@ impl Ops {
     }
 
     fn put_or_del<T: serde::Serialize>(&mut self, kind: &'static str, id: String, v: Option<T>) -> wisp_store::Result<()> {
-        if let Some(v) = v { self.put(kind, &id, v) } else {
+        if let Some(v) = v {
+            self.put(kind, &id, v)
+        } else {
             self.dels.push((kind, id));
             Ok(())
         }
@@ -293,7 +307,13 @@ fn import_settings(f: &ImportFile, w: &mut Writer<'_>) -> wisp_store::Result<()>
     Ok(())
 }
 
-async fn import_one(store: &Store, home: &Path, name: &str, file: &'static str, f: fn(&ImportFile, &mut Writer<'_>) -> wisp_store::Result<()>) -> wisp_store::Result<()> {
+async fn import_one(
+    store: &Store,
+    home: &Path,
+    name: &str,
+    file: &'static str,
+    f: fn(&ImportFile, &mut Writer<'_>) -> wisp_store::Result<()>,
+) -> wisp_store::Result<()> {
     if !home.join(file).is_file() {
         return Ok(());
     }

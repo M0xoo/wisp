@@ -282,17 +282,27 @@ mod tests {
     }
 
     fn kinds() -> Vec<KindInfo> {
-        vec![KindInfo::new("crew", "crew", "wisp.crew", json!({})), KindInfo::new("agent", "agents", "wisp.runtime", json!({})), KindInfo::new("setting", "settings", "wisp.settings", json!({})).map_form()]
+        vec![
+            KindInfo::new("crew", "crew", "wisp.crew", json!({})),
+            KindInfo::new("agent", "agents", "wisp.runtime", json!({})),
+            KindInfo::new("setting", "settings", "wisp.settings", json!({})).map_form(),
+        ]
     }
 
     fn files(list: &[(&str, &str)]) -> Files {
-        Files(list.iter().map(|(a, b)| ((*a).to_owned(), (*b).to_owned())).collect(), [("HOME_DIR".to_owned(), "/home/me".to_owned())].into())
+        Files(
+            list.iter().map(|(a, b)| ((*a).to_owned(), (*b).to_owned())).collect(),
+            [("HOME_DIR".to_owned(), "/home/me".to_owned())].into(),
+        )
     }
 
     #[test]
     fn sections_includes_profiles_env_and_secrets() {
         let mut f = files(&[
-            ("wisp.yml", "wisp: 1\ninclude: [base.yml]\nagents:\n  - name: reviewer\n    harness: codex\n    model: gpt-5\ncrew:\n  Ada: { role: reviewer, cwd: \"${env:HOME_DIR}/api\" }\nsettings:\n  worktrees.max: 4\nprofiles:\n  work:\n    agents:\n      - name: reviewer\n        model: gpt-5-pro\n"),
+            (
+                "wisp.yml",
+                "wisp: 1\ninclude: [base.yml]\nagents:\n  - name: reviewer\n    harness: codex\n    model: gpt-5\ncrew:\n  Ada: { role: reviewer, cwd: \"${env:HOME_DIR}/api\" }\nsettings:\n  worktrees.max: 4\nprofiles:\n  work:\n    agents:\n      - name: reviewer\n        model: gpt-5-pro\n",
+            ),
             ("base.yml", "wisp: 1\nagents:\n  - name: reviewer\n    effort: high\n    connectors: [\"${secret:LINEAR}\"]\n"),
         ]);
         let got = load("wisp.yml", &mut f, &kinds(), &["work".into()]).unwrap();

@@ -13,7 +13,13 @@ use crate::views::{ChannelCtx, Mode, Parsed, Problem, Thread};
 pub fn refusal(problems: &[Problem]) -> String {
     let mut parts: Vec<String> = problems
         .iter()
-        .map(|p| if p.choices.is_empty() { p.text.clone() } else { format!("{}\nChoices: {}", p.text, p.choices.iter().take(30).cloned().collect::<Vec<_>>().join(", ")) })
+        .map(|p| {
+            if p.choices.is_empty() {
+                p.text.clone()
+            } else {
+                format!("{}\nChoices: {}", p.text, p.choices.iter().take(30).cloned().collect::<Vec<_>>().join(", "))
+            }
+        })
         .collect();
     parts.push("Nothing started. Start with “:” to send it as written.".into());
     truncate(&parts.join("\n\n"), 4000)

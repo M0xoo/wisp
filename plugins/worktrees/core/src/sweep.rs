@@ -82,11 +82,7 @@ impl Policy {
         Self {
             idle_days: if c == "off" { None } else { c.parse().ok() },
             clock_from: if cleanup.is_none() { cleanup_from } else { 0 },
-            max: if m == "off" {
-                None
-            } else {
-                m.parse().ok().filter(|n| *n > 0)
-            },
+            max: if m == "off" { None } else { m.parse().ok().filter(|n| *n > 0) },
         }
     }
 }
@@ -99,10 +95,7 @@ impl TaskSnap {
         self.held().count()
     }
     pub fn used_at(&self) -> i64 {
-        self.trees
-            .iter()
-            .map(|t| t.touched)
-            .fold(self.updated_at.max(self.created_at), i64::max)
+        self.trees.iter().map(|t| t.touched).fold(self.updated_at.max(self.created_at), i64::max)
     }
     /// None while any folder's size is unknown
     pub fn size(&self) -> Option<u64> {
@@ -146,11 +139,7 @@ pub fn clean_at(s: &TaskSnap, p: &Policy) -> Option<i64> {
         return Some(0);
     }
     let after = s.used_at().max(p.clock_from) + days * DAY;
-    Some(if s.done {
-        after.min(s.used_at() + DONE_IDLE)
-    } else {
-        after
-    })
+    Some(if s.done { after.min(s.used_at() + DONE_IDLE) } else { after })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,10 +150,7 @@ pub struct DiskLimits {
 
 impl Default for DiskLimits {
     fn default() -> Self {
-        Self {
-            low: LOW_DISK,
-            enough: ENOUGH_DISK,
-        }
+        Self { low: LOW_DISK, enough: ENOUGH_DISK }
     }
 }
 
@@ -174,25 +160,13 @@ fn n64(n: usize) -> i64 {
 
 /// The ids the sweep removes, oldest first. Only task folders count toward the cap (leftovers never do,
 /// so they can't push idle task folders out in their place every sweep).
-pub fn plan_sweep(
-    tasks: &[TaskSnap],
-    p: &Policy,
-    disk: Option<Disk>,
-    limits: DiskLimits,
-    now: i64,
-) -> Vec<String> {
-    let mut idle: Vec<&TaskSnap> = tasks
-        .iter()
-        .filter(|s| s.held_count() > 0 && standing(s) == Standing::Idle)
-        .collect();
+pub fn plan_sweep(tasks: &[TaskSnap], p: &Policy, disk: Option<Disk>, limits: DiskLimits, now: i64) -> Vec<String> {
+    let mut idle: Vec<&TaskSnap> = tasks.iter().filter(|s| s.held_count() > 0 && standing(s) == Standing::Idle).collect();
     idle.sort_by_key(|s| s.used_at());
     let mut jobs: Vec<&TaskSnap> = if p.idle_days.is_none() {
         Vec::new()
     } else {
-        idle.iter()
-            .copied()
-            .filter(|s| clean_at(s, p).is_some_and(|t| now >= t))
-            .collect()
+        idle.iter().copied().filter(|s| clean_at(s, p).is_some_and(|t| now >= t)).collect()
     };
     let has = |jobs: &[&TaskSnap], s: &TaskSnap| jobs.iter().any(|j| j.id == s.id);
     // a disk running out doesn't wait for the days: the oldest go until there's room again
@@ -259,22 +233,13 @@ pub fn pick_clean(
     now: i64,
 ) -> Result<Picked, PickError> {
     let picked: Vec<&TaskSnap> = match ids {
-        Some(ids) => ids
-            .iter()
-            .filter_map(|id| tasks.iter().find(|s| &s.id == id))
-            .collect(),
-        None if leftovers.is_empty() => tasks
-            .iter()
-            .filter(|s| {
-                s.held_count() > 0 && standing(s) == Standing::Idle && now - s.used_at() >= MIN_IDLE
-            })
-            .collect(),
+        Some(ids) => ids.iter().filter_map(|id| tasks.iter().find(|s| &s.id == id)).collect(),
+        None if leftovers.is_empty() => {
+            tasks.iter().filter(|s| s.held_count() > 0 && standing(s) == Standing::Idle && now - s.used_at() >= MIN_IDLE).collect()
+        }
         None => Vec::new(),
     };
-    let mut out = Picked {
-        jobs: Vec::new(),
-        skipped: Vec::new(),
-    };
+    let mut out = Picked { jobs: Vec::new(), skipped: Vec::new() };
     for s in picked {
         match standing(s) {
             Standing::Busy | Standing::Checking => out.skipped.push(s.id.clone()),
@@ -305,8 +270,7 @@ pub fn parse_du(out: &str, dir: &str) -> Vec<(String, u64)> {
         .filter_map(|l| {
             let (k, p) = l.split_once('\t')?;
             let kb: u64 = k.trim().parse().ok()?;
-            (p.trim_end_matches('/') != dir.trim_end_matches('/'))
-                .then(|| (p.to_owned(), kb * 1024))
+            (p.trim_end_matches('/') != dir.trim_end_matches('/')).then(|| (p.to_owned(), kb * 1024))
         })
         .collect()
 }
@@ -317,10 +281,7 @@ pub fn parse_df(out: &str) -> Option<Disk> {
     let cols: Vec<&str> = line.split_whitespace().collect();
     let total: u64 = cols.get(1)?.parse().ok()?;
     let free: u64 = cols.get(3)?.parse().ok()?;
-    Some(Disk {
-        free: free * 1024,
-        total: total * 1024,
-    })
+    Some(Disk { free: free * 1024, total: total * 1024 })
 }
 
 /// Does a folder need git status again? Only when it moved: its own mtime, or its task ran since.

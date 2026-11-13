@@ -9,8 +9,8 @@ use wisp_crew_api::{BRIEF_MAX, CREW_COLORS, MAX_CREW, MAX_PARALLEL, MODES};
 use crate::cron::{Words, read_schedule};
 use crate::error::{Result, bad};
 use crate::kit::{Ids, normalize_kit};
-use crate::memory::clamp_notebook;
 use crate::member::{avatar_of, is_effort, is_name};
+use crate::memory::clamp_notebook;
 use crate::mentions::handle_of;
 use crate::text::{clip, squash, str_of, thousands, truncate};
 
@@ -100,14 +100,20 @@ impl Ids for NoIds {
 }
 
 fn bp_kit(raw: Option<&Value>) -> Result<Vec<BpKit>> {
-    let list: Vec<Value> = arr(raw).into_iter().map(|mut k| {
-        if let Some(o) = k.as_object_mut() {
-            o.remove("path");
-        }
-        k
-    }).collect();
+    let list: Vec<Value> = arr(raw)
+        .into_iter()
+        .map(|mut k| {
+            if let Some(o) = k.as_object_mut() {
+                o.remove("path");
+            }
+            k
+        })
+        .collect();
     let kit = normalize_kit(&Value::Array(list), &|_| false, &mut NoIds).map_err(|e| e.prefixed("kit"))?;
-    Ok(kit.into_iter().map(|k| BpKit { kind: k.kind, name: k.name, description: k.description, body: k.body, on: (!k.on).then_some(false) }).collect())
+    Ok(kit
+        .into_iter()
+        .map(|k| BpKit { kind: k.kind, name: k.name, description: k.description, body: k.body, on: (!k.on).then_some(false) })
+        .collect())
 }
 
 fn bp_team(raw: Option<&Value>) -> Result<Vec<BpTeam>> {
@@ -132,7 +138,15 @@ fn bp_team(raw: Option<&Value>) -> Result<Vec<BpTeam>> {
             let text = |k: &str, n: usize| Some(clip(&squash(&str_of(t.get(k))), n)).filter(|s| !s.is_empty());
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped to 2..=4
             let count = t.get("count").and_then(Value::as_f64).filter(|c| *c > 1.0).map(|c| c.floor().min(4.0) as u32);
-            Ok(BpTeam { agent: Some(agent), name: text("name", 40), model: text("model", 120), effort: text("effort", 20), use_: text("use", 300), count, crew: None })
+            Ok(BpTeam {
+                agent: Some(agent),
+                name: text("name", 40),
+                model: text("model", 120),
+                effort: text("effort", 20),
+                use_: text("use", 300),
+                count,
+                crew: None,
+            })
         })
         .collect()
 }
@@ -207,7 +221,24 @@ pub fn normalize_blueprint(raw: &Value, words: &dyn Words) -> Result<Blueprint> 
     }
     let notebook = raw.get("notebook").and_then(Value::as_str).map(|n| clamp_notebook(n.trim())).filter(|n| !n.is_empty());
     let color = raw.get("color").and_then(Value::as_str).filter(|c| CREW_COLORS.contains(c)).map(str::to_owned);
-    Ok(Blueprint { key, name, role: clip(&squash(&str_of(raw.get("role"))), 60), avatar: avatar_of(&str_of(raw.get("avatar"))), color, brief, cron, on, mode, agent, model: clip(&str_of(raw.get("model")), 120), effort, parallel, kit, team, notebook })
+    Ok(Blueprint {
+        key,
+        name,
+        role: clip(&squash(&str_of(raw.get("role"))), 60),
+        avatar: avatar_of(&str_of(raw.get("avatar"))),
+        color,
+        brief,
+        cron,
+        on,
+        mode,
+        agent,
+        model: clip(&str_of(raw.get("model")), 120),
+        effort,
+        parallel,
+        kit,
+        team,
+        notebook,
+    })
 }
 
 /// Blueprints checked together: each on its own, then unique keys and names, then delegates in the file.
@@ -217,7 +248,8 @@ pub fn normalize_blueprints(list: &[Value], place: &str, words: &dyn Words) -> R
         .enumerate()
         .map(|(i, x)| {
             normalize_blueprint(x, words).map_err(|e| {
-                let who = x.get("name").filter(|n| truthy(Some(n))).map_or(String::new(), |n| format!(" ({})", truncate(&str_of(Some(n)), 24)));
+                let who =
+                    x.get("name").filter(|n| truthy(Some(n))).map_or(String::new(), |n| format!(" ({})", truncate(&str_of(Some(n)), 24)));
                 bad(format!("{place}[{i}]{who}: {e}"))
             })
         })
@@ -247,7 +279,9 @@ pub enum CrewFile {
 pub fn parse_crew_file(j: &Value, words: &dyn Words) -> Result<CrewFile> {
     let list = match j {
         Value::Array(a) => a.clone(),
-        Value::Object(o) if o.get("members").is_some_and(Value::is_array) => o.get("members").and_then(Value::as_array).cloned().unwrap_or_default(),
+        Value::Object(o) if o.get("members").is_some_and(Value::is_array) => {
+            o.get("members").and_then(Value::as_array).cloned().unwrap_or_default()
+        }
         Value::Object(o) if truthy(o.get("name")) => vec![j.clone()],
         _ => return Err(bad("A crew file is { \"wispCrew\": 1, \"members\": [ … ] }.")),
     };

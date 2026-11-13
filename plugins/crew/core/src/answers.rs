@@ -30,7 +30,18 @@ pub fn thread_reply(list: &mut Vec<CrewAnswer>, parent: &str, id: String, questi
     let p = list.iter().position(|a| a.id == parent)?;
     let parent = list[p].clone();
     let thread = parent.thread.clone().unwrap_or_else(|| parent.id.clone());
-    let entry = CrewAnswer { id, crew: parent.crew, member: parent.member, job: parent.job, question, answer: String::new(), status: "running".into(), thread: Some(thread.clone()), asked_at: at, answered_at: None };
+    let entry = CrewAnswer {
+        id,
+        crew: parent.crew,
+        member: parent.member,
+        job: parent.job,
+        question,
+        answer: String::new(),
+        status: "running".into(),
+        thread: Some(thread.clone()),
+        asked_at: at,
+        answered_at: None,
+    };
     let mut at_i = p;
     while list.get(at_i + 1).is_some_and(|a| a.thread.as_deref() == Some(thread.as_str())) {
         at_i += 1;
@@ -67,7 +78,10 @@ pub fn answer_text(text: &str, presentation: &Value) -> String {
     if !prose.is_empty() {
         return prose.to_owned();
     }
-    let hero = presentation.get("blocks").and_then(Value::as_array).and_then(|b| b.iter().find(|x| x.get("type").and_then(Value::as_str) == Some("hero")));
+    let hero = presentation
+        .get("blocks")
+        .and_then(Value::as_array)
+        .and_then(|b| b.iter().find(|x| x.get("type").and_then(Value::as_str) == Some("hero")));
     let s = |k: &str| hero.and_then(|h| h.get(k)).and_then(Value::as_str).unwrap_or_default().trim();
     match (s("title"), s("summary")) {
         ("", "") => String::new(),
@@ -80,7 +94,11 @@ pub fn answer_text(text: &str, presentation: &Value) -> String {
 /// What the member's job is asked: the question, and where it was asked.
 pub fn ask_prompt(task_title: &str, question: &str) -> String {
     let title = task_title.trim();
-    if title.is_empty() { format!("You were asked in a task:\n\n{}", question.trim()) } else { format!("You were asked in the task “{title}”:\n\n{}", question.trim()) }
+    if title.is_empty() {
+        format!("You were asked in a task:\n\n{}", question.trim())
+    } else {
+        format!("You were asked in the task “{title}”:\n\n{}", question.trim())
+    }
 }
 
 #[cfg(test)]
@@ -89,7 +107,16 @@ mod tests {
     use super::*;
 
     fn asked(id: &str, thread: Option<&str>) -> CrewAnswer {
-        CrewAnswer { id: id.into(), crew: "ada".into(), member: "Ada".into(), job: Some("job1".into()), question: "q".into(), status: "done".into(), thread: thread.map(str::to_owned), ..CrewAnswer::default() }
+        CrewAnswer {
+            id: id.into(),
+            crew: "ada".into(),
+            member: "Ada".into(),
+            job: Some("job1".into()),
+            question: "q".into(),
+            status: "done".into(),
+            thread: thread.map(str::to_owned),
+            ..CrewAnswer::default()
+        }
     }
 
     /// v1 crew.test.js "you reply in the thread": the reply sits right after the answer (after any earlier replies in

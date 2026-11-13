@@ -12,14 +12,11 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-    JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
+    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
     QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
 };
-use windows_sys::Win32::System::Threading::{
-    OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
-};
+use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess};
 
 use super::ProcInfo;
 
@@ -50,11 +47,7 @@ pub fn signal_name(sig: i32) -> String {
 }
 
 fn check(ok: i32) -> io::Result<()> {
-    if ok == 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(())
-    }
+    if ok == 0 { Err(io::Error::last_os_error()) } else { Ok(()) }
 }
 
 /// An owned handle, closed on drop.
@@ -95,18 +88,10 @@ impl Job {
         #[allow(unsafe_code)]
         let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
         info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        let size = u32::try_from(size_of_val(&info))
-            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let size = u32::try_from(size_of_val(&info)).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
         // SAFETY: `info` lives across the call and `size` is its exact size.
         #[allow(unsafe_code)]
-        let ok = unsafe {
-            SetInformationJobObject(
-                job.0.0,
-                JobObjectExtendedLimitInformation,
-                (&raw const info).cast(),
-                size,
-            )
-        };
+        let ok = unsafe { SetInformationJobObject(job.0.0, JobObjectExtendedLimitInformation, (&raw const info).cast(), size) };
         check(ok)?;
         Ok(job)
     }
@@ -139,18 +124,11 @@ impl Job {
         // SAFETY: an all-zero accounting struct is a valid out-buffer.
         #[allow(unsafe_code)]
         let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { std::mem::zeroed() };
-        let size = u32::try_from(size_of_val(&info))
-            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let size = u32::try_from(size_of_val(&info)).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
         // SAFETY: `info` is a writable buffer of `size` bytes; the return length pointer may be null.
         #[allow(unsafe_code)]
         let ok = unsafe {
-            QueryInformationJobObject(
-                self.0.0,
-                JobObjectBasicAccountingInformation,
-                (&raw mut info).cast(),
-                size,
-                ptr::null_mut(),
-            )
+            QueryInformationJobObject(self.0.0, JobObjectBasicAccountingInformation, (&raw mut info).cast(), size, ptr::null_mut())
         };
         check(ok)?;
         Ok(info.ActiveProcesses)
@@ -189,20 +167,13 @@ pub fn processes() -> io::Result<Vec<ProcInfo>> {
     // SAFETY: PROCESSENTRY32W is plain data; all-zero is valid before dwSize is set.
     #[allow(unsafe_code)]
     let mut entry: PROCESSENTRY32W = unsafe { std::mem::zeroed() };
-    entry.dwSize = u32::try_from(size_of_val(&entry))
-        .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+    entry.dwSize = u32::try_from(size_of_val(&entry)).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
     let mut out = Vec::new();
     // SAFETY: the snapshot handle is open and `entry` is writable with dwSize set.
     #[allow(unsafe_code)]
     let mut more = unsafe { Process32FirstW(snap.0, &raw mut entry) };
     while more != 0 {
-        out.push(ProcInfo {
-            pid: entry.th32ProcessID,
-            ppid: entry.th32ParentProcessID,
-            pgid: 0,
-            zombie: false,
-            start: 0,
-        });
+        out.push(ProcInfo { pid: entry.th32ProcessID, ppid: entry.th32ParentProcessID, pgid: 0, zombie: false, start: 0 });
         // SAFETY: as for Process32FirstW.
         #[allow(unsafe_code)]
         let next = unsafe { Process32NextW(snap.0, &raw mut entry) };

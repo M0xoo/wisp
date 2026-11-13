@@ -161,7 +161,9 @@ impl Composer {
     pub fn paste(&mut self, text: &str) {
         let t = text.trim_end_matches('\n');
         let one = t.trim();
-        let image = ["png", "jpg", "jpeg", "gif", "webp"].iter().any(|e| one.to_ascii_lowercase().ends_with(&format!(".{e}"))) && !one.contains('\n') && std::path::Path::new(one.trim_matches(['\'', '"'])).is_file();
+        let image = ["png", "jpg", "jpeg", "gif", "webp"].iter().any(|e| one.to_ascii_lowercase().ends_with(&format!(".{e}")))
+            && !one.contains('\n')
+            && std::path::Path::new(one.trim_matches(['\'', '"'])).is_file();
         if image {
             self.attachments.push(one.trim_matches(['\'', '"']).to_owned());
             self.insert(&format!("[image {}]", self.attachments.len()));

@@ -56,7 +56,9 @@ pub async fn begin(ctx: &Ctx, f: &Shared) -> Result<ClaudeSignIn> {
     let bin = std::env::var("WISP_CLAUDE_BIN").unwrap_or_else(|_| "claude".into());
     // wide, so the link isn't broken over lines
     let opts = SpawnOpts { pty: Some(PtySize { cols: 400, rows: 40 }), scope: Some(ctx.scope().clone()), ..SpawnOpts::default() };
-    let child = proc.spawn(&bin, &["setup-token".to_owned()], opts).map_err(|e| WireError::unavailable(format!("Claude Code didn't start ({e}): install it first (Settings → Agents)")))?;
+    let child = proc
+        .spawn(&bin, &["setup-token".to_owned()], opts)
+        .map_err(|e| WireError::unavailable(format!("Claude Code didn't start ({e}): install it first (Settings → Agents)")))?;
     let (handle, mut output) = child.split();
     lock(f).child = Some(handle);
     let reader = f.clone();
@@ -72,7 +74,8 @@ pub async fn begin(ctx: &Ctx, f: &Shared) -> Result<ClaudeSignIn> {
         }
         let mut g = lock(&reader);
         if g.state.state == "waiting" || g.state.state == "link" {
-            g.state = ClaudeSignIn { state: "failed".into(), link: None, error: Some("Claude's sign-in ended before it gave a token.".into()) };
+            g.state =
+                ClaudeSignIn { state: "failed".into(), link: None, error: Some("Claude's sign-in ended before it gave a token.".into()) };
         }
     });
     if !wait_for(ctx, f, 30, |g| g.state.link.is_some() || g.state.state == "failed").await {

@@ -16,9 +16,7 @@ pub fn as_str(s: &str) -> String {
 }
 
 /// cmd.exe's metacharacters, each escaped with `^`.
-const META: &[char] = &[
-    '(', ')', ']', '[', '%', '!', '^', '"', '`', '<', '>', '&', '|', ';', ',', ' ', '*', '?',
-];
+const META: &[char] = &['(', ')', ']', '[', '%', '!', '^', '"', '`', '<', '>', '&', '|', ';', ',', ' ', '*', '?'];
 
 fn caret(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 8);
@@ -82,15 +80,7 @@ mod tests {
         assert_eq!(cmd_argument("a b", false), "^\"a^ b^\"");
         assert_eq!(cmd_argument("x", true), "^^^\"x^^^\"");
         assert_eq!(cmd_argument(r#"say "hi""#, false), r#"^"say^ \^"hi\^"^""#);
-        assert_eq!(
-            cmd_argument(r"C:\dir\", false),
-            r#"^"C:\dir\\^""#,
-            "a trailing backslash can't eat the quote"
-        );
-        assert_eq!(
-            cmd_argument(r#"a\\"b"#, false),
-            r#"^"a\\\\\^"b^""#,
-            "a run of backslashes before a quote doubles whole"
-        );
+        assert_eq!(cmd_argument(r"C:\dir\", false), r#"^"C:\dir\\^""#, "a trailing backslash can't eat the quote");
+        assert_eq!(cmd_argument(r#"a\\"b"#, false), r#"^"a\\\\\^"b^""#, "a run of backslashes before a quote doubles whole");
     }
 }

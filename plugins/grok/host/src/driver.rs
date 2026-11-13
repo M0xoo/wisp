@@ -45,7 +45,13 @@ impl<P: LineParser + 'static> RunDriver for KitDriver<P> {
                 ParserInput::Stdout(line) => self.inner.stdout(line, now_ms, &disk, &mut events).await,
                 ParserInput::Stderr(text) => self.inner.stderr(text, now_ms, &disk, &mut events).await,
                 ParserInput::Exit(e) => {
-                    let exit = kit::Exit { code: e.code, signal: e.signal.clone(), stderr: e.stderr.clone(), stopped: e.stopped, stop_requested: e.stop_requested };
+                    let exit = kit::Exit {
+                        code: e.code,
+                        signal: e.signal.clone(),
+                        stderr: e.stderr.clone(),
+                        stopped: e.stopped,
+                        stop_requested: e.stop_requested,
+                    };
                     self.inner.exit(&exit, now_ms, &disk, &mut events).await;
                 }
                 ParserInput::Stop | ParserInput::Reply { .. } => {}
@@ -72,7 +78,14 @@ impl Disk for SysDisk<'_> {
     }
     fn git_env<'a>(&'a self, cwd: &'a str, args: &'a [&'a str], env: &'a [(&'a str, &'a str)]) -> DiskFuture<'a, Option<String>> {
         let env = env.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
-        let req = ExecReq { program: "git".into(), args: args.iter().map(|a| (*a).to_owned()).collect(), env, cwd: Some(cwd.to_owned()), timeout_ms: 10_000, ..ExecReq::default() };
+        let req = ExecReq {
+            program: "git".into(),
+            args: args.iter().map(|a| (*a).to_owned()).collect(),
+            env,
+            cwd: Some(cwd.to_owned()),
+            timeout_ms: 10_000,
+            ..ExecReq::default()
+        };
         let run = self.0.exec(req);
         Box::pin(async move {
             match run.await {

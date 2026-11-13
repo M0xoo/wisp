@@ -98,14 +98,7 @@ fn count_of(v: &Value) -> u32 {
     if n.is_nan() || n < 1.0 {
         return 1;
     }
-    if n >= f64::from(MAX_COPIES) {
-        MAX_COPIES
-    } else {
-        (1..MAX_COPIES)
-            .rev()
-            .find(|&c| f64::from(c) <= n)
-            .unwrap_or(1)
-    }
+    if n >= f64::from(MAX_COPIES) { MAX_COPIES } else { (1..MAX_COPIES).rev().find(|&c| f64::from(c) <= n).unwrap_or(1) }
 }
 
 fn unique(base: &str, taken: &mut Vec<String>) -> String {
@@ -133,17 +126,9 @@ pub fn normalize_team(list: &Value, known: &dyn Fn(&str) -> bool) -> Result<Vec<
         if CREW_ID.is_match(&crew) {
             let base = slug(&js_str(&m["name"]));
             let name = unique(if base.is_empty() { "crew" } else { &base }, &mut taken);
-            let agent = m["agent"]
-                .as_str()
-                .filter(|a| known(a) && *a != "wisp")
-                .unwrap_or("auto")
-                .to_owned();
+            let agent = m["agent"].as_str().filter(|a| known(a) && *a != "wisp").unwrap_or("auto").to_owned();
             let label = line(&m["label"], 24);
-            let label = if label.is_empty() {
-                name.clone()
-            } else {
-                label
-            };
+            let label = if label.is_empty() { name.clone() } else { label };
             out.push(Member {
                 label,
                 role: line(&m["role"], 60),
@@ -164,30 +149,15 @@ pub fn normalize_team(list: &Value, known: &dyn Fn(&str) -> bool) -> Result<Vec<
         let base = slug(&js_str(&m["name"]));
         let name = unique(if base.is_empty() { &agent } else { &base }, &mut taken);
         let machine = js_str(&m["machine"]);
-        let machine = if PLACE.is_match(&machine) {
-            machine
-        } else {
-            String::new()
-        };
+        let machine = if PLACE.is_match(&machine) { machine } else { String::new() };
         let effort = js_str(&m["effort"]);
         out.push(Member {
             name,
-            model: m["model"]
-                .as_str()
-                .map(|s| head16(s, 120).to_owned())
-                .unwrap_or_default(),
-            effort: if EFFORT.is_match(&effort) {
-                effort
-            } else {
-                String::new()
-            },
+            model: m["model"].as_str().map(|s| head16(s, 120).to_owned()).unwrap_or_default(),
+            effort: if EFFORT.is_match(&effort) { effort } else { String::new() },
             use_for: line(&m["use"], MAX_USE),
             count: count_of(&m["count"]),
-            place: if machine.is_empty() {
-                String::new()
-            } else {
-                line(&m["place"], 40)
-            },
+            place: if machine.is_empty() { String::new() } else { line(&m["place"], 40) },
             upstream: upstream && !machine.is_empty(),
             machine,
             agent,
@@ -199,26 +169,14 @@ pub fn normalize_team(list: &Value, known: &dyn Fn(&str) -> bool) -> Result<Vec<
 
 /// The sessions a member runs as: itself, or one per copy (`#` can't appear in a name, so no clashes).
 pub fn copies(m: &Member) -> Vec<String> {
-    if m.count > 1 {
-        (1..=m.count).map(|i| format!("{}#{i}", m.name)).collect()
-    } else {
-        vec![m.name.clone()]
-    }
+    if m.count > 1 { (1..=m.count).map(|i| format!("{}#{i}", m.name)).collect() } else { vec![m.name.clone()] }
 }
 
 /// How the lead hears of a member. `harness(id)`: a harness's display name.
 fn who(m: &Member, harness: &dyn Fn(&str) -> Option<String>) -> String {
     if !m.crew.is_empty() {
-        let label = if m.label.is_empty() {
-            &m.name
-        } else {
-            &m.label
-        };
-        let role = if m.role.is_empty() {
-            String::new()
-        } else {
-            format!(", {}", m.role)
-        };
+        let label = if m.label.is_empty() { &m.name } else { &m.label };
+        let role = if m.role.is_empty() { String::new() } else { format!(", {}", m.role) };
         return format!(
             "{label}{role}, a member of the user's crew: a long-lived agent with its own folder, harness and memory. It works in its own folder, not yours (its edits stay there), and remembers past jobs"
         );
@@ -226,28 +184,14 @@ fn who(m: &Member, harness: &dyn Fn(&str) -> Option<String>) -> String {
     let mut s = if m.agent == "auto" {
         "Auto (wisp picks the harness and model for the first task you give it)".to_owned()
     } else {
-        let name = harness(&m.agent)
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| m.agent.clone());
-        let model = if m.model.is_empty() {
-            "default model".to_owned()
-        } else {
-            m.model.clone()
-        };
-        let effort = if m.effort.is_empty() {
-            String::new()
-        } else {
-            format!("{} thinking", m.effort)
-        };
+        let name = harness(&m.agent).filter(|n| !n.is_empty()).unwrap_or_else(|| m.agent.clone());
+        let model = if m.model.is_empty() { "default model".to_owned() } else { m.model.clone() };
+        let effort = if m.effort.is_empty() { String::new() } else { format!("{} thinking", m.effort) };
         super::text::join_some(&[name, model, effort], " · ")
     };
     if !m.machine.is_empty() {
         s.push_str(" · on ");
-        s.push_str(if m.place.is_empty() {
-            "another machine"
-        } else {
-            &m.place
-        });
+        s.push_str(if m.place.is_empty() { "another machine" } else { &m.place });
     }
     s
 }
@@ -264,17 +208,12 @@ pub const AWAY_SUBAGENT: &str = "
   go back to the lead as a patch when you finish, so don't commit or push them.";
 
 /// Replaces the `ask_user` guidance for a subagent's own system prompt.
-pub const SUBAGENT_ASK: &str =
-    "- You are a subagent: a lead agent delegated this task to you and will read your presentation.
+pub const SUBAGENT_ASK: &str = "- You are a subagent: a lead agent delegated this task to you and will read your presentation.
   You cannot ask the user anything. Make the call yourself, note the assumption in a \"callout\"
   block, and finish. Don't commit unless the task says to.";
 
 /// Appended to the lead's system prompt. `tool`: how its harness names the delegate tool.
-pub fn team_note(
-    team: &[Member],
-    harness: &dyn Fn(&str) -> Option<String>,
-    tool: Option<&str>,
-) -> String {
+pub fn team_note(team: &[Member], harness: &dyn Fn(&str) -> Option<String>, tool: Option<&str>) -> String {
     let Some(tool) = tool.filter(|t| !t.is_empty() && !team.is_empty()) else {
         return String::new();
     };
@@ -287,22 +226,14 @@ pub fn team_note(
             } else {
                 String::new()
             };
-            let use_for = if m.use_for.is_empty() {
-                String::new()
-            } else {
-                format!(". Use it for: {}", m.use_for)
-            };
+            let use_for = if m.use_for.is_empty() { String::new() } else { format!(". Use it for: {}", m.use_for) };
             format!("- `{}`{n}: {}{use_for}", m.name, who(m, harness))
         })
         .collect();
     let multi = team.iter().find(|m| m.count > 1).map_or_else(String::new, |m| {
         format!("- A subagent with ×N has N identical copies that run at once. Put several tasks for `{}` in one delegate call and each goes to a free copy; name a copy (`{}`) to continue that copy's conversation.\n", m.name, copies(m).get(1).cloned().unwrap_or_default())
     });
-    let away = if team.iter().any(|m| !m.machine.is_empty()) {
-        format!("\n{AWAY_LEAD}")
-    } else {
-        String::new()
-    };
+    let away = if team.iter().any(|m| !m.machine.is_empty()) { format!("\n{AWAY_LEAD}") } else { String::new() };
     format!(
         "\n\n## Subagents
 
@@ -325,10 +256,7 @@ Hand them work with the `delegate` tool ({tool}): pass one or more tasks, `{{ \"
 /// Told to a lead whose follow-up arrived while delegates were still on its earlier tasks:
 /// `(name, id)` of each.
 pub fn still_working_note(list: &[(String, String)]) -> String {
-    let who: Vec<String> = list
-        .iter()
-        .map(|(name, id)| format!("{name} (id {id})"))
-        .collect();
+    let who: Vec<String> = list.iter().map(|(name, id)| format!("{name} (id {id})")).collect();
     format!(
         "Subagents you delegated to before this message are still on it, or done and not yet read: {}. Their edits land in your folder. Collect their reports with `subagent_results` (no ids needed) when you need them; don't delegate that work again.",
         who.join(", ")
@@ -369,14 +297,7 @@ pub fn delegation_report(
                 let f: Vec<String> = files.iter().map(|f| format!("`{f}`")).collect();
                 format!("\n\nFiles it changed: {}", f.join(", "))
             };
-            format!(
-                "{head}\n\n{}{files}",
-                if report.is_empty() {
-                    "_No report._"
-                } else {
-                    report
-                }
-            )
+            format!("{head}\n\n{}{files}", if report.is_empty() { "_No report._" } else { report })
         }
     }
 }
@@ -387,7 +308,8 @@ mod tests {
     /// v1 (F-comp-34): a team of eight is eight; nothing caps delegates at six.
     #[test]
     fn eight_delegates_stay_eight_no_cap_at_six_v1_no_team_cap() {
-        let rows: Vec<serde_json::Value> = (0..8).map(|i| serde_json::json!({ "agent": if i % 2 == 0 { "claude" } else { "codex" } })).collect();
+        let rows: Vec<serde_json::Value> =
+            (0..8).map(|i| serde_json::json!({ "agent": if i % 2 == 0 { "claude" } else { "codex" } })).collect();
         let team = normalize_team(&serde_json::Value::Array(rows), &|_| true).unwrap_or_default();
         assert_eq!(team.len(), 8);
         let names: std::collections::BTreeSet<&str> = team.iter().map(|m| m.name.as_str()).collect();
@@ -408,10 +330,6 @@ mod tests {
         assert_eq!(count_of(&json!(-2)), 1);
         assert_eq!(count_of(&json!(null)), 1);
         assert_eq!(count_of(&json!("x")), 1);
-        assert!(
-            [&EFFORT, &PLACE, &CREW_ID]
-                .iter()
-                .all(|r| r.get().is_some())
-        );
+        assert!([&EFFORT, &PLACE, &CREW_ID].iter().all(|r| r.get().is_some()));
     }
 }

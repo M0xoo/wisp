@@ -164,7 +164,11 @@ impl Mirror {
 
     /// Rows of this peer's list whose `state` is `running` (the card's "working").
     pub fn working(&self, peer: &str) -> u32 {
-        let n = self.peers.get(peer).and_then(|t| t.get(LIST)).map_or(0, |l| l.values().filter(|v| v.get("state").and_then(Value::as_str) == Some("running")).count());
+        let n = self
+            .peers
+            .get(peer)
+            .and_then(|t| t.get(LIST))
+            .map_or(0, |l| l.values().filter(|v| v.get("state").and_then(Value::as_str) == Some("running")).count());
         u32::try_from(n).unwrap_or(u32::MAX)
     }
 }

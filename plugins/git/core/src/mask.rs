@@ -11,10 +11,7 @@ pub use wisp_envmask::{DOTS, is_env_file, mask_line};
 
 pub fn mask_row(r: &Row) -> Row {
     match &r.text {
-        Some(t) => Row {
-            text: Some(mask_line(t)),
-            ..r.clone()
-        },
+        Some(t) => Row { text: Some(mask_line(t)), ..r.clone() },
         None => r.clone(),
     }
 }
@@ -46,15 +43,7 @@ mod tests {
         for p in [".env", "app/.env.local", ".env.production", "a\\.env"] {
             assert!(is_env_file(p), "{p}");
         }
-        for p in [
-            ".env.example",
-            ".env.local.example",
-            ".env.sample",
-            "env",
-            ".environment",
-            "x.env",
-            ".env.",
-        ] {
+        for p in [".env.example", ".env.local.example", ".env.sample", "env", ".environment", "x.env", ".env."] {
             assert!(!is_env_file(p), "{p}");
         }
     }
@@ -62,24 +51,13 @@ mod tests {
     #[test]
     fn lines() {
         assert_eq!(mask_line("API_KEY=sk-live-1"), "API_KEY=••••");
-        assert_eq!(
-            mask_line("export TOKEN = \"x y\" # c"),
-            "export TOKEN = ••••"
-        );
+        assert_eq!(mask_line("export TOKEN = \"x y\" # c"), "export TOKEN = ••••");
         assert_eq!(mask_line("  host: db.local"), "  host: ••••");
         assert_eq!(mask_line("EMPTY="), "EMPTY=");
         assert_eq!(mask_line("# comment=1"), "# comment=1");
         assert_eq!(mask_line("   "), "   ");
-        assert_eq!(
-            mask_line("  sk-bare-value"),
-            "  ••••",
-            "a bare value goes whole"
-        );
-        assert_eq!(
-            mask_line("export=1"),
-            "export=••••",
-            "export can be the key"
-        );
+        assert_eq!(mask_line("  sk-bare-value"), "  ••••", "a bare value goes whole");
+        assert_eq!(mask_line("export=1"), "export=••••", "export can be the key");
     }
 
     #[test]
@@ -89,10 +67,7 @@ mod tests {
         let raw = f.rows.clone();
         mask_file(&mut f, false);
         assert!(f.masked && f.rows[1].text() == "A=••••");
-        assert!(
-            same_hunk(&raw, &hunk_key(&f.rows)),
-            "a masked key matches the real rows"
-        );
+        assert!(same_hunk(&raw, &hunk_key(&f.rows)), "a masked key matches the real rows");
         assert!(same_hunk(&raw, &hunk_key(&raw)));
         let mut shown = FileDiff::new(".env", 'M');
         mask_file(&mut shown, true);

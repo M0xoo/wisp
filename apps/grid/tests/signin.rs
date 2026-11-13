@@ -24,7 +24,12 @@ async fn fake_github(seen: Arc<Mutex<Vec<String>>>) -> u16 {
                     let seen = seen.clone();
                     async move {
                         let path = req.uri().path().to_owned();
-                        let body = req.into_body().collect().await.map(|b| String::from_utf8_lossy(&b.to_bytes()).into_owned()).unwrap_or_default();
+                        let body = req
+                            .into_body()
+                            .collect()
+                            .await
+                            .map(|b| String::from_utf8_lossy(&b.to_bytes()).into_owned())
+                            .unwrap_or_default();
                         seen.lock().unwrap().push(format!("{path} {body}"));
                         let v = match path.as_str() {
                             "/login/oauth/access_token" if body.contains("code_verifier") => json!({ "access_token": "gho_test" }),
@@ -57,11 +62,29 @@ async fn github_sign_in_through_the_routes() {
     let clock = wisp_grid::clock::system();
     let db = Arc::new(wisp_grid::db::Db::open(&dir, clock.now_ms()).unwrap());
     let url_cfg = cfg.clone();
-    let boxes = wisp_grid::hostd::ProcessHost::new(wisp_grid::hostd::ProcessOptions { bin: "wisp".into(), data: dir.clone(), idle_ms: 60_000, check_ms: 1000, start_ms: 30_000, max_running: 1, env: Vec::new(), url_of: Arc::new(move |h| url_cfg.instance_url(h)), boxd: None }, clock.clone());
+    let boxes = wisp_grid::hostd::ProcessHost::new(
+        wisp_grid::hostd::ProcessOptions {
+            bin: "wisp".into(),
+            data: dir.clone(),
+            idle_ms: 60_000,
+            check_ms: 1000,
+            start_ms: 30_000,
+            max_running: 1,
+            env: Vec::new(),
+            url_of: Arc::new(move |h| url_cfg.instance_url(h)),
+            boxd: None,
+        },
+        clock.clone(),
+    );
     let grid = wisp_grid::edge::Grid::new(cfg, db, clock, boxes);
     let stop = CancellationToken::new();
     tokio::spawn(wisp_grid::edge::serve(grid.clone(), listener, stop.clone()));
-    let c = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).resolve("wisp.localhost", ([127, 0, 0, 1], port).into()).build().unwrap();
+    let c = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve("wisp.localhost", ([127, 0, 0, 1], port).into())
+        .build()
+        .unwrap();
     let root = format!("http://wisp.localhost:{port}");
 
     // out to GitHub, with state and PKCE, and the state in a cookie
@@ -71,7 +94,13 @@ async fn github_sign_in_through_the_routes() {
     assert!(to.as_str().starts_with(&format!("{base}/login/oauth/authorize")), "{to}");
     let q: std::collections::HashMap<String, String> = to.query_pairs().into_owned().collect();
     assert_eq!(q["code_challenge_method"], "S256");
-    let flow_cookie = r.headers().get_all("set-cookie").iter().map(|v| v.to_str().unwrap().to_owned()).find(|c| c.starts_with("wisp_grid_oauth=")).unwrap();
+    let flow_cookie = r
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|v| v.to_str().unwrap().to_owned())
+        .find(|c| c.starts_with("wisp_grid_oauth="))
+        .unwrap();
     let flow = flow_cookie.split(';').next().unwrap().to_owned();
 
     // back without the cookie (another browser): refused, nothing signed in
@@ -83,11 +112,23 @@ async fn github_sign_in_through_the_routes() {
     let f = c.get(format!("{root}/auth/github/start?return=/gallery")).send().await.unwrap();
     let to = url::Url::parse(f.headers()["location"].to_str().unwrap()).unwrap();
     let state = to.query_pairs().find(|(k, _)| k == "state").unwrap().1.into_owned();
-    let flow = f.headers().get_all("set-cookie").iter().map(|v| v.to_str().unwrap().to_owned()).find(|c| c.starts_with("wisp_grid_oauth=")).map_or(flow, |c| c.split(';').next().unwrap().to_owned());
+    let flow = f
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|v| v.to_str().unwrap().to_owned())
+        .find(|c| c.starts_with("wisp_grid_oauth="))
+        .map_or(flow, |c| c.split(';').next().unwrap().to_owned());
     let r = c.get(format!("{root}/auth/github/callback?code=abc&state={state}")).header("cookie", &flow).send().await.unwrap();
     assert_eq!(r.status(), 302, "{:?}", r.text().await);
     assert_eq!(r.headers()["location"], "/gallery");
-    let session = r.headers().get_all("set-cookie").iter().map(|v| v.to_str().unwrap().to_owned()).find(|c| c.starts_with("wisp_grid=")).expect("a session");
+    let session = r
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|v| v.to_str().unwrap().to_owned())
+        .find(|c| c.starts_with("wisp_grid="))
+        .expect("a session");
     assert!(seen.lock().unwrap().iter().any(|s| s.starts_with("/login/oauth/access_token") && s.contains("code_verifier")));
     let ada = grid.accounts.user_by_handle("ada").unwrap().expect("ada was made");
     assert_eq!(ada.email.as_deref(), Some("ada@example.com"));

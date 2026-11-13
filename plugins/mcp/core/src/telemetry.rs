@@ -9,10 +9,18 @@ pub fn of(name: &str, args: &Map<String, Value>, agent_side: bool) -> Option<(&'
     let s = |k: &str| args.get(k).and_then(Value::as_str).filter(|v| !v.is_empty());
     let by = if agent_side { "agent" } else { "user" };
     match name {
-        "wisp_launch" if agent_side => Some(("agent_launch", json!({ "harness": s("agent").unwrap_or("auto"), "machine": s("machine").is_some(), "team": args.get("team").is_some_and(|t| !t.is_null()) || s("preset").is_some() }))),
+        "wisp_launch" if agent_side => Some((
+            "agent_launch",
+            json!({ "harness": s("agent").unwrap_or("auto"), "machine": s("machine").is_some(), "team": args.get("team").is_some_and(|t| !t.is_null()) || s("preset").is_some() }),
+        )),
         "wisp_task" if agent_side => Some(("agent_task", json!({ "action": s("action").unwrap_or("") }))),
-        "wisp_crew_add" | "wisp_crew_edit" | "wisp_crew_remove" | "wisp_crew_kit" => Some(("crew_tool", json!({ "by": by, "op": name.trim_start_matches("wisp_crew_") }))),
-        "wisp_connector_add" | "wisp_connector_signin" => Some(("connector_tool", json!({ "op": name.trim_start_matches("wisp_connector_"), "transport": s("transport").or_else(|| s("url").map(|_| "http")).unwrap_or("stdio") }))),
+        "wisp_crew_add" | "wisp_crew_edit" | "wisp_crew_remove" | "wisp_crew_kit" => {
+            Some(("crew_tool", json!({ "by": by, "op": name.trim_start_matches("wisp_crew_") })))
+        }
+        "wisp_connector_add" | "wisp_connector_signin" => Some((
+            "connector_tool",
+            json!({ "op": name.trim_start_matches("wisp_connector_"), "transport": s("transport").or_else(|| s("url").map(|_| "http")).unwrap_or("stdio") }),
+        )),
         _ => None,
     }
 }

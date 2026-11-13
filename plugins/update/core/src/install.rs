@@ -46,10 +46,7 @@ pub struct Platform {
 
 impl Platform {
     pub fn new(os: &str, arch: &str) -> Self {
-        Self {
-            os: os.to_owned(),
-            arch: arch.to_owned(),
-        }
+        Self { os: os.to_owned(), arch: arch.to_owned() }
     }
     /// From Rust's names (`std::env::consts::{OS, ARCH}`).
     pub fn from_rust(os: &str, arch: &str) -> Self {
@@ -129,60 +126,31 @@ fn launcher_root(exe: &str, platform: &Platform) -> Option<String> {
 /// How this copy was installed. `exe`: the binary's path; `appimage`: `$APPIMAGE`; `desktop`: started by
 /// the desktop shell (`WISP_DESKTOP=tauri`); `clone`: the folder of a clone this binary was built in, when
 /// the host found one (a `target/` dir whose parent has `.git`), or a debug build's.
-pub fn detect(
-    exe: &str,
-    platform: &Platform,
-    appimage: Option<&str>,
-    desktop: bool,
-    clone: Option<&str>,
-) -> Install {
+pub fn detect(exe: &str, platform: &Platform, appimage: Option<&str>, desktop: bool, clone: Option<&str>) -> Install {
     let segs = segments(exe);
     if let Some(i) = segs.iter().position(|s| *s == "Cellar")
         && segs.get(i + 1) == Some(&PKG)
     {
         let brew = prefix_before(exe, i);
         let root = launcher_root(exe, platform).unwrap_or_else(|| exe.to_owned());
-        return Install {
-            method: Method::Brew,
-            root,
-            brew: Some(brew),
-        };
+        return Install { method: Method::Brew, root, brew: Some(brew) };
     }
     if let Some(bundle) = app_bundle(exe, appimage, desktop) {
-        return Install {
-            method: Method::App,
-            root: bundle,
-            brew: None,
-        };
+        return Install { method: Method::App, root: bundle, brew: None };
     }
     if let Some(dir) = clone {
-        return Install {
-            method: Method::Git,
-            root: dir.to_owned(),
-            brew: None,
-        };
+        return Install { method: Method::Git, root: dir.to_owned(), brew: None };
     }
     let root = launcher_root(exe, platform).unwrap_or_else(|| exe.to_owned());
-    let method = if segs.contains(&"_npx") {
-        Method::Npx
-    } else {
-        Method::Global
-    };
-    Install {
-        method,
-        root,
-        brew: None,
-    }
+    let method = if segs.contains(&"_npx") { Method::Npx } else { Method::Global };
+    Install { method, root, brew: None }
 }
 
 /// The desktop app's own file: macOS the `.app` bundle, Linux the `AppImage`, Windows the install folder.
 fn app_bundle(exe: &str, appimage: Option<&str>, desktop: bool) -> Option<String> {
     let segs = segments(exe);
-    if let Some(i) = segs.iter().rposition(|s| {
-        std::path::Path::new(s)
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("app"))
-    }) && segs.get(i + 1) == Some(&"Contents")
+    if let Some(i) = segs.iter().rposition(|s| std::path::Path::new(s).extension().is_some_and(|e| e.eq_ignore_ascii_case("app")))
+        && segs.get(i + 1) == Some(&"Contents")
     {
         return Some(prefix_before(exe, i + 1));
     }
@@ -207,17 +175,11 @@ pub fn cargo_clone(exe: &str) -> Option<String> {
 /// The release download for this copy of the app (names without a version, desktop/scripts/package.mjs).
 /// A .deb (no `$APPIMAGE`) updates through apt or a new .deb, so it gets none.
 pub fn asset_name(platform: &Platform, appimage: Option<&str>) -> Option<String> {
-    let arch = if platform.arch == "arm64" {
-        "arm64"
-    } else {
-        "x64"
-    };
+    let arch = if platform.arch == "arm64" { "arm64" } else { "x64" };
     match platform.os.as_str() {
         "darwin" => Some(format!("wisp-mac-{arch}.zip")),
         "win32" => Some(format!("wisp-windows-{arch}-setup.exe")),
-        "linux" if appimage.is_some_and(|s| !s.is_empty()) => {
-            Some(format!("wisp-linux-{arch}.AppImage"))
-        }
+        "linux" if appimage.is_some_and(|s| !s.is_empty()) => Some(format!("wisp-linux-{arch}.AppImage")),
         _ => None,
     }
 }

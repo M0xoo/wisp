@@ -67,7 +67,9 @@ pub fn next(vote: &str, v: &[Verdict], round: u32, max: u32) -> Next {
 
 /// The prompt a judge gets.
 pub fn judge_prompt(goal: &str, title: &str, answer: &str) -> String {
-    format!("You judge whether a task met its goal. Answer with one line: MET, or NOT MET: <what's missing>.\n\nGoal: {goal}\nTask: {title}\nIts last answer:\n{answer}")
+    format!(
+        "You judge whether a task met its goal. Answer with one line: MET, or NOT MET: <what's missing>.\n\nGoal: {goal}\nTask: {title}\nIts last answer:\n{answer}"
+    )
 }
 
 #[cfg(test)]
@@ -80,7 +82,12 @@ mod tests {
         let no = verdict("r", "Fake: NOT MET: the tests still fail\nmore");
         assert_eq!((no.met, no.why.as_str()), (false, "the tests still fail"));
         assert!(!verdict("r", "looks fine").met, "unclear is no");
-        let v = |m: &[bool]| m.iter().enumerate().map(|(i, &met)| Verdict { judge: format!("j{i}"), met, why: if met { String::new() } else { "x".into() } }).collect::<Vec<_>>();
+        let v = |m: &[bool]| {
+            m.iter()
+                .enumerate()
+                .map(|(i, &met)| Verdict { judge: format!("j{i}"), met, why: if met { String::new() } else { "x".into() } })
+                .collect::<Vec<_>>()
+        };
         assert!(met("majority", &v(&[true, true, false])) && !met("majority", &v(&[true, false])));
         assert!(met("any", &v(&[false, true])) && !met("all", &v(&[false, true])) && !met("all", &[]));
         assert_eq!(next("all", &v(&[true]), 1, 3), Next::Met);

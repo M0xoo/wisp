@@ -42,11 +42,7 @@ impl SlackError {
     }
     /// What Settings shows: a code that needs new tokens says where to put them.
     pub fn line(&self) -> String {
-        if self.for_good() {
-            format!("{self}. {FIX}")
-        } else {
-            self.to_string()
-        }
+        if self.for_good() { format!("{self}. {FIX}") } else { self.to_string() }
     }
 }
 
@@ -54,8 +50,9 @@ impl From<SlackError> for WireError {
     fn from(e: SlackError) -> Self {
         match &e {
             SlackError::Signature(_) => WireError::forbidden(e.to_string()),
-            SlackError::RateLimited { retry_after_s } => WireError::unavailable(e.to_string())
-                .with_details(serde_json::json!({ "retryAfter": retry_after_s })),
+            SlackError::RateLimited { retry_after_s } => {
+                WireError::unavailable(e.to_string()).with_details(serde_json::json!({ "retryAfter": retry_after_s }))
+            }
             SlackError::Api(_) if e.for_good() => WireError::invalid(e.line()),
             SlackError::Net(_) | SlackError::Api(_) => WireError::unavailable(e.to_string()),
         }

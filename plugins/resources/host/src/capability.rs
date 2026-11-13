@@ -55,19 +55,31 @@ impl ResourceKind for CapabilityKind {
         self.0.read(call)
     }
     fn describe(&self, op: &Op) -> Option<String> {
-        let allow = op.spec.get("allow").and_then(serde_json::Value::as_array).map(|a| a.iter().filter_map(serde_json::Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+        let allow = op
+            .spec
+            .get("allow")
+            .and_then(serde_json::Value::as_array)
+            .map(|a| a.iter().filter_map(serde_json::Value::as_str).collect::<Vec<_>>().join(", "))
+            .unwrap_or_default();
         Some(format!("{} the capability set {} (it may: {allow})", if op.op == OpKind::Delete { "removes" } else { "sets" }, op.name))
     }
     fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             self.0.apply(call, op).await?;
-            if op.op == OpKind::Delete { self.0.ctx.remove_capability(&set_id(&op.name)) } else { load(&self.0.ctx, &op.name, &op.spec).await }
+            if op.op == OpKind::Delete {
+                self.0.ctx.remove_capability(&set_id(&op.name))
+            } else {
+                load(&self.0.ctx, &op.name, &op.spec).await
+            }
         })
     }
 }
 
 pub fn register(s: &mut Setup) {
-    let inner = Arc::new(StoredKind::new(KindInfo::new("capability", "capabilities", "wisp.resources", schema_of::<CapabilitySpec>()).order(4).sensitive(), s.ctx()));
+    let inner = Arc::new(StoredKind::new(
+        KindInfo::new("capability", "capabilities", "wisp.resources", schema_of::<CapabilitySpec>()).order(4).sensitive(),
+        s.ctx(),
+    ));
     let k: Arc<dyn ResourceKind> = Arc::new(CapabilityKind(inner.clone()));
     s.contribute(&RESOURCE_KIND, k);
     s.on_start(move |ctx| async move {

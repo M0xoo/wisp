@@ -7,7 +7,9 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use wisp_channels_api::conversation::Conversation;
-use wisp_channels_api::{ActArgs, ChannelCtx, Later, Mode, Parsed, Phone, ProjectView, RunOpts, SessionView, StartOpts, Started, ThreadCtx};
+use wisp_channels_api::{
+    ActArgs, ChannelCtx, Later, Mode, Parsed, Phone, ProjectView, RunOpts, SessionView, StartOpts, Started, ThreadCtx,
+};
 use wisp_channels_core::conversation::converse;
 use wisp_kernel::Result;
 
@@ -121,7 +123,11 @@ impl Conversation for Chat<'_> {
 
 fn chat(phone: &FakePhone) -> Chat<'_> {
     let api = ProjectView { id: "p1".into(), name: "api".into(), path: "/work/api".into(), ..ProjectView::default() };
-    Chat { phone, ctx: ChannelCtx { projects: vec![api.clone()], default_project: Some(api), ..ChannelCtx::default() }, said: Mutex::default() }
+    Chat {
+        phone,
+        ctx: ChannelCtx { projects: vec![api.clone()], default_project: Some(api), ..ChannelCtx::default() },
+        said: Mutex::default(),
+    }
 }
 
 #[tokio::test]
@@ -144,7 +150,11 @@ async fn a_list_a_refusal_and_full_auto_past_the_cap_start_nothing() {
     converse(&c, "full auto: deploy it", None, None).await.unwrap();
     let said = c.said.lock().unwrap().clone();
     assert!(said[0].starts_with("Projects:\n• api  ← default"), "{}", said[0]);
-    assert!(said[1].starts_with("No project “nowhere”.") && said[1].ends_with("Nothing started. Start with “:” to send it as written."), "{}", said[1]);
+    assert!(
+        said[1].starts_with("No project “nowhere”.") && said[1].ends_with("Nothing started. Start with “:” to send it as written."),
+        "{}",
+        said[1]
+    );
     assert!(said[2].ends_with("Nothing started."), "past this chat's cap: {}", said[2]);
     assert!(!phone.log().iter().any(|l| l.starts_with("start ")), "{:?}", phone.log());
     assert!(phone.log().contains(&"count list projects".to_owned()) && phone.log().contains(&"count refused no-match".to_owned()));

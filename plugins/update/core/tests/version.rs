@@ -34,42 +34,24 @@ fn newer_orders_prereleases_the_semver_way() {
             assert_eq!(newer(a, b), i > j, "{a} vs {b}");
         }
     }
-    assert!(
-        newer("1.0.0-alpha.1", "1.0.0-alpha"),
-        "more identifiers sort later"
-    );
-    assert!(
-        newer("1.0.0-alpha.beta", "1.0.0-alpha.1"),
-        "words after numbers"
-    );
-    assert!(
-        !newer("1.0.0+build.2", "1.0.0+build.1"),
-        "build metadata doesn't count"
-    );
+    assert!(newer("1.0.0-alpha.1", "1.0.0-alpha"), "more identifiers sort later");
+    assert!(newer("1.0.0-alpha.beta", "1.0.0-alpha.1"), "words after numbers");
+    assert!(!newer("1.0.0+build.2", "1.0.0+build.1"), "build metadata doesn't count");
     assert!(!newer("", "0.1.0"), "no version is never newer (v1: null)");
     assert!(newer("2.0.0", ""));
-    assert!(
-        newer("1.0.0-99999999999999999999999", "1.0.0-9"),
-        "long numbers don't overflow"
-    );
+    assert!(newer("1.0.0-99999999999999999999999", "1.0.0-9"), "long numbers don't overflow");
 }
 
 #[test]
 fn newest_skips_empty_and_keeps_the_first_of_equals() {
-    assert_eq!(
-        newest(["", "0.37.0", "0.38.0-beta.1", "0.36.0"]),
-        Some("0.38.0-beta.1")
-    );
+    assert_eq!(newest(["", "0.37.0", "0.38.0-beta.1", "0.36.0"]), Some("0.38.0-beta.1"));
     assert_eq!(newest(["v1.0.0", "1.0.0"]), Some("v1.0.0"));
     assert_eq!(newest([""]), None);
 }
 
 #[test]
 fn the_nightly_title_carries_its_version() {
-    assert_eq!(
-        find_version("wisp 99.1.0-nightly.20261024.317"),
-        Some("99.1.0-nightly.20261024.317")
-    );
+    assert_eq!(find_version("wisp 99.1.0-nightly.20261024.317"), Some("99.1.0-nightly.20261024.317"));
     assert_eq!(find_version("wisp 1.2.3 (stable)"), Some("1.2.3"));
     assert_eq!(find_version("build 12.3 of 1.2.3-"), Some("1.2.3"));
     assert_eq!(find_version("no version"), None);
@@ -99,8 +81,7 @@ fn version(r: &mut Rng) -> String {
                 if r.below(2) == 0 {
                     r.below(12).to_string()
                 } else {
-                    ["alpha", "beta", "nightly", "rc"][usize::try_from(r.below(4)).unwrap_or(0)]
-                        .to_owned()
+                    ["alpha", "beta", "nightly", "rc"][usize::try_from(r.below(4)).unwrap_or(0)].to_owned()
                 }
             })
             .collect();

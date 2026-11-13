@@ -48,17 +48,37 @@ pub enum Out {
     Send(ClientMessage),
     /// drop every row held for this peer (a new epoch)
     Reset,
-    Snapshot { topic: Topic, rows: Vec<Row> },
+    Snapshot {
+        topic: Topic,
+        rows: Vec<Row>,
+    },
     EntityOps(Vec<EntityOp>),
-    Rows { req: String, rows: Vec<Row>, done: bool },
-    Ack { mid: String, seq: u64, result: Option<Value> },
-    Reject { mid: String, code: String, message: String },
+    Rows {
+        req: String,
+        rows: Vec<Row>,
+        done: bool,
+    },
+    Ack {
+        mid: String,
+        seq: u64,
+        result: Option<Value>,
+    },
+    Reject {
+        mid: String,
+        code: String,
+        message: String,
+    },
     NeedResubscribe(Topic),
-    Denied { topic: Topic, code: String },
+    Denied {
+        topic: Topic,
+        code: String,
+    },
     Notice(Notice),
     State(State, Option<Update>),
     /// reconnect at this time (the host owns the timer)
-    Retry { at: i64 },
+    Retry {
+        at: i64,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -82,7 +102,14 @@ pub struct Opts {
 
 impl Opts {
     pub fn new(client_id: impl Into<String>, build: impl Into<String>) -> Self {
-        Self { client_id: client_id.into(), build: build.into(), proto_min: wisp_protocol::PROTO_MIN, proto_max: wisp_protocol::PROTO, retry_base_ms: 500, retry_max_ms: 30_000 }
+        Self {
+            client_id: client_id.into(),
+            build: build.into(),
+            proto_min: wisp_protocol::PROTO_MIN,
+            proto_max: wisp_protocol::PROTO,
+            retry_base_ms: 500,
+            retry_max_ms: 30_000,
+        }
     }
 }
 
@@ -108,10 +135,22 @@ fn sub(topic: &Topic, since: Option<u64>, passive: bool) -> ClientMessage {
 impl PeerClient {
     pub fn new(o: Opts, saved: Option<Saved>) -> Self {
         let saved = saved.unwrap_or_default();
-        let mut held: BTreeMap<Topic, u64> = saved.cursor.map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect()).unwrap_or_default();
+        let mut held: BTreeMap<Topic, u64> =
+            saved.cursor.map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect()).unwrap_or_default();
         held.extend(saved.held);
         let pending = saved.pending.into_iter().map(|m| (m.mid.clone(), m)).collect();
-        Self { o, state: State::Idle, epoch: saved.epoch, cursor: saved.cursor, topics: BTreeMap::new(), held, pending, hello: BTreeMap::new(), attempt: 0, out: Vec::new() }
+        Self {
+            o,
+            state: State::Idle,
+            epoch: saved.epoch,
+            cursor: saved.cursor,
+            topics: BTreeMap::new(),
+            held,
+            pending,
+            hello: BTreeMap::new(),
+            attempt: 0,
+            out: Vec::new(),
+        }
     }
 
     pub fn state(&self) -> State {
@@ -155,7 +194,12 @@ impl PeerClient {
             return self.take();
         }
         self.set_state(State::Connecting);
-        let mut params = vec![("proto_min".into(), self.o.proto_min.to_string()), ("proto_max".into(), self.o.proto_max.to_string()), ("client_id".into(), self.o.client_id.clone()), ("build".into(), self.o.build.clone())];
+        let mut params = vec![
+            ("proto_min".into(), self.o.proto_min.to_string()),
+            ("proto_max".into(), self.o.proto_max.to_string()),
+            ("client_id".into(), self.o.client_id.clone()),
+            ("build".into(), self.o.build.clone()),
+        ];
         let resume_at = match (&self.epoch, self.cursor) {
             (Some(e), Some(c)) => {
                 params.push(("epoch".into(), e.clone()));
@@ -173,7 +217,11 @@ impl PeerClient {
             }
             let resumed = resume_at.is_some() && (s.synced || self.held.contains_key(t));
             self.hello.insert(t.clone(), resumed);
-            if resumed { topics.push(t.as_str()) } else { fresh.push(t.as_str()) }
+            if resumed {
+                topics.push(t.as_str());
+            } else {
+                fresh.push(t.as_str());
+            }
             if s.active == 0 {
                 passive.push(t.as_str());
             }
@@ -229,7 +277,8 @@ impl PeerClient {
         self.epoch = Some(w.epoch.clone());
         self.attempt = 0;
         self.set_state(State::Live);
-        let late: Vec<Topic> = self.topics.iter().filter(|(t, s)| !self.hello.contains_key(*t) && !s.denied).map(|(t, _)| t.clone()).collect();
+        let late: Vec<Topic> =
+            self.topics.iter().filter(|(t, s)| !self.hello.contains_key(*t) && !s.denied).map(|(t, _)| t.clone()).collect();
         for t in late {
             let m = self.sub_first(&t);
             self.send(m);
@@ -328,14 +377,15 @@ impl PeerClient {
 
     fn notice(&mut self, n: Notice) {
         if n.kind == "denied"
-            && let Some(topic) = n.data.get("topic").and_then(Value::as_str).and_then(Topic::parse) {
-                if let Some(s) = self.topics.get_mut(&topic) {
-                    s.denied = true;
-                }
-                let code = n.data.get("code").and_then(Value::as_str).unwrap_or("forbidden").to_owned();
-                self.out.push(Out::Denied { topic, code });
-                return;
+            && let Some(topic) = n.data.get("topic").and_then(Value::as_str).and_then(Topic::parse)
+        {
+            if let Some(s) = self.topics.get_mut(&topic) {
+                s.denied = true;
             }
+            let code = n.data.get("code").and_then(Value::as_str).unwrap_or("forbidden").to_owned();
+            self.out.push(Out::Denied { topic, code });
+            return;
+        }
         self.out.push(Out::Notice(n));
     }
 

@@ -12,9 +12,14 @@ use serde_json::{Value, json};
 use wisp_kernel::{BoxFuture, CancellationToken, Result, WireError};
 
 use crate::conversation::Conversation;
-use crate::hub::{AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Ws, WsConn, WsFrame};
+use crate::hub::{
+    AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Ws, WsConn,
+    WsFrame,
+};
 use crate::transport::Status;
-use crate::views::{ActArgs, ActionKind, ChannelCtx, Parsed, ProjectView, Remote, RunOpts, SessionView, Signed, StartOpts, Started, Thread, ThreadCtx};
+use crate::views::{
+    ActArgs, ActionKind, ChannelCtx, Parsed, ProjectView, Remote, RunOpts, SessionView, Signed, StartOpts, Started, Thread, ThreadCtx,
+};
 
 /// Past this many sleeps the hub stops (a loop that would otherwise dial forever).
 pub const MAX_SLEEPS: usize = 64;
@@ -59,7 +64,11 @@ pub struct ScriptNet {
 impl ScriptNet {
     /// The JSON bodies sent to URLs containing `needle`.
     pub fn sent(&self, needle: &str) -> Vec<Value> {
-        lock(&self.requests).iter().filter(|r| r.url.contains(needle)).map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null)).collect()
+        lock(&self.requests)
+            .iter()
+            .filter(|r| r.url.contains(needle))
+            .map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null))
+            .collect()
     }
 }
 
@@ -70,7 +79,8 @@ impl Net for ScriptNet {
         lock(&self.requests).push(req);
         let mut replies = lock(&self.replies);
         let n = replies.iter().filter(|r| url.contains(&r.needle)).count();
-        let at = replies.iter().position(|r| url.contains(&r.needle)).ok_or_else(|| NetError::Refused(format!("nothing scripted for {url}")))?;
+        let at =
+            replies.iter().position(|r| url.contains(&r.needle)).ok_or_else(|| NetError::Refused(format!("nothing scripted for {url}")))?;
         let r = if n > 1 { replies.remove(at) } else { replies[at].clone() };
         Ok(HttpResponse { status: r.status, headers: r.headers, body: r.body.to_string().into_bytes() })
     }
@@ -173,7 +183,10 @@ impl Exec for ScriptExec {
         lock(&self.runs).push(line);
         let mut a = lock(&self.answers);
         // the longest needle that fits is the most specific answer; answers under one needle go in order
-        let at = (0..a.len()).filter(|i| joined.contains(a[*i].0.as_str())).max_by_key(|i| (a[*i].0.len(), std::cmp::Reverse(*i))).ok_or_else(|| WireError::unavailable(format!("{bin}: nothing scripted for {joined}")))?;
+        let at = (0..a.len())
+            .filter(|i| joined.contains(a[*i].0.as_str()))
+            .max_by_key(|i| (a[*i].0.len(), std::cmp::Reverse(*i)))
+            .ok_or_else(|| WireError::unavailable(format!("{bin}: nothing scripted for {joined}")))?;
         let n = a.iter().filter(|(k, _)| *k == a[at].0).count();
         Ok(if n > 1 { a.remove(at).1 } else { a[at].1.clone() })
     }
@@ -441,7 +454,14 @@ impl ChannelHub for TestHub {
     }
     async fn converse(&self, c: &dyn Conversation, text: &str, session_id: Option<&str>, _thread_text: Option<&str>) -> Result<Value> {
         let thread = c.thread(&Parsed::default()).await;
-        lock(&self.conversed).push(Conversed { channel: c.channel().to_owned(), sender: c.sender().to_owned(), text: text.to_owned(), session: session_id.map(str::to_owned), thread: thread.clone(), attachments: c.attachments() });
+        lock(&self.conversed).push(Conversed {
+            channel: c.channel().to_owned(),
+            sender: c.sender().to_owned(),
+            text: text.to_owned(),
+            session: session_id.map(str::to_owned),
+            thread: thread.clone(),
+            attachments: c.attachments(),
+        });
         let Some(reply) = &self.reply else { return Ok(Value::Null) };
         let sent = c.say(reply.clone()).await?;
         if let (Some(sid), Some(mut t)) = (self.start_as.as_ref(), thread) {

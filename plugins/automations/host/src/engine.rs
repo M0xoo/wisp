@@ -20,7 +20,16 @@ fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.automations:triggers".into()]
 }
 
-pub const STATE: EntityDef = EntityDef { kind: "automations_trigger_state", table: "automations_trigger_state", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+pub const STATE: EntityDef = EntityDef {
+    kind: "automations_trigger_state",
+    table: "automations_trigger_state",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 /// The source names the engine itself offers (listed in its manifest's `triggerSources` too).
 const OWN: [&str; 4] = ["schedule", "once", "webhook", "manual"];
@@ -92,7 +101,10 @@ impl Engine {
 
     /// Every trigger, declared first; a provided one that's switched off isn't listed.
     pub fn all(&self, ctx: &Ctx) -> Vec<Live> {
-        let mut out: Vec<Live> = lock(&self.declared).iter().map(|(n, s)| Live { name: n.clone(), spec: s.clone(), from: "trigger".into(), paused: false, full_auto: s.mode == "auto" }).collect();
+        let mut out: Vec<Live> = lock(&self.declared)
+            .iter()
+            .map(|(n, s)| Live { name: n.clone(), spec: s.clone(), from: "trigger".into(), paused: false, full_auto: s.mode == "auto" })
+            .collect();
         for (owner, p) in ctx.contributions_by(&PROVIDERS) {
             for Provided { name, spec, paused, full_auto } in p.triggers() {
                 if !out.iter().any(|l| l.name == name) {
@@ -106,7 +118,13 @@ impl Engine {
     pub async fn load(&self, name: &str) -> State {
         let id = name.to_owned();
         let Ok(store) = self.store() else { return State::default() };
-        store.read_async(move |r| r.get(STATE.kind, id.as_str())).await.ok().flatten().and_then(|r| serde_json::from_value(r.get("body")?.clone()).ok()).unwrap_or_default()
+        store
+            .read_async(move |r| r.get(STATE.kind, id.as_str()))
+            .await
+            .ok()
+            .flatten()
+            .and_then(|r| serde_json::from_value(r.get("body")?.clone()).ok())
+            .unwrap_or_default()
     }
 
     pub async fn save(&self, name: &str, st: &State) -> Result<()> {
@@ -126,7 +144,9 @@ impl Engine {
     pub async fn states(&self) -> Vec<(String, State)> {
         let Ok(store) = self.store() else { return Vec::new() };
         let rows = store.read_async(|r| r.query(STATE.kind, &Query::new())).await.unwrap_or_default();
-        rows.into_iter().filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), serde_json::from_value(r.get("body")?.clone()).ok()?))).collect()
+        rows.into_iter()
+            .filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), serde_json::from_value(r.get("body")?.clone()).ok()?)))
+            .collect()
     }
 
     fn world(t: &Live, now: i64) -> World {
@@ -160,7 +180,9 @@ impl Engine {
     /// Runs a decision: starts, replaces, or says why not (`trigger.fired`).
     async fn act(&self, ctx: &Ctx, call: &Call, t: &Live, st: &mut State, d: Decision, now: i64) -> FireOut {
         let key = match &d {
-            Decision::Start(j) | Decision::Awaiting(j) | Decision::Replace { job: j, .. } => j.events.first().map(|e| e.key.clone()).unwrap_or_default(),
+            Decision::Start(j) | Decision::Awaiting(j) | Decision::Replace { job: j, .. } => {
+                j.events.first().map(|e| e.key.clone()).unwrap_or_default()
+            }
             _ => st.deliveries.back().map(|l| l.key.clone()).unwrap_or_default(),
         };
         let (word, why) = core::word(&d);
@@ -195,7 +217,17 @@ impl Engine {
                 }
             }
         }
-        ctx.emit(call, &TriggerFired { trigger: t.name.clone(), on: t.spec.on.clone(), key, result: out.result.clone(), why: out.why.clone(), session: out.session.clone() });
+        ctx.emit(
+            call,
+            &TriggerFired {
+                trigger: t.name.clone(),
+                on: t.spec.on.clone(),
+                key,
+                result: out.result.clone(),
+                why: out.why.clone(),
+                session: out.session.clone(),
+            },
+        );
         out
     }
 
@@ -237,7 +269,11 @@ impl Engine {
             let _one = self.gate.lock().await;
             let mut st = self.load(&t.name).await;
             let before = st.clone();
-            let list: Vec<(String, bool)> = owners.iter().filter(|(on, _, _)| takes(&t.spec.on, on) || takes(on, &t.spec.on)).map(|(_, p, up)| (p.clone(), *up)).collect();
+            let list: Vec<(String, bool)> = owners
+                .iter()
+                .filter(|(on, _, _)| takes(&t.spec.on, on) || takes(on, &t.spec.on))
+                .map(|(_, p, up)| (p.clone(), *up))
+                .collect();
             st.unavailable = core::availability(&t.spec.on, &list);
             let w = Self::world(&t, now);
             let mut decisions = Vec::new();
@@ -264,7 +300,10 @@ impl Engine {
     }
 
     async fn poll(&self, ctx: &Ctx, call: &Call, t: &Live, st: &mut State, now: i64) {
-        let Some(src) = ctx.contributions(&SOURCE).into_iter().find(|s| s.ons().iter().any(|o| o.mode == "poll" && o.on == t.spec.on)) else { return };
+        let Some(src) = ctx.contributions(&SOURCE).into_iter().find(|s| s.ons().iter().any(|o| o.mode == "poll" && o.on == t.spec.on))
+        else {
+            return;
+        };
         let every = src.ons().iter().find(|o| o.on == t.spec.on).and_then(|o| o.every).unwrap_or(5);
         let every_ms = i64::from(t.spec.every.unwrap_or(every).max(1)) * 60_000;
         let spec = serde_json::to_value(&t.spec).unwrap_or_default();
@@ -305,18 +344,39 @@ impl Engine {
             } else {
                 ("on", String::new())
             };
-            out.push(TriggerRow { name: t.name.clone(), spec: serde_json::to_value(&t.spec).unwrap_or_default(), from: t.from.clone(), state: state.into(), why, last_run_at: st.last_run_at, runs: st.runs_total, queued: u32::try_from(st.queue.len()).unwrap_or(u32::MAX), awaiting: u32::try_from(st.awaiting.len()).unwrap_or(u32::MAX) });
+            out.push(TriggerRow {
+                name: t.name.clone(),
+                spec: serde_json::to_value(&t.spec).unwrap_or_default(),
+                from: t.from.clone(),
+                state: state.into(),
+                why,
+                last_run_at: st.last_run_at,
+                runs: st.runs_total,
+                queued: u32::try_from(st.queue.len()).unwrap_or(u32::MAX),
+                awaiting: u32::try_from(st.awaiting.len()).unwrap_or(u32::MAX),
+            });
         }
         out
     }
 
     pub fn find(&self, ctx: &Ctx, name: &str) -> Result<Live> {
-        self.all(ctx).into_iter().find(|t| t.name == name).ok_or_else(|| WireError::not_found(format!("no trigger named {name} (wisp trigger ls lists them)")))
+        self.all(ctx)
+            .into_iter()
+            .find(|t| t.name == name)
+            .ok_or_else(|| WireError::not_found(format!("no trigger named {name} (wisp trigger ls lists them)")))
     }
 
     /// `wisp trigger fire`: an event by hand. Its filters, `if` and hours don't apply (you asked for it); its
     /// rate, concurrency, budget and approval do.
-    pub async fn fire(&self, ctx: &Ctx, call: &Call, name: &str, payload: Option<Value>, summary: Option<String>, now: i64) -> Result<FireOut> {
+    pub async fn fire(
+        &self,
+        ctx: &Ctx,
+        call: &Call,
+        name: &str,
+        payload: Option<Value>,
+        summary: Option<String>,
+        now: i64,
+    ) -> Result<FireOut> {
         let mut t = self.find(ctx, name)?;
         t.spec.filters.clear();
         // the project it watches doesn't filter a hand-fired event, but it's still the folder the task runs in
@@ -327,7 +387,14 @@ impl Engine {
         t.spec.cond.clear();
         t.spec.when = None;
         t.spec.debounce.clear();
-        let ev = TriggerEvent { on: t.spec.on.clone(), key: format!("manual:{now}"), at: now, payload: payload.unwrap_or_else(|| json!({})), summary: summary.unwrap_or_else(|| format!("{name}, fired by hand")), ..TriggerEvent::default() };
+        let ev = TriggerEvent {
+            on: t.spec.on.clone(),
+            key: format!("manual:{now}"),
+            at: now,
+            payload: payload.unwrap_or_else(|| json!({})),
+            summary: summary.unwrap_or_else(|| format!("{name}, fired by hand")),
+            ..TriggerEvent::default()
+        };
         let _one = self.gate.lock().await;
         let mut st = self.load(name).await;
         let d = core::admit(name, &t.spec, &mut st, ev, &Self::world(&t, now));
@@ -381,7 +448,8 @@ impl Engine {
         let events = if let Some(e) = event {
             vec![e]
         } else {
-            let rows = ctx.run_json(call, "events.tail", json!({ "type": t.spec.on, "limit": last.clamp(1, 50) })).await.unwrap_or_default();
+            let rows =
+                ctx.run_json(call, "events.tail", json!({ "type": t.spec.on, "limit": last.clamp(1, 50) })).await.unwrap_or_default();
             rows.as_array().into_iter().flatten().filter_map(from_row).collect()
         };
         let st = self.load(name).await;
@@ -404,7 +472,13 @@ impl Engine {
     }
 
     pub async fn log(&self, name: &str) -> Vec<LogLine> {
-        self.load(name).await.deliveries.into_iter().rev().map(|d| LogLine { at: d.at, result: d.result, why: d.why, key: d.key, session: d.session }).collect()
+        self.load(name)
+            .await
+            .deliveries
+            .into_iter()
+            .rev()
+            .map(|d| LogLine { at: d.at, result: d.result, why: d.why, key: d.key, session: d.session })
+            .collect()
     }
 }
 
@@ -434,10 +508,18 @@ pub fn owners_of(ctx: &Ctx) -> Vec<(String, String, bool)> {
 
 /// `automations.sources`: what each source offers, and whether its plugin is on.
 pub fn sources(ctx: &Ctx) -> Vec<SourceRow> {
-    let mut out: Vec<SourceRow> = ctx.contributions_by(&SOURCE).into_iter().flat_map(|(c, s)| s.ons().into_iter().map(move |on| SourceRow { plugin: c.clone(), available: true, on })).collect();
+    let mut out: Vec<SourceRow> = ctx
+        .contributions_by(&SOURCE)
+        .into_iter()
+        .flat_map(|(c, s)| s.ons().into_iter().map(move |on| SourceRow { plugin: c.clone(), available: true, on }))
+        .collect();
     for (on, plugin, up) in owners_of(ctx) {
         if !out.iter().any(|r| r.on.on == on) {
-            out.push(SourceRow { plugin, available: up, on: wisp_automations_api::SourceOn { title: on.clone(), on, fields: json!({}), mode: "event".into(), every: None } });
+            out.push(SourceRow {
+                plugin,
+                available: up,
+                on: wisp_automations_api::SourceOn { title: on.clone(), on, fields: json!({}), mode: "event".into(), every: None },
+            });
         }
     }
     out.sort_by(|a, b| a.on.on.cmp(&b.on.on));
@@ -451,10 +533,25 @@ fn due_event(t: &Live, st: &State, now: i64) -> Option<TriggerEvent> {
             let c = parse_cron(&t.spec.cron).ok()?;
             let z = zone(&t.spec.tz);
             let d = wisp_automations_core::schedule::due(&c, &z, st.last_minute, now)?;
-            let summary = if d.late { format!("{} (missed while this computer was off: run once now)", t.spec.cron) } else { t.spec.cron.clone() };
-            Some(TriggerEvent { on: "schedule".into(), key: format!("schedule:{}", d.minute), at: now, payload: json!({ "minute": d.minute, "late": d.late }), summary, ..TriggerEvent::default() })
+            let summary =
+                if d.late { format!("{} (missed while this computer was off: run once now)", t.spec.cron) } else { t.spec.cron.clone() };
+            Some(TriggerEvent {
+                on: "schedule".into(),
+                key: format!("schedule:{}", d.minute),
+                at: now,
+                payload: json!({ "minute": d.minute, "late": d.late }),
+                summary,
+                ..TriggerEvent::default()
+            })
         }
-        "once" => t.spec.at.filter(|at| *at <= now).map(|at| TriggerEvent { on: "once".into(), key: format!("once:{at}"), at: now, payload: json!({ "at": at }), summary: "its time came".into(), ..TriggerEvent::default() }),
+        "once" => t.spec.at.filter(|at| *at <= now).map(|at| TriggerEvent {
+            on: "once".into(),
+            key: format!("once:{at}"),
+            at: now,
+            payload: json!({ "at": at }),
+            summary: "its time came".into(),
+            ..TriggerEvent::default()
+        }),
         _ => None,
     }
 }
@@ -462,7 +559,16 @@ fn due_event(t: &Live, st: &State, now: i64) -> Option<TriggerEvent> {
 /// A durable event as a trigger sees it.
 pub fn from_envelope(env: &EventEnvelope, by: Option<String>, depth: u32) -> TriggerEvent {
     let data = env.data();
-    TriggerEvent { on: env.ty.clone(), key: env.key.clone().unwrap_or_else(|| format!("{}#{}", env.ty, env.durable_seq.unwrap_or(env.seq))), at: env.at, summary: summary_of(&env.ty, &data), subject: env.subject.clone(), by, depth: env.depth.max(depth), payload: data }
+    TriggerEvent {
+        on: env.ty.clone(),
+        key: env.key.clone().unwrap_or_else(|| format!("{}#{}", env.ty, env.durable_seq.unwrap_or(env.seq))),
+        at: env.at,
+        summary: summary_of(&env.ty, &data),
+        subject: env.subject.clone(),
+        by,
+        depth: env.depth.max(depth),
+        payload: data,
+    }
 }
 
 /// A row of `events.tail` as a trigger event (the dry run reads the log).
@@ -470,7 +576,15 @@ pub fn from_row(v: &Value) -> Option<TriggerEvent> {
     let ty = v.get("type").or_else(|| v.get("ty")).and_then(Value::as_str)?.to_owned();
     let data = v.get("data").cloned().unwrap_or_default();
     let seq = v.get("seq").and_then(Value::as_u64).unwrap_or(0);
-    Some(TriggerEvent { key: v.get("key").and_then(Value::as_str).map_or_else(|| format!("{ty}#{seq}"), str::to_owned), at: v.get("at").and_then(Value::as_i64).unwrap_or(0), summary: summary_of(&ty, &data), subject: v.get("subject").and_then(Value::as_str).map(str::to_owned), on: ty, payload: data, ..TriggerEvent::default() })
+    Some(TriggerEvent {
+        key: v.get("key").and_then(Value::as_str).map_or_else(|| format!("{ty}#{seq}"), str::to_owned),
+        at: v.get("at").and_then(Value::as_i64).unwrap_or(0),
+        summary: summary_of(&ty, &data),
+        subject: v.get("subject").and_then(Value::as_str).map(str::to_owned),
+        on: ty,
+        payload: data,
+        ..TriggerEvent::default()
+    })
 }
 
 fn summary_of(ty: &str, data: &Value) -> String {
@@ -484,12 +598,17 @@ fn summary_of(ty: &str, data: &Value) -> String {
 async fn start(ctx: &Ctx, call: &Call, store: &Store, t: &Live, job: &Job) -> Result<String> {
     let by = format!("trigger:{}", t.name);
     let first = job.events.first().cloned().unwrap_or_default();
-    let cwd = if t.spec.project.is_empty() { first.payload.get("cwd").and_then(Value::as_str).unwrap_or_default().to_owned() } else { t.spec.project.clone() };
+    let cwd = if t.spec.project.is_empty() {
+        first.payload.get("cwd").and_then(Value::as_str).unwrap_or_default().to_owned()
+    } else {
+        t.spec.project.clone()
+    };
     let text = |fallback: &str| {
         let p = if t.spec.prompt.trim().is_empty() { fallback.to_owned() } else { t.spec.prompt.clone() };
         core::fill(&p, job)
     };
-    let id_of = |v: &Value| v.get("id").and_then(Value::as_str).or_else(|| v.pointer("/session/id").and_then(Value::as_str)).map(str::to_owned);
+    let id_of =
+        |v: &Value| v.get("id").and_then(Value::as_str).or_else(|| v.pointer("/session/id").and_then(Value::as_str)).map(str::to_owned);
     let made = match t.spec.target() {
         Target::Task(task) => crate::run_by(ctx, call, store, task, &cwd, &by).await?,
         Target::Prompt(_) => {
@@ -535,7 +654,11 @@ fn notify(ctx: &Ctx, name: &str, why: &str) {
 
 /// The run's outcome from a `task.finished` / `task.failed` payload.
 pub fn outcome_of(ty: &str, data: &Value) -> Outcome {
-    Outcome { failed: ty == "task.failed" || data.get("status").and_then(Value::as_str) == Some("error"), quiet: data.get("quiet").and_then(Value::as_bool).unwrap_or(false), cost: data.get("costUsd").and_then(Value::as_f64).unwrap_or(0.0) }
+    Outcome {
+        failed: ty == "task.failed" || data.get("status").and_then(Value::as_str) == Some("error"),
+        quiet: data.get("quiet").and_then(Value::as_bool).unwrap_or(false),
+        cost: data.get("costUsd").and_then(Value::as_f64).unwrap_or(0.0),
+    }
 }
 
 pub type Shared = Arc<Engine>;

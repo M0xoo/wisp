@@ -16,7 +16,9 @@ pub fn add_share(plan: &mut Vec<Share>, share: &Share) {
     if share.used.is_nan() || share.used <= 0.0 {
         return;
     }
-    match plan.iter_mut().find(|x| x.agent == share.agent && x.account == share.account && x.window == share.window && same_period(x.resets_at, share.resets_at)) {
+    match plan.iter_mut().find(|x| {
+        x.agent == share.agent && x.account == share.account && x.window == share.window && same_period(x.resets_at, share.resets_at)
+    }) {
         Some(e) => e.used = (e.used + share.used).min(1.0),
         None => plan.push(Share { used: share.used.min(1.0), ..share.clone() }),
     }
@@ -34,7 +36,11 @@ pub fn plan_of(s: &RunLike) -> Option<BTreeMap<String, f64>> {
 }
 
 fn used_on(t: &TurnLike, agent: &str, account: &str, window: &str, resets_at: Option<i64>) -> f64 {
-    turn_plan(t).iter().filter(|p| p.agent == agent && p.account == account && p.window == window && same_period(p.resets_at, resets_at)).map(|p| p.used).sum()
+    turn_plan(t)
+        .iter()
+        .filter(|p| p.agent == agent && p.account == account && p.window == window && same_period(p.resets_at, resets_at))
+        .map(|p| p.used)
+        .sum()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -53,8 +59,20 @@ pub struct Where {
 
 /// The tasks that used most of this period of the window, a subagent's share on its lead (one with no
 /// lead left counts on its own). None when nothing is traced.
-pub fn where_it_went(sessions: &[RunLike], agent: &str, account: &str, window: &str, resets_at: Option<i64>, limit: usize) -> Option<Where> {
-    let title = |id: &str| sessions.iter().find(|s| s.id.as_deref() == Some(id)).map(|s| s.title.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| "Untitled".to_owned()));
+pub fn where_it_went(
+    sessions: &[RunLike],
+    agent: &str,
+    account: &str,
+    window: &str,
+    resets_at: Option<i64>,
+    limit: usize,
+) -> Option<Where> {
+    let title = |id: &str| {
+        sessions
+            .iter()
+            .find(|s| s.id.as_deref() == Some(id))
+            .map(|s| s.title.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| "Untitled".to_owned()))
+    };
     let mut by: Vec<TaskUse> = Vec::new();
     for s in sessions {
         let own = s.id.clone().unwrap_or_default();
@@ -92,7 +110,14 @@ pub struct SubagentUse {
 
 /// Each subagent type's calls, output and share of the window, a turn's share split by the part of
 /// the turn's output that type wrote. Top `limit` by share; None when no traced turn ran a subagent.
-pub fn where_subagents(sessions: &[RunLike], agent: &str, account: &str, window: &str, resets_at: Option<i64>, limit: usize) -> Option<Vec<SubagentUse>> {
+pub fn where_subagents(
+    sessions: &[RunLike],
+    agent: &str,
+    account: &str,
+    window: &str,
+    resets_at: Option<i64>,
+    limit: usize,
+) -> Option<Vec<SubagentUse>> {
     let mut by: Vec<(SubagentUse, Vec<(String, f64)>)> = Vec::new();
     for t in sessions.iter().flat_map(|s| s.turns.iter()) {
         let st = t.stats();
@@ -106,7 +131,10 @@ pub fn where_subagents(sessions: &[RunLike], agent: &str, account: &str, window:
         let total = turn_output(&st);
         for x in &st.subagents {
             let i = by.iter().position(|(e, _)| e.kind == x.kind).unwrap_or_else(|| {
-                by.push((SubagentUse { kind: x.kind.clone(), calls: 0.0, model: String::new(), output: 0.0, used: 0.0, instead: None }, Vec::new()));
+                by.push((
+                    SubagentUse { kind: x.kind.clone(), calls: 0.0, model: String::new(), output: 0.0, used: 0.0, instead: None },
+                    Vec::new(),
+                ));
                 by.len() - 1
             });
             let (e, models) = &mut by[i];

@@ -23,9 +23,7 @@ fn window_ms(id: &str) -> Option<f64> {
 
 /// seconds or ms → ms; None for anything that isn't a positive number
 fn to_ms(v: &Value) -> Option<f64> {
-    num(v)
-        .filter(|x| *x > 0.0)
-        .map(|x| if x < 1e12 { x * 1000.0 } else { x })
+    num(v).filter(|x| *x > 0.0).map(|x| if x < 1e12 { x * 1000.0 } else { x })
 }
 
 fn add(windows: &mut Vec<LimitWindow>, id: &Value, resets_at: &Value, used: Option<f64>) {
@@ -52,12 +50,7 @@ pub fn claude_limits(info: &RateLimitInfo) -> Option<Limits> {
     let overage = info.is_using_overage == Value::Bool(true);
     for (id, w) in &info.unified_windows.0 {
         if w.is_object() {
-            add(
-                &mut windows,
-                &Value::String(id.clone()),
-                &w["resetsAt"],
-                num(&w["utilization"]),
-            );
+            add(&mut windows, &Value::String(id.clone()), &w["resetsAt"], num(&w["utilization"]));
         }
     }
     // Every window the plan has (window changes): an event with only rateLimitType names one.
@@ -68,20 +61,11 @@ pub fn claude_limits(info: &RateLimitInfo) -> Option<Limits> {
     let used = utilization.or(if rejected { Some(1.0) } else { None });
     add(&mut windows, &info.rate_limit_type, &info.resets_at, used);
     if windows.is_empty() {
-        return overage.then(|| Limits {
-            overage: Some(true),
-            ..Limits::default()
-        });
+        return overage.then(|| Limits { overage: Some(true), ..Limits::default() });
     }
     let rejected = (rejected && info.rate_limit_type.as_str() != Some("overage"))
         .then(|| Value::String(wisp_harness_kit::js::str(&info.rate_limit_type)));
-    Some(Limits {
-        windows,
-        complete: complete.then_some(true),
-        rejected,
-        overage: overage.then_some(true),
-        ..Limits::default()
-    })
+    Some(Limits { windows, complete: complete.then_some(true), rejected, overage: overage.then_some(true), ..Limits::default() })
 }
 
 #[cfg(test)]
@@ -103,33 +87,19 @@ mod tests {
         assert_eq!(v["windows"][0]["resetsAt"], 1_700_000_000_000.0);
         assert_eq!(v["windows"][1]["used"], 1.0);
         assert_eq!(v["windows"][1]["ms"], 5.0 * H);
-        assert_eq!(
-            v["windows"].as_array().map(Vec::len),
-            Some(2),
-            "rateLimitType's window is already there"
-        );
+        assert_eq!(v["windows"].as_array().map(Vec::len), Some(2), "rateLimitType's window is already there");
         assert_eq!(v["complete"], true);
     }
 
     #[test]
     fn a_refusal_without_a_number_is_full() {
         let v = limits(r#"{"status":"rejected","rateLimitType":"seven_day"}"#).unwrap_or_default();
-        assert_eq!(
-            (
-                v["windows"][0]["used"].as_f64(),
-                v["rejected"].as_str(),
-                v.get("complete")
-            ),
-            (Some(1.0), Some("seven_day"), None)
-        );
+        assert_eq!((v["windows"][0]["used"].as_f64(), v["rejected"].as_str(), v.get("complete")), (Some(1.0), Some("seven_day"), None));
     }
 
     #[test]
     fn overage_is_never_a_row() {
-        assert_eq!(
-            limits(r#"{"rateLimitType":"overage","utilization":0.3}"#),
-            None
-        );
+        assert_eq!(limits(r#"{"rateLimitType":"overage","utilization":0.3}"#), None);
         assert_eq!(
             limits(r#"{"rateLimitType":"overage","isUsingOverage":true}"#),
             Some(serde_json::json!({"windows": [], "overage": true}))

@@ -29,18 +29,13 @@ const LOCKFILES: &[&str] = &[
 pub fn generated_path(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     if LOCKFILES.contains(&name)
-        || std::path::Path::new(name)
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("lock"))
+        || std::path::Path::new(name).extension().is_some_and(|e| e.eq_ignore_ascii_case("lock"))
         || name.ends_with(".min.js")
         || name.ends_with(".min.css")
     {
         return true;
     }
-    path.starts_with("dist/")
-        || path.starts_with("build/")
-        || path.contains("/dist/")
-        || path.contains("/build/")
+    path.starts_with("dist/") || path.starts_with("build/") || path.contains("/dist/") || path.contains("/build/")
 }
 
 /// `diff --git a/<x> b/<y>`: the new path. Both halves are the same path unless it is a rename (whose
@@ -49,10 +44,7 @@ fn header_path(line: &str) -> Option<&str> {
     let rest = line.strip_prefix("diff --git a/")?;
     if rest.len() >= 3 && (rest.len() - 3) % 2 == 0 {
         let half = (rest.len() - 3) / 2;
-        if rest.is_char_boundary(half)
-            && rest[half..].starts_with(" b/")
-            && rest[..half] == rest[half + 3..]
-        {
+        if rest.is_char_boundary(half) && rest[half..].starts_with(" b/") && rest[..half] == rest[half + 3..] {
             return Some(&rest[half + 3..]);
         }
     }
@@ -115,11 +107,7 @@ impl Parser {
             }
             self.a = a;
             self.b = b;
-        } else if line.starts_with("+++")
-            || line.starts_with("---")
-            || line.starts_with("index ")
-            || line.starts_with("similarity ")
-        {
+        } else if line.starts_with("+++") || line.starts_with("---") || line.starts_with("index ") || line.starts_with("similarity ") {
         } else if let Some(text) = line.strip_prefix('+') {
             f.add += 1;
             let b = self.b;
@@ -141,11 +129,7 @@ impl Parser {
 
 /// Parses `git diff --no-color --no-ext-diff -M -U3` output.
 pub fn parse_diff(out: &str) -> Vec<FileDiff> {
-    let mut p = Parser {
-        files: Vec::new(),
-        a: 1,
-        b: 1,
-    };
+    let mut p = Parser { files: Vec::new(), a: 1, b: 1 };
     for line in out.split('\n') {
         p.line(line);
     }
@@ -200,10 +184,7 @@ mod tests {
         let files = parse_diff(DIFF);
         assert_eq!(files.len(), 1);
         let f = &files[0];
-        assert_eq!(
-            (f.path.as_str(), f.status, f.add, f.del),
-            ("f.txt", 'M', 3, 2)
-        );
+        assert_eq!((f.path.as_str(), f.status, f.add, f.del), ("f.txt", 'M', 3, 2));
         assert_eq!(f.rows[0], Row::context("l1", 1, 1));
         assert_eq!(f.rows[1], Row::removed("l2", 2));
         assert_eq!(f.rows[2], Row::added("L2", 2));
@@ -251,10 +232,7 @@ mod tests {
         assert!(untracked_file("b.bin", &bin).binary);
         let mut late = vec![b'x'; 9000];
         late[8500] = 0;
-        assert!(
-            !untracked_file("late", &late).binary,
-            "a NUL past 8000 bytes is text"
-        );
+        assert!(!untracked_file("late", &late).binary, "a NUL past 8000 bytes is text");
         let e = untracked_file("empty", b"");
         assert_eq!((e.add, e.rows.len()), (0, 0));
         let big: String = (0..2100).fold(String::new(), |mut s, i| {
@@ -267,42 +245,21 @@ mod tests {
 
     #[test]
     fn generated_paths() {
-        for p in [
-            "package-lock.json",
-            "web/yarn.lock",
-            "Cargo.lock",
-            "x.lock",
-            "a/b.min.js",
-            "s.min.css",
-            "dist/a.js",
-            "pkg/build/x",
-            "go.sum",
-        ] {
+        for p in
+            ["package-lock.json", "web/yarn.lock", "Cargo.lock", "x.lock", "a/b.min.js", "s.min.css", "dist/a.js", "pkg/build/x", "go.sum"]
+        {
             assert!(generated_path(p), "{p}");
         }
-        for p in [
-            "src/lib.rs",
-            "distance.rs",
-            "builder/x.rs",
-            "lock.rs",
-            "README.md",
-        ] {
+        for p in ["src/lib.rs", "distance.rs", "builder/x.rs", "lock.rs", "README.md"] {
             assert!(!generated_path(p), "{p}");
         }
     }
 
     #[test]
     fn finish_flags_and_sorts() {
-        let mut v = vec![
-            FileDiff::new("z", 'M'),
-            FileDiff::new("Cargo.lock", 'M'),
-            FileDiff::new("a", 'A'),
-        ];
+        let mut v = vec![FileDiff::new("z", 'M'), FileDiff::new("Cargo.lock", 'M'), FileDiff::new("a", 'A')];
         finish(&mut v);
-        assert_eq!(
-            v.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
-            ["Cargo.lock", "a", "z"]
-        );
+        assert_eq!(v.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["Cargo.lock", "a", "z"]);
         assert!(v[0].generated && !v[1].generated);
     }
 }

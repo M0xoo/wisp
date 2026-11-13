@@ -66,7 +66,20 @@ fn a_bundle_reaching_outside_its_folder_or_without_its_entry_is_refused() {
 fn the_grid_keeps_secrets_out_of_a_published_app_whatever_an_older_wisp_sent() {
     let (s, db, dir) = sites("secrets");
     let pia = user(&db, "u1", "pia");
-    let files: Vec<(&str, &[u8])> = vec![("index.html", b"hello"), (".env", b"A=1"), (".env.local", b"B=2"), (".htaccess", b"x"), (".config/a.json", b"{}"), ("sub/.env", b"C=3"), ("sub/tls.key", b"k"), ("server.pem", b"p"), ("credentials.json", b"{}"), ("app.js", b"1"), ("app.js.map", b"{}"), (".well-known/assetlinks.json", b"[]")];
+    let files: Vec<(&str, &[u8])> = vec![
+        ("index.html", b"hello"),
+        (".env", b"A=1"),
+        (".env.local", b"B=2"),
+        (".htaccess", b"x"),
+        (".config/a.json", b"{}"),
+        ("sub/.env", b"C=3"),
+        ("sub/tls.key", b"k"),
+        ("server.pem", b"p"),
+        ("credentials.json", b"{}"),
+        ("app.js", b"1"),
+        ("app.js.map", b"{}"),
+        (".well-known/assetlinks.json", b"[]"),
+    ];
     s.publish(&pia, "old1", &pack(&files), "Old", "").unwrap();
     let row = s.by_label("old--app--pia").unwrap().unwrap();
     assert_eq!(row.files, 5, "index.html, .htaccess, .config/a.json, app.js, .well-known/assetlinks.json");

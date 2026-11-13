@@ -51,8 +51,15 @@ fn task_setup(s: &mut Setup, slot: &Slot) {
             for t in rt.repo.turns(id, None, None).await.map_err(WireError::from)? {
                 steps.extend(rt.repo.steps(t.id.as_str(), None).await.map_err(WireError::from)?);
             }
-            let available = crate::setup::load(&rt.repo.store, id).await.map(|a| crate::setup::changed(a, &crate::setup::latest_versions()));
-            let note = if available.is_some() { serde_json::Value::Null } else if s.ext.contains_key("wisp.adopted") { serde_json::json!("it ran outside wisp: what it had isn't known") } else { serde_json::json!("not recorded (it ran before wisp kept setups)") };
+            let available =
+                crate::setup::load(&rt.repo.store, id).await.map(|a| crate::setup::changed(a, &crate::setup::latest_versions()));
+            let note = if available.is_some() {
+                serde_json::Value::Null
+            } else if s.ext.contains_key("wisp.adopted") {
+                serde_json::json!("it ran outside wisp: what it had isn't known")
+            } else {
+                serde_json::json!("not recorded (it ran before wisp kept setups)")
+            };
             Ok(serde_json::json!({ "id": id, "available": available, "note": note, "used": crate::setup::used(&steps) }))
         }
     });

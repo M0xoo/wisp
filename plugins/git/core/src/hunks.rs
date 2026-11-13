@@ -30,12 +30,7 @@ pub fn hunks_of(rows: &[Row]) -> Vec<Hunk> {
             continue;
         }
         if !open {
-            out.push(Hunk {
-                start: next,
-                rows: Vec::new(),
-                after: Vec::new(),
-                before: Vec::new(),
-            });
+            out.push(Hunk { start: next, rows: Vec::new(), after: Vec::new(), before: Vec::new() });
             open = true;
         }
         if let Some(h) = out.last_mut() {
@@ -61,11 +56,7 @@ pub fn hunk_key(rows: &[Row]) -> String {
     let mut feed = |s: &str| {
         for c in s.chars() {
             let cp = c as u32;
-            let unit = if cp > 0xFFFF {
-                0xD800 + ((cp - 0x1_0000) >> 10)
-            } else {
-                cp
-            };
+            let unit = if cp > 0xFFFF { 0xD800 + ((cp - 0x1_0000) >> 10) } else { cp };
             #[allow(clippy::cast_possible_wrap)]
             let unit = unit as i32;
             h = (h << 5).wrapping_add(h).wrapping_add(unit);
@@ -105,20 +96,12 @@ pub fn revert_hunk(text: &str, rows: &[Row], i: usize) -> Option<String> {
     let h = hunks_of(rows).into_iter().nth(i)?;
     let nl = text.ends_with('\n');
     let body = if nl { &text[..text.len() - 1] } else { text };
-    let mut lines: Vec<&str> = if body.is_empty() && !nl {
-        Vec::new()
-    } else {
-        body.split('\n').collect()
-    };
+    let mut lines: Vec<&str> = if body.is_empty() && !nl { Vec::new() } else { body.split('\n').collect() };
     let at = usize::try_from(h.start.checked_sub(1)?).ok()?;
     if at + h.after.len() > lines.len() {
         return None;
     }
-    if lines[at..at + h.after.len()]
-        .iter()
-        .zip(&h.after)
-        .any(|(l, a)| l != a)
-    {
+    if lines[at..at + h.after.len()].iter().zip(&h.after).any(|(l, a)| l != a) {
         return None;
     }
     lines.splice(at..at + h.after.len(), h.before.iter().map(String::as_str));
@@ -161,16 +144,10 @@ mod tests {
         assert_eq!((hs[0].start, hs[1].start), (1, 15));
         assert_eq!(hs[0].after, ["l1", "L2", "l3", "l4", "l5"]);
         assert_eq!(hs[0].before, ["l1", "l2", "l3", "l4", "l5"]);
-        assert_eq!(
-            hs[1].after,
-            ["l15", "l16", "l17", "L18", "l19", "l20", "l21"]
-        );
+        assert_eq!(hs[1].after, ["l15", "l16", "l17", "L18", "l19", "l20", "l21"]);
         assert_eq!(hunks_of(&[]), Vec::new());
         let cut = hunks_of(&[Row::gap(4), Row::removed("x", 5)]);
-        assert_eq!(
-            cut[0].start, 5,
-            "a hunk with nothing on the new side still knows where it goes"
-        );
+        assert_eq!(cut[0].start, 5, "a hunk with nothing on the new side still knows where it goes");
     }
 
     #[test]
@@ -184,51 +161,28 @@ mod tests {
         assert_eq!(first.split('\n').nth(1), Some("l2"));
         assert!(first.ends_with("L18\nl19\nl20\nl21\n"));
         let rest = DIFF.replace("@@ -1,5 +1,5 @@\n l1\n-l2\n+L2\n l3\n l4\n l5\n", "");
-        assert_eq!(
-            revert_hunk(&first, &parse_diff(&rest)[0].rows, 0),
-            Some(format!("{}\n", base().join("\n")))
-        );
+        assert_eq!(revert_hunk(&first, &parse_diff(&rest)[0].rows, 0), Some(format!("{}\n", base().join("\n"))));
         let no_nl = revert_hunk(&text[..text.len() - 1], &rows(), 0).unwrap_or_default();
         assert!(no_nl.ends_with("l21"), "no newline at the end stays so");
-        let crlf = parse_diff("diff --git a/w.txt b/w.txt\n@@ -1,2 +1,2 @@\n a\r\n-b\r\n+B\r\n")
-            .remove(0)
-            .rows;
-        assert_eq!(
-            revert_hunk("a\r\nB\r\n", &crlf, 0).as_deref(),
-            Some("a\r\nb\r\n")
-        );
+        let crlf = parse_diff("diff --git a/w.txt b/w.txt\n@@ -1,2 +1,2 @@\n a\r\n-b\r\n+B\r\n").remove(0).rows;
+        assert_eq!(revert_hunk("a\r\nB\r\n", &crlf, 0).as_deref(), Some("a\r\nb\r\n"));
     }
 
     #[test]
     fn revert_refuses_a_changed_file_or_missing_hunk() {
         let text = now();
         assert_eq!(revert_hunk(&text.replace("L18", "L18!"), &rows(), 1), None);
-        assert_eq!(
-            revert_hunk(&text.replace("l17\n", ""), &rows(), 1),
-            None,
-            "lines moved up"
-        );
-        assert_eq!(
-            revert_hunk("l1\n", &rows(), 1),
-            None,
-            "shorter than the hunk"
-        );
+        assert_eq!(revert_hunk(&text.replace("l17\n", ""), &rows(), 1), None, "lines moved up");
+        assert_eq!(revert_hunk("l1\n", &rows(), 1), None, "shorter than the hunk");
         assert_eq!(revert_hunk(&text, &rows(), 2), None);
     }
 
     #[test]
     fn key_is_stable_and_changes_with_a_row() {
         let hs = hunks_of(&rows());
-        assert_eq!(
-            hunk_key(&hs[0].rows),
-            hunk_key(&hunks_of(&parse_diff(DIFF)[0].rows)[0].rows)
-        );
+        assert_eq!(hunk_key(&hs[0].rows), hunk_key(&hunks_of(&parse_diff(DIFF)[0].rows)[0].rows));
         assert_ne!(hunk_key(&hs[0].rows), hunk_key(&hs[1].rows));
-        assert!(
-            hunk_key(&hs[0].rows)
-                .bytes()
-                .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
-        );
+        assert!(hunk_key(&hs[0].rows).bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase()));
     }
 
     #[test]
@@ -257,11 +211,7 @@ mod tests {
             for i in (0..n).rev() {
                 text = revert_hunk(&text, &f.rows, i).unwrap_or_else(|| String::from("REFUSED"));
             }
-            let want = if base.is_empty() {
-                String::new()
-            } else {
-                format!("{}\n", base.join("\n"))
-            };
+            let want = if base.is_empty() { String::new() } else { format!("{}\n", base.join("\n")) };
             assert_eq!(text, want, "base {base:?} now {now:?}\n{diff}");
         }
     }

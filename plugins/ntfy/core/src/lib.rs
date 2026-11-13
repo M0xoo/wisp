@@ -47,10 +47,7 @@ mod tests {
 
     #[test]
     fn errors_map() {
-        assert_eq!(
-            WireError::from(NtfyError::Invalid("x".into())).status(),
-            400
-        );
+        assert_eq!(WireError::from(NtfyError::Invalid("x".into())).status(), 400);
         assert!(WireError::from(NtfyError::Http("x".into())).retry);
         assert_eq!(truncate("abcdef", 4), "abc…");
         assert_eq!(truncate("abc", 4), "abc");

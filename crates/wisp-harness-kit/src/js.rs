@@ -11,13 +11,7 @@ pub const fn is_space(c: char) -> bool {
     matches!(
         c,
         '\t' | '\n' | '\u{0b}' | '\u{0c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
-            ..='\u{200a}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{202f}'
-                | '\u{205f}'
-                | '\u{3000}'
-                | '\u{feff}'
+            ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
     )
 }
 
@@ -101,11 +95,7 @@ pub fn number(f: f64) -> String {
         return "NaN".into();
     }
     if f.is_infinite() {
-        return if f > 0.0 {
-            "Infinity".into()
-        } else {
-            "-Infinity".into()
-        };
+        return if f > 0.0 { "Infinity".into() } else { "-Infinity".into() };
     }
     if f == 0.0 {
         return "0".into();
@@ -129,17 +119,7 @@ pub fn string(v: &Value) -> String {
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => num_string(n),
         Value::String(s) => s.clone(),
-        Value::Array(a) => a
-            .iter()
-            .map(|x| {
-                if x.is_null() {
-                    String::new()
-                } else {
-                    string(x)
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(","),
+        Value::Array(a) => a.iter().map(|x| if x.is_null() { String::new() } else { string(x) }).collect::<Vec<_>>().join(","),
         Value::Object(_) => "[object Object]".into(),
     }
 }
@@ -180,11 +160,7 @@ pub fn number_or_zero(v: &Value) -> f64 {
         Value::Number(n) => n.as_f64().unwrap_or(0.0),
         Value::String(s) => {
             let t = trim(s);
-            if t.is_empty() {
-                0.0
-            } else {
-                t.parse::<f64>().unwrap_or(0.0)
-            }
+            if t.is_empty() { 0.0 } else { t.parse::<f64>().unwrap_or(0.0) }
         }
         Value::Bool(true) => 1.0,
         _ => 0.0,
@@ -221,14 +197,7 @@ mod tests {
         for v in [json!(null), json!(false), json!(0), json!(0.0), json!("")] {
             assert!(!truthy(&v), "{v}");
         }
-        for v in [
-            json!(true),
-            json!(1),
-            json!(-0.5),
-            json!("0"),
-            json!([]),
-            json!({}),
-        ] {
+        for v in [json!(true), json!(1), json!(-0.5), json!("0"), json!([]), json!({})] {
             assert!(truthy(&v), "{v}");
         }
     }

@@ -45,7 +45,9 @@ pub fn builtins() -> Vec<Builtin> {
 }
 
 fn json(text: Option<&String>) -> Map<String, Value> {
-    text.and_then(|t| serde_json::from_str::<Value>(t).ok()).and_then(|v| if let Value::Object(m) = v { Some(m) } else { None }).unwrap_or_default()
+    text.and_then(|t| serde_json::from_str::<Value>(t).ok())
+        .and_then(|v| if let Value::Object(m) = v { Some(m) } else { None })
+        .unwrap_or_default()
 }
 
 fn obj(v: Option<&Value>) -> Map<String, Value> {
@@ -115,7 +117,8 @@ impl HarnessMcp for Builtin {
     fn files(&self, w: &Where, cwd: Option<&str>) -> Vec<PathBuf> {
         match self.kind {
             Kind::Claude => {
-                let user = w.var("CLAUDE_CONFIG_DIR").map_or_else(|| w.home.join(".claude.json"), |d| PathBuf::from(d).join(".claude.json"));
+                let user =
+                    w.var("CLAUDE_CONFIG_DIR").map_or_else(|| w.home.join(".claude.json"), |d| PathBuf::from(d).join(".claude.json"));
                 std::iter::once(user).chain(cwd.map(|c| PathBuf::from(c).join(".mcp.json"))).collect()
             }
             Kind::Codex => vec![dir(w, "CODEX_HOME", &[".codex"]).join("config.toml")],
@@ -214,7 +217,15 @@ impl Found {
 fn shape(name: String, label: &str, raw: &Value) -> Option<Found> {
     let s = obj(Some(raw));
     let url = ["url", "serverUrl"].iter().find_map(|k| s.get(*k).and_then(Value::as_str).filter(|u| !u.is_empty()));
-    let base = Found { name, from: vec![label.to_owned()], transport: Transport::Remote, command: String::new(), args: Vec::new(), url: String::new(), secrets: BTreeMap::new() };
+    let base = Found {
+        name,
+        from: vec![label.to_owned()],
+        transport: Transport::Remote,
+        command: String::new(),
+        args: Vec::new(),
+        url: String::new(),
+        secrets: BTreeMap::new(),
+    };
     if let Some(url) = url {
         return Some(Found { url: url.to_owned(), secrets: str_map(s.get("headers")), ..base });
     }

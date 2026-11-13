@@ -177,7 +177,11 @@ pub fn clock_words(at: i64, offset_min: i32) -> String {
 /// Drain watch's words for the phone (budget.js:676).
 pub fn drain_why(d: &Drain, name: &str, account_label: &str, in_usd: bool, offset_min: i32) -> String {
     let who = if account_label.is_empty() { name.to_owned() } else { format!("{name} ({account_label})") };
-    let failed = if d.failed.runs > 0 { format!(" {} of them ended in an error and still took {}.", d.failed.runs, pct(d.failed.du)) } else { String::new() };
+    let failed = if d.failed.runs > 0 {
+        format!(" {} of them ended in an error and still took {}.", d.failed.runs, pct(d.failed.du))
+    } else {
+        String::new()
+    };
     format!(
         "Since {}, {} runs took {} of {who}’s {} window for {} of work: {:.1}× its usual share per unit of work over the last two weeks.{failed} Settings → Usage → Plan budget has the details and Copy report.",
         clock_words(d.since, offset_min),

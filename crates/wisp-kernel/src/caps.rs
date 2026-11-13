@@ -26,58 +26,26 @@ pub struct Caller {
 
 impl Caller {
     pub fn user() -> Self {
-        Self {
-            set: "user:full".into(),
-            session: None,
-            plugin: None,
-        }
+        Self { set: "user:full".into(), session: None, plugin: None }
     }
     pub fn kernel() -> Self {
-        Self {
-            set: "kernel".into(),
-            session: None,
-            plugin: None,
-        }
+        Self { set: "kernel".into(), session: None, plugin: None }
     }
     pub fn agent(session: impl Into<String>, capped: bool) -> Self {
-        let set = if capped {
-            "agent:capped"
-        } else {
-            "agent:session"
-        };
-        Self {
-            set: set.into(),
-            session: Some(session.into()),
-            plugin: None,
-        }
+        let set = if capped { "agent:capped" } else { "agent:session" };
+        Self { set: set.into(), session: Some(session.into()), plugin: None }
     }
     /// A session's agent narrowed to its mode (`plan`, `edits`, `auto`): nothing it starts goes above it.
     pub fn agent_at(session: impl Into<String>, mode: &str, capped: bool) -> Self {
-        let base = if capped {
-            "agent:capped"
-        } else {
-            "agent:session"
-        };
-        Self {
-            set: format!("{base}:{mode}"),
-            session: Some(session.into()),
-            plugin: None,
-        }
+        let base = if capped { "agent:capped" } else { "agent:session" };
+        Self { set: format!("{base}:{mode}"), session: Some(session.into()), plugin: None }
     }
     /// Any named set (`crew:ops`, `pane:abc`, `box`, `preview`).
     pub fn set(set: impl Into<String>) -> Self {
-        Self {
-            set: set.into(),
-            session: None,
-            plugin: None,
-        }
+        Self { set: set.into(), session: None, plugin: None }
     }
     pub fn plugin(id: &str) -> Self {
-        Self {
-            set: format!("plugin:{id}"),
-            session: None,
-            plugin: Some(id.to_owned()),
-        }
+        Self { set: format!("plugin:{id}"), session: None, plugin: Some(id.to_owned()) }
     }
 }
 
@@ -106,21 +74,10 @@ pub(crate) struct Compiled {
 impl Compiled {
     pub(crate) fn new(s: &CapabilitySet) -> Self {
         let allow: Vec<Permission> = s.allow.iter().filter_map(|p| perm::parse(p)).collect();
-        let deny: Vec<(Permission, Option<String>)> = s
-            .deny
-            .iter()
-            .filter_map(|d| perm::parse(d).map(|p| (p, s.why.get(d).cloned())))
-            .collect();
-        let all = deny.is_empty()
-            && allow
-                .iter()
-                .any(|p| p.ns == "*" && p.action == "*" && p.scope.is_empty());
-        Self {
-            id: s.id.clone(),
-            all,
-            allow,
-            deny,
-        }
+        let deny: Vec<(Permission, Option<String>)> =
+            s.deny.iter().filter_map(|d| perm::parse(d).map(|p| (p, s.why.get(d).cloned()))).collect();
+        let all = deny.is_empty() && allow.iter().any(|p| p.ns == "*" && p.action == "*" && p.scope.is_empty());
+        Self { id: s.id.clone(), all, allow, deny }
     }
 
     /// Allowed, or the message the caller reads.
@@ -135,11 +92,7 @@ impl Compiled {
                 None => format!("{} may not {p}", self.id),
             });
         }
-        if self.allow.iter().any(|g| g.covers(p)) {
-            Ok(())
-        } else {
-            Err(format!("{} may not {p}", self.id))
-        }
+        if self.allow.iter().any(|g| g.covers(p)) { Ok(()) } else { Err(format!("{} may not {p}", self.id)) }
     }
 }
 
@@ -179,8 +132,7 @@ struct CrewData {
 
 fn data() -> Option<&'static Data> {
     static DATA: OnceLock<Option<Data>> = OnceLock::new();
-    DATA.get_or_init(|| serde_json::from_str(include_str!("../capabilities.json")).ok())
-        .as_ref()
+    DATA.get_or_init(|| serde_json::from_str(include_str!("../capabilities.json")).ok()).as_ref()
 }
 
 fn with(mut s: CapabilitySet, deny: impl IntoIterator<Item = (String, String)>) -> CapabilitySet {
@@ -196,21 +148,14 @@ fn base(id: &str) -> Option<CapabilitySet> {
     let d = data()?;
     let s = d.sets.iter().find(|s| s.id == id)?;
     Some(with(
-        CapabilitySet {
-            id: s.id.clone(),
-            allow: s.allow.clone(),
-            ..CapabilitySet::default()
-        },
+        CapabilitySet { id: s.id.clone(), allow: s.allow.clone(), ..CapabilitySet::default() },
         s.deny.iter().map(|x| (x.permission.clone(), x.why.clone())),
     ))
 }
 
 /// v1's capped refusal, word for word: "Refused: this task was started from a channel with a mode cap, …".
 pub fn capped_refusal(what: &str) -> String {
-    data().map_or_else(
-        || format!("Refused: {what}"),
-        |d| d.capped_refusal.replace("{what}", what),
-    )
+    data().map_or_else(|| format!("Refused: {what}"), |d| d.capped_refusal.replace("{what}", what))
 }
 
 fn above_mode(cap: &str) -> Vec<(String, String)> {
@@ -218,94 +163,42 @@ fn above_mode(cap: &str) -> Vec<(String, String)> {
     let Some(rank) = d.modes.iter().position(|m| m == cap) else {
         return Vec::new();
     };
-    let label = |m: &str| {
-        d.mode_labels
-            .get(m)
-            .cloned()
-            .unwrap_or_else(|| m.to_owned())
-    };
+    let label = |m: &str| d.mode_labels.get(m).cloned().unwrap_or_else(|| m.to_owned());
     d.modes[rank + 1..]
         .iter()
         .flat_map(|m| d.above_mode.iter().map(move |r| (m, r)))
-        .map(|(m, r)| {
-            (
-                r.permission.replace("{mode}", m),
-                r.why
-                    .replace("{label}", &label(m))
-                    .replace("{cap}", &label(cap)),
-            )
-        })
+        .map(|(m, r)| (r.permission.replace("{mode}", m), r.why.replace("{label}", &label(m)).replace("{cap}", &label(cap))))
         .collect()
 }
 
 /// `agent:session` narrowed to a mode: nothing it starts or switches to goes above it.
 pub fn session_set(mode: &str) -> CapabilitySet {
     let s = base("agent:session").unwrap_or_default();
-    CapabilitySet {
-        id: format!("agent:session:{mode}"),
-        ..with(s, above_mode(mode))
-    }
+    CapabilitySet { id: format!("agent:session:{mode}"), ..with(s, above_mode(mode)) }
 }
 
 /// `agent:capped` at a cap (v1 `session.capped.mode`): agent:session at that mode, minus capped.js.
 pub fn capped_set(cap: &str) -> CapabilitySet {
     let s = session_set(cap);
-    let id = if cap == "edits" {
-        "agent:capped".to_owned()
-    } else {
-        format!("agent:capped:{cap}")
-    };
-    let capped = data()
-        .map(|d| {
-            d.capped
-                .iter()
-                .map(|c| (c.permission.clone(), capped_refusal(&c.what)))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let id = if cap == "edits" { "agent:capped".to_owned() } else { format!("agent:capped:{cap}") };
+    let capped =
+        data().map(|d| d.capped.iter().map(|c| (c.permission.clone(), capped_refusal(&c.what))).collect::<Vec<_>>()).unwrap_or_default();
     // capped refusals first: their wording is what the agent must read
-    let mut out = with(
-        CapabilitySet {
-            id,
-            allow: s.allow,
-            ..CapabilitySet::default()
-        },
-        capped,
-    );
-    out = with(
-        out,
-        s.deny
-            .into_iter()
-            .map(|d| (d.clone(), s.why.get(&d).cloned().unwrap_or_default())),
-    );
+    let mut out = with(CapabilitySet { id, allow: s.allow, ..CapabilitySet::default() }, capped);
+    out = with(out, s.deny.into_iter().map(|d| (d.clone(), s.why.get(&d).cloned().unwrap_or_default())));
     out
 }
 
 /// A crew member's agent: a session's power, but it can't rewrite the crew.
 pub fn crew_set(name: &str) -> CapabilitySet {
     let s = base("agent:session").unwrap_or_default();
-    let deny = data()
-        .map(|d| {
-            d.crew
-                .deny
-                .iter()
-                .map(|x| (x.permission.clone(), x.why.clone()))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    CapabilitySet {
-        id: format!("crew:{name}"),
-        ..with(s, deny)
-    }
+    let deny = data().map(|d| d.crew.deny.iter().map(|x| (x.permission.clone(), x.why.clone())).collect::<Vec<_>>()).unwrap_or_default();
+    CapabilitySet { id: format!("crew:{name}"), ..with(s, deny) }
 }
 
 /// A pane or app iframe: what the user allowed from its bar, nothing by default.
 pub fn pane_set(id: &str, allow: Vec<String>) -> CapabilitySet {
-    CapabilitySet {
-        id: format!("pane:{id}"),
-        allow,
-        ..CapabilitySet::default()
-    }
+    CapabilitySet { id: format!("pane:{id}"), allow, ..CapabilitySet::default() }
 }
 
 /// What ids a plugin owns: its id minus the author segment (`wisp.shell.task` owns `shell.task.*`).
@@ -316,9 +209,7 @@ pub fn owner_prefix(plugin: &str) -> &str {
 /// Is `id` (a command, event, setting or point) in `plugin`'s namespace?
 pub fn owned_by(id: &str, plugin: &str) -> bool {
     let p = owner_prefix(plugin);
-    id == p
-        || id.strip_prefix(p).is_some_and(|r| r.starts_with('.'))
-        || id.strip_prefix(plugin).is_some_and(|r| r.starts_with('.'))
+    id == p || id.strip_prefix(p).is_some_and(|r| r.starts_with('.')) || id.strip_prefix(plugin).is_some_and(|r| r.starts_with('.'))
 }
 
 /// A plugin speaking for itself: its manifest's permissions plus its own commands' namespace.
@@ -332,11 +223,7 @@ pub fn plugin_set(id: &str, permissions: &[String]) -> CapabilitySet {
             allow.push(format!("{ns}:{rest}.*"));
         }
     }
-    CapabilitySet {
-        id: format!("plugin:{id}"),
-        allow,
-        ..CapabilitySet::default()
-    }
+    CapabilitySet { id: format!("plugin:{id}"), allow, ..CapabilitySet::default() }
 }
 
 /// Every set by id. Families (`crew:<name>`, `pane:<id>`, `agent:session:<mode>`) are made on demand.
@@ -409,10 +296,7 @@ fn family(id: &str) -> Option<CapabilitySet> {
         return Some(if modes.iter().any(|x| x == m) {
             session_set(m)
         } else {
-            CapabilitySet {
-                id: id.to_owned(),
-                ..base("agent:session")?
-            }
+            CapabilitySet { id: id.to_owned(), ..base("agent:session")? }
         });
     }
     if id == "agent:capped" {
@@ -428,9 +312,7 @@ fn family(id: &str) -> Option<CapabilitySet> {
         return Some(pane_set(p, Vec::new()));
     }
     // a plugin the kernel hasn't defined (outside a kernel): only its own namespace
-    id.strip_prefix("plugin:")
-        .filter(|n| !n.is_empty())
-        .map(|p| plugin_set(p, &[]))
+    id.strip_prefix("plugin:").filter(|n| !n.is_empty()).map(|p| plugin_set(p, &[]))
 }
 
 /// A built-in set, compiled (for calls made outside a kernel).
@@ -490,20 +372,12 @@ mod tests {
         assert!(allowed(&a, "runtime:start"));
         assert!(!allowed(&a, "plugins:install"));
         assert!(!allowed(&a, "settings:write{scope:server}"));
-        assert!(
-            !allowed(&a, "settings:write{scope:device}"),
-            "settings:* is not in agent:session's allow list"
-        );
+        assert!(!allowed(&a, "settings:write{scope:device}"), "settings:* is not in agent:session's allow list");
         let edits = Caller::agent_at("s1", "edits", false);
         assert!(allowed(&edits, "runtime:start{mode:edits}"));
-        let e = explain(&edits, "runtime:start{mode:auto}")
-            .err()
-            .unwrap_or_default();
+        let e = explain(&edits, "runtime:start{mode:auto}").err().unwrap_or_default();
         assert!(e.contains("Full auto, above this task’s Edits"), "{e}");
-        assert!(allowed(
-            &Caller::agent_at("s1", "auto", false),
-            "runtime:start{mode:auto}"
-        ));
+        assert!(allowed(&Caller::agent_at("s1", "auto", false), "runtime:start{mode:auto}"));
     }
 
     #[test]
@@ -516,10 +390,7 @@ mod tests {
         );
         assert!(!allowed(&c, "runtime:start{mode:auto}"));
         assert!(allowed(&c, "runtime:start{mode:edits}"));
-        assert!(!allowed(
-            &Caller::set("agent:capped:plan"),
-            "runtime:start{mode:edits}"
-        ));
+        assert!(!allowed(&Caller::set("agent:capped:plan"), "runtime:start{mode:edits}"));
     }
 
     #[test]

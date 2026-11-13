@@ -17,9 +17,8 @@ pub use error::ProtocolError;
 pub use patch::{PatchOp, apply_patch, diff, escape_pointer, parse_pointer, patched};
 pub use topic::{Topic, is_topic};
 pub use wire::{
-    Ack, Change, ClientMessage, CommandError, CommandRequest, CommandResponse, EntityOp, Hello,
-    Mutate, Notice, Patch, PeerInfo, PeerPlugin, Reject, Resync, Row, Rows, ServerMessage,
-    Snapshot, Sub, Unsub, Welcome, Window,
+    Ack, Change, ClientMessage, CommandError, CommandRequest, CommandResponse, EntityOp, Hello, Mutate, Notice, Patch, PeerInfo,
+    PeerPlugin, Reject, Resync, Row, Rows, ServerMessage, Snapshot, Sub, Unsub, Welcome, Window,
 };
 
 /// The protocol this build speaks; v1 was the untyped broadcast stream.

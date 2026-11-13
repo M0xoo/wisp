@@ -23,7 +23,11 @@ pub(super) fn sessions(s: &mut Setup, slot: &Slot) {
             if !wisp_runtime_api::harness::sessions::safe_id(&a.id) {
                 return Err(WireError::invalid(format!("{} isn't a session id", a.id)));
             }
-            let h = ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().find(|h| h.harness() == a.harness).ok_or_else(|| WireError::not_found(format!("{} can't read its sessions", a.harness)))?;
+            let h = ctx
+                .contributions(&wisp_runtime_api::harness::sessions::SESSIONS)
+                .into_iter()
+                .find(|h| h.harness() == a.harness)
+                .ok_or_else(|| WireError::not_found(format!("{} can't read its sessions", a.harness)))?;
             let (sess, turns) = h.read(&a.id).await.ok_or_else(|| WireError::not_found(format!("no {} session {}", a.harness, a.id)))?;
             let args = crate::specs::adopted(&sess, &turns);
             let rt = rt(&slot)?;
@@ -38,7 +42,11 @@ pub(super) fn sessions(s: &mut Setup, slot: &Slot) {
         if !wisp_runtime_api::harness::sessions::safe_id(&a.id) {
             return Err(WireError::invalid(format!("{} isn't a session id", a.id)));
         }
-        let h = ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().find(|h| h.harness() == a.harness).ok_or_else(|| WireError::not_found(format!("{} can't take a session back", a.harness)))?;
+        let h = ctx
+            .contributions(&wisp_runtime_api::harness::sessions::SESSIONS)
+            .into_iter()
+            .find(|h| h.harness() == a.harness)
+            .ok_or_else(|| WireError::not_found(format!("{} can't take a session back", a.harness)))?;
         let raw = base64::engine::general_purpose::STANDARD.decode(a.raw.as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
         Ok(serde_json::json!({ "restored": h.restore(&a.id, &a.cwd, raw).await }))
     });

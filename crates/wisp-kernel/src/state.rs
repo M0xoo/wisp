@@ -92,8 +92,7 @@ impl Drop for KernelState {
 impl KernelState {
     pub(crate) fn service<T: Any + Send + Sync>(&self) -> Option<Arc<T>> {
         let map = self.services.read().ok()?;
-        map.get(&TypeId::of::<T>())
-            .and_then(|v| v.clone().downcast::<T>().ok())
+        map.get(&TypeId::of::<T>()).and_then(|v| v.clone().downcast::<T>().ok())
     }
 
     /// The durable event log, when the app provides one (ADR-0044).
@@ -110,9 +109,7 @@ impl KernelState {
         if let Some(c) = self.clock() {
             return c.now_ms();
         }
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
     }
 
     /// Sleeps on the injected clock (a fake one in tests), else on tokio's.
@@ -124,20 +121,14 @@ impl KernelState {
     }
 
     pub(crate) fn read_reg(&self) -> Result<std::sync::RwLockReadGuard<'_, Registry>> {
-        self.reg
-            .read()
-            .map_err(|_| WireError::internal("registry lock poisoned"))
+        self.reg.read().map_err(|_| WireError::internal("registry lock poisoned"))
     }
 
     pub(crate) fn write_reg(&self) -> Result<std::sync::RwLockWriteGuard<'_, Registry>> {
-        self.reg
-            .write()
-            .map_err(|_| WireError::internal("registry lock poisoned"))
+        self.reg.write().map_err(|_| WireError::internal("registry lock poisoned"))
     }
 
     pub(crate) fn lock_plugins(&self) -> Result<std::sync::MutexGuard<'_, crate::life::Plugins>> {
-        self.plugins
-            .lock()
-            .map_err(|_| WireError::internal("plugin table lock poisoned"))
+        self.plugins.lock().map_err(|_| WireError::internal("plugin table lock poisoned"))
     }
 }

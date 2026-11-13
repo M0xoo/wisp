@@ -6,7 +6,14 @@ use wisp_automations_api::{Budget, TriggerEvent, TriggerSpec, When};
 use super::*;
 
 fn ev(key: &str) -> TriggerEvent {
-    TriggerEvent { on: "pr.opened".into(), key: key.into(), at: 0, payload: json!({ "branch": "main", "project": "/w/api" }), summary: format!("PR {key}"), ..TriggerEvent::default() }
+    TriggerEvent {
+        on: "pr.opened".into(),
+        key: key.into(),
+        at: 0,
+        payload: json!({ "branch": "main", "project": "/w/api" }),
+        summary: format!("PR {key}"),
+        ..TriggerEvent::default()
+    }
 }
 
 fn spec() -> TriggerSpec {
@@ -131,7 +138,12 @@ fn a_pipeline_step_of_a_task_does_not_fire_its_trigger_again() {
 
 #[test]
 fn mention_in_chat_from_unknown_user_is_refused() {
-    let chat = |user: &str| TriggerEvent { on: "chat.message".into(), key: format!("m-{user}"), payload: json!({ "user": user, "text": "@ada deploy please", "channel": "C1" }), ..TriggerEvent::default() };
+    let chat = |user: &str| TriggerEvent {
+        on: "chat.message".into(),
+        key: format!("m-{user}"),
+        payload: json!({ "user": user, "text": "@ada deploy please", "channel": "C1" }),
+        ..TriggerEvent::default()
+    };
     let s = TriggerSpec { on: "chat.message".into(), crew: "ada".into(), users: vec!["bo".into()], ..TriggerSpec::default() };
     let mut st = State::default();
     assert!(matches!(admit("t", &s, &mut st, chat("eve"), &w(0)), Decision::Skipped(w) if w.contains("users")));
@@ -153,7 +165,8 @@ fn paused_member_queues_wakes_and_resume_drains_in_order() {
     }
     assert!(drain(&s, &mut st, &paused).is_empty(), "still paused");
     let d = drain(&s, &mut st, &w(10));
-    let keys: Vec<String> = d.iter().filter_map(|x| if let Decision::Start(j) = x { Some(j.events[0].key.clone()) } else { None }).collect();
+    let keys: Vec<String> =
+        d.iter().filter_map(|x| if let Decision::Start(j) = x { Some(j.events[0].key.clone()) } else { None }).collect();
     assert_eq!(keys, ["1", "2", "3"]);
 }
 
@@ -235,7 +248,8 @@ fn filters_if_and_windows() {
 fn a_project_on_a_webhook_or_schedule_trigger_is_where_it_runs_not_a_filter() {
     for on in ["webhook", "schedule", "once", "manual"] {
         let s = TriggerSpec { on: on.into(), project: "/w/api".into(), ..spec() };
-        let e = TriggerEvent { on: on.into(), key: format!("{on}:1"), payload: json!({ "ref": "refs/heads/main" }), ..TriggerEvent::default() };
+        let e =
+            TriggerEvent { on: on.into(), key: format!("{on}:1"), payload: json!({ "ref": "refs/heads/main" }), ..TriggerEvent::default() };
         assert!(matches!(admit("t", &s, &mut State::default(), e, &w(0)), Decision::Start(_)), "{on}");
     }
     // an explicit match on project still filters, and an event source's flat project too
@@ -246,7 +260,11 @@ fn a_project_on_a_webhook_or_schedule_trigger_is_where_it_runs_not_a_filter() {
 
 #[test]
 fn crew_wake_cycles_are_found() {
-    let reported = |member: &str| TriggerSpec { on: "crew.reported".into(), filters: [("member".to_owned(), json!(member))].into_iter().collect(), ..TriggerSpec::default() };
+    let reported = |member: &str| TriggerSpec {
+        on: "crew.reported".into(),
+        filters: [("member".to_owned(), json!(member))].into_iter().collect(),
+        ..TriggerSpec::default()
+    };
     let wakes = vec![("bo".to_owned(), reported("ada")), ("cy".to_owned(), reported("bo"))];
     assert_eq!(wake_cycle(&wake_edges(&wakes)), None);
     let mut looped = wakes;

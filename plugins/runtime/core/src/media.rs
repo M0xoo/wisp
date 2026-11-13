@@ -83,7 +83,8 @@ pub fn sniff(head: &[u8]) -> Option<Kind> {
     // a box's size: 1 (a 64-bit size follows) or 8 up to 512 MB (a first byte under 0x20, which no text starts
     // with); "key=free-tier" reads "free" at 4 too
     let size = head.get(..4).map_or(0, |b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]));
-    let quicktime = (size == 1 || (8..0x2000_0000).contains(&size)) && [b"moov", b"mdat", b"wide", b"free", b"skip"].iter().any(|b| at(4, *b));
+    let quicktime =
+        (size == 1 || (8..0x2000_0000).contains(&size)) && [b"moov", b"mdat", b"wide", b"free", b"skip"].iter().any(|b| at(4, *b));
     if at(0, b"\x1a\x45\xdf\xa3") || at(4, b"ftyp") || quicktime {
         return Some(Kind::Video);
     }
@@ -110,9 +111,15 @@ pub struct MediaFile {
 }
 
 /// v1 `mediaFile(s, asked)`: `blocks` are every turn's answer blocks.
-pub fn media_file<'a>(dir: &Path, asked: &str, blocks: impl IntoIterator<Item = &'a Value>, exists: &dyn Fn(&Path) -> bool) -> Option<MediaFile> {
+pub fn media_file<'a>(
+    dir: &Path,
+    asked: &str,
+    blocks: impl IntoIterator<Item = &'a Value>,
+    exists: &dyn Fn(&Path) -> bool,
+) -> Option<MediaFile> {
     let mut p = resolve(dir, asked);
-    let media: Vec<&Value> = blocks.into_iter().filter(|b| matches!(b.get("type").and_then(Value::as_str), Some("image" | "video"))).collect();
+    let media: Vec<&Value> =
+        blocks.into_iter().filter(|b| matches!(b.get("type").and_then(Value::as_str), Some("image" | "video"))).collect();
     let field = |b: &Value, k: &str| b.get(k).and_then(Value::as_str).map(str::to_owned);
     let at = |v: Option<String>, p: &Path| v.is_some_and(|v| resolve(dir, &v) == p);
     let mut block = media.iter().find(|b| at(field(b, "path").or_else(|| field(b, "src")), &p)).copied();
@@ -158,14 +165,27 @@ pub fn keep_plan(dir: &Path, blocks: &[Value], turn: &str, shots: &Path) -> Vec<
         if !video && b.get("type").and_then(Value::as_str) != Some("image") {
             continue;
         }
-        let Some(rel) = b.get("path").or_else(|| b.get("src")).and_then(Value::as_str).filter(|r| !r.is_empty() && !r.starts_with("http:") && !r.starts_with("https:") && !r.starts_with("data:")) else { continue };
+        let Some(rel) = b
+            .get("path")
+            .or_else(|| b.get("src"))
+            .and_then(Value::as_str)
+            .filter(|r| !r.is_empty() && !r.starts_with("http:") && !r.starts_with("https:") && !r.starts_with("data:"))
+        else {
+            continue;
+        };
         let from = resolve(dir, rel);
         let ext = ext_of(&from);
         let known = if video { VIDEO_EXT.contains(&ext.as_str()) } else { IMAGE_EXT.contains(&ext.as_str()) };
         if !known || from.starts_with(shots.parent().unwrap_or(shots)) {
             continue;
         }
-        out.push(Keep { index, to: shots.join(format!("{turn}-{index}.{ext}")), from, source: rel.to_owned(), max: if video { MAX_KEPT_VIDEO } else { MAX_KEPT_IMAGE } });
+        out.push(Keep {
+            index,
+            to: shots.join(format!("{turn}-{index}.{ext}")),
+            from,
+            source: rel.to_owned(),
+            max: if video { MAX_KEPT_VIDEO } else { MAX_KEPT_IMAGE },
+        });
     }
     out
 }
@@ -180,12 +200,20 @@ pub fn kept(block: &mut Value, k: &Keep) {
 }
 
 /// v1 `docFile(s, asked)`: a markdown file a `doc` block showed, inside the folder or the path it named.
-pub fn doc_file<'a>(dir: &Path, asked: &str, blocks: impl IntoIterator<Item = &'a Value>, is_file: &dyn Fn(&Path) -> bool) -> Option<PathBuf> {
+pub fn doc_file<'a>(
+    dir: &Path,
+    asked: &str,
+    blocks: impl IntoIterator<Item = &'a Value>,
+    is_file: &dyn Fn(&Path) -> bool,
+) -> Option<PathBuf> {
     if asked.is_empty() {
         return None;
     }
     let p = resolve(dir, asked);
-    let named = blocks.into_iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("doc")).any(|b| ["abs", "path"].iter().any(|k| b.get(*k).and_then(Value::as_str).is_some_and(|v| resolve(dir, v) == p)));
+    let named = blocks
+        .into_iter()
+        .filter(|b| b.get("type").and_then(Value::as_str) == Some("doc"))
+        .any(|b| ["abs", "path"].iter().any(|k| b.get(*k).and_then(Value::as_str).is_some_and(|v| resolve(dir, v) == p)));
     ((p.starts_with(dir) && p != dir) || named).then_some(p).filter(|p| is_file(p))
 }
 
@@ -198,9 +226,14 @@ mod tests {
     #[test]
     fn a_picture_inside_the_folder_or_named_by_a_block_is_served_nothing_else_v1_media_file() {
         let dir = Path::new("/w/app");
-        let on_disk = ["/w/app/shot.png", "/tmp/s.png", "/w/app/notes.txt", "/etc/x.png", "/w/app/.wisp/k.png", "/home/me/.wisp/shots/a.png"];
+        let on_disk =
+            ["/w/app/shot.png", "/tmp/s.png", "/w/app/notes.txt", "/etc/x.png", "/w/app/.wisp/k.png", "/home/me/.wisp/shots/a.png"];
         let exists = |p: &Path| on_disk.iter().any(|d| Path::new(d) == p);
-        let blocks = [json!({ "type": "image", "path": "/tmp/s.png" }), json!({ "type": "text", "path": "/etc/x.png" }), json!({ "type": "image", "path": "/home/me/.wisp/shots/a.png", "source": "/tmp/gone.png" })];
+        let blocks = [
+            json!({ "type": "image", "path": "/tmp/s.png" }),
+            json!({ "type": "text", "path": "/etc/x.png" }),
+            json!({ "type": "image", "path": "/home/me/.wisp/shots/a.png", "source": "/tmp/gone.png" }),
+        ];
         let get = |asked: &str| media_file(dir, asked, &blocks, &exists).map(|m| m.path.display().to_string());
         // inside the folder, relative or absolute
         assert_eq!(get("shot.png").as_deref(), Some("/w/app/shot.png"));
@@ -231,7 +264,10 @@ mod tests {
         assert_eq!(sniff(b"\xff\xd8\xff\xe0\0\x10JFIF"), Some(Kind::Raster));
         assert_eq!(sniff(b"GIF89a\x01\0"), Some(Kind::Raster));
         assert_eq!(sniff(b"RIFF\x10\0\0\0WEBPVP8 "), Some(Kind::Raster));
-        assert_eq!(sniff(b"\xef\xbb\xbf\n<?xml version=\"1.0\"?>\n<!-- by hand -->\n<SVG xmlns=\"http://www.w3.org/2000/svg\"/>"), Some(Kind::Svg));
+        assert_eq!(
+            sniff(b"\xef\xbb\xbf\n<?xml version=\"1.0\"?>\n<!-- by hand -->\n<SVG xmlns=\"http://www.w3.org/2000/svg\"/>"),
+            Some(Kind::Svg)
+        );
         assert_eq!(sniff(mp4), Some(Kind::Video));
         assert_eq!(sniff(b"\x1a\x45\xdf\xa3\x9f\x42\x86\x81"), Some(Kind::Video));
         // what a secret looks like: never a picture
@@ -276,10 +312,13 @@ mod tests {
             json!({ "type": "text", "path": "/tmp/x.png" }),
         ];
         let plan = keep_plan(dir, &blocks, "t9", shots);
-        assert_eq!(plan.iter().map(|k| (k.index, k.from.display().to_string(), k.to.display().to_string())).collect::<Vec<_>>(), vec![
-            (0, "/tmp/shot.png".to_owned(), "/h/.wisp/shots/s1/t9-0.png".to_owned()),
-            (2, "/w/app/rec/run.MP4".to_owned(), "/h/.wisp/shots/s1/t9-2.mp4".to_owned()),
-        ]);
+        assert_eq!(
+            plan.iter().map(|k| (k.index, k.from.display().to_string(), k.to.display().to_string())).collect::<Vec<_>>(),
+            vec![
+                (0, "/tmp/shot.png".to_owned(), "/h/.wisp/shots/s1/t9-0.png".to_owned()),
+                (2, "/w/app/rec/run.MP4".to_owned(), "/h/.wisp/shots/s1/t9-2.mp4".to_owned()),
+            ]
+        );
         assert_eq!(plan[1].max, MAX_KEPT_VIDEO);
         let mut b = blocks[0].clone();
         kept(&mut b, &plan[0]);

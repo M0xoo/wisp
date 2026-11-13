@@ -163,7 +163,10 @@ mod tests {
         assert_eq!((t.len(), t[0].prompt.as_str(), t[0].text.as_str()), (1, "Reply with OK.", "OK"));
         let root = home("read");
         let (s, _) = AntigravitySessions { root: root.clone() }.read(ID).await.unwrap();
-        assert_eq!((s.cwd.as_str(), s.title.as_str(), s.prompts, s.started_at), ("/tmp/wisp-samples/run", "Reply with OK.", 1, iso_ms("2026-11-09T08:24:39Z")));
+        assert_eq!(
+            (s.cwd.as_str(), s.title.as_str(), s.prompts, s.started_at),
+            ("/tmp/wisp-samples/run", "Reply with OK.", 1, iso_ms("2026-11-09T08:24:39Z"))
+        );
         assert!(AntigravitySessions { root: root.clone() }.read("../x").await.is_none());
         let _ = std::fs::remove_dir_all(root);
     }

@@ -31,7 +31,8 @@ fn notebook_props() -> Map<String, Value> {
 }
 
 /// The fields the tools may set (the rest is the member's memory and wisp's bookkeeping).
-pub const CREW_FIELDS: [&str; 12] = ["name", "role", "brief", "cwd", "agent", "model", "effort", "mode", "cron", "parallel", "paused", "avatar"];
+pub const CREW_FIELDS: [&str; 12] =
+    ["name", "role", "brief", "cwd", "agent", "model", "effort", "mode", "cron", "parallel", "paused", "avatar"];
 
 fn with(mut a: Map<String, Value>, b: Map<String, Value>) -> Value {
     a.extend(b);
@@ -40,7 +41,8 @@ fn with(mut a: Map<String, Value>, b: Map<String, Value>) -> Value {
 
 /// `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit`, `wisp_crew_kit`, `wisp_crew_remove`.
 pub fn crew_tools() -> Value {
-    let member = json!({ "member": { "type": "string", "description": "Their name, @handle or id." } }).as_object().cloned().unwrap_or_default();
+    let member =
+        json!({ "member": { "type": "string", "description": "Their name, @handle or id." } }).as_object().cloned().unwrap_or_default();
     let add_extra = json!({
         "checkin": { "type": "boolean", "description": "Start their first check-in right away. Default false." },
         "from": { "type": "string", "description": "Instead of the fields above: members someone shared, as a link to a .crew.json file (https, or gist:<id>) or its JSON. They join paused, in cwd (default: the current project), until the user resumes them." }
@@ -104,8 +106,17 @@ fn clip_ellipsis(s: &str, n: usize) -> String {
 pub fn member_line(v: &MemberView) -> String {
     let m = &v.member;
     let role = if m.role.is_empty() { String::new() } else { format!(" — {}", m.role) };
-    let mut parts = vec![format!("{}{}", m.agent, if m.model.is_empty() { String::new() } else { format!(" ({})", m.model) }), format!("{} mode", m.mode)];
-    parts.push(if !m.machine.is_empty() { format!("on machine {}", m.machine) } else if !m.cwd.is_empty() { format!("in {}", m.cwd) } else { "no folder".into() });
+    let mut parts = vec![
+        format!("{}{}", m.agent, if m.model.is_empty() { String::new() } else { format!(" ({})", m.model) }),
+        format!("{} mode", m.mode),
+    ];
+    parts.push(if !m.machine.is_empty() {
+        format!("on machine {}", m.machine)
+    } else if !m.cwd.is_empty() {
+        format!("in {}", m.cwd)
+    } else {
+        "no folder".into()
+    });
     parts.push(if m.cron.is_empty() { "no schedule".into() } else { format!("checks in on `{}`", m.cron) });
     if m.paused {
         parts.push("paused".into());
@@ -116,7 +127,8 @@ pub fn member_line(v: &MemberView) -> String {
     if !m.queue.is_empty() {
         parts.push(format!("{} waiting", m.queue.len()));
     }
-    let brief = if m.brief.is_empty() { String::new() } else { format!("\n  Brief: {}", clip_ellipsis(&crate::text::squash(&m.brief), 200)) };
+    let brief =
+        if m.brief.is_empty() { String::new() } else { format!("\n  Brief: {}", clip_ellipsis(&crate::text::squash(&m.brief), 200)) };
     format!("- **{}** (@{}, id `{}`){role} · {}{brief}", m.name, v.handle, m.id, parts.join(" · "))
 }
 
@@ -125,7 +137,8 @@ pub fn member_detail(v: &MemberView) -> String {
     let m = &v.member;
     let mut head = v.clone();
     head.member.brief = String::new();
-    let notebook = if m.notebook.is_empty() { "(empty)".to_owned() } else { format!("{}\n\n({} characters)", m.notebook, m.notebook.chars().count()) };
+    let notebook =
+        if m.notebook.is_empty() { "(empty)".to_owned() } else { format!("{}\n\n({} characters)", m.notebook, m.notebook.chars().count()) };
     let kit = if m.kit.is_empty() {
         "No skills or instructions files yet. Propose some with wisp_crew_kit.".to_owned()
     } else {
@@ -134,7 +147,8 @@ pub fn member_detail(v: &MemberView) -> String {
             .iter()
             .map(|k| {
                 let what = if k.kind == "skill" { "Skill" } else { "Instructions" };
-                let when = if k.kind == "skill" { format!("When: {}\n\n", k.description.clone().unwrap_or_default()) } else { String::new() };
+                let when =
+                    if k.kind == "skill" { format!("When: {}\n\n", k.description.clone().unwrap_or_default()) } else { String::new() };
                 format!("### {what}: {}{}\n\n{when}{}", k.name, if k.on { "" } else { " (off)" }, k.body)
             })
             .collect();

@@ -57,7 +57,9 @@ pub fn check(w: &WorkflowSpec) -> Vec<String> {
                 let mut parts = p.split('.');
                 match (parts.next(), parts.next()) {
                     (Some("tasks"), Some(t)) if !w.tasks.contains_key(t) => out.push(format!("tasks.{name}: `{p}` names no task")),
-                    (Some("tasks"), Some(t)) if !s.needs.iter().any(|n| n == t) && !depends(w, name, t) => out.push(format!("tasks.{name}: reads tasks.{t} but doesn't need it (add needs: [{t}])")),
+                    (Some("tasks"), Some(t)) if !s.needs.iter().any(|n| n == t) && !depends(w, name, t) => {
+                        out.push(format!("tasks.{name}: reads tasks.{t} but doesn't need it (add needs: [{t}])"));
+                    }
                     (Some("inputs"), Some(i)) if !w.inputs.contains_key(i) => out.push(format!("tasks.{name}: `{p}` names no input")),
                     (Some("matrix"), Some(m)) if !s.matrix.contains_key(m) => out.push(format!("tasks.{name}: `{p}` isn't in its matrix")),
                     (Some("tasks" | "inputs" | "matrix"), _) => {}
@@ -127,7 +129,17 @@ pub fn expand(w: &WorkflowSpec) -> Vec<Node> {
                 .collect();
         }
         for m in combos {
-            let id = if m.is_empty() { name.clone() } else { format!("{name}[{}]", m.iter().map(|(k, v)| format!("{k}={}", v.as_str().map_or_else(|| v.to_string(), str::to_owned))).collect::<Vec<_>>().join(",")) };
+            let id = if m.is_empty() {
+                name.clone()
+            } else {
+                format!(
+                    "{name}[{}]",
+                    m.iter()
+                        .map(|(k, v)| format!("{k}={}", v.as_str().map_or_else(|| v.to_string(), str::to_owned)))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            };
             let mut spec = s.clone();
             // a matrix key that is a spec field sets it (`agent: [claude, codex]`)
             for (k, v) in &m {
@@ -193,7 +205,8 @@ impl Run {
     pub fn scope(&self, node: &Node) -> Value {
         let mut tasks = Map::new();
         for step in self.spec.tasks.keys() {
-            let mine: Vec<(&Node, &NodeRun)> = self.nodes.iter().filter(|n| &n.step == step).filter_map(|n| self.runs.get(&n.id).map(|r| (n, r))).collect();
+            let mine: Vec<(&Node, &NodeRun)> =
+                self.nodes.iter().filter(|n| &n.step == step).filter_map(|n| self.runs.get(&n.id).map(|r| (n, r))).collect();
             let state_of = |r: &NodeRun| serde_json::to_value(r.state).unwrap_or_default();
             let v = if mine.len() == 1 && mine[0].0.matrix.is_empty() {
                 json!({ "state": state_of(mine[0].1), "output": mine[0].1.output, "task": mine[0].1.task })
@@ -247,11 +260,15 @@ impl Run {
                 if self.runs[&n.id].state != StepState::Waiting {
                     continue;
                 }
-                let needs: Vec<&NodeRun> = self.nodes.iter().filter(|m| n.spec.needs.contains(&m.step)).map(|m| &self.runs[&m.id]).collect();
+                let needs: Vec<&NodeRun> =
+                    self.nodes.iter().filter(|m| n.spec.needs.contains(&m.step)).map(|m| &self.runs[&m.id]).collect();
                 if !needs.iter().all(|r| Self::ended(r.state)) {
                     continue;
                 }
-                let failed = self.nodes.iter().any(|m| n.spec.needs.contains(&m.step) && self.runs[&m.id].state == StepState::Failed && !m.spec.optional);
+                let failed = self
+                    .nodes
+                    .iter()
+                    .any(|m| n.spec.needs.contains(&m.step) && self.runs[&m.id].state == StepState::Failed && !m.spec.optional);
                 let scope = self.scope(&n);
                 let skip = if failed {
                     Some("a task it needs failed".to_owned())
@@ -273,7 +290,10 @@ impl Run {
                 if running >= limit {
                     continue;
                 }
-                match (expr::interpolate(&n.spec.prompt, &scope), n.spec.steps.iter().map(|s| expr::interpolate(s, &scope)).collect::<Result<Vec<_>, _>>()) {
+                match (
+                    expr::interpolate(&n.spec.prompt, &scope),
+                    n.spec.steps.iter().map(|s| expr::interpolate(s, &scope)).collect::<Result<Vec<_>, _>>(),
+                ) {
                     (Ok(prompt), Ok(steps)) => {
                         let Some(r) = self.runs.get_mut(&n.id) else { continue };
                         r.state = StepState::Running;
@@ -411,7 +431,10 @@ mod tests {
         let mut audit = step("Audit on ${{ matrix.agent }}", &["tests"]);
         audit.matrix.insert("agent".into(), vec![json!("claude"), json!("codex")]);
         let report = step("Report: ${{ tasks.audit.output }}", &["fix", "audit"]);
-        let w = WorkflowSpec { concurrency: 2, ..wf(vec![("tests", step("Run the tests", &[])), ("fix", fix), ("audit", audit), ("report", report)]) };
+        let w = WorkflowSpec {
+            concurrency: 2,
+            ..wf(vec![("tests", step("Run the tests", &[])), ("fix", fix), ("audit", audit), ("report", report)])
+        };
         assert_eq!(check(&w), Vec::<String>::new());
         let mut r = Run::new(w, &BTreeMap::new());
         assert_eq!(starts(&r.next(0)), ["tests"]);
@@ -450,7 +473,10 @@ mod tests {
     #[test]
     fn outputs_come_from_the_answer() {
         let t = json!({ "text": "ok", "presentation": { "blocks": [{ "type": "hero", "status": "done", "title": "Tests" }, { "type": "tests", "passed": 4, "failed": 1, "failures": [{ "name": "x" }] }] } });
-        assert_eq!(output_of(&t), json!({ "status": "done", "title": "Tests", "passed": 4, "failed": 1, "failures": [{ "name": "x" }], "text": "ok" }));
+        assert_eq!(
+            output_of(&t),
+            json!({ "status": "done", "title": "Tests", "passed": 4, "failed": 1, "failures": [{ "name": "x" }], "text": "ok" })
+        );
         let o = json!({ "presentation": { "blocks": [{ "type": "output", "value": { "n": 3 } }] } });
         assert_eq!(output_of(&o), json!({ "n": 3 }));
     }

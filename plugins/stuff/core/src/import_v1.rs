@@ -9,11 +9,7 @@ use wisp_stuff_api::{StuffItem, StuffKind, Upload};
 /// v1 ids are 12 lower-case hex characters (`randomUUID().replace(/-/g, '').slice(0, 12)`).
 pub fn v1_record_file(name: &str) -> Option<&str> {
     let id = name.strip_suffix(".json")?;
-    (id.len() == 12
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
-    .then_some(id)
+    (id.len() == 12 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))).then_some(id)
 }
 
 /// What to bring into the CAS for one v1 item: its file (or an app's folder), the version before it,
@@ -36,11 +32,7 @@ pub fn v1_item(v: &Value, exists: impl Fn(&str) -> bool) -> Option<V1Plan> {
     if kind != StuffKind::Link && !path.as_deref().is_some_and(&exists) {
         return None;
     }
-    let cover = v
-        .get("cover")
-        .and_then(Value::as_str)
-        .filter(|p| exists(p))
-        .map(str::to_owned);
+    let cover = v.get("cover").and_then(Value::as_str).filter(|p| exists(p)).map(str::to_owned);
     let mut raw = v.clone();
     if let Some(o) = raw.as_object_mut() {
         o.remove("cover");
@@ -55,45 +47,18 @@ pub fn v1_item(v: &Value, exists: impl Fn(&str) -> bool) -> Option<V1Plan> {
     if item.by.is_none() {
         item.by = Some("you".into());
     }
-    let prev = item
-        .prev
-        .as_ref()
-        .and_then(|p| p.path.clone())
-        .filter(|p| exists(p));
-    Some(V1Plan {
-        item,
-        content: path.filter(|_| kind != StuffKind::Link),
-        prev,
-        cover,
-    })
+    let prev = item.prev.as_ref().and_then(|p| p.path.clone()).filter(|p| exists(p));
+    Some(V1Plan { item, content: path.filter(|_| kind != StuffKind::Link), prev, cover })
 }
 
 /// A v1 upload record: an id and the file it names.
 pub fn v1_upload(v: &Value) -> Option<(Upload, String)> {
     let id = v.get("id").and_then(Value::as_str)?.to_owned();
     let path = v.get("path").and_then(Value::as_str)?.to_owned();
-    let name = v
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("file")
-        .to_owned();
-    let mime = v
-        .get("mime")
-        .and_then(Value::as_str)
-        .unwrap_or("application/octet-stream")
-        .to_owned();
+    let name = v.get("name").and_then(Value::as_str).unwrap_or("file").to_owned();
+    let mime = v.get("mime").and_then(Value::as_str).unwrap_or("application/octet-stream").to_owned();
     let size = v.get("size").and_then(Value::as_u64).unwrap_or(0);
-    Some((
-        Upload {
-            id,
-            name,
-            mime,
-            size,
-            blob: None,
-            path: None,
-        },
-        path,
-    ))
+    Some((Upload { id, name, mime, size, blob: None, path: None }, path))
 }
 
 /// A picture or video a v1 turn showed, kept at `~/.wisp/shots/<session>/<turn>-<i>.<ext>`:
@@ -101,9 +66,6 @@ pub fn v1_upload(v: &Value) -> Option<(Upload, String)> {
 /// the turn's block at the hash.
 pub fn v1_shot(rel: &str) -> Option<(&str, &str)> {
     let (session, name) = rel.split_once('/')?;
-    let ok = matches!(
-        crate::kind::kind_of(name),
-        StuffKind::Image | StuffKind::Video
-    );
+    let ok = matches!(crate::kind::kind_of(name), StuffKind::Image | StuffKind::Video);
     (ok && !session.is_empty() && !name.contains('/')).then_some((session, name))
 }

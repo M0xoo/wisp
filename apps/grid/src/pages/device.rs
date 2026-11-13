@@ -74,8 +74,14 @@ pub struct MessagePage {
 }
 
 pub fn message_page(cfg: &PageCfg, p: &MessagePage) -> String {
-    let text = if p.tone == Tone::Plain { format!(r#"<p class="sub">{}</p>"#, esc(&p.text)) } else { format!(r#"<div class="flash {}">{}</div>"#, p.tone.class(), esc(&p.text)) };
-    let link = p.link.as_ref().map_or_else(String::new, |(href, label)| format!(r#"<p style="margin-top:20px"><a class="primary tall" href="{}">{}</a></p>"#, esc(href), esc(label)));
+    let text = if p.tone == Tone::Plain {
+        format!(r#"<p class="sub">{}</p>"#, esc(&p.text))
+    } else {
+        format!(r#"<div class="flash {}">{}</div>"#, p.tone.class(), esc(&p.text))
+    };
+    let link = p.link.as_ref().map_or_else(String::new, |(href, label)| {
+        format!(r#"<p style="margin-top:20px"><a class="primary tall" href="{}">{}</a></p>"#, esc(href), esc(label))
+    });
     let body = format!(r#"<h1 class="h1">{}</h1>{text}{link}"#, esc(&p.title));
     app_page(&AppPage { narrow: true, ..AppPage::new(cfg, &p.title, &body) })
 }
@@ -117,14 +123,26 @@ mod tests {
         let ask = activate_page(&cfg(), &u, &ActivatePage { code: "<x>".into(), ..ActivatePage::default() });
         assert!(ask.contains("Type the code wisp shows"));
         assert!(ask.contains(r#"value="&#60;x&#62;""#));
-        let allow = activate_page(&cfg(), &u, &ActivatePage { device: Some(DeviceAsk { name: "Pixel".into(), user_code: "ABCD-EFGH".into() }), app: true, csrf: "t".into(), ..ActivatePage::default() });
+        let allow = activate_page(
+            &cfg(),
+            &u,
+            &ActivatePage {
+                device: Some(DeviceAsk { name: "Pixel".into(), user_code: "ABCD-EFGH".into() }),
+                app: true,
+                csrf: "t".into(),
+                ..ActivatePage::default()
+            },
+        );
         assert!(allow.contains("<b>Pixel</b> asks to use your wisp as <b>ada</b>"));
         assert!(allow.contains("/signout?return=%2Factivate%3Fcode%3DABCD-EFGH%26app%3Dandroid"));
     }
 
     #[test]
     fn a_bad_message_is_a_flash() {
-        let p = message_page(&cfg(), &MessagePage { title: "Slow down".into(), text: "Too many".into(), link: Some(("/".into(), "Back".into())), tone: Tone::Bad });
+        let p = message_page(
+            &cfg(),
+            &MessagePage { title: "Slow down".into(), text: "Too many".into(), link: Some(("/".into(), "Back".into())), tone: Tone::Bad },
+        );
         assert!(p.contains(r#"<div class="flash bad">Too many</div>"#));
         assert!(p.contains(r#"<a class="primary tall" href="/">Back</a>"#));
         assert!(site_not_found(&cfg()).contains("This app was unpublished"));

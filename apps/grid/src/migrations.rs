@@ -152,9 +152,7 @@ pub fn tables() -> Vec<&'static str> {
         let mut rest = *m;
         while let Some(i) = rest.find("CREATE TABLE ") {
             rest = &rest[i + "CREATE TABLE ".len()..];
-            let end = rest
-                .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-                .unwrap_or(rest.len());
+            let end = rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(rest.len());
             let name = &rest[..end];
             if !out.contains(&name) {
                 out.push(name);

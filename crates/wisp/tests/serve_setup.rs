@@ -13,7 +13,16 @@ use common::{Api, ended, start_with, temp};
 use serde_json::{Value, json};
 
 fn wisp(dir: &Path, cwd: &Path, port: u16, args: &[&str]) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_wisp")).args(args).env("WISP_HOME", dir.join("home")).env("WISP_PORT", port.to_string()).env("NO_COLOR", "1").env("CLAUDE_CONFIG_DIR", dir.join("claude-cfg")).current_dir(cwd).stdin(Stdio::null()).output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_wisp"))
+        .args(args)
+        .env("WISP_HOME", dir.join("home"))
+        .env("WISP_PORT", port.to_string())
+        .env("NO_COLOR", "1")
+        .env("CLAUDE_CONFIG_DIR", dir.join("claude-cfg"))
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
     (o.status.code().unwrap_or(-1), String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned())
 }
 
@@ -75,7 +84,11 @@ async fn a_tasks_setup_is_what_it_had_and_what_it_used() {
     assert_eq!(outside["outside"], true);
     // a_stdio_server_is_probed_for_its_version_and_tools
     let p = server("probe");
-    assert_eq!((p["probe"].clone(), p["version"].clone(), p["tools"].clone()), (json!("ok"), json!("1.4.0"), json!(["do_x", "do_y"])), "{p}");
+    assert_eq!(
+        (p["probe"].clone(), p["version"].clone(), p["tools"].clone()),
+        (json!("ok"), json!("1.4.0"), json!(["do_x", "do_y"])),
+        "{p}"
+    );
     // a_server_that_doesnt_answer_is_recorded_unprobed
     let d = server("dead");
     assert_eq!(d["probe"], "failed", "{d}");
@@ -88,14 +101,27 @@ async fn a_tasks_setup_is_what_it_had_and_what_it_used() {
     assert!(setup["used"]["builtin"].as_object().is_some_and(|m| !m.is_empty()), "{}", setup["used"]);
     let (code, out, err) = wisp(&dir, &proj, port, &["task", "setup", &id]);
     assert_eq!(code, 0, "{out}{err}");
-    assert!(out.contains("house-style  outside wisp") && out.contains("probe") && out.contains("v1.4.0 · 2 tools") && out.contains("not probed"), "{out}");
+    assert!(
+        out.contains("house-style  outside wisp")
+            && out.contains("probe")
+            && out.contains("v1.4.0 · 2 tools")
+            && out.contains("not probed"),
+        "{out}"
+    );
 
     // an_adopted_task_says_its_setup_is_unknown
     let cwd = std::fs::canonicalize(&proj).unwrap().display().to_string();
     let store = cfg.join("projects").join(cwd.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>());
     std::fs::create_dir_all(&store).unwrap();
     let sid = "7b3e4a3c-0000-4000-8000-00000000cafe";
-    std::fs::write(store.join(format!("{sid}.jsonl")), format!("{}\n", json!({ "type": "user", "message": { "role": "user", "content": "hi" }, "cwd": cwd, "timestamp": "2026-11-09T10:00:00.000Z" }))).unwrap();
+    std::fs::write(
+        store.join(format!("{sid}.jsonl")),
+        format!(
+            "{}\n",
+            json!({ "type": "user", "message": { "role": "user", "content": "hi" }, "cwd": cwd, "timestamp": "2026-11-09T10:00:00.000Z" })
+        ),
+    )
+    .unwrap();
     let adopted = api.cmd("runtime.adoptSession", json!({ "harness": "claude", "id": sid })).await;
     let v = api.cmd("runtime.setup", json!({ "id": adopted["id"] })).await;
     assert!(v["available"].is_null() && v["note"].as_str().unwrap().contains("ran outside wisp"), "{v}");
@@ -118,7 +144,9 @@ async fn the_catalogue_is_wisps_mcp_tools() {
     std::fs::create_dir_all(&rec).unwrap();
     let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap()), ("FAKE_DELAY", "3000")]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
-    let names = |list: &Value| list["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str().map(str::to_owned)).collect::<Vec<_>>();
+    let names = |list: &Value| {
+        list["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str().map(str::to_owned)).collect::<Vec<_>>()
+    };
 
     // every_command_is_an_mcp_tool: you (no token) get one per catalogue command, ui-only ones aside
     let catalogue = api.cmd("cli.catalogue", json!({})).await;
@@ -147,11 +175,20 @@ async fn the_catalogue_is_wisps_mcp_tools() {
     let agent = [("x-wisp-token", token.as_str()), ("x-wisp-session", id.as_str())];
     let theirs = names(&mcp(&api.http, port, &agent, json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/list" })).await);
     assert!(theirs.contains(&"history_resumeRequest".to_owned()) && theirs.contains(&"runtime_get".to_owned()), "{theirs:?}");
-    assert!(!theirs.contains(&"history_resumeAnswer".to_owned()) && !theirs.contains(&"resources_apply".to_owned()), "only what agent:session allows");
+    assert!(
+        !theirs.contains(&"history_resumeAnswer".to_owned()) && !theirs.contains(&"resources_apply".to_owned()),
+        "only what agent:session allows"
+    );
     // a_hand_made_tool_keeps_its_name: ask_user is wisp's own, once
     assert_eq!(theirs.iter().filter(|n| *n == "ask_user").count(), 1);
     // a_tool_call_runs_the_command_as_the_caller
-    let got = mcp(&api.http, port, &agent, json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": { "name": "runtime_get", "arguments": { "id": id } } })).await;
+    let got = mcp(
+        &api.http,
+        port,
+        &agent,
+        json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": { "name": "runtime_get", "arguments": { "id": id } } }),
+    )
+    .await;
     assert!(got.to_string().contains(&id), "{got}");
     let refused = mcp(&api.http, port, &agent, json!({ "jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": { "name": "resources_apply", "arguments": { "resources": [] } } })).await;
     assert!(refused.to_string().contains("isError") || refused.get("error").is_some(), "{refused}");

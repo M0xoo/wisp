@@ -50,9 +50,7 @@ fn take_lines(buf: &mut Vec<u8>, data: &[u8], last: bool) -> Vec<String> {
     let mut start = 0;
     while let Some(i) = buf[start..].iter().position(|&b| b == b'\n') {
         let end = start + i;
-        let line = buf[start..end]
-            .strip_suffix(b"\r")
-            .unwrap_or(&buf[start..end]);
+        let line = buf[start..end].strip_suffix(b"\r").unwrap_or(&buf[start..end]);
         lines.push(String::from_utf8_lossy(line).into_owned());
         start = end + 1;
     }
@@ -74,9 +72,7 @@ impl Runtime {
         mut rx: mpsc::Receiver<Output>,
         mut ctl: mpsc::UnboundedReceiver<Ctl>,
     ) {
-        let sys = ProcSys {
-            proc: self.proc.clone(),
-        };
+        let sys = ProcSys { proc: self.proc.clone() };
         let seq = self.repo.next_seq(&sid).await.unwrap_or(1);
         let mut d = Drive {
             sid,
@@ -132,13 +128,7 @@ impl Runtime {
 
     /// The process is gone or let go: its last words, then the turn ends (if it hasn't) and the run is
     /// released, which starts the next queued follow-up.
-    async fn wind_down(
-        self: &Arc<Self>,
-        mut d: Drive,
-        driver: &mut dyn RunDriver,
-        handle: &ChildHandle,
-        sys: &ProcSys,
-    ) {
+    async fn wind_down(self: &Arc<Self>, mut d: Drive, driver: &mut dyn RunDriver, handle: &ChildHandle, sys: &ProcSys) {
         for line in take_lines(&mut d.out, &[], true) {
             let out = self.feed(driver, ParserInput::Stdout(&line), sys).await;
             self.apply(&mut d, out, handle).await;
@@ -147,28 +137,11 @@ impl Runtime {
             let _ = handle.kill().await;
         }
         let exit = handle.exited().await;
-        let stopping = self
-            .live
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&d.sid)
-            .is_some_and(|l| l.stopping || l.interrupting);
-        let tail: String = d
-            .stderr
-            .chars()
-            .rev()
-            .take(STDERR_TAIL)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect();
-        let exit = Exit {
-            code: exit.code,
-            signal: exit.signal,
-            stderr: tail.trim().to_owned(),
-            stopped: stopping,
-            stop_requested: stopping,
-        };
+        let stopping =
+            self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(&d.sid).is_some_and(|l| l.stopping || l.interrupting);
+        let tail: String = d.stderr.chars().rev().take(STDERR_TAIL).collect::<Vec<_>>().into_iter().rev().collect();
+        let exit =
+            Exit { code: exit.code, signal: exit.signal, stderr: tail.trim().to_owned(), stopped: stopping, stop_requested: stopping };
         if !d.finished {
             let out = self.feed(driver, ParserInput::Exit(&exit), sys).await;
             self.apply(&mut d, out, handle).await;
@@ -193,24 +166,14 @@ impl Runtime {
         self.release_run(&d.sid).await;
     }
 
-    async fn feed(
-        &self,
-        driver: &mut dyn RunDriver,
-        input: ParserInput<'_>,
-        sys: &ProcSys,
-    ) -> ParserOutput {
+    async fn feed(&self, driver: &mut dyn RunDriver, input: ParserInput<'_>, sys: &ProcSys) -> ParserOutput {
         let mut out = ParserOutput::default();
         driver.on(input, self.now(), sys, &mut out).await;
         out
     }
 
     /// One driver answer: events into the head and log, stdin writes, a stop. true: the turn just ended.
-    async fn apply(
-        self: &Arc<Self>,
-        d: &mut Drive,
-        out: ParserOutput,
-        handle: &ChildHandle,
-    ) -> bool {
+    async fn apply(self: &Arc<Self>, d: &mut Drive, out: ParserOutput, handle: &ChildHandle) -> bool {
         for w in out.writes {
             let _ = handle.write(w);
         }
@@ -255,21 +218,13 @@ impl Runtime {
 
     fn append(&self, d: &mut Drive, a: Activity) -> Step {
         let t = self.now();
-        let step = Step {
-            seq: self.alloc_seq_now(&d.sid, d.seq),
-            t,
-            activity: a,
-        };
+        let step = Step { seq: self.alloc_seq_now(&d.sid, d.seq), t, activity: a };
         d.seq = step.seq + 1;
         if let Ok(row) = rows::event_row(&d.sid, &d.tid, step.seq, t, &step.activity) {
             let _ = d.coal.append("event", vec![row]);
         }
         if let Activity::Tool { label, .. } = &step.activity
-            && let Some(l) = self
-                .live
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .get_mut(&d.sid)
+            && let Some(l) = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(&d.sid)
         {
             l.label = Some(label.clone());
         }
@@ -283,19 +238,11 @@ impl Runtime {
         }
         d.published = Instant::now();
         let items = std::mem::take(&mut d.pending);
-        self.host.emit(Emitted::Activity(TurnActivity {
-            session_id: d.sid.as_str().into(),
-            turn_id: d.tid.as_str().into(),
-            items,
-        }));
+        self.host.emit(Emitted::Activity(TurnActivity { session_id: d.sid.as_str().into(), turn_id: d.tid.as_str().into(), items }));
     }
 
     fn limits(&self, d: &Drive, limits: serde_json::Value) {
-        let agent = self
-            .lock_list()
-            .get(&d.sid)
-            .map(|s| s.agent.clone())
-            .unwrap_or_default();
+        let agent = self.lock_list().get(&d.sid).map(|s| s.agent.clone()).unwrap_or_default();
         self.host.emit(Emitted::Limits(TurnLimits {
             session_id: d.sid.as_str().into(),
             turn_id: d.tid.as_str().into(),
@@ -306,12 +253,7 @@ impl Runtime {
     }
 
     fn resumable(&self, sid: &str, _id: &str) {
-        if let Some(l) = self
-            .live
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get_mut(sid)
-        {
+        if let Some(l) = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(sid) {
             l.resumable = true;
         }
     }

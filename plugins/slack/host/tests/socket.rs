@@ -13,7 +13,10 @@ use wisp_channels_api::{ChannelHub, Transport};
 const TS: &str = "1700000000.000100";
 
 fn hub(senders: &[&str]) -> Arc<TestHub> {
-    let h = TestHub { reply: Some("✓ On it.".into()), start_as: Some("t1".into()), ..TestHub::default() }.with_cfg("slack", json!({ "enabled": true, "botToken": "xoxb-1", "appToken": "xapp-1", "senders": senders, "linkCode": "ab12cd" }));
+    let h = TestHub { reply: Some("✓ On it.".into()), start_as: Some("t1".into()), ..TestHub::default() }.with_cfg(
+        "slack",
+        json!({ "enabled": true, "botToken": "xoxb-1", "appToken": "xapp-1", "senders": senders, "linkCode": "ab12cd" }),
+    );
     *h.now.lock().unwrap() = 1_700_000_000_000;
     let net = h.net.clone();
     net.replies.lock().unwrap().extend([
@@ -48,9 +51,15 @@ async fn a_linked_persons_mention_is_acked_read_by_the_flow_and_answered_in_its_
     h.run_spawned().await;
     let c = h.conversed();
     assert_eq!(c.len(), 1);
-    assert_eq!((c[0].channel.as_str(), c[0].sender.as_str(), c[0].text.as_str(), c[0].session.as_deref()), ("slack", "U1", "in api fix the login", None));
+    assert_eq!(
+        (c[0].channel.as_str(), c[0].sender.as_str(), c[0].text.as_str(), c[0].session.as_deref()),
+        ("slack", "U1", "in api fix the login", None)
+    );
     let posts = h.net.sent("chat.postMessage");
-    assert_eq!((posts[0]["channel"].as_str(), posts[0]["thread_ts"].as_str(), posts[0]["text"].as_str()), (Some("C1"), Some(TS), Some("✓ On it.")));
+    assert_eq!(
+        (posts[0]["channel"].as_str(), posts[0]["thread_ts"].as_str(), posts[0]["text"].as_str()),
+        (Some("C1"), Some(TS), Some("✓ On it."))
+    );
     assert_eq!(h.remote_of("t1").unwrap()["slack"], json!({ "channel": "C1", "ts": TS }), "the task keeps its thread");
     assert_eq!(h.started_from("t1").map(|s| s.0), Some("slack".into()));
     assert!(h.last_mark("slack").unwrap().error.unwrap().contains("Check the tokens"), "a disconnect that won't come back stops it");
@@ -60,7 +69,9 @@ async fn a_linked_persons_mention_is_acked_read_by_the_flow_and_answered_in_its_
 #[tokio::test]
 async fn a_stranger_is_told_once_and_link_with_the_code_lets_them_in() {
     let h = hub(&[]);
-    let dm = |id: &str, text: &str| envelope(id, &json!({ "type": "message", "channel_type": "im", "user": "U9", "channel": "D9", "ts": TS, "text": text }));
+    let dm = |id: &str, text: &str| {
+        envelope(id, &json!({ "type": "message", "channel_type": "im", "user": "U9", "channel": "D9", "ts": TS, "text": text }))
+    };
     h.ws.push(vec![
         ScriptWs::text(&json!({ "type": "hello" })),
         dm("e1", "fix it"),
@@ -113,7 +124,11 @@ fn click(id: &str, user: &str, value: &Value) -> WsFrame {
 #[tokio::test]
 async fn a_signed_button_answers_and_says_who_and_a_forged_one_does_nothing() {
     let h = hub(&["U1"]);
-    h.net.replies.lock().unwrap().extend([Reply::json("chat.update", json!({ "ok": true })), Reply::json("chat.postEphemeral", json!({ "ok": true }))]);
+    h.net
+        .replies
+        .lock()
+        .unwrap()
+        .extend([Reply::json("chat.update", json!({ "ok": true })), Reply::json("chat.postEphemeral", json!({ "ok": true }))]);
     let good = json!({ "k": "a", "s": "t1", "r": "ask1", "i": 0, "sig": "sig.t1.a.ask1.0" });
     let forged = json!({ "k": "a", "s": "t1", "r": "ask1", "i": 0, "sig": "nope" });
     h.ws.push(vec![

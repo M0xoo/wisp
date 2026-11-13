@@ -9,18 +9,7 @@ use sha2::{Digest, Sha256};
 use wisp_stuff_api::private_file;
 
 /// Left out of an app's copy: what a build or a package manager makes again.
-pub const SKIP: &[&str] = &[
-    "node_modules",
-    ".git",
-    ".hg",
-    ".svn",
-    ".DS_Store",
-    ".next",
-    ".cache",
-    ".turbo",
-    ".venv",
-    "__pycache__",
-];
+pub const SKIP: &[&str] = &["node_modules", ".git", ".hg", ".svn", ".DS_Store", ".next", ".cache", ".turbo", ".venv", "__pycache__"];
 
 /// Is a folder entry skipped? `rel` is its path inside the app, for the private-file rule.
 pub fn skipped(name: &str, rel: &str, is_file: bool) -> bool {
@@ -29,12 +18,10 @@ pub fn skipped(name: &str, rel: &str, is_file: bool) -> bool {
 
 fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
-    bytes
-        .iter()
-        .fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
-            let _ = write!(s, "{b:02x}");
-            s
-        })
+    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
 /// v1 `appHash`'s inner hash over a folder: each file in path order, as `rel\0link\0size\0` and its
@@ -66,9 +53,7 @@ pub fn sort_rels<T>(files: &mut [T], rel: impl Fn(&T) -> &str) {
 pub fn app_hash(code: &str, uses: &[String]) -> String {
     let mut u: Vec<&str> = uses.iter().map(String::as_str).collect();
     u.sort_unstable();
-    hex(&Sha256::digest(
-        format!("{code}\0{}", u.join("\0")).as_bytes(),
-    ))
+    hex(&Sha256::digest(format!("{code}\0{}", u.join("\0")).as_bytes()))
 }
 
 /// The hash of a folder given as `(rel, bytes)`, any order: for tests and starters.
@@ -91,9 +76,7 @@ pub fn scans_for_risk(rel: &str) -> bool {
 
 pub fn webrtc_in(text: &[u8]) -> bool {
     const NEEDLES: [&[u8]; 3] = [b"RTCPeerConnection", b"RTCDataChannel", b"webkitRTC"];
-    NEEDLES
-        .iter()
-        .any(|n| text.windows(n.len()).any(|w| w == *n))
+    NEEDLES.iter().any(|n| text.windows(n.len()).any(|w| w == *n))
 }
 
 /// A starter is copied in once, so wisp's newer one follows only a copy nobody changed: its hash is
@@ -103,11 +86,7 @@ pub fn follows_starter(now: &str, prev: Option<&str>, was: &[String], shipped: &
     if now.is_empty() || !was.iter().any(|w| w == now) {
         return false;
     }
-    let pos = |h: &str| {
-        was.iter()
-            .position(|w| w == h)
-            .or_else(|| (h == shipped).then_some(was.len()))
-    };
+    let pos = |h: &str| was.iter().position(|w| w == h).or_else(|| (h == shipped).then_some(was.len()));
     match (prev.and_then(pos), pos(now)) {
         (Some(p), Some(n)) => p <= n,
         _ => true,

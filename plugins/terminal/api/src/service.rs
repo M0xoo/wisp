@@ -31,10 +31,7 @@ pub const PERMISSIONS: &[(&str, &str)] = &[
 
 /// The permission `method` requires, or None for a method that isn't part of the service.
 pub fn permission(method: &str) -> Option<&'static str> {
-    PERMISSIONS
-        .iter()
-        .find(|(m, _)| *m == method)
-        .map(|(_, p)| *p)
+    PERMISSIONS.iter().find(|(m, _)| *m == method).map(|(_, p)| *p)
 }
 
 pub trait TerminalService: Send + Sync + 'static {
@@ -43,14 +40,7 @@ pub trait TerminalService: Send + Sync + 'static {
     fn open(&self, call: &Call, args: OpenArgs) -> Result<TermInfo>;
     fn get(&self, call: &Call, kind: TermKind, id: &str) -> Result<Option<TermInfo>>;
     /// false: nothing runs there
-    fn input(
-        &self,
-        call: &Call,
-        kind: TermKind,
-        id: &str,
-        data: &str,
-        order: InputOrder,
-    ) -> Result<bool>;
+    fn input(&self, call: &Call, kind: TermKind, id: &str, data: &str, order: InputOrder) -> Result<bool>;
     fn resize(&self, call: &Call, kind: TermKind, id: &str, cols: f64, rows: f64) -> Result<bool>;
     /// Hangs a live one up (a start in progress is cancelled); the registry forgets it at once.
     fn close(&self, call: &Call, kind: TermKind, id: &str) -> Result<bool>;
@@ -69,13 +59,8 @@ mod tests {
 
     #[test]
     fn every_method_has_a_permission() {
-        for m in [
-            "open", "get", "input", "resize", "close", "active", "inline", "open_app",
-        ] {
-            assert!(
-                permission(m).is_some_and(|p| p.starts_with("terminal:")),
-                "{m}"
-            );
+        for m in ["open", "get", "input", "resize", "close", "active", "inline", "open_app"] {
+            assert!(permission(m).is_some_and(|p| p.starts_with("terminal:")), "{m}");
         }
         assert_eq!(permission("nope"), None);
     }

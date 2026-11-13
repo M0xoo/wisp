@@ -94,7 +94,17 @@ fn the_hello_carries_the_window_the_cursor_for_this_epoch_and_passive_topics() {
     c.subscribe(&t("machines"), true);
     let params = request(&c.open());
     let p: BTreeMap<&str, &str> = params.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-    let want = [("proto_min", "2"), ("proto_max", "2"), ("client_id", "tab1"), ("build", "b1"), ("epoch", "E1"), ("cursor", "42"), ("topics", "list"), ("fresh", "machines,session:a"), ("passive", "machines")];
+    let want = [
+        ("proto_min", "2"),
+        ("proto_max", "2"),
+        ("client_id", "tab1"),
+        ("build", "b1"),
+        ("epoch", "E1"),
+        ("cursor", "42"),
+        ("topics", "list"),
+        ("fresh", "machines,session:a"),
+        ("passive", "machines"),
+    ];
     assert_eq!(p, want.into_iter().collect());
     let outs = c.frame(Some(42), msgs(json!([welcome(&json!({"resume": true}))])));
     assert!(!kinds(&outs).contains(&"reset"), "a resumed welcome keeps the rows");
@@ -109,7 +119,10 @@ fn a_new_epoch_or_resume_false_drops_the_peers_rows() {
     assert!(kinds(&live(&mut c, &json!({"resume": false}), 10)).contains(&"reset"));
     let mut d = client(Some(saved_list()));
     d.subscribe(&t("list"), false);
-    assert!(kinds(&live(&mut d, &json!({"resume": true, "epoch": "E2"}), 10)).contains(&"reset"), "a resume from another epoch is not trusted");
+    assert!(
+        kinds(&live(&mut d, &json!({"resume": true, "epoch": "E2"}), 10)).contains(&"reset"),
+        "a resume from another epoch is not trusted"
+    );
     assert_eq!(d.epoch(), Some("E2"));
 }
 
@@ -117,10 +130,17 @@ fn a_new_epoch_or_resume_false_drops_the_peers_rows() {
 fn pending_commands_go_again_after_each_welcome_with_the_same_mid() {
     let mut c = client(None);
     c.mutate("m1", "session.followUp", json!({"text": "hi"}), None);
-    assert_eq!(sent(&live(&mut c, &json!({}), 10)), [json!({"t": "mutate", "mid": "m1", "cmd": "session.followUp", "args": {"text": "hi"}})]);
+    assert_eq!(
+        sent(&live(&mut c, &json!({}), 10)),
+        [json!({"t": "mutate", "mid": "m1", "cmd": "session.followUp", "args": {"text": "hi"}})]
+    );
     c.lost(0);
     let again = live(&mut c, &json!({}), 10);
-    assert_eq!(sent(&again).iter().map(|m| m["mid"].clone()).collect::<Vec<_>>(), [json!("m1")], "a flaky tunnel: same key, never run twice");
+    assert_eq!(
+        sent(&again).iter().map(|m| m["mid"].clone()).collect::<Vec<_>>(),
+        [json!("m1")],
+        "a flaky tunnel: same key, never run twice"
+    );
     c.subscribe(&t("list"), false);
     c.frame(Some(11), msgs(json!([{"t": "snapshot", "topic": "list", "seq": 11, "rows": []}])));
     let outs = c.frame(Some(12), msgs(json!([{"t": "ack", "mid": "m1", "seq": 12}, {"t": "patch", "seq": 12, "ops": [{"topic": "list", "e": "s", "id": "1", "op": "upsert", "v": 1}]}])));
@@ -173,7 +193,13 @@ fn ops_for_a_topic_waiting_for_its_snapshot_are_ignored() {
     let mut c = client(None);
     live(&mut c, &json!({}), 10);
     c.subscribe(&t("list"), false);
-    assert!(c.frame(Some(11), msgs(json!([{"t": "patch", "seq": 11, "ops": [{"topic": "list", "e": "s", "id": "1", "op": "patch", "ops": []}]}]))).is_empty());
+    assert!(
+        c.frame(
+            Some(11),
+            msgs(json!([{"t": "patch", "seq": 11, "ops": [{"topic": "list", "e": "s", "id": "1", "op": "patch", "ops": []}]}]))
+        )
+        .is_empty()
+    );
 }
 
 #[test]

@@ -39,33 +39,16 @@ pub const SNAPSHOT_ENV: &[(&str, &str)] = &[
 
 /// A read's argv: `READ_PREFIX` then `args`.
 pub fn read_args(args: &[&str]) -> Vec<String> {
-    READ_PREFIX
-        .iter()
-        .chain(args)
-        .map(|s| (*s).to_owned())
-        .collect()
+    READ_PREFIX.iter().chain(args).map(|s| (*s).to_owned()).collect()
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn quiet_env_covers_edge_case_git_1() {
-        for k in [
-            "GIT_OPTIONAL_LOCKS",
-            "GIT_TERMINAL_PROMPT",
-            "GH_PROMPT_DISABLED",
-            "GIT_EDITOR",
-        ] {
+        for k in ["GIT_OPTIONAL_LOCKS", "GIT_TERMINAL_PROMPT", "GH_PROMPT_DISABLED", "GIT_EDITOR"] {
             assert!(super::QUIET_ENV.iter().any(|(x, _)| *x == k), "{k}");
         }
-        assert_eq!(
-            super::read_args(&["status"]),
-            [
-                "--no-optional-locks",
-                "-c",
-                "core.quotePath=false",
-                "status"
-            ]
-        );
+        assert_eq!(super::read_args(&["status"]), ["--no-optional-locks", "-c", "core.quotePath=false", "status"]);
     }
 }

@@ -125,7 +125,10 @@ pub fn register(s: &mut Setup, cell: &Cell) {
     });
     on!(s, cell, c::Starters, |st, ctx, call, _a| Ok(serde_json::json!({ "starters": crate::starters::list(&st.shelf) })));
     on!(s, cell, c::AddStarter, |st, ctx, call, a| {
-        let (it, _) = crate::starters::add(&st.shelf, &a.id).await.map_err(w)?.ok_or_else(|| WireError::not_found("wisp has no starter by that name."))?;
+        let (it, _) = crate::starters::add(&st.shelf, &a.id)
+            .await
+            .map_err(w)?
+            .ok_or_else(|| WireError::not_found("wisp has no starter by that name."))?;
         Ok(st.view(&it).await)
     });
     on!(s, cell, c::Reveal, |st, ctx, call, a| {
@@ -141,6 +144,11 @@ pub fn register(s: &mut Setup, cell: &Cell) {
         };
         Ok(serde_json::json!({ "ok": opened, "path": path }))
     });
+    publishing_and_apps(s, cell);
+}
+
+/// Publishing, running apps, and uploads.
+fn publishing_and_apps(s: &mut Setup, cell: &Cell) {
     on!(s, cell, c::Targets, |_st, ctx, call, _a| match ctx.use_service::<c::PublishService>() {
         Ok(p) => p.targets(&call),
         Err(_) => Ok(Vec::new()),
@@ -174,7 +182,9 @@ pub fn register(s: &mut Setup, cell: &Cell) {
     on!(s, cell, c::Uploads, |st, ctx, call, a| st.shelf.uploads(&a.ids).await.map_err(w));
     on!(s, cell, c::Receive, |st, ctx, call, a| {
         use base64::Engine as _;
-        let bytes = base64::engine::general_purpose::STANDARD.decode(a.data.as_bytes()).map_err(|_| wisp_kernel::WireError::invalid("the file's bytes aren't base64"))?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(a.data.as_bytes())
+            .map_err(|_| wisp_kernel::WireError::invalid("the file's bytes aren't base64"))?;
         st.shelf.receive_upload(bytes, Some(&a.name), Some(&a.mime)).await.map_err(w)
     });
     on!(s, cell, c::RemoveUpload, |st, ctx, call, a| Ok(c::Done { ok: st.shelf.remove_upload(&a.id).await.map_err(w)? }));

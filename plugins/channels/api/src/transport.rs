@@ -47,9 +47,7 @@ pub enum TransportKind {
 pub type Headers = Vec<(String, String)>;
 
 pub fn header<'a>(h: &'a Headers, name: &str) -> Option<&'a str> {
-    h.iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case(name))
-        .map(|(_, v)| v.as_str())
+    h.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -80,11 +78,7 @@ impl std::fmt::Debug for InboundResult {
 
 impl InboundResult {
     pub fn new(status: u16, body: Value) -> Self {
-        Self {
-            status,
-            body,
-            after: None,
-        }
+        Self { status, body, after: None }
     }
     pub fn error(status: u16, message: &str) -> Self {
         Self::new(status, serde_json::json!({ "error": message }))
@@ -153,14 +147,7 @@ pub trait Transport: Send + Sync + 'static {
         0
     }
     /// a task or crew job from this channel began, or couldn't
-    fn thread_started(
-        &self,
-        _s: Option<&SessionView>,
-        _thread: Option<&Thread>,
-        _by: Option<&str>,
-        _err: Option<&str>,
-    ) {
-    }
+    fn thread_started(&self, _s: Option<&SessionView>, _thread: Option<&Thread>, _by: Option<&str>, _err: Option<&str>) {}
     /// its part of `GET /api/remote`: config with secrets masked, plus health. None: not in Settings.
     fn view(&self) -> Option<Value> {
         None

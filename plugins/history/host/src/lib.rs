@@ -40,7 +40,8 @@ async fn root_of(proc: &Proc, cwd: &str) -> PathBuf {
 
 /// The repo of a task's folder. A task with no folder (or a relative one) has no repo: never the server's own folder.
 async fn root_of_task(proc: &Proc, task: &Session) -> Result<PathBuf> {
-    let dir = Folder::of(&task.cwd).map_err(|e| WireError::invalid(format!("task {} has {e}, so no repo: name one (repo)", task.id.as_str())))?;
+    let dir =
+        Folder::of(&task.cwd).map_err(|e| WireError::invalid(format!("task {} has {e}, so no repo: name one (repo)", task.id.as_str())))?;
     Ok(root_of(proc, &dir.to_string()).await)
 }
 
@@ -57,12 +58,19 @@ async fn setting(root: &Path, key: &str, default: &str) -> String {
 
 fn store_for(ctx: &Ctx, id: &str) -> Result<Arc<dyn HistoryStore>> {
     let all = ctx.contributions(&STORE);
-    all.iter().find(|s| s.id() == id).cloned().ok_or_else(|| WireError::invalid(format!("no history store `{id}` (transcripts: files | notes | lfs, or a plugin's)")))
+    all.iter()
+        .find(|s| s.id() == id)
+        .cloned()
+        .ok_or_else(|| WireError::invalid(format!("no history store `{id}` (transcripts: files | notes | lfs, or a plugin's)")))
 }
 
 fn blame_for(ctx: &Ctx, id: &str) -> Result<Arc<dyn BlameSource>> {
     let all = ctx.contributions(&BLAME);
-    all.iter().find(|s| s.id() == id).or_else(|| all.first()).cloned().ok_or_else(|| WireError::unavailable("no blame source (history.blame@1)"))
+    all.iter()
+        .find(|s| s.id() == id)
+        .or_else(|| all.first())
+        .cloned()
+        .ok_or_else(|| WireError::unavailable("no blame source (history.blame@1)"))
 }
 
 fn proc(ctx: &Ctx) -> Result<Arc<Proc>> {
@@ -138,7 +146,8 @@ async fn track(ctx: &Ctx, call: &Call, a: &api::TrackArgs) -> Result<Tracked> {
     let written = store.write(root.clone(), files).await?;
     let scrubbed = u32::try_from(preview.redactions.len()).unwrap_or(u32::MAX);
     let out = Tracked { repo: root.display().to_string(), store: store.id().to_owned(), files: written, pr, commits, scrubbed };
-    calls::set_ext(ctx, call, &id, json!({ "tracked": { "repo": out.repo, "files": out.files, "store": out.store }, "offer": false })).await;
+    calls::set_ext(ctx, call, &id, json!({ "tracked": { "repo": out.repo, "files": out.files, "store": out.store }, "offer": false }))
+        .await;
     Ok(out)
 }
 
@@ -157,7 +166,9 @@ async fn untrack(ctx: &Ctx, call: &Call, a: &api::UntrackArgs) -> Result<api::Go
         named_repo(r)?
     } else {
         // a task that can't be read has no repo here: never the server's own folder
-        let task = calls::task(ctx, call, &a.id).await.map_err(|e| WireError::not_found(format!("{} isn't a task here ({}): name its repo", a.id, e.message)))?;
+        let task = calls::task(ctx, call, &a.id)
+            .await
+            .map_err(|e| WireError::not_found(format!("{} isn't a task here ({}): name its repo", a.id, e.message)))?;
         root_of_task(&p, &task).await?
     };
     let all = docs(&root).await;
@@ -215,7 +226,9 @@ async fn on_done(ctx: &Ctx, id: &str) {
     };
     match setting(&root, "track", "ask").await.as_str() {
         "auto" => {
-            if let Err(e) = track(ctx, &call, &api::TrackArgs { id: id.to_owned(), level: None, repo: Some(root.display().to_string()) }).await {
+            if let Err(e) =
+                track(ctx, &call, &api::TrackArgs { id: id.to_owned(), level: None, repo: Some(root.display().to_string()) }).await
+            {
                 tracing::warn!(task = id, "history: not saved: {}", e.message);
             }
             // what track just wrote, plus the turn count: a refused read would drop `tracked`, so it's skipped
@@ -231,7 +244,11 @@ async fn on_done(ctx: &Ctx, id: &str) {
         "ask" => {
             calls::set_ext(ctx, &call, id, mark(json!({ "offer": true, "repo": root.display().to_string() }))).await;
             if let Ok(n) = wisp_kernel::services::notify(ctx) {
-                n.notice("history.offer", json!({ "task": id, "title": task.title, "repo": root.display().to_string(), "text": "Save it to the repo?" }), None);
+                n.notice(
+                    "history.offer",
+                    json!({ "task": id, "title": task.title, "repo": root.display().to_string(), "text": "Save it to the repo?" }),
+                    None,
+                );
             }
         }
         _ => {}
@@ -261,23 +278,26 @@ fn hooks(s: &mut Setup) {
     let (known, roots) = (Arc::new(Known::default()), Arc::new(Mutex::new(HashMap::new())));
     let part: Arc<dyn wisp_runtime_api::points::PromptPart> = Arc::new(Inject(known.clone(), roots.clone()));
     s.contribute(&wisp_runtime_api::points::PROMPT, part);
-    s.intercept::<wisp_runtime_api::hooks::BeforeRun, _, _>(wisp_kernel::InterceptOpts { priority: 70, failure: wisp_kernel::Failure::Open, timeout_ms: 2000 }, move |ctx, _call, c| {
-        let (known, roots) = (known.clone(), roots.clone());
-        async move {
-            // a run with no folder has no repo (never the server's own folder)
-            if let Ok(p) = proc(&ctx)
-                && Folder::of(&c.cwd).is_ok()
-            {
-                let root = root_of(&p, &c.cwd).await;
-                let on = setting(&root, "inject", "false").await == "true";
-                let all = if on { docs(&root).await } else { Vec::new() };
-                let key = root.display().to_string();
-                known.0.lock().unwrap_or_else(PoisonError::into_inner).insert(key.clone(), (on, all));
-                roots.lock().unwrap_or_else(PoisonError::into_inner).insert(c.session_id.as_str().to_owned(), key);
+    s.intercept::<wisp_runtime_api::hooks::BeforeRun, _, _>(
+        wisp_kernel::InterceptOpts { priority: 70, failure: wisp_kernel::Failure::Open, timeout_ms: 2000 },
+        move |ctx, _call, c| {
+            let (known, roots) = (known.clone(), roots.clone());
+            async move {
+                // a run with no folder has no repo (never the server's own folder)
+                if let Ok(p) = proc(&ctx)
+                    && Folder::of(&c.cwd).is_ok()
+                {
+                    let root = root_of(&p, &c.cwd).await;
+                    let on = setting(&root, "inject", "false").await == "true";
+                    let all = if on { docs(&root).await } else { Vec::new() };
+                    let key = root.display().to_string();
+                    known.0.lock().unwrap_or_else(PoisonError::into_inner).insert(key.clone(), (on, all));
+                    roots.lock().unwrap_or_else(PoisonError::into_inner).insert(c.session_id.as_str().to_owned(), key);
+                }
+                wisp_kernel::Verdict::Continue
             }
-            wisp_kernel::Verdict::Continue
-        }
-    });
+        },
+    );
     s.on::<wisp_runtime_api::events::SessionChanged, _, _>(|ctx, e| {
         let (c, id) = (ctx.clone(), e.id.as_str().to_owned());
         ctx.spawn(async move { on_done(&c, &id).await });
@@ -309,7 +329,8 @@ impl Plugin for HistoryPlugin {
         s.command::<api::Report, _, _>(|_ctx, _call, a| async move {
             let root = named_repo(&a.repo)?;
             let all = docs(&root).await;
-            let d = wisp_history_core::find(&all, &a.id).ok_or_else(|| WireError::not_found(format!("no task {} in this repo's history", a.id)))?;
+            let d = wisp_history_core::find(&all, &a.id)
+                .ok_or_else(|| WireError::not_found(format!("no task {} in this repo's history", a.id)))?;
             let report = tokio::fs::read_to_string(root.join(d.path.replace(".task.yml", ".report.md"))).await.unwrap_or_default();
             let prompt = d.doc.pointer("/spec/prompt").and_then(Value::as_str).unwrap_or_default().to_owned();
             Ok(api::RepoReport { task: wisp_history_core::repo_task(d), prompt, report })

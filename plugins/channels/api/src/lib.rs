@@ -7,11 +7,11 @@
 /// Pure policy, scrubbing and secret redaction every transport uses (moved from wisp-channels-core so a transport
 /// plugin reaches them through this api, as the layers require).
 pub mod conversation;
+pub mod hub;
 pub mod markup;
 pub mod policy;
 pub mod scrub;
 pub mod secrets;
-pub mod hub;
 pub mod testing;
 pub mod transport;
 pub mod views;
@@ -21,13 +21,10 @@ use serde_json::Value;
 use wisp_kernel::{Command, Event};
 
 pub use hub::{
-    AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse,
-    Later, Net, NetError, Phone, Ws, WsConn, WsFrame,
+    AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Ws, WsConn,
+    WsFrame,
 };
-pub use transport::{
-    Headers, InboundOpts, InboundResult, Status, TRANSPORTS, Transport, TransportDef,
-    TransportKind, enabled_key, header,
-};
+pub use transport::{Headers, InboundOpts, InboundResult, Status, TRANSPORTS, Transport, TransportDef, TransportKind, enabled_key, header};
 pub use views::*;
 
 pub const PLUGIN: &str = "wisp.channels";
@@ -144,16 +141,5 @@ impl Event for StartedFrom {
 }
 
 /// Every command id this plugin answers, for the manifest test and the capability sets.
-pub const COMMANDS: &[&str] = &[
-    View::ID,
-    Update::ID,
-    Test::ID,
-    SendNotice::ID,
-    Notify::ID,
-    Act::ID,
-    Inbound::ID,
-    Routed::ID,
-    Rotate::ID,
-    Extra::ID,
-    Refresh::ID,
-];
+pub const COMMANDS: &[&str] =
+    &[View::ID, Update::ID, Test::ID, SendNotice::ID, Notify::ID, Act::ID, Inbound::ID, Routed::ID, Rotate::ID, Extra::ID, Refresh::ID];

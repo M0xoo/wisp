@@ -13,12 +13,28 @@ use wisp_channels_api::{ChannelCtx, ChannelHub, ProjectView};
 const NOW_MS: i64 = 1_704_164_645_000; // 2024-01-02T03:04:05Z
 
 fn hub(private: bool) -> Arc<TestHub> {
-    hub_of(private, ProjectView { id: "p1".into(), name: "api".into(), path: "/w/api".into(), repo: Some("https://github.com/me/api.git".into()), ..ProjectView::default() })
+    hub_of(
+        private,
+        ProjectView {
+            id: "p1".into(),
+            name: "api".into(),
+            path: "/w/api".into(),
+            repo: Some("https://github.com/me/api.git".into()),
+            ..ProjectView::default()
+        },
+    )
 }
 
 fn hub_of(private: bool, project: ProjectView) -> Arc<TestHub> {
     let phone = Arc::new(TestPhone { ctx: ChannelCtx { projects: vec![project], ..ChannelCtx::default() }, ..TestPhone::default() });
-    let h = TestHub { phone, reply: Some("✓ On it.".into()), start_as: Some("t1".into()), tunes: [("ghPollMs".to_owned(), 60_000)].into(), ..TestHub::default() }.with_cfg("github", json!({ "enabled": true }));
+    let h = TestHub {
+        phone,
+        reply: Some("✓ On it.".into()),
+        start_as: Some("t1".into()),
+        tunes: [("ghPollMs".to_owned(), 60_000)].into(),
+        ..TestHub::default()
+    }
+    .with_cfg("github", json!({ "enabled": true }));
     *h.now.lock().unwrap() = NOW_MS;
     let comments = json!([
         { "id": 11, "user": { "id": 1, "login": "me" }, "body": "/wisp in api fix the login", "created_at": "2024-01-02T03:04:30Z", "updated_at": "2024-01-02T03:04:30Z", "issue_url": "https://api.github.com/repos/me/api/issues/12", "html_url": "https://github.com/me/api/issues/12#c11" },
@@ -72,7 +88,8 @@ async fn on_a_private_repo_the_report_says_what_the_agent_wrote() {
 /// its comments were read and its tasks started there. It's skipped (with a log); git never runs for it.
 #[tokio::test]
 async fn a_project_with_no_folder_is_skipped_never_the_servers_own_checkout() {
-    let h = hub_of(false, ProjectView { id: "p0".into(), name: "nowhere".into(), path: String::new(), repo: None, ..ProjectView::default() });
+    let h =
+        hub_of(false, ProjectView { id: "p0".into(), name: "nowhere".into(), path: String::new(), repo: None, ..ProjectView::default() });
     // what the server's own checkout would answer
     h.exec.answer("get-url", 0, "https://github.com/me/api.git", "");
     let dyn_hub: Arc<dyn ChannelHub> = h.clone();

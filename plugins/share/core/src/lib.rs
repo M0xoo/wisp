@@ -10,7 +10,6 @@
 //!
 //! The same scrub serves `wisp history export`.
 
-
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -83,7 +82,12 @@ pub fn scrub_text(text: &str, s: &Scrub, at: &str, out: &mut Vec<Redaction>) -> 
                     "<secret>".to_owned()
                 })
                 .into_owned();
-            out.extend(found.into_iter().map(|f| Redaction { kind: "secret".into(), at: at.into(), was: hint(&f), now: "<secret>".into() }));
+            out.extend(found.into_iter().map(|f| Redaction {
+                kind: "secret".into(),
+                at: at.into(),
+                was: hint(&f),
+                now: "<secret>".into(),
+            }));
         }
     }
     for (name, v) in &s.env {
@@ -114,7 +118,9 @@ pub fn scrub(v: &Value, s: &Scrub, at: &str, out: &mut Vec<Redaction>) -> Value 
     match v {
         Value::String(t) => Value::String(scrub_text(t, s, at, out)),
         Value::Array(a) => Value::Array(a.iter().enumerate().map(|(i, x)| scrub(x, s, &format!("{at}/{i}"), out)).collect()),
-        Value::Object(o) => Value::Object(o.iter().map(|(k, x)| (scrub_text(k, s, at, &mut Vec::new()), scrub(x, s, &format!("{at}/{k}"), out))).collect::<Map<_, _>>()),
+        Value::Object(o) => Value::Object(
+            o.iter().map(|(k, x)| (scrub_text(k, s, at, &mut Vec::new()), scrub(x, s, &format!("{at}/{k}"), out))).collect::<Map<_, _>>(),
+        ),
         other => other.clone(),
     }
 }
@@ -165,7 +171,12 @@ mod tests {
 
     #[test]
     fn secrets_env_paths_and_names_go() {
-        let s = Scrub { env: secret_env([("MY_API_KEY".into(), "hunter2hunter2".into()), ("PATH".into(), "/usr/bin:/bin".into())]), project: "/Users/me/api".into(), home: "/Users/me".into(), names: vec![("Payroll migration".into(), "<task>".into())] };
+        let s = Scrub {
+            env: secret_env([("MY_API_KEY".into(), "hunter2hunter2".into()), ("PATH".into(), "/usr/bin:/bin".into())]),
+            project: "/Users/me/api".into(),
+            home: "/Users/me".into(),
+            names: vec![("Payroll migration".into(), "<task>".into())],
+        };
         let mut r = Vec::new();
         let v = json!({ "prompt": "use sk-ant-abcdefghijklmnopqrstuvwx and token=abcd1234efgh in /Users/me/api/src/a.ts, see ~/notes and /Users/me/x; key hunter2hunter2; like Payroll migration", "n": 3 });
         let got = scrub(&v, &s, "spec", &mut r);

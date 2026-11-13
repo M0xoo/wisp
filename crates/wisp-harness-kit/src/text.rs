@@ -68,10 +68,7 @@ mod tests {
     #[test]
     fn flatten_parts() {
         assert_eq!(flatten(&json!("x")), "x");
-        assert_eq!(
-            flatten(&json!([{"text": "a"}, {"type": "image"}, {"text": "b"}])),
-            "a\n\nb"
-        );
+        assert_eq!(flatten(&json!([{"text": "a"}, {"type": "image"}, {"text": "b"}])), "a\n\nb");
         assert_eq!(flatten(&json!(null)), "");
     }
 }

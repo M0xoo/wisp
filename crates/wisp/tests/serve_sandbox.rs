@@ -22,12 +22,23 @@ fn git(at: &Path, args: &[&str]) {
 }
 
 async fn approve(port: u16, url: &str, handle: &str, code: &str) {
-    let b = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).no_proxy().resolve("wisp.localhost", SocketAddr::from(([127, 0, 0, 1], port))).build().unwrap();
+    let b = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
+        .resolve("wisp.localhost", SocketAddr::from(([127, 0, 0, 1], port)))
+        .build()
+        .unwrap();
     let r = b.get(format!("{url}/auth/dev?handle={handle}")).send().await.unwrap();
     let cookie = r.headers().get("set-cookie").unwrap().to_str().unwrap().split(';').next().unwrap().to_owned();
     let page = b.get(format!("{url}/activate?code={code}")).header("cookie", &cookie).send().await.unwrap().text().await.unwrap();
     let csrf = page.split("name=\"csrf\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_owned();
-    let r = b.post(format!("{url}/activate")).header("cookie", &cookie).json(&json!({ "csrf": csrf, "code": code, "answer": "allow" })).send().await.unwrap();
+    let r = b
+        .post(format!("{url}/activate"))
+        .header("cookie", &cookie)
+        .json(&json!({ "csrf": csrf, "code": code, "answer": "allow" }))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 200);
 }
 
@@ -65,7 +76,10 @@ async fn a_sandbox_task_runs_in_a_box_of_its_own_with_the_project_and_goes_with_
         std::fs::set_permissions(data.join("secrets/master.json"), std::fs::Permissions::from_mode(0o600)).unwrap();
     }
     let bin = dir.join("bin");
-    let env = vec![("WISP_WEB_DIR".into(), dir.join("no-web").display().to_string()), ("WISP_CLAUDE_BIN".into(), bin.join("claude").display().to_string())];
+    let env = vec![
+        ("WISP_WEB_DIR".into(), dir.join("no-web").display().to_string()),
+        ("WISP_CLAUDE_BIN".into(), bin.join("claude").display().to_string()),
+    ];
     let (_g, gport, stop) = wisp_grid::edge::dev(&data, 0, PathBuf::from(env!("CARGO_BIN_EXE_wisp")), env, 600_000).await.unwrap();
     let url = format!("http://wisp.localhost:{gport}");
     let f = api.cmd("grid-client.signin", json!({ "grid": url })).await;
@@ -85,12 +99,23 @@ async fn a_sandbox_task_runs_in_a_box_of_its_own_with_the_project_and_goes_with_
     // signed in (the token `claude setup-token` gives, sealed on the grid): it goes
     api.cmd("grid-client.sandboxLogin", json!({ "agent": "claude", "token": "sk-ant-oat01-test-token-for-every-sandbox-000" })).await;
     let made = api.cmd("sandbox.launch", launch).await;
-    let (machine, peer, task) = (made["machine"].as_str().unwrap().to_owned(), made["peer"].as_str().unwrap().to_owned(), made["task"].as_str().unwrap().to_owned());
+    let (machine, peer, task) = (
+        made["machine"].as_str().unwrap().to_owned(),
+        made["peer"].as_str().unwrap().to_owned(),
+        made["task"].as_str().unwrap().to_owned(),
+    );
     // the task there, through this wisp's proxy (as the app reaches it): it ran in ~/code/proj, on `fix`, with the change
     let via = |cmd: &str, args: Value| {
         let (http, port, machine, cmd) = (api.http.clone(), port, machine.clone(), cmd.to_owned());
         async move {
-            let r = http.post(format!("http://127.0.0.1:{port}/api/peer/{machine}/api/cmd")).header("content-type", "application/json").header("idempotency-key", format!("t-{}", rand_id())).body(json!({ "cmd": cmd, "args": args }).to_string()).send().await.unwrap();
+            let r = http
+                .post(format!("http://127.0.0.1:{port}/api/peer/{machine}/api/cmd"))
+                .header("content-type", "application/json")
+                .header("idempotency-key", format!("t-{}", rand_id()))
+                .body(json!({ "cmd": cmd, "args": args }).to_string())
+                .send()
+                .await
+                .unwrap();
             serde_json::from_slice::<Value>(&r.bytes().await.unwrap()).unwrap()
         }
     };

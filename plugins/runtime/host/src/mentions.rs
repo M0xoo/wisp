@@ -12,7 +12,9 @@ use crate::runtime::Runtime;
 
 /// How this harness names wisp's `wisp_session` tool (beside its ask tool), or None without wisp's tools.
 pub fn session_tool(info: &HarnessInfo) -> Option<String> {
-    info.ask_tool.as_deref().map(|a| a.rsplit_once("ask_user").map_or_else(|| "wisp_session".to_owned(), |(pre, _)| format!("{pre}wisp_session")))
+    info.ask_tool
+        .as_deref()
+        .map(|a| a.rsplit_once("ask_user").map_or_else(|| "wisp_session".to_owned(), |(pre, _)| format!("{pre}wisp_session")))
 }
 
 impl Runtime {
@@ -21,7 +23,12 @@ impl Runtime {
     async fn stuff_note(&self, found: &[wisp_runtime_core::prompt::mentions::Mention], tools: bool) -> String {
         let mut lines = Vec::new();
         for m in found {
-            let text = match crate::calls::run::<wisp_stuff_api::commands::Describe>(&*self.host, wisp_stuff_api::commands::Id { id: m.id.clone() }).await {
+            let text = match crate::calls::run::<wisp_stuff_api::commands::Describe>(
+                &*self.host,
+                wisp_stuff_api::commands::Id { id: m.id.clone() },
+            )
+            .await
+            {
                 Ok(t) => t.map(|t| t.text),
                 Err(err) => {
                     tracing::warn!(error = %err.message, stuff = %m.id, "runtime: stuff.describe");
@@ -30,7 +37,11 @@ impl Runtime {
             };
             lines.push(text.unwrap_or_else(|| format!("- `{}` ({}): no longer in My Stuff.", m.id, m.title)));
         }
-        let how = if tools { "Use them from these paths. To change one for the user, save the new version with wisp_save and its id." } else { "Use them from these paths; leave the copies there as they are." };
+        let how = if tools {
+            "Use them from these paths. To change one for the user, save the new version with wisp_save and its id."
+        } else {
+            "Use them from these paths; leave the copies there as they are."
+        };
         format!("\n\n<wisp-stuff>\nThe user points at things they kept in My Stuff. {how}\n{}\n</wisp-stuff>", lines.join("\n"))
     }
 
@@ -47,12 +58,32 @@ impl Runtime {
             let turns = self.repo.turns(&m.id, None, None).await.unwrap_or_default();
             // the report goes in only for a run without wisp's tools
             let report = if tool.is_none() {
-                turns.iter().rev().find_map(|t| t.presentation.as_ref()).map(|p| wisp_runtime_core::blocks::blocks_to_markdown(&p.blocks, &Context { changes: &[], approval: None, summary: None })).unwrap_or_default()
+                turns
+                    .iter()
+                    .rev()
+                    .find_map(|t| t.presentation.as_ref())
+                    .map(|p| {
+                        wisp_runtime_core::blocks::blocks_to_markdown(&p.blocks, &Context { changes: &[], approval: None, summary: None })
+                    })
+                    .unwrap_or_default()
             } else {
                 String::new()
             };
-            let folder = x.ext.get("wisp.worktrees").and_then(|w| w.get("path")).and_then(serde_json::Value::as_str).map_or_else(|| x.cwd.clone(), str::to_owned);
-            found.push(MentionedTask { id: x.id.0.clone(), title: x.title.clone(), state: serde_json::to_value(x.state).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default(), agent: x.agent.clone(), turns: turns.len(), folder, report });
+            let folder = x
+                .ext
+                .get("wisp.worktrees")
+                .and_then(|w| w.get("path"))
+                .and_then(serde_json::Value::as_str)
+                .map_or_else(|| x.cwd.clone(), str::to_owned);
+            found.push(MentionedTask {
+                id: x.id.0.clone(),
+                title: x.title.clone(),
+                state: serde_json::to_value(x.state).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default(),
+                agent: x.agent.clone(),
+                turns: turns.len(),
+                folder,
+                report,
+            });
         }
         let mut extra: String = self.host.prompt_parts().iter().map(|p| p.expand(&t.prompt, s, tool.is_some())).collect();
         if !stuff.is_empty() {

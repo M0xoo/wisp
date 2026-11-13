@@ -204,7 +204,11 @@ macro_rules! task_fact {
                 Some(self.0.session_id.0.clone())
             }
             fn key(&self) -> Option<String> {
-                Some(format!("{}:{}", self.0.session_id.0, self.0.turn_id.as_ref().map_or_else(|| self.0.text.chars().take(40).collect(), |t| t.0.clone())))
+                Some(format!(
+                    "{}:{}",
+                    self.0.session_id.0,
+                    self.0.turn_id.as_ref().map_or_else(|| self.0.text.chars().take(40).collect(), |t| t.0.clone())
+                ))
             }
         }
     };

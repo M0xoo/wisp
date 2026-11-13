@@ -93,7 +93,11 @@ pub fn differs_words(differs: &[(String, Vec<String>)], names: &DiffNames<'_>) -
             _ => key.to_owned(),
         }
     };
-    differs.iter().map(|(k, vs)| format!("{}: {}", label(k), vs.iter().map(|v| word(k, v)).collect::<Vec<_>>().join(" → "))).collect::<Vec<_>>().join(" · ")
+    differs
+        .iter()
+        .map(|(k, vs)| format!("{}: {}", label(k), vs.iter().map(|v| word(k, v)).collect::<Vec<_>>().join(" → ")))
+        .collect::<Vec<_>>()
+        .join(" · ")
 }
 
 /// What the page's fmtDuration writes.
@@ -168,7 +172,8 @@ fn tests_of(t: Option<&TurnLike>) -> Option<Tests> {
     if blocks.is_empty() {
         return None;
     }
-    let num = |v: &Option<serde_json::Value>| v.as_ref().and_then(serde_json::Value::as_f64).filter(|x| x.is_finite()).unwrap_or(0.0) as i64;
+    let num =
+        |v: &Option<serde_json::Value>| v.as_ref().and_then(serde_json::Value::as_f64).filter(|x| x.is_finite()).unwrap_or(0.0) as i64;
     Some(Tests { passed: blocks.iter().map(|b| num(&b.passed)).sum(), failed: blocks.iter().map(|b| num(&b.failed)).sum() })
 }
 
@@ -211,7 +216,8 @@ pub struct RunMetrics {
 pub fn run_metrics(s: &RunLike) -> RunMetrics {
     let turns = own(s);
     let work = work_of(s);
-    let mut m = RunMetrics { id: s.id.clone(), agent: s.agent.clone(), created_at: s.created_at, live: is_live(s), ..RunMetrics::default() };
+    let mut m =
+        RunMetrics { id: s.id.clone(), agent: s.agent.clone(), created_at: s.created_at, live: is_live(s), ..RunMetrics::default() };
     let (mut read, mut cached, mut output, mut missing) = (0.0, 0.0, 0.0, false);
     for (i, t) in &turns {
         if let Some(ms) = time_of(t) {
@@ -309,7 +315,8 @@ pub fn compare_sentence_of(list: &[RunMetrics]) -> String {
             continue;
         }
         if a.unfinished || b.unfinished {
-            let who: Vec<String> = [a.unfinished.then(|| "A".to_owned()), b.unfinished.then(|| name.clone())].into_iter().flatten().collect();
+            let who: Vec<String> =
+                [a.unfinished.then(|| "A".to_owned()), b.unfinished.then(|| name.clone())].into_iter().flatten().collect();
             say(format!("{} didn't finish, so there's no comparison.", listed(&who)));
         } else if a.follow_ups != b.follow_ups {
             say(format!("{name} had a different number of follow-ups, so it isn't the same work."));
@@ -321,7 +328,11 @@ pub fn compare_sentence_of(list: &[RunMetrics]) -> String {
     }
     let done: Vec<&RunMetrics> = runs.iter().filter(|r| !r.live && !r.unfinished).collect();
     let passed = done.first().and_then(|r| r.tests).map_or(0, |t| t.passed);
-    if !runs.iter().any(|r| r.live) && done.len() > 1 && passed > 0 && done.iter().all(|r| r.tests.is_some_and(|t| t.failed == 0 && t.passed == passed)) {
+    if !runs.iter().any(|r| r.live)
+        && done.len() > 1
+        && passed > 0
+        && done.iter().all(|r| r.tests.is_some_and(|t| t.failed == 0 && t.passed == passed))
+    {
         let all = if done.len() == 2 { "Both".to_owned() } else { format!("All {}", done.len()) };
         say(format!("{all} passed {passed} test{}.", if passed == 1 { "" } else { "s" }));
     }
@@ -361,12 +372,17 @@ pub fn compare_rows(sessions: &[RunLike], now: i64) -> Vec<CompareRow> {
     let sorted = by_age(sessions, |s| s.created_at.unwrap_or(0));
     let metrics: Vec<RunMetrics> = sorted.iter().map(run_metrics).collect();
     let (plan, _) = plan_shares(sessions, now);
-    let row = |key: &'static str, label: &'static str, tip: Option<&'static str>, f: &dyn Fn(usize, &RunMetrics) -> Option<String>| CompareRow {
-        key,
-        label,
-        tip,
-        cells: metrics.iter().enumerate().map(|(i, m)| CompareCell { html: f(i, m).unwrap_or_else(|| DASH.to_owned()), tip: None }).collect(),
-    };
+    let row =
+        |key: &'static str, label: &'static str, tip: Option<&'static str>, f: &dyn Fn(usize, &RunMetrics) -> Option<String>| CompareRow {
+            key,
+            label,
+            tip,
+            cells: metrics
+                .iter()
+                .enumerate()
+                .map(|(i, m)| CompareCell { html: f(i, m).unwrap_or_else(|| DASH.to_owned()), tip: None })
+                .collect(),
+        };
     let mut rows = vec![
         row("time", "Time", None, &|_, m| m.time.map(duration)),
         row("cost", "Cost", None, &|_, m| m.cost.map(|c| format!("${c:.2}"))),

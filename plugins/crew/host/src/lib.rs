@@ -82,7 +82,16 @@ impl Ids for NewIds {
 
 impl State {
     fn new() -> Self {
-        Self { saved: Mutex::default(), jobs: Mutex::default(), store: std::sync::OnceLock::new(), dirty: Mutex::default(), layout_dirty: false.into(), answering: tokio::sync::Mutex::new(()), reported: Mutex::default(), reporting: tokio::sync::Mutex::new(()) }
+        Self {
+            saved: Mutex::default(),
+            jobs: Mutex::default(),
+            store: std::sync::OnceLock::new(),
+            dirty: Mutex::default(),
+            layout_dirty: false.into(),
+            answering: tokio::sync::Mutex::new(()),
+            reported: Mutex::default(),
+            reporting: tokio::sync::Mutex::new(()),
+        }
     }
 
     /// The tables, then v1's crew once, then the cache. At start, before any command.
@@ -114,7 +123,12 @@ impl State {
         let layout = self.layout_dirty.swap(false, std::sync::atomic::Ordering::Relaxed).then(|| lock(&self.saved).crew_layout.clone());
         let rows: Vec<(String, Option<Member>)> = {
             let s = lock(&self.saved);
-            ids.into_iter().map(|id| { let m = s.crew.iter().find(|m| m.id == id).cloned(); (id, m) }).collect()
+            ids.into_iter()
+                .map(|id| {
+                    let m = s.crew.iter().find(|m| m.id == id).cloned();
+                    (id, m)
+                })
+                .collect()
         };
         if rows.is_empty() && layout.is_none() {
             return;
@@ -122,7 +136,9 @@ impl State {
         let r = store
             .write(move |w| {
                 for (id, m) in &rows {
-                    if let Some(m) = m { store::put_member(w, m)? } else {
+                    if let Some(m) = m {
+                        store::put_member(w, m)?;
+                    } else {
                         w.del(store::MEMBER.kind, id.as_str())?;
                         w.del(store::LAYOUT.kind, id.as_str())?;
                     }
@@ -187,7 +203,11 @@ impl State {
     pub fn member(&self, key: &str) -> std::result::Result<Member, WireError> {
         let s = lock(&self.saved);
         let k = key.trim_start_matches('@');
-        s.crew.iter().find(|m| m.id == key || m.name.eq_ignore_ascii_case(k) || handle_of(&m.name) == handle_of(k)).cloned().ok_or_else(|| WireError::not_found("No such crew member."))
+        s.crew
+            .iter()
+            .find(|m| m.id == key || m.name.eq_ignore_ascii_case(k) || handle_of(&m.name) == handle_of(k))
+            .cloned()
+            .ok_or_else(|| WireError::not_found("No such crew member."))
     }
 
     pub fn put(&self, m: Member) {
@@ -201,11 +221,24 @@ impl State {
 
     pub fn view(&self, m: &Member, running: u32, now: i64) -> MemberView {
         let jobs = u32::try_from(lock(&self.jobs).get(&m.id).map_or(0, Vec::len)).unwrap_or(u32::MAX);
-        MemberView { member: m.clone(), running, jobs, next_at: next_checkin(m, now, &Utc), handle: handle_of(&m.name), on: m.wakes.iter().map(|w| w.on.clone()).collect() }
+        MemberView {
+            member: m.clone(),
+            running,
+            jobs,
+            next_at: next_checkin(m, now, &Utc),
+            handle: handle_of(&m.name),
+            on: m.wakes.iter().map(|w| w.on.clone()).collect(),
+        }
     }
 
     /// A new or edited member, checked against the rest of the crew.
-    pub fn normalize(&self, body: &c::MemberBody, prev: Option<&Member>, now: i64, profiles: &[String]) -> std::result::Result<Member, WireError> {
+    pub fn normalize(
+        &self,
+        body: &c::MemberBody,
+        prev: Option<&Member>,
+        now: i64,
+        profiles: &[String],
+    ) -> std::result::Result<Member, WireError> {
         let taken = lock(&self.saved).crew.clone();
         if prev.is_none() && taken.len() >= wisp_crew_api::MAX_CREW {
             return Err(WireError::conflict(format!("A crew has at most {} members.", wisp_crew_api::MAX_CREW)));
@@ -226,7 +259,9 @@ impl PromptPart for Note {
         "wisp.crew"
     }
     fn part(&self, s: &Session) -> String {
-        let Some(job) = s.ext.get(wisp_crew_api::PLUGIN_ID).and_then(|v| serde_json::from_value::<CrewExt>(v.clone()).ok()) else { return String::new() };
+        let Some(job) = s.ext.get(wisp_crew_api::PLUGIN_ID).and_then(|v| serde_json::from_value::<CrewExt>(v.clone()).ok()) else {
+            return String::new();
+        };
         let Ok(m) = self.0.member(&job.id) else { return String::new() };
         wisp_crew_core::note::crew_note(&m, &job, None, &Utc)
     }
@@ -259,7 +294,16 @@ fn scheduled(s: &Session) -> bool {
 /// A member's job's turn ended (here, or in a sandbox: `remote.rs`): its answer under the question that asked, and
 /// `crew.reported`. `text`: what the fact said, when the turn has no words of its own.
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn report(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call, st: &State, m: &Member, job: &str, last: Option<&wisp_runtime_api::model::Turn>, text: &str, failed: bool) {
+pub(crate) async fn report(
+    ctx: &wisp_kernel::Ctx,
+    call: &wisp_kernel::Call,
+    st: &State,
+    m: &Member,
+    job: &str,
+    last: Option<&wisp_runtime_api::model::Turn>,
+    text: &str,
+    failed: bool,
+) {
     let mut p = last.and_then(|t| t.presentation.as_ref()).and_then(|p| calls::to_json(p).ok()).unwrap_or_default();
     let quiet = wisp_crew_core::memory::take_crew_block(&mut p).is_some_and(|d| d.quiet);
     // asked in another task: the answer goes under the message that asked
@@ -267,7 +311,17 @@ pub(crate) async fn report(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call, st:
     let said = wisp_crew_core::answers::answer_text(&said, &p);
     answers::answered(ctx, call, st, job, &said, failed).await;
     let status = if failed { "error" } else { "done" };
-    ctx.emit(call, &wisp_crew_api::events::Reported { crew_id: m.id.clone(), member: m.name.clone(), session_id: job.to_owned(), status: status.into(), quiet, text: text.chars().take(500).collect() });
+    ctx.emit(
+        call,
+        &wisp_crew_api::events::Reported {
+            crew_id: m.id.clone(),
+            member: m.name.clone(),
+            session_id: job.to_owned(),
+            status: status.into(),
+            quiet,
+            text: text.chars().take(500).collect(),
+        },
+    );
 }
 
 /// A member's job ended: `crew.reported` (ADR-0043), from the runtime's durable task facts, so a hand-off
@@ -345,17 +399,29 @@ mod tests {
         let mut s = Session::default();
         s.ext.insert(wisp_crew_api::PLUGIN_ID.into(), serde_json::to_value(&job).unwrap());
         let crew = serde_json::json!({ "type": "crew", "quiet": true });
-        let turn = wisp_runtime_api::model::Turn { presentation: Some(serde_json::from_value(serde_json::json!({ "v": 1, "blocks": [crew] })).unwrap()), ..wisp_runtime_api::model::Turn::default() };
+        let turn = wisp_runtime_api::model::Turn {
+            presentation: Some(serde_json::from_value(serde_json::json!({ "v": 1, "blocks": [crew] })).unwrap()),
+            ..wisp_runtime_api::model::Turn::default()
+        };
         assert_eq!(Filed.outcome(&s, &turn), Some(Outcome { quiet: true, filed: false, later: false }), "nothing scheduled: archived");
         s.ext.insert(wisp_later_api::PLUGIN_ID.into(), serde_json::json!({ "later": [{ "id": "l1", "at": 5, "text": "check again" }] }));
-        assert_eq!(Filed.outcome(&s, &turn), Some(Outcome { quiet: false, filed: true, later: false }), "a follow-up is due: filed under Done so it fires");
+        assert_eq!(
+            Filed.outcome(&s, &turn),
+            Some(Outcome { quiet: false, filed: true, later: false }),
+            "a follow-up is due: filed under Done so it fires"
+        );
         assert_eq!(Filed.outcome(&Session::default(), &turn), None, "not a crew job");
     }
 
     #[test]
     fn a_member_is_made_from_v1s_body_and_found_by_handle() {
         let st = State::new();
-        let body = c::MemberBody { name: Some("Ada Lovelace".into()), role: Some("CI watcher".into()), cron: Some("*/30 * * * *".into()), ..c::MemberBody::default() };
+        let body = c::MemberBody {
+            name: Some("Ada Lovelace".into()),
+            role: Some("CI watcher".into()),
+            cron: Some("*/30 * * * *".into()),
+            ..c::MemberBody::default()
+        };
         let m = st.normalize(&body, None, 1_000, &[]).unwrap();
         assert_eq!((m.name.as_str(), m.cron.as_str(), m.agent.as_str()), ("Ada Lovelace", "*/30 * * * *", "auto"));
         st.put(m.clone());

@@ -43,7 +43,9 @@ fn fake_boxd(sock: &std::path::Path, seen: Arc<Mutex<Seen>>) {
                     loop {
                         let Ok((s, _)) = http.accept().await else { return };
                         tokio::spawn(async move {
-                            let svc = hyper::service::service_fn(|_r| async { Ok::<_, std::convert::Infallible>(http::Response::new(Full::new(Bytes::from_static(b"{\"ok\":true}")))) });
+                            let svc = hyper::service::service_fn(|_r| async {
+                                Ok::<_, std::convert::Infallible>(http::Response::new(Full::new(Bytes::from_static(b"{\"ok\":true}"))))
+                            });
                             let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(s), svc).await;
                         });
                     }

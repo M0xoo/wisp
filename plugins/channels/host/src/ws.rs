@@ -34,7 +34,16 @@ impl Ws for KWs {
             .header("sec-websocket-key", &key)
             .send()
             .await
-            .map_err(|e| if e.is_timeout() { NetError::Timeout } else { NetError::Refused(format!("the WebSocket didn't connect ({})", e.status().map_or_else(|| "no answer".to_owned(), |s| s.to_string()))) })?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    NetError::Timeout
+                } else {
+                    NetError::Refused(format!(
+                        "the WebSocket didn't connect ({})",
+                        e.status().map_or_else(|| "no answer".to_owned(), |s| s.to_string())
+                    ))
+                }
+            })?;
         if r.status() != reqwest::StatusCode::SWITCHING_PROTOCOLS {
             return Err(NetError::Refused(format!("the server answered {} instead of a WebSocket", r.status())));
         }

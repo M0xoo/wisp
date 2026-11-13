@@ -35,7 +35,17 @@ pub const ITEM: EntityDef = EntityDef {
     kind: "worktrees.item",
     table: "worktrees_item",
     key: "id",
-    columns: &[("id", Col::Text), ("title", Col::Text), ("project", Col::Text), ("branch", Col::Text), ("status", Col::Text), ("only", Col::Int), ("size", Col::Int), ("used_at", Col::Int), ("clean_at", Col::Int)],
+    columns: &[
+        ("id", Col::Text),
+        ("title", Col::Text),
+        ("project", Col::Text),
+        ("branch", Col::Text),
+        ("status", Col::Text),
+        ("only", Col::Int),
+        ("size", Col::Int),
+        ("used_at", Col::Int),
+        ("clean_at", Col::Int),
+    ],
     json_columns: &[],
     parent: None,
     seq: None,
@@ -55,7 +65,14 @@ pub const STATUS: EntityDef = EntityDef {
     kind: "worktrees.status",
     table: "worktrees_status",
     key: "id",
-    columns: &[("id", Col::Text), ("size", Col::Int), ("disk", Col::Text), ("looking", Col::Bool), ("cleaning", Col::Text), ("last", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("size", Col::Int),
+        ("disk", Col::Text),
+        ("looking", Col::Bool),
+        ("cleaning", Col::Text),
+        ("last", Col::Text),
+    ],
     json_columns: &["disk", "cleaning", "last"],
     parent: None,
     seq: None,
@@ -65,7 +82,14 @@ pub const OFFER: EntityDef = EntityDef {
     kind: "worktrees.offer",
     table: "worktrees_offer",
     key: "id",
-    columns: &[("id", Col::Text), ("project", Col::Text), ("name", Col::Text), ("from", Col::Text), ("items", Col::Text), ("detached", Col::Int)],
+    columns: &[
+        ("id", Col::Text),
+        ("project", Col::Text),
+        ("name", Col::Text),
+        ("from", Col::Text),
+        ("items", Col::Text),
+        ("detached", Col::Int),
+    ],
     json_columns: &["items"],
     parent: None,
     seq: None,
@@ -133,7 +157,9 @@ pub async fn publish(store: &Store, view: &WorktreesView, offers: &[Offer]) -> w
                     }
                 }
                 for r in want {
-                    let same = have.iter().any(|h| def.columns.iter().all(|(k, _)| h.get(*k).unwrap_or(&Value::Null) == r.get(*k).unwrap_or(&Value::Null)));
+                    let same = have
+                        .iter()
+                        .any(|h| def.columns.iter().all(|(k, _)| h.get(*k).unwrap_or(&Value::Null) == r.get(*k).unwrap_or(&Value::Null)));
                     if !same {
                         w.upsert(def.kind, r)?;
                     }
@@ -147,7 +173,8 @@ pub async fn publish(store: &Store, view: &WorktreesView, offers: &[Offer]) -> w
 /// Bring in's offers: every declared project's worktrees no task knows (git.service lists them).
 pub async fn offers(engine: &Engine, port: &dyn Port, call: &Call) -> Vec<Offer> {
     let tasks = port.tasks().await;
-    let known: HashSet<String> = tasks.iter().flat_map(|t| t.trees.iter().map(|x| x.worktree.path.trim_end_matches('/').to_owned())).collect();
+    let known: HashSet<String> =
+        tasks.iter().flat_map(|t| t.trees.iter().map(|x| x.worktree.path.trim_end_matches('/').to_owned())).collect();
     let dismissed = port.settings().await.dismissed;
     let wisp_dir = format!("{}/worktrees", engine.home.trim_end_matches('/'));
     let mut out = Vec::new();
@@ -187,11 +214,32 @@ mod tests {
     use wisp_worktrees_api::{ItemRow, LeftoverRow, OfferItem, Standing};
 
     fn view(items: Vec<ItemRow>) -> WorktreesView {
-        WorktreesView { cleanup: "7".into(), max: "40".into(), items, leftovers: vec![LeftoverRow { name: "old-x".into(), size: Some(9), only: None, used_at: 3 }], size: Some(10), disk: None, ready: 0, looking: true, cleaning: None, last: None }
+        WorktreesView {
+            cleanup: "7".into(),
+            max: "40".into(),
+            items,
+            leftovers: vec![LeftoverRow { name: "old-x".into(), size: Some(9), only: None, used_at: 3 }],
+            size: Some(10),
+            disk: None,
+            ready: 0,
+            looking: true,
+            cleaning: None,
+            last: None,
+        }
     }
 
     fn item(id: &str, status: Standing) -> ItemRow {
-        ItemRow { id: id.into(), title: "Fix".into(), project: "app".into(), branch: "wisp/fix".into(), status, only: 0, size: Some(1), used_at: 5, clean_at: None }
+        ItemRow {
+            id: id.into(),
+            title: "Fix".into(),
+            project: "app".into(),
+            branch: "wisp/fix".into(),
+            status,
+            only: 0,
+            size: Some(1),
+            used_at: 5,
+            clean_at: None,
+        }
     }
 
     /// The pane's topic carries flat rows of every kind it reads; a folder that's gone leaves, and the
@@ -200,7 +248,13 @@ mod tests {
     async fn the_worktrees_pane_rows_are_published_flat_and_a_gone_folder_leaves() {
         let db = Store::open(Location::Memory, std::sync::Arc::new(SystemClock)).unwrap();
         install(&db).unwrap();
-        let offer = Offer { project: "app".into(), name: "app".into(), from: "Conductor".into(), items: vec![OfferItem { path: "/c/oslo".into(), branch: "oslo".into(), name: "oslo".into(), dirty: 2, chat: true }], detached: 0 };
+        let offer = Offer {
+            project: "app".into(),
+            name: "app".into(),
+            from: "Conductor".into(),
+            items: vec![OfferItem { path: "/c/oslo".into(), branch: "oslo".into(), name: "oslo".into(), dirty: 2, chat: true }],
+            detached: 0,
+        };
         publish(&db, &view(vec![item("t1", Standing::Idle), item("t2", Standing::Kept)]), std::slice::from_ref(&offer)).await.unwrap();
         let t2 = db.read(|r| r.get("worktrees.item", "t2")).unwrap().unwrap();
         assert_eq!(t2["status"], "kept");

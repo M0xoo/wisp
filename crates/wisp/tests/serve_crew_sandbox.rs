@@ -21,12 +21,23 @@ fn git(at: &Path, args: &[&str]) {
 }
 
 async fn approve(port: u16, url: &str, handle: &str, code: &str) {
-    let b = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).no_proxy().resolve("wisp.localhost", SocketAddr::from(([127, 0, 0, 1], port))).build().unwrap();
+    let b = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
+        .resolve("wisp.localhost", SocketAddr::from(([127, 0, 0, 1], port)))
+        .build()
+        .unwrap();
     let r = b.get(format!("{url}/auth/dev?handle={handle}")).send().await.unwrap();
     let cookie = r.headers().get("set-cookie").unwrap().to_str().unwrap().split(';').next().unwrap().to_owned();
     let page = b.get(format!("{url}/activate?code={code}")).header("cookie", &cookie).send().await.unwrap().text().await.unwrap();
     let csrf = page.split("name=\"csrf\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_owned();
-    let r = b.post(format!("{url}/activate")).header("cookie", &cookie).json(&json!({ "csrf": csrf, "code": code, "answer": "allow" })).send().await.unwrap();
+    let r = b
+        .post(format!("{url}/activate"))
+        .header("cookie", &cookie)
+        .json(&json!({ "csrf": csrf, "code": code, "answer": "allow" }))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 200);
 }
 
@@ -70,7 +81,10 @@ async fn setup(name: &str) -> Setup {
         std::fs::set_permissions(data.join("secrets/master.json"), std::fs::Permissions::from_mode(0o600)).unwrap();
     }
     let bin = dir.join("bin");
-    let env = vec![("WISP_WEB_DIR".into(), dir.join("no-web").display().to_string()), ("WISP_CLAUDE_BIN".into(), bin.join("claude").display().to_string())];
+    let env = vec![
+        ("WISP_WEB_DIR".into(), dir.join("no-web").display().to_string()),
+        ("WISP_CLAUDE_BIN".into(), bin.join("claude").display().to_string()),
+    ];
     let (grid, gport, stop) = wisp_grid::edge::dev(&data, 0, PathBuf::from(env!("CARGO_BIN_EXE_wisp")), env, 600_000).await.unwrap();
     let url = format!("http://wisp.localhost:{gport}");
     let f = api.cmd("grid-client.signin", json!({ "grid": url })).await;
@@ -82,7 +96,10 @@ async fn setup(name: &str) -> Setup {
     .await;
     api.cmd("grid-client.sandboxLogin", json!({ "agent": "claude", "token": "sk-ant-oat01-test-token-for-every-sandbox-000" })).await;
     // the task the question is asked in: here, done
-    let task = api.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": proj, "agent": "claude" })).await["id"].as_str().unwrap().to_owned();
+    let task = api.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": proj, "agent": "claude" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     until("the task here ends", 30, async || {
         let s = api.cmd("runtime.get", json!({ "id": task })).await;
         (s["state"] != "running").then_some(s)
@@ -120,7 +137,11 @@ async fn a_sandboxed_jobs_report_lands_under_the_question() {
     let job = asked["job"].as_str().unwrap_or_else(|| panic!("the entry names its job: {asked}")).to_owned();
     assert!(job.contains('|'), "it runs in the sandbox: {job}");
     let a = answered(&s.api, &s.task, asked["id"].as_str().unwrap()).await;
-    assert_eq!((a["status"].as_str(), a["answer"].as_str()), (Some("done"), Some("All done.")), "the sandbox's answer, under the question here: {a}");
+    assert_eq!(
+        (a["status"].as_str(), a["answer"].as_str()),
+        (Some("done"), Some("All done.")),
+        "the sandbox's answer, under the question here: {a}"
+    );
     let there = on_sandbox(&s.api, &job, "runtime.get").await;
     assert_eq!(there["ext"]["wisp.crew"]["reply"]["sessionId"], s.task.as_str(), "the job there points at the question here: {there}");
     (s.stop)();

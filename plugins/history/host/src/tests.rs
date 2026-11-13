@@ -36,14 +36,22 @@ impl Command for Preview {
 struct Runtime(PathBuf, Arc<Mutex<String>>);
 impl Plugin for Runtime {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "wisp.runtime", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] })).unwrap()
+        Manifest::from_value(json!({ "wispPlugin": 1, "id": "wisp.runtime", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] }))
+            .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let (dir, title) = (self.0.display().to_string(), self.1.clone());
         s.command::<Get, _, _>(move |_c, _call, _a| {
             let (dir, title) = (dir.clone(), title.lock().unwrap().clone());
             // the real runtime.get's shape (a whole Session), so a wrong-shape read fails here
-            let t = wisp_runtime_api::model::Session { id: "01a1bc12ab34cdef0123456789abcdef".into(), title, cwd: dir, agent: "claude".into(), state: wisp_runtime_api::model::SessionState::Done, ..Default::default() };
+            let t = wisp_runtime_api::model::Session {
+                id: "01a1bc12ab34cdef0123456789abcdef".into(),
+                title,
+                cwd: dir,
+                agent: "claude".into(),
+                state: wisp_runtime_api::model::SessionState::Done,
+                ..Default::default()
+            };
             async move { Ok(serde_json::to_value(t).unwrap()) }
         });
         s.command::<SetExt, _, _>(|_c, _call, _a| async { Ok(json!({})) });
@@ -56,7 +64,8 @@ impl Plugin for Runtime {
 struct Share(Arc<Mutex<String>>);
 impl Plugin for Share {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "wisp.share", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] })).unwrap()
+        Manifest::from_value(json!({ "wispPlugin": 1, "id": "wisp.share", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] }))
+            .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let title = self.0.clone();
@@ -119,7 +128,8 @@ impl BlameSource for Jj {
 struct Acme(Kept);
 impl Plugin for Acme {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.db", "version": "1.0.0", "api": "^1", "activation": ["onStartup"] })).unwrap()
+        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.db", "version": "1.0.0", "api": "^1", "activation": ["onStartup"] }))
+            .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.contribute(&STORE, Arc::new(Db(self.0.clone())) as Arc<dyn HistoryStore>);
@@ -129,7 +139,15 @@ impl Plugin for Acme {
 }
 
 fn git(dir: &Path, args: &[&str]) -> String {
-    let o = std::process::Command::new("git").args(args).current_dir(dir).env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t").output().unwrap();
+    let o = std::process::Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
+        .output()
+        .unwrap();
     assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
     String::from_utf8_lossy(&o.stdout).into_owned()
 }
@@ -149,7 +167,12 @@ fn dir(name: &str, yml: &str, repo: bool) -> PathBuf {
 
 async fn kernel(d: &Path, title: &Arc<Mutex<String>>, with_history: bool, kept: &Kept) -> Kernel {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
-    let mut app = TestApp::new().with(Runtime(d.to_owned(), title.clone())).with(Share(title.clone())).with(Acme(kept.clone())).service(store).service::<wisp_proc::Proc>(wisp_proc::local());
+    let mut app = TestApp::new()
+        .with(Runtime(d.to_owned(), title.clone()))
+        .with(Share(title.clone()))
+        .with(Acme(kept.clone()))
+        .service(store)
+        .service::<wisp_proc::Proc>(wisp_proc::local());
     if with_history {
         app = app.with(super::HistoryPlugin);
     }
@@ -223,8 +246,16 @@ async fn notes_work_where_git_has_no_identity() {
     let k = kernel(&d, &Arc::new(Mutex::new("Fix".into())), true, &Kept::default()).await;
     let t = k.call(Caller::user(), "history.track", track()).await.unwrap();
     assert!(t["files"].to_string().contains("refs/notes/wisp:"), "{t}");
-    let who = std::process::Command::new("git").args(["log", "-1", "--format=%an <%ae> / %cn <%ce>", "refs/notes/wisp"]).current_dir(&d).output().unwrap();
-    assert_eq!(String::from_utf8_lossy(&who.stdout).trim(), "wisp <wisp@localhost> / wisp <wisp@localhost>", "the notes commit is wisp's, not a guess");
+    let who = std::process::Command::new("git")
+        .args(["log", "-1", "--format=%an <%ae> / %cn <%ce>", "refs/notes/wisp"])
+        .current_dir(&d)
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&who.stdout).trim(),
+        "wisp <wisp@localhost> / wisp <wisp@localhost>",
+        "the notes commit is wisp's, not a guess"
+    );
     let cfg = std::fs::read_to_string(d.join(".git/config")).unwrap();
     assert!(!cfg.contains("[user]\n\tname") && !cfg.contains("email"), "wisp never writes the user's git config: {cfg}");
     k.call(Caller::user(), "history.untrack", json!({ "id": "01a1bc12ab34", "repo": d.display().to_string() })).await.unwrap();
@@ -323,7 +354,10 @@ async fn blame_by_line_names_each_lines_task() {
     k.call(Caller::user(), "history.track", track()).await.unwrap();
     std::fs::write(d.join("code.txt"), "one\nTWO\nthree\n").unwrap();
     git(&d, &["commit", "-qam", "by hand"]);
-    let b = k.call(Caller::user(), "history.blame", json!({ "target": "code.txt", "repo": d.display().to_string(), "byLine": true })).await.unwrap();
+    let b = k
+        .call(Caller::user(), "history.blame", json!({ "target": "code.txt", "repo": d.display().to_string(), "byLine": true }))
+        .await
+        .unwrap();
     let lines = b["byLine"].as_array().unwrap();
     assert_eq!(lines.len(), 3, "{b}");
     assert_eq!((lines[0]["n"].clone(), lines[0]["text"].clone()), (json!(1), json!("one")));

@@ -54,19 +54,37 @@ fn resolve_member(o: &mut Opts, c: &ChannelCtx) {
     let name = &m.name;
     let cwd = m.cwd.clone().unwrap_or_default();
     if let Some(p) = o.project.clone().filter(|p| p.path != cwd) {
-        let theirs = if cwd.is_empty() { "a folder of their own".to_owned() } else { c.projects.iter().find(|x| x.path == cwd).map_or_else(|| cwd.clone(), |x| x.name.clone()) };
+        let theirs = if cwd.is_empty() {
+            "a folder of their own".to_owned()
+        } else {
+            c.projects.iter().find(|x| x.path == cwd).map_or_else(|| cwd.clone(), |x| x.name.clone())
+        };
         o.problem("refused", format!("{name} works in {theirs}: a job can’t move them to {}.", p.name), Vec::new());
     }
     let own = if m.sandbox { "sandbox".to_owned() } else { m.machine.clone().unwrap_or_default() };
     if let Some(asked) = o.machine.clone().filter(|x| *x != own) {
-        o.problem("refused", format!("{name} works on {}: a job can’t move them to {}.", place_name(c, &own), place_name(c, &asked)), Vec::new());
+        o.problem(
+            "refused",
+            format!("{name} works on {}: a job can’t move them to {}.", place_name(c, &own), place_name(c, &asked)),
+            Vec::new(),
+        );
     }
     let Some(w) = o.withs.clone() else { return };
     if m.agent == "auto" {
-        return o.problem("refused", format!("{name} is on Auto, which picks the harness and model itself. Change that in their settings, or start a task of your own."), Vec::new());
+        return o.problem(
+            "refused",
+            format!(
+                "{name} is on Auto, which picks the harness and model itself. Change that in their settings, or start a task of your own."
+            ),
+            Vec::new(),
+        );
     }
     if !w.agent.is_empty() && w.agent != m.agent {
-        return o.problem("refused", format!("{name} runs on {}: their kit and memory are made for it, so a job can’t change harness.", harness_name(c, &m.agent)), Vec::new());
+        return o.problem(
+            "refused",
+            format!("{name} runs on {}: their kit and memory are made for it, so a job can’t change harness.", harness_name(c, &m.agent)),
+            Vec::new(),
+        );
     }
     if m.sandbox {
         o.model = (!w.model.is_empty()).then(|| w.model.clone()).or(o.model.take());
@@ -92,7 +110,11 @@ fn resolve_model(o: &mut Opts, c: &ChannelCtx, agents: &[AgentView], mid: &str, 
         let a = agents.iter().find(|x| x.id == w.agent);
         let Some(a) = a.filter(|a| a.available) else {
             let why = if a.is_some_and(|a| !a.signed_in) { "signed in" } else { "installed" };
-            return o.problem("not-installed", format!("{} isn’t {why} on {place}.", harness_name(c, &w.agent)), names_of(usable.into_iter()));
+            return o.problem(
+                "not-installed",
+                format!("{} isn’t {why} on {place}.", harness_name(c, &w.agent)),
+                names_of(usable.into_iter()),
+            );
         };
         o.agent = Some(a.id.clone());
         let mut model = None;
@@ -100,7 +122,11 @@ fn resolve_model(o: &mut Opts, c: &ChannelCtx, agents: &[AgentView], mid: &str, 
             let (_, hits) = match_models(a, &w.model);
             if hits.len() != 1 {
                 let (kind, text, list) = if hits.is_empty() {
-                    ("not-installed", format!("{} on {place} has no model “{}”.", a.name.as_deref().unwrap_or(&a.id), w.model), model_ids(a).map(|m| m.id.clone()).collect())
+                    (
+                        "not-installed",
+                        format!("{} on {place} has no model “{}”.", a.name.as_deref().unwrap_or(&a.id), w.model),
+                        model_ids(a).map(|m| m.id.clone()).collect(),
+                    )
                 } else {
                     ("ambiguous", format!("“{}” could be {} models.", w.model, hits.len()), hits.iter().map(|m| m.id.clone()).collect())
                 };
@@ -112,15 +138,31 @@ fn resolve_model(o: &mut Opts, c: &ChannelCtx, agents: &[AgentView], mid: &str, 
         return effort_for(o, a, model, &place, &w.effort);
     }
     if !w.model.is_empty() {
-        let found: Vec<(&AgentView, u8, Vec<&ModelView>)> = usable.iter().map(|a| { let (t, h) = match_models(a, &w.model); (*a, t, h) }).filter(|x| !x.2.is_empty()).collect();
+        let found: Vec<(&AgentView, u8, Vec<&ModelView>)> = usable
+            .iter()
+            .map(|a| {
+                let (t, h) = match_models(a, &w.model);
+                (*a, t, h)
+            })
+            .filter(|x| !x.2.is_empty())
+            .collect();
         if found.is_empty() {
-            return o.problem("not-installed", format!("No model “{}” on {place}.", w.model), usable.iter().flat_map(|a| model_ids(a).map(|m| m.id.clone())).take(12).collect());
+            return o.problem(
+                "not-installed",
+                format!("No model “{}” on {place}.", w.model),
+                usable.iter().flat_map(|a| model_ids(a).map(|m| m.id.clone())).take(12).collect(),
+            );
         }
         let best = found.iter().map(|x| x.1).min().unwrap_or(0);
         let top: Vec<_> = found.iter().filter(|x| x.1 == best).collect();
-        let pick = top.iter().find(|x| x.0.id == prefer && x.2.len() == 1).or_else(|| (top.len() == 1 && top[0].2.len() == 1).then(|| &top[0]));
+        let pick =
+            top.iter().find(|x| x.0.id == prefer && x.2.len() == 1).or_else(|| (top.len() == 1 && top[0].2.len() == 1).then(|| &top[0]));
         let Some(p) = pick else {
-            return o.problem("ambiguous", format!("“{}” could be several models on {place}.", w.model), top.iter().flat_map(|x| x.2.iter().map(|m| format!("{} {}", x.0.id, m.id))).collect());
+            return o.problem(
+                "ambiguous",
+                format!("“{}” could be several models on {place}.", w.model),
+                top.iter().flat_map(|x| x.2.iter().map(|m| format!("{} {}", x.0.id, m.id))).collect(),
+            );
         };
         o.agent = Some(p.0.id.clone());
         o.model = Some(p.2[0].id.clone());
@@ -128,7 +170,11 @@ fn resolve_model(o: &mut Opts, c: &ChannelCtx, agents: &[AgentView], mid: &str, 
         return effort_for(o, a, Some(m), &place, &w.effort);
     }
     let Some(a) = usable.iter().find(|x| x.id == prefer) else {
-        return o.problem("refused", format!("Auto picks the thinking level itself. Name a model too: with opus {}.", w.effort), Vec::new());
+        return o.problem(
+            "refused",
+            format!("Auto picks the thinking level itself. Name a model too: with opus {}.", w.effort),
+            Vec::new(),
+        );
     };
     effort_for(o, a, None, &place, &w.effort);
 }
@@ -149,7 +195,11 @@ fn resolve_with(o: &mut Opts, c: &ChannelCtx, mid: &str) {
     let Some(w) = o.withs.clone() else { return };
     if w.agent == "auto" {
         if c.thread.is_some() {
-            return o.problem("refused", "Auto picks when a task starts: name a harness or a model for a follow-up.".into(), names_of(c.agents.iter().filter(|a| a.available)));
+            return o.problem(
+                "refused",
+                "Auto picks when a task starts: name a harness or a model for a follow-up.".into(),
+                names_of(c.agents.iter().filter(|a| a.available)),
+            );
         }
         o.agent = Some("auto".into());
         o.model = (!w.model.is_empty()).then(|| w.model.clone());

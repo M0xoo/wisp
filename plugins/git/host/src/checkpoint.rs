@@ -75,7 +75,12 @@ async fn restore(ctx: &Ctx, svc: &Service, a: RestoreTurnArgs) -> Result<Restore
     let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.id })).await?;
     let cwd = task.get("cwd").and_then(Value::as_str).unwrap_or_default().to_owned();
     let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": a.id })).await?;
-    let turn = turns.as_array().into_iter().flatten().find(|t| t.get("id").and_then(Value::as_str) == Some(a.turn.as_str())).ok_or_else(|| WireError::not_found("No such turn on this task."))?;
+    let turn = turns
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|t| t.get("id").and_then(Value::as_str) == Some(a.turn.as_str()))
+        .ok_or_else(|| WireError::not_found("No such turn on this task."))?;
     let Some(cp) = turn.get("ext").and_then(of_turn) else {
         return Err(WireError::invalid("This turn ran before checkpoints were kept: there's nothing to go back to."));
     };

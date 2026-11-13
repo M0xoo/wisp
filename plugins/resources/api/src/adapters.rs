@@ -67,9 +67,29 @@ pub struct CrudKind {
 
 impl CrudKind {
     /// A kind over commands, its spec type `S` (schema, fields and defaults from it).
-    pub fn new<S: schemars::JsonSchema + Default + serde::Serialize>(info: KindInfo, ctx: Ctx, list: &'static str, create: &'static str, update: &'static str, remove: &'static str) -> Self {
+    pub fn new<S: schemars::JsonSchema + Default + serde::Serialize>(
+        info: KindInfo,
+        ctx: Ctx,
+        list: &'static str,
+        create: &'static str,
+        update: &'static str,
+        remove: &'static str,
+    ) -> Self {
         let fields = props(&info.schema);
-        Self { info, ctx, list: (list, json!({})), name_field: "name", id_field: "id", create, update, remove, id_arg: "id", defaults: serde_json::to_value(S::default()).unwrap_or(Value::Null), fields, rename_cmd: None }
+        Self {
+            info,
+            ctx,
+            list: (list, json!({})),
+            name_field: "name",
+            id_field: "id",
+            create,
+            update,
+            remove,
+            id_arg: "id",
+            defaults: serde_json::to_value(S::default()).unwrap_or(Value::Null),
+            fields,
+            rename_cmd: None,
+        }
     }
     /// Renames go through `cmd` (`{from, to}`, one write in the owner), not make-then-remove.
     #[must_use]
@@ -107,9 +127,36 @@ impl ResourceKind for CrudKind {
                 return self.ctx.run_json(call, cmd, json!({ "from": from, "to": to })).await.map(drop);
             }
             let now = self.read(call).await?;
-            let r = now.iter().find(|r| r.name == from).ok_or_else(|| WireError::not_found(format!("wisp has no {} named {from}", self.info.kind)))?;
-            self.apply(call, &Op { op: OpKind::Create, kind: self.info.kind.clone(), name: to.to_owned(), spec: r.spec.clone(), id: None, changes: Vec::new(), before: None }).await?;
-            self.apply(call, &Op { op: OpKind::Delete, kind: self.info.kind.clone(), name: from.to_owned(), spec: r.spec.clone(), id: r.id.clone(), changes: Vec::new(), before: None }).await
+            let r = now
+                .iter()
+                .find(|r| r.name == from)
+                .ok_or_else(|| WireError::not_found(format!("wisp has no {} named {from}", self.info.kind)))?;
+            self.apply(
+                call,
+                &Op {
+                    op: OpKind::Create,
+                    kind: self.info.kind.clone(),
+                    name: to.to_owned(),
+                    spec: r.spec.clone(),
+                    id: None,
+                    changes: Vec::new(),
+                    before: None,
+                },
+            )
+            .await?;
+            self.apply(
+                call,
+                &Op {
+                    op: OpKind::Delete,
+                    kind: self.info.kind.clone(),
+                    name: from.to_owned(),
+                    spec: r.spec.clone(),
+                    id: r.id.clone(),
+                    changes: Vec::new(),
+                    before: None,
+                },
+            )
+            .await
         })
     }
 
@@ -173,7 +220,12 @@ impl std::fmt::Debug for SettingsKind {
 
 impl SettingsKind {
     fn mine(&self) -> Vec<wisp_kernel::SettingInfo> {
-        self.ctx.settings_list().unwrap_or_default().into_iter().filter(|s| s.owner == self.ctx.plugin() && s.key.starts_with(self.prefix) && s.scope != "device" && !s.decl.secret).collect()
+        self.ctx
+            .settings_list()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|s| s.owner == self.ctx.plugin() && s.key.starts_with(self.prefix) && s.scope != "device" && !s.decl.secret)
+            .collect()
     }
 }
 
@@ -286,8 +338,25 @@ impl StoredKind {
     pub fn new(info: KindInfo, ctx: Ctx) -> Self {
         let prefix = ctx.plugin().rsplit('.').next().unwrap_or("plugin").replace('-', "_");
         let table = leak(format!("{prefix}_spec_{}", info.kind.replace('-', "_")));
-        let def = wisp_store::EntityDef { kind: table, table, key: "id", columns: &[("id", wisp_store::Col::Text), ("body", wisp_store::Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: stored_topics };
-        Self { owner: leak(format!("{prefix}.spec.{}", info.kind)), sql: leak(format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")), def, info, ctx, ready: std::sync::OnceLock::new(), tidy: None }
+        let def = wisp_store::EntityDef {
+            kind: table,
+            table,
+            key: "id",
+            columns: &[("id", wisp_store::Col::Text), ("body", wisp_store::Col::Text)],
+            json_columns: &["body"],
+            parent: None,
+            seq: None,
+            topics: stored_topics,
+        };
+        Self {
+            owner: leak(format!("{prefix}.spec.{}", info.kind)),
+            sql: leak(format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")),
+            def,
+            info,
+            ctx,
+            ready: std::sync::OnceLock::new(),
+            tidy: None,
+        }
     }
 
     /// Its rows reach every client as entity `entity` on `config` (a row is `{id: name, body: spec}`), the topic
@@ -328,7 +397,8 @@ impl StoredKind {
         let store = self.store()?;
         let kind = self.def.kind;
         let rows = store.read_async(move |r| r.query(kind, &wisp_store::Query::new())).await.map_err(store_err)?;
-        let mut out: Vec<(String, Value)> = rows.into_iter().filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("body")?.clone()))).collect();
+        let mut out: Vec<(String, Value)> =
+            rows.into_iter().filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("body")?.clone()))).collect();
         out.sort_by(|a, b| a.0.cmp(&b.0));
         Ok(out)
     }
@@ -389,7 +459,11 @@ impl ResourceKind for StoredKind {
 
 /// Contributes a [`StoredKind`] for spec type `S` and hands it back, for the owner to read its specs.
 /// [`stored`], its rows published as entity `entity` on `config` ([`StoredKind::published`]), defined at start.
-pub fn stored_published<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, entity: &'static str, info: impl FnOnce(Value) -> KindInfo) -> std::sync::Arc<StoredKind> {
+pub fn stored_published<S: schemars::JsonSchema>(
+    s: &mut wisp_kernel::Setup,
+    entity: &'static str,
+    info: impl FnOnce(Value) -> KindInfo,
+) -> std::sync::Arc<StoredKind> {
     let k = std::sync::Arc::new(StoredKind::new(info(crate::schema_of::<S>()), s.ctx()).published(entity));
     let as_kind: std::sync::Arc<dyn ResourceKind> = k.clone();
     s.contribute(&crate::RESOURCE_KIND, as_kind);
@@ -399,7 +473,12 @@ pub fn stored_published<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, ent
 }
 
 /// [`stored_published`], each spec tidied by `tidy` before it's stored ([`StoredKind::tidied`]).
-pub fn stored_published_tidied<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, entity: &'static str, info: impl FnOnce(Value) -> KindInfo, tidy: fn(&mut Value)) -> std::sync::Arc<StoredKind> {
+pub fn stored_published_tidied<S: schemars::JsonSchema>(
+    s: &mut wisp_kernel::Setup,
+    entity: &'static str,
+    info: impl FnOnce(Value) -> KindInfo,
+    tidy: fn(&mut Value),
+) -> std::sync::Arc<StoredKind> {
     let k = std::sync::Arc::new(StoredKind::new(info(crate::schema_of::<S>()), s.ctx()).published(entity).tidied(tidy));
     let as_kind: std::sync::Arc<dyn ResourceKind> = k.clone();
     s.contribute(&crate::RESOURCE_KIND, as_kind);

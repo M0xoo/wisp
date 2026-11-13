@@ -41,7 +41,10 @@ mod tests {
     fn prior_comes_off_unless_the_counters_started_over() {
         let u = json!({ "input_tokens": 30, "cached_input_tokens": 6, "output_tokens": 15 });
         let got = turn_usage(Some(&u), Some(&json!({ "inputTokens": 20, "cachedInputTokens": 4, "outputTokens": 10 })), "t");
-        assert_eq!((got["inputTokens"].as_f64(), got["cachedInputTokens"].as_f64(), got["outputTokens"].as_f64()), (Some(10.0), Some(2.0), Some(5.0)));
+        assert_eq!(
+            (got["inputTokens"].as_f64(), got["cachedInputTokens"].as_f64(), got["outputTokens"].as_f64()),
+            (Some(10.0), Some(2.0), Some(5.0))
+        );
         let behind = turn_usage(Some(&u), Some(&json!({ "inputTokens": 100, "outputTokens": 50 })), "t");
         assert_eq!(behind["inputTokens"].as_f64(), Some(30.0));
         assert_eq!(turn_usage(None, Some(&json!({ "inputTokens": 1 })), "t")["totals"]["inputTokens"], 1);

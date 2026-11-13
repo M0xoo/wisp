@@ -50,13 +50,8 @@ static N: AtomicU32 = AtomicU32::new(0);
 
 pub fn h() -> H {
     let gh = FakeGh::default();
-    let git = FakeGit {
-        gh: gh.clone(),
-        ..FakeGit::default()
-    };
-    let clock = Arc::new(FakeClock {
-        now: AtomicI64::new(1_000_000),
-    });
+    let git = FakeGit { gh: gh.clone(), ..FakeGit::default() };
+    let clock = Arc::new(FakeClock { now: AtomicI64::new(1_000_000) });
     let outs: Arc<Mutex<Vec<Out>>> = Arc::default();
     let o = outs.clone();
     let shipper = Shipper {
@@ -70,21 +65,9 @@ pub fn h() -> H {
         Arc::new(Tasks::default()),
         Arc::new(move |out| o.lock().unwrap_or_else(PoisonError::into_inner).push(out)),
     ));
-    let dir = std::env::temp_dir().join(format!(
-        "wisp-ship-test-{}-{}",
-        std::process::id(),
-        N.fetch_add(1, Ordering::SeqCst)
-    ));
+    let dir = std::env::temp_dir().join(format!("wisp-ship-test-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
     let _ = std::fs::remove_dir_all(&dir);
-    H {
-        ship,
-        git,
-        gh,
-        outs,
-        clock,
-        dir,
-        call: Call::new_root(Caller::user()),
-    }
+    H { ship, git, gh, outs, clock, dir, call: Call::new_root(Caller::user()) }
 }
 
 impl H {
@@ -107,21 +90,10 @@ impl H {
     }
 
     pub fn track(&self, id: &str, repos: &[(&str, Option<PrSummary>)]) -> Vec<Worktree> {
-        let repos: Vec<ShipRepo> = repos
-            .iter()
-            .map(|(n, pr)| ShipRepo {
-                name: (*n).into(),
-                worktree: self.wt(n),
-                pr: pr.clone(),
-            })
-            .collect();
+        let repos: Vec<ShipRepo> =
+            repos.iter().map(|(n, pr)| ShipRepo { name: (*n).into(), worktree: self.wt(n), pr: pr.clone() }).collect();
         let wts = repos.iter().map(|r| r.worktree.clone()).collect();
-        self.ship.tasks.put(ShipTask {
-            session: id.into(),
-            cwd: self.dir.display().to_string(),
-            repos,
-            ..ShipTask::default()
-        });
+        self.ship.tasks.put(ShipTask { session: id.into(), cwd: self.dir.display().to_string(), repos, ..ShipTask::default() });
         wts
     }
 
@@ -130,10 +102,7 @@ impl H {
     }
 
     pub fn outs(&self) -> Vec<Out> {
-        self.outs
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.outs.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 
     /// The stages the card saw, as v1's test read them off the summary stream.
@@ -155,13 +124,7 @@ impl H {
     pub fn follow_ups(&self, id: &str) -> Vec<String> {
         self.outs()
             .into_iter()
-            .filter_map(|o| {
-                if let Out::FollowUp { session, prompt } = o {
-                    (session == id).then_some(prompt)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|o| if let Out::FollowUp { session, prompt } = o { (session == id).then_some(prompt) } else { None })
             .collect()
     }
 
@@ -182,21 +145,9 @@ fn the_manifest_is_valid_and_names_every_command() {
     let m = crate::ShipPlugin::new().manifest();
     assert_eq!(m.id, "wisp.ship");
     assert!(m.requires.contains_key("git.service"));
-    let cmds = m
-        .contributes
-        .get("commands")
-        .and_then(|v| v.as_array())
-        .map_or(0, Vec::len);
+    let cmds = m.contributes.get("commands").and_then(|v| v.as_array()).map_or(0, Vec::len);
     assert_eq!(cmds, 10);
-    for p in [
-        "git:repo",
-        "git:commit",
-        "git:push",
-        "git:merge.ff",
-        "git:worktree.remove",
-        "git:branch.delete",
-        "proc:exec{bin:gh}",
-    ] {
+    for p in ["git:repo", "git:commit", "git:push", "git:merge.ff", "git:worktree.remove", "git:branch.delete", "proc:exec{bin:gh}"] {
         assert!(m.permissions.iter().any(|x| x == p), "{p}");
     }
 }

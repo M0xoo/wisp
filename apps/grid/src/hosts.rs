@@ -76,88 +76,51 @@ pub struct LabelRule {
 
 /// The table, for people and tests: what `host_kind` does, in order.
 pub const LABELS: [LabelRule; 9] = [
-    LabelRule {
-        kind: "root",
-        pattern: "<domain>[:port]",
-        note: "the grid itself, by its exact Host",
-    },
+    LabelRule { kind: "root", pattern: "<domain>[:port]", note: "the grid itself, by its exact Host" },
     LabelRule {
         kind: "site",
         pattern: "<slug>--app--<handle>",
         note: "a published app; an unknown one is still a site (404 page), never an edge",
     },
-    LabelRule {
-        kind: "sandbox",
-        pattern: "sb-<8 hex>--<handle>",
-        note: "a sandbox that exists; otherwise read on",
-    },
-    LabelRule {
-        kind: "computer",
-        pattern: "<name>--<handle>",
-        note: "a computer that exists (a label with \"--\")",
-    },
-    LabelRule {
-        kind: "preview",
-        pattern: "p<1-65535>--sb-<id>--<handle>",
-        note: "a sandbox’s page, only with previews on",
-    },
+    LabelRule { kind: "sandbox", pattern: "sb-<8 hex>--<handle>", note: "a sandbox that exists; otherwise read on" },
+    LabelRule { kind: "computer", pattern: "<name>--<handle>", note: "a computer that exists (a label with \"--\")" },
+    LabelRule { kind: "preview", pattern: "p<1-65535>--sb-<id>--<handle>", note: "a sandbox’s page, only with previews on" },
     LabelRule {
         kind: "preview",
         pattern: "p<1-65535>--<name>--<handle>",
         note: "a computer’s page: the computer decides whether it shows",
     },
-    LabelRule {
-        kind: "preview",
-        pattern: "p<1-65535>--<handle>",
-        note: "a box’s page, only with previews on",
-    },
+    LabelRule { kind: "preview", pattern: "p<1-65535>--<handle>", note: "a box’s page, only with previews on" },
     LabelRule {
         kind: "edge",
         pattern: "<handle>",
         note: "any other label of a-z, 0-9 and \"-\": a user’s wisp (unknown handles answer 404 there)",
     },
-    LabelRule {
-        kind: "unknown",
-        pattern: "*",
-        note: "another domain, or a label with other characters: 421",
-    },
+    LabelRule { kind: "unknown", pattern: "*", note: "another domain, or a label with other characters: 421" },
 ];
 
 /// `[a-z0-9-]+`
 pub fn is_handle_label(s: &str) -> bool {
-    !s.is_empty()
-        && s.bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
 /// `<slug>--app--<handle>`
 pub fn is_site_label(label: &str) -> bool {
-    label
-        .split_once("--app--")
-        .is_some_and(|(a, b)| is_handle_label(a) && is_handle_label(b))
+    label.split_once("--app--").is_some_and(|(a, b)| is_handle_label(a) && is_handle_label(b))
 }
 
 /// `sb-<8 hex>--<handle>`: the sandbox id, if it is one.
 pub fn sandbox_label(label: &str) -> Option<&str> {
     let rest = label.strip_prefix("sb-")?;
     let (id, handle) = rest.split_once("--")?;
-    (id.len() == 8
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        && is_handle_label(handle))
-    .then_some(id)
+    (id.len() == 8 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) && is_handle_label(handle)).then_some(id)
 }
 
 /// `p<1-5 digits>--<rest>` with rest `[a-z0-9-]+`: (port, rest). The port isn't range-checked here.
 pub fn preview_label(label: &str) -> Option<(u32, &str)> {
     let rest = label.strip_prefix('p')?;
     let (digits, rest) = rest.split_once("--")?;
-    if digits.is_empty()
-        || digits.len() > 5
-        || !digits.bytes().all(|b| b.is_ascii_digit())
-        || !is_handle_label(rest)
-    {
+    if digits.is_empty() || digits.len() > 5 || !digits.bytes().all(|b| b.is_ascii_digit()) || !is_handle_label(rest) {
         return None;
     }
     Some((digits.parse().ok()?, rest))
@@ -171,27 +134,15 @@ fn preview(label: &str, look: &dyn HostLookups) -> Option<Preview> {
         && look.previews()
         && let Some(sb) = look.sandbox(rest)
     {
-        return Some(Preview {
-            port,
-            label,
-            of: PreviewOf::Sandbox(sb),
-        });
+        return Some(Preview { port, label, of: PreviewOf::Sandbox(sb) });
     }
     if rest.contains("--")
         && let Some(c) = look.computer(rest)
     {
-        return Some(Preview {
-            port,
-            label,
-            of: PreviewOf::Computer(c),
-        });
+        return Some(Preview { port, label, of: PreviewOf::Computer(c) });
     }
     if look.previews() && !rest.contains("--") {
-        return Some(Preview {
-            port,
-            label: label.clone(),
-            of: PreviewOf::Handle(label),
-        });
+        return Some(Preview { port, label: label.clone(), of: PreviewOf::Handle(label) });
     }
     None
 }
@@ -211,10 +162,7 @@ pub fn host_kind(raw_host: &str, look: &dyn HostLookups) -> HostKind {
         return HostKind::Root;
     }
     let bare = without_port(&host);
-    let Some(label) = bare
-        .strip_suffix(look.domain())
-        .and_then(|l| l.strip_suffix('.'))
-    else {
+    let Some(label) = bare.strip_suffix(look.domain()).and_then(|l| l.strip_suffix('.')) else {
         return HostKind::Unknown;
     };
     if is_site_label(label) {
@@ -234,20 +182,14 @@ pub fn host_kind(raw_host: &str, look: &dyn HostLookups) -> HostKind {
         return HostKind::Preview(pv);
     }
     if is_handle_label(label) {
-        return HostKind::Edge {
-            handle: label.to_owned(),
-        };
+        return HostKind::Edge { handle: label.to_owned() };
     }
     HostKind::Unknown
 }
 
 /// The grid's own Host values for a config.
 pub fn root_hosts(domain: &str, port_suffix: &str, listen_port: u16) -> HashSet<String> {
-    HashSet::from([
-        domain.to_owned(),
-        format!("{domain}{port_suffix}"),
-        format!("{domain}:{listen_port}"),
-    ])
+    HashSet::from([domain.to_owned(), format!("{domain}{port_suffix}"), format!("{domain}:{listen_port}")])
 }
 
 // --- paths that belong to the edge itself, on any address --------------------------------------------
@@ -279,16 +221,11 @@ pub fn tls_allowed(domain: &str, ask: &str, look: &dyn HostLookups) -> bool {
     let Some(label) = d.strip_suffix(domain).and_then(|l| l.strip_suffix('.')) else {
         return false;
     };
-    if look.handle(label)
-        || look.site(label).is_some()
-        || look.computer(label).is_some()
-        || look.sandbox(label).is_some()
-    {
+    if look.handle(label) || look.site(label).is_some() || look.computer(label).is_some() || look.sandbox(label).is_some() {
         return true;
     }
     let Some((_, pv)) = preview_label(label) else {
         return false;
     };
-    (look.previews() && (look.handle(pv) || look.sandbox(pv).is_some()))
-        || look.computer(pv).is_some()
+    (look.previews() && (look.handle(pv) || look.sandbox(pv).is_some())) || look.computer(pv).is_some()
 }

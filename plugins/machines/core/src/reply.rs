@@ -28,28 +28,13 @@ mod tests {
 
     #[test]
     fn non_json_keeps_its_words() {
-        assert_eq!(
-            parse_reply(b"Request Entity Too Large"),
-            json!({"error": "Request Entity Too Large"})
-        );
+        assert_eq!(parse_reply(b"Request Entity Too Large"), json!({"error": "Request Entity Too Large"}));
         assert_eq!(parse_reply(b""), json!({}));
         assert_eq!(parse_reply(b"{\"ok\":true}"), json!({"ok": true}));
         let long = "x".repeat(500);
-        assert_eq!(
-            parse_reply(long.as_bytes())["error"].as_str().map(str::len),
-            Some(200)
-        );
-        assert_eq!(
-            reply_error("box", 500, &json!({"error": "disk full over there"})),
-            ("disk full over there".into(), None)
-        );
-        assert_eq!(
-            reply_error("box", 502, &json!({})),
-            ("box: HTTP 502".into(), None)
-        );
-        assert_eq!(
-            reply_error("box", 409, &json!({"error": "near", "hold": {"until": 1}})).1,
-            Some(json!({"until": 1}))
-        );
+        assert_eq!(parse_reply(long.as_bytes())["error"].as_str().map(str::len), Some(200));
+        assert_eq!(reply_error("box", 500, &json!({"error": "disk full over there"})), ("disk full over there".into(), None));
+        assert_eq!(reply_error("box", 502, &json!({})), ("box: HTTP 502".into(), None));
+        assert_eq!(reply_error("box", 409, &json!({"error": "near", "hold": {"until": 1}})).1, Some(json!({"until": 1})));
     }
 }

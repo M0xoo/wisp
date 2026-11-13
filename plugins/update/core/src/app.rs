@@ -20,11 +20,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
 impl Updater {
     /// The download answered `status` (not 2xx).
     pub fn download_failed(&self, asset: &Asset, status: u16) -> String {
-        format!(
-            "Couldn't download {} (HTTP {status}). {}",
-            asset.name,
-            self.later()
-        )
+        format!("Couldn't download {} (HTTP {status}). {}", asset.name, self.later())
     }
 
     /// Checks a download against the release's sha256, when the release has one.
@@ -32,11 +28,7 @@ impl Updater {
         let want = asset.digest.as_deref().unwrap_or("");
         let want = want.strip_prefix("sha256:").unwrap_or(want);
         if !want.is_empty() && !sha256_hex(data).eq_ignore_ascii_case(want) {
-            return Err(format!(
-                "{} didn't match the release's checksum. {}",
-                asset.name,
-                self.later()
-            ));
+            return Err(format!("{} didn't match the release's checksum. {}", asset.name, self.later()));
         }
         Ok(())
     }
@@ -46,35 +38,22 @@ impl Updater {
         if got.is_some_and(|g| newer(g, &self.current)) {
             Ok(())
         } else {
-            Err(format!(
-                "The download isn't newer than wisp {}. {}",
-                self.current,
-                self.later()
-            ))
+            Err(format!("The download isn't newer than wisp {}. {}", self.current, self.later()))
         }
     }
 
     /// macOS: the running bundle couldn't be moved aside.
     pub fn cant_replace_bundle(&self, folder: &str) -> String {
-        format!(
-            "wisp can't replace itself in {folder} (no permission). {}",
-            self.later()
-        )
+        format!("wisp can't replace itself in {folder} (no permission). {}", self.later())
     }
 
     /// macOS: the new bundle couldn't be put in place (the old one went back).
     pub fn cant_place_bundle(&self, why: &str) -> String {
-        format!(
-            "Couldn't put the new wisp in place: {why}. {}",
-            self.later()
-        )
+        format!("Couldn't put the new wisp in place: {why}. {}", self.later())
     }
 
     /// Linux: the `AppImage` couldn't be replaced.
     pub fn cant_replace_image(&self, image: &str) -> String {
-        format!(
-            "wisp can't replace {image} (no permission). {}",
-            self.later()
-        )
+        format!("wisp can't replace {image} (no permission). {}", self.later())
     }
 }

@@ -34,12 +34,7 @@ pub struct WireError {
 
 impl WireError {
     pub fn new(code: Code, message: impl Into<String>) -> Self {
-        Self {
-            code,
-            message: message.into(),
-            retry: false,
-            details: None,
-        }
+        Self { code, message: message.into(), retry: false, details: None }
     }
     pub fn not_found(m: impl Into<String>) -> Self {
         Self::new(Code::NotFound, m)
@@ -57,10 +52,7 @@ impl WireError {
         Self::new(Code::Internal, m)
     }
     pub fn unavailable(m: impl Into<String>) -> Self {
-        Self {
-            retry: true,
-            ..Self::new(Code::Unavailable, m)
-        }
+        Self { retry: true, ..Self::new(Code::Unavailable, m) }
     }
     #[must_use]
     pub fn with_details(mut self, d: Value) -> Self {

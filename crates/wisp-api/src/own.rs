@@ -26,27 +26,14 @@ pub(crate) async fn run(
     match o {
         Own::Health => Ok(respond::json(200, &health(edge), asked, &[]).await),
         Own::Status => {
-            let v = crate::status::answer(
-                &edge.backend.status_parts(),
-                edge.hub.looking(),
-                &edge.activity,
-                &edge.cfg.version,
-            );
+            let v = crate::status::answer(&edge.backend.status_parts(), edge.hub.looking(), &edge.activity, &edge.cfg.version);
             Ok(respond::json(200, &v, asked, &[]).await)
         }
-        Own::OpenApi => Ok(respond::json(
-            200,
-            &crate::openapi::document(edge.table().list(), &edge.cfg.version),
-            asked,
-            &[],
-        )
-        .await),
+        Own::OpenApi => Ok(respond::json(200, &crate::openapi::document(edge.table().list(), &edge.cfg.version), asked, &[]).await),
         Own::Events => events(edge, caller, parts),
         Own::EventsPost => {
             let m = edge.hub.mounted().ok_or_else(not_mounted)?;
-            let client = header(&parts.headers, "x-wisp-client")
-                .unwrap_or("")
-                .to_owned();
+            let client = header(&parts.headers, "x-wisp-client").unwrap_or("").to_owned();
             m.message(caller, client, body).await?;
             Ok(respond::plain_json(200, &json!({"ok": true})))
         }
@@ -55,10 +42,7 @@ pub(crate) async fn run(
 }
 
 fn health(edge: &Edge) -> Value {
-    let url = edge.cfg.proxy.origin().map_or_else(
-        || format!("http://127.0.0.1:{}", edge.port()),
-        str::to_owned,
-    );
+    let url = edge.cfg.proxy.origin().map_or_else(|| format!("http://127.0.0.1:{}", edge.port()), str::to_owned);
     json!({"ok": true, "name": "wisp", "version": edge.cfg.version, "apiVersion": API_VERSION, "pid": std::process::id(), "url": url})
 }
 
@@ -85,26 +69,14 @@ fn events(edge: &Edge, caller: Caller, parts: &http::request::Parts) -> Result<A
 
 async fn cmd(edge: &Edge, caller: Caller, h: &http::HeaderMap, body: &[u8]) -> Answer {
     let Some(key) = header(h, "idempotency-key").filter(|k| !k.is_empty() && k.len() <= 128) else {
-        let (s, v) = command_answer(
-            Err(WireError::invalid("Idempotency-Key header required")),
-            0,
-        );
+        let (s, v) = command_answer(Err(WireError::invalid("Idempotency-Key header required")), 0);
         return respond::plain_json(s, &v);
     };
     let parsed: Result<(String, Value), WireError> = serde_json::from_slice::<Value>(body)
         .ok()
-        .and_then(|v| {
-            Some((
-                v.get("cmd")?.as_str()?.to_owned(),
-                v.get("args").cloned().unwrap_or(Value::Null),
-            ))
-        })
+        .and_then(|v| Some((v.get("cmd")?.as_str()?.to_owned(), v.get("args").cloned().unwrap_or(Value::Null))))
         .ok_or_else(|| WireError::invalid("body must be {cmd, args}"));
-    let id = format!(
-        "{}|{}|{key}",
-        caller.set,
-        caller.session.as_deref().unwrap_or("")
-    );
+    let id = format!("{}|{}|{key}", caller.set, caller.session.as_deref().unwrap_or(""));
     let backend = edge.backend.clone();
     let seq = || edge.hub.mounted().map_or(0, |m| m.head_seq());
     let (status, v) = edge
@@ -113,9 +85,7 @@ async fn cmd(edge: &Edge, caller: Caller, h: &http::HeaderMap, body: &[u8]) -> A
             match parsed {
                 Ok((cmd, args)) => {
                     let span = tracing::info_span!("cmd", cmd = %cmd, set = %caller.set);
-                    let out =
-                        tracing::Instrument::instrument(backend.call(caller, &cmd, args), span)
-                            .await;
+                    let out = tracing::Instrument::instrument(backend.call(caller, &cmd, args), span).await;
                     if let Err(e) = &out
                         && e.status() >= 500
                     {
@@ -133,25 +103,11 @@ async fn cmd(edge: &Edge, caller: Caller, h: &http::HeaderMap, body: &[u8]) -> A
 pub(crate) async fn convert(edge: &Edge, r: Response, asked: &Asked) -> Answer {
     match r {
         Response::Json { status, body } => respond::json(status, &body, asked, &[]).await,
-        Response::Prepared { status, body } => {
-            respond::prepared(&edge.prepared, status, &body, asked).await
-        }
-        Response::Bytes {
-            status,
-            content_type,
-            body,
-            headers,
-        } => respond::text(status, &content_type, body, &headers),
-        Response::Text {
-            status,
-            content_type,
-            body,
-        } => respond::text(status, &content_type, body, &[]),
+        Response::Prepared { status, body } => respond::prepared(&edge.prepared, status, &body, asked).await,
+        Response::Bytes { status, content_type, body, headers } => respond::text(status, &content_type, body, &headers),
+        Response::Text { status, content_type, body } => respond::text(status, &content_type, body, &[]),
         Response::Redirect { status, location } => respond::redirect(status, &location),
-        Response::Stream {
-            content_type,
-            mut body,
-        } => {
+        Response::Stream { content_type, mut body } => {
             let (tx, rx) = tokio::sync::mpsc::channel::<Bytes>(64);
             tokio::spawn(async move {
                 while let Some(chunk) = body.recv().await {

@@ -60,7 +60,11 @@ pub fn write(resources: &[Resource], kinds: &[KindInfo], format: Format) -> Stri
             for (name, v) in secs {
                 o.insert(name, v);
             }
-            if format == Format::Json { serde_json::to_string_pretty(&Value::Object(o)).unwrap_or_default() + "\n" } else { toml::to_string(&strip_nulls(Value::Object(o))).unwrap_or_default() }
+            if format == Format::Json {
+                serde_json::to_string_pretty(&Value::Object(o)).unwrap_or_default() + "\n"
+            } else {
+                toml::to_string(&strip_nulls(Value::Object(o))).unwrap_or_default()
+            }
         }
     }
 }
@@ -74,7 +78,10 @@ fn strip_nulls(v: Value) -> Value {
     }
 }
 
-const RESERVED: [&str; 22] = ["true", "false", "yes", "no", "on", "off", "y", "n", "null", "~", "True", "False", "TRUE", "FALSE", "Yes", "No", "YES", "NO", "On", "Off", "ON", "OFF"];
+const RESERVED: [&str; 22] = [
+    "true", "false", "yes", "no", "on", "off", "y", "n", "null", "~", "True", "False", "TRUE", "FALSE", "Yes", "No", "YES", "NO", "On",
+    "Off", "ON", "OFF",
+];
 
 /// Whether `s` must be quoted to read back as this string.
 fn needs_quotes(s: &str) -> bool {

@@ -54,7 +54,13 @@ pub fn clamp_notebook(text: &str) -> String {
 
 /// Lines to remember: non-empty strings, squashed, at most 12 of 300 characters.
 pub fn remember_lines(list: &[Value]) -> Vec<String> {
-    list.iter().filter_map(Value::as_str).map(squash).filter(|s| !s.is_empty()).map(|s| clip(&s, REMEMBER_CHARS)).take(REMEMBER_LINES).collect()
+    list.iter()
+        .filter_map(Value::as_str)
+        .map(squash)
+        .filter(|s| !s.is_empty())
+        .map(|s| clip(&s, REMEMBER_CHARS))
+        .take(REMEMBER_LINES)
+        .collect()
 }
 
 /// The notebook with `lines` added at the end as `- …` items, clamped.
@@ -69,7 +75,9 @@ pub fn with_lines(notebook: &str, lines: &[String]) -> String {
 
 fn merge_block(out: &mut CrewOut, b: &Value, presentation_topic: &mut Option<String>) {
     match b.get("remember") {
-        Some(Value::Array(a)) => out.remember.extend(a.iter().filter_map(Value::as_str).map(squash).filter(|s| !s.is_empty()).map(|s| clip(&s, REMEMBER_CHARS))),
+        Some(Value::Array(a)) => {
+            out.remember.extend(a.iter().filter_map(Value::as_str).map(squash).filter(|s| !s.is_empty()).map(|s| clip(&s, REMEMBER_CHARS)));
+        }
         Some(Value::String(s)) if !s.trim().is_empty() => out.remember.push(clip(s.trim(), REMEMBER_CHARS)),
         _ => {}
     }

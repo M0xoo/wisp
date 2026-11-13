@@ -16,7 +16,11 @@ fn dir() -> std::path::PathBuf {
 }
 
 fn names() -> Vec<String> {
-    let mut n: Vec<String> = std::fs::read_dir(dir()).unwrap().filter_map(Result::ok).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned)).collect();
+    let mut n: Vec<String> = std::fs::read_dir(dir())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned))
+        .collect();
     n.sort();
     n
 }

@@ -44,9 +44,7 @@ pub struct Runtime {
 
 impl std::fmt::Debug for Runtime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Runtime")
-            .field("tasks", &self.lock_list().len())
-            .finish_non_exhaustive()
+        f.debug_struct("Runtime").field("tasks", &self.lock_list().len()).finish_non_exhaustive()
     }
 }
 
@@ -149,11 +147,7 @@ impl Runtime {
     }
 
     pub(crate) fn harness(&self, id: &str) -> Result<Arc<dyn Harness>> {
-        self.host
-            .harnesses()
-            .into_iter()
-            .find(|h| h.info().id == id)
-            .ok_or_else(|| RuntimeError::NoHarness(id.to_owned()))
+        self.host.harnesses().into_iter().find(|h| h.info().id == id).ok_or_else(|| RuntimeError::NoHarness(id.to_owned()))
     }
 
     /// A switch in Settings (on unless switched off), v1's `defaults.<x> !== 'off'`.
@@ -192,7 +186,12 @@ impl Runtime {
     }
 
     /// `persist`, with more rows of runtime's own written in the same transaction (a task's watch page).
-    pub(crate) async fn persist_with(self: &Arc<Self>, s: &mut Session, turns: Vec<Turn>, extra: impl FnOnce(&mut wisp_store::Writer<'_>) -> wisp_store::Result<()> + Send + 'static) -> Result<Arc<Summary>> {
+    pub(crate) async fn persist_with(
+        self: &Arc<Self>,
+        s: &mut Session,
+        turns: Vec<Turn>,
+        extra: impl FnOnce(&mut wisp_store::Writer<'_>) -> wisp_store::Result<()> + Send + 'static,
+    ) -> Result<Arc<Summary>> {
         s.rev += 1;
         let mut summary = self.summary_of(s, turns.last()).await?;
         self.usage_into(s, &turns, &mut summary).await?;
@@ -202,18 +201,15 @@ impl Runtime {
             .store
             .write(move |w| {
                 // the session first: a new task's turns point at it (a fork's, an adopted share's)
-                repo::save_session(w, &row, &sum)
-                    .map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
+                repo::save_session(w, &row, &sum).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 for t in &ts {
-                    repo::save_turn(w, t)
-                        .map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
+                    repo::save_turn(w, t).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 }
                 extra(w)
             })
             .await?;
         let before = self.lock_list().insert(s.id.0.clone(), summary.clone());
-        self.host
-            .emit(Emitted::Changed(SessionChanged { id: s.id.clone() }));
+        self.host.emit(Emitted::Changed(SessionChanged { id: s.id.clone() }));
         self.lead_follows(before.as_deref(), &summary);
         Ok(summary)
     }
@@ -221,30 +217,18 @@ impl Runtime {
     /// The list row: runtime's fields, then each `runtime.summary@1` contributor's.
     pub(crate) async fn summary_of(&self, s: &Session, written: Option<&Turn>) -> Result<Summary> {
         let tail = self.repo.turns(s.id.as_str(), None, Some(2)).await?;
-        let mut tail: Vec<Turn> = tail
-            .into_iter()
-            .filter(|t| written.is_none_or(|w| w.id != t.id))
-            .collect();
+        let mut tail: Vec<Turn> = tail.into_iter().filter(|t| written.is_none_or(|w| w.id != t.id)).collect();
         if let Some(w) = written {
             tail.push(w.clone());
             tail.sort_by_key(|t| t.idx);
         }
         let last = tail.last();
         let report = match last {
-            Some(t) if t.by.as_deref() == Some("compact") && t.status == TurnStatus::Done => {
-                tail.iter().rev().nth(1)
-            }
+            Some(t) if t.by.as_deref() == Some("compact") && t.status == TurnStatus::Done => tail.iter().rev().nth(1),
             other => other,
         };
-        let followups = self
-            .lock_list()
-            .get(s.id.as_str())
-            .and_then(|r| {
-                r.fields
-                    .get("followups")
-                    .and_then(serde_json::Value::as_u64)
-            })
-            .unwrap_or(0);
+        let followups =
+            self.lock_list().get(s.id.as_str()).and_then(|r| r.fields.get("followups").and_then(serde_json::Value::as_u64)).unwrap_or(0);
         let live_step = self.live_label(s.id.as_str());
         let facts = RowFacts {
             last,
@@ -260,13 +244,8 @@ impl Runtime {
         }
         let mut row = summarize(s, &facts, fields);
         // a follow-up of yours just started (not wisp's repair rounds or a compaction)
-        if written.is_some_and(|t| {
-            t.idx > 0
-                && t.status == TurnStatus::Running
-                && !matches!(t.by.as_deref(), Some("wisp" | "compact"))
-        }) {
-            row.fields
-                .insert("followups".into(), (followups + 1).into());
+        if written.is_some_and(|t| t.idx > 0 && t.status == TurnStatus::Running && !matches!(t.by.as_deref(), Some("wisp" | "compact"))) {
+            row.fields.insert("followups".into(), (followups + 1).into());
         }
         Ok(row)
     }
@@ -279,7 +258,12 @@ impl Runtime {
     /// harness then, as before).
     fn auto_pick(&self, a: &StartArgs) -> Option<wisp_router_api::Pick> {
         let (router, call) = self.host.router()?;
-        let choose = wisp_router_api::ChooseArgs { prompt: a.prompt.clone(), attachments: u32::try_from(a.attachments.len()).unwrap_or(u32::MAX), need_delegate: a.team.is_some(), ..wisp_router_api::ChooseArgs::default() };
+        let choose = wisp_router_api::ChooseArgs {
+            prompt: a.prompt.clone(),
+            attachments: u32::try_from(a.attachments.len()).unwrap_or(u32::MAX),
+            need_delegate: a.team.is_some(),
+            ..wisp_router_api::ChooseArgs::default()
+        };
         match router.pick(&call, wisp_router_api::service::PickRequest { choose, level_up: None }) {
             Ok(p) => p,
             Err(e) => {
@@ -300,9 +284,21 @@ impl Runtime {
             out.push(Outcome::Launched { id, route: wisp_router_api::StoredRoute::from_route(&p.route) });
         } else if a.parent_id.is_none() && a.by.is_none() {
             let attachments = u32::try_from(a.attachments.len()).unwrap_or(u32::MAX);
-            out.push(Outcome::Manual { id, agent: s.agent.clone(), model: s.model.clone(), effort: s.effort.clone(), prompt: a.prompt.clone(), attachments });
+            out.push(Outcome::Manual {
+                id,
+                agent: s.agent.clone(),
+                model: s.model.clone(),
+                effort: s.effort.clone(),
+                prompt: a.prompt.clone(),
+                attachments,
+            });
             if let Some(o) = &a.auto_override {
-                out.push(Outcome::Override { kind: o.kind.clone(), auto: o.key.clone(), chose: wisp_router_api::arm_key(&s.agent, &s.model, &s.effort), prompt: a.prompt.clone() });
+                out.push(Outcome::Override {
+                    kind: o.kind.clone(),
+                    auto: o.key.clone(),
+                    chose: wisp_router_api::arm_key(&s.agent, &s.model, &s.effort),
+                    prompt: a.prompt.clone(),
+                });
             }
         }
         for o in out {
@@ -331,11 +327,7 @@ impl Runtime {
             .map(|p| p.model.clone())
             .filter(|m| !m.is_empty())
             .or_else(|| a.model.clone())
-            .or_else(|| {
-                self.harness(&agent)
-                    .ok()
-                    .and_then(|h| h.info().models.first().map(|m| m.id.clone()))
-            })
+            .or_else(|| self.harness(&agent).ok().and_then(|h| h.info().models.first().map(|m| m.id.clone())))
             .unwrap_or_default();
         let now = self.now();
         let mut s = Session {
@@ -373,9 +365,7 @@ impl Runtime {
             s.ext.insert(wisp_router_api::PLUGIN_ID.into(), serde_json::json!({ "route": p.route }));
         }
         let summary = self.persist(&mut s, Vec::new()).await?;
-        self.host.emit(Emitted::Created(SessionCreated {
-            session: (*summary).clone(),
-        }));
+        self.host.emit(Emitted::Created(SessionCreated { session: (*summary).clone() }));
         self.auto_learn(&s, &a, pick.as_ref());
         let item = QueueItem {
             id: wisp_kernel::ids::uuid7(),
@@ -396,22 +386,21 @@ impl Runtime {
             s.queue_held = true;
             s.state = SessionState::Review;
             self.persist(&mut s, Vec::new()).await?;
-            return Ok(Created {
-                id: s.id,
-                turn_id: None,
-            });
+            return Ok(Created { id: s.id, turn_id: None });
         }
         let turn_id = self.start_turn(s.clone(), item).await?;
-        Ok(Created {
-            id: s.id,
-            turn_id: Some(turn_id),
-        })
+        Ok(Created { id: s.id, turn_id: Some(turn_id) })
     }
 
     /// A task created held for its worktree: it moves into `wt` (`ext["wisp.worktrees"]`, its cwd), and its
     /// first turn starts, or is held with the setup's error when the project's setup failed there
     /// (v1's held-turn card: Start now runs it anyway, Skip stops it).
-    pub async fn worktree_ready(self: &Arc<Self>, id: &str, wt: Option<serde_json::Value>, setup_failed: Option<String>) -> Result<Option<wisp_runtime_api::TurnId>> {
+    pub async fn worktree_ready(
+        self: &Arc<Self>,
+        id: &str,
+        wt: Option<serde_json::Value>,
+        setup_failed: Option<String>,
+    ) -> Result<Option<wisp_runtime_api::TurnId>> {
         let guard = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
         if let Some(w) = wt {
@@ -444,12 +433,10 @@ impl Runtime {
         if a.text.trim().is_empty() && a.attachments.is_empty() {
             return Err(RuntimeError::Invalid("a follow-up needs text".into()));
         }
-        let opts = serde_json::to_value(serde_json::json!({ "mode": a.mode, "run": a.run, "confirmLimit": a.confirm_limit.then_some(true) }))
-            .ok()
-            .filter(|v| {
-                v.as_object()
-                    .is_some_and(|o| o.values().any(|x| !x.is_null()))
-            });
+        let opts =
+            serde_json::to_value(serde_json::json!({ "mode": a.mode, "run": a.run, "confirmLimit": a.confirm_limit.then_some(true) }))
+                .ok()
+                .filter(|v| v.as_object().is_some_and(|o| o.values().any(|x| !x.is_null())));
         let has_extras = opts.is_some() || a.by.is_some();
         let item = QueueItem {
             id: wisp_kernel::ids::uuid7(),
@@ -460,20 +447,12 @@ impl Runtime {
             opts,
             ..QueueItem::default()
         };
-        let last_held = self
-            .repo
-            .turns(a.id.as_str(), None, Some(1))
-            .await?
-            .last()
-            .is_some_and(|t| t.status == TurnStatus::Held);
+        let last_held = self.repo.turns(a.id.as_str(), None, Some(1)).await?.last().is_some_and(|t| t.status == TurnStatus::Held);
         let run = self.run_state(a.id.as_str());
         let mut held = s.queue_held;
         let mut items = std::mem::take(&mut s.queue);
         let d = queue::follow_up(
-            &mut Queue {
-                items: &mut items,
-                held: &mut held,
-            },
+            &mut Queue { items: &mut items, held: &mut held },
             run,
             crate::more::ask_id(&s).is_some(),
             last_held,
@@ -501,31 +480,19 @@ impl Runtime {
         let out = match d.plan {
             Plan::Start(item) => {
                 drop(guard);
-                return Ok(FollowedUp {
-                    turn_id: Some(self.start_turn(s, item).await?),
-                    queued: None,
-                });
+                return Ok(FollowedUp { turn_id: Some(self.start_turn(s, item).await?), queued: None });
             }
-            Plan::Queued { .. } => FollowedUp {
-                turn_id: None,
-                queued: s.queue.last().map(|q| q.id.clone()),
-            },
+            Plan::Queued { .. } => FollowedUp { turn_id: None, queued: s.queue.last().map(|q| q.id.clone()) },
             Plan::Interrupt => {
                 self.interrupt(a.id.as_str());
-                FollowedUp {
-                    turn_id: None,
-                    queued: s.queue.first().map(|q| q.id.clone()),
-                }
+                FollowedUp { turn_id: None, queued: s.queue.first().map(|q| q.id.clone()) }
             }
             Plan::Answer(item) => {
                 self.persist(&mut s, Vec::new()).await?;
                 self.answer_locked(&a.id, &item.text).await?;
                 return Ok(FollowedUp { turn_id: None, queued: None });
             }
-            Plan::Hold(_) => FollowedUp {
-                turn_id: None,
-                queued: None,
-            },
+            Plan::Hold(_) => FollowedUp { turn_id: None, queued: None },
         };
         self.persist(&mut s, Vec::new()).await?;
         drop(guard);
@@ -534,18 +501,12 @@ impl Runtime {
     }
 
     /// Nothing runs and the queue isn't held: its first item goes (a released held turn, a release).
-    pub(crate) async fn kick(
-        self: &Arc<Self>,
-        mut s: Session,
-    ) -> Result<Option<wisp_runtime_api::TurnId>> {
+    pub(crate) async fn kick(self: &Arc<Self>, mut s: Session) -> Result<Option<wisp_runtime_api::TurnId>> {
         if self.run_state(s.id.as_str()) != Run::Idle {
             return Ok(None);
         }
         let mut held = s.queue_held;
-        let Some(next) = queue::next_after_release(&mut Queue {
-            items: &mut s.queue,
-            held: &mut held,
-        }) else {
+        let Some(next) = queue::next_after_release(&mut Queue { items: &mut s.queue, held: &mut held }) else {
             return Ok(None);
         };
         Ok(Some(self.start_turn(s, next).await?))
@@ -556,13 +517,7 @@ impl Runtime {
         let _guard = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
         let mut held = s.queue_held;
-        let plan = queue::stop(
-            &mut Queue {
-                items: &mut s.queue,
-                held: &mut held,
-            },
-            self.run_state(id),
-        );
+        let plan = queue::stop(&mut Queue { items: &mut s.queue, held: &mut held }, self.run_state(id));
         s.queue_held = held;
         if clear_queue {
             s.queue.clear();
@@ -598,13 +553,7 @@ impl Runtime {
     }
 
     pub(crate) async fn release_held(self: &Arc<Self>, s: &mut Session) -> Result<()> {
-        let Some(t) = self
-            .repo
-            .turns(s.id.as_str(), None, Some(1))
-            .await?
-            .pop()
-            .filter(|t| t.status == TurnStatus::Held)
-        else {
+        let Some(t) = self.repo.turns(s.id.as_str(), None, Some(1)).await?.pop().filter(|t| t.status == TurnStatus::Held) else {
             return Ok(());
         };
         let item = QueueItem {
@@ -616,10 +565,7 @@ impl Runtime {
             ..QueueItem::default()
         };
         let tid = t.id.clone();
-        self.repo
-            .store
-            .write(move |w| w.del("turn", tid.as_str()).map(|_| ()))
-            .await?;
+        self.repo.store.write(move |w| w.del("turn", tid.as_str()).map(|_| ())).await?;
         s.queue.insert(0, item);
         Ok(())
     }

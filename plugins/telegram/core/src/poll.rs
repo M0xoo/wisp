@@ -30,18 +30,13 @@ impl Offset {
     pub fn for_bot(&mut self, token: &str) {
         let mark = fnv(token);
         if mark != self.token_mark {
-            *self = Self {
-                next: 0,
-                token_mark: mark,
-            };
+            *self = Self { next: 0, token_mark: mark };
         }
     }
 }
 
 fn fnv(s: &str) -> u64 {
-    s.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
-        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
-    })
+    s.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }
 
 /// v1 `SEEN_UPDATES`.
@@ -85,11 +80,7 @@ mod tests {
         assert!(!o.accept(3));
         assert!(o.accept(12));
         o.for_bot("t1");
-        assert_eq!(
-            o.next(),
-            13,
-            "the same bot keeps its place across restarts of the loop"
-        );
+        assert_eq!(o.next(), 13, "the same bot keeps its place across restarts of the loop");
         o.for_bot("t2");
         assert_eq!(o.next(), 0, "another bot, another counter");
     }

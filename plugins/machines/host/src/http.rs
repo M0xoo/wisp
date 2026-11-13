@@ -84,7 +84,8 @@ impl Channel for HttpChannel {
         let url = format!("{}{}", self.base, req.path);
         let (client, scope, label) = (self.client.clone(), self.scope.clone(), self.label.clone());
         Box::pin(async move {
-            let method = reqwest::Method::from_bytes(req.method.to_ascii_uppercase().as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
+            let method =
+                reqwest::Method::from_bytes(req.method.to_ascii_uppercase().as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
             let mut b = client.request(method, &url);
             for (k, v) in &req.headers {
                 b = b.header(k, v);

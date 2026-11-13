@@ -1,13 +1,7 @@
 //! Test harness: a fake store with a change log, the client's apply rules, and a simulated wire that
 //! carries SyncServer frames to client models through the real SSE encoder and parser.
 //! Deterministic: a seeded RNG and a scripted clock.
-#![allow(
-    clippy::semicolon_if_nothing_returned,
-    dead_code,
-    unused_imports,
-    clippy::unwrap_used,
-    clippy::missing_panics_doc
-)]
+#![allow(clippy::semicolon_if_nothing_returned, dead_code, unused_imports, clippy::unwrap_used, clippy::missing_panics_doc)]
 
 pub mod client;
 mod sim;
@@ -75,12 +69,7 @@ pub struct TestChange {
 }
 
 pub fn ch(t: &str, e: &str, id: &str, op: Op) -> TestChange {
-    TestChange {
-        topic: topic(t),
-        e: e.into(),
-        id: id.into(),
-        op,
-    }
+    TestChange { topic: topic(t), e: e.into(), id: id.into(), op }
 }
 
 /// A list row's title, set (so it goes as a patch once the row exists).
@@ -124,14 +113,7 @@ impl FakeStore {
                         Some(_) => continue,
                     };
                     list.extend(items.iter().cloned());
-                    t.insert(
-                        k,
-                        Row {
-                            e: c.e.clone(),
-                            id: c.id.clone(),
-                            v: Value::Array(list),
-                        },
-                    );
+                    t.insert(k, Row { e: c.e.clone(), id: c.id.clone(), v: Value::Array(list) });
                     Change::Append { v: items.clone() }
                 }
                 (Op::Set(v), Some(old)) => {
@@ -139,37 +121,16 @@ impl FakeStore {
                     if ops.is_empty() {
                         continue;
                     }
-                    t.insert(
-                        k,
-                        Row {
-                            e: c.e.clone(),
-                            id: c.id.clone(),
-                            v: patched(&old, &ops).unwrap(),
-                        },
-                    );
+                    t.insert(k, Row { e: c.e.clone(), id: c.id.clone(), v: patched(&old, &ops).unwrap() });
                     Change::Patch { ops }
                 }
                 (Op::Upsert(v) | Op::Set(v), _) => {
-                    t.insert(
-                        k,
-                        Row {
-                            e: c.e.clone(),
-                            id: c.id.clone(),
-                            v: v.clone(),
-                        },
-                    );
+                    t.insert(k, Row { e: c.e.clone(), id: c.id.clone(), v: v.clone() });
                     Change::Upsert { v: v.clone() }
                 }
             };
             self.seq += 1;
-            let row = ChangeRow {
-                seq: self.seq,
-                topic: c.topic.clone(),
-                entity: c.e.clone(),
-                id: c.id.clone(),
-                change,
-                at,
-            };
+            let row = ChangeRow { seq: self.seq, topic: c.topic.clone(), entity: c.e.clone(), id: c.id.clone(), change, at };
             self.log.push(row.clone());
             out.push(row);
         }
@@ -177,10 +138,7 @@ impl FakeStore {
     }
 
     pub fn snapshot(&self, t: &Topic) -> Vec<Row> {
-        self.rows
-            .get(t)
-            .map(|m| m.values().cloned().collect())
-            .unwrap_or_default()
+        self.rows.get(t).map(|m| m.values().cloned().collect()).unwrap_or_default()
     }
 
     /// Rows changed since `since` (current values) and the ones gone: a resume's delta.
@@ -205,26 +163,14 @@ impl FakeStore {
     }
 }
 
-pub fn make_server(
-    store: &FakeStore,
-    f: impl FnOnce(&mut SyncOptions<String>),
-) -> SyncServer<String> {
-    let mut o = SyncOptions::new(
-        "E1",
-        peer(),
-        store.seq,
-        store.oldest,
-        Box::new(|_: &String, _: &Topic| true),
-    );
+pub fn make_server(store: &FakeStore, f: impl FnOnce(&mut SyncOptions<String>)) -> SyncServer<String> {
+    let mut o = SyncOptions::new("E1", peer(), store.seq, store.oldest, Box::new(|_: &String, _: &Topic| true));
     f(&mut o);
     SyncServer::new(o)
 }
 
 pub fn apply_snapshot(map: &mut EntityMap, t: &Topic, rows: Vec<Row>) {
-    map.insert(
-        t.clone(),
-        rows.into_iter().map(|r| (key(&r.e, &r.id), r)).collect(),
-    );
+    map.insert(t.clone(), rows.into_iter().map(|r| (key(&r.e, &r.id), r)).collect());
 }
 
 /// Applies ops in order; returns the topics where one didn't apply (the copy drifted).
@@ -235,14 +181,7 @@ pub fn apply_entity_ops(map: &mut EntityMap, ops: &[EntityOp]) -> Vec<Topic> {
         let k = key(&op.e, &op.id);
         let ok = match &op.change {
             Change::Upsert { v } => {
-                rows.insert(
-                    k,
-                    Row {
-                        e: op.e.clone(),
-                        id: op.id.clone(),
-                        v: v.clone(),
-                    },
-                );
+                rows.insert(k, Row { e: op.e.clone(), id: op.id.clone(), v: v.clone() });
                 true
             }
             Change::Del => {
@@ -251,40 +190,19 @@ pub fn apply_entity_ops(map: &mut EntityMap, ops: &[EntityOp]) -> Vec<Topic> {
             }
             Change::Patch { ops } => match rows.get(&k).map(|r| patched(&r.v, ops)) {
                 Some(Ok(v)) => {
-                    rows.insert(
-                        k,
-                        Row {
-                            e: op.e.clone(),
-                            id: op.id.clone(),
-                            v,
-                        },
-                    );
+                    rows.insert(k, Row { e: op.e.clone(), id: op.id.clone(), v });
                     true
                 }
                 _ => false,
             },
             Change::Append { v } => match rows.get(&k).map(|r| r.v.clone()) {
                 None => {
-                    rows.insert(
-                        k,
-                        Row {
-                            e: op.e.clone(),
-                            id: op.id.clone(),
-                            v: Value::Array(v.clone()),
-                        },
-                    );
+                    rows.insert(k, Row { e: op.e.clone(), id: op.id.clone(), v: Value::Array(v.clone()) });
                     true
                 }
                 Some(Value::Array(mut a)) => {
                     a.extend(v.iter().cloned());
-                    rows.insert(
-                        k,
-                        Row {
-                            e: op.e.clone(),
-                            id: op.id.clone(),
-                            v: Value::Array(a),
-                        },
-                    );
+                    rows.insert(k, Row { e: op.e.clone(), id: op.id.clone(), v: Value::Array(a) });
                     true
                 }
                 Some(_) => false,
@@ -299,7 +217,5 @@ pub fn apply_entity_ops(map: &mut EntityMap, ops: &[EntityOp]) -> Vec<Topic> {
 
 /// The rows of `t`, sorted, to compare a client with the store.
 pub fn view(map: &EntityMap, t: &Topic) -> Vec<Row> {
-    map.get(t)
-        .map(|m| m.values().cloned().collect())
-        .unwrap_or_default()
+    map.get(t).map(|m| m.values().cloned().collect()).unwrap_or_default()
 }

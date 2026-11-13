@@ -23,20 +23,13 @@ impl Request {
         self.params.get(name).map(String::as_str)
     }
     pub fn query(&self, name: &str) -> Option<&str> {
-        self.query
-            .iter()
-            .find(|(k, _)| k == name)
-            .map(|(_, v)| v.as_str())
+        self.query.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
     }
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case(name))
-            .map(|(_, v)| v.as_str())
+        self.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
     }
     pub fn json<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
-        serde_json::from_slice(&self.body)
-            .map_err(|e| crate::WireError::invalid(format!("body: {e}")))
+        serde_json::from_slice(&self.body).map_err(|e| crate::WireError::invalid(format!("body: {e}")))
     }
 }
 
@@ -90,8 +83,7 @@ impl Response {
     }
 
     pub fn ok(body: impl serde::Serialize) -> Result<Self> {
-        let body =
-            serde_json::to_value(body).map_err(|e| crate::WireError::internal(e.to_string()))?;
+        let body = serde_json::to_value(body).map_err(|e| crate::WireError::internal(e.to_string()))?;
         Ok(Self::Json { status: 200, body })
     }
 }
@@ -113,8 +105,7 @@ pub fn sse_frame(event: Option<&str>, data: &str) -> Vec<u8> {
     out.into_bytes()
 }
 
-pub type Handler =
-    Arc<dyn Fn(Ctx, Call, Request) -> BoxFuture<'static, Result<Response>> + Send + Sync>;
+pub type Handler = Arc<dyn Fn(Ctx, Call, Request) -> BoxFuture<'static, Result<Response>> + Send + Sync>;
 
 pub struct Route {
     pub method: &'static str,

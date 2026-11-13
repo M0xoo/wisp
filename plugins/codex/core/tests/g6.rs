@@ -17,7 +17,11 @@ fn dir() -> std::path::PathBuf {
 }
 
 fn names() -> Vec<String> {
-    let mut n: Vec<String> = std::fs::read_dir(dir()).unwrap().filter_map(Result::ok).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned)).collect();
+    let mut n: Vec<String> = std::fs::read_dir(dir())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned))
+        .collect();
     n.sort();
     n
 }
@@ -76,11 +80,16 @@ fn every_fixture_builds_v1s_argv() {
             mcp_servers: Some(&none),
             ..CodexArgs::default()
         };
-        let want: Vec<String> = m["argv"].as_array().unwrap().iter().map(|x| {
-            let x = s(x);
-            // v1's lean base file had a random temp name
-            if x.starts_with("model_instructions_file=") { "model_instructions_file=\"BASE\"".to_owned() } else { x.to_owned() }
-        }).collect();
+        let want: Vec<String> = m["argv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| {
+                let x = s(x);
+                // v1's lean base file had a random temp name
+                if x.starts_with("model_instructions_file=") { "model_instructions_file=\"BASE\"".to_owned() } else { x.to_owned() }
+            })
+            .collect();
         assert_eq!(args(&a), want, "{name}");
     }
 }

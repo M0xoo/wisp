@@ -20,9 +20,7 @@ mod support;
 
 use serde_json::json;
 use support::{Rng, topic};
-use wisp_protocol::{
-    Ack, Change, EntityOp, Notice, Patch, PatchOp, Resync, Row, Rows, ServerMessage, tag,
-};
+use wisp_protocol::{Ack, Change, EntityOp, Notice, Patch, PatchOp, Resync, Row, Rows, ServerMessage, tag};
 use wisp_sync::sse::{HEARTBEAT, SseEvent, SseParser, decode_frame, encode_frame, retry_field};
 
 fn frames() -> Vec<Vec<ServerMessage>> {
@@ -30,54 +28,30 @@ fn frames() -> Vec<Vec<ServerMessage>> {
         topic: topic("list"),
         e: "session".into(),
         id: "s1".into(),
-        change: Change::Patch {
-            ops: vec![PatchOp::Replace {
-                path: "/title".into(),
-                value: json!("a\nb\r\nc\rd"),
-            }],
-        },
+        change: Change::Patch { ops: vec![PatchOp::Replace { path: "/title".into(), value: json!("a\nb\r\nc\rd") }] },
     };
     vec![
-        vec![ServerMessage::Patch(Patch {
-            t: tag::Patch,
-            seq: 7,
-            ops: vec![op],
-        })],
+        vec![ServerMessage::Patch(Patch { t: tag::Patch, seq: 7, ops: vec![op] })],
         vec![ServerMessage::Notice(Notice {
             t: tag::Notice,
             kind: "toast".into(),
             data: json!({"text": "héllo 👋\u{2028} done", "nul": "\u{0}"}),
         })],
         vec![
-            ServerMessage::Resync(Resync {
-                t: tag::Resync,
-                topic: topic("session:x"),
-            }),
-            ServerMessage::Ack(Ack {
-                t: tag::Ack,
-                mid: "m1".into(),
-                seq: 9,
-                result: None,
-            }),
+            ServerMessage::Resync(Resync { t: tag::Resync, topic: topic("session:x") }),
+            ServerMessage::Ack(Ack { t: tag::Ack, mid: "m1".into(), seq: 9, result: None }),
         ],
         vec![ServerMessage::Rows(Rows {
             t: tag::Rows,
             req: "r".into(),
-            rows: vec![Row {
-                e: "event".into(),
-                id: "1".into(),
-                v: json!("x".repeat(5000)),
-            }],
+            rows: vec![Row { e: "event".into(), id: "1".into(), v: json!("x".repeat(5000)) }],
             done: true,
         })],
     ]
 }
 
 fn encode(id: u64, msgs: &[ServerMessage]) -> String {
-    let parts: Vec<String> = msgs
-        .iter()
-        .map(|m| serde_json::to_string(m).unwrap())
-        .collect();
+    let parts: Vec<String> = msgs.iter().map(|m| serde_json::to_string(m).unwrap()).collect();
     encode_frame(Some(id), &parts)
 }
 
@@ -148,31 +122,10 @@ fn fuzz_random_splits_cut_utf8_mid_sequence_and_decode_the_same() {
 fn the_spec_corners() {
     let mut p = SseParser::new();
     let out = p.push(b"data:a\ndata: b\nfoo: bar\nid: 5\n\nid: x\0y\nevent: e\ndata: c\n\ndata\n\n: only a comment\n\n");
-    let ev = |event: &str, data: &str| SseEvent {
-        id: Some("5".into()),
-        event: event.into(),
-        data: data.into(),
-    };
-    assert_eq!(
-        out,
-        vec![ev("message", "a\nb"), ev("e", "c"), ev("message", "")]
-    );
-    assert_eq!(
-        decode_frame(&SseEvent {
-            id: Some("1".into()),
-            event: "sync".into(),
-            data: "{not json".into()
-        }),
-        None
-    );
-    assert_eq!(
-        decode_frame(&SseEvent {
-            id: Some("1".into()),
-            event: "other".into(),
-            data: "[]".into()
-        }),
-        None
-    );
+    let ev = |event: &str, data: &str| SseEvent { id: Some("5".into()), event: event.into(), data: data.into() };
+    assert_eq!(out, vec![ev("message", "a\nb"), ev("e", "c"), ev("message", "")]);
+    assert_eq!(decode_frame(&SseEvent { id: Some("1".into()), event: "sync".into(), data: "{not json".into() }), None);
+    assert_eq!(decode_frame(&SseEvent { id: Some("1".into()), event: "other".into(), data: "[]".into() }), None);
     let (id, msgs) = decode_frame(&SseEvent {
         id: Some(String::new()),
         event: "sync".into(),
@@ -181,13 +134,7 @@ fn the_spec_corners() {
     .unwrap();
     assert_eq!(
         (id, msgs),
-        (
-            None,
-            vec![ServerMessage::Resync(Resync {
-                t: tag::Resync,
-                topic: topic("list")
-            })]
-        ),
+        (None, vec![ServerMessage::Resync(Resync { t: tag::Resync, topic: topic("list") })]),
         "unknown kinds are skipped"
     );
     // an event without its blank line yet is held, not dispatched

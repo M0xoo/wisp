@@ -34,17 +34,8 @@ pub enum Credential {
 }
 
 impl Credential {
-    pub const ALL: [Self; 9] = [
-        Self::Session,
-        Self::Cookie,
-        Self::Preview,
-        Self::Device,
-        Self::Key,
-        Self::Box,
-        Self::Sandbox,
-        Self::Hook,
-        Self::Webhook,
-    ];
+    pub const ALL: [Self; 9] =
+        [Self::Session, Self::Cookie, Self::Preview, Self::Device, Self::Key, Self::Box, Self::Sandbox, Self::Hook, Self::Webhook];
 }
 
 /// Where a request goes.
@@ -167,11 +158,7 @@ use Reach as R;
 
 /// The table. Changing a row is a deliberate act in the PR (`tests/trust.rs` pins it).
 pub const CAPABILITIES: [CapabilitySet; 9] = [
-    CapabilitySet {
-        credential: Credential::Session,
-        allow: &[R::GridPages, R::GridRoutePage],
-        deny: &[],
-    },
+    CapabilitySet { credential: Credential::Session, allow: &[R::GridPages, R::GridRoutePage], deny: &[] },
     CapabilitySet {
         credential: Credential::Cookie,
         allow: &[R::Box, R::Computer, R::Sandbox, R::EdgeKeys],
@@ -183,29 +170,13 @@ pub const CAPABILITIES: [CapabilitySet; 9] = [
     CapabilitySet {
         credential: Credential::Preview,
         allow: &[R::Preview],
-        deny: &[
-            deny(R::Box, PREVIEW_ONLY),
-            deny(R::Computer, PREVIEW_ONLY),
-            deny(R::Sandbox, PREVIEW_ONLY),
-        ],
+        deny: &[deny(R::Box, PREVIEW_ONLY), deny(R::Computer, PREVIEW_ONLY), deny(R::Sandbox, PREVIEW_ONLY)],
     },
     CapabilitySet {
         credential: Credential::Device,
-        allow: &[
-            R::GridDevice,
-            R::GridKeys,
-            R::GridReport,
-            R::GridPublish,
-            R::GridTunnel,
-            R::Box,
-            R::Computer,
-            R::Sandbox,
-        ],
+        allow: &[R::GridDevice, R::GridKeys, R::GridReport, R::GridPublish, R::GridTunnel, R::Box, R::Computer, R::Sandbox],
         deny: &[
-            deny(
-                R::GridChannels,
-                "a channel’s URL and key are the box’s own word, for its own address",
-            ),
+            deny(R::GridChannels, "a channel’s URL and key are the box’s own word, for its own address"),
             deny(R::EdgeKeys, KEYS_IN_BROWSER),
         ],
     },
@@ -213,22 +184,10 @@ pub const CAPABILITIES: [CapabilitySet; 9] = [
         credential: Credential::Key,
         allow: &[R::Box],
         deny: &[
-            deny(
-                R::Computer,
-                "a key opens its user’s own wisp, never a computer",
-            ),
-            deny(
-                R::Sandbox,
-                "a key opens its user’s own wisp, never a sandbox",
-            ),
-            deny(
-                R::Preview,
-                "a key opens its user’s own wisp, never a preview",
-            ),
-            deny(
-                R::GridTunnel,
-                "a key opens its user’s own wisp, never a tunnel",
-            ),
+            deny(R::Computer, "a key opens its user’s own wisp, never a computer"),
+            deny(R::Sandbox, "a key opens its user’s own wisp, never a sandbox"),
+            deny(R::Preview, "a key opens its user’s own wisp, never a preview"),
+            deny(R::GridTunnel, "a key opens its user’s own wisp, never a tunnel"),
             deny(R::GridDevice, KEY_OWN),
             deny(R::GridKeys, "a key can’t manage keys"),
             deny(R::EdgeKeys, KEYS_IN_BROWSER),
@@ -243,61 +202,33 @@ pub const CAPABILITIES: [CapabilitySet; 9] = [
                 R::Computer,
                 "a box never gets a token for a laptop: anything on a box can read its Box secret, and a prompt injection in a box must never reach a laptop",
             ),
-            deny(
-                R::GridReport,
-                "anything on a box can read its Box secret, so it never gets as far as a computer’s report",
-            ),
-            deny(
-                R::GridTunnel,
-                "anything on a box can read its Box secret, so it can never be a computer",
-            ),
-            deny(
-                R::GridKeys,
-                "anything on a box can read its Box secret: a cloud wisp’s person makes keys at its edge (/_grid/keys)",
-            ),
-            deny(
-                R::GridDevice,
-                "anything on a box can read its Box secret: no sign-in links, no computers",
-            ),
-            deny(
-                R::GridRoutePage,
-                "the bot for `on laptop` is given on the grid’s own origin, out of a box page’s reach",
-            ),
+            deny(R::GridReport, "anything on a box can read its Box secret, so it never gets as far as a computer’s report"),
+            deny(R::GridTunnel, "anything on a box can read its Box secret, so it can never be a computer"),
+            deny(R::GridKeys, "anything on a box can read its Box secret: a cloud wisp’s person makes keys at its edge (/_grid/keys)"),
+            deny(R::GridDevice, "anything on a box can read its Box secret: no sign-in links, no computers"),
+            deny(R::GridRoutePage, "the bot for `on laptop` is given on the grid’s own origin, out of a box page’s reach"),
         ],
     },
     CapabilitySet {
         credential: Credential::Sandbox,
         allow: &[R::Sandbox],
         deny: &[
-            deny(
-                R::GridPublish,
-                "a sandbox has neither a device token nor a Box secret",
-            ),
+            deny(R::GridPublish, "a sandbox has neither a device token nor a Box secret"),
             deny(R::Box, "a sandbox’s token opens that sandbox only"),
             deny(R::Computer, "a sandbox’s token opens that sandbox only"),
         ],
     },
-    CapabilitySet {
-        credential: Credential::Hook,
-        allow: &[R::Box],
-        deny: &[],
-    },
+    CapabilitySet { credential: Credential::Hook, allow: &[R::Box], deny: &[] },
     CapabilitySet {
         credential: Credential::Webhook,
         allow: &[R::Inbox, R::Route],
-        deny: &[deny(
-            R::Box,
-            "a channel’s message is held by the grid and delivered; it never signs in to the box",
-        )],
+        deny: &[deny(R::Box, "a channel’s message is held by the grid and delivered; it never signs in to the box")],
     },
 ];
 
 pub fn capabilities(c: Credential) -> &'static CapabilitySet {
     // CAPABILITIES is in Credential's order; the fallback is unreachable but keeps this panic-free.
-    CAPABILITIES
-        .iter()
-        .find(|s| s.credential == c)
-        .unwrap_or(&CAPABILITIES[0])
+    CAPABILITIES.iter().find(|s| s.credential == c).unwrap_or(&CAPABILITIES[0])
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -321,10 +252,7 @@ pub fn may(credential: Credential, reach: Reach) -> Verdict {
     if set.allow.contains(&reach) {
         return Verdict::Ok;
     }
-    let name = serde_json::to_value(credential)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_owned))
-        .unwrap_or_default();
+    let name = serde_json::to_value(credential).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
     Verdict::No(format!("{name} doesn’t reach {}", reach.name()))
 }
 

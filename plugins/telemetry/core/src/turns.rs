@@ -81,38 +81,24 @@ pub fn route_props(route: Option<&Value>) -> Props {
         return p;
     };
     let str_or_num = |k: &str| r.get(k).filter(|v| v.is_string() || v.is_number()).cloned();
-    let truthy = |k: &str| {
-        r.get(k).is_some_and(|v| {
-            !matches!(v, Value::Null | Value::Bool(false)) && v != &json!(0) && v != &json!("")
-        })
-    };
+    let truthy = |k: &str| r.get(k).is_some_and(|v| !matches!(v, Value::Null | Value::Bool(false)) && v != &json!(0) && v != &json!(""));
     p.insert("routed".into(), json!(true));
     set_opt(&mut p, "routeGoal", r.get("goal").and_then(Value::as_str));
     set_opt(&mut p, "routeType", r.get("type").and_then(Value::as_str));
     set_opt(&mut p, "routeSize", str_or_num("size"));
     p.insert("routeExplored".into(), json!(truthy("explored")));
     p.insert("routeTrying".into(), json!(truthy("trying")));
-    set_opt(
-        &mut p,
-        "routePropensity",
-        r.get("propensity").filter(|v| v.is_number()).cloned(),
-    );
+    set_opt(&mut p, "routePropensity", r.get("propensity").filter(|v| v.is_number()).cloned());
     set_opt(&mut p, "routeTier", str_or_num("tier"));
     set_opt(&mut p, "routeTaste", str_or_num("taste"));
     p.insert("routePinned".into(), json!(truthy("pinned")));
     p.insert("routeSuggested".into(), json!(truthy("suggest")));
-    p.insert(
-        "routeEffort".into(),
-        json!(non_empty(r.get("effort").and_then(Value::as_str))),
-    );
+    p.insert("routeEffort".into(), json!(non_empty(r.get("effort").and_then(Value::as_str))));
     p
 }
 
 pub fn hero_status(t: &TurnFacts) -> Option<&str> {
-    t.blocks
-        .iter()
-        .find(|b| b.ty == "hero")
-        .and_then(|b| b.status.as_deref())
+    t.blocks.iter().find(|b| b.ty == "hero").and_then(|b| b.status.as_deref())
 }
 
 /// Each block type once, in first-seen order.
@@ -135,22 +121,12 @@ pub fn started_props(r: &RunFacts, t: &TurnFacts) -> Props {
 pub fn ended_props(r: &RunFacts, t: &TurnFacts, interrupted: bool) -> Props {
     let mut p = run_props(r);
     p.extend(route_props(r.route.as_ref()));
-    p.insert(
-        "status".into(),
-        json!(if interrupted {
-            "interrupted"
-        } else {
-            t.status.as_str()
-        }),
-    );
+    p.insert("status".into(), json!(if interrupted { "interrupted" } else { t.status.as_str() }));
     set_opt(&mut p, "heroStatus", hero_status(t));
     set_opt(&mut p, "durationMs", t.ended_at.map(|e| e - t.started_at));
     p.insert("blockCount".into(), json!(t.blocks.len()));
     p.insert("blockTypes".into(), json!(block_types(t)));
-    p.insert(
-        "presentationFallback".into(),
-        json!(t.presentation_fallback),
-    );
+    p.insert("presentationFallback".into(), json!(t.presentation_fallback));
     p.insert("changedFiles".into(), json!(t.changed_files));
     set_opt(&mut p, "inputTokens", t.input_tokens);
     set_opt(&mut p, "outputTokens", t.output_tokens);
@@ -169,10 +145,7 @@ pub fn agent_error_props(r: &RunFacts) -> Props {
 /// `app_started`: which harnesses are installed, and their versions (`<id>Version`).
 pub fn app_started_props(agents: &[(String, Option<String>)]) -> Props {
     let mut p = Props::new();
-    p.insert(
-        "agentsInstalled".into(),
-        json!(agents.iter().map(|(id, _)| id).collect::<Vec<_>>()),
-    );
+    p.insert("agentsInstalled".into(), json!(agents.iter().map(|(id, _)| id).collect::<Vec<_>>()));
     for (id, v) in agents {
         set_opt(&mut p, &format!("{id}Version"), v.as_deref());
     }

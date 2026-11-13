@@ -35,9 +35,14 @@ fn app() -> App {
     let mut a = App::new(super::views::registry(), Theme::DARK, "/w/api");
     a.now = NOW;
     a.tasks.rows.insert("t1".into(), json!({ "id": "t1", "title": "Fix the login", "state": "review", "agent": "claude", "cwd": "/w/api", "updated_at": NOW - 12 * MIN }));
-    a.tasks.rows.insert("t2".into(), json!({ "id": "t2", "title": "Add dark mode", "state": "running", "agent": "codex", "cwd": "/w/web", "updated_at": NOW - 2 * MIN }));
+    a.tasks.rows.insert(
+        "t2".into(),
+        json!({ "id": "t2", "title": "Add dark mode", "state": "running", "agent": "codex", "cwd": "/w/web", "updated_at": NOW - 2 * MIN }),
+    );
     a.tasks.rows.insert("t0".into(), json!({ "id": "t0", "title": "Old one", "state": "done", "agent": "claude", "cwd": "/w/api", "updated_at": NOW - 3 * 24 * 60 * MIN }));
-    a.tasks.rows.insert("t3".into(), json!({ "id": "t3", "title": "Archived", "state": "done", "archived": true, "updated_at": NOW - MIN }));
+    a.tasks
+        .rows
+        .insert("t3".into(), json!({ "id": "t3", "title": "Archived", "state": "done", "archived": true, "updated_at": NOW - MIN }));
     a
 }
 
@@ -66,7 +71,10 @@ fn screen(a: &App, w: u16, h: u16) -> String {
     })
     .unwrap();
     let buf = t.backend().buffer().clone();
-    (0..buf.area.height).map(|y| (0..buf.area.width).map(|x| buf[(x, y)].symbol().to_owned()).collect::<String>().trim_end().to_owned()).collect::<Vec<_>>().join("\n")
+    (0..buf.area.height)
+        .map(|y| (0..buf.area.width).map(|x| buf[(x, y)].symbol().to_owned()).collect::<String>().trim_end().to_owned())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// A golden under `crates/wisp/tests/goldens/tui/`: written when missing (or with `WISP_GOLDENS=update`), compared
@@ -90,7 +98,11 @@ fn a_window_resync_keeps_the_older_turns_whole_with_their_steps_v1_788() {
     let t = a.open.as_mut().unwrap();
     t.snapshot(vec![
         row("session", "t2", json!({ "id": "t2", "title": "Add dark mode", "state": "running" })),
-        row("turn", "T1", json!({ "id": "T1", "idx": 0, "body": { "stub": true, "status": "done", "prompt": "Make sessions last longer" } })),
+        row(
+            "turn",
+            "T1",
+            json!({ "id": "T1", "idx": 0, "body": { "stub": true, "status": "done", "prompt": "Make sessions last longer" } }),
+        ),
         row("turn", "T2", json!({ "id": "T2", "idx": 1, "body": { "status": "running", "prompt": "Add dark mode, again" } })),
     ]);
     let turns = t.turns();
@@ -164,7 +176,10 @@ fn a_follow_up_shows_at_once_and_a_refused_one_comes_back() {
     let fx = a.key(key(KeyCode::Enter));
     let Some(Effect::Send { task, text, queue, local, .. }) = fx.first().cloned() else { panic!("{fx:?}") };
     assert_eq!((task.as_deref(), text.as_str(), queue), (Some("t2"), "use tokens", true), "queued: a turn runs");
-    assert!(a.composer.is_empty() && screen(&a, 160, 48).contains("↑ sending  use tokens"), "the box clears and the follow-up shows at once");
+    assert!(
+        a.composer.is_empty() && screen(&a, 160, 48).contains("↑ sending  use tokens"),
+        "the box clears and the follow-up shows at once"
+    );
     a.done(Then::Sent(local), Err("the task is gone".into()));
     assert_eq!(a.composer.text(), "use tokens", "refused: the text is back");
     assert!(a.toasts.iter().any(|t| t.bad && t.text.contains("Not sent")));
@@ -213,7 +228,11 @@ fn the_composer_opens_the_at_and_slash_pickers() {
     assert_eq!(a.composer.text(), "/goal.set ");
     a.composer.clear();
     let fx = a.key(ch('@'));
-    assert!(fx.contains(&Effect::Files) && fx.contains(&Effect::Cmd { id: "crew.list".into(), args: json!({}), then: Then::Mentions("crew".into()) }), "{fx:?}");
+    assert!(
+        fx.contains(&Effect::Files)
+            && fx.contains(&Effect::Cmd { id: "crew.list".into(), args: json!({}), then: Then::Mentions("crew".into()) }),
+        "{fx:?}"
+    );
     a.done(Then::Mentions("file".into()), Ok(json!(["src/auth.ts"])));
     a.key(ch('f'));
     a.key(ch('i'));
@@ -343,7 +362,24 @@ fn html(a: &App, w: u16, h: u16) -> String {
             // xterm's 256: the 16, the 6×6×6 cube, the grey ramp (what Terminal.app draws)
             Color::Indexed(i) => {
                 let (r, g, b) = match i {
-                    0..=15 => [(0, 0, 0), (205, 0, 0), (0, 205, 0), (205, 205, 0), (0, 0, 238), (205, 0, 205), (0, 205, 205), (229, 229, 229), (127, 127, 127), (255, 0, 0), (0, 255, 0), (255, 255, 0), (92, 92, 255), (255, 0, 255), (0, 255, 255), (255, 255, 255)][usize::from(i)],
+                    0..=15 => [
+                        (0, 0, 0),
+                        (205, 0, 0),
+                        (0, 205, 0),
+                        (205, 205, 0),
+                        (0, 0, 238),
+                        (205, 0, 205),
+                        (0, 205, 205),
+                        (229, 229, 229),
+                        (127, 127, 127),
+                        (255, 0, 0),
+                        (0, 255, 0),
+                        (255, 255, 0),
+                        (92, 92, 255),
+                        (255, 0, 255),
+                        (0, 255, 255),
+                        (255, 255, 255),
+                    ][usize::from(i)],
                     16..=231 => {
                         let step = |v: u8| if v == 0 { 0 } else { 55 + 40 * v };
                         let n = i - 16;
@@ -388,7 +424,9 @@ fn html(a: &App, w: u16, h: u16) -> String {
 fn every_view_renders_to_html_for_the_visual_check() {
     let Ok(dir) = std::env::var("WISP_TUI_LOOK") else { return };
     std::fs::create_dir_all(&dir).unwrap();
-    for (th, mode) in [(Theme::DARK, "dark"), (Theme::LIGHT, "light"), (Theme::DARK.indexed(), "dark-256"), (Theme::LIGHT.indexed(), "light-256")] {
+    for (th, mode) in
+        [(Theme::DARK, "dark"), (Theme::LIGHT, "light"), (Theme::DARK.indexed(), "dark-256"), (Theme::LIGHT.indexed(), "light-256")]
+    {
         for (w, h) in [(100u16, 30u16), (160, 45)] {
             let mut shots: Vec<(&str, App)> = Vec::new();
             let mut a = opened();
@@ -491,7 +529,13 @@ fn no_ghost_text_every_glyph_reads_against_its_background() {
                     let fg = if c.fg == ratatui::style::Color::Reset { th.ink } else { c.fg };
                     let bg = if c.bg == ratatui::style::Color::Reset { th.bg } else { c.bg };
                     let row: String = (0..buf.area.width).map(|x| buf[(x, y)].symbol().to_owned()).collect();
-                    assert!(contrast(fg, bg) >= 3.0, "{:?}: '{sym}' at {x},{y} reads at {:.1}:1 in {}", th.mode, contrast(fg, bg), row.trim_end());
+                    assert!(
+                        contrast(fg, bg) >= 3.0,
+                        "{:?}: '{sym}' at {x},{y} reads at {:.1}:1 in {}",
+                        th.mode,
+                        contrast(fg, bg),
+                        row.trim_end()
+                    );
                 }
             }
         }
@@ -524,10 +568,11 @@ fn a_redraw_leaves_nothing_of_the_frame_before() {
     })
     .unwrap();
     let mut fresh = Terminal::new(TestBackend::new(120, 34)).unwrap();
-    fresh.draw(|f| {
-        draw::draw(f, &a);
-    })
-    .unwrap();
+    fresh
+        .draw(|f| {
+            draw::draw(f, &a);
+        })
+        .unwrap();
     assert_eq!(t.backend().buffer(), fresh.backend().buffer(), "every cell of the second frame is the second frame's");
     let text: String = (0..34).map(|y| (0..120).map(|x| t.backend().buffer()[(x, y)].symbol().to_owned()).collect::<String>()).collect();
     assert!(!text.contains("toggle"), "the queue that went is gone");
@@ -555,7 +600,14 @@ fn the_blame_view_asks_for_a_file_then_shows_the_why_gutter() {
         a.key(ch(c));
     }
     let fx = a.key(key(KeyCode::Enter));
-    assert_eq!(fx, vec![Effect::Cmd { id: "history.blame".into(), args: json!({ "target": "src/auth.ts", "repo": "/w/api", "byLine": true }), then: Then::View("blame".into()) }]);
+    assert_eq!(
+        fx,
+        vec![Effect::Cmd {
+            id: "history.blame".into(),
+            args: json!({ "target": "src/auth.ts", "repo": "/w/api", "byLine": true }),
+            then: Then::View("blame".into())
+        }]
+    );
     a.done(Then::View("blame".into()), Ok(blame_answer()));
     let s = screen(&a, 160, 45);
     assert!(s.contains("Fix the login") && s.contains("by hand") && s.contains("export const ttl = 3600;"), "{s}");

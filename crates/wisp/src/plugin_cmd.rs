@@ -39,12 +39,32 @@ pub async fn run(c: &Client, p: &Parsed, args: &[String]) -> Result<()> {
         // ADR-0046: from a folder or a git URL, off; it says what it asks for, and `enable` is the consent
         "install" | "add" => {
             let source = need(args.get(1), "a folder or a git URL")?;
-            let source = if source.contains("://") || source.starts_with("git@") { source.to_owned() } else { std::path::absolute(source).map_or_else(|_| source.to_owned(), |p| p.display().to_string()) };
+            let source = if source.contains("://") || source.starts_with("git@") {
+                source.to_owned()
+            } else {
+                std::path::absolute(source).map_or_else(|_| source.to_owned(), |p| p.display().to_string())
+            };
             let r = c.cmd("plugins.install", json!({ "source": source })).await?;
-            let asks: Vec<String> = r.get("permissions").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(|x| format!("    {x}")).collect();
+            let asks: Vec<String> = r
+                .get("permissions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(|x| format!("    {x}"))
+                .collect();
             let id = s(&r, "id");
-            let what = if asks.is_empty() { "It asks for nothing.".to_owned() } else { format!("Switching it on lets it:\n{}", asks.join("\n")) };
-            out(f, &r, &format!("  ✓ {} {} is installed, off.\n  {what}\n  Switch it on with: wisp plugin enable {id}", s(&r, "name"), s(&r, "version")));
+            let what =
+                if asks.is_empty() { "It asks for nothing.".to_owned() } else { format!("Switching it on lets it:\n{}", asks.join("\n")) };
+            out(
+                f,
+                &r,
+                &format!(
+                    "  ✓ {} {} is installed, off.\n  {what}\n  Switch it on with: wisp plugin enable {id}",
+                    s(&r, "name"),
+                    s(&r, "version")
+                ),
+            );
             Ok(())
         }
         "remove" | "uninstall" | "rm" => {
@@ -53,24 +73,35 @@ pub async fn run(c: &Client, p: &Parsed, args: &[String]) -> Result<()> {
             out(f, &r, &format!("  ✓ {id} removed"));
             Ok(())
         }
-        other => Err(CliError::said(format!("wisp plugin {other}: ls, install <folder or git URL>, enable <id>, disable <id>, remove <id> or new <name>"))),
+        other => Err(CliError::said(format!(
+            "wisp plugin {other}: ls, install <folder or git URL>, enable <id>, disable <id>, remove <id> or new <name>"
+        ))),
     }
 }
 
 /// `wisp crew`: your crew members.
 pub async fn crew(c: &Client, p: &Parsed, args: &[String]) -> Result<()> {
     if let Some(sub) = args.first().filter(|s| *s != "ls") {
-        return Err(CliError::said(format!("wisp crew {sub}: a crew is shared as a formula now: wisp export crew > team.yml, then wisp apply -f team.yml")));
+        return Err(CliError::said(format!(
+            "wisp crew {sub}: a crew is shared as a formula now: wisp export crew > team.yml, then wisp apply -f team.yml"
+        )));
     }
     let list = c.cmd("crew.list", json!({})).await?;
-    let rows: Vec<String> = list.as_array().into_iter().flatten().map(|m| format!("{:<16} {:<20} {}", s(m, "name"), s(m, "role"), s(m, "agent"))).collect();
+    let rows: Vec<String> =
+        list.as_array().into_iter().flatten().map(|m| format!("{:<16} {:<20} {}", s(m, "name"), s(m, "role"), s(m, "agent"))).collect();
     out(&p.flags, &list, &if rows.is_empty() { "No crew yet.".to_owned() } else { rows.join("\n") });
     Ok(())
 }
 
 /// `wisp plugin new <name>`: a declarative plugin of your own, off until you switch it on.
 pub fn new_plugin(home: &Path, name: &str) -> Result<std::path::PathBuf> {
-    let slug: String = name.to_ascii_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>().trim_matches('-').to_owned();
+    let slug: String = name
+        .to_ascii_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_owned();
     if slug.is_empty() {
         return Err(CliError::said("a plugin name has letters or digits"));
     }
@@ -84,7 +115,12 @@ pub fn new_plugin(home: &Path, name: &str) -> Result<std::path::PathBuf> {
         "description": "", "kind": "plugin", "permissions": [], "activation": [], "contributes": {}
     });
     std::fs::write(dir.join("wisp-plugin.json"), serde_json::to_string_pretty(&manifest).unwrap_or_default() + "\n")?;
-    std::fs::write(dir.join("README.md"), format!("# {name}\n\nA wisp plugin. Its whole static truth is `wisp-plugin.json`: what it adds (`contributes`) and what it may do (`permissions`).\nSwitch it on with `wisp plugin enable user.{slug}`.\n"))?;
+    std::fs::write(
+        dir.join("README.md"),
+        format!(
+            "# {name}\n\nA wisp plugin. Its whole static truth is `wisp-plugin.json`: what it adds (`contributes`) and what it may do (`permissions`).\nSwitch it on with `wisp plugin enable user.{slug}`.\n"
+        ),
+    )?;
     Ok(dir)
 }
 

@@ -12,11 +12,20 @@ use wisp_grid::accounts::Poll;
 /// A computer holding a tunnel that answers every request with `who`. Resolves when it's up.
 async fn computer(port: u16, id: &str, token: &str, who: &'static str) -> tokio::task::JoinHandle<()> {
     let c = reqwest::Client::builder().http1_only().no_proxy().resolve("wisp.localhost", ([127, 0, 0, 1], port).into()).build().unwrap();
-    let r = c.get(format!("http://wisp.localhost:{port}/api/computers/{id}/tunnel")).header("connection", "Upgrade").header("upgrade", "wisp-tunnel").bearer_auth(token).send().await.unwrap();
+    let r = c
+        .get(format!("http://wisp.localhost:{port}/api/computers/{id}/tunnel"))
+        .header("connection", "Upgrade")
+        .header("upgrade", "wisp-tunnel")
+        .bearer_auth(token)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 101);
     let up = r.upgrade().await.unwrap();
     tokio::spawn(async move {
-        let svc = hyper::service::service_fn(move |_req| async move { Ok::<_, std::convert::Infallible>(http::Response::new(Full::new(Bytes::from_static(who.as_bytes())))) });
+        let svc = hyper::service::service_fn(move |_req| async move {
+            Ok::<_, std::convert::Infallible>(http::Response::new(Full::new(Bytes::from_static(who.as_bytes()))))
+        });
         let _ = hyper::server::conn::http2::Builder::new(TokioExecutor::new()).serve_connection(TokioIo::new(up), svc).await;
     })
 }
@@ -36,7 +45,11 @@ async fn a_new_tunnel_for_the_same_computer_wins() {
     let ask = |label: String| {
         let token = token.clone();
         async move {
-            let w = reqwest::Client::builder().no_proxy().resolve(&format!("{label}.wisp.localhost"), ([127, 0, 0, 1], port).into()).build().unwrap();
+            let w = reqwest::Client::builder()
+                .no_proxy()
+                .resolve(&format!("{label}.wisp.localhost"), ([127, 0, 0, 1], port).into())
+                .build()
+                .unwrap();
             let r = w.get(format!("http://{label}.wisp.localhost:{port}/")).bearer_auth(token).send().await.unwrap();
             (r.status().as_u16(), r.text().await.unwrap())
         }
@@ -60,8 +73,16 @@ async fn a_new_tunnel_for_the_same_computer_wins() {
     }
     assert_eq!(g.tunnels.count(), 1);
     // a device that isn't this computer's can't hold its tunnel
-    let other = reqwest::Client::builder().http1_only().no_proxy().resolve("wisp.localhost", ([127, 0, 0, 1], port).into()).build().unwrap();
-    let r = other.get(format!("http://wisp.localhost:{port}/api/computers/{}/tunnel", c.id)).header("connection", "Upgrade").header("upgrade", "wisp-tunnel").bearer_auth("wgd_nope").send().await.unwrap();
+    let other =
+        reqwest::Client::builder().http1_only().no_proxy().resolve("wisp.localhost", ([127, 0, 0, 1], port).into()).build().unwrap();
+    let r = other
+        .get(format!("http://wisp.localhost:{port}/api/computers/{}/tunnel", c.id))
+        .header("connection", "Upgrade")
+        .header("upgrade", "wisp-tunnel")
+        .bearer_auth("wgd_nope")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 401);
     first.abort();
     stop.cancel();

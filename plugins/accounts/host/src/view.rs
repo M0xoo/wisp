@@ -64,7 +64,19 @@ pub const ACCOUNT: EntityDef = EntityDef {
     kind: "accounts.account",
     table: "accounts_v_account",
     key: "id",
-    columns: &[("id", Col::Text), ("agent", Col::Text), ("ord", Col::Int), ("label", Col::Text), ("email", Col::Text), ("plan", Col::Text), ("default", Col::Bool), ("kind", Col::Text), ("state", Col::Text), ("until", Col::Int), ("why", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("agent", Col::Text),
+        ("ord", Col::Int),
+        ("label", Col::Text),
+        ("email", Col::Text),
+        ("plan", Col::Text),
+        ("default", Col::Bool),
+        ("kind", Col::Text),
+        ("state", Col::Text),
+        ("until", Col::Int),
+        ("why", Col::Text),
+    ],
     json_columns: &[],
     parent: None,
     seq: None,
@@ -74,7 +86,18 @@ pub const LOGIN: EntityDef = EntityDef {
     kind: "accounts.login",
     table: "accounts_v_login",
     key: "id",
-    columns: &[("id", Col::Text), ("agent", Col::Text), ("account", Col::Text), ("state", Col::Text), ("url", Col::Text), ("code", Col::Text), ("needsInput", Col::Bool), ("checking", Col::Bool), ("error", Col::Text), ("signedIn", Col::Bool)],
+    columns: &[
+        ("id", Col::Text),
+        ("agent", Col::Text),
+        ("account", Col::Text),
+        ("state", Col::Text),
+        ("url", Col::Text),
+        ("code", Col::Text),
+        ("needsInput", Col::Bool),
+        ("checking", Col::Bool),
+        ("error", Col::Text),
+        ("signedIn", Col::Bool),
+    ],
     json_columns: &[],
     parent: None,
     seq: None,
@@ -84,14 +107,44 @@ pub const KEY: EntityDef = EntityDef {
     kind: "accounts.key",
     table: "accounts_v_key",
     key: "id",
-    columns: &[("id", Col::Text), ("agent", Col::Text), ("agentName", Col::Text), ("provider", Col::Text), ("name", Col::Text), ("url", Col::Text), ("env", Col::Text), ("set", Col::Bool), ("hint", Col::Text), ("savedAt", Col::Int), ("test", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("agent", Col::Text),
+        ("agentName", Col::Text),
+        ("provider", Col::Text),
+        ("name", Col::Text),
+        ("url", Col::Text),
+        ("env", Col::Text),
+        ("set", Col::Bool),
+        ("hint", Col::Text),
+        ("savedAt", Col::Int),
+        ("test", Col::Text),
+    ],
     json_columns: &["test"],
     parent: None,
     seq: None,
     topics,
 };
-pub const TOOL: EntityDef = EntityDef { kind: "accounts.tool", table: "accounts_v_tool", key: "id", columns: &[("id", Col::Text), ("name", Col::Text), ("installed", Col::Bool), ("setup", Col::Text)], json_columns: &["setup"], parent: None, seq: None, topics };
-pub const PLACE: EntityDef = EntityDef { kind: "accounts.place", table: "accounts_v_place", key: "id", columns: &[("id", Col::Text), ("grid", Col::Bool), ("ask", Col::Bool)], json_columns: &[], parent: None, seq: None, topics };
+pub const TOOL: EntityDef = EntityDef {
+    kind: "accounts.tool",
+    table: "accounts_v_tool",
+    key: "id",
+    columns: &[("id", Col::Text), ("name", Col::Text), ("installed", Col::Bool), ("setup", Col::Text)],
+    json_columns: &["setup"],
+    parent: None,
+    seq: None,
+    topics,
+};
+pub const PLACE: EntityDef = EntityDef {
+    kind: "accounts.place",
+    table: "accounts_v_place",
+    key: "id",
+    columns: &[("id", Col::Text), ("grid", Col::Bool), ("ask", Col::Bool)],
+    json_columns: &[],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 pub const ALL: [EntityDef; 6] = [HARNESS, ACCOUNT, LOGIN, KEY, TOOL, PLACE];
 
@@ -195,7 +248,14 @@ pub async fn rows(ctx: &Ctx, st: &State) -> Vec<(&'static EntityDef, Vec<Row>)> 
         })
         .collect();
     let grid = std::env::var("WISP_GRID").is_ok_and(|v| !v.is_empty());
-    vec![(&HARNESS, harnesses), (&ACCOUNT, accounts), (&LOGIN, logins), (&KEY, keys), (&TOOL, tool_rows), (&PLACE, vec![row_of(&PLACE, &json!({ "id": "this", "grid": grid, "ask": st.ask() }))])]
+    vec![
+        (&HARNESS, harnesses),
+        (&ACCOUNT, accounts),
+        (&LOGIN, logins),
+        (&KEY, keys),
+        (&TOOL, tool_rows),
+        (&PLACE, vec![row_of(&PLACE, &json!({ "id": "this", "grid": grid, "ask": st.ask() }))]),
+    ]
 }
 
 /// Writes every row; a row no longer there is deleted.
@@ -257,8 +317,14 @@ mod tests {
     async fn the_agents_pane_rows_are_flat_and_named_as_the_ui_reads_them() {
         let db = Store::open(wisp_store::Location::Memory, std::sync::Arc::new(wisp_store::SystemClock)).unwrap();
         install(&db).unwrap();
-        let r = row_of(&HARNESS, &json!({ "id": "opencode", "name": "opencode", "ord": 2, "available": true, "models": [{ "id": "a", "label": "A" }], "signIn": sign_in_kind(true, true), "hasKey": false, "pinnedAt": 9, "extra": "dropped" }));
-        let a = row_of(&ACCOUNT, &json!({ "id": "claude/work", "agent": "claude", "ord": 0, "label": "Work", "email": "", "plan": "", "default": false, "kind": "work", "state": "ready", "until": null, "why": "" }));
+        let r = row_of(
+            &HARNESS,
+            &json!({ "id": "opencode", "name": "opencode", "ord": 2, "available": true, "models": [{ "id": "a", "label": "A" }], "signIn": sign_in_kind(true, true), "hasKey": false, "pinnedAt": 9, "extra": "dropped" }),
+        );
+        let a = row_of(
+            &ACCOUNT,
+            &json!({ "id": "claude/work", "agent": "claude", "ord": 0, "label": "Work", "email": "", "plan": "", "default": false, "kind": "work", "state": "ready", "until": null, "why": "" }),
+        );
         db.write(move |w| w.upsert(HARNESS.kind, r).and_then(|_| w.upsert(ACCOUNT.kind, a)).map(|_| ())).await.unwrap();
         let h = db.read(|x| x.get("accounts.harness", "opencode")).unwrap().unwrap();
         assert_eq!(h["signIn"], "key");

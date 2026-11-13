@@ -20,11 +20,7 @@ pub struct Mark {
 }
 
 pub const MARKS: [Mark; 6] = [
-    Mark {
-        header: "x-wisp-proxy-secret",
-        set_by: "the edge, towards a box: trusted-proxy mode (box side: BoxTrust)",
-        values: &[],
-    },
+    Mark { header: "x-wisp-proxy-secret", set_by: "the edge, towards a box: trusted-proxy mode (box side: BoxTrust)", values: &[] },
     // 'inbox' only from delivery (inbox → to_box), 'key' only from the edge for an API key. A box acts
     // on these (a channel's message never counts as use; a key can't manage keys), so nothing outside
     // may claim either.
@@ -33,26 +29,10 @@ pub const MARKS: [Mark; 6] = [
         set_by: "the grid: inbox delivery sets \"inbox\", the edge sets \"key\" for an API key",
         values: &["inbox", "key"],
     },
-    Mark {
-        header: "x-wisp-route",
-        set_by: "route delivery, through a computer’s tunnel, only",
-        values: &["grid"],
-    },
-    Mark {
-        header: "x-wisp-preview",
-        set_by: "the preview edge: which port of the box the page is on",
-        values: &[],
-    },
-    Mark {
-        header: "x-wisp-upgrade",
-        set_by: "the tunnel: what a websocket asked to upgrade to (HTTP/2 has no Upgrade)",
-        values: &[],
-    },
-    Mark {
-        header: "x-wisp-tunnel",
-        set_by: "the computer’s side of its tunnel",
-        values: &[],
-    },
+    Mark { header: "x-wisp-route", set_by: "route delivery, through a computer’s tunnel, only", values: &["grid"] },
+    Mark { header: "x-wisp-preview", set_by: "the preview edge: which port of the box the page is on", values: &[] },
+    Mark { header: "x-wisp-upgrade", set_by: "the tunnel: what a websocket asked to upgrade to (HTTP/2 has no Upgrade)", values: &[] },
+    Mark { header: "x-wisp-tunnel", set_by: "the computer’s side of its tunnel", values: &[] },
 ];
 
 /// The value of x-wisp-proxy-via, and who alone may set it.
@@ -90,11 +70,7 @@ impl Via {
 /// The via mark for a request the grid itself makes: only the source VIA names may set it.
 pub fn via_header(via: Via, source: ViaSource) -> Result<(&'static str, &'static str), String> {
     if via.source() != source {
-        return Err(format!(
-            "x-wisp-proxy-via: {} is set by {:?}, not {source:?}",
-            via.value(),
-            via.source()
-        ));
+        return Err(format!("x-wisp-proxy-via: {} is set by {:?}, not {source:?}", via.value(), via.source()));
     }
     Ok(("x-wisp-proxy-via", via.value()))
 }
@@ -105,20 +81,10 @@ pub fn via_header(via: Via, source: ViaSource) -> Result<(&'static str, &'static
 /// x-wisp-session) are wisp's to read and go through to the box as they did in v1.
 pub fn is_mark(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
-    MARKS.iter().any(|m| m.header == n)
-        || n.starts_with("x-wisp-proxy")
-        || n.starts_with("x-forwarded")
+    MARKS.iter().any(|m| m.header == n) || n.starts_with("x-wisp-proxy") || n.starts_with("x-forwarded")
 }
 
-const HOP: [&str; 7] = [
-    "connection",
-    "keep-alive",
-    "proxy-connection",
-    "transfer-encoding",
-    "upgrade",
-    "te",
-    "trailer",
-];
+const HOP: [&str; 7] = ["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer"];
 
 pub fn is_hop(name: &str) -> bool {
     HOP.iter().any(|h| h.eq_ignore_ascii_case(name))
@@ -137,11 +103,7 @@ pub fn from_outside(headers: &http::HeaderMap, keep: Keep) -> http::HeaderMap {
     let mut out = http::HeaderMap::with_capacity(headers.len());
     for (k, v) in headers {
         let n = k.as_str();
-        if is_hop(n)
-            || is_mark(n)
-            || (n == "cookie" && !keep.cookie)
-            || (n == "authorization" && !keep.authorization)
-        {
+        if is_hop(n) || is_mark(n) || (n == "cookie" && !keep.cookie) || (n == "authorization" && !keep.authorization) {
             continue;
         }
         out.append(k.clone(), v.clone());
@@ -168,10 +130,7 @@ pub struct BoxTrust {
 
 impl std::fmt::Debug for BoxTrust {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BoxTrust")
-            .field("on", &self.on)
-            .field("origin", &self.origin)
-            .finish_non_exhaustive()
+        f.debug_struct("BoxTrust").field("on", &self.on).field("origin", &self.origin).finish_non_exhaustive()
     }
 }
 
@@ -179,23 +138,19 @@ impl BoxTrust {
     /// From the box's environment (`WISP_TRUSTED_PROXY_SECRET`, `WISP_PUBLIC_URL`). `warn` hears why a
     /// setting was ignored.
     pub fn from_env(env: &BTreeMap<String, String>, warn: &mut dyn FnMut(&str)) -> Self {
-        let secret = env
-            .get("WISP_TRUSTED_PROXY_SECRET")
-            .cloned()
-            .unwrap_or_default();
+        let secret = env.get("WISP_TRUSTED_PROXY_SECRET").cloned().unwrap_or_default();
         if !secret.is_empty() && secret.len() < MIN_PROXY_SECRET {
-            warn(&format!(
-                "wisp: WISP_TRUSTED_PROXY_SECRET is shorter than {MIN_PROXY_SECRET} characters; trusted-proxy mode stays off"
-            ));
+            warn(&format!("wisp: WISP_TRUSTED_PROXY_SECRET is shorter than {MIN_PROXY_SECRET} characters; trusted-proxy mode stays off"));
         }
         let on = secret.len() >= MIN_PROXY_SECRET;
-        let origin = env
-            .get("WISP_PUBLIC_URL")
-            .filter(|u| !u.is_empty())
-            .and_then(|u| if let Ok(p) = url::Url::parse(u) { Some(p.origin().ascii_serialization()) } else {
+        let origin = env.get("WISP_PUBLIC_URL").filter(|u| !u.is_empty()).and_then(|u| {
+            if let Ok(p) = url::Url::parse(u) {
+                Some(p.origin().ascii_serialization())
+            } else {
                 warn("wisp: WISP_PUBLIC_URL is not a URL; ignoring it");
                 None
-            });
+            }
+        });
         Self { on, origin, secret }
     }
 
@@ -204,10 +159,7 @@ impl BoxTrust {
         if !self.on {
             return false;
         }
-        headers
-            .get("x-wisp-proxy-secret")
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|got| safe_equal(got, &self.secret))
+        headers.get("x-wisp-proxy-secret").and_then(|v| v.to_str().ok()).is_some_and(|got| safe_equal(got, &self.secret))
     }
 
     /// A non-GET Origin through the edge: the public address (or, with none set, the Host asked for).
@@ -220,10 +172,7 @@ impl BoxTrust {
         if let Some(want) = &self.origin {
             return o == want;
         }
-        let bare = o
-            .strip_prefix("https://")
-            .or_else(|| o.strip_prefix("http://"))
-            .unwrap_or(o);
+        let bare = o.strip_prefix("https://").or_else(|| o.strip_prefix("http://")).unwrap_or(o);
         bare == get("x-forwarded-host") || bare == get("host")
     }
 }

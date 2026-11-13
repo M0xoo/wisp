@@ -26,7 +26,11 @@ const THREAD_TYPES: [u64; 3] = [10, 11, 12];
 /// `/wisp`. Mode has no Full auto to pick; a cloud wisp (`in_box`) reaches no machine.
 pub fn slash_command(in_box: bool) -> Value {
     let named = |name: &str, description: &str| json!({ "type": 3, "name": name, "description": description, "autocomplete": true });
-    let mut options = vec![json!({ "type": 3, "name": "prompt", "description": "What to do, or help, status, stop", "required": true }), named("crew", "A crew member"), named("project", "Where it runs")];
+    let mut options = vec![
+        json!({ "type": 3, "name": "prompt", "description": "What to do, or help, status, stop", "required": true }),
+        named("crew", "A crew member"),
+        named("project", "Where it runs"),
+    ];
     if !in_box {
         options.push(named("machine", "Which computer"));
     }
@@ -37,8 +41,26 @@ pub fn slash_command(in_box: bool) -> Value {
 
 /// The options as you'd have typed them: `@crew in project on machine with model mode: prompt`.
 pub fn slash_text(options: &Value) -> String {
-    let get = |k: &str| options.as_array().into_iter().flatten().find(|o| o["name"] == k).and_then(|o| o["value"].as_str()).map(str::trim).filter(|v| !v.is_empty());
-    let front: Vec<String> = [get("crew").map(|c| format!("@{c}")), get("project").map(|p| format!("in {p}")), get("machine").map(|m| format!("on {m}")), get("model").map(|m| format!("with {m}")), get("mode").map(str::to_owned)].into_iter().flatten().collect();
+    let get = |k: &str| {
+        options
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|o| o["name"] == k)
+            .and_then(|o| o["value"].as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+    };
+    let front: Vec<String> = [
+        get("crew").map(|c| format!("@{c}")),
+        get("project").map(|p| format!("in {p}")),
+        get("machine").map(|m| format!("on {m}")),
+        get("model").map(|m| format!("with {m}")),
+        get("mode").map(str::to_owned),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     let prompt = get("prompt").unwrap_or_default();
     if front.is_empty() { prompt.to_owned() } else { format!("{}: {prompt}", front.join(" ")) }
 }
@@ -52,7 +74,10 @@ pub enum Kind {
     /// a button's `custom_id`
     Button(String),
     /// the option being typed, and what's typed so far
-    Autocomplete { option: String, typed: String },
+    Autocomplete {
+        option: String,
+        typed: String,
+    },
     Other,
 }
 
@@ -85,7 +110,10 @@ pub fn read(d: &Value) -> Option<Interaction> {
         COMPONENT => Kind::Button(s(&d["data"]["custom_id"])),
         AUTOCOMPLETE => {
             let o = d["data"]["options"].as_array().into_iter().flatten().find(|o| o["focused"] == true);
-            Kind::Autocomplete { option: o.map(|o| s(&o["name"])).unwrap_or_default(), typed: o.map(|o| s(&o["value"])).unwrap_or_default() }
+            Kind::Autocomplete {
+                option: o.map(|o| s(&o["name"])).unwrap_or_default(),
+                typed: o.map(|o| s(&o["value"])).unwrap_or_default(),
+            }
         }
         _ => Kind::Other,
     };
@@ -106,7 +134,14 @@ pub fn read(d: &Value) -> Option<Interaction> {
 pub fn choices(pairs: &[(String, String)], typed: &str) -> Value {
     let typed = typed.to_lowercase();
     let cut = |s: &str| s.chars().take(100).collect::<String>();
-    Value::Array(pairs.iter().filter(|(n, _)| n.to_lowercase().contains(&typed)).take(25).map(|(n, v)| json!({ "name": cut(n), "value": cut(v) })).collect())
+    Value::Array(
+        pairs
+            .iter()
+            .filter(|(n, _)| n.to_lowercase().contains(&typed))
+            .take(25)
+            .map(|(n, v)| json!({ "name": cut(n), "value": cut(v) }))
+            .collect(),
+    )
 }
 
 /// A button's `custom_id`: `<kind code>:<session>:<ref>:<index>:<sig>`.
@@ -183,8 +218,13 @@ mod tests {
         let o = json!([{ "name": "prompt", "value": "fix the build" }, { "name": "crew", "value": "ada" }, { "name": "project", "value": "web" }, { "name": "mode", "value": "plan" }]);
         assert_eq!(slash_text(&o), "@ada in web plan: fix the build");
         assert_eq!(slash_text(&json!([{ "name": "prompt", "value": "status" }])), "status");
-        let names = |b: bool| slash_command(b)["options"].as_array().unwrap().iter().map(|o| o["name"].as_str().unwrap().to_owned()).collect::<Vec<_>>();
-        assert!(names(false).contains(&"machine".to_owned()) && !names(true).contains(&"machine".to_owned()), "a cloud wisp reaches no machine");
+        let names = |b: bool| {
+            slash_command(b)["options"].as_array().unwrap().iter().map(|o| o["name"].as_str().unwrap().to_owned()).collect::<Vec<_>>()
+        };
+        assert!(
+            names(false).contains(&"machine".to_owned()) && !names(true).contains(&"machine".to_owned()),
+            "a cloud wisp reaches no machine"
+        );
         let mode = slash_command(false)["options"].as_array().unwrap().iter().find(|o| o["name"] == "mode").unwrap().clone();
         assert_eq!(mode["choices"].as_array().unwrap().len(), 2, "Full auto is never a choice");
     }
@@ -203,7 +243,8 @@ mod tests {
 
     #[test]
     fn autocomplete_finds_what_contains_the_typed_text_25_at_most() {
-        let pairs: Vec<(String, String)> = (0..40).map(|n| (format!("Web {n}"), format!("web-{n}"))).chain([("api".to_owned(), "api".to_owned())]).collect();
+        let pairs: Vec<(String, String)> =
+            (0..40).map(|n| (format!("Web {n}"), format!("web-{n}"))).chain([("api".to_owned(), "api".to_owned())]).collect();
         let c = choices(&pairs, "wEB");
         assert_eq!(c.as_array().unwrap().len(), 25);
         assert_eq!(choices(&pairs, "ap"), json!([{ "name": "api", "value": "api" }]));

@@ -50,7 +50,15 @@ fn peer(kernel: &Kernel) -> wisp_protocol::PeerInfo {
         .filter(|s| s.state == "active")
         .map(|s| wisp_protocol::PeerPlugin { id: s.id, version: s.version, commands: Vec::new(), topics: Vec::new(), blocks: Vec::new() })
         .collect();
-    wisp_protocol::PeerInfo { peer: name.clone(), name, build: VERSION.into(), version: VERSION.into(), proto_min: 2, proto_max: 2, plugins }
+    wisp_protocol::PeerInfo {
+        peer: name.clone(),
+        name,
+        build: VERSION.into(),
+        version: VERSION.into(),
+        proto_min: 2,
+        proto_max: 2,
+        plugins,
+    }
 }
 
 /// How a task's agent reaches this wisp: the edge's address, and the task's own token (HMAC of the
@@ -86,7 +94,12 @@ fn snapshot_sources() -> Vec<wisp_api::v2_store::TopicSource> {
         .into_iter()
         .map(|d| wisp_api::v2_store::TopicSource { kind: d.kind, key: d.key, matches: config, query: |_| wisp_store::Query::new() })
         // the projects (wisp.runtime's `project` kind, `StoredKind::published`): read in full while runtime is on
-        .chain(std::iter::once(wisp_api::v2_store::TopicSource { kind: "project", key: "id", matches: config, query: |_| wisp_store::Query::new() }))
+        .chain(std::iter::once(wisp_api::v2_store::TopicSource {
+            kind: "project",
+            key: "id",
+            matches: config,
+            query: |_| wisp_store::Query::new(),
+        }))
         .collect()
 }
 
@@ -143,16 +156,31 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     tracing::info!("plugins in this build: {:?}", crate::groups::compiled(group));
     let store = open_store(home)?;
     // bound first: the agents' runs are told this address before the edge serves it
-    let ip: IpAddr = host.or(env("WISP_HOST").as_deref()).unwrap_or("127.0.0.1").parse().map_err(|_| CliError::said("WISP_HOST is not an IP address"))?;
+    let ip: IpAddr = host
+        .or(env("WISP_HOST").as_deref())
+        .unwrap_or("127.0.0.1")
+        .parse()
+        .map_err(|_| CliError::said("WISP_HOST is not an IP address"))?;
     let listener = tokio::net::TcpListener::bind((ip, port)).await.map_err(|e| {
-        if e.kind() == std::io::ErrorKind::AddrInUse { CliError::said(format!("port {port} is in use: is wisp already running? (wisp --port N picks another)")) } else { CliError::Io(e) }
+        if e.kind() == std::io::ErrorKind::AddrInUse {
+            CliError::said(format!("port {port} is in use: is wisp already running? (wisp --port N picks another)"))
+        } else {
+            CliError::Io(e)
+        }
     })?;
     let master = master_token();
-    let access: Arc<dyn wisp_runtime_api::points::AgentAccess> = Arc::new(Access { url: format!("http://127.0.0.1:{}", listener.local_addr().map_or(port, |a| a.port())), master: master.clone() });
+    let access: Arc<dyn wisp_runtime_api::points::AgentAccess> =
+        Arc::new(Access { url: format!("http://127.0.0.1:{}", listener.local_addr().map_or(port, |a| a.port())), master: master.clone() });
     // settings outlive a restart: the kernel's registry saves them through the store
-    let settings = crate::settings_store::StoreSettings::open(&store).map_err(|e| CliError::said(format!("wisp could not read its settings: {e}")))?;
+    let settings =
+        crate::settings_store::StoreSettings::open(&store).map_err(|e| CliError::said(format!("wisp could not read its settings: {e}")))?;
     let log = wisp_kernel::durable::EventLogService(std::sync::Arc::new(store.clone()));
-    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).service(log).service(access).service(settings).plugins(with_user_plugins(group.build(&at), home));
+    let app = crate::services::provide(App::new(), home, VERSION, notify)
+        .service(store.clone())
+        .service(log)
+        .service(access)
+        .service(settings)
+        .plugins(with_user_plugins(group.build(&at), home));
     let kernel = app.start().await.map_err(|e| CliError::said(format!("wisp could not start: {}", e.message)))?;
     for s in kernel.status().iter().filter(|s| s.state == "refused") {
         tracing::warn!("plugin {} refused: {}", s.id, s.reason.as_deref().unwrap_or(""));
@@ -175,7 +203,9 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     // every row leaves through its owner's `kernel.egress` view (ADR-0050: .env values never leave)
     let views: Arc<dyn wisp_api::egress::ViewSource> = Arc::new(kernel.clone());
     let readers = snapshot_readers();
-    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new()).with_readers(readers.clone()).with_views(views.clone());
+    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new())
+        .with_readers(readers.clone())
+        .with_views(views.clone());
     let driver = wisp_api::v2::Driver::start(Arc::new(snaps), backend.clone(), peer(&kernel));
     let feed = wisp_api::v2_store::feed_read(&store, driver.clone(), views, readers.into());
     hub.mount(driver);
@@ -231,5 +261,10 @@ pub fn open_url(url: &str) {
     } else {
         ("xdg-open", vec![url])
     };
-    let _ = std::process::Command::new(cmd).args(args).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn();
+    let _ = std::process::Command::new(cmd)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 }

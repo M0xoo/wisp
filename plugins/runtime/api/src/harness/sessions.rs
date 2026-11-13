@@ -62,7 +62,9 @@ pub fn safe_id(id: &str) -> bool {
 #[allow(clippy::many_single_char_names)] // y, m, d, h: the calendar
 pub fn iso_ms(s: &str) -> i64 {
     let n = |a: usize, b: usize| s.get(a..b).and_then(|x| x.parse::<i64>().ok());
-    let (Some(y), Some(m), Some(d), Some(h), Some(mi), Some(sec)) = (n(0, 4), n(5, 7), n(8, 10), n(11, 13), n(14, 16), n(17, 19)) else { return 0 };
+    let (Some(y), Some(m), Some(d), Some(h), Some(mi), Some(sec)) = (n(0, 4), n(5, 7), n(8, 10), n(11, 13), n(14, 16), n(17, 19)) else {
+        return 0;
+    };
     let ms = if s.get(19..20) == Some(".") { n(20, 23).unwrap_or(0) } else { 0 };
     // Howard Hinnant's days_from_civil
     let y2 = if m <= 2 { y - 1 } else { y };
@@ -80,7 +82,12 @@ pub fn content_text(c: &serde_json::Value) -> Option<String> {
     if let Some(s) = c.as_str() {
         return Some(s.to_owned());
     }
-    let parts: Vec<&str> = c.as_array()?.iter().filter(|p| matches!(p.get("type").and_then(serde_json::Value::as_str), Some("text" | "input_text" | "output_text"))).filter_map(|p| p.get("text").and_then(serde_json::Value::as_str)).collect();
+    let parts: Vec<&str> = c
+        .as_array()?
+        .iter()
+        .filter(|p| matches!(p.get("type").and_then(serde_json::Value::as_str), Some("text" | "input_text" | "output_text")))
+        .filter_map(|p| p.get("text").and_then(serde_json::Value::as_str))
+        .collect();
     (!parts.is_empty()).then(|| parts.join("\n"))
 }
 
@@ -108,7 +115,10 @@ mod tests {
     fn tags_and_folders() {
         assert_eq!(super::tagged("<t>x</t>\n<q>\n hi \n</q>", "q").as_deref(), Some("hi"));
         assert_eq!(super::tagged("<q>open", "q"), None);
-        assert_eq!(super::folder_forms("/tmp/a/", Some(std::path::Path::new("/private/tmp/a"))), vec!["/tmp/a".to_owned(), "/private/tmp/a".to_owned()]);
+        assert_eq!(
+            super::folder_forms("/tmp/a/", Some(std::path::Path::new("/private/tmp/a"))),
+            vec!["/tmp/a".to_owned(), "/private/tmp/a".to_owned()]
+        );
     }
 
     #[test]

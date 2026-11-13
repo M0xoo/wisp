@@ -15,7 +15,10 @@ use wisp_harness_kit::RunPaths;
 use wisp_harness_kit::detect::version_in;
 use wisp_harness_kit::protocol::{FileNote, attachment_note};
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
-use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
+use wisp_runtime_api::harness::{
+    ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip,
+    Stdin,
+};
 use wisp_runtime_api::model::Mode;
 use wisp_runtime_api::{HARNESS, Harness};
 
@@ -25,13 +28,19 @@ pub fn info() -> HarnessInfo {
     HarnessInfo {
         id: "cursor".into(),
         name: "Cursor".into(),
-        models: vec![HarnessModel { id: String::new(), label: "Default".into(), hint: Some("Whatever Cursor is set to".into()), efforts: Vec::new() }],
+        models: vec![HarnessModel {
+            id: String::new(),
+            label: "Default".into(),
+            hint: Some("Whatever Cursor is set to".into()),
+            efforts: Vec::new(),
+        }],
         ..HarnessInfo::default()
     }
 }
 
 async fn output(sys: &dyn HarnessSys, bin: &str, args: &[&str]) -> Option<String> {
-    let req = ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
+    let req =
+        ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
     match sys.exec(req).await {
         Ok(o) if o.code == Some(0) && !o.timed_out => Some(o.stdout),
         _ => None,
@@ -48,9 +57,16 @@ fn mode(m: Mode) -> &'static str {
 
 /// The launch (the runtime already put wisp's protocol ahead of a new chat's prompt).
 pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
-    let notes: Vec<FileNote> = run.attachments.iter().filter_map(|a| a.path.clone().map(|path| FileNote { path, mime: a.mime.clone(), size: a.size })).collect();
+    let notes: Vec<FileNote> =
+        run.attachments.iter().filter_map(|a| a.path.clone().map(|path| FileNote { path, mime: a.mime.clone(), size: a.size })).collect();
     let input = format!("{}{}", run.prompt, attachment_note(&notes, None));
-    Launch { program: bin.to_owned(), args: args(mode(run.mode), &run.model, run.resume_id.as_deref()), cwd: run.cwd.clone(), stdin: Stdin::Bytes(input.into_bytes()), ..Launch::default() }
+    Launch {
+        program: bin.to_owned(),
+        args: args(mode(run.mode), &run.model, run.resume_id.as_deref()),
+        cwd: run.cwd.clone(),
+        stdin: Stdin::Bytes(input.into_bytes()),
+        ..Launch::default()
+    }
 }
 
 #[derive(Debug)]
@@ -67,7 +83,12 @@ impl Default for CursorHarness {
 
 impl CursorHarness {
     fn bin(&self) -> String {
-        self.bin.lock().ok().and_then(|b| b.clone()).or_else(|| std::env::var("WISP_CURSOR_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned())
+        self.bin
+            .lock()
+            .ok()
+            .and_then(|b| b.clone())
+            .or_else(|| std::env::var("WISP_CURSOR_BIN").ok().filter(|b| !b.is_empty()))
+            .unwrap_or_else(|| DEFAULT_BIN.to_owned())
     }
 }
 
@@ -92,9 +113,22 @@ impl Harness for CursorHarness {
                 *b = Some(bin.clone());
             }
             let mut models = vec![self.info.models[0].clone()];
-            models.extend(list_models(&output(sys, &bin, &["--list-models"]).await.unwrap_or_default()).into_iter().map(|(id, label)| HarnessModel { hint: Some(id.clone()), id, label, efforts: Vec::new() }));
+            models.extend(
+                list_models(&output(sys, &bin, &["--list-models"]).await.unwrap_or_default()).into_iter().map(|(id, label)| HarnessModel {
+                    hint: Some(id.clone()),
+                    id,
+                    label,
+                    efforts: Vec::new(),
+                }),
+            );
             let v = version_in(&line);
-            HarnessFound { available: true, version: Some(if v.is_empty() { line.trim().to_owned() } else { v }), bin: Some(bin), models: Some(models), ..HarnessFound::default() }
+            HarnessFound {
+                available: true,
+                version: Some(if v.is_empty() { line.trim().to_owned() } else { v }),
+                bin: Some(bin),
+                models: Some(models),
+                ..HarnessFound::default()
+            }
         })
     }
 

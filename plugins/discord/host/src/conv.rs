@@ -35,7 +35,17 @@ impl<'a> DiscordConv<'a> {
     pub fn new(discord: &'a Discord, phone: std::sync::Arc<dyn Phone>, ctx: ChannelCtx, m: &'a Message, hook: Option<String>) -> Self {
         let anchor = hook.is_none().then(|| m.id.clone());
         let reply = hook.is_none().then(|| m.id.clone());
-        Self { discord, phone, ctx, m, target: Mutex::new((m.channel.clone(), reply)), in_thread: Mutex::new(false), hook: Mutex::new(hook), anchor: Mutex::new(anchor), slash_thread: false }
+        Self {
+            discord,
+            phone,
+            ctx,
+            m,
+            target: Mutex::new((m.channel.clone(), reply)),
+            in_thread: Mutex::new(false),
+            hook: Mutex::new(hook),
+            anchor: Mutex::new(anchor),
+            slash_thread: false,
+        }
     }
 
     fn plain(&self) -> Thread {
@@ -92,7 +102,11 @@ impl Conversation for DiscordConv<'_> {
     /// stays in it); in a DM, or where Discord makes none, replies.
     async fn thread(&self, p: &Parsed) -> Option<Thread> {
         let held = self.discord.session_for(&self.m.channel, self.m.reference.as_deref());
-        let in_this_thread = held.as_ref().and_then(|h| self.discord.hub.remote_of(h)).and_then(|r| r.get(NAME).cloned()).is_some_and(|t| t["thread"] == true && t["channel"] == self.m.channel.as_str());
+        let in_this_thread = held
+            .as_ref()
+            .and_then(|h| self.discord.hub.remote_of(h))
+            .and_then(|r| r.get(NAME).cloned())
+            .is_some_and(|t| t["thread"] == true && t["channel"] == self.m.channel.as_str());
         if self.slash_thread {
             *lock(&self.in_thread) = true;
         } else if !self.m.dm && !in_this_thread {
@@ -103,7 +117,14 @@ impl Conversation for DiscordConv<'_> {
             let Some(anchor) = lock(&self.anchor).clone() else { return Some(self.plain()) };
             let first = p.prompt.lines().next().unwrap_or_default();
             let name = Some(truncate(&scrub_out(first, false).text, 90)).filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "wisp".into());
-            let made = self.discord.rest("POST", &format!("/channels/{}/messages/{anchor}/threads", self.m.channel), Some(&json!({ "name": name, "auto_archive_duration": 1440 }))).await;
+            let made = self
+                .discord
+                .rest(
+                    "POST",
+                    &format!("/channels/{}/messages/{anchor}/threads", self.m.channel),
+                    Some(&json!({ "name": name, "auto_archive_duration": 1440 })),
+                )
+                .await;
             if let Ok(t) = made
                 && let Some(id) = t.get("id").and_then(Value::as_str)
             {

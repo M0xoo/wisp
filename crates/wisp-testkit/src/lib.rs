@@ -12,9 +12,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 use tokio::sync::oneshot;
-use wisp_kernel::{
-    App, BoxFuture, Caller, Clock, Code, Declarative, Kernel, Manifest, Plugin, PluginGroup,
-};
+use wisp_kernel::{App, BoxFuture, Caller, Clock, Code, Declarative, Kernel, Manifest, Plugin, PluginGroup};
 
 /// A clock that moves only when the test says so. `sleep` resolves once `advance` passes its deadline.
 #[derive(Debug, Clone, Default)]
@@ -35,9 +33,7 @@ impl FakeClock {
         c
     }
     fn lock(&self) -> std::sync::MutexGuard<'_, ClockState> {
-        self.inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
     /// Moves time forward and wakes every sleeper whose deadline passed, in deadline order.
     pub fn advance(&self, ms: u64) {
@@ -95,9 +91,7 @@ pub struct TestApp {
 
 impl std::fmt::Debug for TestApp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TestApp")
-            .field("plugins", &self.manifests.len())
-            .finish_non_exhaustive()
+        f.debug_struct("TestApp").field("plugins", &self.manifests.len()).finish_non_exhaustive()
     }
 }
 
@@ -109,11 +103,7 @@ impl Default for TestApp {
 
 impl TestApp {
     pub fn new() -> Self {
-        Self {
-            app: App::new(),
-            group: PluginGroup::new(),
-            manifests: Vec::new(),
-        }
+        Self { app: App::new(), group: PluginGroup::new(), manifests: Vec::new() }
     }
     #[must_use]
     pub fn with(mut self, p: impl Plugin) -> Self {
@@ -135,36 +125,20 @@ impl TestApp {
     }
     pub async fn start(self) -> Kernel {
         let have: BTreeSet<String> = self.manifests.iter().map(|m| m.id.clone()).collect();
-        let provided: BTreeSet<String> = self
-            .manifests
-            .iter()
-            .flat_map(|m| m.provides.keys().cloned())
-            .collect();
+        let provided: BTreeSet<String> = self.manifests.iter().flat_map(|m| m.provides.keys().cloned()).collect();
         let mut group = self.group;
         let mut stubbed = BTreeSet::new();
         for m in &self.manifests {
-            let mut wanted: Vec<(String, String)> = m
-                .requirements()
-                .into_iter()
-                .filter(|r| !r.optional)
-                .map(|r| (r.id, r.version))
-                .collect();
+            let mut wanted: Vec<(String, String)> =
+                m.requirements().into_iter().filter(|r| !r.optional).map(|r| (r.id, r.version)).collect();
             wanted.extend(m.extends.clone().map(|e| (e, "*".to_owned())));
             for (id, range) in wanted {
-                if !have.contains(&id)
-                    && !provided.contains(&id)
-                    && !id.ends_with(".service")
-                    && stubbed.insert(id.clone())
-                {
+                if !have.contains(&id) && !provided.contains(&id) && !id.ends_with(".service") && stubbed.insert(id.clone()) {
                     group = group.add(Declarative(stub_manifest(&id, &range)));
                 }
             }
         }
-        self.app
-            .plugins(group)
-            .start()
-            .await
-            .expect("the test kernel starts")
+        self.app.plugins(group).start().await.expect("the test kernel starts")
     }
 }
 
@@ -174,14 +148,12 @@ fn stub_manifest(id: &str, range: &str) -> Manifest {
         .flat_map(|x| (0..50).map(move |y| format!("{x}.{y}.0")))
         .find(|v| wisp_kernel::semver::satisfies(v, range))
         .unwrap_or_else(|| "1.0.0".into());
-    Manifest::from_value(json!({ "wispPlugin": 1, "id": id, "version": version, "api": "^1", "description": "a testkit stub" })).expect("stub manifest")
+    Manifest::from_value(json!({ "wispPlugin": 1, "id": id, "version": version, "api": "^1", "description": "a testkit stub" }))
+        .expect("stub manifest")
 }
 
 fn state(k: &Kernel, id: &str) -> (String, Option<String>) {
-    k.status().into_iter().find(|s| s.id == id).map_or_else(
-        || panic!("{id} isn't in the kernel"),
-        |s| (s.state, s.reason),
-    )
+    k.status().into_iter().find(|s| s.id == id).map_or_else(|| panic!("{id} isn't in the kernel"), |s| (s.state, s.reason))
 }
 
 /// Free test (plan §6.10): start the plugin, switch it off, and nothing it registered is left:
@@ -196,20 +168,11 @@ pub async fn assert_deactivate_leaks_nothing(p: impl Plugin) {
         }
     }
     let (s, why) = state(&k, &m.id);
-    assert_eq!(
-        s, "active",
-        "{} should be active before the leak check: {why:?}",
-        m.id
-    );
+    assert_eq!(s, "active", "{} should be active before the leak check: {why:?}", m.id);
     k.set_enabled(&m.id, false).await.expect("switch off");
     k.idle().await;
     assert_eq!(state(&k, &m.id).0, "off");
-    assert_eq!(
-        k.registrations(&m.id),
-        0,
-        "{} left registrations behind after it was switched off",
-        m.id
-    );
+    assert_eq!(k.registrations(&m.id), 0, "{} left registrations behind after it was switched off", m.id);
     assert!(k.ctx(&m.id).is_none(), "{} still has a context", m.id);
 }
 
@@ -218,23 +181,10 @@ pub async fn assert_deactivate_leaks_nothing(p: impl Plugin) {
 pub async fn assert_missing_permission_refused(p: impl Plugin, cmd: &str, args: Value) {
     let k = TestApp::new().with(p).start().await;
     let nobody = Caller::set("pane:wisp-testkit-nobody");
-    let e = k
-        .call(nobody, cmd, args.clone())
-        .await
-        .expect_err("a caller without the permission must be refused");
+    let e = k.call(nobody, cmd, args.clone()).await.expect_err("a caller without the permission must be refused");
     if let Err(u) = k.call(Caller::user(), cmd, args).await {
-        assert_ne!(
-            u.code,
-            Code::NotFound,
-            "{cmd} isn't registered: {}",
-            u.message
-        );
-        assert_ne!(
-            u.code,
-            Code::Forbidden,
-            "{cmd} refused the user too: {}",
-            u.message
-        );
+        assert_ne!(u.code, Code::NotFound, "{cmd} isn't registered: {}", u.message);
+        assert_ne!(u.code, Code::Forbidden, "{cmd} refused the user too: {}", u.message);
     }
     assert_eq!(e.code, Code::Forbidden, "{cmd}: {}", e.message);
 }
@@ -269,13 +219,9 @@ pub fn assert_golden_at(dir: &Path, name: &str, actual: &Value) {
         return;
     }
     let Ok(want) = std::fs::read_to_string(&path) else {
-        panic!(
-            "no golden at {}: run with UPDATE_GOLDENS=1 to write it",
-            path.display()
-        );
+        panic!("no golden at {}: run with UPDATE_GOLDENS=1 to write it", path.display());
     };
-    let want_v: Value =
-        serde_json::from_str(&want).unwrap_or_else(|e| panic!("{}: not JSON: {e}", path.display()));
+    let want_v: Value = serde_json::from_str(&want).unwrap_or_else(|e| panic!("{}: not JSON: {e}", path.display()));
     assert!(
         want_v == *actual,
         "{} differs from the golden (UPDATE_GOLDENS=1 rewrites it)\n--- golden\n{want}\n--- actual\n{text}",
@@ -297,13 +243,7 @@ pub fn fake_gh_bin() -> PathBuf {
 /// default cargo layout; tests should prefer `CARGO_BIN_EXE_<bin>` with [`install_fakes_from`].
 fn sibling(name: &str) -> PathBuf {
     let exe = std::env::current_exe().unwrap_or_default();
-    let dir = exe.parent().map_or(Path::new("."), |d| {
-        if d.ends_with("deps") {
-            d.parent().unwrap_or(d)
-        } else {
-            d
-        }
-    });
+    let dir = exe.parent().map_or(Path::new("."), |d| if d.ends_with("deps") { d.parent().unwrap_or(d) } else { d });
     dir.join(format!("{name}{}", std::env::consts::EXE_SUFFIX))
 }
 
@@ -315,12 +255,7 @@ pub fn install_fakes(dir: &Path, names: &[&str]) -> std::io::Result<()> {
 
 /// [`install_fakes`] from given binaries: for another crate's tests, whose executable doesn't sit
 /// next to this crate's bins (they find them next to `CARGO_BIN_EXE_<their bin>` instead).
-pub fn install_fakes_from(
-    dir: &Path,
-    names: &[&str],
-    agent: &Path,
-    gh: &Path,
-) -> std::io::Result<()> {
+pub fn install_fakes_from(dir: &Path, names: &[&str], agent: &Path, gh: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
     for n in names {
         let src = if *n == "gh" { gh } else { agent };

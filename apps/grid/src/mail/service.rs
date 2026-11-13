@@ -81,7 +81,12 @@ impl std::fmt::Debug for Http {
 impl Wire for Http {
     async fn send(&self, from: &str, to: &str, raw: &str) -> std::result::Result<(), String> {
         let stamp = stamp(self.clock.now_ms());
-        let creds = ses::Creds { region: &self.out.region, key_id: &self.out.access_key_id, secret: &self.out.secret_access_key, endpoint: self.out.endpoint.as_deref() };
+        let creds = ses::Creds {
+            region: &self.out.region,
+            key_id: &self.out.access_key_id,
+            secret: &self.out.secret_access_key,
+            endpoint: self.out.endpoint.as_deref(),
+        };
         let (url, body, headers) = ses::send_request(creds, from, to, raw, &stamp);
         let mut req = self.client.post(url).body(body).timeout(std::time::Duration::from_secs(15));
         for (k, v) in headers {
@@ -185,7 +190,14 @@ impl MailService {
         if !domain.eq_ignore_ascii_case(&self.opts.domain) {
             return Ok(None);
         }
-        let id: Option<String> = self.db.with(|c| c.query_row("SELECT user_id FROM channel_urls WHERE token_hash = ?1 AND channel = 'email'", [sha256(local.to_lowercase())], |r| r.get(0)).optional())?;
+        let id: Option<String> = self.db.with(|c| {
+            c.query_row(
+                "SELECT user_id FROM channel_urls WHERE token_hash = ?1 AND channel = 'email'",
+                [sha256(local.to_lowercase())],
+                |r| r.get(0),
+            )
+            .optional()
+        })?;
         let Some(id) = id else { return Ok(None) };
         crate::accounts::Accounts { db: self.db.clone(), clock: self.clock.clone() }.user_by_id(&id)
     }
@@ -204,7 +216,9 @@ impl MailService {
         let secrets = inbox.secrets.as_ref().ok_or_else(|| bad("This grid has no master key, so no mail.", 409))?;
         let fresh = token("", 24).to_lowercase();
         secrets.seal(&user.id, "channel:email", &fresh)?;
-        self.db.with(|c| c.execute("UPDATE channel_urls SET token_hash = ?1 WHERE user_id = ?2 AND channel = 'email'", params![sha256(&fresh), user.id]))?;
+        self.db.with(|c| {
+            c.execute("UPDATE channel_urls SET token_hash = ?1 WHERE user_id = ?2 AND channel = 'email'", params![sha256(&fresh), user.id])
+        })?;
         Ok(format!("{fresh}@{}", self.opts.domain))
     }
 
@@ -237,7 +251,9 @@ impl MailService {
 
     async fn webhook_in(&self, inbox: &Inbox, raw: &[u8], held: &mut Vec<UserRow>) -> Result<Answer> {
         let Ok(j) = serde_json::from_slice::<Value>(raw) else { return Ok((403, json!({ "error": "Not signed." }))) };
-        let Some((cert, text, sig)) = ses::signed_text(&j, &self.opts.topic_arn, self.clock.now_ms()) else { return Ok((403, json!({ "error": "Not signed." }))) };
+        let Some((cert, text, sig)) = ses::signed_text(&j, &self.opts.topic_arn, self.clock.now_ms()) else {
+            return Ok((403, json!({ "error": "Not signed." })));
+        };
         if !self.keys_for(&cert).await.iter().any(|k| ses::verify(k, &text, &sig)) {
             return Ok((403, json!({ "error": "Not signed." })));
         }
@@ -260,7 +276,9 @@ impl MailService {
                 }
                 // last, so neither a stranger's guess at an address nor a forged webhook costs a DNS lookup
                 if !users.is_empty() && self.wanted(&m, &source) {
-                    let Some(v) = self.proved(&verdict, exact, named.as_ref(), &content, &m).await else { return Ok((503, json!({ "error": "Try again." }))) };
+                    let Some(v) = self.proved(&verdict, exact, named.as_ref(), &content, &m).await else {
+                        return Ok((503, json!({ "error": "Try again." })));
+                    };
                     for u in users {
                         if Self::take(inbox, &u, &m, &v)? {
                             held.push(u);
@@ -275,7 +293,11 @@ impl MailService {
     /// One recipient's copy, held for its box with the grid's own headers.
     fn take(inbox: &Inbox, user: &UserRow, m: &Mail, verdict: &str) -> Result<bool> {
         let Some(def) = crate::inbox::channel("email") else { return Ok(false) };
-        let headers = vec![(FROM_HEADER.to_owned(), m.from.clone()), (DMARC_HEADER.to_owned(), verdict.to_owned()), (ID_HEADER.to_owned(), m.message_id.clone())];
+        let headers = vec![
+            (FROM_HEADER.to_owned(), m.from.clone()),
+            (DMARC_HEADER.to_owned(), verdict.to_owned()),
+            (ID_HEADER.to_owned(), m.message_id.clone()),
+        ];
         let body = json!({ "messageId": m.message_id, "subject": m.subject, "text": m.text, "html": m.html, "date": crate::mail::date_iso(&m.date), "inReplyTo": m.in_reply_to, "references": m.references, "attachments": m.attachments, "files": m.files.iter().map(|f| json!({ "name": f.name, "mime": f.mime, "data": base64::engine::general_purpose::STANDARD.encode(&f.bytes) })).collect::<Vec<_>>() });
         let bytes = body.to_string().into_bytes();
         if inbox.hold(user, def, &bytes, &headers, true, &body)? {
@@ -297,7 +319,11 @@ impl MailService {
         if h(DMARC_HEADER) != "pass" || h(FROM_HEADER).is_empty() || h(ID_HEADER).is_empty() {
             return Ok(());
         }
-        let refs = serde_json::from_slice::<Value>(body).ok().map(|b| b["references"].clone()).filter(Value::is_array).unwrap_or_else(|| json!([]));
+        let refs = serde_json::from_slice::<Value>(body)
+            .ok()
+            .map(|b| b["references"].clone())
+            .filter(Value::is_array)
+            .unwrap_or_else(|| json!([]));
         let now = self.clock.now_ms();
         let live = now - self.opts.thread_days * 24 * HOUR_MS;
         self.db.with(|c| {
@@ -316,7 +342,14 @@ impl MailService {
         let now = self.clock.now_ms();
         let live = now - self.opts.thread_days * 24 * HOUR_MS;
         let reply_to = body["replyTo"].as_str().unwrap_or_default();
-        let t: Option<(String, String, String)> = self.db.with(|c| c.query_row("SELECT message_id, to_addr, refs FROM mail_threads WHERE user_id = ?1 AND message_id = ?2 AND at >= ?3", params![user.id, reply_to, live], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).optional())?;
+        let t: Option<(String, String, String)> = self.db.with(|c| {
+            c.query_row(
+                "SELECT message_id, to_addr, refs FROM mail_threads WHERE user_id = ?1 AND message_id = ?2 AND at >= ?3",
+                params![user.id, reply_to, live],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()
+        })?;
         let Some((message_id, to, refs)) = t else { return Err(bad("No such thread.", 404)) };
         let text = body["text"].as_str().filter(|t| !t.trim().is_empty()).ok_or_else(|| bad("Nothing to send.", 400))?;
         if text.len() > REPLY_MAX {
@@ -341,7 +374,17 @@ impl MailService {
         let keep = references.len().saturating_sub(mime::REFS_MAX);
         let references = references.split_off(keep);
         let date = crate::mail::rfc5322(now);
-        let raw = mime::compose_mail(&mime::Out { from: &format!("wisp <{from}>"), to: &to, subject: &subject, text: &clean, message_id: &id, in_reply_to: &message_id, references: &references, date: &date }).ok_or_else(|| bad("A line break in a header.", 400))?;
+        let raw = mime::compose_mail(&mime::Out {
+            from: &format!("wisp <{from}>"),
+            to: &to,
+            subject: &subject,
+            text: &clean,
+            message_id: &id,
+            in_reply_to: &message_id,
+            references: &references,
+            date: &date,
+        })
+        .ok_or_else(|| bad("A line break in a header.", 400))?;
         if let Err(e) = self.out.send(&from, &to, &raw).await {
             tracing::warn!("grid: mail: a reply didn’t go: {e}");
             return Err(bad("The mail provider didn’t take it.", 502));

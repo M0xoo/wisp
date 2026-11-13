@@ -48,7 +48,15 @@ pub fn plan(current: &[Resource], desired: &[Resource], prune: bool) -> (Vec<Op>
     let mut same = 0;
     for d in desired {
         match current.iter().find(|c| c.name == d.name) {
-            None => ops.push(Op { op: OpKind::Create, kind: d.kind.clone(), name: d.name.clone(), spec: d.spec.clone(), id: None, changes: Vec::new(), before: None }),
+            None => ops.push(Op {
+                op: OpKind::Create,
+                kind: d.kind.clone(),
+                name: d.name.clone(),
+                spec: d.spec.clone(),
+                id: None,
+                changes: Vec::new(),
+                before: None,
+            }),
             Some(c) => {
                 let next = merge(&c.spec, &d.spec);
                 if next == c.spec {
@@ -56,14 +64,30 @@ pub fn plan(current: &[Resource], desired: &[Resource], prune: bool) -> (Vec<Op>
                 } else {
                     let mut changes = Vec::new();
                     diff(&c.spec, &next, "", &mut changes);
-                    ops.push(Op { op: OpKind::Update, kind: d.kind.clone(), name: d.name.clone(), spec: next, id: c.id.clone(), changes, before: Some(c.spec.clone()) });
+                    ops.push(Op {
+                        op: OpKind::Update,
+                        kind: d.kind.clone(),
+                        name: d.name.clone(),
+                        spec: next,
+                        id: c.id.clone(),
+                        changes,
+                        before: Some(c.spec.clone()),
+                    });
                 }
             }
         }
     }
     if prune {
         for c in current.iter().filter(|c| !desired.iter().any(|d| d.name == c.name)) {
-            ops.push(Op { op: OpKind::Delete, kind: c.kind.clone(), name: c.name.clone(), spec: c.spec.clone(), id: c.id.clone(), changes: Vec::new(), before: None });
+            ops.push(Op {
+                op: OpKind::Delete,
+                kind: c.kind.clone(),
+                name: c.name.clone(),
+                spec: c.spec.clone(),
+                id: c.id.clone(),
+                changes: Vec::new(),
+                before: None,
+            });
         }
     }
     (ops, same)
@@ -74,14 +98,30 @@ pub fn plan(current: &[Resource], desired: &[Resource], prune: bool) -> (Vec<Op>
 pub fn undo(done: &Op, now: Option<&Resource>) -> Option<Op> {
     let id = now.and_then(|r| r.id.clone()).or_else(|| done.id.clone());
     match done.op {
-        OpKind::Create => now.map(|r| Op { op: OpKind::Delete, kind: done.kind.clone(), name: done.name.clone(), spec: r.spec.clone(), id, changes: Vec::new(), before: None }),
+        OpKind::Create => now.map(|r| Op {
+            op: OpKind::Delete,
+            kind: done.kind.clone(),
+            name: done.name.clone(),
+            spec: r.spec.clone(),
+            id,
+            changes: Vec::new(),
+            before: None,
+        }),
         OpKind::Update => {
             let before = done.before.clone()?;
             let mut changes = Vec::new();
             diff(now.map_or(&done.spec, |r| &r.spec), &before, "", &mut changes);
             Some(Op { op: OpKind::Update, kind: done.kind.clone(), name: done.name.clone(), spec: before, id, changes, before: None })
         }
-        OpKind::Delete => Some(Op { op: OpKind::Create, kind: done.kind.clone(), name: done.name.clone(), spec: done.spec.clone(), id: None, changes: Vec::new(), before: None }),
+        OpKind::Delete => Some(Op {
+            op: OpKind::Create,
+            kind: done.kind.clone(),
+            name: done.name.clone(),
+            spec: done.spec.clone(),
+            id: None,
+            changes: Vec::new(),
+            before: None,
+        }),
     }
 }
 
@@ -136,12 +176,24 @@ mod tests {
 
     #[test]
     fn a_desired_spec_patches_the_current_one() {
-        let cur = [r("reviewer", json!({ "harness": "codex", "model": "gpt-5", "effort": "high" })), r("fixer", json!({ "harness": "claude" }))];
-        let want = [r("reviewer", json!({ "model": "gpt-5-pro" })), r("fixer", json!({ "harness": "claude" })), r("writer", json!({ "harness": "claude" }))];
+        let cur =
+            [r("reviewer", json!({ "harness": "codex", "model": "gpt-5", "effort": "high" })), r("fixer", json!({ "harness": "claude" }))];
+        let want = [
+            r("reviewer", json!({ "model": "gpt-5-pro" })),
+            r("fixer", json!({ "harness": "claude" })),
+            r("writer", json!({ "harness": "claude" })),
+        ];
         let (ops, same) = plan(&cur, &want, false);
         assert_eq!(same, 1);
-        assert_eq!(ops.iter().map(|o| (o.op, o.name.as_str())).collect::<Vec<_>>(), [(OpKind::Update, "reviewer"), (OpKind::Create, "writer")]);
-        assert_eq!(ops[0].spec, json!({ "harness": "codex", "model": "gpt-5-pro", "effort": "high" }), "effort kept: the formula left it out");
+        assert_eq!(
+            ops.iter().map(|o| (o.op, o.name.as_str())).collect::<Vec<_>>(),
+            [(OpKind::Update, "reviewer"), (OpKind::Create, "writer")]
+        );
+        assert_eq!(
+            ops[0].spec,
+            json!({ "harness": "codex", "model": "gpt-5-pro", "effort": "high" }),
+            "effort kept: the formula left it out"
+        );
         assert_eq!(ops[0].changes, [FieldChange { path: "model".into(), from: Some(json!("gpt-5")), to: Some(json!("gpt-5-pro")) }]);
         let (ops, _) = plan(&cur, &want[..1], true);
         assert!(ops.iter().any(|o| o.op == OpKind::Delete && o.name == "fixer"), "prune deletes what isn't declared");
@@ -156,7 +208,8 @@ mod tests {
     #[test]
     fn each_op_has_its_undo() {
         let cur = [r("reviewer", json!({ "harness": "codex", "effort": "high" }))];
-        let (ops, _) = plan(&cur, &[r("reviewer", json!({ "effort": "low", "model": "m" })), r("new", json!({ "harness": "claude" }))], false);
+        let (ops, _) =
+            plan(&cur, &[r("reviewer", json!({ "effort": "low", "model": "m" })), r("new", json!({ "harness": "claude" }))], false);
         let back = undo(&ops[0], Some(&r("reviewer", ops[0].spec.clone()))).unwrap();
         assert_eq!((back.op, back.spec.clone()), (OpKind::Update, json!({ "harness": "codex", "effort": "high" })));
         assert!(back.changes.iter().any(|c| c.path == "model" && c.to.is_none()), "a field it added goes again: {:?}", back.changes);
@@ -168,9 +221,19 @@ mod tests {
 
     #[test]
     fn deletes_go_last_and_in_reverse() {
-        let kinds = [KindInfo::new("project", "projects", "x", json!({})).order(10), KindInfo::new("crew", "crew", "x", json!({})).order(50)];
-        let op = |o: OpKind, k: &str| Op { op: o, kind: k.into(), name: "n".into(), spec: Value::Null, id: None, changes: Vec::new(), before: None };
-        let mut ops = vec![op(OpKind::Delete, "project"), op(OpKind::Create, "crew"), op(OpKind::Delete, "crew"), op(OpKind::Create, "project")];
+        let kinds =
+            [KindInfo::new("project", "projects", "x", json!({})).order(10), KindInfo::new("crew", "crew", "x", json!({})).order(50)];
+        let op = |o: OpKind, k: &str| Op {
+            op: o,
+            kind: k.into(),
+            name: "n".into(),
+            spec: Value::Null,
+            id: None,
+            changes: Vec::new(),
+            before: None,
+        };
+        let mut ops =
+            vec![op(OpKind::Delete, "project"), op(OpKind::Create, "crew"), op(OpKind::Delete, "crew"), op(OpKind::Create, "project")];
         order(&mut ops, &kinds);
         let got: Vec<(OpKind, &str)> = ops.iter().map(|o| (o.op, o.kind.as_str())).collect();
         assert_eq!(got, [(OpKind::Create, "project"), (OpKind::Create, "crew"), (OpKind::Delete, "crew"), (OpKind::Delete, "project")]);

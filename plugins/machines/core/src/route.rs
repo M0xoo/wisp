@@ -76,7 +76,18 @@ mod tests {
     use super::*;
 
     fn row(id: &str, peer: Option<&str>) -> PeerRow {
-        PeerRow { id: id.into(), peer: peer.map(str::to_owned), name: id.into(), transport: "ssh".into(), address: "box".into(), port: 4477, command: String::new(), auto_connect: true, added_at: 0, data: BTreeMap::new() }
+        PeerRow {
+            id: id.into(),
+            peer: peer.map(str::to_owned),
+            name: id.into(),
+            transport: "ssh".into(),
+            address: "box".into(),
+            port: 4477,
+            command: String::new(),
+            auto_connect: true,
+            added_at: 0,
+            data: BTreeMap::new(),
+        }
     }
 
     #[test]

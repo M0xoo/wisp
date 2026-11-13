@@ -95,9 +95,6 @@ mod tests {
     fn json_lines_skip_noise() {
         assert!(json_line("  ").is_none());
         assert!(json_line("not json").is_none());
-        assert_eq!(
-            json_line(r#"{"a":1}"#).map(|v| v["a"].clone()),
-            Some(serde_json::json!(1))
-        );
+        assert_eq!(json_line(r#"{"a":1}"#).map(|v| v["a"].clone()), Some(serde_json::json!(1)));
     }
 }

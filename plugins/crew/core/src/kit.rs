@@ -92,7 +92,10 @@ pub fn parse_skill_md(text: &str) -> SkillMd {
             let mut v = v.trim().to_owned();
             if matches!(v.as_str(), ">" | "|" | ">-" | "|-" | ">+" | "|+") {
                 let mut more = Vec::new();
-                while i + 1 < lines.len() && (lines[i + 1].is_empty() || lines[i + 1].starts_with(char::is_whitespace)) && meta_key(lines[i + 1]).is_none() {
+                while i + 1 < lines.len()
+                    && (lines[i + 1].is_empty() || lines[i + 1].starts_with(char::is_whitespace))
+                    && meta_key(lines[i + 1]).is_none()
+                {
                     i += 1;
                     more.push(lines[i].trim());
                 }
@@ -102,7 +105,11 @@ pub fn parse_skill_md(text: &str) -> SkillMd {
         }
         i += 1;
     }
-    SkillMd { name: meta.remove("name").unwrap_or_default(), description: meta.remove("description").unwrap_or_default(), body: body.trim().to_owned() }
+    SkillMd {
+        name: meta.remove("name").unwrap_or_default(),
+        description: meta.remove("description").unwrap_or_default(),
+        body: body.trim().to_owned(),
+    }
 }
 
 /// The SKILL.md a skill in a kit is written out as.
@@ -148,7 +155,11 @@ fn kit_file(x: &Value, out: &[KitFile], exists: &dyn Fn(&str) -> bool, ids: &mut
     if n > KIT_BODY_MAX {
         return Err(bad(format!("{name} is too long ({} characters; at most {}).", thousands(n), thousands(KIT_BODY_MAX))));
     }
-    let path = x.get("path").and_then(Value::as_str).filter(|p| kind == "skill" && p.starts_with('/') && p.len() < 500 && exists(p)).map(str::to_owned);
+    let path = x
+        .get("path")
+        .and_then(Value::as_str)
+        .filter(|p| kind == "skill" && p.starts_with('/') && p.len() < 500 && exists(p))
+        .map(str::to_owned);
     let id = x.get("id").and_then(Value::as_str).filter(|s| is_id(s)).map_or_else(|| ids.next_id(), str::to_owned);
     let on = x.get("on") != Some(&Value::Bool(false));
     Ok(KitFile { id, kind: kind.to_owned(), name, description: (kind == "skill").then_some(description), body, path, on })
@@ -166,7 +177,10 @@ pub fn normalize_kit(list: &Value, exists: &dyn Fn(&str) -> bool, ids: &mut dyn 
         let k = kit_file(x, &out, exists, ids)?;
         total += k.body.chars().count();
         if total > KIT_TOTAL_MAX {
-            return Err(bad(format!("Their skills and instructions add up to more than {} characters. Trim or remove some.", thousands(KIT_TOTAL_MAX))));
+            return Err(bad(format!(
+                "Their skills and instructions add up to more than {} characters. Trim or remove some.",
+                thousands(KIT_TOTAL_MAX)
+            )));
         }
         out.push(k);
     }
@@ -180,7 +194,16 @@ fn proposed(x: &Value) -> Value {
         _ => "skill",
     };
     let raw = x.get("name").and_then(Value::as_str);
-    let name = if kind == "skill" { skill_name(raw.unwrap_or("")) } else { raw.unwrap_or("AGENTS.md").chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | ' ' | '.' | '-')).collect::<String>().trim().to_owned() };
+    let name = if kind == "skill" {
+        skill_name(raw.unwrap_or(""))
+    } else {
+        raw.unwrap_or("AGENTS.md")
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | ' ' | '.' | '-'))
+            .collect::<String>()
+            .trim()
+            .to_owned()
+    };
     serde_json::json!({ "kind": kind, "name": name, "description": clip(&str_of(x.get("description")), 1024), "body": clip(&str_of(x.get("body")), KIT_BODY_MAX) })
 }
 
@@ -225,13 +248,18 @@ pub fn kit_note(m: &Member, files: Option<&BTreeMap<String, String>>) -> String 
     let mut out = String::new();
     if !rules.is_empty() {
         let each: Vec<String> = rules.iter().map(|r| format!("#### {}\n\n{}", r.name, r.body)).collect();
-        out += &format!("\n### Your instructions (from the user)\n\nFollow these on every job, as you would an AGENTS.md. Where they differ from the project's own, these win for your work.\n\n{}\n", each.join("\n\n"));
+        out += &format!(
+            "\n### Your instructions (from the user)\n\nFollow these on every job, as you would an AGENTS.md. Where they differ from the project's own, these win for your work.\n\n{}\n",
+            each.join("\n\n")
+        );
     }
     if skills.is_empty() {
         return out;
     }
     let read = if files.is_some() { " Read its SKILL.md (with your file-reading tool) before you start on that part." } else { "" };
-    out += &format!("\n### Your skills\n\nA skill is the user's how-to for one kind of work. When a job fits a skill's description, follow that skill.{read}\n\n");
+    out += &format!(
+        "\n### Your skills\n\nA skill is the user's how-to for one kind of work. When a job fits a skill's description, follow that skill.{read}\n\n"
+    );
     let desc = |k: &KitFile| k.description.clone().unwrap_or_default();
     if let Some(files) = files {
         let lines: Vec<String> = skills

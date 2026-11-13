@@ -54,8 +54,7 @@ pub fn session_of(row: Row, queue: Vec<QueueItem>) -> Result<Session> {
 }
 
 pub fn summary_of(row: &Row) -> Option<Summary> {
-    row.get("summary")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
+    row.get("summary").and_then(|v| serde_json::from_value(v.clone()).ok())
 }
 
 pub fn turn_row(t: &Turn) -> Result<Row> {
@@ -73,9 +72,7 @@ pub fn turn_row(t: &Turn) -> Result<Row> {
 }
 
 pub fn turn_of(row: &Row) -> Result<Turn> {
-    Ok(serde_json::from_value(
-        row.get("body").cloned().unwrap_or(Value::Null),
-    )?)
+    Ok(serde_json::from_value(row.get("body").cloned().unwrap_or(Value::Null))?)
 }
 
 pub fn queue_row(session: &str, pos: usize, q: &QueueItem) -> Result<Row> {
@@ -88,8 +85,7 @@ pub fn queue_row(session: &str, pos: usize, q: &QueueItem) -> Result<Row> {
 }
 
 pub fn queue_of(row: &Row) -> Option<QueueItem> {
-    row.get("body")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
+    row.get("body").and_then(|v| serde_json::from_value(v.clone()).ok())
 }
 
 /// One step as an event-log row (shape `upcast::EVENT_V`).
@@ -112,10 +108,7 @@ pub fn v0_event_row(session: &str, turn: &str, seq: u64, t: i64, item: &Value) -
     row.insert("seq".into(), json!(seq));
     row.insert("turn_id".into(), json!(turn));
     row.insert("t".into(), json!(t));
-    row.insert(
-        "kind".into(),
-        item.get("kind").cloned().unwrap_or_else(|| json!("text")),
-    );
+    row.insert("kind".into(), item.get("kind").cloned().unwrap_or_else(|| json!("text")));
     row.insert("body".into(), item.clone());
     row.insert("v".into(), json!(0));
     row
@@ -123,15 +116,7 @@ pub fn v0_event_row(session: &str, turn: &str, seq: u64, t: i64, item: &Value) -
 
 /// An event row as a step, through the upcasters.
 pub fn step_of(row: &Row) -> Option<Step> {
-    let v = row
-        .get("v")
-        .and_then(Value::as_u64)
-        .and_then(|v| u32::try_from(v).ok())
-        .unwrap_or(0);
+    let v = row.get("v").and_then(Value::as_u64).and_then(|v| u32::try_from(v).ok()).unwrap_or(0);
     let activity = upcast::read(v, row.get("body")?)?;
-    Some(Step {
-        seq: row.get("seq").and_then(Value::as_u64)?,
-        t: row.get("t").and_then(Value::as_i64).unwrap_or(0),
-        activity,
-    })
+    Some(Step { seq: row.get("seq").and_then(Value::as_u64)?, t: row.get("t").and_then(Value::as_i64).unwrap_or(0), activity })
 }

@@ -48,15 +48,22 @@ pub const FILES_BYTES: usize = 1_400_000;
 
 /// A Message-ID as one may be written.
 pub fn msg_id_ok(s: &str) -> bool {
-    s.len() >= 3 && s.len() <= 252 && s.starts_with('<') && s.ends_with('>') && s[1..s.len() - 1].bytes().all(|b| (0x21..=0x7e).contains(&b) && b != b'<' && b != b'>')
+    s.len() >= 3
+        && s.len() <= 252
+        && s.starts_with('<')
+        && s.ends_with('>')
+        && s[1..s.len() - 1].bytes().all(|b| (0x21..=0x7e).contains(&b) && b != b'<' && b != b'>')
 }
 
 /// An address as wisp writes to one: lower case, a dotted domain.
 pub fn address_ok(a: &str) -> bool {
     let Some((local, domain)) = a.split_once('@') else { return false };
-    let lok = !local.is_empty() && local.len() <= 64 && local.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "!#$%&'*+/=?^_`{|}~.-".contains(c));
+    let lok = !local.is_empty()
+        && local.len() <= 64
+        && local.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "!#$%&'*+/=?^_`{|}~.-".contains(c));
     let parts: Vec<&str> = domain.split('.').collect();
-    lok && parts.len() >= 2 && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
+    lok && parts.len() >= 2
+        && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
 }
 
 fn split_part(s: &str) -> (&str, &str) {
@@ -100,7 +107,8 @@ fn with_params(v: &str) -> (String, Vec<(String, String)>) {
         .filter_map(|p| {
             let (k, v) = p.split_once('=')?;
             let v = v.trim();
-            let v = v.strip_prefix('"').and_then(|x| x.split('"').next()).unwrap_or_else(|| v.split_whitespace().next().unwrap_or_default());
+            let v =
+                v.strip_prefix('"').and_then(|x| x.split('"').next()).unwrap_or_else(|| v.split_whitespace().next().unwrap_or_default());
             Some((k.trim().to_lowercase(), v.to_owned()))
         })
         .collect();
@@ -113,7 +121,9 @@ fn param<'a>(p: &'a [(String, String)], k: &str) -> Option<&'a str> {
 
 fn unencode(s: &str, cte: &str) -> Vec<u8> {
     match cte.trim().to_lowercase().as_str() {
-        "base64" => base64::engine::general_purpose::STANDARD.decode(s.chars().filter(|c| !c.is_whitespace()).collect::<String>()).unwrap_or_default(),
+        "base64" => base64::engine::general_purpose::STANDARD
+            .decode(s.chars().filter(|c| !c.is_whitespace()).collect::<String>())
+            .unwrap_or_default(),
         "quoted-printable" => {
             let soft = s.replace("=\r\n", "").replace("=\n", "");
             let b = soft.as_bytes();
@@ -163,7 +173,11 @@ fn encoded_words(s: &str) -> String {
         if !(last_was_word && before.trim().is_empty()) {
             out.push_str(before);
         }
-        let raw = if how.eq_ignore_ascii_case("b") { base64::engine::general_purpose::STANDARD.decode(data).unwrap_or_default() } else { unencode(&data.replace('_', " "), "quoted-printable") };
+        let raw = if how.eq_ignore_ascii_case("b") {
+            base64::engine::general_purpose::STANDARD.decode(data).unwrap_or_default()
+        } else {
+            unencode(&data.replace('_', " "), "quoted-printable")
+        };
         out.push_str(&decode_text(&raw, cs));
         rest = &at[end..];
         last_was_word = true;
@@ -273,7 +287,13 @@ pub fn mailbox(from: &str) -> String {
         let (name, rest) = value.split_at(open);
         let inner = rest.strip_prefix('<').and_then(|r| r.strip_suffix('>'));
         match inner {
-            Some(a) if !name.contains(['<', '>', ',', ';', ':', '(', ')', '@', '"']) && !a.contains(['<', '>']) && !a.contains(char::is_whitespace) => a.to_lowercase(),
+            Some(a)
+                if !name.contains(['<', '>', ',', ';', ':', '(', ')', '@', '"'])
+                    && !a.contains(['<', '>'])
+                    && !a.contains(char::is_whitespace) =>
+            {
+                a.to_lowercase()
+            }
             _ => return String::new(),
         }
     } else if !value.is_empty() && !value.contains(char::is_whitespace) && !value.contains(['<', '>']) {
@@ -290,13 +310,34 @@ fn ids(v: &str) -> Vec<String> {
 
 fn automatic(list: &[(String, String)]) -> bool {
     let auto = first(list, "auto-submitted").to_lowercase();
-    (!auto.is_empty() && auto != "no") || matches!(first(list, "precedence").to_lowercase().as_str(), "bulk" | "junk" | "list" | "auto_reply") || list.iter().any(|(n, _)| matches!(n.as_str(), "list-id" | "x-autoreply" | "x-autorespond"))
+    (!auto.is_empty() && auto != "no")
+        || matches!(first(list, "precedence").to_lowercase().as_str(), "bulk" | "junk" | "list" | "auto_reply")
+        || list.iter().any(|(n, _)| matches!(n.as_str(), "list-id" | "x-autoreply" | "x-autorespond"))
 }
 
 /// The message's bytes → what wisp reads of it.
 pub fn parse_mail(raw: &[u8]) -> Mail {
     let section = header_fields(&latin1(raw));
-    let list: Vec<(String, String)> = section.as_ref().map(|(fields, _)| fields.iter().map(|f| (f.name.clone(), f.raw[f.raw.find(':').map_or(0, |i| i + 1)..].split("\r\n").map(str::trim).collect::<Vec<_>>().join(" ").trim().to_owned())).collect()).unwrap_or_default();
+    let list: Vec<(String, String)> = section
+        .as_ref()
+        .map(|(fields, _)| {
+            fields
+                .iter()
+                .map(|f| {
+                    (
+                        f.name.clone(),
+                        f.raw[f.raw.find(':').map_or(0, |i| i + 1)..]
+                            .split("\r\n")
+                            .map(str::trim)
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                            .trim()
+                            .to_owned(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let mut found = Found::default();
     if let Some((_, body)) = &section {
         walk_part(&list, body, &mut found, 0);
@@ -305,7 +346,14 @@ pub fn parse_mail(raw: &[u8]) -> Mail {
     let twice = ONCE.iter().any(|name| list.iter().filter(|(n, _)| n == name).count() > 1);
     let from = if froms.len() == 1 && !twice { mailbox(froms[0]) } else { String::new() };
     let claimed: Vec<&str> = list.iter().filter(|(n, _)| n == "message-id").map(|(_, v)| v.as_str()).collect();
-    let subject: String = encoded_words(first(&list, "subject")).chars().map(|c| if c.is_control() { ' ' } else { c }).collect::<String>().split(' ').filter(|w| !w.is_empty()).collect::<Vec<_>>().join(" ");
+    let subject: String = encoded_words(first(&list, "subject"))
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .split(' ')
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
     let refs = ids(first(&list, "references"));
     Mail {
         from,
@@ -323,7 +371,11 @@ pub fn parse_mail(raw: &[u8]) -> Mail {
 }
 
 fn ascii_header(s: &str) -> String {
-    if s.bytes().all(|b| (0x20..=0x7e).contains(&b)) { s.to_owned() } else { format!("=?UTF-8?B?{}?=", base64::engine::general_purpose::STANDARD.encode(s)) }
+    if s.bytes().all(|b| (0x20..=0x7e).contains(&b)) {
+        s.to_owned()
+    } else {
+        format!("=?UTF-8?B?{}?=", base64::engine::general_purpose::STANDARD.encode(s))
+    }
 }
 
 /// `Name: <id> <id>`, wrapped so no line gets long.
@@ -396,7 +448,9 @@ mod tests {
     #[test]
     fn a_mails_attachments_are_kept_with_safe_names_within_the_limits() {
         use std::fmt::Write as _;
-        let mut raw = String::from("From: a@b.co\r\nContent-Type: multipart/mixed; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/plain\r\n\r\nsee attached\r\n");
+        let mut raw = String::from(
+            "From: a@b.co\r\nContent-Type: multipart/mixed; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/plain\r\n\r\nsee attached\r\n",
+        );
         raw.push_str("--B\r\nContent-Type: image/png\r\nContent-Disposition: attachment; filename=\"../../etc/shot.png\"\r\nContent-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n");
         for i in 0..12 {
             let _ = write!(raw, "--B\r\nContent-Type: text/plain; name=n{i}.txt\r\n\r\nfile {i}\r\n");
@@ -404,7 +458,10 @@ mod tests {
         raw.push_str("--B--\r\n");
         let m = parse_mail(raw.as_bytes());
         assert_eq!((m.text.as_str(), m.attachments, m.files.len()), ("see attached", 13, FILES_MAX));
-        assert_eq!((m.files[0].name.as_str(), m.files[0].mime.as_str(), m.files[0].bytes.as_slice()), ("shot.png", "image/png", b"hello".as_slice()));
+        assert_eq!(
+            (m.files[0].name.as_str(), m.files[0].mime.as_str(), m.files[0].bytes.as_slice()),
+            ("shot.png", "image/png", b"hello".as_slice())
+        );
         assert_eq!(m.files[1].name, "n0.txt");
     }
 
@@ -422,7 +479,14 @@ mod tests {
         let two = raw.replacen("Subject:", "Subject: other\r\nSubject:", 1);
         assert_eq!(parse_mail(two.as_bytes()).from, "", "a second Subject: nobody it's certainly from");
         assert!(parse_mail(b"From: a@b.co\r\nAuto-Submitted: auto-replied\r\n\r\nx").auto);
-        for (f, want) in [("Ada <ada@x.io>", "ada@x.io"), ("ada@x.io", "ada@x.io"), ("\"evil <eve@x.io>\" <ada@x.io>", ""), ("a@x.io, b@x.io", ""), ("Ada <ada@localhost>", ""), ("(c) ada@x.io", "")] {
+        for (f, want) in [
+            ("Ada <ada@x.io>", "ada@x.io"),
+            ("ada@x.io", "ada@x.io"),
+            ("\"evil <eve@x.io>\" <ada@x.io>", ""),
+            ("a@x.io, b@x.io", ""),
+            ("Ada <ada@localhost>", ""),
+            ("(c) ada@x.io", ""),
+        ] {
             assert_eq!(mailbox(f), want, "{f}");
         }
     }
@@ -430,7 +494,16 @@ mod tests {
     #[test]
     fn a_reply_is_written_line_by_line_and_a_line_break_in_a_header_is_refused() {
         let refs = vec!["<a@b>".to_owned()];
-        let o = Out { from: "wisp <k@grid.dev>", to: "ada@x.io", subject: "Re: fix\nBcc: eve@x.io", text: "done ✓", message_id: "<n@grid.dev>", in_reply_to: "<m1@x.y>", references: &refs, date: "Tue, 02 Jan 2024 03:04:05 GMT" };
+        let o = Out {
+            from: "wisp <k@grid.dev>",
+            to: "ada@x.io",
+            subject: "Re: fix\nBcc: eve@x.io",
+            text: "done ✓",
+            message_id: "<n@grid.dev>",
+            in_reply_to: "<m1@x.y>",
+            references: &refs,
+            date: "Tue, 02 Jan 2024 03:04:05 GMT",
+        };
         let raw = compose_mail(&o).unwrap();
         assert!(raw.contains("\r\nSubject: Re: fix Bcc: eve@x.io\r\n"), "the subject is flattened: {raw}");
         assert!(raw.contains("Auto-Submitted: auto-replied"));

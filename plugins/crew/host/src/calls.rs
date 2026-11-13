@@ -42,7 +42,9 @@ pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> R
 
 /// `runtime.turn.setExt`: the crew's slot on one turn written.
 pub(crate) async fn turn_set_ext(ctx: &Ctx, call: &Call, id: &str, turn: &str, value: Value) -> R<()> {
-    ctx.run::<rt::TurnSetExt>(call, rt::TurnExtArgs { id: id.into(), turn_id: turn.into(), plugin: PLUGIN_ID.into(), value }).await.map(|_| ())
+    ctx.run::<rt::TurnSetExt>(call, rt::TurnExtArgs { id: id.into(), turn_id: turn.into(), plugin: PLUGIN_ID.into(), value })
+        .await
+        .map(|_| ())
 }
 
 /// `runtime.followUp`: a crew follow-up, queued behind a running turn.
@@ -54,7 +56,12 @@ pub(crate) async fn follow_up(ctx: &Ctx, call: &Call, id: &str, text: String) ->
 /// `C` on another machine (a sandbox): `machines.route` is typed, the command it carries is named for the peer to
 /// run (its args as the JSON the peer reads).
 pub(crate) async fn routed<C: Command>(ctx: &Ctx, call: &Call, machine: &str, args: Value) -> R<Value> {
-    let r = wisp_machines_api::RouteArgs { id: Some(machine.to_owned()), cmd: C::ID.to_owned(), args, mid: format!("crew-{}", wisp_kernel::ids::uuid7()) };
+    let r = wisp_machines_api::RouteArgs {
+        id: Some(machine.to_owned()),
+        cmd: C::ID.to_owned(),
+        args,
+        mid: format!("crew-{}", wisp_kernel::ids::uuid7()),
+    };
     ctx.run::<wisp_machines_api::Route>(call, r).await
 }
 
@@ -86,7 +93,9 @@ pub(crate) async fn track(ctx: &Ctx, event: &str, props: Value) -> R<()> {
         Value::Object(m) => m,
         _ => Map::new(),
     };
-    ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), wisp_telemetry_api::TrackArgs { event: event.to_owned(), props }).await.map(|_| ())
+    ctx.run::<wisp_telemetry_api::Track>(&ctx.root_call(), wisp_telemetry_api::TrackArgs { event: event.to_owned(), props })
+        .await
+        .map(|_| ())
 }
 
 /// A follow-up call that was refused: logged (the command it's part of carries on).

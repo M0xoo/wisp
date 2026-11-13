@@ -46,16 +46,11 @@ struct Edge {
     why: String,
 }
 
-fn candidates(
-    ms: &BTreeMap<&str, (usize, &Manifest)>,
-    input: &Input<'_>,
-) -> BTreeMap<String, Vec<String>> {
+fn candidates(ms: &BTreeMap<&str, (usize, &Manifest)>, input: &Input<'_>) -> BTreeMap<String, Vec<String>> {
     let mut out: BTreeMap<String, Vec<(usize, String)>> = BTreeMap::new();
     for (id, (i, m)) in ms {
         for sid in m.provides.keys() {
-            out.entry(sid.clone())
-                .or_default()
-                .push((*i, (*id).to_owned()));
+            out.entry(sid.clone()).or_default().push((*i, (*id).to_owned()));
         }
     }
     out.into_iter()
@@ -76,36 +71,17 @@ fn candidates(
         .collect()
 }
 
-fn edges_of(
-    m: &Manifest,
-    ms: &BTreeMap<&str, (usize, &Manifest)>,
-    providers: &BTreeMap<String, String>,
-) -> Vec<Edge> {
+fn edges_of(m: &Manifest, ms: &BTreeMap<&str, (usize, &Manifest)>, providers: &BTreeMap<String, String>) -> Vec<Edge> {
     let mut out = Vec::new();
     if let Some(e) = &m.extends {
-        out.push(Edge {
-            to: e.clone(),
-            hard: true,
-            why: format!("{} extends {e}, which is {{state}}", m.id),
-        });
+        out.push(Edge { to: e.clone(), hard: true, why: format!("{} extends {e}, which is {{state}}", m.id) });
     }
     for r in m.requirements() {
         let hard = !r.optional;
         if ms.contains_key(r.id.as_str()) || !providers.contains_key(&r.id) {
-            out.push(Edge {
-                to: r.id.clone(),
-                hard,
-                why: format!("{} requires {}, which is {{state}}", m.id, r.id),
-            });
+            out.push(Edge { to: r.id.clone(), hard, why: format!("{} requires {}, which is {{state}}", m.id, r.id) });
         } else if let Some(p) = providers.get(&r.id).filter(|p| **p != m.id) {
-            out.push(Edge {
-                to: p.clone(),
-                hard,
-                why: format!(
-                    "{} requires {}, whose provider {p} is {{state}}",
-                    m.id, r.id
-                ),
-            });
+            out.push(Edge { to: p.clone(), hard, why: format!("{} requires {}, whose provider {p} is {{state}}", m.id, r.id) });
         }
     }
     out
@@ -126,38 +102,20 @@ pub fn resolve(input: &Input<'_>) -> Resolution {
         if let Some(why) = input.off.get(*id) {
             refused.insert((*id).to_owned(), why.clone());
         } else if !satisfies(KERNEL_API, &m.api) {
-            refused.insert(
-                (*id).to_owned(),
-                format!(
-                    "{id} needs kernel api {}, this kernel is {KERNEL_API}",
-                    m.api
-                ),
-            );
+            refused.insert((*id).to_owned(), format!("{id} needs kernel api {}, this kernel is {KERNEL_API}", m.api));
         }
     }
     let cands = candidates(&ms, input);
     // refusals change which providers are usable, so iterate until nothing new is refused
     let (providers, edges) = loop {
-        let providers: BTreeMap<String, String> = cands
-            .iter()
-            .filter_map(|(sid, ps)| {
-                ps.iter()
-                    .find(|p| !refused.contains_key(*p))
-                    .map(|p| (sid.clone(), p.clone()))
-            })
-            .collect();
-        let edges: HashMap<&str, Vec<Edge>> = ids
-            .iter()
-            .map(|id| (*id, edges_of(ms[id].1, &ms, &providers)))
-            .collect();
+        let providers: BTreeMap<String, String> =
+            cands.iter().filter_map(|(sid, ps)| ps.iter().find(|p| !refused.contains_key(*p)).map(|p| (sid.clone(), p.clone()))).collect();
+        let edges: HashMap<&str, Vec<Edge>> = ids.iter().map(|id| (*id, edges_of(ms[id].1, &ms, &providers))).collect();
         // judged against this round's snapshot, so the result doesn't depend on registration order
         let round: Vec<(String, String)> = ids
             .iter()
             .filter(|id| !refused.contains_key(**id))
-            .filter_map(|id| {
-                refusal_of(ms[id].1, &edges[id], &ms, &refused, &providers, &input.off)
-                    .map(|w| ((*id).to_owned(), w))
-            })
+            .filter_map(|id| refusal_of(ms[id].1, &edges[id], &ms, &refused, &providers, &input.off).map(|w| ((*id).to_owned(), w)))
             .collect();
         let changed = !round.is_empty();
         refused.extend(round);
@@ -165,33 +123,12 @@ pub fn resolve(input: &Input<'_>) -> Resolution {
             break (providers, edges);
         }
     };
-    let live: Vec<&str> = ids
-        .iter()
-        .copied()
-        .filter(|id| !refused.contains_key(*id))
-        .collect();
+    let live: Vec<&str> = ids.iter().copied().filter(|id| !refused.contains_key(*id)).collect();
     let order = topo(&live, &edges);
     let pick = |hard: bool| {
-        edges
-            .iter()
-            .map(|(id, es)| {
-                (
-                    (*id).to_owned(),
-                    es.iter()
-                        .filter(|e| e.hard == hard)
-                        .map(|e| e.to.clone())
-                        .collect(),
-                )
-            })
-            .collect()
+        edges.iter().map(|(id, es)| ((*id).to_owned(), es.iter().filter(|e| e.hard == hard).map(|e| e.to.clone()).collect())).collect()
     };
-    Resolution {
-        order,
-        refused,
-        providers,
-        deps: pick(true),
-        wants: pick(false),
-    }
+    Resolution { order, refused, providers, deps: pick(true), wants: pick(false) }
 }
 
 fn state_of(
@@ -223,11 +160,7 @@ fn refusal_of(
         }
     }
     for r in m.requirements().into_iter().filter(|r| !r.optional) {
-        let provider = if ms.contains_key(r.id.as_str()) {
-            None
-        } else {
-            providers.get(&r.id)
-        };
+        let provider = if ms.contains_key(r.id.as_str()) { None } else { providers.get(&r.id) };
         let target = provider.unwrap_or(&r.id);
         let version = match provider {
             Some(p) => ms.get(p.as_str()).and_then(|(_, pm)| pm.provided(&r.id)),
@@ -238,13 +171,8 @@ fn refusal_of(
             continue;
         }
         if !satisfies(version, &r.version) {
-            let by = provider
-                .map(|p| format!("{p} provides "))
-                .unwrap_or_default();
-            return Some(format!(
-                "{} requires {} {}, but {by}{version}",
-                m.id, r.id, r.version
-            ));
+            let by = provider.map(|p| format!("{p} provides ")).unwrap_or_default();
+            return Some(format!("{} requires {} {}, but {by}{version}", m.id, r.id, r.version));
         }
     }
     None
@@ -265,12 +193,7 @@ fn refuse_cycles(
         n: usize,
         sccs: Vec<Vec<&'a str>>,
     }
-    fn visit<'a>(
-        v: &'a str,
-        t: &mut T<'a>,
-        edges: &'a HashMap<&str, Vec<Edge>>,
-        live: &HashSet<&'a str>,
-    ) {
+    fn visit<'a>(v: &'a str, t: &mut T<'a>, edges: &'a HashMap<&str, Vec<Edge>>, live: &HashSet<&'a str>) {
         t.index.insert(v, t.n);
         t.low.insert(v, t.n);
         t.n += 1;
@@ -298,28 +221,15 @@ fn refuse_cycles(
                     break;
                 }
             }
-            let selfloop = edges
-                .get(v)
-                .is_some_and(|es| es.iter().any(|e| e.hard && e.to == v));
+            let selfloop = edges.get(v).is_some_and(|es| es.iter().any(|e| e.hard && e.to == v));
             if scc.len() > 1 || selfloop {
                 scc.reverse();
                 t.sccs.push(scc);
             }
         }
     }
-    let live: HashSet<&str> = ids
-        .iter()
-        .copied()
-        .filter(|id| !refused.contains_key(*id) && ms.contains_key(id))
-        .collect();
-    let mut t = T {
-        index: HashMap::new(),
-        low: HashMap::new(),
-        stack: Vec::new(),
-        on: HashSet::new(),
-        n: 0,
-        sccs: Vec::new(),
-    };
+    let live: HashSet<&str> = ids.iter().copied().filter(|id| !refused.contains_key(*id) && ms.contains_key(id)).collect();
+    let mut t = T { index: HashMap::new(), low: HashMap::new(), stack: Vec::new(), on: HashSet::new(), n: 0, sccs: Vec::new() };
     for id in ids.iter().filter(|id| live.contains(**id)) {
         if !t.index.contains_key(id) {
             visit(id, &mut t, edges, &live);
@@ -340,11 +250,11 @@ fn cycle_path(scc: &[&str], edges: &HashMap<&str, Vec<Edge>>) -> String {
     let mut path = vec![start];
     let mut at = start;
     loop {
-        let next = edges.get(at).into_iter().flatten().find(|e| {
-            e.hard
-                && scc.contains(&e.to.as_str())
-                && (e.to == start || !path.contains(&e.to.as_str()))
-        });
+        let next = edges
+            .get(at)
+            .into_iter()
+            .flatten()
+            .find(|e| e.hard && scc.contains(&e.to.as_str()) && (e.to == start || !path.contains(&e.to.as_str())));
         let Some(next) = next else { break };
         path.push(&next.to);
         if next.to == start {
@@ -362,25 +272,15 @@ fn topo(ids: &[&str], edges: &HashMap<&str, Vec<Edge>>) -> Vec<String> {
     let mut placed: HashSet<&str> = HashSet::new();
     let mut out = Vec::new();
     let waits = |id: &str, hard: bool, placed: &HashSet<&str>| {
-        edges.get(id).into_iter().flatten().any(|e| {
-            e.hard == hard
-                && e.to != id
-                && live.contains(e.to.as_str())
-                && !placed.contains(e.to.as_str())
-        })
+        edges
+            .get(id)
+            .into_iter()
+            .flatten()
+            .any(|e| e.hard == hard && e.to != id && live.contains(e.to.as_str()) && !placed.contains(e.to.as_str()))
     };
     while out.len() < ids.len() {
-        let ready: Vec<&str> = ids
-            .iter()
-            .copied()
-            .filter(|id| !placed.contains(id) && !waits(id, true, &placed))
-            .collect();
-        let Some(next) = ready
-            .iter()
-            .copied()
-            .find(|id| !waits(id, false, &placed))
-            .or_else(|| ready.first().copied())
-        else {
+        let ready: Vec<&str> = ids.iter().copied().filter(|id| !placed.contains(id) && !waits(id, true, &placed)).collect();
+        let Some(next) = ready.iter().copied().find(|id| !waits(id, false, &placed)).or_else(|| ready.first().copied()) else {
             break;
         };
         placed.insert(next);

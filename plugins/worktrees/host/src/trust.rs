@@ -77,13 +77,7 @@ pub async fn setup_items(e: &Engine, root: &str) -> Vec<TrustItem> {
 
 /// What a run in `dir` would run that isn't trusted: its harness's items (`hooks`; a harness that reads none
 /// has none) plus `extra` (a new worktree's held setup).
-pub async fn pending(
-    st: &TrustState,
-    dir: &str,
-    hooks: Option<&ProjectHooks>,
-    extra: Vec<TrustItem>,
-    user_home: &str,
-) -> Option<Pending> {
+pub async fn pending(st: &TrustState, dir: &str, hooks: Option<&ProjectHooks>, extra: Vec<TrustItem>, user_home: &str) -> Option<Pending> {
     // "" (or a relative path) walks up from the server's own folder: its `.git`, its `.claude/settings.json`
     if let Err(e) = wisp_runtime_api::paths::Folder::of(dir) {
         tracing::warn!("worktrees: trust not checked: the run has {e}");
@@ -99,19 +93,12 @@ pub async fn pending(
 }
 
 /// A new worktree's setup steps when they aren't trusted (they wait), else None.
-pub async fn setup_hold(
-    e: &Engine,
-    st: &TrustState,
-    root: &str,
-    project_ask: Option<&str>,
-    mode: &str,
-) -> Option<Vec<TrustItem>> {
+pub async fn setup_hold(e: &Engine, st: &TrustState, root: &str, project_ask: Option<&str>, mode: &str) -> Option<Vec<TrustItem>> {
     if !trust::asks(project_ask, mode) || wisp_runtime_api::paths::Folder::of(root).is_err() {
         return None;
     }
     let (_, key) = repo_of(root).await;
-    st.untrusted(&key, setup_items(e, root).await)
-        .map(|p| p.items)
+    st.untrusted(&key, setup_items(e, root).await).map(|p| p.items)
 }
 
 /// `before:run`, on runtime's context (read by field name: `cwd`, `agent`, `mode`, `hold`, `untrusted`).
@@ -124,11 +111,7 @@ pub async fn before_run(
     ctx: Value,
 ) -> Verdict<Value> {
     let s = |k: &str| ctx.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
-    let already = ctx.get("hold").is_some_and(|h| !h.is_null())
-        || ctx
-            .get("untrusted")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
+    let already = ctx.get("hold").is_some_and(|h| !h.is_null()) || ctx.get("untrusted").and_then(Value::as_bool).unwrap_or(false);
     if already || !trust::asks(project_ask, &s("mode")) {
         return Verdict::Continue;
     }
@@ -137,10 +120,7 @@ pub async fn before_run(
     };
     let mut held = ctx;
     if let Some(obj) = held.as_object_mut() {
-        obj.insert(
-            "hold".into(),
-            json!({ "by": "wisp.worktrees", "kind": "trust", "data": p }),
-        );
+        obj.insert("hold".into(), json!({ "by": "wisp.worktrees", "kind": "trust", "data": p }));
     }
     Verdict::Modify { ctx: held }
 }
@@ -161,7 +141,10 @@ mod tests {
         let items = hook_items(&d, "/nonexistent-home", &hooks).await;
         assert!(items.iter().any(|i| i.name == "db"), "{items:?}");
         let st = TrustState::default();
-        assert!(pending(&st, &d, None, Vec::new(), "/nonexistent-home").await.is_none(), "a harness that reads no project files asks nothing");
+        assert!(
+            pending(&st, &d, None, Vec::new(), "/nonexistent-home").await.is_none(),
+            "a harness that reads no project files asks nothing"
+        );
         assert!(pending(&st, &d, Some(&hooks), Vec::new(), "/nonexistent-home").await.is_some());
         let _ = tokio::fs::remove_dir_all(&dir).await;
     }
@@ -172,7 +155,18 @@ mod tests {
         let hooks = ProjectHooks { settings: vec![".claude/settings.json".into()], mcp: Some(".mcp.json".into()) };
         let st = TrustState::default();
         for dir in ["", "  ", ".", "relative/dir"] {
-            assert!(pending(&st, dir, Some(&hooks), vec![trust::item(wisp_worktrees_api::TrustKind::Mcp, Some(".mcp.json"), "db", "npx db-mcp", None)], "/nonexistent-home").await.is_none(), "{dir:?}");
+            assert!(
+                pending(
+                    &st,
+                    dir,
+                    Some(&hooks),
+                    vec![trust::item(wisp_worktrees_api::TrustKind::Mcp, Some(".mcp.json"), "db", "npx db-mcp", None)],
+                    "/nonexistent-home"
+                )
+                .await
+                .is_none(),
+                "{dir:?}"
+            );
         }
     }
 }

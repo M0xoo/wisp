@@ -20,7 +20,10 @@ impl reqwest::dns::Resolve for LocalFirst {
                 let a: Box<dyn Iterator<Item = SocketAddr> + Send> = Box::new(std::iter::once(SocketAddr::from(([127, 0, 0, 1], 0))));
                 return Ok(a);
             }
-            let found = tokio::task::spawn_blocking(move || (host.as_str(), 0).to_socket_addrs().map(Iterator::collect::<Vec<_>>)).await.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            let found = tokio::task::spawn_blocking(move || (host.as_str(), 0).to_socket_addrs().map(Iterator::collect::<Vec<_>>))
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             let a: Box<dyn Iterator<Item = SocketAddr> + Send> = Box::new(found.into_iter());
             Ok(a)
         })
@@ -35,7 +38,14 @@ pub fn client(h1: bool) -> reqwest::Client {
 }
 
 /// A JSON call to the grid: its status and body (`{}` when it has none).
-pub async fn call(http: &reqwest::Client, method: &str, url: &str, token: Option<&str>, body: Option<&Value>, headers: &[(&str, &str)]) -> Result<(u16, Value)> {
+pub async fn call(
+    http: &reqwest::Client,
+    method: &str,
+    url: &str,
+    token: Option<&str>,
+    body: Option<&Value>,
+    headers: &[(&str, &str)],
+) -> Result<(u16, Value)> {
     let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
     let mut b = http.request(m, url).timeout(Duration::from_secs(30));
     if let Some(t) = token {
@@ -50,7 +60,11 @@ pub async fn call(http: &reqwest::Client, method: &str, url: &str, token: Option
     let r = b.send().await.map_err(|e| WireError::unavailable(format!("{}: {e}", host_of(url))))?;
     let status = r.status().as_u16();
     let text = r.text().await.unwrap_or_default();
-    let v = if text.is_empty() { Value::Object(serde_json::Map::new()) } else { serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "error": text.chars().take(200).collect::<String>() })) };
+    let v = if text.is_empty() {
+        Value::Object(serde_json::Map::new())
+    } else {
+        serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "error": text.chars().take(200).collect::<String>() }))
+    };
     Ok((status, v))
 }
 

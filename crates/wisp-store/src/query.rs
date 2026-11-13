@@ -57,14 +57,7 @@ impl Query {
     #[must_use]
     pub fn eq(self, col: &str, v: impl Into<Value>) -> Self {
         let v = v.into();
-        self.cond(
-            col,
-            if v.is_null() {
-                Cond::IsNull
-            } else {
-                Cond::Eq(v)
-            },
-        )
+        self.cond(col, if v.is_null() { Cond::IsNull } else { Cond::Eq(v) })
     }
     #[must_use]
     pub fn any_of(self, col: &str, vs: Vec<Value>) -> Self {
@@ -100,24 +93,14 @@ pub(crate) struct Compiled {
 }
 
 pub(crate) fn compile(k: &Kind, q: &Query, count: bool) -> Result<Compiled> {
-    let cols = if q.select.is_empty() {
-        k.all_cols()
-    } else {
-        q.select.iter().map(|c| k.col(c)).collect::<Result<_>>()?
-    };
+    let cols = if q.select.is_empty() { k.all_cols() } else { q.select.iter().map(|c| k.col(c)).collect::<Result<_>>()? };
     let list = if q.select.is_empty() {
         k.select_list.clone()
     } else {
-        cols.iter()
-            .map(|&i| format!("\"{}\"", k.def.columns[i].0))
-            .collect::<Vec<_>>()
-            .join(", ")
+        cols.iter().map(|&i| format!("\"{}\"", k.def.columns[i].0)).collect::<Vec<_>>().join(", ")
     };
-    let mut sql = if count {
-        format!("SELECT count(*) FROM \"{}\"", k.def.table)
-    } else {
-        format!("SELECT {list} FROM \"{}\"", k.def.table)
-    };
+    let mut sql =
+        if count { format!("SELECT count(*) FROM \"{}\"", k.def.table) } else { format!("SELECT {list} FROM \"{}\"", k.def.table) };
     let mut params = Vec::new();
     let mut wh = Vec::with_capacity(q.conds.len());
     for (col, c) in &q.conds {
@@ -131,13 +114,7 @@ pub(crate) fn compile(k: &Kind, q: &Query, count: bool) -> Result<Compiled> {
         let order = q
             .order
             .iter()
-            .map(|(c, d)| {
-                Ok(format!(
-                    "\"{}\" {}",
-                    k.def.columns[k.col(c)?].0,
-                    if *d == Dir::Desc { "DESC" } else { "ASC" }
-                ))
-            })
+            .map(|(c, d)| Ok(format!("\"{}\" {}", k.def.columns[k.col(c)?].0, if *d == Dir::Desc { "DESC" } else { "ASC" })))
             .collect::<Result<Vec<_>>>()?;
         sql.push_str(" ORDER BY ");
         sql.push_str(&order.join(", "));
@@ -149,11 +126,7 @@ pub(crate) fn compile(k: &Kind, q: &Query, count: bool) -> Result<Compiled> {
 }
 
 fn page(sql: &mut String, params: &mut Vec<Sql>, q: &Query) -> Result<()> {
-    let n = |v: u64| {
-        i64::try_from(v)
-            .map(Sql::Integer)
-            .map_err(|_| invalid("limit and offset must fit in 63 bits"))
-    };
+    let n = |v: u64| i64::try_from(v).map(Sql::Integer).map_err(|_| invalid("limit and offset must fit in 63 bits"));
     match (q.limit, q.offset) {
         (Some(l), off) => {
             sql.push_str(" LIMIT ?");
@@ -191,11 +164,7 @@ fn condition(k: &Kind, i: usize, c: &Cond, params: &mut Vec<Sql>) -> Result<Stri
         }
         Cond::In(vs) if vs.is_empty() => "0".to_owned(),
         Cond::In(vs) => {
-            let marks = vs
-                .iter()
-                .map(&mut bind)
-                .collect::<Result<Vec<_>>>()?
-                .join(", ");
+            let marks = vs.iter().map(&mut bind).collect::<Result<Vec<_>>>()?.join(", ");
             format!("\"{name}\" IN ({marks})")
         }
     })

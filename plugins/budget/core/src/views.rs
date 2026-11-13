@@ -2,13 +2,15 @@
 //! windows at 0, the hold for Automations stop at, Settings → Usage's accounts, and the small writes
 //! the page makes.
 
-use wisp_budget_api::{AccountView, BankedCredit, BankedDue, Drain, OverageKind, OverageView, PlanHold, WindowNotice, WindowNow, WindowView};
+use wisp_budget_api::{
+    AccountView, BankedCredit, BankedDue, Drain, OverageKind, OverageView, PlanHold, WindowNotice, WindowNow, WindowView,
+};
 
 use crate::drain::{drain_of, rate_of, spend};
 use crate::limits::{banked_at, banked_due};
 use crate::model::Budget;
 use crate::shape::stale;
-use crate::state::{Ack, Acc, Over, Win, account_or_default};
+use crate::state::{Acc, Ack, Over, Win, account_or_default};
 use crate::windows::{FULL, H, pace_of, rank, window_label};
 
 const OVER_KEEP: usize = 50;
@@ -37,7 +39,17 @@ impl Budget {
             Some((_, b)) if b.used >= w.used => best,
             _ => Some((id, w)),
         })?;
-        Some(PlanHold { agent: agent.to_owned(), account: account_or_default(account).to_owned(), window: id.clone(), label: window_label(id, w.ms), used: w.used, stop, until, why: String::new(), load: false })
+        Some(PlanHold {
+            agent: agent.to_owned(),
+            account: account_or_default(account).to_owned(),
+            window: id.clone(),
+            label: window_label(id, w.ms),
+            used: w.used,
+            stop,
+            until,
+            why: String::new(),
+            load: false,
+        })
     }
 
     /// When the account can run again after a limit: the latest reset among windows at 99.5%+ whose
@@ -60,7 +72,13 @@ impl Budget {
             .filter(|(id, w)| !stale(acc, id, w, now))
             .map(|(id, w)| {
                 let f = fresh(w, now);
-                WindowNow { id: id.clone(), label: window_label(id, w.ms), used: if f { 0.0 } else { w.used }, resets_at: if f { None } else { w.resets_at }, ms: w.ms }
+                WindowNow {
+                    id: id.clone(),
+                    label: window_label(id, w.ms),
+                    used: if f { 0.0 } else { w.used },
+                    resets_at: if f { None } else { w.resets_at },
+                    ms: w.ms,
+                }
             })
             .collect();
         out.sort_by_key(|w| rank(&w.id));
@@ -76,7 +94,15 @@ impl Budget {
                 let f = fresh(w, now);
                 let used = if f { 0.0 } else { w.used };
                 let early_at = acc.early.get(id).filter(|e| !f && crate::windows::same_period(e.resets_at, w.resets_at)).map(|e| e.at);
-                WindowView { id: id.clone(), label: window_label(id, w.ms), used, resets_at: if f { None } else { w.resets_at }, hit_at: if f { None } else { pace_of(used, w.resets_at, w.ms, now) }, ms: w.ms, early_at }
+                WindowView {
+                    id: id.clone(),
+                    label: window_label(id, w.ms),
+                    used,
+                    resets_at: if f { None } else { w.resets_at },
+                    hit_at: if f { None } else { pace_of(used, w.resets_at, w.ms, now) },
+                    ms: w.ms,
+                    early_at,
+                }
             })
             .collect();
         out.sort_by_key(|w| rank(&w.id));

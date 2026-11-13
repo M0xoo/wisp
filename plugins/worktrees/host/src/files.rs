@@ -22,10 +22,18 @@ async fn poll(ctx: Ctx, spec: Value, cursor: Value) -> Result<Polled> {
     let home = ctx.service::<Paths>().map(|p| p.home().to_string_lossy().into_owned()).unwrap_or_default();
     let now = ctx.clock()?.now_ms();
     let args: Vec<String> = changes::STATUS_ARGS.iter().map(|s| (*s).to_owned()).collect();
-    let opts = ExecOpts { cwd: Some(project.clone().into()), env: Env::default().with("GIT_TERMINAL_PROMPT", "0").with("GIT_OPTIONAL_LOCKS", "0"), timeout: Some(Duration::from_secs(20)), ..ExecOpts::default() };
+    let opts = ExecOpts {
+        cwd: Some(project.clone().into()),
+        env: Env::default().with("GIT_TERMINAL_PROMPT", "0").with("GIT_OPTIONAL_LOCKS", "0"),
+        timeout: Some(Duration::from_secs(20)),
+        ..ExecOpts::default()
+    };
     let r = proc.exec("git", &args, opts).await.map_err(|e| WireError::unavailable(format!("git: {e}")))?;
     if r.timed_out || !r.exit.success() {
-        return Err(WireError::unavailable(format!("git status in {project}: {}", if r.timed_out { "timed out after 20 s".to_owned() } else { r.stderr_text().trim().to_owned() })));
+        return Err(WireError::unavailable(format!(
+            "git status in {project}: {}",
+            if r.timed_out { "timed out after 20 s".to_owned() } else { r.stderr_text().trim().to_owned() }
+        )));
     }
     let (ev, cursor) = changes::files_changed(&project, &r.stdout_text(), &cursor, &home, now);
     Ok(Polled { events: ev.into_iter().collect(), cursor, retry_at: None })
@@ -36,7 +44,13 @@ impl TriggerSource for Files {
         "wisp.worktrees"
     }
     fn ons(&self) -> Vec<SourceOn> {
-        vec![SourceOn { on: "files.changed".into(), title: "Files changed".into(), fields: json!({ "type": "object", "properties": { "project": { "type": "string" }, "paths": { "type": "array", "items": { "type": "string" } } }, "required": ["project"] }), mode: "poll".into(), every: Some(1) }]
+        vec![SourceOn {
+            on: "files.changed".into(),
+            title: "Files changed".into(),
+            fields: json!({ "type": "object", "properties": { "project": { "type": "string" }, "paths": { "type": "array", "items": { "type": "string" } } }, "required": ["project"] }),
+            mode: "poll".into(),
+            every: Some(1),
+        }]
     }
     fn poll(&self, _on: &str, spec: &Value, cursor: Value) -> BoxFuture<'static, Result<Polled>> {
         Box::pin(poll(self.0.clone(), spec.clone(), cursor))

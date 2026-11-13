@@ -44,19 +44,36 @@ pub struct Identity {
 
 /// The HTTP a provider needs. `Err` is a transport failure; any status is an answer.
 pub trait AuthHttp: Send + Sync {
-    fn call(&self, method: &str, url: &str, headers: Vec<(String, String)>, body: Option<(String, Vec<u8>)>) -> futures::future::BoxFuture<'static, std::result::Result<(u16, Vec<u8>), String>>;
+    fn call(
+        &self,
+        method: &str,
+        url: &str,
+        headers: Vec<(String, String)>,
+        body: Option<(String, Vec<u8>)>,
+    ) -> futures::future::BoxFuture<'static, std::result::Result<(u16, Vec<u8>), String>>;
 }
 
 /// A JSON answer, or the provider's own error words.
-pub async fn get_json(http: &dyn AuthHttp, method: &str, url: &str, headers: Vec<(String, String)>, body: Option<(String, Vec<u8>)>) -> Result<Value> {
+pub async fn get_json(
+    http: &dyn AuthHttp,
+    method: &str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    body: Option<(String, Vec<u8>)>,
+) -> Result<Value> {
     let host = url::Url::parse(url).ok().and_then(|u| u.host_str().map(str::to_owned)).unwrap_or_default();
     let mut h = vec![("accept".to_owned(), "application/json".to_owned()), ("user-agent".to_owned(), "wisp-grid".to_owned())];
     h.extend(headers);
     let (status, bytes) = http.call(method, url, h, body).await.map_err(|e| bad(format!("Couldn't reach {host}: {e}"), 502))?;
-    let v: Value = serde_json::from_slice(&bytes).map_err(|_| bad(format!("{host} answered with something that isn't JSON (HTTP {status})."), 502))?;
+    let v: Value =
+        serde_json::from_slice(&bytes).map_err(|_| bad(format!("{host} answered with something that isn't JSON (HTTP {status})."), 502))?;
     if !(200..300).contains(&status) {
         let s = |p: &str| v.pointer(p).and_then(Value::as_str).map(str::to_owned);
-        let why = s("/error_description").or_else(|| s("/error/message")).or_else(|| s("/message")).or_else(|| s("/error")).unwrap_or_else(|| format!("{host}: HTTP {status}"));
+        let why = s("/error_description")
+            .or_else(|| s("/error/message"))
+            .or_else(|| s("/message"))
+            .or_else(|| s("/error"))
+            .unwrap_or_else(|| format!("{host}: HTTP {status}"));
         return Err(bad(why, 502));
     }
     Ok(v)
@@ -94,7 +111,15 @@ pub struct Flows(Mutex<HashMap<String, Flow>>);
 
 impl Flows {
     pub fn begin(&self, provider: &str, ret: &str, link_to: Option<String>, now: i64) -> Flow {
-        let f = Flow { provider: provider.to_owned(), state: random(24), verifier: random(48), nonce: random(24), ret: ret.to_owned(), link_to, at: now };
+        let f = Flow {
+            provider: provider.to_owned(),
+            state: random(24),
+            verifier: random(48),
+            nonce: random(24),
+            ret: ret.to_owned(),
+            link_to,
+            at: now,
+        };
         let mut m = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         m.retain(|_, x| now - x.at <= FLOW_TTL_MS);
         // a bound on what's kept: an attacker starting sign-ins in a loop can't fill memory
@@ -145,16 +170,36 @@ pub fn providers(cfg: &GridConfig) -> Result<Vec<Provider>> {
 fn provider(id: &str, p: &ProviderConfig, want_orgs: bool) -> Result<Provider> {
     let trim = |s: &str| s.trim_end_matches('/').to_owned();
     let (label, kind) = match id {
-        "github" => ("GitHub".to_owned(), Kind::Github { auth_base: trim(p.auth_base.as_deref().unwrap_or("https://github.com")), api_base: trim(p.api_base.as_deref().unwrap_or("https://api.github.com")), want_orgs }),
-        "google" => ("Google".to_owned(), Kind::Oidc { issuer: trim(p.issuer.as_deref().unwrap_or("https://accounts.google.com")), scope: "openid email profile".into() }),
+        "github" => (
+            "GitHub".to_owned(),
+            Kind::Github {
+                auth_base: trim(p.auth_base.as_deref().unwrap_or("https://github.com")),
+                api_base: trim(p.api_base.as_deref().unwrap_or("https://api.github.com")),
+                want_orgs,
+            },
+        ),
+        "google" => (
+            "Google".to_owned(),
+            Kind::Oidc { issuer: trim(p.issuer.as_deref().unwrap_or("https://accounts.google.com")), scope: "openid email profile".into() },
+        ),
         o if o.starts_with("oidc:") => {
-            let issuer = p.issuer.as_deref().filter(|i| !i.is_empty()).ok_or_else(|| crate::GridError::Config(format!("auth.providers.{id}: issuer is missing.")))?;
+            let issuer = p
+                .issuer
+                .as_deref()
+                .filter(|i| !i.is_empty())
+                .ok_or_else(|| crate::GridError::Config(format!("auth.providers.{id}: issuer is missing.")))?;
             let scope = p.extra.get("scope").and_then(Value::as_str).unwrap_or("openid email profile").to_owned();
             (p.label.clone().unwrap_or_else(|| o["oidc:".len()..].to_owned()), Kind::Oidc { issuer: trim(issuer), scope })
         }
         _ => return Err(crate::GridError::Config(format!("auth.providers.{id}: unknown provider (github, google, or oidc:<name>)."))),
     };
-    Ok(Provider { id: id.to_owned(), label: p.label.clone().unwrap_or(label), client_id: p.client_id.clone(), client_secret: p.client_secret.clone().unwrap_or_default(), kind })
+    Ok(Provider {
+        id: id.to_owned(),
+        label: p.label.clone().unwrap_or(label),
+        client_id: p.client_id.clone(),
+        client_secret: p.client_secret.clone().unwrap_or_default(),
+        kind,
+    })
 }
 
 fn with_query(base: &str, q: &[(&str, &str)]) -> String {
@@ -174,12 +219,40 @@ impl Provider {
         match &self.kind {
             Kind::Github { auth_base, want_orgs, .. } => {
                 let scope = if *want_orgs { "read:user user:email read:org" } else { "read:user user:email" };
-                Ok(with_query(&format!("{auth_base}/login/oauth/authorize"), &[("client_id", &self.client_id), ("redirect_uri", redirect_uri), ("scope", scope), ("state", &f.state), ("code_challenge", &ch), ("code_challenge_method", "S256"), ("allow_signup", "true"), ("prompt", "select_account")]))
+                Ok(with_query(
+                    &format!("{auth_base}/login/oauth/authorize"),
+                    &[
+                        ("client_id", &self.client_id),
+                        ("redirect_uri", redirect_uri),
+                        ("scope", scope),
+                        ("state", &f.state),
+                        ("code_challenge", &ch),
+                        ("code_challenge_method", "S256"),
+                        ("allow_signup", "true"),
+                        ("prompt", "select_account"),
+                    ],
+                ))
             }
             Kind::Oidc { scope, .. } => {
                 let d = self.discovery(http).await?;
-                let at = d.get("authorization_endpoint").and_then(Value::as_str).ok_or_else(|| bad(format!("{} has no authorization endpoint.", self.label), 502))?;
-                Ok(with_query(at, &[("response_type", "code"), ("client_id", &self.client_id), ("redirect_uri", redirect_uri), ("scope", scope), ("state", &f.state), ("nonce", &f.nonce), ("code_challenge", &ch), ("code_challenge_method", "S256"), ("prompt", "select_account")]))
+                let at = d
+                    .get("authorization_endpoint")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| bad(format!("{} has no authorization endpoint.", self.label), 502))?;
+                Ok(with_query(
+                    at,
+                    &[
+                        ("response_type", "code"),
+                        ("client_id", &self.client_id),
+                        ("redirect_uri", redirect_uri),
+                        ("scope", scope),
+                        ("state", &f.state),
+                        ("nonce", &f.nonce),
+                        ("code_challenge", &ch),
+                        ("code_challenge_method", "S256"),
+                        ("prompt", "select_account"),
+                    ],
+                ))
             }
         }
     }
@@ -192,22 +265,55 @@ impl Provider {
         match &self.kind {
             Kind::Github { auth_base, api_base, want_orgs } => {
                 let body = json!({ "client_id": self.client_id, "client_secret": self.client_secret, "code": code, "redirect_uri": redirect_uri, "code_verifier": f.verifier });
-                let t = get_json(http, "POST", &format!("{auth_base}/login/oauth/access_token"), Vec::new(), Some(("application/json".into(), body.to_string().into_bytes()))).await?;
+                let t = get_json(
+                    http,
+                    "POST",
+                    &format!("{auth_base}/login/oauth/access_token"),
+                    Vec::new(),
+                    Some(("application/json".into(), body.to_string().into_bytes())),
+                )
+                .await?;
                 let Some(tok) = t.get("access_token").and_then(Value::as_str) else {
-                    return Err(bad(t.get("error_description").and_then(Value::as_str).unwrap_or("GitHub didn't send an access token."), 502));
+                    return Err(bad(
+                        t.get("error_description").and_then(Value::as_str).unwrap_or("GitHub didn't send an access token."),
+                        502,
+                    ));
                 };
-                let auth = vec![("authorization".to_owned(), format!("Bearer {tok}")), ("x-github-api-version".to_owned(), "2022-11-28".to_owned())];
+                let auth = vec![
+                    ("authorization".to_owned(), format!("Bearer {tok}")),
+                    ("x-github-api-version".to_owned(), "2022-11-28".to_owned()),
+                ];
                 let user = get_json(http, "GET", &format!("{api_base}/user"), auth.clone(), None).await?;
                 let emails = get_json(http, "GET", &format!("{api_base}/user/emails"), auth.clone(), None).await.unwrap_or_default();
-                let orgs = if *want_orgs { Some(get_json(http, "GET", &format!("{api_base}/user/orgs"), auth, None).await.unwrap_or_default()) } else { None };
+                let orgs = if *want_orgs {
+                    Some(get_json(http, "GET", &format!("{api_base}/user/orgs"), auth, None).await.unwrap_or_default())
+                } else {
+                    None
+                };
                 github_identity(&user, &emails, orgs.as_ref())
             }
             Kind::Oidc { issuer, .. } => {
                 let d = self.discovery(http).await?;
-                let token_at = d.get("token_endpoint").and_then(Value::as_str).ok_or_else(|| bad(format!("{} has no token endpoint.", self.label), 502))?;
-                let form = url::form_urlencoded::Serializer::new(String::new()).extend_pairs([("grant_type", "authorization_code"), ("code", code), ("redirect_uri", redirect_uri), ("client_id", &self.client_id), ("client_secret", &self.client_secret), ("code_verifier", &f.verifier)]).finish();
-                let t = get_json(http, "POST", token_at, Vec::new(), Some(("application/x-www-form-urlencoded".into(), form.into_bytes()))).await?;
-                let id_token = t.get("id_token").and_then(Value::as_str).ok_or_else(|| bad(format!("{} didn't send an ID token.", self.label), 502))?;
+                let token_at = d
+                    .get("token_endpoint")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| bad(format!("{} has no token endpoint.", self.label), 502))?;
+                let form = url::form_urlencoded::Serializer::new(String::new())
+                    .extend_pairs([
+                        ("grant_type", "authorization_code"),
+                        ("code", code),
+                        ("redirect_uri", redirect_uri),
+                        ("client_id", &self.client_id),
+                        ("client_secret", &self.client_secret),
+                        ("code_verifier", &f.verifier),
+                    ])
+                    .finish();
+                let t = get_json(http, "POST", token_at, Vec::new(), Some(("application/x-www-form-urlencoded".into(), form.into_bytes())))
+                    .await?;
+                let id_token = t
+                    .get("id_token")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| bad(format!("{} didn't send an ID token.", self.label), 502))?;
                 let jwks_at = d.get("jwks_uri").and_then(Value::as_str).unwrap_or_default().to_owned();
                 let jwks = get_json(http, "GET", &jwks_at, Vec::new(), None).await?;
                 let issuers = [d.get("issuer").and_then(Value::as_str).unwrap_or(issuer).to_owned(), issuer.clone()];
@@ -223,7 +329,11 @@ pub fn github_identity(user: &Value, emails: &Value, orgs: Option<&Value>) -> Re
     let id = user.get("id").and_then(Value::as_u64).ok_or_else(|| bad("GitHub didn't say who you are.", 502))?;
     let list = emails.as_array().cloned().unwrap_or_default();
     let verified = |e: &&Value| e.get("verified").and_then(Value::as_bool) == Some(true);
-    let primary = list.iter().filter(verified).find(|e| e.get("primary").and_then(Value::as_bool) == Some(true)).or_else(|| list.iter().find(verified));
+    let primary = list
+        .iter()
+        .filter(verified)
+        .find(|e| e.get("primary").and_then(Value::as_bool) == Some(true))
+        .or_else(|| list.iter().find(verified));
     let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
     let login = s(user, "login");
     let name = s(user, "name");
@@ -235,14 +345,25 @@ pub fn github_identity(user: &Value, emails: &Value, orgs: Option<&Value>) -> Re
         name: if name.is_empty() { login.clone() } else { name },
         login,
         avatar: s(user, "avatar_url"),
-        orgs: orgs.map(|o| o.as_array().into_iter().flatten().filter_map(|x| x.get("login").and_then(Value::as_str)).map(str::to_lowercase).collect()),
+        orgs: orgs.map(|o| {
+            o.as_array().into_iter().flatten().filter_map(|x| x.get("login").and_then(Value::as_str)).map(str::to_lowercase).collect()
+        }),
     })
 }
 
 fn oidc_identity(provider: &str, c: &Value) -> Identity {
     let s = |k: &str| c.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
     let verified = c.get("email_verified").is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
-    Identity { provider: provider.to_owned(), subject: c.get("sub").map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned)).unwrap_or_default(), email: s("email").to_lowercase(), email_verified: verified, name: s("name"), login: s("preferred_username"), avatar: s("picture"), orgs: None }
+    Identity {
+        provider: provider.to_owned(),
+        subject: c.get("sub").map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned)).unwrap_or_default(),
+        email: s("email").to_lowercase(),
+        email_verified: verified,
+        name: s("name"),
+        login: s("preferred_username"),
+        avatar: s("picture"),
+        orgs: None,
+    }
 }
 
 fn b64(part: &str) -> Result<Vec<u8>> {
@@ -260,7 +381,10 @@ pub fn verify_id_token(token: &str, jwks: &Value, issuers: &[String], audience: 
     let alg = header.get("alg").and_then(Value::as_str).unwrap_or_default();
     let kid = header.get("kid").and_then(Value::as_str);
     let keys = jwks.get("keys").and_then(Value::as_array).cloned().unwrap_or_default();
-    let key = keys.iter().find(|k| kid.is_none_or(|kid| k.get("kid").and_then(Value::as_str) == Some(kid))).ok_or_else(|| refuse("its key isn't the issuer's"))?;
+    let key = keys
+        .iter()
+        .find(|k| kid.is_none_or(|kid| k.get("kid").and_then(Value::as_str) == Some(kid)))
+        .ok_or_else(|| refuse("its key isn't the issuer's"))?;
     let signed = format!("{h}.{p}");
     let sig = b64(sig)?;
     let ok = match alg {

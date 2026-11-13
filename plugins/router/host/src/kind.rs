@@ -55,7 +55,10 @@ impl ResourceKind for RouterKind {
             let mut spec = v.get("settings").cloned().unwrap_or_else(|| json!({}));
             if let Some(o) = spec.as_object_mut() {
                 o.insert("goal".into(), v.get("goal").cloned().unwrap_or(Value::Null));
-                o.retain(|k, x| !x.is_null() && ["goal", "explore", "allowed", "blocked", "prefer", "habits", "escalate", "best2", "scout"].contains(&k.as_str()));
+                o.retain(|k, x| {
+                    !x.is_null()
+                        && ["goal", "explore", "allowed", "blocked", "prefer", "habits", "escalate", "best2", "scout"].contains(&k.as_str())
+                });
             }
             Ok(vec![Resource::new("router", "default", spec)])
         })

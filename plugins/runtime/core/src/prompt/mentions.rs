@@ -28,10 +28,7 @@ fn found(re: &Re, text: &str) -> Vec<Mention> {
         // v1 kept each id once, at its first place, with its last title (a Map's set)
         match out.iter_mut().find(|m| m.id == id.as_str()) {
             Some(m) => title.as_str().clone_into(&mut m.title),
-            None => out.push(Mention {
-                id: id.as_str().to_owned(),
-                title: title.as_str().to_owned(),
-            }),
+            None => out.push(Mention { id: id.as_str().to_owned(), title: title.as_str().to_owned() }),
         }
     }
     out
@@ -58,9 +55,7 @@ pub fn plain_mentions(text: &str) -> String {
 pub fn text_mentions(text: &str) -> String {
     let t = MENTION.replace_all(text, "@${1} (wisp task ${2})");
     let t = CREW.replace_all(&t, "@${1}");
-    STUFF
-        .replace_all(&t, "@${1} (My Stuff item ${2})")
-        .into_owned()
+    STUFF.replace_all(&t, "@${1} (My Stuff item ${2})").into_owned()
 }
 
 /// A mentioned task as the host found it in the store.
@@ -82,36 +77,16 @@ pub struct MentionedTask {
 /// None when it has none (then each mentioned task's report goes in the prompt). `tasks`: the
 /// mentioned tasks the host found (one it didn't is "not on this computer"). `own`: this task's id
 /// (it gets no note about itself). `extra`: what `runtime.prompt@1` expansions add (My Stuff).
-pub fn agent_prompt(
-    prompt: &str,
-    tasks: &[MentionedTask],
-    tool: Option<&str>,
-    own: &str,
-    extra: &str,
-) -> String {
-    let found: Vec<Mention> = mentions_in(prompt)
-        .into_iter()
-        .filter(|m| m.id != own)
-        .collect();
+pub fn agent_prompt(prompt: &str, tasks: &[MentionedTask], tool: Option<&str>, own: &str, extra: &str) -> String {
+    let found: Vec<Mention> = mentions_in(prompt).into_iter().filter(|m| m.id != own).collect();
     let text = text_mentions(prompt);
     if found.is_empty() {
         return text + extra;
     }
     let task = |m: &Mention| tasks.iter().find(|t| t.id == m.id);
     let line = |m: &Mention| match task(m) {
-        None => format!(
-            "- `{}` ({}): not on this computer; it may have been deleted or run on another machine.",
-            m.id, m.title
-        ),
-        Some(s) => format!(
-            "- `{}` **{}**: {}, {}, {}, in `{}`",
-            s.id,
-            s.title,
-            s.state,
-            s.agent,
-            plural(s.turns, "turn"),
-            s.folder
-        ),
+        None => format!("- `{}` ({}): not on this computer; it may have been deleted or run on another machine.", m.id, m.title),
+        Some(s) => format!("- `{}` **{}**: {}, {}, {}, in `{}`", s.id, s.title, s.state, s.agent, plural(s.turns, "turn"), s.folder),
     };
     let note = match tool.filter(|t| !t.is_empty()) {
         Some(tool) => format!(
@@ -123,12 +98,7 @@ pub fn agent_prompt(
             found
                 .iter()
                 .map(|m| match task(m) {
-                    Some(s) => format!(
-                        "### {} (`{}`)\n\n{}",
-                        s.title,
-                        s.id,
-                        truncate(&s.report, INLINE_MAX)
-                    ),
+                    Some(s) => format!("### {} (`{}`)\n\n{}", s.title, s.id, truncate(&s.report, INLINE_MAX)),
                     None => line(m),
                 })
                 .collect::<Vec<_>>()

@@ -45,15 +45,7 @@ pub struct Tool {
 
 impl Tool {
     pub fn new(kind: ToolKind, label: impl Into<String>) -> Self {
-        Self {
-            kind,
-            label: label.into(),
-            file: None,
-            detail: None,
-            id: None,
-            output: None,
-            title: None,
-        }
+        Self { kind, label: label.into(), file: None, detail: None, id: None, output: None, title: None }
     }
     #[must_use]
     pub fn file(mut self, f: impl Into<String>) -> Self {
@@ -88,11 +80,7 @@ pub struct Change {
     /// streamed before the call ran (from its input), not observed after it
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub early: Option<bool>,
-    #[serde(
-        rename = "beforeFile",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "beforeFile", default, skip_serializing_if = "Option::is_none")]
     pub before_file: Option<Option<String>>,
 }
 
@@ -182,11 +170,7 @@ pub struct TurnResult {
 impl TurnResult {
     /// v1's `{ type: 'result', isError: true, text }`
     pub fn error(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            is_error: true,
-            ..Self::default()
-        }
+        Self { text: text.into(), is_error: true, ..Self::default() }
     }
 }
 

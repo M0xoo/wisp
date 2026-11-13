@@ -26,9 +26,7 @@ pub const TOPIC: &str = "plugin:wisp.router:router";
 /// Thinking levels wisp knows, weakest first.
 pub const LEVELS: [&str; 6] = ["minimal", "low", "medium", "high", "xhigh", "max"];
 /// The kinds of task the router learns per (v1 router.js:42).
-pub const TYPES: [&str; 8] = [
-    "bug", "feature", "ui", "test", "refactor", "docs", "release", "question",
-];
+pub const TYPES: [&str; 8] = ["bug", "feature", "ui", "test", "refactor", "docs", "release", "question"];
 
 pub fn is_level(e: &str) -> bool {
     LEVELS.contains(&e)
@@ -61,41 +59,19 @@ pub fn split_key(k: &str) -> KeyParts<'_> {
     let Some((agent, rest)) = k.split_once(':') else {
         // v1: indexOf(':') is -1, so the agent is everything but the last character and the model
         // the whole key; no caller passes such a key, so keep it simple and total.
-        return KeyParts {
-            agent: k,
-            model: "",
-            effort: "",
-        };
+        return KeyParts { agent: k, model: "", effort: "" };
     };
     match rest.rsplit_once(':') {
-        Some((model, tail)) if is_level(tail) => KeyParts {
-            agent,
-            model,
-            effort: tail,
-        },
-        _ => KeyParts {
-            agent,
-            model: rest,
-            effort: "",
-        },
+        Some((model, tail)) if is_level(tail) => KeyParts { agent, model, effort: tail },
+        _ => KeyParts { agent, model: rest, effort: "" },
     }
 }
 
 /// The three goals of Auto: (id, label, value in the utility, hint) (v1 router.js:37).
 pub const GOALS: [(&str, &str, f64, &str); 3] = [
     ("cheap", "Cheap", 1.0, "Lowest cost that still gets it done"),
-    (
-        "balanced",
-        "Balanced",
-        5.0,
-        "Frontier models as their makers ship them, a level up where it pays",
-    ),
-    (
-        "best",
-        "Best",
-        50.0,
-        "Frontier models at high thinking; cost only breaks ties",
-    ),
+    ("balanced", "Balanced", 5.0, "Frontier models as their makers ship them, a level up where it pays"),
+    ("best", "Best", 50.0, "Frontier models at high thinking; cost only breaks ties"),
 ];
 
 pub fn is_goal(g: &str) -> bool {

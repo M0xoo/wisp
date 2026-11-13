@@ -54,11 +54,7 @@ impl Origin for GitOrigin {
 /// Points and services are read when a list is asked for, so a plugin switched on later counts.
 struct FirstProjects(Ctx);
 impl Projects for FirstProjects {
-    fn project(
-        &self,
-        call: &Call,
-        id: &str,
-    ) -> BoxFuture<'static, Result<Option<wisp_issues_api::ProjectRef>>> {
+    fn project(&self, call: &Call, id: &str) -> BoxFuture<'static, Result<Option<wisp_issues_api::ProjectRef>>> {
         match self.0.contributions(&PROJECTS).first() {
             Some(p) => p.project(call, id),
             None => Box::pin(async { Ok(None) }),
@@ -68,16 +64,8 @@ impl Projects for FirstProjects {
 
 struct AllConnectors(Ctx);
 impl Connectors for AllConnectors {
-    fn connectors(
-        &self,
-        call: &Call,
-    ) -> BoxFuture<'static, Result<Vec<wisp_issues_api::Connector>>> {
-        let all: Vec<_> = self
-            .0
-            .contributions(&CONNECTORS)
-            .iter()
-            .map(|c| c.connectors(call))
-            .collect();
+    fn connectors(&self, call: &Call) -> BoxFuture<'static, Result<Vec<wisp_issues_api::Connector>>> {
+        let all: Vec<_> = self.0.contributions(&CONNECTORS).iter().map(|c| c.connectors(call)).collect();
         Box::pin(async move {
             let mut out = Vec::new();
             for f in all {
@@ -91,9 +79,17 @@ impl Connectors for AllConnectors {
 /// A connector's tool through wisp.connectors (`connectors.call`), as this plugin's caller.
 struct ConnectorTools(Ctx);
 impl Tools for ConnectorTools {
-    fn call(&self, call: &Call, connector: &str, tool: &str, args: serde_json::Value) -> BoxFuture<'static, std::result::Result<serde_json::Value, String>> {
+    fn call(
+        &self,
+        call: &Call,
+        connector: &str,
+        tool: &str,
+        args: serde_json::Value,
+    ) -> BoxFuture<'static, std::result::Result<serde_json::Value, String>> {
         let (ctx, call, a) = (self.0.clone(), call.clone(), serde_json::json!({ "id": connector, "tool": tool, "args": args }));
-        Box::pin(async move { ctx.run_json(&call, "connectors.call", a).await.map(|o| o.get("result").cloned().unwrap_or_default()).map_err(|e| e.message) })
+        Box::pin(async move {
+            ctx.run_json(&call, "connectors.call", a).await.map(|o| o.get("result").cloned().unwrap_or_default()).map_err(|e| e.message)
+        })
     }
 }
 
@@ -104,7 +100,16 @@ impl Http for NetHttp {
         let ctx = self.0.clone();
         Box::pin(async move {
             let n = wisp_kernel::services::net(&ctx).map_err(|e| e.message)?;
-            let r = n.fetch(wisp_kernel::services::NetRequest { method: req.method, url: req.url, headers: req.headers, body: req.body.unwrap_or_default(), timeout_ms: req.timeout_ms }).await.map_err(|e| e.message)?;
+            let r = n
+                .fetch(wisp_kernel::services::NetRequest {
+                    method: req.method,
+                    url: req.url,
+                    headers: req.headers,
+                    body: req.body.unwrap_or_default(),
+                    timeout_ms: req.timeout_ms,
+                })
+                .await
+                .map_err(|e| e.message)?;
             Ok(wisp_issues_api::HttpResponse { status: r.status, status_text: String::new(), body: r.body })
         })
     }
@@ -121,9 +126,7 @@ fn deps(ctx: &Ctx) -> Result<Deps> {
         tools: Some(Arc::new(ConnectorTools(ctx.clone()))),
         projects: Some(Arc::new(FirstProjects(ctx.clone()))),
         connectors: Some(Arc::new(AllConnectors(ctx.clone()))),
-        linear_api: std::env::var("WISP_LINEAR_API")
-            .unwrap_or_else(|_| wisp_issues_core::sources::LINEAR_API.into()),
+        linear_api: std::env::var("WISP_LINEAR_API").unwrap_or_else(|_| wisp_issues_core::sources::LINEAR_API.into()),
         now: Arc::new(move || clock.as_ref().map_or(0, |c| c.now_ms())),
     })
 }
-

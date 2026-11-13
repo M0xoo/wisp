@@ -20,9 +20,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use serde_json::json;
-use wisp_store::{
-    Col, EntityDef, Location, Migration, PatchOp, Query, Row, Store, StoreOptions, SystemClock, row,
-};
+use wisp_store::{Col, EntityDef, Location, Migration, PatchOp, Query, Row, Store, StoreOptions, SystemClock, row};
 
 const G1_SCHEMA: &[Migration] = &[Migration::sql(
     1,
@@ -36,16 +34,10 @@ const G1_SCHEMA: &[Migration] = &[Migration::sql(
 )];
 
 fn s_topics(r: &Row) -> Vec<String> {
-    vec![
-        "list".into(),
-        format!("session:{}", r["id"].as_str().unwrap_or("")),
-    ]
+    vec!["list".into(), format!("session:{}", r["id"].as_str().unwrap_or(""))]
 }
 fn e_topics(r: &Row) -> Vec<String> {
-    vec![format!(
-        "session:{}",
-        r["session_id"].as_str().unwrap_or("")
-    )]
+    vec![format!("session:{}", r["session_id"].as_str().unwrap_or(""))]
 }
 
 const SESSION: EntityDef = EntityDef {
@@ -139,10 +131,7 @@ fn session_row(i: usize) -> Row {
 fn load(store: &Store, sessions: usize, total: usize, next: &mut [i64]) -> f64 {
     for b in (0..sessions).step_by(500) {
         store
-            .write_blocking(move |w| {
-                (b..(b + 500).min(sessions))
-                    .try_for_each(|i| w.upsert("session", session_row(i)).map(|_| ()))
-            })
+            .write_blocking(move |w| (b..(b + 500).min(sessions)).try_for_each(|i| w.upsert("session", session_row(i)).map(|_| ())))
             .unwrap();
     }
     // bulk: transactions of 1,000 events, 10 sessions × 100 (an import's shape)
@@ -156,20 +145,11 @@ fn load(store: &Store, sessions: usize, total: usize, next: &mut [i64]) -> f64 {
                 events(next, (s - 1) % sessions, 100.min(n - k))
             })
             .collect();
-        store
-            .write_blocking(move |w| {
-                batches
-                    .into_iter()
-                    .try_for_each(|b| w.append("event", b).map(|_| ()))
-            })
-            .unwrap();
+        store.write_blocking(move |w| batches.into_iter().try_for_each(|b| w.append("event", b).map(|_| ()))).unwrap();
         written += n;
     }
     let rate = total as f64 / t0.elapsed().as_secs_f64();
-    println!(
-        "  bulk append (tx per 1,000): {rate:.0} events/s ({:.1} s)",
-        t0.elapsed().as_secs_f64()
-    );
+    println!("  bulk append (tx per 1,000): {rate:.0} events/s ({:.1} s)", t0.elapsed().as_secs_f64());
     rate
 }
 
@@ -177,14 +157,10 @@ fn stream(store: &Store, next: &mut [i64], per_tx: usize, txs: usize) -> f64 {
     let t0 = Instant::now();
     for i in 0..txs {
         let b = events(next, i % 10, per_tx);
-        store
-            .write_blocking(move |w| w.append("event", b).map(|_| ()))
-            .unwrap();
+        store.write_blocking(move |w| w.append("event", b).map(|_| ())).unwrap();
     }
     let rate = (txs * per_tx) as f64 / t0.elapsed().as_secs_f64();
-    println!(
-        "  streaming append (tx per {per_tx} events, 10 sessions round-robin): {rate:.0} events/s"
-    );
+    println!("  streaming append (tx per {per_tx} events, 10 sessions round-robin): {rate:.0} events/s");
     rate
 }
 
@@ -192,16 +168,9 @@ fn stream(store: &Store, next: &mut [i64], per_tx: usize, txs: usize) -> f64 {
 #[ignore = "bench: run in release with --ignored"]
 fn g1_5k_sessions_2m_events() {
     let sessions = 5000;
-    let total: usize = std::env::var("G1_EVENTS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(2_000_000);
+    let total: usize = std::env::var("G1_EVENTS").ok().and_then(|v| v.parse().ok()).unwrap_or(2_000_000);
     let home = common::tmp_home();
-    let store = Store::open_with(StoreOptions::new(
-        Location::Path(home.join("wisp.db")),
-        Arc::new(SystemClock),
-    ))
-    .unwrap();
+    let store = Store::open_with(StoreOptions::new(Location::Path(home.join("wisp.db")), Arc::new(SystemClock))).unwrap();
     store.migrate("bench", G1_SCHEMA).unwrap();
     store.define_entity(SESSION).unwrap();
     store.define_entity(EVENT).unwrap();
@@ -211,71 +180,28 @@ fn g1_5k_sessions_2m_events() {
     let streamed = stream(&store, &mut next, 10, 10_000);
     stream(&store, &mut next, 1, 10_000);
 
-    let list_cols = [
-        "id",
-        "project_id",
-        "parent_id",
-        "crew_id",
-        "title",
-        "state",
-        "agent",
-        "archived",
-        "updated_at",
-        "branch",
-    ];
-    let q_list = Query::new()
-        .select(&list_cols)
-        .eq("archived", false)
-        .desc("updated_at");
+    let list_cols = ["id", "project_id", "parent_id", "crew_id", "title", "state", "agent", "archived", "updated_at", "branch"];
+    let q_list = Query::new().select(&list_cols).eq("archived", false).desc("updated_at");
     let rows = store.query("session", &q_list).unwrap().len();
-    let rows_ms = timeit(
-        &format!("list query as Rows, every live session ({rows} rows, list columns)"),
-        200,
-        || {
-            drop(store.query("session", &q_list).unwrap());
-        },
-    );
-    let list = timeit(
-        &format!("list query as JSON, every live session ({rows} rows, list columns)"),
-        200,
-        || {
-            drop(store.query_json("session", &q_list).unwrap());
-        },
-    );
+    let rows_ms = timeit(&format!("list query as Rows, every live session ({rows} rows, list columns)"), 200, || {
+        drop(store.query("session", &q_list).unwrap());
+    });
+    let list = timeit(&format!("list query as JSON, every live session ({rows} rows, list columns)"), 200, || {
+        drop(store.query_json("session", &q_list).unwrap());
+    });
     let q_all = Query::new().eq("archived", false).desc("updated_at");
-    let full = timeit(
-        "list query, every live session (all 17 columns)",
-        200,
-        || drop(store.query("session", &q_all).unwrap()),
-    );
-    let q_page = Query::new()
-        .eq("archived", false)
-        .desc("updated_at")
-        .limit(200);
-    let page = timeit("list query, first 200 rows (all columns)", 500, || {
-        drop(store.query("session", &q_page).unwrap())
-    });
-    timeit("window: last 100 events of one session", 500, || {
-        drop(store.window("event", &sid(1234), None, 100).unwrap())
-    });
+    let full = timeit("list query, every live session (all 17 columns)", 200, || drop(store.query("session", &q_all).unwrap()));
+    let q_page = Query::new().eq("archived", false).desc("updated_at").limit(200);
+    let page = timeit("list query, first 200 rows (all columns)", 500, || drop(store.query("session", &q_page).unwrap()));
+    timeit("window: last 100 events of one session", 500, || drop(store.window("event", &sid(1234), None, 100).unwrap()));
     let head = store.head_seq().unwrap();
     let topic = format!("session:{}", sid(3));
-    timeit(
-        "changes_since(head - 1000) on one session topic",
-        200,
-        || {
-            drop(
-                store
-                    .changes_since(head - 1000, Some(&[topic.as_str()]), 1000)
-                    .unwrap(),
-            )
-        },
-    );
-    timeit("get one session", 2000, || {
-        drop(store.get("session", sid(4321).as_str()).unwrap())
+    timeit("changes_since(head - 1000) on one session topic", 200, || {
+        drop(store.changes_since(head - 1000, Some(&[topic.as_str()]), 1000).unwrap())
     });
-    let size = std::fs::metadata(home.join("wisp.db")).map_or(0, |m| m.len())
-        + std::fs::metadata(home.join("wisp.db-wal")).map_or(0, |m| m.len());
+    timeit("get one session", 2000, || drop(store.get("session", sid(4321).as_str()).unwrap()));
+    let size =
+        std::fs::metadata(home.join("wisp.db")).map_or(0, |m| m.len()) + std::fs::metadata(home.join("wisp.db-wal")).map_or(0, |m| m.len());
     println!("  db size: {} MB, change rows: {head}", size / 1_000_000);
     let pass = list <= 5.0 && bulk >= 20_000.0 && streamed >= 20_000.0;
     println!(
@@ -314,14 +240,7 @@ const WA_EVENT: EntityDef = EntityDef {
     kind: "event",
     table: "event",
     key: "id",
-    columns: &[
-        ("id", Col::Int),
-        ("session_id", Col::Text),
-        ("seq", Col::Int),
-        ("kind", Col::Text),
-        ("body", Col::Text),
-        ("v", Col::Int),
-    ],
+    columns: &[("id", Col::Int), ("session_id", Col::Text), ("seq", Col::Int), ("kind", Col::Text), ("body", Col::Text), ("v", Col::Int)],
     json_columns: &["body"],
     parent: Some("session_id"),
     seq: Some("seq"),
@@ -335,25 +254,24 @@ fn amplification(batch: usize) -> (f64, u64, u64, u64) {
     const EVENTS: usize = 5000;
     let home = common::tmp_home();
     let file = home.join("wisp.db");
-    let store = Store::open_with(StoreOptions::new(
-        Location::Path(file.clone()),
-        Arc::new(SystemClock),
-    ))
-    .unwrap();
+    let store = Store::open_with(StoreOptions::new(Location::Path(file.clone()), Arc::new(SystemClock))).unwrap();
     store.migrate("bench", WA_SCHEMA).unwrap();
     store.define_entity(WA_SESSION).unwrap();
     store.define_entity(WA_EVENT).unwrap();
-    store.write_blocking(|w| w.upsert("session", row!({"id": "s1", "title": "the big one", "state": "running", "updated_at": 0, "last_seq": 0, "extra": {"cost": 0}}))).unwrap();
+    store
+        .write_blocking(|w| {
+            w.upsert(
+                "session",
+                row!({"id": "s1", "title": "the big one", "state": "running", "updated_at": 0, "last_seq": 0, "extra": {"cost": 0}}),
+            )
+        })
+        .unwrap();
     let reader = wisp_store::rusqlite::Connection::open(&file).unwrap();
     if let Ok(sql) = std::env::var("WA_EXPERIMENT") {
         reader.execute_batch(&sql).unwrap();
     }
-    reader
-        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); BEGIN;")
-        .unwrap();
-    let _: i64 = reader
-        .query_row("SELECT count(*) FROM session", [], |r| r.get(0))
-        .unwrap();
+    reader.execute_batch("PRAGMA wal_checkpoint(TRUNCATE); BEGIN;").unwrap();
+    let _: i64 = reader.query_row("SELECT count(*) FROM session", [], |r| r.get(0)).unwrap();
     let text = "x".repeat(2 * 1024 * 1024 / EVENTS - 31); // {"t":"text","text":…,"n":1234} ≈ 419 B
     let mut payload = 0u64;
     for i in (0..EVENTS).step_by(batch) {
@@ -368,14 +286,7 @@ fn amplification(batch: usize) -> (f64, u64, u64, u64) {
         store
             .write_blocking(move |w| {
                 w.append("event", rows)?;
-                w.patch(
-                    "session",
-                    "s1",
-                    &[
-                        PatchOp::replace(&["last_seq"], json!(n)),
-                        PatchOp::replace(&["updated_at"], json!(i)),
-                    ],
-                )?;
+                w.patch("session", "s1", &[PatchOp::replace(&["last_seq"], json!(n)), PatchOp::replace(&["updated_at"], json!(i))])?;
                 Ok(())
             })
             .unwrap();
@@ -384,9 +295,7 @@ fn amplification(batch: usize) -> (f64, u64, u64, u64) {
     reader.execute_batch("COMMIT").unwrap();
     store.close();
     drop(store);
-    reader
-        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
-        .unwrap();
+    reader.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
     drop(reader);
     let db = std::fs::metadata(&file).unwrap().len();
     let _ = std::fs::remove_dir_all(&home);
@@ -400,20 +309,12 @@ fn write_amplification_2mb_session_in_5000_events() {
     let mut ten = 0.0;
     for batch in [10, 1] {
         let (x, payload, wal, db) = amplification(batch);
-        println!(
-            "tx per {batch} events: payload {}, WAL {}, db {} → {x:.1}× payload",
-            mb(payload),
-            mb(wal),
-            mb(db)
-        );
+        println!("tx per {batch} events: payload {}, WAL {}, db {} → {x:.1}× payload", mb(payload), mb(wal), mb(db));
         if batch == 10 {
             ten = x;
         }
     }
-    println!(
-        "write amplification {} at 10 events/tx: {ten:.1}× ≤ 15×",
-        if ten <= 15.0 { "PASS" } else { "FAIL" }
-    );
+    println!("write amplification {} at 10 events/tx: {ten:.1}× ≤ 15×", if ten <= 15.0 { "PASS" } else { "FAIL" });
     assert!(ten <= 15.0);
 }
 
@@ -423,21 +324,19 @@ fn write_amplification_2mb_session_in_5000_events() {
 fn list_profile() {
     let home = common::tmp_home();
     let file = home.join("wisp.db");
-    let store = Store::open_with(StoreOptions::new(
-        Location::Path(file.clone()),
-        Arc::new(SystemClock),
-    ))
-    .unwrap();
+    let store = Store::open_with(StoreOptions::new(Location::Path(file.clone()), Arc::new(SystemClock))).unwrap();
     store.migrate("bench", G1_SCHEMA).unwrap();
     store.define_entity(SESSION).unwrap();
     store.define_entity(EVENT).unwrap();
-    store
-        .write_blocking(|w| {
-            (0..5000).try_for_each(|i| w.upsert("session", session_row(i)).map(|_| ()))
-        })
-        .unwrap();
+    store.write_blocking(|w| (0..5000).try_for_each(|i| w.upsert("session", session_row(i)).map(|_| ()))).unwrap();
     let raw = wisp_store::rusqlite::Connection::open(&file).unwrap();
-    let plan: Vec<String> = raw.prepare("EXPLAIN QUERY PLAN SELECT \"id\", \"title\" FROM \"session\" WHERE \"archived\" = 0 ORDER BY \"updated_at\" DESC").unwrap().query_map([], |r| r.get::<_, String>(3)).unwrap().map(Result::unwrap).collect();
+    let plan: Vec<String> = raw
+        .prepare("EXPLAIN QUERY PLAN SELECT \"id\", \"title\" FROM \"session\" WHERE \"archived\" = 0 ORDER BY \"updated_at\" DESC")
+        .unwrap()
+        .query_map([], |r| r.get::<_, String>(3))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
     println!("  plan: {plan:?}");
     let sql = "SELECT \"id\", \"project_id\", \"parent_id\", \"crew_id\", \"title\", \"state\", \"agent\", \"archived\", \"updated_at\", \"branch\" FROM \"session\" WHERE \"archived\" = ? ORDER BY \"updated_at\" DESC";
     timeit("sqlite step only (10 columns, 4000 rows)", 200, || {
@@ -449,42 +348,16 @@ fn list_profile() {
         }
         assert!(n > 0);
     });
-    let list_cols = [
-        "id",
-        "project_id",
-        "parent_id",
-        "crew_id",
-        "title",
-        "state",
-        "agent",
-        "archived",
-        "updated_at",
-        "branch",
-    ];
-    let q = Query::new()
-        .select(&list_cols)
-        .eq("archived", false)
-        .desc("updated_at");
-    timeit("store.query (10 columns, decoded rows)", 200, || {
-        drop(store.query("session", &q).unwrap())
-    });
-    timeit("store.query_json (10 columns, JSON text)", 200, || {
-        drop(store.query_json("session", &q).unwrap())
-    });
-    timeit("store.read only (begin/commit)", 200, || {
-        store.read(|_| Ok(())).unwrap()
-    });
-    timeit(
-        "empty write_blocking (thread hop + BEGIN/COMMIT)",
-        2000,
-        || store.write_blocking(|_| Ok(())).unwrap(),
-    );
+    let list_cols = ["id", "project_id", "parent_id", "crew_id", "title", "state", "agent", "archived", "updated_at", "branch"];
+    let q = Query::new().select(&list_cols).eq("archived", false).desc("updated_at");
+    timeit("store.query (10 columns, decoded rows)", 200, || drop(store.query("session", &q).unwrap()));
+    timeit("store.query_json (10 columns, JSON text)", 200, || drop(store.query_json("session", &q).unwrap()));
+    timeit("store.read only (begin/commit)", 200, || store.read(|_| Ok(())).unwrap());
+    timeit("empty write_blocking (thread hop + BEGIN/COMMIT)", 2000, || store.write_blocking(|_| Ok(())).unwrap());
     let mut next = vec![0i64; 5000];
     timeit("append 10 events (one tx)", 2000, || {
         let b = events(&mut next, 7, 10);
-        store
-            .write_blocking(move |w| w.append("event", b).map(|_| ()))
-            .unwrap();
+        store.write_blocking(move |w| w.append("event", b).map(|_| ())).unwrap();
     });
     let _ = std::fs::remove_dir_all(&home);
 }

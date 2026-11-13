@@ -50,9 +50,7 @@ impl std::convert::From<TelegramError> for WireError {
         match e {
             TelegramError::Api(_) => WireError::unavailable(e.to_string()),
             TelegramError::WrongSecret => WireError::forbidden(e.to_string()),
-            TelegramError::NotAnUpdate | TelegramError::Invalid(_) => {
-                WireError::invalid(e.to_string())
-            }
+            TelegramError::NotAnUpdate | TelegramError::Invalid(_) => WireError::invalid(e.to_string()),
         }
     }
 }
@@ -68,14 +66,7 @@ pub fn mask(token: &str) -> String {
     if token.is_empty() {
         return String::new();
     }
-    let tail: String = token
-        .chars()
-        .rev()
-        .take(4)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect();
+    let tail: String = token.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
     format!("••••{tail}")
 }
 
@@ -96,9 +87,7 @@ pub fn token_ok(token: &str) -> bool {
     !id.is_empty()
         && id.bytes().all(|b| b.is_ascii_digit())
         && rest.len() >= 20
-        && rest
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        && rest.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 /// v1 `lostLine`: what the grid lost while the box slept.

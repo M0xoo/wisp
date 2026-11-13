@@ -39,9 +39,7 @@ fn update_words(kind: StuffKind) -> &'static str {
             "To change it, copy the folder into your working directory, change it there, then wisp_save with id and app: <that folder>."
         }
         StuffKind::Link => "To change it, wisp_save with id and url.",
-        StuffKind::Doc | StuffKind::Code => {
-            "To change it, write the new version and wisp_save with id and text (or path)."
-        }
+        StuffKind::Doc | StuffKind::Code => "To change it, write the new version and wisp_save with id and text (or path).",
         _ => "To change it, wisp_save with id and path (the new file).",
     }
 }
@@ -51,68 +49,27 @@ pub fn stuff_line(x: &StuffItem, path: &str) -> String {
     let where_ = if let Some(u) = &x.url {
         format!("url: {u}")
     } else if x.kind == StuffKind::App {
-        let public = x
-            .published
-            .as_ref()
-            .map(|p| format!(", public at {}", p.url))
-            .unwrap_or_default();
-        format!(
-            "folder: {path} (entry {}){public}",
-            x.entry.as_deref().unwrap_or("index.html")
-        )
+        let public = x.published.as_ref().map(|p| format!(", public at {}", p.url)).unwrap_or_default();
+        format!("folder: {path} (entry {}){public}", x.entry.as_deref().unwrap_or("index.html"))
     } else {
         format!("file: {path}")
     };
-    let lang = x
-        .lang
-        .as_ref()
-        .map(|l| format!(" ({l})"))
-        .unwrap_or_default();
-    let size = if x.size > 0 {
-        format!(", {}", bytes(x.size))
-    } else {
-        String::new()
-    };
-    let by = if x.by.as_deref() == Some("agent") {
-        "an agent"
-    } else {
-        "the user"
-    };
+    let lang = x.lang.as_ref().map(|l| format!(" ({l})")).unwrap_or_default();
+    let size = if x.size > 0 { format!(", {}", bytes(x.size)) } else { String::new() };
+    let by = if x.by.as_deref() == Some("agent") { "an agent" } else { "the user" };
     let rev = match (x.rev, x.updated_at) {
         (Some(r), Some(u)) if r > 1 => format!(", v{r} (updated {})", day(u)),
         _ => String::new(),
     };
-    let from = x
-        .from
-        .as_ref()
-        .and_then(|f| f.title.as_ref())
-        .map(|t| format!(" from “{t}”"))
-        .unwrap_or_default();
-    let star = if x.starred == Some(true) {
-        ", starred"
-    } else {
-        ""
-    };
+    let from = x.from.as_ref().and_then(|f| f.title.as_ref()).map(|t| format!(" from “{t}”")).unwrap_or_default();
+    let star = if x.starred == Some(true) { ", starred" } else { "" };
     let tags = x
         .tags
         .as_ref()
         .filter(|t| !t.is_empty())
-        .map(|t| {
-            format!(
-                " {}",
-                t.iter()
-                    .map(|t| format!("#{t}"))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            )
-        })
+        .map(|t| format!(" {}", t.iter().map(|t| format!("#{t}")).collect::<Vec<_>>().join(" ")))
         .unwrap_or_default();
-    let note = x
-        .note
-        .as_ref()
-        .filter(|n| !n.is_empty())
-        .map(|n| format!("\n  note: {}", clip(n, 200)))
-        .unwrap_or_default();
+    let note = x.note.as_ref().filter(|n| !n.is_empty()).map(|n| format!("\n  note: {}", clip(n, 200))).unwrap_or_default();
     format!(
         "- `{}` **{}** — {}{lang}{size}, saved {} by {by}{rev}{from}{star}{tags}\n  {where_}{note}",
         x.id,
@@ -141,11 +98,7 @@ pub fn stuff_detail(x: &StuffItem, path: &str, d: &Detail) -> String {
     }
     if x.kind == StuffKind::App {
         let n = x.files.unwrap_or(0);
-        let more = if n as usize > d.files.len() {
-            ", …"
-        } else {
-            ""
-        };
+        let more = if n as usize > d.files.len() { ", …" } else { "" };
         let s = if n == 1 { "" } else { "s" };
         let db = x.db.as_ref().map(|db| {
             let seed = if db.seed.is_empty() { String::new() } else { format!(", made from {}", db.seed) };
@@ -153,7 +106,10 @@ pub fn stuff_detail(x: &StuffItem, path: &str, d: &Detail) -> String {
         });
         let uses = x.uses.as_ref().filter(|u| !u.is_empty()).map(|u| {
             let allowed = if d.allowed.is_empty() { "nothing yet".to_owned() } else { d.allowed.join(", ") };
-            format!("\n  It uses wisp ({}; allowed: {allowed}) through <script src=\"/_wisp/pane.js\"></script> when it's pinned as a pane.", u.join(", "))
+            format!(
+                "\n  It uses wisp ({}; allowed: {allowed}) through <script src=\"/_wisp/pane.js\"></script> when it's pinned as a pane.",
+                u.join(", ")
+            )
         });
         body = format!(
             "\n  {n} file{s}: {}{more}\n  The user launches it from My Stuff (wisp serves it on a port of its own).{}{}",
@@ -162,39 +118,18 @@ pub fn stuff_detail(x: &StuffItem, path: &str, d: &Detail) -> String {
             uses.unwrap_or_default()
         );
     }
-    format!(
-        "{}{body}\n  {} Don't change files in My Stuff's own folder.",
-        stuff_line(x, path),
-        update_words(x.kind)
-    )
+    format!("{}{body}\n  {} Don't change files in My Stuff's own folder.", stuff_line(x, path), update_words(x.kind))
 }
 
 /// `wisp_stuff`'s list. `total`: every item in My Stuff (to tell "nothing matches" from "empty").
-pub fn find_text(
-    found: &[(StuffItem, String)],
-    limit: usize,
-    total: usize,
-    capped: bool,
-) -> String {
+pub fn find_text(found: &[(StuffItem, String)], limit: usize, total: usize, capped: bool) -> String {
     if found.is_empty() {
-        return if capped || total > 0 {
-            "Nothing in My Stuff matches that.".into()
-        } else {
-            "My Stuff is empty.".into()
-        };
+        return if capped || total > 0 { "Nothing in My Stuff matches that.".into() } else { "My Stuff is empty.".into() };
     }
     let n = found.len();
     let s = if n > 1 { "s" } else { "" };
-    let newest = if n > limit {
-        format!(" (the newest {limit})")
-    } else {
-        String::new()
-    };
-    let lines: Vec<String> = found
-        .iter()
-        .take(limit)
-        .map(|(it, p)| stuff_line(it, p))
-        .collect();
+    let newest = if n > limit { format!(" (the newest {limit})") } else { String::new() };
+    let lines: Vec<String> = found.iter().take(limit).map(|(it, p)| stuff_line(it, p)).collect();
     format!(
         "{n} item{s} in My Stuff{newest}:\n{}\n\nRead or copy a file from its path; don't change it there. wisp_stuff with an id gives one in full (a doc's text, an app's files); wisp_save with an id updates it.",
         lines.join("\n")
@@ -203,18 +138,10 @@ pub fn find_text(
 
 /// `wisp_save`'s answer for a new item or an update.
 pub fn save_text(it: &StuffItem, update: bool) -> String {
-    let size = if it.size > 0 {
-        format!(", {}", bytes(it.size))
-    } else {
-        String::new()
-    };
+    let size = if it.size > 0 { format!(", {}", bytes(it.size)) } else { String::new() };
     let what = format!("“{}” ({}{size})", it.title, it.kind.as_str());
     let app = it.kind == StuffKind::App;
-    let launch = if app {
-        " The user launches it from My Stuff: wisp serves it on a port of its own."
-    } else {
-        ""
-    };
+    let launch = if app { " The user launches it from My Stuff: wisp serves it on a port of its own." } else { "" };
     let public = it.published.as_ref().map(|p| {
         let older = if p.rev.unwrap_or(1) == it.rev.unwrap_or(1) {
             ""
@@ -231,11 +158,7 @@ pub fn save_text(it: &StuffItem, update: bool) -> String {
             it.id
         );
     }
-    let inside = if app {
-        " (the user launches it from there, inside wisp)"
-    } else {
-        ""
-    };
+    let inside = if app { " (the user launches it from there, inside wisp)" } else { "" };
     format!(
         "Saved {what} to the user's My Stuff, id {}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).{launch}{public} Show it in your answer as {{\"type\":\"stuff\",\"id\":\"{}\"}}{inside}.",
         it.id, it.id

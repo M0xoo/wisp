@@ -35,7 +35,11 @@ struct Box_ {
 
 impl Box_ {
     fn new(after: (&str, &str)) -> Self {
-        Self { now: Arc::new(Mutex::new(("error".into(), "the tunnel closed".into()))), after: (after.0.into(), after.1.into()), connects: Arc::default() }
+        Self {
+            now: Arc::new(Mutex::new(("error".into(), "the tunnel closed".into()))),
+            after: (after.0.into(), after.1.into()),
+            connects: Arc::default(),
+        }
     }
     fn view(&self) -> Value {
         let (state, error) = self.now.lock().unwrap().clone();

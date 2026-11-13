@@ -29,12 +29,8 @@ pub async fn included_paths(root: &str) -> Vec<String> {
     if pats.is_empty() {
         return Vec::new();
     }
-    let mut listing: Vec<String> = fsx::entries(root)
-        .await
-        .into_iter()
-        .filter(|(n, _)| n != ".git")
-        .map(|(n, d)| if d { format!("{n}/") } else { n })
-        .collect();
+    let mut listing: Vec<String> =
+        fsx::entries(root).await.into_iter().filter(|(n, _)| n != ".git").map(|(n, d)| if d { format!("{n}/") } else { n }).collect();
     for line in file.as_deref().unwrap_or("").lines().map(str::trim) {
         let lit = line.trim_start_matches('/').trim_end_matches('/');
         if lit.contains('/')
@@ -42,19 +38,12 @@ pub async fn included_paths(root: &str) -> Vec<String> {
             && !line.starts_with(['#', '!'])
             && let Ok(m) = tokio::fs::metadata(fsx::join(root, lit)).await
         {
-            listing.push(if m.is_dir() {
-                format!("{lit}/")
-            } else {
-                lit.to_owned()
-            });
+            listing.push(if m.is_dir() { format!("{lit}/") } else { lit.to_owned() });
         }
     }
     listing.sort();
     let mut seen = HashSet::new();
-    include::included(&pats, &listing.join("\0"))
-        .into_iter()
-        .filter(|p| seen.insert(p.clone()))
-        .collect()
+    include::included(&pats, &listing.join("\0")).into_iter().filter(|p| seen.insert(p.clone())).collect()
 }
 
 #[derive(Debug, Default)]
@@ -97,20 +86,11 @@ pub async fn clone_or_copy(e: &Engine, from: &str, to: &str) -> std::io::Result<
     clone_or_copy_with(e, from, to, e.platform, "cp").await
 }
 
-pub async fn clone_or_copy_with(
-    e: &Engine,
-    from: &str,
-    to: &str,
-    platform: &str,
-    cp: &str,
-) -> std::io::Result<bool> {
+pub async fn clone_or_copy_with(e: &Engine, from: &str, to: &str, platform: &str, cp: &str) -> std::io::Result<bool> {
     if let Some(flags) = include::cow_args(platform) {
         let mut args: Vec<String> = flags.iter().map(|s| (*s).to_owned()).collect();
         args.extend([from.to_owned(), to.to_owned()]);
-        let opts = ExecOpts {
-            timeout: Some(Duration::from_millis(setup::SETUP_TIMEOUT_MS)),
-            ..ExecOpts::default()
-        };
+        let opts = ExecOpts { timeout: Some(Duration::from_millis(setup::SETUP_TIMEOUT_MS)), ..ExecOpts::default() };
         match e.proc.exec(cp, &args, opts).await {
             Ok(r) if r.exit.success() => {
                 return Ok(platform == "linux" || same_device(from, &fsx::parent(to)).await);
@@ -127,10 +107,7 @@ async fn same_device(a: &str, b: &str) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        match (
-            tokio::fs::symlink_metadata(a).await,
-            tokio::fs::metadata(b).await,
-        ) {
+        match (tokio::fs::symlink_metadata(a).await, tokio::fs::metadata(b).await) {
             (Ok(x), Ok(y)) => x.dev() == y.dev(),
             _ => false,
         }
@@ -188,11 +165,7 @@ async fn disk_bytes(p: &str) -> u64 {
 #[cfg(unix)]
 fn file_bytes(m: &std::fs::Metadata, seen: &mut HashSet<u64>) -> u64 {
     use std::os::unix::fs::MetadataExt;
-    if seen.insert(m.ino()) {
-        m.blocks() * 512
-    } else {
-        0
-    }
+    if seen.insert(m.ino()) { m.blocks() * 512 } else { 0 }
 }
 
 #[cfg(not(unix))]
@@ -211,53 +184,25 @@ pub async fn repo_setup(e: &Engine, root: &str) -> (RepoSetup, Option<(usize, So
             break;
         }
     }
-    (
-        setup::repo_setup(
-            own.as_deref(),
-            cursor.as_deref(),
-            other.as_ref().map(|(_, s)| s),
-        ),
-        other,
-    )
+    (setup::repo_setup(own.as_deref(), cursor.as_deref(), other.as_ref().map(|(_, s)| s)), other)
 }
 
-fn source_env(
-    e: &Engine,
-    rs: &RepoSetup,
-    other: Option<&(usize, SourceScripts)>,
-    ctx: &SetupEnvCtx,
-) -> Vec<(String, String)> {
+fn source_env(e: &Engine, rs: &RepoSetup, other: Option<&(usize, SourceScripts)>, ctx: &SetupEnvCtx) -> Vec<(String, String)> {
     // only a setup that came from the source gets its env (wisp's own file gets none of Conductor's vars)
     match other {
-        Some((i, sc)) if rs.file.as_deref() == Some(sc.file.as_str()) => {
-            e.sources.get(*i).map(|s| s.env(ctx)).unwrap_or_default()
-        }
+        Some((i, sc)) if rs.file.as_deref() == Some(sc.file.as_str()) => e.sources.get(*i).map(|s| s.env(ctx)).unwrap_or_default(),
         _ => Vec::new(),
     }
 }
 
 /// The steps in order in `dir`; stops at the first that fails (the next likely needs it).
-pub async fn run_setup(
-    e: &Engine,
-    root: &str,
-    dir: &str,
-    commands: &[String],
-    env: &[(String, String)],
-) -> (Vec<String>, Vec<String>) {
+pub async fn run_setup(e: &Engine, root: &str, dir: &str, commands: &[String], env: &[(String, String)]) -> (Vec<String>, Vec<String>) {
     let (mut ran, mut problems) = (Vec::new(), Vec::new());
     let shell = std::env::var("SHELL").ok();
     let comspec = std::env::var("ComSpec").ok();
     for cmd in commands {
-        let (bin, args) = setup::shell_argv(
-            e.platform == "windows",
-            shell.as_deref(),
-            comspec.as_deref(),
-            cmd,
-        );
-        let vars = env.iter().fold(
-            Env::default().with("ROOT_WORKTREE_PATH", root),
-            |v, (k, x)| v.with(k.clone(), x.clone()),
-        );
+        let (bin, args) = setup::shell_argv(e.platform == "windows", shell.as_deref(), comspec.as_deref(), cmd);
+        let vars = env.iter().fold(Env::default().with("ROOT_WORKTREE_PATH", root), |v, (k, x)| v.with(k.clone(), x.clone()));
         let opts = ExecOpts {
             cwd: Some(Path::new(dir).to_path_buf()),
             env: vars,
@@ -267,11 +212,7 @@ pub async fn run_setup(
         match e.proc.exec(&bin, &args, opts).await {
             Ok(r) if r.exit.success() => ran.push(cmd.clone()),
             Ok(r) => {
-                let why = if r.timed_out {
-                    "timed out".to_owned()
-                } else {
-                    format!("exit {}", r.exit.shell_code())
-                };
+                let why = if r.timed_out { "timed out".to_owned() } else { format!("exit {}", r.exit.shell_code()) };
                 problems.push(setup::step_failed(cmd, &r.stderr_text(), &why));
                 break;
             }
@@ -285,49 +226,18 @@ pub async fn run_setup(
 }
 
 /// Copy, then set up. `hold`: the steps the repo isn't trusted for: they wait in `held`.
-pub async fn prepare(
-    e: &Engine,
-    root: &str,
-    dir: &str,
-    hold: Option<Vec<TrustItem>>,
-    branch: &str,
-) -> Prepared {
-    let Copied {
-        copied,
-        mut problems,
-        cloned,
-    } = copy_included(e, root, dir).await;
+pub async fn prepare(e: &Engine, root: &str, dir: &str, hold: Option<Vec<TrustItem>>, branch: &str) -> Prepared {
+    let Copied { copied, mut problems, cloned } = copy_included(e, root, dir).await;
     let (rs, other) = repo_setup(e, root).await;
     problems.extend(rs.problem.clone());
     let cloned = (cloned > 0).then_some(cloned);
     if let Some(held) = hold.filter(|h| !h.is_empty()) {
-        return Prepared {
-            copied,
-            ran: Vec::new(),
-            problems,
-            held: Some(held),
-            cloned,
-        };
+        return Prepared { copied, ran: Vec::new(), problems, held: Some(held), cloned };
     }
-    let env = source_env(
-        e,
-        &rs,
-        other.as_ref(),
-        &SetupEnvCtx {
-            root: root.into(),
-            dir: dir.into(),
-            branch: branch.into(),
-        },
-    );
+    let env = source_env(e, &rs, other.as_ref(), &SetupEnvCtx { root: root.into(), dir: dir.into(), branch: branch.into() });
     let (ran, more) = run_setup(e, root, dir, &rs.commands, &env).await;
     problems.extend(more);
-    Prepared {
-        copied,
-        ran,
-        problems,
-        held: None,
-        cloned,
-    }
+    Prepared { copied, ran, problems, held: None, cloned }
 }
 
 /// Trust and start: the held steps run now (a setup from a contributed source keeps its env).
@@ -336,16 +246,7 @@ pub async fn run_held(e: &Engine, wt: &Worktree) -> Option<Prepared> {
     let held = p.held.take()?;
     let commands: Vec<String> = held.iter().map(|x| x.command.clone()).collect();
     let (rs, other) = repo_setup(e, &wt.root).await;
-    let env = source_env(
-        e,
-        &rs,
-        other.as_ref(),
-        &SetupEnvCtx {
-            root: wt.root.clone(),
-            dir: wt.path.clone(),
-            branch: wt.base.clone(),
-        },
-    );
+    let env = source_env(e, &rs, other.as_ref(), &SetupEnvCtx { root: wt.root.clone(), dir: wt.path.clone(), branch: wt.base.clone() });
     let (ran, problems) = run_setup(e, &wt.root, &wt.path, &commands, &env).await;
     p.ran.extend(ran);
     p.problems.extend(problems);

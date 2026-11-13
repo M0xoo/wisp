@@ -145,7 +145,13 @@ impl State {
         }
         writes.dedup_by(|a, b| a.1 == b.1);
         for (sid, tid, plan) in writes {
-            let _ = ctx.run_json(&ctx.root_call(), "runtime.turn.setExt", json!({ "id": sid, "turnId": tid, "plugin": PLUGIN_ID, "value": { "plan": plan } })).await;
+            let _ = ctx
+                .run_json(
+                    &ctx.root_call(),
+                    "runtime.turn.setExt",
+                    json!({ "id": sid, "turnId": tid, "plugin": PLUGIN_ID, "value": { "plan": plan } }),
+                )
+                .await;
         }
     }
 
@@ -216,6 +222,54 @@ macro_rules! on {
     }};
 }
 
+/// The budget's commands: view, hold, reset, record, dismiss and the auto-stop lines.
+fn commands(s: &mut Setup, slot: &Slot) {
+    on!(s, slot, c::View, |st, ctx, a| {
+        let mut v = lock(&st.budget).view(&a.agent, now(&ctx));
+        // v1 meta.js:63: the drain card with Drain watch on, the notices unless they're switched off
+        let (drain, notices) = (
+            drain::watch_on(ctx.setting(drain::WATCH).as_ref(), &lock(&st.settings)),
+            ctx.setting(drain::NOTICE).and_then(|v| v.as_bool()).unwrap_or(true),
+        );
+        for acc in &mut v {
+            drain::shown(acc, drain, notices);
+        }
+        Ok(v)
+    });
+    on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));
+    // when the account can run again after a limit (v1 budget.resetAt): the runtime's limit card
+    on!(s, slot, c::ResetAt, |st, ctx, a| Ok(lock(&st.budget).reset_at(&a.agent, &account_of(&a.account), now(&ctx))));
+    on!(s, slot, c::Record, |st, ctx, a| Ok(st.record(&ctx, &a.agent, &a.account, &a.report).await));
+    on!(s, slot, c::DismissDrain, |st, ctx, a| {
+        let ok = lock(&st.budget).dismiss_drain(&a.agent, &account_of(&a.account), &a.window, now(&ctx));
+        st.save().await;
+        Ok(c::Done { ok })
+    });
+    on!(s, slot, c::DismissNotice, |st, _ctx, a| {
+        let ok = lock(&st.budget).dismiss_notice(&a.agent, &account_of(&a.account), &a.window);
+        st.save().await;
+        Ok(c::Done { ok })
+    });
+    on!(s, slot, c::SetStop, |st, ctx, a| {
+        let keys = [settings::AUTO_STOP, settings::AUTO_STOP_CLAUDE, settings::AUTO_STOP_CODEX];
+        if !keys.contains(&a.key.as_str()) || !(STOP_AT.contains(&a.value.as_str()) || (a.value == "same" && a.key != settings::AUTO_STOP))
+        {
+            return Err(WireError::invalid("Automations stop at: off, 50, 75 or 90 (or same)."));
+        }
+        let v = {
+            let mut set = lock(&st.settings);
+            if let Some(o) = set.as_object_mut() {
+                o.insert(a.key.clone(), json!(a.value));
+            }
+            set.clone()
+        };
+        st.store.write(move |w| store::put_settings(w, &v)).await.map_err(WireError::from)?;
+        // a line raised or turned off frees held work now
+        st.release(&ctx).await;
+        Ok(c::Done { ok: true })
+    });
+}
+
 #[derive(Debug, Default)]
 pub struct BudgetPlugin;
 
@@ -227,46 +281,7 @@ impl Plugin for BudgetPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         crate::kinds::register(s);
         let slot: Slot = Arc::new(OnceLock::new());
-        on!(s, slot, c::View, |st, ctx, a| {
-            let mut v = lock(&st.budget).view(&a.agent, now(&ctx));
-            // v1 meta.js:63: the drain card with Drain watch on, the notices unless they're switched off
-            let (drain, notices) = (drain::watch_on(ctx.setting(drain::WATCH).as_ref(), &lock(&st.settings)), ctx.setting(drain::NOTICE).and_then(|v| v.as_bool()).unwrap_or(true));
-            for acc in &mut v {
-                drain::shown(acc, drain, notices);
-            }
-            Ok(v)
-        });
-        on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));
-        // when the account can run again after a limit (v1 budget.resetAt): the runtime's limit card
-        on!(s, slot, c::ResetAt, |st, ctx, a| Ok(lock(&st.budget).reset_at(&a.agent, &account_of(&a.account), now(&ctx))));
-        on!(s, slot, c::Record, |st, ctx, a| Ok(st.record(&ctx, &a.agent, &a.account, &a.report).await));
-        on!(s, slot, c::DismissDrain, |st, ctx, a| {
-            let ok = lock(&st.budget).dismiss_drain(&a.agent, &account_of(&a.account), &a.window, now(&ctx));
-            st.save().await;
-            Ok(c::Done { ok })
-        });
-        on!(s, slot, c::DismissNotice, |st, _ctx, a| {
-            let ok = lock(&st.budget).dismiss_notice(&a.agent, &account_of(&a.account), &a.window);
-            st.save().await;
-            Ok(c::Done { ok })
-        });
-        on!(s, slot, c::SetStop, |st, ctx, a| {
-            let keys = [settings::AUTO_STOP, settings::AUTO_STOP_CLAUDE, settings::AUTO_STOP_CODEX];
-            if !keys.contains(&a.key.as_str()) || !(STOP_AT.contains(&a.value.as_str()) || (a.value == "same" && a.key != settings::AUTO_STOP)) {
-                return Err(WireError::invalid("Automations stop at: off, 50, 75 or 90 (or same)."));
-            }
-            let v = {
-                let mut set = lock(&st.settings);
-                if let Some(o) = set.as_object_mut() {
-                    o.insert(a.key.clone(), json!(a.value));
-                }
-                set.clone()
-            };
-            st.store.write(move |w| store::put_settings(w, &v)).await.map_err(WireError::from)?;
-            // a line raised or turned off frees held work now
-            st.release(&ctx).await;
-            Ok(c::Done { ok: true })
-        });
+        commands(s, &slot);
         let hook = slot.clone();
         // after the account is picked (wisp.accounts, 20), before trust (50)
         s.intercept::<BeforeRun, _, _>(InterceptOpts { priority: 30, failure: Failure::Open, timeout_ms: 500 }, move |ctx, _call, c| {
@@ -295,7 +310,19 @@ impl Plugin for BudgetPlugin {
                 store::import_v1(&store, p.home()).await.map_err(WireError::from)?;
             }
             let (accs, settings, runs) = store::load(&store).await.map_err(WireError::from)?;
-            let st = Arc::new(State { store, budget: Mutex::new(Budget::load(accs)), settings: Mutex::new(settings), held: Mutex::new(BTreeMap::new()), notes: Mutex::default(), runs: Mutex::new(runs), running: Mutex::default(), asked: Mutex::default(), starting: Mutex::default(), plans: Mutex::default(), plan_seq: std::sync::atomic::AtomicU64::new(0) });
+            let st = Arc::new(State {
+                store,
+                budget: Mutex::new(Budget::load(accs)),
+                settings: Mutex::new(settings),
+                held: Mutex::new(BTreeMap::new()),
+                notes: Mutex::default(),
+                runs: Mutex::new(runs),
+                running: Mutex::default(),
+                asked: Mutex::default(),
+                starting: Mutex::default(),
+                plans: Mutex::default(),
+                plan_seq: std::sync::atomic::AtomicU64::new(0),
+            });
             let _ = start.set(st.clone());
             // held work starts when its windows reset on their own, or a live read says they reset early
             if let Ok(clock) = ctx.clock() {

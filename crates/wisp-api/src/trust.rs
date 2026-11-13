@@ -18,10 +18,7 @@ pub struct TrustedProxy {
 
 impl std::fmt::Debug for TrustedProxy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TrustedProxy")
-            .field("on", &self.on())
-            .field("origin", &self.origin)
-            .finish_non_exhaustive()
+        f.debug_struct("TrustedProxy").field("on", &self.on()).field("origin", &self.origin).finish_non_exhaustive()
     }
 }
 
@@ -34,9 +31,7 @@ impl TrustedProxy {
     pub fn new(secret: Option<&str>, public_url: Option<&str>) -> Self {
         let secret = secret.unwrap_or_default();
         if !secret.is_empty() && secret.len() < MIN_SECRET {
-            tracing::warn!(
-                "WISP_TRUSTED_PROXY_SECRET is shorter than {MIN_SECRET} characters; trusted-proxy mode stays off"
-            );
+            tracing::warn!("WISP_TRUSTED_PROXY_SECRET is shorter than {MIN_SECRET} characters; trusted-proxy mode stays off");
         }
         let origin = public_url.filter(|u| !u.is_empty()).and_then(|u| {
             if let Ok(u) = url::Url::parse(u) {
@@ -46,10 +41,7 @@ impl TrustedProxy {
                 None
             }
         });
-        Self {
-            secret: (secret.len() >= MIN_SECRET).then(|| secret.as_bytes().to_vec()),
-            origin,
-        }
+        Self { secret: (secret.len() >= MIN_SECRET).then(|| secret.as_bytes().to_vec()), origin }
     }
 
     pub fn off() -> Self {
@@ -87,9 +79,7 @@ impl TrustedProxy {
 }
 
 pub(crate) fn strip_scheme(o: &str) -> &str {
-    o.strip_prefix("https://")
-        .or_else(|| o.strip_prefix("http://"))
-        .unwrap_or(o)
+    o.strip_prefix("https://").or_else(|| o.strip_prefix("http://")).unwrap_or(o)
 }
 
 #[cfg(test)]
@@ -117,10 +107,7 @@ mod tests {
         let p = TrustedProxy::new(Some(S), None);
         assert!(p.on());
         assert!(p.via(&hm(&[("x-wisp-proxy-secret", S)])));
-        assert!(!p.via(&hm(&[(
-            "x-wisp-proxy-secret",
-            "0123456789abcdef0123456789abcdeX"
-        )])));
+        assert!(!p.via(&hm(&[("x-wisp-proxy-secret", "0123456789abcdef0123456789abcdeX")])));
         assert!(!p.via(&hm(&[("x-wisp-proxy-secret", &S[..31])])));
         assert!(!p.via(&hm(&[])));
     }
@@ -138,17 +125,8 @@ mod tests {
     fn without_public_url_origin_is_the_forwarded_host() {
         let p = TrustedProxy::new(Some(S), Some("not a url"));
         assert_eq!(p.origin(), None);
-        assert!(p.origin_ok(&hm(&[
-            ("origin", "https://box.example"),
-            ("x-forwarded-host", "box.example")
-        ])));
-        assert!(p.origin_ok(&hm(&[
-            ("origin", "http://box.example"),
-            ("host", "box.example")
-        ])));
-        assert!(!p.origin_ok(&hm(&[
-            ("origin", "https://evil.example"),
-            ("host", "box.example")
-        ])));
+        assert!(p.origin_ok(&hm(&[("origin", "https://box.example"), ("x-forwarded-host", "box.example")])));
+        assert!(p.origin_ok(&hm(&[("origin", "http://box.example"), ("host", "box.example")])));
+        assert!(!p.origin_ok(&hm(&[("origin", "https://evil.example"), ("host", "box.example")])));
     }
 }

@@ -33,9 +33,7 @@ async fn parse(out: Vec<u8>) -> Result<Vec<FileDiff>> {
     if out.len() < PARSE_OFF_THREAD {
         return Ok(parse_diff(&String::from_utf8_lossy(&out)));
     }
-    tokio::task::spawn_blocking(move || parse_diff(&String::from_utf8_lossy(&out)))
-        .await
-        .map_err(|e| GitError::Io(e.to_string()))
+    tokio::task::spawn_blocking(move || parse_diff(&String::from_utf8_lossy(&out))).await.map_err(|e| GitError::Io(e.to_string()))
 }
 
 impl Inner {
@@ -51,31 +49,15 @@ impl Inner {
         let Some(at) = self.merge_base("HEAD", base).await? else {
             return Ok(None);
         };
-        let diff_args = [
-            "diff",
-            "--no-color",
-            "--no-ext-diff",
-            "-M",
-            "-U3",
-            at.as_str(),
-        ];
+        let diff_args = ["diff", "--no-color", "--no-ext-diff", "-M", "-U3", at.as_str()];
         let (out, listed) = tokio::join!(
             self.git.raw(&self.dir, &diff_args),
-            self.git.raw(
-                &self.dir,
-                &["ls-files", "--others", "--exclude-standard", "-z"]
-            ),
+            self.git.raw(&self.dir, &["ls-files", "--others", "--exclude-standard", "-z"]),
         );
         let mut files = parse(out?).await?;
         let untracked = paths(&String::from_utf8_lossy(&listed?));
         let extra = untracked.len().saturating_sub(UNTRACKED_MAX);
-        files.extend(
-            read_untracked(
-                &self.dir,
-                untracked.into_iter().take(UNTRACKED_MAX).collect(),
-            )
-            .await,
-        );
+        files.extend(read_untracked(&self.dir, untracked.into_iter().take(UNTRACKED_MAX).collect()).await);
         let files = tokio::task::spawn_blocking(move || {
             let mut files = files;
             finish(&mut files);
@@ -83,18 +65,8 @@ impl Inner {
         })
         .await
         .map_err(|e| GitError::Io(e.to_string()))?;
-        let base = base
-            .strip_prefix("refs/remotes/")
-            .and_then(|b| b.split_once('/'))
-            .map_or(base, |(_, b)| b)
-            .to_owned();
-        Ok(Some(Collected {
-            base,
-            at,
-            files,
-            untracked: u32::try_from(extra).unwrap_or(u32::MAX),
-            staged: None,
-        }))
+        let base = base.strip_prefix("refs/remotes/").and_then(|b| b.split_once('/')).map_or(base, |(_, b)| b).to_owned();
+        Ok(Some(Collected { base, at, files, untracked: u32::try_from(extra).unwrap_or(u32::MAX), staged: None }))
     }
 
     pub async fn pack(&self, c: Collected, inline: bool) -> Result<Changes> {
@@ -105,25 +77,11 @@ impl Inner {
         .await
         .map_err(|e| GitError::Io(e.to_string()))?;
         let body = self.body(c.files, inline).await?;
-        Ok(Changes {
-            base: c.base,
-            at: c.at,
-            stats,
-            body,
-            untracked: c.untracked,
-            staged: c.staged,
-        })
+        Ok(Changes { base: c.base, at: c.at, stats, body, untracked: c.untracked, staged: c.staged })
     }
 
     pub async fn diff(&self, req: DiffRequest) -> Result<Body> {
-        let mut a: Vec<&str> = vec![
-            "diff",
-            "--no-color",
-            "--no-ext-diff",
-            "-M",
-            "-U3",
-            &req.from,
-        ];
+        let mut a: Vec<&str> = vec!["diff", "--no-color", "--no-ext-diff", "-M", "-U3", &req.from];
         if let Some(to) = &req.to {
             a.push(to);
         }
@@ -148,10 +106,7 @@ impl Inner {
         if json.len() <= INLINE_MAX {
             return Ok(Body::Inline { files });
         }
-        let blob = blobs
-            .put("application/json", json)
-            .await
-            .map_err(|e| GitError::Io(e.message))?;
+        let blob = blobs.put("application/json", json).await.map_err(|e| GitError::Io(e.message))?;
         Ok(Body::Blob { blob })
     }
 
@@ -165,10 +120,7 @@ impl Inner {
         let (un, st, ut) = tokio::join!(
             self.git.raw(&self.dir, APPLY_DIFF),
             self.git.raw(&self.dir, &cached),
-            self.git.quiet(
-                &self.dir,
-                &["ls-files", "--others", "--exclude-standard", "-z"]
-            ),
+            self.git.quiet(&self.dir, &["ls-files", "--others", "--exclude-standard", "-z"]),
         );
         let un = un.unwrap_or_default();
         let st = st.unwrap_or_default();
@@ -191,24 +143,15 @@ pub struct StageReads {
 
 /// Each file's stage state from `reads` (by path: no scans, a change can touch thousands of files).
 pub fn apply_stage_state(files: &mut [FileDiff], reads: &StageReads) -> u32 {
-    let un: std::collections::HashMap<&str, &wisp_git_core::stage::GitFile> = reads
-        .unstaged
-        .iter()
-        .map(|g| (g.path.as_str(), g))
-        .collect();
-    let st: std::collections::HashMap<&str, &wisp_git_core::stage::GitFile> =
-        reads.staged.iter().map(|g| (g.path.as_str(), g)).collect();
+    let un: std::collections::HashMap<&str, &wisp_git_core::stage::GitFile> = reads.unstaged.iter().map(|g| (g.path.as_str(), g)).collect();
+    let st: std::collections::HashMap<&str, &wisp_git_core::stage::GitFile> = reads.staged.iter().map(|g| (g.path.as_str(), g)).collect();
     {
         let (unstaged, staged, untracked) = (&un, &st, &reads.untracked);
         let mut n = 0;
         for f in files.iter_mut() {
-            let names: Vec<&str> = std::iter::once(f.path.as_str())
-                .chain(f.from.as_deref())
-                .collect();
+            let names: Vec<&str> = std::iter::once(f.path.as_str()).chain(f.from.as_deref()).collect();
             let s = names.iter().any(|p| staged.contains_key(*p));
-            let u = names
-                .iter()
-                .any(|p| unstaged.contains_key(*p) || untracked.contains(*p));
+            let u = names.iter().any(|p| unstaged.contains_key(*p) || untracked.contains(*p));
             f.staged = Some(s);
             f.unstaged = Some(u);
             if hunkable(f) && (s || u) {
@@ -228,12 +171,7 @@ async fn read_untracked(dir: &Path, list: Vec<String>) -> Vec<FileDiff> {
     let mut set = JoinSet::new();
     for (i, p) in list.into_iter().enumerate() {
         let file = dir.join(&p);
-        set.spawn(async move {
-            tokio::fs::read(&file)
-                .await
-                .ok()
-                .map(|b| (i, untracked_file(&p, &b)))
-        });
+        set.spawn(async move { tokio::fs::read(&file).await.ok().map(|b| (i, untracked_file(&p, &b))) });
     }
     let mut out: Vec<(usize, FileDiff)> = Vec::new();
     while let Some(r) = set.join_next().await {

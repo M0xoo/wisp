@@ -7,9 +7,10 @@ use crate::migrate::Migration;
 
 pub const KERNEL_OWNER: &str = "kernel";
 
-pub const KERNEL_MIGRATIONS: &[Migration] = &[Migration::sql(
-    1,
-    r"
+pub const KERNEL_MIGRATIONS: &[Migration] = &[
+    Migration::sql(
+        1,
+        r"
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
 
     -- AUTOINCREMENT: a seq is never reused, even after retention empties the table, so a cursor
@@ -80,11 +81,12 @@ pub const KERNEL_MIGRATIONS: &[Migration] = &[Migration::sql(
       UNIQUE (kind, id)
     ) STRICT;
     ",
-),
-// the durable event log (ADR-0044)
-Migration::sql(2, crate::events::SQL),
-// a setting's own value under another plugin's lock (`value` is what's in force, what clients read)
-Migration::sql(3, "ALTER TABLE setting ADD COLUMN saved TEXT;")];
+    ),
+    // the durable event log (ADR-0044)
+    Migration::sql(2, crate::events::SQL),
+    // a setting's own value under another plugin's lock (`value` is what's in force, what clients read)
+    Migration::sql(3, "ALTER TABLE setting ADD COLUMN saved TEXT;"),
+];
 
 fn config_topic(_: &Row) -> Vec<String> {
     vec!["config".to_owned()]
@@ -97,12 +99,7 @@ pub const SETTING: EntityDef = EntityDef {
     kind: "setting",
     table: "setting",
     key: "key",
-    columns: &[
-        ("key", Col::Text),
-        ("value", Col::Text),
-        ("locked_by", Col::Text),
-        ("saved", Col::Text),
-    ],
+    columns: &[("key", Col::Text), ("value", Col::Text), ("locked_by", Col::Text), ("saved", Col::Text)],
     json_columns: &["value", "saved"],
     parent: None,
     seq: None,
@@ -114,13 +111,7 @@ pub const PLUGIN: EntityDef = EntityDef {
     kind: "plugin",
     table: "plugin",
     key: "id",
-    columns: &[
-        ("id", Col::Text),
-        ("version", Col::Text),
-        ("enabled", Col::Bool),
-        ("config", Col::Text),
-        ("grants", Col::Text),
-    ],
+    columns: &[("id", Col::Text), ("version", Col::Text), ("enabled", Col::Bool), ("config", Col::Text), ("grants", Col::Text)],
     json_columns: &["config", "grants"],
     parent: None,
     seq: None,

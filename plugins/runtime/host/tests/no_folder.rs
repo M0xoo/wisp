@@ -14,7 +14,11 @@ const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
 
 async fn no_folder(r: &common::Rig) -> String {
     let turn = serde_json::to_value(wisp_runtime_api::model::Turn { prompt: "fix".into(), ..Default::default() }).unwrap();
-    r.rt.adopt(AdoptArgs { title: "shared".into(), agent: "fake".into(), cwd: String::new(), turns: vec![turn], ..AdoptArgs::default() }).await.unwrap().id.0
+    r.rt.adopt(AdoptArgs { title: "shared".into(), agent: "fake".into(), cwd: String::new(), turns: vec![turn], ..AdoptArgs::default() })
+        .await
+        .unwrap()
+        .id
+        .0
 }
 
 /// One-click commands (`runtime.exec`) ran `sh -c` in the server's folder when the task had none.

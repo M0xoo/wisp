@@ -100,7 +100,6 @@ impl std::fmt::Debug for EventLogService {
     }
 }
 
-
 /// A durable subscription's delivery.
 #[derive(Debug, Clone)]
 pub enum Durable<E> {
@@ -408,14 +407,7 @@ pub(crate) async fn depth_of(log: &EventLogService, mut cause: Option<u64>) -> u
 /// Starts a durable subscription's worker.
 pub(crate) fn start(k: &Arc<KernelState>, ctx: &Ctx, sub: DSub) {
     let stop = ctx.scope().child_token();
-    k.bus
-        .ring
-        .workers
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .entry(ctx.plugin().to_owned())
-        .or_default()
-        .push(stop.clone());
+    k.bus.ring.workers.lock().unwrap_or_else(PoisonError::into_inner).entry(ctx.plugin().to_owned()).or_default().push(stop.clone());
     let flag = Arc::new(AtomicBool::new(true));
     k.bus.ring.busy.lock().unwrap_or_else(PoisonError::into_inner).push(flag.clone());
     k.work.add(1);
@@ -495,7 +487,14 @@ async fn worker(k: Weak<KernelState>, sub: DSub, stop: CancellationToken, flag: 
                 Some(first) if first.seq > next => {
                     // fell off the end of the retention window
                     let to = first.seq - 1;
-                    kk.diag.record(kk.now_ms(), &owner, "event", "gap", format!("{}: events {next}..={to} are gone (retention)", sub.name), Vec::new());
+                    kk.diag.record(
+                        kk.now_ms(),
+                        &owner,
+                        "event",
+                        "gap",
+                        format!("{}: events {next}..={to} are gone (retention)", sub.name),
+                        Vec::new(),
+                    );
                     let gap = gap_envelope(next, to);
                     deliver(&kk, &sub, log.as_ref(), &gap, &stop).await;
                     cursor = to;
@@ -571,7 +570,11 @@ async fn deliver(k: &Arc<KernelState>, sub: &DSub, log: Option<&EventLogService>
         inner.cause = Some(seq);
         inner.cause_depth = env.depth + 1;
         let call = inner.into_call();
-        let fut = std::panic::AssertUnwindSafe(scoped(Scope { tx: None, cursor: Some(mark.clone()) }, (sub.f)(sub.ctx.clone(), call, env.clone()))).catch_unwind();
+        let fut = std::panic::AssertUnwindSafe(scoped(
+            Scope { tx: None, cursor: Some(mark.clone()) },
+            (sub.f)(sub.ctx.clone(), call, env.clone()),
+        ))
+        .catch_unwind();
         let r = tokio::select! {
             () = stop.cancelled() => return,
             r = fut => r,
@@ -585,7 +588,14 @@ async fn deliver(k: &Arc<KernelState>, sub: &DSub, log: Option<&EventLogService>
         }
         // its write committed with the cursor: the effect happened, and running it again would repeat it
         if mark.written.load(Ordering::SeqCst) {
-            k.diag.record(k.now_ms(), &owner, "event", "internal", format!("{} {} (seq {seq}) failed after its write: {why}", sub.name, env.ty), Vec::new());
+            k.diag.record(
+                k.now_ms(),
+                &owner,
+                "event",
+                "internal",
+                format!("{} {} (seq {seq}) failed after its write: {why}", sub.name, env.ty),
+                Vec::new(),
+            );
             return;
         }
     }

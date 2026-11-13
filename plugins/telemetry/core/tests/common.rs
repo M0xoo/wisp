@@ -31,17 +31,11 @@ pub fn common() -> Props {
 }
 
 pub fn scrub() -> ScrubOptions {
-    ScrubOptions {
-        home: HOME.into(),
-        root: ROOT.into(),
-    }
+    ScrubOptions { home: HOME.into(), root: ROOT.into() }
 }
 
 pub fn env(pairs: &[(&str, &str)]) -> Env {
-    pairs
-        .iter()
-        .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
-        .collect()
+    pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
 }
 
 pub fn telemetry(pairs: &[(&str, &str)]) -> Telemetry {
@@ -55,20 +49,14 @@ pub fn id() -> String {
 /// Compares `got` with `goldens/<name>.json`. `WISP_UPDATE_GOLDENS=1` rewrites it: a deliberate act,
 /// reviewed in the PR (these are PostHog's dashboards).
 pub fn golden(name: &str, got: &Value) {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/goldens")
-        .join(format!("{name}.json"));
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/goldens").join(format!("{name}.json"));
     let text = serde_json::to_string_pretty(got).unwrap() + "\n";
     if std::env::var("WISP_UPDATE_GOLDENS").is_ok_and(|v| v == "1") {
         std::fs::write(&path, &text).unwrap();
         return;
     }
-    let want = std::fs::read_to_string(&path).unwrap_or_else(|_| {
-        panic!(
-            "{} is missing: run with WISP_UPDATE_GOLDENS=1 once",
-            path.display()
-        )
-    });
+    let want =
+        std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{} is missing: run with WISP_UPDATE_GOLDENS=1 once", path.display()));
     assert_eq!(text, want, "golden {name} changed");
 }
 

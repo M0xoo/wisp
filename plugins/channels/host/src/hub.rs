@@ -10,9 +10,12 @@ use std::sync::{Arc, Mutex, PoisonError};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use wisp_channels_api::views::{
-    ActArgs, ActKind, ActionKind, ChannelCtx, Parsed, ProjectView, Remote, RunOpts, SessionView, Signed, StartOpts, Started, Thread, ThreadCtx,
+    ActArgs, ActKind, ActionKind, ChannelCtx, Parsed, ProjectView, Remote, RunOpts, SessionView, Signed, StartOpts, Started, Thread,
+    ThreadCtx,
 };
-use wisp_channels_api::{AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Status, Ws};
+use wisp_channels_api::{
+    AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Status, Ws,
+};
 use wisp_kernel::services::NetRequest;
 use wisp_kernel::{BoxFuture, Command, Ctx, Result, WireError};
 use wisp_runtime_api::commands as rt;
@@ -49,7 +52,13 @@ impl Net for KNet {
     async fn fetch(&self, req: HttpRequest) -> std::result::Result<HttpResponse, NetError> {
         let net = wisp_kernel::services::net(&self.0).map_err(|e| NetError::Broken(e.message))?;
         let r = net
-            .fetch(NetRequest { method: req.method, url: req.url, headers: req.headers, body: req.body, timeout_ms: if req.timeout_ms == 0 { 15_000 } else { req.timeout_ms } })
+            .fetch(NetRequest {
+                method: req.method,
+                url: req.url,
+                headers: req.headers,
+                body: req.body,
+                timeout_ms: if req.timeout_ms == 0 { 15_000 } else { req.timeout_ms },
+            })
             .await
             .map_err(|e| NetError::Broken(e.message))?;
         Ok(HttpResponse { status: r.status, headers: r.headers, body: r.body })
@@ -61,7 +70,12 @@ struct KExec(Ctx);
 impl Exec for KExec {
     async fn run(&self, bin: &str, args: &[String], stdin: Option<String>, timeout_ms: u64) -> Result<ExecOut> {
         let proc = self.0.service::<wisp_proc::Proc>()?;
-        let opts = wisp_proc::ExecOpts { input: stdin.map(String::into_bytes), timeout: Some(std::time::Duration::from_millis(timeout_ms.max(1000))), scope: Some(self.0.scope().clone()), ..wisp_proc::ExecOpts::default() };
+        let opts = wisp_proc::ExecOpts {
+            input: stdin.map(String::into_bytes),
+            timeout: Some(std::time::Duration::from_millis(timeout_ms.max(1000))),
+            scope: Some(self.0.scope().clone()),
+            ..wisp_proc::ExecOpts::default()
+        };
         let r = proc.exec(bin, args, opts).await.map_err(|e| WireError::unavailable(e.to_string()))?;
         Ok(ExecOut { code: r.exit.shell_code(), stdout: r.stdout_text(), stderr: r.stderr_text() })
     }
@@ -88,13 +102,28 @@ struct KBox {
 }
 
 impl KBox {
-    async fn call(&self, b: &BoxGrid, method: &str, path: &str, body: Option<serde_json::Value>, timeout_ms: u64) -> Result<(u16, serde_json::Value)> {
+    async fn call(
+        &self,
+        b: &BoxGrid,
+        method: &str,
+        path: &str,
+        body: Option<serde_json::Value>,
+        timeout_ms: u64,
+    ) -> Result<(u16, serde_json::Value)> {
         let net = wisp_kernel::services::net(&self.ctx)?;
         let mut headers = vec![("authorization".to_owned(), b.auth.clone())];
         if body.is_some() {
             headers.push(("content-type".into(), "application/json".into()));
         }
-        let r = net.fetch(NetRequest { method: method.into(), url: format!("{}{path}", b.grid), headers, body: body.map(|v| v.to_string().into_bytes()).unwrap_or_default(), timeout_ms }).await?;
+        let r = net
+            .fetch(NetRequest {
+                method: method.into(),
+                url: format!("{}{path}", b.grid),
+                headers,
+                body: body.map(|v| v.to_string().into_bytes()).unwrap_or_default(),
+                timeout_ms,
+            })
+            .await?;
         Ok((r.status, serde_json::from_slice(&r.body).unwrap_or_default()))
     }
 }
@@ -124,7 +153,12 @@ impl BoxApi for KBox {
         wisp_channels_core::sign::sha256_hex(format!("wisp bot|{token}").as_bytes())[..32].to_owned()
     }
     async fn channel_url(&self, b: &BoxGrid, c: &str, bot: Option<&str>, gone: bool) -> Result<Option<ChannelUrl>> {
-        let path = format!("/api/channels/url?channel={}{}{}", enc(c), bot.map(|m| format!("&bot={}", enc(m))).unwrap_or_default(), if gone { "&gone=1" } else { "" });
+        let path = format!(
+            "/api/channels/url?channel={}{}{}",
+            enc(c),
+            bot.map(|m| format!("&bot={}", enc(m))).unwrap_or_default(),
+            if gone { "&gone=1" } else { "" }
+        );
         let (status, v) = self.call(b, "GET", &path, None, 10_000).await?;
         if status == 404 || status == 401 {
             return Ok(None);
@@ -143,7 +177,9 @@ impl BoxApi for KBox {
     }
     /// the grid knows who to, and won't be told
     async fn mail_reply(&self, b: &BoxGrid, to: &str, s: &str, t: &str) -> Result<Option<String>> {
-        let (status, v) = self.call(b, "POST", "/api/channels/mail/reply", Some(serde_json::json!({ "replyTo": to, "subject": s, "text": t })), 20_000).await?;
+        let (status, v) = self
+            .call(b, "POST", "/api/channels/mail/reply", Some(serde_json::json!({ "replyTo": to, "subject": s, "text": t })), 20_000)
+            .await?;
         if status != 200 {
             return Err(WireError::unavailable(v["error"].as_str().map_or_else(|| format!("the grid said {status}"), str::to_owned)));
         }
@@ -160,7 +196,6 @@ impl BoxApi for KBox {
         }
     }
 }
-
 
 /// A task as a channel sees it, from `runtime.get`.
 pub fn session_view(t: &Value) -> SessionView {
@@ -183,8 +218,24 @@ pub fn session_view(t: &Value) -> SessionView {
 /// A harness as `runtime.agents` lists it, as the grammar reads it.
 fn agent_view(a: &Value) -> wisp_channels_api::AgentView {
     let strs = |v: &Value| v.as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect::<Vec<_>>();
-    let models = a["models"].as_array().into_iter().flatten().map(|m| wisp_channels_api::ModelView { id: m["id"].as_str().unwrap_or_default().to_owned(), label: m["label"].as_str().map(str::to_owned), efforts: strs(&m["efforts"]) }).collect();
-    wisp_channels_api::AgentView { id: a["id"].as_str().unwrap_or_default().to_owned(), name: a["name"].as_str().map(str::to_owned), available: a["available"].as_bool().unwrap_or(false), signed_in: a["signedIn"].as_bool().unwrap_or(true), models, efforts: strs(&a["efforts"]) }
+    let models = a["models"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|m| wisp_channels_api::ModelView {
+            id: m["id"].as_str().unwrap_or_default().to_owned(),
+            label: m["label"].as_str().map(str::to_owned),
+            efforts: strs(&m["efforts"]),
+        })
+        .collect();
+    wisp_channels_api::AgentView {
+        id: a["id"].as_str().unwrap_or_default().to_owned(),
+        name: a["name"].as_str().map(str::to_owned),
+        available: a["available"].as_bool().unwrap_or(false),
+        signed_in: a["signedIn"].as_bool().unwrap_or(true),
+        models,
+        efforts: strs(&a["efforts"]),
+    }
 }
 
 /// A crew member as `crew.list` gives it (its `member` and how busy it is).
@@ -249,7 +300,12 @@ impl KPhone {
 pub fn project_views(list: &[wisp_resources_api::Resource]) -> Vec<ProjectView> {
     list.iter()
         .filter(|r| r.kind == "project")
-        .map(|r| ProjectView { id: r.name.clone(), name: r.name.clone(), path: r.spec.get("path").and_then(Value::as_str).unwrap_or_default().to_owned(), ..ProjectView::default() })
+        .map(|r| ProjectView {
+            id: r.name.clone(),
+            name: r.name.clone(),
+            path: r.spec.get("path").and_then(Value::as_str).unwrap_or_default().to_owned(),
+            ..ProjectView::default()
+        })
         .collect()
 }
 
@@ -268,12 +324,42 @@ impl Phone for KPhone {
     async fn context(&self) -> Result<ChannelCtx> {
         let sessions = self.sessions().await.unwrap_or_default();
         let (projects, default_project) = self.projects_and_default(&sessions).await;
-        let agents: Vec<wisp_channels_api::AgentView> = self.cmd::<rt::Agents>(rt::AgentsArgs::default()).await.ok().and_then(|v| serde_json::from_value::<Vec<Value>>(v).ok()).unwrap_or_default().iter().map(agent_view).collect();
-        let crew = self.cmd::<wisp_crew_api::commands::List>(wisp_crew_api::commands::NoArgs {}).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default().iter().map(member_view).collect();
-        let tasks = sessions.into_iter().filter(|s| matches!(s.state.as_str(), "running" | "waiting")).map(|s| wisp_channels_api::TaskRow { id: s.id, title: s.title, state: s.state }).collect();
+        let agents: Vec<wisp_channels_api::AgentView> = self
+            .cmd::<rt::Agents>(rt::AgentsArgs::default())
+            .await
+            .ok()
+            .and_then(|v| serde_json::from_value::<Vec<Value>>(v).ok())
+            .unwrap_or_default()
+            .iter()
+            .map(agent_view)
+            .collect();
+        let crew = self
+            .cmd::<wisp_crew_api::commands::List>(wisp_crew_api::commands::NoArgs {})
+            .await
+            .ok()
+            .and_then(|v| v.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .map(member_view)
+            .collect();
+        let tasks = sessions
+            .into_iter()
+            .filter(|s| matches!(s.state.as_str(), "running" | "waiting"))
+            .map(|s| wisp_channels_api::TaskRow { id: s.id, title: s.title, state: s.state })
+            .collect();
         let adapters = agents.iter().map(|a| wisp_channels_api::AdapterView { agent: a.clone(), overrides: Vec::new() }).collect();
         let default_agent = agents.iter().find(|a| a.available).map(|a| a.id.clone()).unwrap_or_default();
-        Ok(ChannelCtx { default_project, projects, agents, adapters, crew, goals: wisp_router_api::GOALS.iter().map(|g| g.0.to_owned()).collect(), default_agent, tasks, ..ChannelCtx::default() })
+        Ok(ChannelCtx {
+            default_project,
+            projects,
+            agents,
+            adapters,
+            crew,
+            goals: wisp_router_api::GOALS.iter().map(|g| g.0.to_owned()).collect(),
+            default_agent,
+            tasks,
+            ..ChannelCtx::default()
+        })
     }
     /// v1 phone.js `count`: fixed values only (start, thread, list, refused and their detail), never what a
     /// message said; counted as `channel_event`.
@@ -331,7 +417,11 @@ impl Phone for KPhone {
         let made = self.cmd_json::<rt::Create>(a).await?;
         let id = made.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
         let t = self.cmd::<rt::Get>(get(&id)).await.unwrap_or_default();
-        Ok(Started { ack: format!("Started ({}): {}", mode.label(), t.get("title").and_then(Value::as_str).unwrap_or_default()), session: Some(session_view(&t)), queued: None })
+        Ok(Started {
+            ack: format!("Started ({}): {}", mode.label(), t.get("title").and_then(Value::as_str).unwrap_or_default()),
+            session: Some(session_view(&t)),
+            queued: None,
+        })
     }
     async fn stop(&self, session_id: &str) -> Result<String> {
         self.cmd::<rt::Stop>(rt::StopArgs { id: session_id.into(), clear_queue: false }).await?;
@@ -339,7 +429,11 @@ impl Phone for KPhone {
     }
     async fn status(&self, session_id: &str) -> Result<String> {
         let t = self.cmd::<rt::Get>(get(session_id)).await?;
-        Ok(format!("{}: {}", t.get("title").and_then(Value::as_str).unwrap_or_default(), t.get("state").and_then(Value::as_str).unwrap_or_default()))
+        Ok(format!(
+            "{}: {}",
+            t.get("title").and_then(Value::as_str).unwrap_or_default(),
+            t.get("state").and_then(Value::as_str).unwrap_or_default()
+        ))
     }
     async fn run(&self, session_id: &str, p: &Parsed, o: &RunOpts, _later: Option<Later>) -> Result<String> {
         let mut a = json!({ "id": session_id, "text": p.prompt, "by": o.sender.clone().unwrap_or_else(|| o.name.clone()) });
@@ -361,7 +455,11 @@ impl Phone for KPhone {
     }
     async fn upload(&self, name: &str, mime: &str, bytes: Vec<u8>) -> Result<Value> {
         use base64::Engine as _;
-        let u = self.cmd_json::<wisp_stuff_api::commands::Receive>(json!({ "name": name, "mime": mime, "data": base64::engine::general_purpose::STANDARD.encode(bytes) })).await?;
+        let u = self
+            .cmd_json::<wisp_stuff_api::commands::Receive>(
+                json!({ "name": name, "mime": mime, "data": base64::engine::general_purpose::STANDARD.encode(bytes) }),
+            )
+            .await?;
         Ok(json!({ "id": u.get("id"), "name": u.get("name"), "mime": u.get("mime"), "size": u.get("size") }))
     }
     async fn launch(&self, project: &ProjectView, prompt: &str) -> Result<Option<SessionView>> {
@@ -488,7 +586,10 @@ impl ChannelHub for Hub {
     }
     fn mark_started(&self, session_id: &str, channel: &str, by: Option<&str>) {
         lock(&self.st.started).insert(session_id.to_owned(), (channel.to_owned(), by.map(str::to_owned)));
-        self.ctx.emit(&self.ctx.root_call(), &wisp_channels_api::StartedFrom { session_id: session_id.to_owned(), channel: channel.to_owned(), by: by.map(str::to_owned) });
+        self.ctx.emit(
+            &self.ctx.root_call(),
+            &wisp_channels_api::StartedFrom { session_id: session_id.to_owned(), channel: channel.to_owned(), by: by.map(str::to_owned) },
+        );
     }
     fn thread_started(&self, _s: Option<&SessionView>, _thread: Option<&Thread>, _by: Option<&str>, err: Option<&str>) {
         if let Some(e) = err {
@@ -502,7 +603,13 @@ impl ChannelHub for Hub {
     async fn act(&self, a: &ActArgs) -> Result<String> {
         KPhone(self.ctx.clone()).act(a).await
     }
-    async fn converse(&self, c: &dyn wisp_channels_api::conversation::Conversation, text: &str, session_id: Option<&str>, thread_text: Option<&str>) -> Result<Value> {
+    async fn converse(
+        &self,
+        c: &dyn wisp_channels_api::conversation::Conversation,
+        text: &str,
+        session_id: Option<&str>,
+        thread_text: Option<&str>,
+    ) -> Result<Value> {
         wisp_channels_core::conversation::converse(c, text, session_id, thread_text).await
     }
     fn hash(&self, s: &str) -> String {
@@ -529,9 +636,16 @@ mod box_tests {
     /// v1 channels/box.js `boxGrid`: a cloud box knows its grid and asks it as itself; a computer or a sandbox doesn't.
     #[test]
     fn a_cloud_box_asks_its_grid_as_itself_and_a_sandbox_has_no_channels() {
-        static ON_BOX: [(&str, &str); 3] = [("WISP_GRID_URL", "https://grid.trywisp.dev/"), ("WISP_TRUSTED_PROXY_SECRET", "s3"), ("WISP_PUBLIC_URL", "https://pia.grid.trywisp.dev")];
-        static SANDBOX: [(&str, &str); 4] = [("WISP_GRID_URL", "https://g"), ("WISP_TRUSTED_PROXY_SECRET", "s"), ("WISP_PUBLIC_URL", "https://x.g"), ("WISP_SANDBOX", "1")];
-        let env = |pairs: &'static [(&'static str, &'static str)]| move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| (*v).to_owned());
+        static ON_BOX: [(&str, &str); 3] = [
+            ("WISP_GRID_URL", "https://grid.trywisp.dev/"),
+            ("WISP_TRUSTED_PROXY_SECRET", "s3"),
+            ("WISP_PUBLIC_URL", "https://pia.grid.trywisp.dev"),
+        ];
+        static SANDBOX: [(&str, &str); 4] =
+            [("WISP_GRID_URL", "https://g"), ("WISP_TRUSTED_PROXY_SECRET", "s"), ("WISP_PUBLIC_URL", "https://x.g"), ("WISP_SANDBOX", "1")];
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| (*v).to_owned())
+        };
         let b = box_grid(&env(&ON_BOX)).expect("a box");
         assert_eq!((b.grid.as_str(), b.auth.as_str()), ("https://grid.trywisp.dev", "Box pia s3"));
         assert!(box_grid(&env(&[("WISP_GRID_URL", "https://g"), ("WISP_PUBLIC_URL", "https://pia.g")])).is_none(), "no secret: not a box");

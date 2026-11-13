@@ -13,8 +13,13 @@ fn tmux_capture_takes_the_last_n_lines_of_this_pane() {
     let e = env(&[("TMUX", "/tmp/tmux-501/default,1,0"), ("TMUX_PANE", "%3")]);
     let a = read_argv("tmux", &e, 120).unwrap();
     assert_eq!(a, ["tmux", "capture-pane", "-p", "-J", "-S", "-120", "-t", "%3"]);
-    let captured = "\u{1b}[32m$ cargo test\u{1b}[0m\nerror[E0308]: mismatched types\n  --> src/lib.rs:3:5\nprogress 10%\rprogress 100%\n\n\n";
-    assert_eq!(tail(captured, 3), "error[E0308]: mismatched types\n  --> src/lib.rs:3:5\nprogress 100%", "escapes, overwrites and blank lines at the end go");
+    let captured =
+        "\u{1b}[32m$ cargo test\u{1b}[0m\nerror[E0308]: mismatched types\n  --> src/lib.rs:3:5\nprogress 10%\rprogress 100%\n\n\n";
+    assert_eq!(
+        tail(captured, 3),
+        "error[E0308]: mismatched types\n  --> src/lib.rs:3:5\nprogress 100%",
+        "escapes, overwrites and blank lines at the end go"
+    );
     assert_eq!(tail("a\nb\nc", 2), "b\nc");
     assert_eq!(strip_ansi("\u{1b}]633;A\u{7}ls\u{1b}]0;title\u{1b}\\"), "ls", "OSC marks (VS Code's, titles) go too");
 }
@@ -34,14 +39,25 @@ fn a_terminal_without_its_api_is_skipped_not_an_error() {
 
 #[test]
 fn never_reruns_a_command_to_get_its_output() {
-    let e = env(&[("TMUX", "x"), ("WEZTERM_PANE", "1"), ("KITTY_WINDOW_ID", "1"), ("KITTY_PID", "9"), ("ITERM_SESSION_ID", "w0t0p0:ABC"), ("TERM_PROGRAM", "Apple_Terminal")]);
+    let e = env(&[
+        ("TMUX", "x"),
+        ("WEZTERM_PANE", "1"),
+        ("KITTY_WINDOW_ID", "1"),
+        ("KITTY_PID", "9"),
+        ("ITERM_SESSION_ID", "w0t0p0:ABC"),
+        ("TERM_PROGRAM", "Apple_Terminal"),
+    ]);
     let readers = ["tmux", "wezterm", "kitty", "osascript"];
     for s in SOURCES {
         let a = read_argv(s.id, &e, 50).unwrap();
         assert!(readers.contains(&a[0].as_str()), "{}: {a:?}", s.id);
         assert!(!a.iter().any(|x| x.contains("cargo test")), "never the user's command");
     }
-    let ctx = TermContext { cwd: "/w".into(), commands: vec![Cmd { cmd: "cargo test".into(), exit: Some(101), cwd: "/w".into(), ..Cmd::default() }], ..TermContext::default() };
+    let ctx = TermContext {
+        cwd: "/w".into(),
+        commands: vec![Cmd { cmd: "cargo test".into(), exit: Some(101), cwd: "/w".into(), ..Cmd::default() }],
+        ..TermContext::default()
+    };
     let b = ctx.block();
     assert!(b.contains("couldn't be read") && b.contains("never runs a command again") && b.contains("`cargo test`  → exit 101"), "{b}");
     assert_eq!(ctx.failing().map(|c| c.exit), Some(Some(101)));
@@ -86,7 +102,14 @@ fn prompt_about_what_is_above_attaches_context() {
 
 #[test]
 fn context_summary_says_what_was_attached() {
-    let ctx = TermContext { cwd: "/w".into(), branch: "main".into(), commands: vec![Cmd::default(); 3], source: "tmux".into(), output: vec!["x"; 120].join("\n"), ..TermContext::default() };
+    let ctx = TermContext {
+        cwd: "/w".into(),
+        branch: "main".into(),
+        commands: vec![Cmd::default(); 3],
+        source: "tmux".into(),
+        output: vec!["x"; 120].join("\n"),
+        ..TermContext::default()
+    };
     assert_eq!(ctx.summary(), "3 commands, 120 lines from tmux, git status");
     let one = TermContext { commands: vec![Cmd::default()], source: "iterm2".into(), output: "x".into(), ..TermContext::default() };
     assert_eq!(one.summary(), "1 command, 1 line from iTerm2");
@@ -95,7 +118,10 @@ fn context_summary_says_what_was_attached() {
 
 #[test]
 fn terminal_failed_fires_once_per_failed_command() {
-    let log = vec![Cmd { cmd: "ls".into(), exit: Some(0), at: 10, ..Cmd::default() }, Cmd { cmd: "cargo test".into(), cwd: "/w".into(), exit: Some(101), at: 20, ..Cmd::default() }];
+    let log = vec![
+        Cmd { cmd: "ls".into(), exit: Some(0), at: 10, ..Cmd::default() },
+        Cmd { cmd: "cargo test".into(), cwd: "/w".into(), exit: Some(101), at: 20, ..Cmd::default() },
+    ];
     let (first, c) = failed_since(&log, &Value::Null, "ttys003");
     assert!(first.is_empty(), "the first read only sets the cursor");
     let mut more = log.clone();

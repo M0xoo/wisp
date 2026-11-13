@@ -12,8 +12,8 @@ pub const OWNER: &str = "runtime";
 
 pub const MIGRATIONS: &[Migration] = &[
     Migration::sql(
-    1,
-    "CREATE TABLE runtime_session (
+        1,
+        "CREATE TABLE runtime_session (
        id TEXT PRIMARY KEY, parent_id TEXT, title TEXT NOT NULL, state TEXT NOT NULL, agent TEXT NOT NULL,
        archived INTEGER NOT NULL DEFAULT 0, unread INTEGER NOT NULL DEFAULT 0,
        created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 0,
@@ -54,17 +54,11 @@ pub const MIGRATIONS: &[Migration] = &[
 ];
 
 fn session_of(r: &Row, key: &str) -> String {
-    r.get(key)
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default()
-        .to_owned()
+    r.get(key).and_then(serde_json::Value::as_str).unwrap_or_default().to_owned()
 }
 
 fn session_topics(r: &Row) -> Vec<String> {
-    vec![
-        wisp_runtime_api::TOPIC_LIST.into(),
-        session_topic(&session_of(r, "id")),
-    ]
+    vec![wisp_runtime_api::TOPIC_LIST.into(), session_topic(&session_of(r, "id"))]
 }
 
 fn child_topics(r: &Row) -> Vec<String> {
@@ -140,12 +134,7 @@ pub const QUEUE_ITEM: EntityDef = EntityDef {
     kind: "queue_item",
     table: "runtime_queue_item",
     key: "id",
-    columns: &[
-        ("id", Col::Text),
-        ("session_id", Col::Text),
-        ("pos", Col::Int),
-        ("body", Col::Text),
-    ],
+    columns: &[("id", Col::Text), ("session_id", Col::Text), ("pos", Col::Int), ("body", Col::Text)],
     json_columns: &["body"],
     parent: None,
     seq: None,

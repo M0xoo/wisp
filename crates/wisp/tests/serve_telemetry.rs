@@ -53,7 +53,16 @@ async fn a_run_reaches_posthog_and_opting_out_sends_nothing() {
     let (ph, got) = fake_posthog();
     let dir = temp("serve-telemetry");
     let host = format!("http://127.0.0.1:{ph}");
-    let (serve, port) = start_with(&dir, &[("WISP_POSTHOG_HOST", host.as_str()), ("WISP_POSTHOG_KEY", "phc_test"), ("CI", ""), ("DO_NOT_TRACK", ""), ("WISP_TELEMETRY", "1")]);
+    let (serve, port) = start_with(
+        &dir,
+        &[
+            ("WISP_POSTHOG_HOST", host.as_str()),
+            ("WISP_POSTHOG_KEY", "phc_test"),
+            ("CI", ""),
+            ("DO_NOT_TRACK", ""),
+            ("WISP_TELEMETRY", "1"),
+        ],
+    );
     let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
     run_task(&api, &dir, "claude").await;
     let at = Instant::now();
@@ -65,12 +74,29 @@ async fn a_run_reaches_posthog_and_opting_out_sends_nothing() {
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     };
-    assert!(names.contains(&"turn_started".to_owned()) && names.contains(&"turn_ended".to_owned()), "{names:?} {}", std::fs::read_to_string(dir.join("serve.log")).unwrap_or_default());
+    assert!(
+        names.contains(&"turn_started".to_owned()) && names.contains(&"turn_ended".to_owned()),
+        "{names:?} {}",
+        std::fs::read_to_string(dir.join("serve.log")).unwrap_or_default()
+    );
     let (path, body) = got.lock().unwrap()[0].clone();
     assert_eq!((path.as_str(), body["api_key"].as_str()), ("/batch/", Some("phc_test")));
     let ended = events(&got).into_iter().find(|e| e["event"] == "turn_ended").unwrap();
     let p = &ended["properties"];
-    for k in ["agent", "model", "mode", "effort", "followUp", "status", "blockCount", "blockTypes", "changedFiles", "distinct_id", "$lib", "version"] {
+    for k in [
+        "agent",
+        "model",
+        "mode",
+        "effort",
+        "followUp",
+        "status",
+        "blockCount",
+        "blockTypes",
+        "changedFiles",
+        "distinct_id",
+        "$lib",
+        "version",
+    ] {
         assert!(p.get(k).is_some(), "turn_ended carries {k}: {p}");
     }
     assert_eq!((p["agent"].as_str(), p["status"].as_str()), (Some("claude"), Some("done")));

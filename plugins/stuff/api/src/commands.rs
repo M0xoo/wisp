@@ -282,12 +282,7 @@ impl Service for PublishService {
 pub trait TaskFiles: Send + Sync {
     fn task(&self, call: &Call, id: &str) -> BoxFuture<'static, Result<Option<TaskInfo>>>;
     /// a file the task's reply showed or named, or one inside its folder; None when it's gone
-    fn file(
-        &self,
-        call: &Call,
-        id: &str,
-        asked: &str,
-    ) -> BoxFuture<'static, Result<Option<String>>>;
+    fn file(&self, call: &Call, id: &str, asked: &str) -> BoxFuture<'static, Result<Option<String>>>;
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

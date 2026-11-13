@@ -76,7 +76,10 @@ fn lex(src: &str) -> Result<Vec<Tok>, String> {
                 out.push(Tok::Op(o));
                 i += 2;
             } else {
-                let one = ["?", ":", "!", "(", ")", "[", "]", ",", "."].into_iter().find(|o| o.starts_with(ch)).ok_or_else(|| format!("`{ch}` isn't part of a wisp expression"))?;
+                let one = ["?", ":", "!", "(", ")", "[", "]", ",", "."]
+                    .into_iter()
+                    .find(|o| o.starts_with(ch))
+                    .ok_or_else(|| format!("`{ch}` isn't part of a wisp expression"))?;
                 out.push(Tok::Op(one));
                 i += 1;
             }
@@ -158,7 +161,10 @@ impl P {
         let t = self.peek().cloned().ok_or("an expression ends too soon")?;
         self.i += 1;
         match t {
-            Tok::Num(n) => Ok(E::Lit(serde_json::Number::from_f64(n).map_or(Value::Null, |x| if n.fract() == 0.0 && n.abs() < 9e15 { Value::from(whole(n)) } else { Value::Number(x) }))),
+            Tok::Num(n) => Ok(E::Lit(
+                serde_json::Number::from_f64(n)
+                    .map_or(Value::Null, |x| if n.fract() == 0.0 && n.abs() < 9e15 { Value::from(whole(n)) } else { Value::Number(x) }),
+            )),
             Tok::Str(s) => Ok(E::Lit(Value::String(s))),
             Tok::Op("(") => {
                 let e = self.expr()?;
@@ -274,7 +280,11 @@ fn call(f: &str, a: &[Value], s: &dyn Scope) -> Result<Value, String> {
         "tostring" => Value::String(text(&arg(a, 0))),
         "secret" => Value::String(format!("${{secret:{}}}", text(&arg(a, 0)))),
         "file" | "env" => s.outside(f, &text(&arg(a, 0)))?,
-        _ => return Err(format!("{f}() isn't a wisp function (lower, upper, join, split, replace, length, contains, keys, values, concat, coalesce, tostring, file, env, secret)")),
+        _ => {
+            return Err(format!(
+                "{f}() isn't a wisp function (lower, upper, join, split, replace, length, contains, keys, values, concat, coalesce, tostring, file, env, secret)"
+            ));
+        }
     })
 }
 
@@ -316,7 +326,9 @@ fn eval(e: &E, s: &dyn Scope) -> Result<Value, String> {
                 path.push(match i {
                     Ix::Key(k) => Seg::Key(k.clone()),
                     Ix::At(x) => match eval(x, s)? {
-                        Value::Number(n) => Seg::Index(usize::try_from(n.as_u64().ok_or("an index is a whole number")?).unwrap_or(usize::MAX)),
+                        Value::Number(n) => {
+                            Seg::Index(usize::try_from(n.as_u64().ok_or("an index is a whole number")?).unwrap_or(usize::MAX))
+                        }
                         v => Seg::Key(text(&v)),
                     },
                 });
@@ -478,7 +490,9 @@ mod tests {
     }
 
     fn s() -> S {
-        S(json!({ "var": { "model": "opus", "n": 3, "on": true, "tags": ["a", "b"] }, "agent": { "reviewer": { "name": "reviewer", "harness": "codex" } } }))
+        S(
+            json!({ "var": { "model": "opus", "n": 3, "on": true, "tags": ["a", "b"] }, "agent": { "reviewer": { "name": "reviewer", "harness": "codex" } } }),
+        )
     }
 
     #[test]
@@ -497,7 +511,14 @@ mod tests {
         assert_eq!(e("keep ${secret:TOKEN} and ${env:HOME} and $${literal}"), json!("keep ${secret:TOKEN} and ${env:HOME} and ${literal}"));
         assert!(eval_str("${nope.x}", &s()).is_err());
         assert!(eval_str("${exec(\"rm\")}", &s()).unwrap_err().contains("isn't a wisp function"));
-        assert_eq!(refs(&json!({ "a": "${agent.reviewer.harness} ${var.tags[var.n]}" })), vec![vec!["agent".to_owned(), "reviewer".into(), "harness".into()], vec!["var".into(), "n".into()], vec!["var".into(), "tags".into()]]);
+        assert_eq!(
+            refs(&json!({ "a": "${agent.reviewer.harness} ${var.tags[var.n]}" })),
+            vec![
+                vec!["agent".to_owned(), "reviewer".into(), "harness".into()],
+                vec!["var".into(), "n".into()],
+                vec!["var".into(), "tags".into()]
+            ]
+        );
     }
 
     /// Property: no string panics the evaluator, and a string with no `${` comes back as it is.

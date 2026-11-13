@@ -1,12 +1,6 @@
 //! Crash safety with a real crash: a child process aborts inside a write transaction; reopening finds
 //! every committed row with its change row and nothing of the aborted transaction.
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::assert_is_empty,
-    clippy::unnecessary_wraps
-)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::assert_is_empty, clippy::unnecessary_wraps)]
 
 mod common;
 
@@ -25,27 +19,11 @@ fn crash_child() {
         return;
     };
     let f = open_disk(Some(home.into()));
-    f.store
-        .write_blocking(|w| w.upsert("session", session("kept")))
-        .unwrap();
-    f.store
-        .write_blocking(|w| {
-            w.append(
-                "event",
-                (0..50)
-                    .map(|i| event("kept", i, "x", Value::Null))
-                    .collect(),
-            )
-        })
-        .unwrap();
+    f.store.write_blocking(|w| w.upsert("session", session("kept"))).unwrap();
+    f.store.write_blocking(|w| w.append("event", (0..50).map(|i| event("kept", i, "x", Value::Null)).collect())).unwrap();
     let _: Result<(), _> = f.store.write_blocking(|w| {
         w.upsert("session", session("lost"))?;
-        w.append(
-            "event",
-            (50..100)
-                .map(|i| event("kept", i, "x", Value::Null))
-                .collect(),
-        )?;
+        w.append("event", (50..100).map(|i| event("kept", i, "x", Value::Null)).collect())?;
         std::process::abort();
     });
 }
@@ -63,17 +41,7 @@ fn a_process_that_dies_mid_transaction_loses_only_that_transaction() {
     assert!(f.store.get("session", "kept").unwrap().is_some());
     assert_eq!(f.store.get("session", "lost").unwrap(), None);
     assert_eq!(f.store.count("event", &Query::new()).unwrap(), 50);
-    assert_eq!(
-        f.store.head_seq().unwrap(),
-        2,
-        "two committed transactions, one change row each"
-    );
-    f.store
-        .write_blocking(|w| w.upsert("session", session("after")))
-        .unwrap();
-    assert_eq!(
-        f.store.head_seq().unwrap(),
-        3,
-        "the writer carries on from the committed head"
-    );
+    assert_eq!(f.store.head_seq().unwrap(), 2, "two committed transactions, one change row each");
+    f.store.write_blocking(|w| w.upsert("session", session("after"))).unwrap();
+    assert_eq!(f.store.head_seq().unwrap(), 3, "the writer carries on from the committed head");
 }

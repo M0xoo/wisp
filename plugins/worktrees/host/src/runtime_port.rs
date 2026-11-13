@@ -8,10 +8,10 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 use wisp_kernel::{BoxFuture, Ctx};
-use wisp_runtime_api::commands::{AdoptSession, AdoptSessionArgs, Get, IdArgs, List, ListArgs, Sessions, SessionsArgs, SetExt, SetExtArgs};
-use wisp_runtime_api::spec::AdoptArgs;
 use wisp_runtime_api::commands::Adopt;
+use wisp_runtime_api::commands::{AdoptSession, AdoptSessionArgs, Get, IdArgs, List, ListArgs, Sessions, SessionsArgs, SetExt, SetExtArgs};
 use wisp_runtime_api::model::SessionState;
+use wisp_runtime_api::spec::AdoptArgs;
 use wisp_worktrees_api::{EXT, OfferItem, Worktree};
 
 use crate::ports::{Port, TaskInfo, TaskTree, WtSettings};
@@ -56,7 +56,12 @@ impl Port for RuntimePort {
             for s in list {
                 let Ok(full) = ctx.run::<Get>(&call, IdArgs { id: s.id.clone() }).await else { continue };
                 let slot = full.ext.get(EXT).cloned().unwrap_or(Value::Null);
-                let trees = serde_json::from_value::<Worktree>(slot.clone()).ok().filter(|w| !w.path.is_empty()).map(|worktree| TaskTree { worktree, pr: None }).into_iter().collect();
+                let trees = serde_json::from_value::<Worktree>(slot.clone())
+                    .ok()
+                    .filter(|w| !w.path.is_empty())
+                    .map(|worktree| TaskTree { worktree, pr: None })
+                    .into_iter()
+                    .collect();
                 out.push(TaskInfo {
                     id: s.id.0.clone(),
                     title: s.title.clone(),
@@ -71,7 +76,13 @@ impl Port for RuntimePort {
                     kids: Vec::new(),
                     parent_id: s.parent_id.as_ref().map(|p| p.0.clone()),
                     // the runs of one compare (runtime's slot, wisp --compare): cleaning one up offers its done siblings
-                    group_id: full.ext.get("wisp.runtime").and_then(|o| o.get("group")).and_then(Value::as_str).filter(|g| !g.is_empty()).map(str::to_owned),
+                    group_id: full
+                        .ext
+                        .get("wisp.runtime")
+                        .and_then(|o| o.get("group"))
+                        .and_then(Value::as_str)
+                        .filter(|g| !g.is_empty())
+                        .map(str::to_owned),
                 });
             }
             out
@@ -111,10 +122,24 @@ impl Port for RuntimePort {
         let ctx = self.ctx.clone();
         Box::pin(async move {
             let call = ctx.root_call();
-            let Ok(list) = ctx.run::<wisp_resources_api::Export>(&call, wisp_resources_api::ExportArgs { kinds: vec!["project".into()], include: Vec::new() }).await else { return Vec::new() };
+            let Ok(list) = ctx
+                .run::<wisp_resources_api::Export>(
+                    &call,
+                    wisp_resources_api::ExportArgs { kinds: vec!["project".into()], include: Vec::new() },
+                )
+                .await
+            else {
+                return Vec::new();
+            };
             list.into_iter()
                 .filter(|r| r.kind == "project")
-                .filter_map(|r| r.spec.get("path").and_then(Value::as_str).filter(|p| p.starts_with('/') || p.contains(":\\")).map(|p| (r.name.clone(), p.to_owned())))
+                .filter_map(|r| {
+                    r.spec
+                        .get("path")
+                        .and_then(Value::as_str)
+                        .filter(|p| p.starts_with('/') || p.contains(":\\"))
+                        .map(|p| (r.name.clone(), p.to_owned()))
+                })
                 .collect()
         })
     }
@@ -132,7 +157,9 @@ impl Port for RuntimePort {
             let chat = ctx.run::<Sessions>(&call, SessionsArgs { cwd: item.path.clone() }).await.ok().and_then(|v| v.into_iter().next());
             let made = match chat {
                 Some(c) => ctx.run::<AdoptSession>(&call, AdoptSessionArgs { harness: c.harness, id: c.id }).await,
-                None => ctx.run::<Adopt>(&call, AdoptArgs { title: item.branch.clone(), cwd: item.path.clone(), ..AdoptArgs::default() }).await,
+                None => {
+                    ctx.run::<Adopt>(&call, AdoptArgs { title: item.branch.clone(), cwd: item.path.clone(), ..AdoptArgs::default() }).await
+                }
             };
             let id = match made {
                 Ok(c) => c.id,

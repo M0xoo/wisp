@@ -34,16 +34,22 @@ fn is_hex8(s: &str) -> bool {
 
 /// `sb-<8 hex>--<handle>`
 pub fn is_label(s: &str) -> bool {
-    s.strip_prefix("sb-").and_then(|r| r.split_once("--")).is_some_and(|(id, h)| is_hex8(id) && !h.is_empty() && h.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
+    s.strip_prefix("sb-")
+        .and_then(|r| r.split_once("--"))
+        .is_some_and(|(id, h)| is_hex8(id) && !h.is_empty() && h.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'))
 }
 
 fn env_key_ok(k: &str) -> std::result::Result<(), String> {
     let mut b = k.bytes();
-    let shaped = k.len() <= 64 && b.next().is_some_and(|c| c.is_ascii_alphabetic() || c == b'_') && b.all(|c| c.is_ascii_alphanumeric() || c == b'_');
+    let shaped = k.len() <= 64
+        && b.next().is_some_and(|c| c.is_ascii_alphabetic() || c == b'_')
+        && b.all(|c| c.is_ascii_alphanumeric() || c == b'_');
     if !shaped {
         return Err("A name like DATABASE_URL: letters, digits and _, not starting with a digit.".into());
     }
-    let reserved = k.starts_with("WISP_") || k.starts_with("LD_") || ["CLAUDE_CODE_OAUTH_TOKEN", "PATH", "HOME", "USER", "SHELL", "NODE_OPTIONS", "HOSTNAME"].contains(&k);
+    let reserved = k.starts_with("WISP_")
+        || k.starts_with("LD_")
+        || ["CLAUDE_CODE_OAUTH_TOKEN", "PATH", "HOME", "USER", "SHELL", "NODE_OPTIONS", "HOSTNAME"].contains(&k);
     if reserved {
         return Err(format!("{k} is wisp's own: pick another name."));
     }
@@ -77,12 +83,21 @@ impl Sandboxes {
     }
 
     pub fn list(&self, user_id: &str) -> Result<Vec<SandboxRow>> {
-        self.db.with(|c| c.prepare_cached("SELECT * FROM sandboxes WHERE user_id = ?1 ORDER BY created_at")?.query_map([user_id], SandboxRow::from_row)?.collect())
+        self.db.with(|c| {
+            c.prepare_cached("SELECT * FROM sandboxes WHERE user_id = ?1 ORDER BY created_at")?
+                .query_map([user_id], SandboxRow::from_row)?
+                .collect()
+        })
     }
 
     /// What hostd runs: its own box, keyed apart from the owner's.
     pub fn box_user(row: &SandboxRow) -> BoxUser {
-        BoxUser { id: format!("{}-sb-{}", row.user_id, row.id), handle: row.label.clone(), sandbox: Some(row.id.clone()), owner: Some(row.user_id.clone()) }
+        BoxUser {
+            id: format!("{}-sb-{}", row.user_id, row.id),
+            handle: row.label.clone(),
+            sandbox: Some(row.id.clone()),
+            owner: Some(row.user_id.clone()),
+        }
     }
 
     pub fn view(row: &SandboxRow, url: &str) -> Value {
@@ -97,7 +112,10 @@ impl Sandboxes {
         let s = self.secrets()?;
         let have: i64 = self.db.with(|c| c.query_row("SELECT count(*) FROM sandboxes WHERE user_id = ?1", [&user.id], |r| r.get(0)))?;
         if have >= self.per_user {
-            return Err(bad(format!("You have {have} sandboxes, the most this grid keeps. Delete a sandboxed task you're done with first."), 409));
+            return Err(bad(
+                format!("You have {have} sandboxes, the most this grid keeps. Delete a sandboxed task you're done with first."),
+                409,
+            ));
         }
         let (id, label) = loop {
             let id: String = (0..8).map(|_| char::from(b"0123456789abcdef"[usize::from(rand::random::<u8>() & 15)])).collect();
@@ -107,8 +125,19 @@ impl Sandboxes {
             }
         };
         let name: String = name.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(60).collect();
-        let row = SandboxRow { id, user_id: user.id.clone(), label, name: if name.is_empty() { "Sandbox".into() } else { name }, created_at: self.clock.now_ms() };
-        self.db.with(|c| c.execute("INSERT INTO sandboxes (id, user_id, label, name, created_at) VALUES (?1, ?2, ?3, ?4, ?5)", params![row.id, row.user_id, row.label, row.name, row.created_at]))?;
+        let row = SandboxRow {
+            id,
+            user_id: user.id.clone(),
+            label,
+            name: if name.is_empty() { "Sandbox".into() } else { name },
+            created_at: self.clock.now_ms(),
+        };
+        self.db.with(|c| {
+            c.execute(
+                "INSERT INTO sandboxes (id, user_id, label, name, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![row.id, row.user_id, row.label, row.name, row.created_at],
+            )
+        })?;
         let token = s.ensure(&row.user_id, &format!("sandbox:{}", row.id))?;
         Ok((row.clone(), format!("wsb_{}_{token}", row.id)))
     }
@@ -134,7 +163,17 @@ impl Sandboxes {
     /// Which sign-ins the user's sandboxes start with (never the tokens).
     pub fn logins(&self, user_id: &str) -> Value {
         let s = self.secrets.as_deref();
-        Value::Object(LOGINS.iter().map(|(a, ..)| ((*a).to_owned(), json!(s.is_some_and(|s| s.open_secret(user_id, &format!("sandbox-login:{a}")).ok().flatten().is_some())))).collect())
+        Value::Object(
+            LOGINS
+                .iter()
+                .map(|(a, ..)| {
+                    (
+                        (*a).to_owned(),
+                        json!(s.is_some_and(|s| s.open_secret(user_id, &format!("sandbox-login:{a}")).ok().flatten().is_some())),
+                    )
+                })
+                .collect(),
+        )
     }
 
     pub fn set_login(&self, user_id: &str, agent: &str, token: &str) -> Result<()> {
@@ -157,7 +196,11 @@ impl Sandboxes {
     }
 
     fn read_env(&self, user_id: &str) -> BTreeMap<String, String> {
-        self.secrets.as_deref().and_then(|s| s.open_secret(user_id, "sandbox-env").ok().flatten()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+        self.secrets
+            .as_deref()
+            .and_then(|s| s.open_secret(user_id, "sandbox-env").ok().flatten())
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default()
     }
 
     /// Their env vars' names, never the values.
@@ -183,7 +226,11 @@ impl Sandboxes {
         let mut env = self.read_env(user_id);
         env.remove(key);
         let s = self.secrets()?;
-        if env.is_empty() { s.drop_secret(user_id, "sandbox-env") } else { s.seal(user_id, "sandbox-env", &serde_json::to_string(&env).unwrap_or_default()) }
+        if env.is_empty() {
+            s.drop_secret(user_id, "sandbox-env")
+        } else {
+            s.seal(user_id, "sandbox-env", &serde_json::to_string(&env).unwrap_or_default())
+        }
     }
 
     /// A sandbox's environment: its owner's env vars, then the sign-ins they gave sandboxes, and `WISP_SANDBOX`.
@@ -231,7 +278,10 @@ mod tests {
         assert!(s.by_bearer("Bearer wgd_device").is_none());
         // the box is keyed apart from the owner's
         let b = Sandboxes::box_user(&one);
-        assert_eq!((b.id, b.owner.as_deref(), b.sandbox.as_deref()), (format!("{}-sb-{}", ada.id, one.id), Some(ada.id.as_str()), Some(one.id.as_str())));
+        assert_eq!(
+            (b.id, b.owner.as_deref(), b.sandbox.as_deref()),
+            (format!("{}-sb-{}", ada.id, one.id), Some(ada.id.as_str()), Some(one.id.as_str()))
+        );
         // the most per user, then removed: its token stops working
         assert!(s.create(&ada, "x", &|_| false).unwrap_err().to_string().contains("most"));
         s.remove(&one).unwrap();
@@ -251,7 +301,11 @@ mod tests {
         }
         assert_eq!(s.env_keys(&ada.id), vec!["DATABASE_URL".to_owned()], "names back, never values");
         let env = s.env_for(&ada.id);
-        assert!(env.contains(&("CLAUDE_CODE_OAUTH_TOKEN".into(), tok.clone())) && env.contains(&("WISP_SANDBOX".into(), "1".into())) && env.contains(&("DATABASE_URL".into(), "postgres://x".into())));
+        assert!(
+            env.contains(&("CLAUDE_CODE_OAUTH_TOKEN".into(), tok.clone()))
+                && env.contains(&("WISP_SANDBOX".into(), "1".into()))
+                && env.contains(&("DATABASE_URL".into(), "postgres://x".into()))
+        );
         // sealed: the table holds no plain value
         let raw: Vec<String> = s.db.with(|c| c.prepare("SELECT sealed FROM user_secrets")?.query_map([], |r| r.get(0))?.collect()).unwrap();
         assert!(raw.iter().all(|v| !v.contains("postgres") && !v.contains("sk-ant")));

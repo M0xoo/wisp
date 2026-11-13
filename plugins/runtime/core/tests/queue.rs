@@ -8,27 +8,15 @@ use wisp_runtime_api::model::{Attachment, QueueItem};
 use wisp_runtime_core::queue::{self, Decision, Incoming, Plan, Queue, ReportBack, Run, SendNow};
 
 fn item(id: &str) -> QueueItem {
-    QueueItem {
-        id: id.into(),
-        text: format!("text {id}"),
-        ..QueueItem::default()
-    }
+    QueueItem { id: id.into(), text: format!("text {id}"), ..QueueItem::default() }
 }
 
 fn by(id: &str, who: &str) -> QueueItem {
-    QueueItem {
-        by: Some(who.into()),
-        ..item(id)
-    }
+    QueueItem { by: Some(who.into()), ..item(id) }
 }
 
 fn inc(it: QueueItem) -> Incoming {
-    Incoming {
-        item: it,
-        queue: false,
-        has_extras: false,
-        hold: false,
-    }
+    Incoming { item: it, queue: false, has_extras: false, hold: false }
 }
 
 struct Task {
@@ -38,16 +26,10 @@ struct Task {
 
 impl Task {
     fn new(ids: &[&str]) -> Self {
-        Self {
-            items: ids.iter().map(|i| item(i)).collect(),
-            held: false,
-        }
+        Self { items: ids.iter().map(|i| item(i)).collect(), held: false }
     }
     fn q(&mut self) -> Queue<'_> {
-        Queue {
-            items: &mut self.items,
-            held: &mut self.held,
-        }
+        Queue { items: &mut self.items, held: &mut self.held }
     }
     fn ids(&self) -> Vec<&str> {
         self.items.iter().map(|q| q.id.as_str()).collect()
@@ -70,41 +52,21 @@ fn nothing_running_starts_a_turn_now() {
 #[test]
 fn a_follow_up_while_running_interrupts_once_the_agent_has_a_conversation() {
     let mut t = Task::new(&[]);
-    assert_eq!(
-        t.follow(RUNNING, false, false, inc(item("a"))).plan,
-        Plan::Interrupt
-    );
+    assert_eq!(t.follow(RUNNING, false, false, inc(item("a"))).plan, Plan::Interrupt);
     assert!(t.items[0].now);
 }
 
 #[test]
 fn before_the_agent_reports_a_conversation_it_queues() {
     let mut t = Task::new(&[]);
-    assert_eq!(
-        t.follow(
-            Run::Running { resumable: false },
-            false,
-            false,
-            inc(item("a"))
-        )
-        .plan,
-        Plan::Queued { ahead: 0 }
-    );
+    assert_eq!(t.follow(Run::Running { resumable: false }, false, false, inc(item("a"))).plan, Plan::Queued { ahead: 0 });
     assert!(!t.items[0].now);
 }
 
 #[test]
 fn queue_true_waits_behind_what_is_queued() {
     let mut t = Task::new(&["x"]);
-    let d = t.follow(
-        RUNNING,
-        false,
-        false,
-        Incoming {
-            queue: true,
-            ..inc(item("a"))
-        },
-    );
+    let d = t.follow(RUNNING, false, false, Incoming { queue: true, ..inc(item("a")) });
     assert_eq!(d.plan, Plan::Queued { ahead: 1 });
     assert_eq!(t.ids(), ["x", "a"]);
 }
@@ -120,33 +82,15 @@ fn interrupting_follow_ups_keep_their_order_ahead_of_the_rest() {
 #[test]
 fn a_lingering_cli_is_let_go_and_the_follow_up_goes_next() {
     let mut t = Task::new(&[]);
-    assert!(
-        t.follow(Run::Lingering, false, false, inc(item("a")))
-            .release_linger
-    );
+    assert!(t.follow(Run::Lingering, false, false, inc(item("a"))).release_linger);
     assert_eq!(t.ids(), ["a"]);
 }
 
 #[test]
 fn a_plain_reply_answers_an_open_question_but_one_with_extras_does_not() {
     let mut t = Task::new(&[]);
-    assert!(matches!(
-        t.follow(RUNNING, true, false, inc(item("a"))).plan,
-        Plan::Answer(_)
-    ));
-    assert_eq!(
-        t.follow(
-            RUNNING,
-            true,
-            false,
-            Incoming {
-                has_extras: true,
-                ..inc(item("b"))
-            }
-        )
-        .plan,
-        Plan::Interrupt
-    );
+    assert!(matches!(t.follow(RUNNING, true, false, inc(item("a"))).plan, Plan::Answer(_)));
+    assert_eq!(t.follow(RUNNING, true, false, Incoming { has_extras: true, ..inc(item("b")) }).plan, Plan::Interrupt);
 }
 
 #[test]
@@ -156,38 +100,15 @@ fn a_held_turn_goes_first_and_what_you_send_queues_behind_it() {
     assert!(d.release_held);
     assert_eq!(d.plan, Plan::Queued { ahead: 0 });
     let d = t.follow(RUNNING, false, true, inc(item("b")));
-    assert!(
-        d.release_held && matches!(d.plan, Plan::Queued { .. }),
-        "never interrupts the held one"
-    );
+    assert!(d.release_held && matches!(d.plan, Plan::Queued { .. }), "never interrupts the held one");
 }
 
 #[test]
 fn a_guarded_follow_up_is_held_when_nothing_runs() {
     let mut t = Task::new(&[]);
-    assert!(matches!(
-        t.follow(
-            Run::Idle,
-            false,
-            false,
-            Incoming {
-                hold: true,
-                ..inc(by("a", "later"))
-            }
-        )
-        .plan,
-        Plan::Hold(_)
-    ));
+    assert!(matches!(t.follow(Run::Idle, false, false, Incoming { hold: true, ..inc(by("a", "later")) }).plan, Plan::Hold(_)));
     // a CLI only lingering with nothing queued is let go, so the hold holds
-    let d = t.follow(
-        Run::Lingering,
-        false,
-        false,
-        Incoming {
-            hold: true,
-            ..inc(by("b", "later"))
-        },
-    );
+    let d = t.follow(Run::Lingering, false, false, Incoming { hold: true, ..inc(by("b", "later")) });
     assert!(matches!(d.plan, Plan::Hold(_)) && d.release_linger);
 }
 
@@ -197,11 +118,7 @@ fn a_stop_never_discards_the_queue_it_holds_it() {
     assert!(queue::stop(&mut t.q(), RUNNING).stop_run);
     assert!(t.held);
     assert_eq!(t.ids(), ["a", "b"]);
-    assert_eq!(
-        queue::next_after_release(&mut t.q()),
-        None,
-        "nothing goes out by itself after a Stop"
-    );
+    assert_eq!(queue::next_after_release(&mut t.q()), None, "nothing goes out by itself after a Stop");
     // your next message carries the queue on
     let d = t.follow(Run::Idle, false, false, inc(item("c")));
     assert!(!t.held && matches!(d.plan, Plan::Start(_)));
@@ -223,62 +140,33 @@ fn wisps_own_follow_up_does_not_release_a_held_queue_nor_does_compact() {
     assert!(t.held);
     let d = t.follow(RUNNING, false, false, inc(by("c", "compact")));
     assert!(t.held);
-    assert!(
-        !d.cancel_after,
-        "compact is housekeeping: what was going on carries on"
-    );
+    assert!(!d.cancel_after, "compact is housekeeping: what was going on carries on");
 }
 
 #[test]
 fn send_now_interrupts_or_starts_or_goes_next() {
     let mut t = Task::new(&["a", "b"]);
-    assert_eq!(
-        queue::send_now(&mut t.q(), RUNNING, "b").unwrap(),
-        (SendNow::Interrupt, true)
-    );
+    assert_eq!(queue::send_now(&mut t.q(), RUNNING, "b").unwrap(), (SendNow::Interrupt, true));
     assert_eq!(t.ids(), ["b", "a"]);
     let mut t = Task::new(&["a"]);
-    assert!(matches!(
-        queue::send_now(&mut t.q(), Run::Idle, "a").unwrap().0,
-        SendNow::Start(_)
-    ));
+    assert!(matches!(queue::send_now(&mut t.q(), Run::Idle, "a").unwrap().0, SendNow::Start(_)));
     let mut t = Task::new(&["a", "b"]);
-    assert_eq!(
-        queue::send_now(&mut t.q(), Run::Running { resumable: false }, "b")
-            .unwrap()
-            .0,
-        SendNow::Next
-    );
+    assert_eq!(queue::send_now(&mut t.q(), Run::Running { resumable: false }, "b").unwrap().0, SendNow::Next);
     assert_eq!(t.ids(), ["b", "a"]);
     assert!(!t.items[0].now);
-    assert_eq!(
-        queue::send_now(&mut t.q(), Run::Lingering, "a").unwrap().0,
-        SendNow::ReleaseLinger
-    );
+    assert_eq!(queue::send_now(&mut t.q(), Run::Lingering, "a").unwrap().0, SendNow::ReleaseLinger);
     assert!(queue::send_now(&mut t.q(), Run::Idle, "zz").is_none());
-    let mut t = Task {
-        items: vec![by("w", "wisp")],
-        held: true,
-    };
-    assert!(
-        !queue::send_now(&mut t.q(), Run::Idle, "w").unwrap().1,
-        "wisp's own doesn't cancel after-turn steps"
-    );
+    let mut t = Task { items: vec![by("w", "wisp")], held: true };
+    assert!(!queue::send_now(&mut t.q(), Run::Idle, "w").unwrap().1, "wisp's own doesn't cancel after-turn steps");
     assert!(!t.held, "Send now carries a held queue on");
 }
 
 #[test]
 fn merge_combines_yours_in_queue_order_with_all_their_files() {
     let mut t = Task::new(&["a", "b", "c"]);
-    t.items[1].attachments.push(Attachment {
-        id: "f".into(),
-        ..Attachment::default()
-    });
+    t.items[1].attachments.push(Attachment { id: "f".into(), ..Attachment::default() });
     t.items[2] = by("c", "wisp");
-    assert!(
-        !queue::merge(&mut t.q(), &["a".into(), "c".into()]),
-        "wisp's own item is not yours to merge"
-    );
+    assert!(!queue::merge(&mut t.q(), &["a".into(), "c".into()]), "wisp's own item is not yours to merge");
     assert!(queue::merge(&mut t.q(), &["b".into(), "a".into()]));
     assert_eq!(t.ids(), ["a", "c"]);
     assert_eq!(t.items[0].text, "text a\n\ntext b");
@@ -298,10 +186,7 @@ fn edit_text_changes_only_yours() {
 #[test]
 fn reorder_skips_unknown_ids_and_keeps_the_left_out_at_the_end() {
     let mut t = Task::new(&["a", "b", "c", "d"]);
-    assert!(queue::reorder(
-        &mut t.q(),
-        &["c".into(), "zz".into(), "a".into(), "c".into()]
-    ));
+    assert!(queue::reorder(&mut t.q(), &["c".into(), "zz".into(), "a".into(), "c".into()]));
     assert_eq!(t.ids(), ["c", "a", "b", "d"]);
     assert!(!queue::reorder(&mut Task::new(&[]).q(), &["a".into()]));
 }
@@ -317,34 +202,15 @@ fn removing_the_last_item_lifts_the_hold() {
 
 #[test]
 fn reports_back_merge_into_the_waiting_report_or_queue_or_start() {
-    let report = |id: &str| QueueItem {
-        reports: true,
-        ..by(id, "wisp")
-    };
+    let report = |id: &str| QueueItem { reports: true, ..by(id, "wisp") };
     let mut t = Task::new(&[]);
-    assert!(matches!(
-        queue::report_back(&mut t.q(), Run::Idle, false, report("r"), "x"),
-        ReportBack::Start(_)
-    ));
-    assert_eq!(
-        queue::report_back(&mut t.q(), Run::Idle, true, report("r"), "x"),
-        ReportBack::Queued {
-            release_linger: false
-        }
-    );
-    assert_eq!(
-        queue::report_back(&mut t.q(), Run::Idle, true, report("r2"), "more"),
-        ReportBack::Merged
-    );
+    assert!(matches!(queue::report_back(&mut t.q(), Run::Idle, false, report("r"), "x"), ReportBack::Start(_)));
+    assert_eq!(queue::report_back(&mut t.q(), Run::Idle, true, report("r"), "x"), ReportBack::Queued { release_linger: false });
+    assert_eq!(queue::report_back(&mut t.q(), Run::Idle, true, report("r2"), "more"), ReportBack::Merged);
     assert_eq!(t.items.len(), 1);
     assert!(t.items[0].text.ends_with("\n\n---\n\nmore"));
     let mut t = Task::new(&[]);
-    assert_eq!(
-        queue::report_back(&mut t.q(), Run::Lingering, false, report("r"), "x"),
-        ReportBack::Queued {
-            release_linger: true
-        }
-    );
+    assert_eq!(queue::report_back(&mut t.q(), Run::Lingering, false, report("r"), "x"), ReportBack::Queued { release_linger: true });
 }
 
 /// Model-based: random operations never duplicate an id, a follow-up grows the queue exactly when it was
@@ -358,12 +224,7 @@ fn random_operations_keep_the_queue_sound() {
         seed ^= seed << 17;
         usize::try_from(seed % (n as u64)).unwrap()
     };
-    let runs = [
-        Run::Idle,
-        Run::Lingering,
-        RUNNING,
-        Run::Running { resumable: false },
-    ];
+    let runs = [Run::Idle, Run::Lingering, RUNNING, Run::Running { resumable: false }];
     for _ in 0..200 {
         let mut t = Task::new(&[]);
         for n in 0..60 {
@@ -371,20 +232,8 @@ fn random_operations_keep_the_queue_sound() {
             let before = t.items.len();
             match rnd(6) {
                 0 | 1 => {
-                    let d = t.follow(
-                        run,
-                        false,
-                        false,
-                        Incoming {
-                            queue: rnd(2) == 0,
-                            ..inc(item(&format!("i{n}")))
-                        },
-                    );
-                    assert_eq!(
-                        t.items.len() == before + 1,
-                        matches!(d.plan, Plan::Queued { .. } | Plan::Interrupt),
-                        "{d:?}"
-                    );
+                    let d = t.follow(run, false, false, Incoming { queue: rnd(2) == 0, ..inc(item(&format!("i{n}"))) });
+                    assert_eq!(t.items.len() == before + 1, matches!(d.plan, Plan::Queued { .. } | Plan::Interrupt), "{d:?}");
                 }
                 2 => {
                     queue::stop(&mut t.q(), run);

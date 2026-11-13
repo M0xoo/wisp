@@ -108,7 +108,8 @@ impl Router {
         let at = o.at.unwrap_or(now);
         let raw = arm_key(o.agent, o.model, o.effort);
         let c = canon(&raw);
-        let kind = o.kind.filter(|k| !k.is_empty()).map_or_else(|| crate::classify::task(o.prompt, o.attachments).0.to_owned(), str::to_owned);
+        let kind =
+            o.kind.filter(|k| !k.is_empty()).map_or_else(|| crate::classify::task(o.prompt, o.attachments).0.to_owned(), str::to_owned);
         for t in [kind.as_str(), "*"] {
             let had = self.st.taste(t, &c).cloned();
             let f = had.as_ref().map_or(0.0, |x| 0.5f64.powf((at - x.at).max(0) as f64 / TASTE_HALF_LIFE_MS));
@@ -133,7 +134,15 @@ impl Router {
                 continue;
             }
             let at = if s.created_at == 0 { now } else { s.created_at };
-            let o = Observe { agent: &s.agent, model: &s.model, effort: &s.effort, prompt: &s.prompt, attachments: s.attachments, at: Some(at), ..Observe::default() };
+            let o = Observe {
+                agent: &s.agent,
+                model: &s.model,
+                effort: &s.effort,
+                prompt: &s.prompt,
+                attachments: s.attachments,
+                at: Some(at),
+                ..Observe::default()
+            };
             if self.observe(&o, now).is_some() {
                 n += 1;
             }
@@ -150,7 +159,18 @@ impl Router {
             return;
         }
         let p = split_key(chose);
-        self.observe(&Observe { agent: p.agent, model: p.model, effort: p.effort, prompt, kind: Some(kind), weight: Some(2.0), ..Observe::default() }, now);
+        self.observe(
+            &Observe {
+                agent: p.agent,
+                model: p.model,
+                effort: p.effort,
+                prompt,
+                kind: Some(kind),
+                weight: Some(2.0),
+                ..Observe::default()
+            },
+            now,
+        );
         let ca = canon(auto);
         for (t, w) in [(kind, 0.5), ("*", 0.25)] {
             let s = self.st.stat_mut(t, &ca, now);
@@ -180,7 +200,8 @@ impl Router {
         }
         route.signals.merge(patch);
         let Some(r) = reward(&route.signals) else { return Some(route.clone()) };
-        let (old, kind, key, manual, cost, ms) = (route.r, route.kind.clone(), route.key.clone(), route.manual, route.signals.cost_usd, route.signals.ms);
+        let (old, kind, key, manual, cost, ms) =
+            (route.r, route.kind.clone(), route.key.clone(), route.manual, route.signals.cost_usd, route.signals.ms);
         route.r = Some(r);
         let w = if manual { MANUAL_WEIGHT } else { 1.0 };
         for t in [kind.as_str(), "*"] {

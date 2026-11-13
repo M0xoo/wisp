@@ -13,12 +13,28 @@ use common::{Api, start, temp};
 use serde_json::{Value, json};
 
 fn wisp(dir: &Path, cwd: &Path, port: u16, args: &[&str]) -> (i32, String, String) {
-    let o = Command::new(env!("CARGO_BIN_EXE_wisp")).args(args).env("WISP_HOME", dir.join("home")).env("WISP_PORT", port.to_string()).env("NO_COLOR", "1").current_dir(cwd).stdin(Stdio::null()).output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_wisp"))
+        .args(args)
+        .env("WISP_HOME", dir.join("home"))
+        .env("WISP_PORT", port.to_string())
+        .env("NO_COLOR", "1")
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
     (o.status.code().unwrap_or(-1), String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned())
 }
 
 fn git(dir: &Path, args: &[&str]) {
-    let o = Command::new("git").args(args).current_dir(dir).env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t").output().unwrap();
+    let o = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
+        .output()
+        .unwrap();
     assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
 }
 
@@ -60,7 +76,9 @@ async fn a_formula_folder_with_variables_references_modules_and_workspaces() {
 
     let (code, out, err) = wisp(&dir, &repo, port, &["plan"]);
     assert_eq!(code, 0, "{out}{err}");
-    for line in ["+ agent/reviewer", "+ agent/helper-0", "+ agent/helper-1", "+ agent/team-reviewer", "+ agent/pack-packer", "+ task/nightly"] {
+    for line in
+        ["+ agent/reviewer", "+ agent/helper-0", "+ agent/helper-1", "+ agent/team-reviewer", "+ agent/pack-packer", "+ task/nightly"]
+    {
         assert!(out.contains(line), "{line}: {out}");
     }
     let (code, out, err) = wisp(&dir, &repo, port, &["apply", "--yes", "-var", "model=sonnet"]);
@@ -85,7 +103,10 @@ async fn a_formula_folder_with_variables_references_modules_and_workspaces() {
     std::fs::write(w.join("workspaces/prod.vars.yml"), "model: opus-4\n").unwrap();
     assert_eq!(wisp(&dir, &repo, port, &["workspace", "select", "prod"]).0, 0);
     let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
-    assert!(out.contains("~ agent/reviewer") && out.contains("opus-4") && !out.contains("drift: changed"), "a workspace's values are the files' change, not drift: {out}");
+    assert!(
+        out.contains("~ agent/reviewer") && out.contains("opus-4") && !out.contains("drift: changed"),
+        "a workspace's values are the files' change, not drift: {out}"
+    );
     assert!(out.contains("workspace prod"), "{out}");
     assert_eq!(wisp(&dir, &repo, port, &["workspace", "select", "default"]).0, 0);
 
@@ -123,7 +144,8 @@ async fn a_formula_folder_with_variables_references_modules_and_workspaces() {
     // a cycle is refused, naming it
     let cyc = dir.join("cyc");
     std::fs::create_dir_all(&cyc).unwrap();
-    std::fs::write(cyc.join("a.wisp.yml"), "agents:\n  a: { model: \"${agent.b.model}\" }\n  b: { model: \"${agent.a.model}\" }\n").unwrap();
+    std::fs::write(cyc.join("a.wisp.yml"), "agents:\n  a: { model: \"${agent.b.model}\" }\n  b: { model: \"${agent.a.model}\" }\n")
+        .unwrap();
     let (code, _, err) = wisp(&dir, &dir, port, &["validate", "-f", "cyc"]);
     assert_eq!(code, 1);
     assert!(err.contains("a cycle"), "{err}");
@@ -170,7 +192,13 @@ async fn mv_is_a_rename_in_wisp_and_drift_is_what_changed_outside_the_files() {
     api.cmd("runtime.profile.set", p).await;
     let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
     assert!(out.contains("agent/reviewer") && out.contains("drift: changed in wisp since the last apply"), "{out}");
-    std::fs::write(w.join("a.wisp.yml"), std::fs::read_to_string(w.join("a.wisp.yml")).unwrap().replace("other: { harness: claude }", "other: { harness: claude, model: x }")).unwrap();
+    std::fs::write(
+        w.join("a.wisp.yml"),
+        std::fs::read_to_string(w.join("a.wisp.yml"))
+            .unwrap()
+            .replace("other: { harness: claude }", "other: { harness: claude, model: x }"),
+    )
+    .unwrap();
     let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
     let other = out.lines().find(|l| l.contains("agent/other")).unwrap_or_default();
     assert!(!other.contains("drift"), "a change in the files isn't drift: {out}");
@@ -186,7 +214,10 @@ async fn mv_is_a_rename_in_wisp_and_drift_is_what_changed_outside_the_files() {
     api.cmd("runtime.profile.set", json!({ "name": "fresh", "harness": "codex" })).await;
     std::fs::write(w.join("b.wisp.yml"), "agents:\n  fresh: { harness: codex, model: m9 }\n").unwrap();
     let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
-    assert!(out.contains("~ agent/fresh") && !out.lines().find(|l| l.contains("agent/fresh")).unwrap_or_default().contains("drift"), "{out}");
+    assert!(
+        out.contains("~ agent/fresh") && !out.lines().find(|l| l.contains("agent/fresh")).unwrap_or_default().contains("drift"),
+        "{out}"
+    );
 
     // an_agent_rename_is_one_write: in place, what wisp had comes along
     let before = profile(&api, "reviewer").await;

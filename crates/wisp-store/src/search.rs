@@ -48,19 +48,11 @@ impl Store {
         // Registered on the writer thread, inside the build's transaction: no write can slip in between.
         let out = self.write_blocking(move |w| {
             build(w.db, &k, &ix)?;
-            w.shared
-                .search
-                .write()
-                .unwrap_or_else(PoisonError::into_inner)
-                .insert(ix.kind, ix);
+            w.shared.search.write().unwrap_or_else(PoisonError::into_inner).insert(ix.kind, ix);
             Ok(())
         });
         if out.is_err() {
-            self.shared
-                .search
-                .write()
-                .unwrap_or_else(PoisonError::into_inner)
-                .remove(name);
+            self.shared.search.write().unwrap_or_else(PoisonError::into_inner).remove(name);
         }
         out
     }
@@ -69,21 +61,17 @@ impl Store {
 fn build(db: &Connection, k: &Kind, ix: &SearchIndex) -> Result<()> {
     let sig = ix.columns.join(",");
     let key = format!("search:{}", ix.kind);
-    let was: Option<String> = db
-        .query_row("SELECT value FROM meta WHERE key = ?", [&key], |r| r.get(0))
-        .optional()?;
+    let was: Option<String> = db.query_row("SELECT value FROM meta WHERE key = ?", [&key], |r| r.get(0)).optional()?;
     if was.as_deref() == Some(sig.as_str()) {
         return Ok(());
     }
-    let cols = ix
-        .columns
-        .iter()
-        .map(|c| format!("\"{c}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let cols = ix.columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
     // contentless + contentless_delete: the text stays in the entity table only, and rows can still be
     // removed by rowid (SQLite ≥ 3.43, which the bundled build has).
-    db.execute_batch(&format!("DROP TABLE IF EXISTS \"{0}\"; CREATE VIRTUAL TABLE \"{0}\" USING fts5({cols}, content='', contentless_delete=1);", ix.table))?;
+    db.execute_batch(&format!(
+        "DROP TABLE IF EXISTS \"{0}\"; CREATE VIRTUAL TABLE \"{0}\" USING fts5({cols}, content='', contentless_delete=1);",
+        ix.table
+    ))?;
     db.execute("DELETE FROM search_doc WHERE kind = ?", [ix.kind])?;
     let rows: Vec<Row> = crate::reads::query(db, k, &crate::query::Query::new())?;
     for row in &rows {
@@ -93,19 +81,8 @@ fn build(db: &Connection, k: &Kind, ix: &SearchIndex) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn reindex(
-    db: &Connection,
-    shared: &Shared,
-    k: &Kind,
-    id: &str,
-    row: Option<&Row>,
-) -> Result<()> {
-    let ix = shared
-        .search
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get(k.name())
-        .cloned();
+pub(crate) fn reindex(db: &Connection, shared: &Shared, k: &Kind, id: &str, row: Option<&Row>) -> Result<()> {
+    let ix = shared.search.read().unwrap_or_else(PoisonError::into_inner).get(k.name()).cloned();
     match ix {
         Some(ix) => index(db, &ix, k, id, row),
         None => Ok(()),
@@ -114,42 +91,28 @@ pub(crate) fn reindex(
 
 /// Puts a row's text in the index, or takes it out (`row` None).
 fn index(db: &Connection, ix: &SearchIndex, _k: &Kind, id: &str, row: Option<&Row>) -> Result<()> {
-    let rid: Option<i64> = db
-        .prepare_cached("SELECT rid FROM search_doc WHERE kind = ? AND id = ?")?
-        .query_row([ix.kind, id], |r| r.get(0))
-        .optional()?;
+    let rid: Option<i64> =
+        db.prepare_cached("SELECT rid FROM search_doc WHERE kind = ? AND id = ?")?.query_row([ix.kind, id], |r| r.get(0)).optional()?;
     if let Some(rid) = rid {
-        db.prepare_cached(&format!("DELETE FROM \"{}\" WHERE rowid = ?", ix.table))?
-            .execute([rid])?;
+        db.prepare_cached(&format!("DELETE FROM \"{}\" WHERE rowid = ?", ix.table))?.execute([rid])?;
     }
     let Some(row) = row else {
         if let Some(rid) = rid {
-            db.prepare_cached("DELETE FROM search_doc WHERE rid = ?")?
-                .execute([rid])?;
+            db.prepare_cached("DELETE FROM search_doc WHERE rid = ?")?.execute([rid])?;
         }
         return Ok(());
     };
     let doc = if let Some(r) = rid {
         r
     } else {
-        db.prepare_cached("INSERT INTO search_doc (kind, id) VALUES (?, ?)")?
-            .execute(params![ix.kind, id])?;
+        db.prepare_cached("INSERT INTO search_doc (kind, id) VALUES (?, ?)")?.execute(params![ix.kind, id])?;
         db.last_insert_rowid()
     };
     let mut vals = vec![Sql::Integer(doc)];
     vals.extend(ix.columns.iter().map(|c| text_of(row.get(c))));
-    let cols = ix
-        .columns
-        .iter()
-        .map(|c| format!("\"{c}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let cols = ix.columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
     let marks = vec!["?"; ix.columns.len()].join(", ");
-    db.prepare_cached(&format!(
-        "INSERT INTO \"{}\" (rowid, {cols}) VALUES (?, {marks})",
-        ix.table
-    ))?
-    .execute(params_from_iter(vals))?;
+    db.prepare_cached(&format!("INSERT INTO \"{}\" (rowid, {cols}) VALUES (?, {marks})", ix.table))?.execute(params_from_iter(vals))?;
     Ok(())
 }
 
@@ -161,31 +124,16 @@ fn text_of(v: Option<&Value>) -> Sql {
     }
 }
 
-pub(crate) fn search(
-    db: &Connection,
-    shared: &Arc<Shared>,
-    text: &str,
-    kinds: Option<&[&str]>,
-    limit: u32,
-) -> Result<Vec<SearchHit>> {
+pub(crate) fn search(db: &Connection, shared: &Arc<Shared>, text: &str, kinds: Option<&[&str]>, limit: u32) -> Result<Vec<SearchHit>> {
     let m = to_match(text);
     if m.is_empty() || limit == 0 {
         return Ok(Vec::new());
     }
-    let all = shared
-        .search
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .clone();
+    let all = shared.search.read().unwrap_or_else(PoisonError::into_inner).clone();
     let picked: Vec<SearchIndex> = match kinds {
-        Some(ks) => ks
-            .iter()
-            .map(|k| {
-                all.get(k)
-                    .cloned()
-                    .ok_or_else(|| invalid(format!("{k} has no search index")))
-            })
-            .collect::<Result<_>>()?,
+        Some(ks) => {
+            ks.iter().map(|k| all.get(k).cloned().ok_or_else(|| invalid(format!("{k} has no search index")))).collect::<Result<_>>()?
+        }
         None => all.into_values().collect(),
     };
     let mut hits = Vec::new();
@@ -197,11 +145,7 @@ pub(crate) fn search(
         let mut st = db.prepare_cached(&sql)?;
         let mut rows = st.query(params![m, limit])?;
         while let Some(r) = rows.next()? {
-            hits.push(SearchHit {
-                kind: ix.kind.to_owned(),
-                id: r.get(0)?,
-                score: r.get(1)?,
-            });
+            hits.push(SearchHit { kind: ix.kind.to_owned(), id: r.get(0)?, score: r.get(1)? });
         }
     }
     hits.sort_by(|a, b| a.score.total_cmp(&b.score));
@@ -212,21 +156,12 @@ pub(crate) fn search(
 /// What a person types, as an FTS5 query: every word must appear, the last one as a prefix (search as you
 /// type). Each word is quoted, so `-`, `:`, `"` or `AND` are text, never query syntax.
 pub fn to_match(text: &str) -> String {
-    let words: Vec<&str> = text
-        .split_whitespace()
-        .filter(|w| w.chars().any(char::is_alphanumeric))
-        .collect();
+    let words: Vec<&str> = text.split_whitespace().filter(|w| w.chars().any(char::is_alphanumeric)).collect();
     let last = words.len().saturating_sub(1);
     words
         .iter()
         .enumerate()
-        .map(|(i, w)| {
-            format!(
-                "\"{}\"{}",
-                w.replace('"', "\"\""),
-                if i == last { "*" } else { "" }
-            )
-        })
+        .map(|(i, w)| format!("\"{}\"{}", w.replace('"', "\"\""), if i == last { "*" } else { "" }))
         .collect::<Vec<_>>()
         .join(" ")
 }

@@ -81,7 +81,8 @@ impl Conversation for TgConv<'_> {
         Some(Thread { channel: "telegram".into(), reference: None, session: None, more })
     }
     fn stale(&self, p: &Parsed) -> Option<String> {
-        (self.stale && p.command.as_deref() != Some("new")).then(|| "That message isn’t linked to a task any more. Send it without replying to start a new one.".to_owned())
+        (self.stale && p.command.as_deref() != Some("new"))
+            .then(|| "That message isn’t linked to a task any more. Send it without replying to start a new one.".to_owned())
     }
     /// the first reply went out: a reply to it reaches the task
     fn acked(&self, thread: Option<&Thread>, sent: &Value) {

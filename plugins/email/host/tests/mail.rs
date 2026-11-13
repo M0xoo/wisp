@@ -13,8 +13,13 @@ use wisp_channels_api::transport::InboundOpts;
 use wisp_channels_api::{ChannelHub, Transport};
 
 fn hub() -> Arc<TestHub> {
-    let h = TestHub { reply: Some("✓ On it.".into()), start_as: Some("t1".into()), on_box: Some(BoxGrid { grid: "https://grid".into(), auth: "a".into() }), ..TestHub::default() }
-        .with_cfg("email", json!({ "enabled": true, "sender": "ada@example.com" }));
+    let h = TestHub {
+        reply: Some("✓ On it.".into()),
+        start_as: Some("t1".into()),
+        on_box: Some(BoxGrid { grid: "https://grid".into(), auth: "a".into() }),
+        ..TestHub::default()
+    }
+    .with_cfg("email", json!({ "enabled": true, "sender": "ada@example.com" }));
     *h.now.lock().unwrap() = 1_704_164_645_000;
     Arc::new(h)
 }
@@ -40,7 +45,11 @@ async fn a_message_from_you_starts_a_task_and_a_reply_follows_it_up() {
     let first = json!({ "subject": "in api: fix the login", "text": "it 500s\n\nSent from my iPhone", "date": "2024-01-02T03:04:00Z" });
     assert_eq!(deliver(&t, &first, heads("ada@example.com", "pass", "<m1@x>")).await, 200);
     let c = h.conversed();
-    assert_eq!((c[0].text.as_str(), c[0].session.as_deref()), ("in api: fix the login\n\nit 500s", None), "subject and own words, no signature");
+    assert_eq!(
+        (c[0].text.as_str(), c[0].session.as_deref()),
+        ("in api: fix the login\n\nit 500s", None),
+        "subject and own words, no signature"
+    );
     let mailed = h.mailed.lock().unwrap().clone();
     assert_eq!((mailed[0].0.as_str(), mailed[0].1.as_str()), ("<m1@x>", "Re: in api: fix the login"));
     assert!(mailed[0].2.starts_with("↩ Reply above this line") && mailed[0].2.ends_with("✓ On it."));

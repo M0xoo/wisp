@@ -65,7 +65,11 @@ mod tests {
         let m = |d: Value| message(&d, "B");
         let dm = m(json!({ "id": "1", "channel_id": "D1", "author": { "id": "U1" }, "type": 0, "content": "fix it" })).unwrap();
         assert!(dm.dm && dm.author == "U1" && dm.content == "fix it");
-        assert_eq!(m(json!({ "author": { "id": "U1" }, "guild_id": "G", "type": 0, "mentions": [] })), Err(Skip::NotForMe), "a guild message without a mention");
+        assert_eq!(
+            m(json!({ "author": { "id": "U1" }, "guild_id": "G", "type": 0, "mentions": [] })),
+            Err(Skip::NotForMe),
+            "a guild message without a mention"
+        );
         let reply = m(json!({ "id": "2", "channel_id": "C", "author": { "id": "U1" }, "guild_id": "G", "type": 19, "mentions": [{ "id": "B" }], "content": "<@B> more", "message_reference": { "message_id": "9" } })).unwrap();
         assert_eq!((reply.dm, reply.reference.as_deref()), (false, Some("9")));
         assert_eq!(m(json!({ "author": { "id": "U2", "bot": true } })), Err(Skip::Bot));

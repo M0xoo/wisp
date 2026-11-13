@@ -78,7 +78,11 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
         .env("GIT_COMMITTER_EMAIL", "t@t")
         .output()
         .unwrap();
-    if o.status.success() { Ok(String::from_utf8_lossy(&o.stdout).trim().to_owned()) } else { Err(String::from_utf8_lossy(&o.stderr).into_owned()) }
+    if o.status.success() {
+        Ok(String::from_utf8_lossy(&o.stdout).trim().to_owned())
+    } else {
+        Err(String::from_utf8_lossy(&o.stderr).into_owned())
+    }
 }
 
 fn repo(name: &str) -> PathBuf {
@@ -121,7 +125,12 @@ fn the_users_commits_never_fail_while_wisp_pins_the_work_in_progress() {
     assert!(pinned > 0, "the pin ran alongside and pinned the edit");
     assert!(failed.is_empty(), "{} of 150 commits failed while {pinned} pins ran: {:?}", failed.len(), failed.first());
     // nothing of wisp's is left in the git dir
-    let left: Vec<_> = std::fs::read_dir(d.join(".git")).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with("wisp-")).collect();
+    let left: Vec<_> = std::fs::read_dir(d.join(".git"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("wisp-"))
+        .collect();
     assert!(left.is_empty(), "{left:?}");
     let _ = std::fs::remove_dir_all(&d);
 }
@@ -154,7 +163,12 @@ fn a_disk_that_cannot_copy_still_pins_the_edits_from_heads_tree() {
     let sha = now(work_in_progress(&NoCopyDisk, d.to_str().unwrap())).expect("edits pin a commit");
     assert_eq!(git(&d, &["show", &format!("{sha}:a.txt")]).unwrap(), "a, edited");
     assert_eq!(git(&d, &["show", &format!("{sha}:sub/b.txt")]).unwrap(), "b");
-    let left: Vec<_> = std::fs::read_dir(d.join(".git")).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with("wisp-")).collect();
+    let left: Vec<_> = std::fs::read_dir(d.join(".git"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("wisp-"))
+        .collect();
     assert!(left.is_empty(), "{left:?}");
     let _ = std::fs::remove_dir_all(&d);
 }

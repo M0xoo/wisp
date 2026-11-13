@@ -32,21 +32,13 @@ fn opt_text(v: &Value) -> Option<String> {
 /// Labels as strings or `{name}` objects; anything else is left out.
 pub fn names(list: &Value) -> Vec<String> {
     list.as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|l| l.as_str().or_else(|| l["name"].as_str()))
-                .filter(|s| !s.is_empty())
-                .map(str::to_owned)
-                .collect()
-        })
+        .map(|a| a.iter().filter_map(|l| l.as_str().or_else(|| l["name"].as_str())).filter(|s| !s.is_empty()).map(str::to_owned).collect())
         .unwrap_or_default()
 }
 
 fn number(v: &Value) -> IssueNumber {
     match v {
-        Value::Number(n) => n
-            .as_u64()
-            .map_or_else(|| IssueNumber::Key(n.to_string()), IssueNumber::Int),
+        Value::Number(n) => n.as_u64().map_or_else(|| IssueNumber::Key(n.to_string()), IssueNumber::Int),
         Value::String(s) => IssueNumber::Key(s.clone()),
         _ => IssueNumber::Key(String::new()),
     }
@@ -63,12 +55,7 @@ fn number_text(v: &Value) -> String {
 /// `gh issue list --json number,title,labels,assignees,url,updatedAt,body` → one issue.
 pub fn gh_issue(j: &Value) -> Issue {
     let a = &j["assignees"][0];
-    let assignee = a["login"]
-        .as_str()
-        .filter(|s| !s.is_empty())
-        .or_else(|| a["name"].as_str())
-        .unwrap_or_default()
-        .to_owned();
+    let assignee = a["login"].as_str().filter(|s| !s.is_empty()).or_else(|| a["name"].as_str()).unwrap_or_default().to_owned();
     let n = number_text(&j["number"]);
     Issue {
         id: n.clone(),
@@ -93,10 +80,7 @@ pub fn linear_issue(n: &Value) -> Issue {
         .unwrap_or_default()
         .to_owned();
     Issue {
-        id: key
-            .clone()
-            .or_else(|| opt_text(&n["id"]))
-            .unwrap_or_default(),
+        id: key.clone().or_else(|| opt_text(&n["id"])).unwrap_or_default(),
         reference: key.clone().unwrap_or_default(),
         number: IssueNumber::Key(key.unwrap_or_default()),
         title: text(&n["title"]),
@@ -108,15 +92,7 @@ pub fn linear_issue(n: &Value) -> Issue {
     }
 }
 
-const BLOCKS: &[&str] = &[
-    "doc",
-    "bulletList",
-    "orderedList",
-    "listItem",
-    "blockquote",
-    "table",
-    "tableRow",
-];
+const BLOCKS: &[&str] = &["doc", "bulletList", "orderedList", "listItem", "blockquote", "table", "tableRow"];
 
 /// Atlassian's document format, flattened: blocks one per line, text inside a block runs on.
 pub fn adf_text(n: &Value) -> String {
@@ -127,15 +103,8 @@ pub fn adf_text(n: &Value) -> String {
             if let Some(t) = n["text"].as_str().filter(|t| !t.is_empty()) {
                 return t.to_owned();
             }
-            let sep = if n["type"].as_str().is_some_and(|t| BLOCKS.contains(&t)) {
-                "\n"
-            } else {
-                ""
-            };
-            n["content"]
-                .as_array()
-                .map(|c| c.iter().map(adf_text).collect::<Vec<_>>().join(sep))
-                .unwrap_or_default()
+            let sep = if n["type"].as_str().is_some_and(|t| BLOCKS.contains(&t)) { "\n" } else { "" };
+            n["content"].as_array().map(|c| c.iter().map(adf_text).collect::<Vec<_>>().join(sep)).unwrap_or_default()
         }
     }
 }
@@ -182,10 +151,7 @@ mod tests {
 
     #[test]
     fn labels_as_names_or_objects() {
-        assert_eq!(
-            names(&json!(["a", {"name": "b"}, 3, {"x": 1}])),
-            vec!["a", "b"]
-        );
+        assert_eq!(names(&json!(["a", {"name": "b"}, 3, {"x": 1}])), vec!["a", "b"]);
     }
 
     #[test]

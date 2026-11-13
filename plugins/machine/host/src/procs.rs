@@ -119,8 +119,14 @@ impl Procs {
 
     async fn ps(proc: &wisp_proc::Proc, platform: Platform, now: i64) -> Vec<parse::Proc> {
         match platform {
-            Platform::Mac => run(proc, "ps", &["-E", "-axww", "-o", "pid=,ppid=,rss=,%cpu=,etime=,command="]).await.map(|t| parse::parse_ps(&t, now, true)).unwrap_or_default(),
-            Platform::Linux => run(proc, "ps", &["-axww", "-o", "pid=,ppid=,rss=,%cpu=,etime=,command="]).await.map(|t| parse::parse_ps(&t, now, false)).unwrap_or_default(),
+            Platform::Mac => run(proc, "ps", &["-E", "-axww", "-o", "pid=,ppid=,rss=,%cpu=,etime=,command="])
+                .await
+                .map(|t| parse::parse_ps(&t, now, true))
+                .unwrap_or_default(),
+            Platform::Linux => run(proc, "ps", &["-axww", "-o", "pid=,ppid=,rss=,%cpu=,etime=,command="])
+                .await
+                .map(|t| parse::parse_ps(&t, now, false))
+                .unwrap_or_default(),
             // Win32_Process through PowerShell is v1's; not sampled here yet (the page shows the guard only)
             Platform::Windows => Vec::new(),
         }
@@ -135,7 +141,8 @@ impl Procs {
         // Linux: each new process's environ, once
         let wanted = lock(&self.attr).environ_wanted(&procs);
         for pid in wanted.into_iter().take(256) {
-            let text = tokio::fs::read(format!("/proc/{pid}/environ")).await.map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+            let text =
+                tokio::fs::read(format!("/proc/{pid}/environ")).await.map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
             if let Some(p) = procs.iter().find(|p| p.pid == pid) {
                 let since = p.since;
                 lock(&self.attr).set_environ(pid, since, parse::tag_in_environ(&text));
@@ -166,7 +173,12 @@ impl Procs {
         let wisp = placed.get(me).map_or(WispUse { rss: 0, cpu: None }, |p| WispUse { rss: p.rss, cpu: Some(p.cpu) });
         let wt = calls::worktrees(ctx, &call).await;
         // the facts other plugins add, for the tasks the page names
-        let named: HashSet<String> = usage.keys().cloned().chain(leftovers.iter().filter_map(|l| l.task.clone())).chain(wt.iter().flat_map(|w| w.items.iter().map(|i| i.id.clone()))).collect();
+        let named: HashSet<String> = usage
+            .keys()
+            .cloned()
+            .chain(leftovers.iter().filter_map(|l| l.task.clone()))
+            .chain(wt.iter().flat_map(|w| w.items.iter().map(|i| i.id.clone())))
+            .collect();
         let facts = ctx.contributions(&FACTS);
         if !facts.is_empty() {
             let ids: Vec<String> = named.into_iter().filter(|id| tasks.contains_key(id)).collect();
@@ -197,7 +209,14 @@ impl Procs {
             let mut at = lock(&self.point_at);
             if now - *at >= POINT_MS {
                 *at = now;
-                h.push(HistoryPoint { at: now, free_pct: reading.mem_free_pct, cpu: reading.cpu, runs: reading.runs, held: hold.is_some(), worktree_bytes: wt.as_ref().and_then(|w| w.size) });
+                h.push(HistoryPoint {
+                    at: now,
+                    free_pct: reading.mem_free_pct,
+                    cpu: reading.cpu,
+                    runs: reading.runs,
+                    held: hold.is_some(),
+                    worktree_bytes: wt.as_ref().and_then(|w| w.size),
+                });
             }
             h.points()
         };
@@ -286,7 +305,11 @@ async fn fix(p: &Procs, ctx: &Ctx, call: &Call, group: &Value, now: i64) -> Resu
         return Err(WireError::not_found("That group of processes is gone: look again."));
     };
     let task = match g.task.as_deref() {
-        Some(t) => calls::session(ctx, call, t).await.map(|s| calls::task_of_session(&s)).map_err(|err| tracing::warn!(error = %err.message, task = %t, "machine: runtime.get for a fix")).ok(),
+        Some(t) => calls::session(ctx, call, t)
+            .await
+            .map(|s| calls::task_of_session(&s))
+            .map_err(|err| tracing::warn!(error = %err.message, task = %t, "machine: runtime.get for a fix"))
+            .ok(),
         None => None,
     };
     let project = view::project_of(task.as_ref());
@@ -332,7 +355,8 @@ pub(crate) fn setup(s: &mut Setup, g: &Arc<Guard>) -> Arc<Procs> {
     s.command::<c::HarnessClean, _, _>(move |ctx, _call, a| {
         let p = hp.clone();
         async move {
-            let commands: Vec<String> = lock(&p.last).as_ref().map(|(v, _, _)| v.leftovers.iter().map(|l| l.command.clone()).collect()).unwrap_or_default();
+            let commands: Vec<String> =
+                lock(&p.last).as_ref().map(|(v, _, _)| v.leftovers.iter().map(|l| l.command.clone()).collect()).unwrap_or_default();
             let Some(h) = ctx.contributions(&HARNESS_DISK).into_iter().next() else { return Ok(Cleaned::default()) };
             h.clean(a.ids, commands).await
         }
@@ -372,7 +396,25 @@ mod tests {
         let me = std::process::id();
         let reading = LoadReading { mem_free_pct: None, cpu: None, pressure: None, at: 0, runs: 0, limits: Limits::default(), held: None };
         let v = view::build(
-            ViewInput { now: 0, mem_total: 0, cores: 1, memory: MemoryPer::Rss, reading: &reading, hold: None, paused_until: 0, battery: None, battery_hold: None, rows: &std::collections::BTreeMap::default(), tasks: &HashMap::new(), worktrees: None, harness: None, wisp: WispUse { rss: 0, cpu: None }, leftovers: Vec::new(), groups: Vec::new(), history: Vec::new() },
+            ViewInput {
+                now: 0,
+                mem_total: 0,
+                cores: 1,
+                memory: MemoryPer::Rss,
+                reading: &reading,
+                hold: None,
+                paused_until: 0,
+                battery: None,
+                battery_hold: None,
+                rows: &std::collections::BTreeMap::default(),
+                tasks: &HashMap::new(),
+                worktrees: None,
+                harness: None,
+                wisp: WispUse { rss: 0, cpu: None },
+                leftovers: Vec::new(),
+                groups: Vec::new(),
+                history: Vec::new(),
+            },
             Vec::new(),
         );
         *lock(&p.last) = Some((v, HashSet::from([4_000_000]), HashSet::from([4_000_001])));

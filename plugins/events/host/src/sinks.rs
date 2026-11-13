@@ -71,12 +71,10 @@ impl EventSink for Webhook {
                 headers.push(("x-wisp-signature".to_owned(), signature(&s, &body)));
             }
             let net = wisp_kernel::services::net(&ctx)?;
-            let r = net.fetch(wisp_kernel::services::NetRequest { method: "POST".into(), url: cfg.url.clone(), headers, body, timeout_ms: 10_000 }).await?;
-            if (200..300).contains(&r.status) {
-                Ok(())
-            } else {
-                Err(WireError::unavailable(format!("{} answered {}", cfg.name, r.status)))
-            }
+            let r = net
+                .fetch(wisp_kernel::services::NetRequest { method: "POST".into(), url: cfg.url.clone(), headers, body, timeout_ms: 10_000 })
+                .await?;
+            if (200..300).contains(&r.status) { Ok(()) } else { Err(WireError::unavailable(format!("{} answered {}", cfg.name, r.status))) }
         })
     }
 }
@@ -95,7 +93,9 @@ async fn state_of(ctx: &Ctx, name: &str) -> SinkState {
         Ok(s) => s.read_async(move |r| r.get(crate::SINK_STATE.kind, id.as_str())).await.ok().flatten(),
         Err(_) => None,
     };
-    got.and_then(|r| r.get("body").cloned()).and_then(|b| serde_json::from_value(b).ok()).unwrap_or_else(|| SinkState { name: name.to_owned(), ..SinkState::default() })
+    got.and_then(|r| r.get("body").cloned())
+        .and_then(|b| serde_json::from_value(b).ok())
+        .unwrap_or_else(|| SinkState { name: name.to_owned(), ..SinkState::default() })
 }
 
 async fn save(ctx: &Ctx, st: &SinkState) -> Result<()> {
@@ -189,6 +189,9 @@ mod tests {
     #[test]
     fn the_signature_is_githubs_scheme() {
         // RFC 4231 test case 2's key and data
-        assert_eq!(signature("Jefe", b"what do ya want for nothing?"), "sha256=5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+        assert_eq!(
+            signature("Jefe", b"what do ya want for nothing?"),
+            "sha256=5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+        );
     }
 }

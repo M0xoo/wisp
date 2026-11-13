@@ -55,11 +55,7 @@ pub trait HarnessDisk: Send + Sync + 'static {
     fn view(&self) -> Option<ReclaimGroup>;
     /// Removes the crash dumps and stale cwd files of `ids` (none: every harness). `commands`: the
     /// command lines running now, so a cwd file a live process names stays.
-    fn clean(
-        &self,
-        ids: Option<Vec<String>>,
-        commands: Vec<String>,
-    ) -> BoxFuture<'static, Result<Cleaned>>;
+    fn clean(&self, ids: Option<Vec<String>>, commands: Vec<String>) -> BoxFuture<'static, Result<Cleaned>>;
 }
 
 pub trait FixFiler: Send + Sync + 'static {

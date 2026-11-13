@@ -12,7 +12,8 @@ pub const DEFAULT_BIN: &str = "claude";
 /// Its own tools wisp's gate always asks about (v1 claude.js:26).
 const GATED: [&str; 5] = ["Edit", "MultiEdit", "Write", "NotebookEdit", "Bash"];
 /// A side run that only answers (v1 claude.js:21).
-const LEAN: [&str; 7] = ["--tools", "", "--strict-mcp-config", "--setting-sources", "user", "--disable-slash-commands", "--no-session-persistence"];
+const LEAN: [&str; 7] =
+    ["--tools", "", "--strict-mcp-config", "--setting-sources", "user", "--disable-slash-commands", "--no-session-persistence"];
 /// A repo the user hasn't trusted: none of its hooks or MCP servers (v1 claude.js:25).
 const UNTRUSTED: [&str; 3] = ["--setting-sources", "user", "--strict-mcp-config"];
 /// A parent Claude Code session must not leak into the child (v1 pty.js:131), nor costly extras (:135).
@@ -118,7 +119,13 @@ pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
         args.extend(["--disallowedTools", "Task", "Agent", "Workflow"].map(str::to_owned));
     }
     let mut seen = BTreeSet::new();
-    let dirs: Vec<String> = run.dirs.iter().cloned().chain(run.attachments.iter().filter_map(|a| a.path.as_deref().map(dir_of))).filter(|d| seen.insert(d.clone())).collect();
+    let dirs: Vec<String> = run
+        .dirs
+        .iter()
+        .cloned()
+        .chain(run.attachments.iter().filter_map(|a| a.path.as_deref().map(dir_of)))
+        .filter(|d| seen.insert(d.clone()))
+        .collect();
     if !dirs.is_empty() {
         args.push("--add-dir".into());
         args.extend(dirs);
@@ -157,7 +164,19 @@ mod tests {
     fn a_plain_run_is_v1s_argv_with_the_prompt_on_stdin() {
         let l = launch(&run(), "claude");
         assert_eq!(l.program, "claude");
-        assert_eq!(l.args, ["-p", "--output-format", "stream-json", "--append-system-prompt", "SYS", "--permission-mode", "bypassPermissions", "--verbose"]);
+        assert_eq!(
+            l.args,
+            [
+                "-p",
+                "--output-format",
+                "stream-json",
+                "--append-system-prompt",
+                "SYS",
+                "--permission-mode",
+                "bypassPermissions",
+                "--verbose"
+            ]
+        );
         assert_eq!(l.stdin, Stdin::Bytes(b"fix the login".to_vec()));
         assert_eq!(l.cwd, "/w");
         assert!(l.env_remove.iter().any(|k| k == "CLAUDECODE"));
@@ -174,9 +193,12 @@ mod tests {
         r.mcp_servers.insert("wisp".into(), serde_json::json!({"command": "x"}));
         r.delegating = true;
         r.dirs = vec!["/a".into()];
-        r.attachments = vec![Attachment { path: Some("/up/pic.png".into()), mime: "image/png".into(), size: 3000, ..Attachment::default() }];
+        r.attachments =
+            vec![Attachment { path: Some("/up/pic.png".into()), mime: "image/png".into(), size: 3000, ..Attachment::default() }];
         let a = launch(&r, "/bin/claude").args.join(" ");
-        assert!(a.contains("--permission-mode acceptEdits --model opus --effort high --resume c1 --fork-session --no-session-persistence --mcp-config"));
+        assert!(a.contains(
+            "--permission-mode acceptEdits --model opus --effort high --resume c1 --fork-session --no-session-persistence --mcp-config"
+        ));
         assert!(a.contains("--permission-prompt-tool mcp__wisp__approve --allowedTools mcp__wisp --disallowedTools Task Agent Workflow --add-dir /a /up --verbose"));
         let Stdin::Bytes(b) = launch(&r, "claude").stdin else { panic!("stdin") };
         assert!(String::from_utf8_lossy(&b).contains("- /up/pic.png  (image/png, 3 KB)"));

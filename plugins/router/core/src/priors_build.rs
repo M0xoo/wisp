@@ -247,14 +247,25 @@ fn usd_of(src: &Sources, benches: &[&str], arm: &str) -> f64 {
     if !measured.is_empty() {
         return measured.iter().fold(0.0, |s, x| s + x) / measured.len() as f64;
     }
-    let price = |base: &str| src.prices.strip().find(|(k, _)| *k == base).and_then(|(_, v)| Some(f64::midpoint(v.get(0)?.as_f64()?, v.get(1)?.as_f64()?)));
+    let price = |base: &str| {
+        src.prices.strip().find(|(k, _)| *k == base).and_then(|(_, v)| Some(f64::midpoint(v.get(0)?.as_f64()?, v.get(1)?.as_f64()?)))
+    };
     let base = base_of(arm);
     let defaults = src.defaults.strings();
     let def = defaults.get(base).map_or("medium", String::as_str);
     let at = if level_of(arm).is_empty() { def } else { level_of(arm) };
-    let per = if let Some(p) = price(base) { a.usd * p / price(base_of(&a.arm)).unwrap_or(1.0) } else {
+    let per = if let Some(p) = price(base) {
+        a.usd * p / price(base_of(&a.arm)).unwrap_or(1.0)
+    } else {
         let tier = src.tiers.by_prefix(base).unwrap_or(2.0);
-        a.usd * if (tier - 1.0).abs() < f64::EPSILON { 0.2 } else if (tier - 3.0).abs() < f64::EPSILON { 1.0 } else { 0.5 }
+        a.usd
+            * if (tier - 1.0).abs() < f64::EPSILON {
+                0.2
+            } else if (tier - 3.0).abs() < f64::EPSILON {
+                1.0
+            } else {
+                0.5
+            }
     };
     per * (level_cost(at) / level_cost(def))
 }
@@ -289,7 +300,13 @@ pub fn build(src: &Sources) -> Priors {
         // a guess that rests only on predecessors counts half
         let only_kin = src.rows.iter().filter(|r| r.arm == arm).all(|r| r.note.is_some());
         let s = if only_kin { n / 2.0 } else { n };
-        let p = PriorArm { a: round(chance * s, 3), b: round((1.0 - chance) * s, 3), usd: round(usd_of(src, &benches, &arm), 3), min: round(minutes_of(src, &arm), 1), from };
+        let p = PriorArm {
+            a: round(chance * s, 3),
+            b: round((1.0 - chance) * s, 3),
+            usd: round(usd_of(src, &benches, &arm), 3),
+            min: round(minutes_of(src, &arm), 1),
+            from,
+        };
         arms.insert(arm, p);
     }
     let mut dates: Vec<&str> = src.sources.values().map(|s| s.date.as_str()).collect();
@@ -297,7 +314,10 @@ pub fn build(src: &Sources) -> Priors {
     let (first, last) = (dates.first().copied().unwrap_or(""), dates.last().copied().unwrap_or(""));
     Priors {
         version: format!("bench-{last}"),
-        source: format!("Public benchmarks ({} sources, {first} to {last}), placed against Claude Code's default (Opus 5.5 at medium). See scripts/priors-sources.json.", src.sources.len()),
+        source: format!(
+            "Public benchmarks ({} sources, {first} to {last}), placed against Claude Code's default (Opus 5.5 at medium). See scripts/priors-sources.json.",
+            src.sources.len()
+        ),
         sources: src.sources.clone(),
         aliases: src.aliases.strings(),
         defaults: src.defaults.strings(),

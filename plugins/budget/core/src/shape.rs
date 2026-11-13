@@ -44,7 +44,9 @@ type SeenMap = std::collections::BTreeMap<String, Seen>;
 /// The window seen before under the same Codex slot and not in this report: a length change.
 fn same_slot(seen: &SeenMap, w: &LimitWindow, all: &[LimitWindow]) -> Option<(String, Option<i64>)> {
     let slot = w.slot.as_ref()?;
-    seen.iter().find(|(id, x)| x.slot.as_ref() == Some(slot) && **id != w.id && !all.iter().any(|y| y.id == **id)).map(|(id, x)| (id.clone(), x.ms))
+    seen.iter()
+        .find(|(id, x)| x.slot.as_ref() == Some(slot) && **id != w.id && !all.iter().any(|y| y.id == **id))
+        .map(|(id, x)| (id.clone(), x.ms))
 }
 
 /// One reported window against what was seen of it.

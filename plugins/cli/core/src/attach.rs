@@ -149,7 +149,11 @@ impl View {
         if ask.is_null() {
             return None;
         }
-        let options = ask.get("options").and_then(Value::as_array).map(|o| o.iter().map(|x| x.as_str().map_or_else(|| st(x, "label").to_owned(), str::to_owned)).collect()).unwrap_or_default();
+        let options = ask
+            .get("options")
+            .and_then(Value::as_array)
+            .map(|o| o.iter().map(|x| x.as_str().map_or_else(|| st(x, "label").to_owned(), str::to_owned)).collect())
+            .unwrap_or_default();
         let id = if st(ask, "id").is_empty() { st(ask, "question").to_owned() } else { st(ask, "id").to_owned() };
         Some((id, st(ask, "question").to_owned(), options))
     }
@@ -188,7 +192,10 @@ impl View {
                 // an event log: `append` on the task's id carries the new rows, each with its own id
                 Change::Append { v } => {
                     for item in v {
-                        let id = item.get("id").map_or_else(|| item.get("seq").map(Value::to_string).unwrap_or_default(), |i| i.as_str().map_or_else(|| i.to_string(), str::to_owned));
+                        let id = item.get("id").map_or_else(
+                            || item.get("seq").map(Value::to_string).unwrap_or_default(),
+                            |i| i.as_str().map_or_else(|| i.to_string(), str::to_owned),
+                        );
                         self.rows.insert((key.0.clone(), id), item);
                     }
                 }
@@ -323,11 +330,28 @@ mod tests {
     fn a_run_streams_its_steps_then_its_answer_then_goes_idle() {
         let (s, r) = (Style::plain(60), Renderers::builtin());
         let mut v = View::new("S");
-        let out = v.snapshot(vec![row("session", "S", session("running", Value::Null)), row("turn", "T1", json!({ "id": "T1", "idx": 0, "body": { "status": "running" } }))], &s, &r);
+        let out = v.snapshot(
+            vec![
+                row("session", "S", session("running", Value::Null)),
+                row("turn", "T1", json!({ "id": "T1", "idx": 0, "body": { "status": "running" } })),
+            ],
+            &s,
+            &r,
+        );
         assert_eq!(lines(&out), Vec::<String>::new());
         // the event log grows by `append` on the task's id, as the store sends it
         let ev = |seq: i64, b: Value| json!({ "id": seq + 6, "seq": seq, "turn_id": "T1", "body": b });
-        let log = EntityOp { topic: wisp_protocol::Topic::parse("session:S").unwrap(), e: "event".into(), id: "S".into(), change: Change::Append { v: vec![ev(1, json!({ "kind": "tool", "tool": "read", "label": "Read math.js", "file": "math.js" })), ev(2, json!({ "kind": "thinking" }))] } };
+        let log = EntityOp {
+            topic: wisp_protocol::Topic::parse("session:S").unwrap(),
+            e: "event".into(),
+            id: "S".into(),
+            change: Change::Append {
+                v: vec![
+                    ev(1, json!({ "kind": "tool", "tool": "read", "label": "Read math.js", "file": "math.js" })),
+                    ev(2, json!({ "kind": "thinking" })),
+                ],
+            },
+        };
         let out = v.ops(vec![log], &s, &r);
         assert_eq!(lines(&out), ["  ▸ Read math.js", "  … thinking"]);
         let done = json!({ "id": "T1", "idx": 0, "body": { "status": "done", "presentation": { "v": 1, "blocks": [{ "type": "hero", "title": "Fixed add", "status": "done", "summary": "a + b" }] } } });
@@ -344,7 +368,11 @@ mod tests {
         let (s, r) = (Style::plain(60), Renderers::builtin());
         let mut v = View::new("S");
         v.snapshot(vec![row("session", "S", session("running", Value::Null))], &s, &r);
-        let out = v.ops(vec![up("session", "S", session("waiting", json!({ "id": "a1", "question": "Which branch?", "options": ["main", "dev"] })))], &s, &r);
+        let out = v.ops(
+            vec![up("session", "S", session("waiting", json!({ "id": "a1", "question": "Which branch?", "options": ["main", "dev"] })))],
+            &s,
+            &r,
+        );
         assert_eq!(out[0], Out::Ask { id: "a1".into(), question: "Which branch?".into(), options: vec!["main".into(), "dev".into()] });
         assert_eq!(v.options(), ["main", "dev"]);
         let out = v.ops(vec![up("session", "S", session("running", Value::Null))], &s, &r);
@@ -359,7 +387,11 @@ mod tests {
         rows.push(row("turn", "T0", json!({ "id": "T0", "idx": 0, "body": { "status": "done", "text": "old answer" } })));
         rows.push(row("turn", "T1", json!({ "id": "T1", "idx": 1, "body": { "status": "running" } })));
         for n in 0..20 {
-            rows.push(row("event", &n.to_string(), json!({ "seq": n, "turn_id": "T1", "body": { "kind": "tool", "label": format!("step {n}") } })));
+            rows.push(row(
+                "event",
+                &n.to_string(),
+                json!({ "seq": n, "turn_id": "T1", "body": { "kind": "tool", "label": format!("step {n}") } }),
+            ));
         }
         let got = lines(&v.snapshot(rows, &s, &r));
         assert_eq!(got.first().map(String::as_str), Some("  … 8 earlier steps"));

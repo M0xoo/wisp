@@ -23,10 +23,7 @@ pub struct Exit {
 impl Exit {
     /// v1's exit for a CLI that finished on its own.
     pub fn clean() -> Self {
-        Self {
-            code: Some(0),
-            ..Self::default()
-        }
+        Self { code: Some(0), ..Self::default() }
     }
 }
 
@@ -36,11 +33,7 @@ impl Exit {
 pub enum IoStep {
     /// A Write is about to replace `abs`: read it now (at most `MAX_SNAPSHOT` bytes, else it counts as
     /// a new file) and report a `change` (early) from it to `after`. `file` is the project-relative path.
-    WriteBefore {
-        abs: String,
-        file: String,
-        after: String,
-    },
+    WriteBefore { abs: String, file: String, after: String },
     /// The harness announced an edit to `file`: keep what it holds now (the tracker's `remember`).
     Remember { file: String },
     /// The harness wrote `file`: report a `change` if it differs (the tracker's `change`).
@@ -49,10 +42,7 @@ pub enum IoStep {
     Sync { file: String },
     /// As `Changed`, and when the file didn't change, `otherwise` instead (Copilot shows a call's
     /// output only when it wrote nothing).
-    ChangedElse {
-        file: String,
-        otherwise: Box<HarnessEvent>,
-    },
+    ChangedElse { file: String, otherwise: Box<HarnessEvent> },
 }
 
 /// One item a parser answers with.

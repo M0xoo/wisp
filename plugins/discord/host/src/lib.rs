@@ -34,14 +34,19 @@ pub const NAME: &str = "discord";
 const BACKOFF_MS: u64 = 2_000;
 /// Messages of a task a reply can point at.
 const MAX_IDS: usize = 20;
-pub const STRANGER: &str = "This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Discord, here.";
+pub const STRANGER: &str =
+    "This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Discord, here.";
 pub const LINKED: &str = "✓ Linked to wisp. Mention me in a server, or write here, to say what you’d type in wisp.";
 pub const WRONG_CODE: &str = "That code doesn’t match. Send `link` and the code shown in wisp → Settings → Phone → Discord.";
 const FIX: &str = "Check the token in wisp → Settings → Phone → Discord.";
 
 /// What the grid lost while wisp slept (v1 channel.js `lostLine`).
 pub fn lost_line(n: u32) -> String {
-    if n == 1 { "One message didn’t reach wisp while it was asleep. Send it again to run it.".into() } else { format!("{n} messages didn’t reach wisp while it was asleep. Send them again to run them.") }
+    if n == 1 {
+        "One message didn’t reach wisp while it was asleep. Send it again to run it.".into()
+    } else {
+        format!("{n} messages didn’t reach wisp while it was asleep. Send them again to run them.")
+    }
 }
 
 #[derive(Debug, Default)]
@@ -58,7 +63,16 @@ impl TransportDef for Def {
         NAME
     }
     fn create(&self, hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
-        Arc::new_cyclic(|this| Discord { this: this.clone(), hub, seen: Mutex::default(), limit: Mutex::default(), strangers: Mutex::new(RateLimit::new(3, 60_000)), me: Mutex::default(), session: Mutex::default(), limits: Mutex::default() })
+        Arc::new_cyclic(|this| Discord {
+            this: this.clone(),
+            hub,
+            seen: Mutex::default(),
+            limit: Mutex::default(),
+            strangers: Mutex::new(RateLimit::new(3, 60_000)),
+            me: Mutex::default(),
+            session: Mutex::default(),
+            limits: Mutex::default(),
+        })
     }
     fn secrets(&self) -> &'static [&'static str] {
         &["token", "publicKey"]
@@ -148,7 +162,10 @@ impl Discord {
                 Some(b) => HttpRequest::post_json(url.clone(), b),
                 None => HttpRequest::get(url.clone()),
             };
-            let mut req = req.header("authorization", format!("Bot {token}")).header("user-agent", "DiscordBot (https://trywisp.dev, 1)").timeout(15_000);
+            let mut req = req
+                .header("authorization", format!("Bot {token}"))
+                .header("user-agent", "DiscordBot (https://trywisp.dev, 1)")
+                .timeout(15_000);
             method.clone_into(&mut req.method);
             let r = self.hub.net().fetch(req).await.map_err(|e| WireError::unavailable(format!("Discord: {e}")))?;
             lock(&self.limits).learn(&bucket, &r.headers, self.hub.now_ms());
@@ -164,10 +181,16 @@ impl Discord {
                 continue;
             }
             if r.status == 401 {
-                return Err(WireError::conflict(format!("Discord: {}. {FIX}", j.get("message").and_then(Value::as_str).unwrap_or("unauthorized"))));
+                return Err(WireError::conflict(format!(
+                    "Discord: {}. {FIX}",
+                    j.get("message").and_then(Value::as_str).unwrap_or("unauthorized")
+                )));
             }
             if !(200..300).contains(&r.status) {
-                return Err(WireError::unavailable(format!("Discord: {}", j.get("message").and_then(Value::as_str).map_or_else(|| r.status.to_string(), str::to_owned))));
+                return Err(WireError::unavailable(format!(
+                    "Discord: {}",
+                    j.get("message").and_then(Value::as_str).map_or_else(|| r.status.to_string(), str::to_owned)
+                )));
             }
             return Ok(j);
         }
@@ -195,7 +218,10 @@ impl Discord {
     pub(crate) fn session_for(&self, chat: &str, reference: Option<&str>) -> Option<String> {
         self.hub
             .find_remote(&|r, _| {
-                r.get(NAME).is_some_and(|t| (t["thread"] == true && s(t, "channel") == chat) || reference.is_some_and(|re| t["ids"].as_array().is_some_and(|a| a.iter().any(|x| x.as_str() == Some(re)))))
+                r.get(NAME).is_some_and(|t| {
+                    (t["thread"] == true && s(t, "channel") == chat)
+                        || reference.is_some_and(|re| t["ids"].as_array().is_some_and(|a| a.iter().any(|x| x.as_str() == Some(re))))
+                })
             })
             .into_iter()
             .next()
@@ -313,7 +339,9 @@ impl Discord {
         if m.dm
             && let Some(code) = link_code(&text)
         {
-            if !lock(&self.seen).first(&format!("link:{}", m.id)) || !matches!(lock(&self.strangers).hit(&m.author, self.hub.now_ms()), RateHit::Ok) {
+            if !lock(&self.seen).first(&format!("link:{}", m.id))
+                || !matches!(lock(&self.strangers).hit(&m.author, self.hub.now_ms()), RateHit::Ok)
+            {
                 return Ok(());
             }
             if !code_matches(code, s(&cfg, "linkCode")) {
@@ -330,11 +358,23 @@ impl Discord {
             self.say(&m.channel, Some(&m.id), LINKED).await?;
             return Ok(());
         }
-        let senders: Vec<String> = cfg.get("senders").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+        let senders: Vec<String> =
+            cfg.get("senders").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
         let g = {
             let (mut seen, mut limit) = (lock(&self.seen), lock(&self.limit));
             let at_s = message::snowflake_ms(&m.id).map(|ms| ms / 1000);
-            gate(GateArgs { sender: Some(&m.author), senders: &senders, id: Some(&m.id), at_s, seen: Some(&mut seen), limit: Some(&mut limit), now_ms: self.hub.now_ms(), dm: m.dm, stranger_line: STRANGER, ..GateArgs::default() })
+            gate(GateArgs {
+                sender: Some(&m.author),
+                senders: &senders,
+                id: Some(&m.id),
+                at_s,
+                seen: Some(&mut seen),
+                limit: Some(&mut limit),
+                now_ms: self.hub.now_ms(),
+                dm: m.dm,
+                stranger_line: STRANGER,
+                ..GateArgs::default()
+            })
         };
         if let Gate::Refused { reply, why } = g {
             self.hub.phone().count("refused", Some(&format!("{why:?}").to_lowercase()));
@@ -346,7 +386,13 @@ impl Discord {
         }
         let phone = self.hub.phone();
         let ctx = phone.context().await?;
-        let typed = if text.is_empty() { "help".to_owned() } else if text.to_lowercase().starts_with("new ") || text.eq_ignore_ascii_case("new") { format!("/{text}") } else { text };
+        let typed = if text.is_empty() {
+            "help".to_owned()
+        } else if text.to_lowercase().starts_with("new ") || text.eq_ignore_ascii_case("new") {
+            format!("/{text}")
+        } else {
+            text
+        };
         let session = self.session_for(&m.channel, m.reference.as_deref());
         let c = conv::DiscordConv::new(self, phone, ctx, &m, None);
         self.hub.converse(&c, &typed, session.as_deref(), None).await.map(|_| ())
@@ -399,7 +445,12 @@ impl Transport for Discord {
                         }
                         (again, wait)
                     }
-                    Err(fatal) if fatal.starts_with("Discord refused") || fatal.contains("Update wisp") || fatal.contains("sharding") || fatal.contains("Developer Portal") => {
+                    Err(fatal)
+                        if fatal.starts_with("Discord refused")
+                            || fatal.contains("Update wisp")
+                            || fatal.contains("sharding")
+                            || fatal.contains("Developer Portal") =>
+                    {
                         self.mark(Some(fatal));
                         return;
                     }
@@ -435,21 +486,35 @@ impl Transport for Discord {
         let Some(sv) = sv else { return Ok(()) };
         let Some(t) = self.hub.remote_of(&sv.id).and_then(|r| r.get(NAME).cloned()) else { return Ok(()) };
         let chat = s(&t, "channel").to_owned();
-        let reply = (t["thread"] != true).then(|| t["ids"].as_array().and_then(|a| a.last()).and_then(Value::as_str).map(str::to_owned)).flatten();
+        let reply =
+            (t["thread"] != true).then(|| t["ids"].as_array().and_then(|a| a.last()).and_then(Value::as_str).map(str::to_owned)).flatten();
         let by = self.hub.started_from(&sv.id).and_then(|(_, by)| by);
         let title = match by.as_deref() {
             Some(b) if !msg.title.starts_with(&format!("{b}: ")) => format!("{b}: {}", msg.title),
             _ => msg.title.clone(),
         };
         let components = self.components(msg, sv);
-        let choices: Vec<&str> = if components.is_empty() { msg.actions.iter().filter(|a| a.kind != ActionKind::Done).map(|a| a.label.as_str()).collect() } else { Vec::new() };
+        let choices: Vec<&str> = if components.is_empty() {
+            msg.actions.iter().filter(|a| a.kind != ActionKind::Done).map(|a| a.label.as_str()).collect()
+        } else {
+            Vec::new()
+        };
         let here = match (self.hub.grid().in_box(), t["thread"] == true || chat.is_empty()) {
             (true, true) => "Use /wisp here to answer or follow up.",
             (true, false) => "Answer or follow up in wisp.",
             (false, true) => "Mention me here, or use /wisp, to answer or follow up.",
             (false, false) => "Reply to this message to answer or follow up.",
         };
-        let text = [title, msg.text.clone(), if choices.is_empty() { String::new() } else { format!("Choices: {}", choices.join(" · ")) }, here.to_owned()].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join("\n\n");
+        let text = [
+            title,
+            msg.text.clone(),
+            if choices.is_empty() { String::new() } else { format!("Choices: {}", choices.join(" · ")) },
+            here.to_owned(),
+        ]
+        .into_iter()
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
         let mut body = post_body(&text, reply.as_deref());
         if !components.is_empty() {
             body["components"] = Value::Array(components);
@@ -457,7 +522,9 @@ impl Transport for Discord {
         let to = format!("/channels/{chat}/messages");
         let sent = match self.rest("POST", &to, Some(&body)).await {
             // something Discord won't take in a button: the words still go
-            Err(e) if body.get("components").is_some() && e.message.contains("Invalid Form Body") => self.say(&chat, reply.as_deref(), &text).await?,
+            Err(e) if body.get("components").is_some() && e.message.contains("Invalid Form Body") => {
+                self.say(&chat, reply.as_deref(), &text).await?
+            }
             r => r?,
         };
         if let Some(id) = sent.get("id").and_then(Value::as_str) {
@@ -467,7 +534,12 @@ impl Transport for Discord {
         Ok(())
     }
 
-    async fn inbound(&self, raw: &[u8], headers: &wisp_channels_api::Headers, opts: wisp_channels_api::InboundOpts) -> wisp_channels_api::InboundResult {
+    async fn inbound(
+        &self,
+        raw: &[u8],
+        headers: &wisp_channels_api::Headers,
+        opts: wisp_channels_api::InboundOpts,
+    ) -> wisp_channels_api::InboundResult {
         let Some(me) = self.this.upgrade() else { return wisp_channels_api::InboundResult::error(503, "Discord is stopping.") };
         me.held(raw, headers, opts).await
     }
@@ -484,7 +556,9 @@ impl Transport for Discord {
     async fn extra(&self, what: &str) -> Result<Value> {
         match what {
             "invite" => {
-                let app = Some(s(&self.cfg(), "appId").to_owned()).filter(|a| !a.is_empty()).or_else(|| lock(&self.me).as_ref().and_then(|m| m.app_id.clone()));
+                let app = Some(s(&self.cfg(), "appId").to_owned())
+                    .filter(|a| !a.is_empty())
+                    .or_else(|| lock(&self.me).as_ref().and_then(|m| m.app_id.clone()));
                 let app = app.ok_or_else(|| WireError::conflict("Turn Discord on first: wisp learns the application from Discord."))?;
                 Ok(json!({ "url": invite_url(&app) }))
             }

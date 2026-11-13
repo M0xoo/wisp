@@ -6,35 +6,13 @@ use super::clip;
 
 /// Code points a domain may not hold (WHATWG "forbidden domain code point").
 fn forbidden(c: char) -> bool {
-    matches!(
-        c,
-        '\0'..='\u{1f}'
-            | ' '
-            | '#'
-            | '/'
-            | ':'
-            | '<'
-            | '>'
-            | '?'
-            | '@'
-            | '['
-            | '\\'
-            | ']'
-            | '^'
-            | '|'
-            | '%'
-            | '\u{7f}'
-    )
+    matches!(c, '\0'..='\u{1f}' | ' ' | '#' | '/' | ':' | '<' | '>' | '?' | '@' | '[' | '\\' | ']' | '^' | '|' | '%' | '\u{7f}')
 }
 
 /// (hostname, port without the scheme's default), or None where `new URL` throws.
 fn parse(url: &str) -> Option<(String, String)> {
     // Leading and trailing C0 controls and spaces go; tabs and newlines inside are removed.
-    let s: String = url
-        .trim_matches(|c: char| c <= ' ')
-        .chars()
-        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
-        .collect();
+    let s: String = url.trim_matches(|c: char| c <= ' ').chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let colon = s.find(':')?;
     let scheme = s[..colon].to_ascii_lowercase();
     let default_port = match scheme.as_str() {
@@ -45,17 +23,11 @@ fn parse(url: &str) -> Option<(String, String)> {
     let rest = s[colon + 1..].trim_start_matches(['/', '\\']);
     let end = rest.find(['/', '\\', '?', '#']).unwrap_or(rest.len());
     let authority = &rest[..end];
-    let hostport = authority
-        .rfind('@')
-        .map_or(authority, |at| &authority[at + 1..]);
+    let hostport = authority.rfind('@').map_or(authority, |at| &authority[at + 1..]);
     let (host, port) = if hostport.starts_with('[') {
         let close = hostport.find(']')?;
         let after = &hostport[close + 1..];
-        let port = if after.is_empty() {
-            ""
-        } else {
-            after.strip_prefix(':')?
-        };
+        let port = if after.is_empty() { "" } else { after.strip_prefix(':')? };
         (hostport[..=close].to_ascii_lowercase(), port)
     } else {
         match hostport.rfind(':') {
@@ -67,11 +39,7 @@ fn parse(url: &str) -> Option<(String, String)> {
         return None;
     }
     let port = port.trim_start_matches('0');
-    let port = if port.is_empty() && !host.is_empty() && authority.ends_with(":0") {
-        "0"
-    } else {
-        port
-    };
+    let port = if port.is_empty() && !host.is_empty() && authority.ends_with(":0") { "0" } else { port };
     if port.parse::<u32>().is_ok_and(|p| p > 65_535) {
         return None;
     }
@@ -79,30 +47,18 @@ fn parse(url: &str) -> Option<(String, String)> {
         return None;
     }
     let host = host.to_lowercase();
-    let port = if port == default_port {
-        String::new()
-    } else {
-        port.to_owned()
-    };
+    let port = if port == default_port { String::new() } else { port.to_owned() };
     Some((host, port))
 }
 
 /// The host a URL points at; localhost keeps its port, since that's what tells dev servers apart.
 pub(super) fn host(url: &str) -> String {
-    let full = if url.starts_with("http:") || url.starts_with("https:") {
-        url.to_owned()
-    } else {
-        format!("https://{url}")
-    };
+    let full = if url.starts_with("http:") || url.starts_with("https:") { url.to_owned() } else { format!("https://{url}") };
     match parse(&full) {
         Some((hostname, port)) => {
             let local = hostname == "localhost" || hostname.starts_with("127.");
             let name = hostname.strip_prefix("www.").unwrap_or(&hostname);
-            if local && !port.is_empty() {
-                format!("{name}:{port}")
-            } else {
-                name.to_owned()
-            }
+            if local && !port.is_empty() { format!("{name}:{port}") } else { name.to_owned() }
         }
         None => clip(url, 40),
     }

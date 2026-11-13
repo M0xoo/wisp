@@ -45,9 +45,7 @@ pub(crate) fn query_json(db: &Connection, k: &Kind, q: &Query) -> Result<String>
         out.push(b'}');
     }
     out.push(b']');
-    String::from_utf8(out).map_err(|e| {
-        StoreError::Internal(format!("{}: a stored value is not UTF-8: {e}", k.name()))
-    })
+    String::from_utf8(out).map_err(|e| StoreError::Internal(format!("{}: a stored value is not UTF-8: {e}", k.name())))
 }
 
 fn value(out: &mut Vec<u8>, how: How, v: ValueRef<'_>) -> Result<()> {
@@ -65,9 +63,7 @@ fn value(out: &mut Vec<u8>, how: How, v: ValueRef<'_>) -> Result<()> {
         },
         (_, ValueRef::Text(t)) => serde_json::to_writer(&mut *out, &String::from_utf8_lossy(t))?,
         (_, ValueRef::Blob(_)) => {
-            return Err(StoreError::Internal(
-                "blob columns are not supported".into(),
-            ));
+            return Err(StoreError::Internal("blob columns are not supported".into()));
         }
     }
     Ok(())

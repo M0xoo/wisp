@@ -3,9 +3,7 @@
 
 use wisp_stuff_api::StuffKind;
 
-const IMAGE: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico",
-];
+const IMAGE: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico"];
 const VIDEO: &[&str] = &["mp4", "webm", "mov", "m4v"];
 const DOC: &[&str] = &["md", "markdown", "mdx", "txt", "pdf", "rst", "adoc"];
 const CODE: &[&str] = &[
@@ -90,10 +88,7 @@ pub fn kind_of(name: &str) -> StuffKind {
         StuffKind::Video
     } else if DOC.contains(&e) {
         StuffKind::Doc
-    } else if CODE.contains(&e)
-        || name.eq_ignore_ascii_case("dockerfile")
-        || name.eq_ignore_ascii_case("makefile")
-    {
+    } else if CODE.contains(&e) || name.eq_ignore_ascii_case("dockerfile") || name.eq_ignore_ascii_case("makefile") {
         StuffKind::Code
     } else {
         StuffKind::File
@@ -155,11 +150,7 @@ pub fn mime_for(name: &str, given: Option<&str>) -> String {
     }
     known_mime(name).map_or_else(
         || {
-            if texty(name) {
-                "text/plain; charset=utf-8".into()
-            } else {
-                "application/octet-stream".into()
-            }
+            if texty(name) { "text/plain; charset=utf-8".into() } else { "application/octet-stream".into() }
         },
         str::to_owned,
     )
@@ -228,11 +219,7 @@ pub fn safe_name(name: &str, fallback: &str) -> String {
     let out = out.trim_start_matches('.');
     let n = out.chars().count();
     let out: String = out.chars().skip(n.saturating_sub(120)).collect();
-    if out.is_empty() {
-        fallback.to_owned()
-    } else {
-        out
-    }
+    if out.is_empty() { fallback.to_owned() } else { out }
 }
 
 /// `launch-plan_v2.md` → `launch plan v2`.
@@ -258,11 +245,7 @@ pub fn title_from(name: &str) -> String {
         out.push(' ');
     }
     let t = out.trim();
-    if t.is_empty() {
-        name.to_owned()
-    } else {
-        t.to_owned()
-    }
+    if t.is_empty() { name.to_owned() } else { t.to_owned() }
 }
 
 /// At most `n` characters, the last one `…` when cut. Keeps the lines (unlike `clip`).
@@ -284,11 +267,7 @@ pub fn clip(s: &str, n: usize) -> String {
 /// The opening of a doc or snippet, for its card. Docs lose their front matter; lines are kept.
 pub fn excerpt_of(text: &str, kind: StuffKind) -> String {
     let t = text.replace("\r\n", "\n");
-    let body = if kind == StuffKind::Doc {
-        strip_front_matter(&t)
-    } else {
-        &t
-    };
+    let body = if kind == StuffKind::Doc { strip_front_matter(&t) } else { &t };
     cut(body.trim_end(), EXCERPT)
 }
 
@@ -311,11 +290,7 @@ pub fn normalize_tags(list: &serde_json::Value) -> Vec<String> {
             .map(|v| {
                 v.as_str().map_or_else(
                     || {
-                        if v.is_null() {
-                            String::new()
-                        } else {
-                            v.to_string()
-                        }
+                        if v.is_null() { String::new() } else { v.to_string() }
                     },
                     str::to_owned,
                 )

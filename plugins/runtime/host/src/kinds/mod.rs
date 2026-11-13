@@ -37,7 +37,12 @@ pub fn register(s: &mut Setup) -> std::sync::Arc<Kinds> {
     std::sync::Arc::new(Kinds {
         // every screen shows projects (chips, New task's "in", Home): published as `project` on `config`
         // its path canonical whoever applies it (`wisp add .` sent "/repo/.", a pasted "C:\\x\\" or "\\\\?\\C:\\x")
-        project: stored_published_tidied::<ProjectSpec>(s, "project", |sc| KindInfo::new("project", "projects", owner, sc).order(10), project::tidy_project),
+        project: stored_published_tidied::<ProjectSpec>(
+            s,
+            "project",
+            |sc| KindInfo::new("project", "projects", owner, sc).order(10),
+            project::tidy_project,
+        ),
         harness: harness::harness_kind(s),
         skill: stored::<SkillSpec>(s, |sc| KindInfo::new("skill", "skills", owner, sc).order(15)),
         team: stored::<TeamSpec>(s, |sc| KindInfo::new("team", "teams", owner, sc).order(25)),

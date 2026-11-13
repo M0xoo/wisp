@@ -26,7 +26,8 @@ impl Command for Touch {
 struct Acme;
 impl Plugin for Acme {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.x", "version": "1.0.0", "api": "^1", "activation": ["onStartup"] })).unwrap()
+        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.x", "version": "1.0.0", "api": "^1", "activation": ["onStartup"] }))
+            .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.command::<Look, _, _>(|_c, _call, _a| async { Ok(json!("looked")) });
@@ -44,12 +45,25 @@ async fn a_declared_capability_set_is_what_its_holder_may_do() {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
     let k = TestApp::new().with(wisp_resources::ResourcesPlugin).with(Acme).service(store).start().await;
     assert!(k.call(ci(), "x.look", json!({})).await.is_err(), "no such set yet");
-    k.call(Caller::user(), "resources.apply", json!({ "resources": [{ "kind": "capability", "name": "ci", "spec": { "allow": ["x:look"] } }] })).await.unwrap();
+    k.call(
+        Caller::user(),
+        "resources.apply",
+        json!({ "resources": [{ "kind": "capability", "name": "ci", "spec": { "allow": ["x:look"] } }] }),
+    )
+    .await
+    .unwrap();
     assert_eq!(k.call(ci(), "x.look", json!({})).await.unwrap(), json!("looked"));
     let refused = k.call(ci(), "x.touch", json!({})).await.unwrap_err();
     assert_eq!(refused.code, wisp_kernel::Code::Forbidden, "{refused:?}");
     // pruning it away (a formula that declares another set instead) takes the set away
-    let gone = k.call(Caller::user(), "resources.apply", json!({ "resources": [{ "kind": "capability", "name": "other", "spec": {} }], "prune": true })).await.unwrap();
+    let gone = k
+        .call(
+            Caller::user(),
+            "resources.apply",
+            json!({ "resources": [{ "kind": "capability", "name": "other", "spec": {} }], "prune": true }),
+        )
+        .await
+        .unwrap();
     assert_eq!(gone["applied"], 2, "{gone}");
     assert!(k.call(ci(), "x.look", json!({})).await.is_err(), "the set went with it");
 }

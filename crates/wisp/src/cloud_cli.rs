@@ -36,12 +36,14 @@ fn now_ms() -> i64 {
 pub fn duration_ms(d: &str) -> Option<i64> {
     let (n, unit) = d.split_at(d.len().checked_sub(1)?);
     let n: i64 = n.parse().ok()?;
-    Some(n * match unit {
-        "d" => 86_400_000,
-        "h" => 3_600_000,
-        "m" => 60_000,
-        _ => return None,
-    })
+    Some(
+        n * match unit {
+            "d" => 86_400_000,
+            "h" => 3_600_000,
+            "m" => 60_000,
+            _ => return None,
+        },
+    )
 }
 
 /// `anyone`, `people:ada,bo`, `teams:acme`, `password` (with `--password`).
@@ -52,7 +54,10 @@ pub fn access_of(a: &str, password: Option<&str>) -> std::result::Result<Value, 
         "anyone" => Ok(json!({ "kind": "anyone" })),
         "people" if !names.is_empty() => Ok(json!({ "kind": "people", "people": names })),
         "teams" if !names.is_empty() => Ok(json!({ "kind": "teams", "teams": names })),
-        "password" => password.filter(|p| !p.is_empty()).map(|p| json!({ "kind": "password", "password": p })).ok_or_else(|| "--access password needs --password <it>".to_owned()),
+        "password" => password
+            .filter(|p| !p.is_empty())
+            .map(|p| json!({ "kind": "password", "password": p }))
+            .ok_or_else(|| "--access password needs --password <it>".to_owned()),
         _ => Err(format!("--access {a}: anyone, people:<handles>, teams:<teams> or password")),
     }
 }
@@ -93,7 +98,12 @@ pub async fn ready(c: &Client) -> Result<bool> {
 pub fn said_shared(v: &Value) {
     let st = crate::cli::style();
     let access = v.pointer("/access/kind").and_then(Value::as_str).unwrap_or("anyone");
-    say(&format!("  {} {}  {}", paint(&st, GREEN, "✓"), s(v, "url"), paint(&st, DIM, &format!("v{} · {access} · {}", v["version"], s(v, "source")))));
+    say(&format!(
+        "  {} {}  {}",
+        paint(&st, GREEN, "✓"),
+        s(v, "url"),
+        paint(&st, DIM, &format!("v{} · {access} · {}", v["version"], s(v, "source")))
+    ));
 }
 
 /// `wisp cloud signin|status|signout`.
@@ -189,7 +199,13 @@ pub async fn sandbox(c: &Client, o: &Opts) -> Result<i32> {
             if o.json {
                 say(&v.to_string());
             } else {
-                say(&format!("  {} sandbox {} at {}  {}", paint(&st, GREEN, "✓"), s(&v, "id"), s(&v, "url"), paint(&st, DIM, &format!("(machine {})", s(&v, "machine")))));
+                say(&format!(
+                    "  {} sandbox {} at {}  {}",
+                    paint(&st, GREEN, "✓"),
+                    s(&v, "id"),
+                    s(&v, "url"),
+                    paint(&st, DIM, &format!("(machine {})", s(&v, "machine")))
+                ));
             }
         }
         "ls" | "list" => {
@@ -264,7 +280,14 @@ pub async fn shares(c: &Client, o: &Opts) -> Result<i32> {
             say("  everything you imported is up to date");
         }
         for u in &items {
-            say(&format!("  {} {}  v{} → v{}  {}", paint(&st, YELLOW, "↑"), s(u, "title"), u["have"], u["latest"], paint(&st, DIM, &format!("wisp open {}", s(u, "url")))));
+            say(&format!(
+                "  {} {}  v{} → v{}  {}",
+                paint(&st, YELLOW, "↑"),
+                s(u, "title"),
+                u["have"],
+                u["latest"],
+                paint(&st, DIM, &format!("wisp open {}", s(u, "url")))
+            ));
         }
         return Ok(0);
     }
@@ -283,7 +306,17 @@ pub async fn shares(c: &Client, o: &Opts) -> Result<i32> {
             "  {:<9} {}  {}{gone}\n            {}",
             s(v, "kind"),
             paint(&st, BOLD, s(v, "title")),
-            paint(&st, DIM, &format!("v{} · {} · {} views · {} imports", v["version"], v.pointer("/access/kind").and_then(Value::as_str).unwrap_or("anyone"), v["views"], v["imports"])),
+            paint(
+                &st,
+                DIM,
+                &format!(
+                    "v{} · {} · {} views · {} imports",
+                    v["version"],
+                    v.pointer("/access/kind").and_then(Value::as_str).unwrap_or("anyone"),
+                    v["views"],
+                    v["imports"]
+                )
+            ),
             s(v, "url")
         ));
     }
@@ -295,7 +328,17 @@ fn setup_content(list: &[Resource], ks: &[wisp_resources_api::KindInfo]) -> Valu
     let resources: Vec<Value> = list
         .iter()
         .map(|r| {
-            let keys: Vec<String> = r.spec.as_object().map(|o| o.iter().filter(|(_, v)| v.is_string() || v.is_number() || v.is_boolean()).take(3).map(|(k, v)| format!("{k}: {}", v.as_str().map_or_else(|| v.to_string(), str::to_owned))).collect()).unwrap_or_default();
+            let keys: Vec<String> = r
+                .spec
+                .as_object()
+                .map(|o| {
+                    o.iter()
+                        .filter(|(_, v)| v.is_string() || v.is_number() || v.is_boolean())
+                        .take(3)
+                        .map(|(k, v)| format!("{k}: {}", v.as_str().map_or_else(|| v.to_string(), str::to_owned)))
+                        .collect()
+                })
+                .unwrap_or_default();
             json!({ "kind": r.kind, "name": r.name, "summary": keys.join(", "), "spec": r.spec })
         })
         .collect();
@@ -310,13 +353,18 @@ pub async fn share_setup(c: &Client, o: &Opts) -> Result<i32> {
         return Ok(1);
     }
     let ks = crate::code::kinds(c).await?;
-    let all: Vec<Resource> = serde_json::from_value(c.cmd("resources.export", json!({})).await?).map_err(|e| CliError::said(e.to_string()))?;
+    let all: Vec<Resource> =
+        serde_json::from_value(c.cmd("resources.export", json!({})).await?).map_err(|e| CliError::said(e.to_string()))?;
     let list = crate::folder::with_deps(&all, std::slice::from_ref(&addr));
     if list.is_empty() {
         return Err(CliError::said(format!("{addr} isn't set up here (wisp export shows what is)")));
     }
     let content = setup_content(&list, &ks);
-    say(&format!("{} {addr}  {}", paint(&st, BOLD, "Share setup"), paint(&st, DIM, &format!("({} resources, secrets as ${{secret:…}})", list.len()))));
+    say(&format!(
+        "{} {addr}  {}",
+        paint(&st, BOLD, "Share setup"),
+        paint(&st, DIM, &format!("({} resources, secrets as ${{secret:…}})", list.len()))
+    ));
     for r in &list {
         say(&format!("  {} {}.{}", paint(&st, GREEN, "+"), r.kind, r.name));
     }
@@ -346,7 +394,9 @@ pub async fn share_setup(c: &Client, o: &Opts) -> Result<i32> {
 
 /// Whether a word is a share link `wisp open` should fetch from a grid.
 pub fn is_link(w: &str) -> bool {
-    w.starts_with("grid://") || w.starts_with("wisp://open/") || ((w.starts_with("http://") || w.starts_with("https://")) && w.contains("/s/"))
+    w.starts_with("grid://")
+        || w.starts_with("wisp://open/")
+        || ((w.starts_with("http://") || w.starts_with("https://")) && w.contains("/s/"))
 }
 
 /// `wisp open <link>`.
@@ -363,7 +413,11 @@ pub async fn open_link(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
     say(&format!(
         "{} {}  {}  {}",
         paint(&st, BOLD, s(card, "title")),
-        paint(&st, DIM, &format!("({}, v{} by {})", s(card, "kind"), f["version"], card.pointer("/from/handle").and_then(Value::as_str).unwrap_or("?"))),
+        paint(
+            &st,
+            DIM,
+            &format!("({}, v{} by {})", s(card, "kind"), f["version"], card.pointer("/from/handle").and_then(Value::as_str).unwrap_or("?"))
+        ),
         if ok { paint(&st, GREEN, "✓ signed") } else { paint(&st, RED, "✗ its signature doesn't match: it was changed after signing") },
         paint(&st, DIM, s(card, "source"))
     ));
@@ -393,9 +447,16 @@ pub async fn open_link(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
 /// A shared setup's plan here, then (`--yes`, or yes in a terminal) applied, and recorded for updates.
 async fn apply_setup(c: &Client, o: &Opts, link: &str, f: &Value) -> Result<i32> {
     let st = crate::cli::style();
-    let resources: Vec<Value> = f.pointer("/content/resources").and_then(Value::as_array).into_iter().flatten().map(|r| json!({ "kind": r["kind"], "name": r["name"], "spec": r["spec"] })).collect();
+    let resources: Vec<Value> = f
+        .pointer("/content/resources")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|r| json!({ "kind": r["kind"], "name": r["name"], "spec": r["spec"] }))
+        .collect();
     let args = json!({ "resources": resources, "foreign": true, "trust": o.trust });
-    let plan: Plan = serde_json::from_value(c.cmd("resources.plan", args.clone()).await?).map_err(|e| CliError::said(format!("resources.plan: {e}")))?;
+    let plan: Plan =
+        serde_json::from_value(c.cmd("resources.plan", args.clone()).await?).map_err(|e| CliError::said(format!("resources.plan: {e}")))?;
     crate::code::show_plan(&plan, &st);
     if !plan.problems.is_empty() || !plan.missing_secrets.is_empty() {
         return Ok(1);
@@ -433,14 +494,22 @@ async fn apply_setup(c: &Client, o: &Opts, link: &str, f: &Value) -> Result<i32>
 pub fn fetch_module(link: &str) -> Result<(Vec<(String, String)>, i64)> {
     tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
-            let home = crate::services::home(std::env::var("WISP_HOME").ok().as_deref(), std::env::var("HOME").ok().map(std::path::PathBuf::from));
+            let home =
+                crate::services::home(std::env::var("WISP_HOME").ok().as_deref(), std::env::var("HOME").ok().map(std::path::PathBuf::from));
             let port = crate::client::discover(&home).unwrap_or(4477);
             let c = Client::connect(port, true).await?;
             let f = c.cmd("grid-client.fetch", json!({ "link": link })).await?;
             if f["verified"] != json!(true) {
                 return Err(CliError::said(format!("{link}: its signature doesn't match: not fetched")));
             }
-            let files: Vec<(String, String)> = f.pointer("/content/files").and_then(Value::as_array).into_iter().flatten().filter_map(|x| Some((x.get("name")?.as_str()?.to_owned(), x.get("text")?.as_str()?.to_owned()))).filter(|(n, _)| !n.contains('/') && !n.starts_with('.')).collect();
+            let files: Vec<(String, String)> = f
+                .pointer("/content/files")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|x| Some((x.get("name")?.as_str()?.to_owned(), x.get("text")?.as_str()?.to_owned())))
+                .filter(|(n, _)| !n.contains('/') && !n.starts_with('.'))
+                .collect();
             if files.is_empty() {
                 return Err(CliError::said(format!("{link} has no formula files (a {} share)", s(&f["card"], "kind"))));
             }
@@ -461,7 +530,15 @@ mod tests {
         assert_eq!(access_of("teams:acme", None), Ok(json!({ "kind": "teams", "teams": ["acme"] })));
         assert!(access_of("password", None).is_err() && access_of("people:", None).is_err() && access_of("secret", None).is_err());
         assert_eq!(access_of("password", Some("x")), Ok(json!({ "kind": "password", "password": "x" })));
-        assert_eq!((duration_ms("7d"), duration_ms("12h"), duration_ms("30m"), duration_ms("7"), duration_ms("")), (Some(604_800_000), Some(43_200_000), Some(1_800_000), None, None));
-        assert!(is_link("grid://ada/review") && is_link("http://wisp.localhost:8080/s/AbC") && is_link("wisp://open/AbC") && !is_link("https://example.com/x.wisp-task"));
+        assert_eq!(
+            (duration_ms("7d"), duration_ms("12h"), duration_ms("30m"), duration_ms("7"), duration_ms("")),
+            (Some(604_800_000), Some(43_200_000), Some(1_800_000), None, None)
+        );
+        assert!(
+            is_link("grid://ada/review")
+                && is_link("http://wisp.localhost:8080/s/AbC")
+                && is_link("wisp://open/AbC")
+                && !is_link("https://example.com/x.wisp-task")
+        );
     }
 }

@@ -101,7 +101,8 @@ pub fn tag_list(s: &str) -> Option<HashMap<String, String>> {
         }
         let eq = part.find('=')?;
         let name = part[..eq].trim();
-        let ok = name.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        let ok =
+            name.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
         if !ok || tags.contains_key(name) {
             return None;
         }
@@ -174,7 +175,9 @@ fn no_ws(s: &str) -> String {
 }
 
 fn b64(s: &str) -> Option<Vec<u8>> {
-    let ok = !s.is_empty() && s.trim_end_matches('=').chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/') && s.len() - s.trim_end_matches('=').len() <= 2;
+    let ok = !s.is_empty()
+        && s.trim_end_matches('=').chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/')
+        && s.len() - s.trim_end_matches('=').len() <= 2;
     ok.then(|| base64::engine::general_purpose::STANDARD.decode(s).ok()).flatten()
 }
 
@@ -227,7 +230,9 @@ fn verify_sig(kind: Kind, der: &[u8], data: &[u8], sig: &[u8]) -> Result<bool, &
             use rsa::pkcs8::DecodePublicKey as _;
             use rsa::signature::Verifier as _;
             use rsa::traits::PublicKeyParts as _;
-            let key = rsa::RsaPublicKey::from_public_key_der(der).or_else(|_| rsa::RsaPublicKey::from_pkcs1_der(der)).map_err(|_| "no usable key")?;
+            let key = rsa::RsaPublicKey::from_public_key_der(der)
+                .or_else(|_| rsa::RsaPublicKey::from_pkcs1_der(der))
+                .map_err(|_| "no usable key")?;
             if key.size() * 8 < RSA_MIN_BITS {
                 return Err("RSA key under 1024 bits");
             }
@@ -238,8 +243,20 @@ fn verify_sig(kind: Kind, der: &[u8], data: &[u8], sig: &[u8]) -> Result<bool, &
 }
 
 /// One signature: why it fails, or "". What costs nothing comes first, and the DNS lookup last of all.
-#[allow(clippy::too_many_lines, clippy::many_single_char_names, reason = "RFC 6376's checks in its order, its tags by their names (d=, c=, i=, x=, b=)")]
-async fn problem(field: &Field, fields: &[Field], body: &str, tags: Option<&HashMap<String, String>>, d: &str, txt: &Txt, now_s: i64) -> (String, bool) {
+#[allow(
+    clippy::too_many_lines,
+    clippy::many_single_char_names,
+    reason = "RFC 6376's checks in its order, its tags by their names (d=, c=, i=, x=, b=)"
+)]
+async fn problem(
+    field: &Field,
+    fields: &[Field],
+    body: &str,
+    tags: Option<&HashMap<String, String>>,
+    d: &str,
+    txt: &Txt,
+    now_s: i64,
+) -> (String, bool) {
     let say = |s: &str| (s.to_owned(), false);
     let Some(tags) = tags else { return say("bad tag list") };
     for t in ["a", "b", "bh", "d", "h", "s"] {

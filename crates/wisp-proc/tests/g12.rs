@@ -5,12 +5,7 @@
 //!   cargo test -p wisp-proc --test g12 -- --ignored --nocapture      # the gate: 1,000 runs
 //!   cargo test -p wisp-proc --test g12                               # 40 runs, in every test run
 #![cfg(unix)]
-#![allow(
-    clippy::unwrap_used,
-    clippy::panic,
-    clippy::cast_precision_loss,
-    reason = "a test"
-)]
+#![allow(clippy::unwrap_used, clippy::panic, clippy::cast_precision_loss, reason = "a test")]
 
 mod common;
 
@@ -37,24 +32,13 @@ fn tree() -> String {
 
 /// One run: start, wait until the whole tree is up, kill it, check every member is gone.
 async fn one(proc: Proc, i: usize) -> (usize, usize) {
-    let pty = i
-        .is_multiple_of(2)
-        .then_some(PtySize { cols: 80, rows: 24 });
-    let opts = SpawnOpts {
-        pty,
-        grace: Some(Duration::from_millis(50)),
-        ..SpawnOpts::default()
-    };
-    let (h, mut out) = proc
-        .spawn("sh", &args(&["-c", &tree()]), opts)
-        .unwrap()
-        .split();
+    let pty = i.is_multiple_of(2).then_some(PtySize { cols: 80, rows: 24 });
+    let opts = SpawnOpts { pty, grace: Some(Duration::from_millis(50)), ..SpawnOpts::default() };
+    let (h, mut out) = proc.spawn("sh", &args(&["-c", &tree()]), opts).unwrap().split();
     read_until(&mut out, "ready").await;
     let members = tree_of(h.pid());
     let report = h.kill().await;
-    tokio::time::timeout(Duration::from_secs(5), h.exited())
-        .await
-        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), h.exited()).await.unwrap();
     // An orphan reparented to init is reaped by it a moment later; a live one never goes.
     let end = Instant::now() + Duration::from_secs(2);
     let mut left = still_alive(&members);
@@ -62,10 +46,7 @@ async fn one(proc: Proc, i: usize) -> (usize, usize) {
         tokio::time::sleep(Duration::from_millis(10)).await;
         left = still_alive(&members);
     }
-    assert!(
-        members.len() >= 6,
-        "run {i}: the tree didn't come up whole: {members:?}"
-    );
+    assert!(members.len() >= 6, "run {i}: the tree didn't come up whole: {members:?}");
     (left.len() + report.survivors, members.len())
 }
 
@@ -87,16 +68,8 @@ async fn gate(runs: usize) {
         orphans += o;
         processes += n;
     }
-    let ps = proc
-        .exec("ps", &args(&["-axo", "command="]), ExecOpts::default())
-        .await
-        .unwrap();
-    let marked: Vec<String> = ps
-        .stdout_text()
-        .lines()
-        .filter(|l| l.contains(&format!("sleep {MARK}")))
-        .map(str::to_owned)
-        .collect();
+    let ps = proc.exec("ps", &args(&["-axo", "command="]), ExecOpts::default()).await.unwrap();
+    let marked: Vec<String> = ps.stdout_text().lines().filter(|l| l.contains(&format!("sleep {MARK}"))).map(str::to_owned).collect();
     let secs = start.elapsed().as_secs_f64();
     eprintln!(
         "G12: {runs} runs ({} on a PTY), {processes} processes killed, {orphans} orphans, {} marked left, {secs:.1} s ({:.1} ms/run)",

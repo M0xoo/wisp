@@ -52,20 +52,13 @@ impl Tracker {
         }
         // An empty snapshot may be the write caught half way (truncated, not written yet): ask git.
         match self.announced.get(file) {
-            Some(was) if was.as_deref() != after && was.as_deref() != Some("") => {
-                Before::Known(was.clone())
-            }
+            Some(was) if was.as_deref() != after && was.as_deref() != Some("") => Before::Known(was.clone()),
             _ => Before::Git,
         }
     }
 
     /// Step two: record the change and answer the `change` event, or None when nothing changed.
-    pub fn changed(
-        &mut self,
-        file: &str,
-        before: Option<String>,
-        after: Option<String>,
-    ) -> Option<HarnessEvent> {
+    pub fn changed(&mut self, file: &str, before: Option<String>, after: Option<String>) -> Option<HarnessEvent> {
         self.known.insert(file.to_owned(), after.clone());
         self.announced.remove(file);
         if before == after {
@@ -75,10 +68,7 @@ impl Tracker {
         Some(HarnessEvent::Change(Change {
             file: file.to_owned(),
             op: op.to_owned(),
-            edits: vec![Edit {
-                before: before.clone().unwrap_or_default(),
-                after: after.unwrap_or_default(),
-            }],
+            edits: vec![Edit { before: before.clone().unwrap_or_default(), after: after.unwrap_or_default() }],
             early: None,
             before_file: Some(before),
         }))
@@ -89,12 +79,7 @@ impl Tracker {
 mod tests {
     use super::*;
 
-    fn run(
-        t: &mut Tracker,
-        file: &str,
-        after: Option<&str>,
-        git: Option<&str>,
-    ) -> Option<HarnessEvent> {
+    fn run(t: &mut Tracker, file: &str, after: Option<&str>, git: Option<&str>) -> Option<HarnessEvent> {
         let before = match t.before(file, after) {
             Before::Known(b) => b,
             Before::Git => git.map(str::to_owned),
@@ -104,11 +89,7 @@ mod tests {
 
     fn edit(e: &HarnessEvent) -> (String, String, String) {
         match e {
-            HarnessEvent::Change(c) => (
-                c.op.clone(),
-                c.edits[0].before.clone(),
-                c.edits[0].after.clone(),
-            ),
+            HarnessEvent::Change(c) => (c.op.clone(), c.edits[0].before.clone(), c.edits[0].after.clone()),
             _ => (String::new(), String::new(), String::new()),
         }
     }
@@ -117,15 +98,9 @@ mod tests {
     fn before_comes_from_git_then_the_last_change() {
         let mut t = Tracker::new();
         let e = run(&mut t, "a.js", Some("v2"), Some("v1"));
-        assert_eq!(
-            e.as_ref().map(edit),
-            Some(("write".into(), "v1".into(), "v2".into()))
-        );
+        assert_eq!(e.as_ref().map(edit), Some(("write".into(), "v1".into(), "v2".into())));
         let e = run(&mut t, "a.js", Some("v3"), Some("v1"));
-        assert_eq!(
-            e.as_ref().map(edit),
-            Some(("write".into(), "v2".into(), "v3".into()))
-        );
+        assert_eq!(e.as_ref().map(edit), Some(("write".into(), "v2".into(), "v3".into())));
         assert!(run(&mut t, "a.js", Some("v3"), None).is_none(), "unchanged");
     }
 
@@ -135,26 +110,17 @@ mod tests {
         t.remembered("b.js", Some("old".into()));
         t.remembered("b.js", Some("later".into())); // only the first counts
         let e = run(&mut t, "b.js", Some("new"), Some("git"));
-        assert_eq!(
-            e.as_ref().map(edit),
-            Some(("write".into(), "old".into(), "new".into()))
-        );
+        assert_eq!(e.as_ref().map(edit), Some(("write".into(), "old".into(), "new".into())));
 
         let mut t = Tracker::new();
         t.remembered("c.js", Some(String::new())); // caught half way
         let e = run(&mut t, "c.js", Some("new"), Some("git"));
-        assert_eq!(
-            e.as_ref().map(edit),
-            Some(("write".into(), "git".into(), "new".into()))
-        );
+        assert_eq!(e.as_ref().map(edit), Some(("write".into(), "git".into(), "new".into())));
 
         let mut t = Tracker::new();
         t.remembered("d.js", Some("new".into())); // the write had already landed
         let e = run(&mut t, "d.js", Some("new"), None);
-        assert_eq!(
-            e.as_ref().map(edit),
-            Some(("create".into(), String::new(), "new".into()))
-        );
+        assert_eq!(e.as_ref().map(edit), Some(("create".into(), String::new(), "new".into())));
     }
 
     #[test]

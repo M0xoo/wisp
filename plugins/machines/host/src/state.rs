@@ -67,7 +67,15 @@ impl State {
             mirror.load(&peer, &e, &id, v);
         }
         let mut sync: HashMap<String, SyncRow> = loaded.sync.into_iter().collect();
-        let st = Arc::new(Self { ctx, store, peers: Mutex::new(BTreeMap::new()), links: Mutex::new(HashMap::new()), mirror: Mutex::new(mirror), waiters: Mutex::new(HashMap::new()), secrets: Mutex::new(HashMap::new()) });
+        let st = Arc::new(Self {
+            ctx,
+            store,
+            peers: Mutex::new(BTreeMap::new()),
+            links: Mutex::new(HashMap::new()),
+            mirror: Mutex::new(mirror),
+            waiters: Mutex::new(HashMap::new()),
+            secrets: Mutex::new(HashMap::new()),
+        });
         for p in loaded.peers {
             let s = sync.remove(&p.id);
             st.add_link(&p.id, s);
@@ -143,7 +151,13 @@ impl State {
         let row = self.peer(id)?;
         let (status, log) = self.with_link(id, |l| (l.conn.status.clone(), l.conn.view_log())).ok_or(MachinesError::NoPeer)?;
         let working = lock(&self.mirror).working(id);
-        let x = view::Extras { version: crate::VERSION.to_owned(), default_command: bootstrap::default_command(crate::VERSION), log, projects: 0, working };
+        let x = view::Extras {
+            version: crate::VERSION.to_owned(),
+            default_command: bootstrap::default_command(crate::VERSION),
+            log,
+            projects: 0,
+            working,
+        };
         Ok(view::view(&row, &status, x))
     }
 
@@ -155,12 +169,16 @@ impl State {
     pub fn channel(&self, id: &str) -> Res<Arc<dyn Channel>> {
         let row = self.peer(id)?;
         let t = self.transport(&row.transport).ok();
-        let (state, wakes, ch) = self.with_link(id, |l| (l.conn.status.state, l.conn.wakes(), l.channel.clone())).ok_or(MachinesError::NoPeer)?;
+        let (state, wakes, ch) =
+            self.with_link(id, |l| (l.conn.status.state, l.conn.wakes(), l.channel.clone())).ok_or(MachinesError::NoPeer)?;
         let wakes_on_request = t.as_ref().is_some_and(|t| t.wakes_on_request(&row));
         if let Some(words) = wisp_machines_core::conn::refuse(&row.name, state, wakes, row.computer().is_some(), wakes_on_request) {
             return Err(MachinesError::Offline(words));
         }
-        ch.or_else(|| t.and_then(|t| t.direct(&row, Arc::new(crate::manager::PeerIo::quiet_with(id, lock(&self.secrets).get(id).cloned()))))).ok_or_else(|| MachinesError::Offline(format!("{} is offline. Connect it from Machines.", row.name)))
+        ch.or_else(|| {
+            t.and_then(|t| t.direct(&row, Arc::new(crate::manager::PeerIo::quiet_with(id, lock(&self.secrets).get(id).cloned()))))
+        })
+        .ok_or_else(|| MachinesError::Offline(format!("{} is offline. Connect it from Machines.", row.name)))
     }
 
     /// Settles a routed command's waiters.
@@ -168,7 +186,9 @@ impl State {
         for w in lock(&self.waiters).remove(mid).unwrap_or_default() {
             let _ = w.send(match out {
                 Ok(v) => Ok(v.clone()),
-                Err(MachinesError::Rejected { code, message }) => Err(MachinesError::Rejected { code: code.clone(), message: message.clone() }),
+                Err(MachinesError::Rejected { code, message }) => {
+                    Err(MachinesError::Rejected { code: code.clone(), message: message.clone() })
+                }
                 Err(e) => Err(MachinesError::Invalid(e.to_string())),
             });
         }

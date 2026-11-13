@@ -22,7 +22,8 @@ async fn of_commit(b: &dyn BlameSource, root: &Path, all: &[Doc], sha: &str) -> 
 /// A task's commits (its trailer's, and the ones its file lists), and how much of what they added the
 /// current tree still has from them.
 async fn task_answer(b: &dyn BlameSource, root: &Path, all: &[Doc], d: &Doc) -> Value {
-    let mut commits = b.grep(root.to_owned(), format!("{} {}", wisp_history_core::repo::TRAILER, wisp_history_core::repo::short(d.id()))).await;
+    let mut commits =
+        b.grep(root.to_owned(), format!("{} {}", wisp_history_core::repo::TRAILER, wisp_history_core::repo::short(d.id()))).await;
     for c in d.commits() {
         if !commits.iter().any(|x| x == c) {
             commits.push(c.to_owned());
@@ -40,7 +41,8 @@ async fn task_answer(b: &dyn BlameSource, root: &Path, all: &[Doc], d: &Doc) -> 
     let mut surviving = 0u32;
     for f in &files {
         if tokio::fs::metadata(root.join(f)).await.is_ok() {
-            surviving += b.blame(root.to_owned(), f.clone(), None).await.iter().filter(|(s, _)| commits.contains(s)).map(|(_, n)| n).sum::<u32>();
+            surviving +=
+                b.blame(root.to_owned(), f.clone(), None).await.iter().filter(|(s, _)| commits.contains(s)).map(|(_, n)| n).sum::<u32>();
         }
     }
     let listed: Vec<&str> = d.files();
@@ -50,7 +52,14 @@ async fn task_answer(b: &dyn BlameSource, root: &Path, all: &[Doc], d: &Doc) -> 
 
 /// Every line of a file (or of `range`) with the task that wrote it, for a why-gutter: `{n, text, task, title,
 /// why}`, `task` null for a line written by hand. A source that can't list lines answers none.
-async fn by_line(b: &dyn BlameSource, root: &Path, all: &[Doc], path: &str, range: Option<(u32, u32)>, of: &mut std::collections::HashMap<String, Vec<String>>) -> Vec<Value> {
+async fn by_line(
+    b: &dyn BlameSource,
+    root: &Path,
+    all: &[Doc],
+    path: &str,
+    range: Option<(u32, u32)>,
+    of: &mut std::collections::HashMap<String, Vec<String>>,
+) -> Vec<Value> {
     let lines = b.lines(root.to_owned(), path.to_owned()).await;
     let (from, to) = range.unwrap_or((1, u32::MAX));
     let mut out = Vec::new();
@@ -88,11 +97,17 @@ pub async fn answer(ctx: &Ctx, a: &BlameArgs) -> Result<Value> {
     }
     if target.starts_with('#') || target.contains("/pull/") {
         let n = target.trim_start_matches('#');
-        let hits: Vec<Value> = all.iter().filter(|t| t.doc.get("pr").and_then(Value::as_str).is_some_and(|p| p == target || p.ends_with(&format!("/pull/{n}")))).map(|t| card(&all, t.id(), json!({}))).collect();
+        let hits: Vec<Value> = all
+            .iter()
+            .filter(|t| t.doc.get("pr").and_then(Value::as_str).is_some_and(|p| p == target || p.ends_with(&format!("/pull/{n}"))))
+            .map(|t| card(&all, t.id(), json!({})))
+            .collect();
         return Ok(json!({ "target": target, "kind": "pr", "tasks": hits }));
     }
     if !b.knows(root.clone()).await {
-        return Ok(json!({ "target": target, "kind": "unknown", "tasks": [], "note": format!("{} isn't under {}: blame needs it", a.repo, b.id()) }));
+        return Ok(
+            json!({ "target": target, "kind": "unknown", "tasks": [], "note": format!("{} isn't under {}: blame needs it", a.repo, b.id()) }),
+        );
     }
     let (path, range) = match target.rsplit_once(':') {
         Some((p, r)) if !r.is_empty() && r.chars().all(|c| c.is_ascii_digit() || c == '-') => {
@@ -109,7 +124,10 @@ pub async fn answer(ctx: &Ctx, a: &BlameArgs) -> Result<Value> {
             of.insert(sha.clone(), of_commit(b.as_ref(), &root, &all, sha).await);
         }
         let (total, hand, by) = shares(&lines, &|s| of.get(s).cloned().unwrap_or_default());
-        let tasks: Vec<Value> = by.iter().map(|(id, n)| card(&all, id, json!({ "lines": n, "share": if total > 0 { f64::from(*n) / f64::from(total) } else { 0.0 } }))).collect();
+        let tasks: Vec<Value> = by
+            .iter()
+            .map(|(id, n)| card(&all, id, json!({ "lines": n, "share": if total > 0 { f64::from(*n) / f64::from(total) } else { 0.0 } })))
+            .collect();
         let mut out = json!({ "target": target, "kind": if range.is_some() { "lines" } else { "file" }, "lines": total, "byHand": hand, "tasks": tasks });
         if a.by_line {
             out["byLine"] = Value::Array(by_line(b.as_ref(), &root, &all, &path, range, &mut of).await);
@@ -117,7 +135,11 @@ pub async fn answer(ctx: &Ctx, a: &BlameArgs) -> Result<Value> {
         return Ok(out);
     }
     let is_dir = tokio::fs::metadata(&full).await.is_ok_and(|m| m.is_dir());
-    let shas = if is_dir { b.commits(root.clone(), String::new(), path.clone()).await } else { b.commits(root.clone(), target.to_owned(), String::new()).await };
+    let shas = if is_dir {
+        b.commits(root.clone(), String::new(), path.clone()).await
+    } else {
+        b.commits(root.clone(), target.to_owned(), String::new()).await
+    };
     let (mut tasks, mut seen, mut hand) = (Vec::new(), Vec::<String>::new(), 0);
     for sha in &shas {
         let ids = of_commit(b.as_ref(), &root, &all, sha).await;
@@ -131,5 +153,7 @@ pub async fn answer(ctx: &Ctx, a: &BlameArgs) -> Result<Value> {
             }
         }
     }
-    Ok(json!({ "target": target, "kind": if is_dir { "folder" } else if shas.is_empty() { "unknown" } else { "commits" }, "commits": shas.len(), "byHand": hand, "tasks": tasks }))
+    Ok(
+        json!({ "target": target, "kind": if is_dir { "folder" } else if shas.is_empty() { "unknown" } else { "commits" }, "commits": shas.len(), "byHand": hand, "tasks": tasks }),
+    )
 }

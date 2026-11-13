@@ -1,11 +1,5 @@
 //! Helpers shared by the proc tests.
-#![allow(
-    dead_code,
-    clippy::unwrap_used,
-    clippy::panic,
-    clippy::match_wild_err_arm,
-    reason = "test helpers"
-)]
+#![allow(dead_code, clippy::unwrap_used, clippy::panic, clippy::match_wild_err_arm, reason = "test helpers")]
 
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
@@ -25,10 +19,7 @@ pub async fn read_until(out: &mut mpsc::Receiver<Output>, needle: &str) -> Strin
         match tokio::time::timeout_at(end, out.recv()).await {
             Ok(Some(o)) => seen.extend(o.data),
             Ok(None) => break,
-            Err(_) => panic!(
-                "timed out waiting for {needle:?}; saw {:?}",
-                String::from_utf8_lossy(&seen)
-            ),
+            Err(_) => panic!("timed out waiting for {needle:?}; saw {:?}", String::from_utf8_lossy(&seen)),
         }
     }
     String::from_utf8_lossy(&seen).into_owned()
@@ -38,18 +29,10 @@ pub async fn read_until(out: &mut mpsc::Receiver<Output>, needle: &str) -> Strin
 pub fn tree_of(root: u32) -> BTreeSet<u32> {
     let table = wisp_proc::processes().unwrap();
     let live: Vec<_> = table.iter().filter(|p| !p.zombie).collect();
-    let mut set: BTreeSet<u32> = live
-        .iter()
-        .filter(|p| p.pid == root || p.pgid == root)
-        .map(|p| p.pid)
-        .collect();
+    let mut set: BTreeSet<u32> = live.iter().filter(|p| p.pid == root || p.pgid == root).map(|p| p.pid).collect();
     loop {
         let before = set.len();
-        let kids: Vec<u32> = live
-            .iter()
-            .filter(|p| set.contains(&p.ppid))
-            .map(|p| p.pid)
-            .collect();
+        let kids: Vec<u32> = live.iter().filter(|p| set.contains(&p.ppid)).map(|p| p.pid).collect();
         set.extend(kids);
         if set.len() == before {
             return set;
@@ -60,11 +43,7 @@ pub fn tree_of(root: u32) -> BTreeSet<u32> {
 /// Which of `pids` still run (zombies count as gone: they can't run).
 pub fn still_alive(pids: &BTreeSet<u32>) -> Vec<u32> {
     let table = wisp_proc::processes().unwrap();
-    table
-        .iter()
-        .filter(|p| !p.zombie && pids.contains(&p.pid))
-        .map(|p| p.pid)
-        .collect()
+    table.iter().filter(|p| !p.zombie && pids.contains(&p.pid)).map(|p| p.pid).collect()
 }
 
 /// Every one of `pids` is gone within 3 s (an orphan reparented to init is reaped by it).

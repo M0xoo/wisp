@@ -22,18 +22,8 @@ use crate::runtime::Runtime;
 fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), StoreError> {
     let internal = |e: crate::error::RuntimeError| StoreError::Internal(e.to_string());
     let last = i.turns.last().map(|t| &t.turn);
-    let report = i
-        .turns
-        .iter()
-        .rev()
-        .map(|t| &t.turn)
-        .find(|t| t.by.as_deref() != Some("compact"));
-    let followups = i
-        .turns
-        .iter()
-        .skip(1)
-        .filter(|t| !matches!(t.turn.by.as_deref(), Some("wisp" | "compact")))
-        .count();
+    let report = i.turns.iter().rev().map(|t| &t.turn).find(|t| t.by.as_deref() != Some("compact"));
+    let followups = i.turns.iter().skip(1).filter(|t| !matches!(t.turn.by.as_deref(), Some("wisp" | "compact"))).count();
     let facts = RowFacts {
         last,
         report,
@@ -54,8 +44,7 @@ fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), S
             .steps
             .iter()
             .map(|(at, item)| {
-                let row =
-                    rows::v0_event_row(i.session.id.as_str(), t.turn.id.as_str(), seq, *at, item);
+                let row = rows::v0_event_row(i.session.id.as_str(), t.turn.id.as_str(), seq, *at, item);
                 seq += 1;
                 row
             })
@@ -70,23 +59,15 @@ fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), S
 impl Runtime {
     /// `runtime.import`: every v1 session file new or changed since its last import.
     pub async fn import_v1(self: &Arc<Self>, dir: Option<PathBuf>) -> Result<ImportReport> {
-        let dir = dir.unwrap_or_else(|| {
-            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".wisp/sessions")
-        });
+        let dir = dir.unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".wisp/sessions"));
         let handler: wisp_store::ImportHandler = Arc::new(|f, w| {
             let v: Value = f.json()?;
-            let i = import::from_v1(&v)
-                .map_err(|e| StoreError::Internal(format!("{}: {e}", f.name)))?;
+            let i = import::from_v1(&v).map_err(|e| StoreError::Internal(format!("{}: {e}", f.name)))?;
             // a session imported earlier keeps its later events: its old log is replaced as a whole
             w.del("session", i.session.id.as_str())?;
             write_imported(w, &i)
         });
-        let r = wisp_store::import_files(
-            &self.repo.store,
-            ImportOptions::new("runtime.sessions", dir),
-            handler,
-        )
-        .await?;
+        let r = wisp_store::import_files(&self.repo.store, ImportOptions::new("runtime.sessions", dir), handler).await?;
         // the list cache learns the new rows; a re-imported task's turns were rewritten behind `persist`
         self.usage.clear();
         for s in self.repo.summaries().await? {
@@ -95,11 +76,7 @@ impl Runtime {
         Ok(ImportReport {
             imported: u32::try_from(r.imported.len()).unwrap_or(u32::MAX),
             skipped: u32::try_from(r.unchanged).unwrap_or(u32::MAX),
-            failed: r
-                .failed
-                .into_iter()
-                .map(|(f, why)| format!("{f}: {why}"))
-                .collect(),
+            failed: r.failed.into_iter().map(|(f, why)| format!("{f}: {why}")).collect(),
         })
     }
 }

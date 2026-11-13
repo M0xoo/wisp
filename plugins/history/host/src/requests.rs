@@ -14,7 +14,16 @@ fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.history:requests".into()]
 }
 
-const DEF: EntityDef = EntityDef { kind: KIND, table: KIND, key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+const DEF: EntityDef = EntityDef {
+    kind: KIND,
+    table: KIND,
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 static READY: std::sync::OnceLock<()> = std::sync::OnceLock::new();
 
@@ -60,7 +69,8 @@ async fn source(ctx: &Ctx, call: &Call, id: &str, repo: Option<&str>) -> Result<
             return Ok((d.id().to_owned(), d.title().to_owned(), asked, report, r.to_owned()));
         }
     }
-    let t = super::calls::task(ctx, call, id).await.map_err(|_| WireError::not_found(format!("no task {id} here or in the repo's history")))?;
+    let t =
+        super::calls::task(ctx, call, id).await.map_err(|_| WireError::not_found(format!("no task {id} here or in the repo's history")))?;
     let asked = super::calls::spec(ctx, call, id).await.map_or_else(
         |e| {
             tracing::warn!(task = id, "history: runtime.spec: {}", e.message);
@@ -82,8 +92,22 @@ async fn request(ctx: &Ctx, call: &Call, a: ResumeRequestArgs) -> Result<ResumeR
     if let Some(r) = all(ctx).await?.into_iter().find(|r| r.task == task && r.state == "pending") {
         return Ok(r);
     }
-    let by = if a.by.is_empty() { call.caller().session.clone().map_or_else(|| call.caller().set.clone(), |s| format!("task {s}")) } else { a.by };
-    let r = ResumeRequest { id: wisp_kernel::ids::uuid7(), task, title, by, why: a.why, repo, at: ctx.clock().map_or(0, |c| c.now_ms()), state: "pending".into(), started: None };
+    let by = if a.by.is_empty() {
+        call.caller().session.clone().map_or_else(|| call.caller().set.clone(), |s| format!("task {s}"))
+    } else {
+        a.by
+    };
+    let r = ResumeRequest {
+        id: wisp_kernel::ids::uuid7(),
+        task,
+        title,
+        by,
+        why: a.why,
+        repo,
+        at: ctx.clock().map_or(0, |c| c.now_ms()),
+        state: "pending".into(),
+        started: None,
+    };
     put(ctx, &r).await?;
     if let Ok(n) = wisp_kernel::services::notify(ctx) {
         n.notice("history.resume", json!({ "request": r.id, "task": r.task, "title": r.title, "by": r.by, "why": r.why }), None);

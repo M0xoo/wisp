@@ -16,9 +16,31 @@ const USER_DEFS: &str = include_str!("../defs/user.json");
 
 /// A side discussion's tools (v1 server/side.js): reading, asking the user, the page beside the task, the
 /// gate. They carry `readOnlyHint`, the only thing that lets a Claude Code task call them in plan mode.
-pub const READ_ONLY_TOOLS: &[&str] = &["approve", "ask_user", "resume_later", "wisp_tag", "wisp_watch", "wisp_blocks", "wisp_stats", "wisp_sessions", "wisp_session", "wisp_stuff", "wisp_crew", "wisp_connectors", "wisp_available"];
+pub const READ_ONLY_TOOLS: &[&str] = &[
+    "approve",
+    "ask_user",
+    "resume_later",
+    "wisp_tag",
+    "wisp_watch",
+    "wisp_blocks",
+    "wisp_stats",
+    "wisp_sessions",
+    "wisp_session",
+    "wisp_stuff",
+    "wisp_crew",
+    "wisp_connectors",
+    "wisp_available",
+];
 /// Not offered to a task a channel started at a mode cap: the tools that only change or read the user's setup.
-pub const CAPPED_OFF: &[&str] = &["wisp_crew_add", "wisp_crew_edit", "wisp_crew_kit", "wisp_crew_remove", "wisp_connectors", "wisp_connector_add", "wisp_connector_signin"];
+pub const CAPPED_OFF: &[&str] = &[
+    "wisp_crew_add",
+    "wisp_crew_edit",
+    "wisp_crew_kit",
+    "wisp_crew_remove",
+    "wisp_connectors",
+    "wisp_connector_add",
+    "wisp_connector_signin",
+];
 /// Offered only in a Cast a spell task.
 pub const SPELL_TOOLS: &[&str] = &["wisp_spells", "wisp_spell_schema", "wisp_spell_data", "wisp_spell_check"];
 /// The crew tools `wisp mcp` offers too (without `wisp_crew_kit`: there is no answer to show its files under).
@@ -129,7 +151,11 @@ pub fn exists_for(name: &str, info: &SessionInfo) -> bool {
 }
 
 const fn flags_key(info: &SessionInfo) -> usize {
-    (info.watch as usize) | (info.approve as usize) << 1 | (info.spells as usize) << 2 | (info.read_only as usize) << 3 | (info.capped as usize) << 4
+    (info.watch as usize)
+        | (info.approve as usize) << 1
+        | (info.spells as usize) << 2
+        | (info.read_only as usize) << 3
+        | (info.capped as usize) << 4
 }
 
 /// A task's agent's list, comma-joined, in v1's order. Without a team it's one of 32 shapes, each built

@@ -20,7 +20,15 @@ pub const CLOUD: EntityDef = EntityDef {
     kind: "grid-client.cloud",
     table: "grid_client_cloud",
     key: "id",
-    columns: &[("id", Col::Text), ("signedIn", Col::Bool), ("grid", Col::Text), ("handle", Col::Text), ("machine", Col::Text), ("computer", Col::Text), ("signin", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("signedIn", Col::Bool),
+        ("grid", Col::Text),
+        ("handle", Col::Text),
+        ("machine", Col::Text),
+        ("computer", Col::Text),
+        ("signin", Col::Text),
+    ],
     json_columns: &["computer", "signin"],
     parent: None,
     seq: None,
@@ -69,14 +77,33 @@ mod tests {
     async fn the_cloud_row_carries_the_sign_in_under_way_and_who_is_signed_in() {
         let db = wisp_store::Store::open(wisp_store::Location::Memory, std::sync::Arc::new(wisp_store::SystemClock)).unwrap();
         install(&db).unwrap();
-        let out = Status { signed_in: false, grid: String::new(), handle: String::new(), machine: String::new(), computer: ComputerState::default() };
-        let waiting = SignIn { id: "s1".into(), grid: "https://grid.trywisp.dev".into(), state: "waiting".into(), user_code: "ABCD-EFGH".into(), verify_url: "https://grid.trywisp.dev/device".into(), ..SignIn::default() };
+        let out = Status {
+            signed_in: false,
+            grid: String::new(),
+            handle: String::new(),
+            machine: String::new(),
+            computer: ComputerState::default(),
+        };
+        let waiting = SignIn {
+            id: "s1".into(),
+            grid: "https://grid.trywisp.dev".into(),
+            state: "waiting".into(),
+            user_code: "ABCD-EFGH".into(),
+            verify_url: "https://grid.trywisp.dev/device".into(),
+            ..SignIn::default()
+        };
         let r = row(&out, Some(&waiting));
         db.write(move |w| w.upsert(CLOUD.kind, r).map(|_| ())).await.unwrap();
         let got = db.read(|x| x.get("grid-client.cloud", "this")).unwrap().unwrap();
         assert_eq!(got["signedIn"], false);
         assert_eq!(got["signin"]["userCode"], "ABCD-EFGH");
-        let signed = Status { signed_in: true, grid: "https://grid.trywisp.dev".into(), handle: "ada".into(), machine: "m1".into(), computer: ComputerState::default() };
+        let signed = Status {
+            signed_in: true,
+            grid: "https://grid.trywisp.dev".into(),
+            handle: "ada".into(),
+            machine: "m1".into(),
+            computer: ComputerState::default(),
+        };
         let r = row(&signed, None);
         db.write(move |w| w.upsert(CLOUD.kind, r).map(|_| ())).await.unwrap();
         let got = db.read(|x| x.get("grid-client.cloud", "this")).unwrap().unwrap();

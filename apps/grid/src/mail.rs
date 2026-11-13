@@ -11,7 +11,10 @@ pub mod ses;
 pub fn iso_ms(iso: &str) -> Option<i64> {
     let n = |r: std::ops::Range<usize>| iso.get(r)?.parse::<i64>().ok();
     let (y, mo, d, h, mi, s) = (n(0..4)?, n(5..7)?, n(8..10)?, n(11..13)?, n(14..16)?, n(17..19)?);
-    let ms = iso.get(19..).and_then(|r| r.strip_prefix('.')).map_or(0, |f| f.chars().take_while(char::is_ascii_digit).take(3).collect::<String>().parse::<i64>().unwrap_or(0));
+    let ms = iso
+        .get(19..)
+        .and_then(|r| r.strip_prefix('.'))
+        .map_or(0, |f| f.chars().take_while(char::is_ascii_digit).take(3).collect::<String>().parse::<i64>().unwrap_or(0));
     let y2 = if mo <= 2 { y - 1 } else { y };
     let era = y2.div_euclid(400);
     let yoe = y2 - era * 400;
@@ -62,7 +65,14 @@ pub fn rfc5322(ms: i64) -> String {
 pub fn date_iso(date: &str) -> String {
     let t: Vec<&str> = date.split(|c: char| c.is_whitespace() || c == ',').filter(|w| !w.is_empty()).collect();
     let t: Vec<&str> = if t.first().is_some_and(|w| w.chars().all(char::is_alphabetic)) { t[1..].to_vec() } else { t };
-    let (Some(d), Some(mon), Some(y), Some(time)) = (t.first().and_then(|d| d.parse::<i64>().ok()), t.get(1).and_then(|m| MONTHS.iter().position(|x| x.eq_ignore_ascii_case(m))), t.get(2).and_then(|y| y.parse::<i64>().ok()), t.get(3)) else { return String::new() };
+    let (Some(d), Some(mon), Some(y), Some(time)) = (
+        t.first().and_then(|d| d.parse::<i64>().ok()),
+        t.get(1).and_then(|m| MONTHS.iter().position(|x| x.eq_ignore_ascii_case(m))),
+        t.get(2).and_then(|y| y.parse::<i64>().ok()),
+        t.get(3),
+    ) else {
+        return String::new();
+    };
     let hms: Vec<i64> = time.split(':').filter_map(|p| p.parse().ok()).collect();
     let (h, mi, s) = (hms.first().copied().unwrap_or(0), hms.get(1).copied().unwrap_or(0), hms.get(2).copied().unwrap_or(0));
     let zone = t.get(4).map_or(0, |z| match (z.strip_prefix('+').map(|r| (1, r)).or_else(|| z.strip_prefix('-').map(|r| (-1, r))), z) {

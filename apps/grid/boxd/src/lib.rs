@@ -62,7 +62,15 @@ pub fn main_with(args: Vec<String>) -> i32 {
         "serve" => match serve::serve(o) {
             Ok((b, l)) => {
                 let c = &b.o.container;
-                eprintln!("boxd: listening at {} (group {}); boxes in {}, image {}, runtime {}, network {}", b.o.socket.display(), b.o.group, b.o.boxes.display(), c.image, if c.runtime.is_empty() { "runc" } else { &c.runtime }, c.network);
+                eprintln!(
+                    "boxd: listening at {} (group {}); boxes in {}, image {}, runtime {}, network {}",
+                    b.o.socket.display(),
+                    b.o.group,
+                    b.o.boxes.display(),
+                    c.image,
+                    if c.runtime.is_empty() { "runc" } else { &c.runtime },
+                    c.network
+                );
                 serve::accept(&b, &l);
                 0
             }
@@ -73,7 +81,12 @@ pub fn main_with(args: Vec<String>) -> i32 {
         },
         "migrate" => match serve::migrate(&o) {
             Ok((moved, skipped)) => {
-                eprintln!("boxd: moved {} home{}{}.", moved.len(), if moved.len() == 1 { "" } else { "s" }, if skipped.is_empty() { String::new() } else { format!(", skipped {}", skipped.len()) });
+                eprintln!(
+                    "boxd: moved {} home{}{}.",
+                    moved.len(),
+                    if moved.len() == 1 { "" } else { "s" },
+                    if skipped.is_empty() { String::new() } else { format!(", skipped {}", skipped.len()) }
+                );
                 i32::from(!skipped.is_empty())
             }
             Err(e) => {

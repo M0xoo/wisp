@@ -30,7 +30,16 @@ fn topics(_: &Row) -> Vec<String> {
 
 macro_rules! doc {
     ($name:ident, $kind:literal) => {
-        pub const $name: EntityDef = EntityDef { kind: $kind, table: $kind, key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+        pub const $name: EntityDef = EntityDef {
+            kind: $kind,
+            table: $kind,
+            key: "id",
+            columns: &[("id", Col::Text), ("body", Col::Text)],
+            json_columns: &["body"],
+            parent: None,
+            seq: None,
+            topics,
+        };
     };
 }
 doc!(WATCH, "accounts_watch");
@@ -109,7 +118,10 @@ pub async fn load(store: &Store) -> wisp_store::Result<Loaded> {
             }
             let mut watch = Vec::new();
             for row in r.query(WATCH.kind, &Query::new())? {
-                if let (Some(id), Some(w)) = (row.get("id").and_then(Value::as_str), row.get("body").cloned().and_then(|b| serde_json::from_value::<Watched>(b).ok())) {
+                if let (Some(id), Some(w)) = (
+                    row.get("id").and_then(Value::as_str),
+                    row.get("body").cloned().and_then(|b| serde_json::from_value::<Watched>(b).ok()),
+                ) {
                     watch.push((id.to_owned(), w));
                 }
             }
@@ -141,7 +153,10 @@ fn import_watch(f: &ImportFile, w: &mut Writer<'_>) -> wisp_store::Result<()> {
     ids.extend(v["changes"].as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default());
     ids.dedup();
     for id in ids {
-        let watched = Watched { pin: serde_json::from_value(v["pins"][&id].clone()).ok(), change: serde_json::from_value(v["changes"][&id].clone()).ok() };
+        let watched = Watched {
+            pin: serde_json::from_value(v["pins"][&id].clone()).ok(),
+            change: serde_json::from_value(v["changes"][&id].clone()).ok(),
+        };
         put_watch(w, &id, &watched)?;
     }
     Ok(())
@@ -155,7 +170,13 @@ fn import_settings(f: &ImportFile, w: &mut Writer<'_>) -> wisp_store::Result<()>
     Ok(())
 }
 
-async fn import_one(store: &Store, home: &Path, name: &str, file: &'static str, f: fn(&ImportFile, &mut Writer<'_>) -> wisp_store::Result<()>) -> wisp_store::Result<()> {
+async fn import_one(
+    store: &Store,
+    home: &Path,
+    name: &str,
+    file: &'static str,
+    f: fn(&ImportFile, &mut Writer<'_>) -> wisp_store::Result<()>,
+) -> wisp_store::Result<()> {
     if !home.join(file).is_file() {
         return Ok(());
     }

@@ -46,15 +46,8 @@ fn thousand_file_change(t: &Tmp) -> std::path::PathBuf {
     git(&dir, &["commit", "-q", "-m", "1000 files"]);
     git(&dir, &["push", "-q", "origin", "main"]);
     for i in 0..1000 {
-        let body: String = (0..40)
-            .map(|l| {
-                if l % 10 == 3 {
-                    format!("CHANGED {i} {l}\n")
-                } else {
-                    format!("file {i} line {l}\n")
-                }
-            })
-            .collect();
+        let body: String =
+            (0..40).map(|l| if l % 10 == 3 { format!("CHANGED {i} {l}\n") } else { format!("file {i} line {l}\n") }).collect();
         write(&dir, &format!("src/m{}/f{i}.rs", i % 20), &body);
     }
     for i in 0..50 {
@@ -64,9 +57,7 @@ fn thousand_file_change(t: &Tmp) -> std::path::PathBuf {
 }
 
 /// A 1 ms ticker's lateness (ms) until `stop` is set.
-fn ticker(
-    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
-) -> tokio::task::JoinHandle<Vec<f64>> {
+fn ticker(stop: std::sync::Arc<std::sync::atomic::AtomicBool>) -> tokio::task::JoinHandle<Vec<f64>> {
     tokio::spawn(async move {
         let mut late = Vec::new();
         while !stop.load(std::sync::atomic::Ordering::SeqCst) {
@@ -101,23 +92,12 @@ async fn bench_status_and_changes_on_1000_files() {
         st.push(a.elapsed().as_secs_f64() * 1000.0);
         assert_eq!(status.dirty(), 1001);
         let a = Instant::now();
-        let c = wisp_git::commands::changes(&svc, args.clone())
-            .await
-            .unwrap()
-            .unwrap();
+        let c = wisp_git::commands::changes(&svc, args.clone()).await.unwrap().unwrap();
         ch.push(a.elapsed().as_secs_f64() * 1000.0);
         assert_eq!(c.stats.len(), 1050);
     }
-    println!(
-        "status 1,000 changed + 50 new: p50 {:.1} ms, p95 {:.1} ms",
-        pct(&mut st, 0.5),
-        pct(&mut st, 0.95)
-    );
-    println!(
-        "changes (diff + untracked + stage state + mask): p50 {:.1} ms, p95 {:.1} ms",
-        pct(&mut ch, 0.5),
-        pct(&mut ch, 0.95)
-    );
+    println!("status 1,000 changed + 50 new: p50 {:.1} ms, p95 {:.1} ms", pct(&mut st, 0.5), pct(&mut st, 0.95));
+    println!("changes (diff + untracked + stage state + mask): p50 {:.1} ms, p95 {:.1} ms", pct(&mut ch, 0.5), pct(&mut ch, 0.95));
 
     // the same ticker idle first, so a busy machine (other builds) doesn't read as blocking
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -141,19 +121,12 @@ async fn bench_status_and_changes_on_1000_files() {
     stop.store(true, std::sync::atomic::Ordering::SeqCst);
     let mut late = busy.await.unwrap();
     let (b99, l99) = (pct(&mut base, 0.99), pct(&mut late, 0.99));
-    println!(
-        "ticker idle: p50 {:.2} ms, p99 {b99:.2} ms over {} ticks",
-        pct(&mut base, 0.5),
-        base.len()
-    );
+    println!("ticker idle: p50 {:.2} ms, p99 {b99:.2} ms over {} ticks", pct(&mut base, 0.5), base.len());
     println!(
         "8 concurrent changes: {load_ms:.0} ms wall; ticker p50 {:.2} ms, p99 {l99:.2} ms, max {:.2} ms over {} ticks",
         pct(&mut late, 0.5),
         pct(&mut late, 1.0),
         late.len()
     );
-    assert!(
-        l99 - b99 < 10.0,
-        "a runtime worker was blocked: p99 {l99:.1} ms against {b99:.1} ms idle"
-    );
+    assert!(l99 - b99 < 10.0, "a runtime worker was blocked: p99 {l99:.1} ms against {b99:.1} ms idle");
 }

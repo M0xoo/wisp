@@ -4,17 +4,20 @@
 //! sends what the notifications ask for: `finished`, `failed` and `asks` to a channel or a webhook.
 //! Transports own their wire; every IO they do goes through the hub's handles (`hub.rs`).
 
-mod ws;
 mod hub;
-mod routed;
 mod kinds;
+mod routed;
+mod ws;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use serde_json::{Value, json};
 use wisp_channels_api::views::{Action, ActionKind, Msg, SessionView};
-use wisp_channels_api::{Act, Extra, HttpOut, Inbound, InboundOpts, Line, Notify, Refresh, Rotate, Routed, SendNotice, Sent, TRANSPORTS, Test, Transport, Update, View};
+use wisp_channels_api::{
+    Act, Extra, HttpOut, Inbound, InboundOpts, Line, Notify, Refresh, Rotate, Routed, SendNotice, Sent, TRANSPORTS, Test, Transport,
+    Update, View,
+};
 use wisp_kernel::{CancellationToken, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_runtime_api::events::{SessionAsked, TurnEnded, TurnFinished};
 use wisp_runtime_api::model::TurnStatus;
@@ -82,12 +85,14 @@ async fn act(ctx: &Ctx, live: &Arc<Live>) {
 
 /// The task's cwd is in one of `projects` (or there are none).
 fn in_projects(projects: &[String], cwd: &str) -> bool {
-    projects.is_empty() || projects.iter().any(|p| cwd == p.trim_end_matches('/') || cwd.starts_with(&format!("{}/", p.trim_end_matches('/'))))
+    projects.is_empty()
+        || projects.iter().any(|p| cwd == p.trim_end_matches('/') || cwd.starts_with(&format!("{}/", p.trim_end_matches('/'))))
 }
 
 /// Sends `event` about a task to every notification that asks for it.
 async fn notify(ctx: &Ctx, live: &Arc<Live>, event: &str, session: &str, text: &str, actions: Vec<Action>) {
-    let due: Vec<kinds::NotificationSpec> = lock(&live.notes).iter().filter(|(_, n)| n.on.iter().any(|e| e == event)).map(|(_, n)| n.clone()).collect();
+    let due: Vec<kinds::NotificationSpec> =
+        lock(&live.notes).iter().filter(|(_, n)| n.on.iter().any(|e| e == event)).map(|(_, n)| n.clone()).collect();
     if due.is_empty() {
         return;
     }
@@ -113,12 +118,25 @@ async fn deliver(ctx: &Ctx, live: &Arc<Live>, to: &str, event: &str, msg: &Msg, 
         let body = json!({ "event": event, "session": { "id": s.id, "title": s.title, "state": s.state, "cwd": s.cwd }, "title": msg.title, "text": msg.text });
         let net = wisp_kernel::services::net(ctx)?;
         let r = net
-            .fetch(wisp_kernel::services::NetRequest { method: "POST".into(), url: to.to_owned(), headers: vec![("content-type".into(), "application/json".into())], body: body.to_string().into_bytes(), timeout_ms: 10_000 })
+            .fetch(wisp_kernel::services::NetRequest {
+                method: "POST".into(),
+                url: to.to_owned(),
+                headers: vec![("content-type".into(), "application/json".into())],
+                body: body.to_string().into_bytes(),
+                timeout_ms: 10_000,
+            })
             .await?;
         return if (200..300).contains(&r.status) { Ok(()) } else { Err(WireError::unavailable(format!("{to} answered {}", r.status))) };
     }
-    let transport = lock(&live.channels).iter().find(|(n, _)| n == to).map(|(_, c)| c.transport.clone()).ok_or_else(|| WireError::invalid(format!("no channel named {to}")))?;
-    let t = lock(&live.running).get(&transport).map(|(t, _)| t.clone()).ok_or_else(|| WireError::unavailable(format!("the channel {to} is off")))?;
+    let transport = lock(&live.channels)
+        .iter()
+        .find(|(n, _)| n == to)
+        .map(|(_, c)| c.transport.clone())
+        .ok_or_else(|| WireError::invalid(format!("no channel named {to}")))?;
+    let t = lock(&live.running)
+        .get(&transport)
+        .map(|(t, _)| t.clone())
+        .ok_or_else(|| WireError::unavailable(format!("the channel {to} is off")))?;
     t.publish(msg, Some(s)).await
 }
 
@@ -142,7 +160,8 @@ fn events(s: &mut Setup, live: &Arc<Live>) {
         if let Some(event) = event {
             ctx.spawn(async move {
                 let why = e.error_text.clone().unwrap_or_else(|| "It's done.".into());
-                let acts = vec![Action { label: "Done".into(), kind: ActionKind::Done, reference: e.turn_id.as_str().to_owned(), index: 0 }];
+                let acts =
+                    vec![Action { label: "Done".into(), kind: ActionKind::Done, reference: e.turn_id.as_str().to_owned(), index: 0 }];
                 notify(&c, &live, event, e.session_id.as_str(), &why, acts).await;
             });
         }
@@ -295,7 +314,8 @@ impl Plugin for ChannelsPlugin {
             let key = if let Ok(Some(k)) = secrets.get("channels/sign").await {
                 k
             } else {
-                let k = wisp_channels_core::sign::sha256_hex(format!("{}{}", wisp_kernel::ids::uuid7(), wisp_kernel::ids::uuid7()).as_bytes());
+                let k =
+                    wisp_channels_core::sign::sha256_hex(format!("{}{}", wisp_kernel::ids::uuid7(), wisp_kernel::ids::uuid7()).as_bytes());
                 let _ = secrets.set("channels/sign", &k).await;
                 k
             };

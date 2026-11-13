@@ -15,10 +15,7 @@ pub const MAX_OUTPUT: usize = 2_000;
 
 /// The calls whose output the transcript shows: a read returns the file and an edit a confirmation.
 pub fn shows_output(kind: ToolKind) -> bool {
-    matches!(
-        kind,
-        ToolKind::Run | ToolKind::Search | ToolKind::Web | ToolKind::Tool | ToolKind::Agent
-    )
+    matches!(kind, ToolKind::Run | ToolKind::Search | ToolKind::Web | ToolKind::Tool | ToolKind::Agent)
 }
 
 fn utf16_len(s: &str) -> usize {
@@ -66,11 +63,7 @@ pub fn clip_output(text: &str) -> String {
     }
     let cut = &out[head.len()..out.len() - tail.len()];
     let lines = cut.matches('\n').count();
-    let what = if lines > 1 {
-        format!("{lines} lines")
-    } else {
-        format!("{} characters", utf16_len(cut))
-    };
+    let what = if lines > 1 { format!("{lines} lines") } else { format!("{} characters", utf16_len(cut)) };
     format!("{head}\n… {what} cut …\n{tail}")
 }
 
@@ -138,37 +131,19 @@ pub enum Effect {
 /// v1 `stepOf`: a tool call, a message or a failed call as a transcript step.
 pub fn step_of(ev: &HarnessEvent) -> Option<Activity> {
     Some(match ev {
-        HarnessEvent::Tool {
-            kind,
-            label,
-            file,
-            detail,
-            id,
-            output,
-            title,
-        } => Activity::Tool {
+        HarnessEvent::Tool { kind, label, file, detail, id, output, title } => Activity::Tool {
             tool: *kind,
             label: label.clone(),
             title: title.clone(),
             file: file.clone(),
             detail: detail.clone(),
             call_id: id.clone(),
-            output: output
-                .as_deref()
-                .filter(|_| shows_output(*kind))
-                .map(clip_output),
+            output: output.as_deref().filter(|_| shows_output(*kind)).map(clip_output),
         },
-        HarnessEvent::Text { text } => Activity::Text {
-            text: head16(text, MAX_TEXT).to_owned(),
-        },
-        HarnessEvent::ToolError { name, text, .. } => Activity::ToolError {
-            name: if name.is_empty() {
-                "Tool".into()
-            } else {
-                name.clone()
-            },
-            text: text.clone(),
-        },
+        HarnessEvent::Text { text } => Activity::Text { text: head16(text, MAX_TEXT).to_owned() },
+        HarnessEvent::ToolError { name, text, .. } => {
+            Activity::ToolError { name: if name.is_empty() { "Tool".into() } else { name.clone() }, text: text.clone() }
+        }
         HarnessEvent::Thinking { text } => Activity::Thinking { text: text.clone() },
         _ => return None,
     })
@@ -200,11 +175,7 @@ fn record_change(head: &mut Head, file: &str, op: ChangeOp, edits: &[Edit]) {
             }
             c.edits.extend_from_slice(edits);
         }
-        None => head.changes.push(FileChange {
-            file: file.to_owned(),
-            op,
-            edits: edits.to_vec(),
-        }),
+        None => head.changes.push(FileChange { file: file.to_owned(), op, edits: edits.to_vec() }),
     }
 }
 
@@ -220,53 +191,28 @@ fn note_env_call(head: &mut Head, ev: &HarnessEvent) {
 /// Applies one event to the head and says what else to do. `plain`: the turn asked for a plain answer
 /// (wisp blocks off); `is_fallback`: whether a text is an answer that broke the protocol (the block
 /// parser's `fallback`), passed in so this module stays independent of it.
-pub fn apply(
-    head: &mut Head,
-    ev: &HarnessEvent,
-    plain: bool,
-    is_fallback: &dyn Fn(&str) -> bool,
-) -> Effect {
+pub fn apply(head: &mut Head, ev: &HarnessEvent, plain: bool, is_fallback: &dyn Fn(&str) -> bool) -> Effect {
     match ev {
         HarnessEvent::Session { id } => head.resume_id = Some(id.clone()),
         HarnessEvent::Text { text } => {
             head.text = Some(text.clone());
             return step_of(ev).map_or(Effect::None, Effect::Append);
         }
-        HarnessEvent::Tool { .. }
-        | HarnessEvent::ToolError { .. }
-        | HarnessEvent::Thinking { .. } => {
+        HarnessEvent::Tool { .. } | HarnessEvent::ToolError { .. } | HarnessEvent::Thinking { .. } => {
             note_env_call(head, ev);
             return step_of(ev).map_or(Effect::None, Effect::Append);
         }
         HarnessEvent::ToolOutput { id, text } => {
-            return Effect::Append(Activity::ToolOutput {
-                call_id: id.clone(),
-                text: clip_output(text),
-                env: head.env_calls.contains(id),
-            });
+            return Effect::Append(Activity::ToolOutput { call_id: id.clone(), text: clip_output(text), env: head.env_calls.contains(id) });
         }
-        HarnessEvent::Change {
-            file,
-            op,
-            edits,
-            early,
-            ..
-        } => {
+        HarnessEvent::Change { file, op, edits, early, .. } => {
             if !*early || !head.changes.iter().any(|c| &c.file == file) {
                 record_change(head, file, op.normalised(), edits);
             }
         }
         HarnessEvent::Blocked { tool, detail, rule } => {
-            let item = BlockedAction {
-                tool: tool.clone(),
-                detail: detail.clone(),
-                rule: rule.clone(),
-            };
-            if !head
-                .blocked
-                .iter()
-                .any(|b| b.tool == item.tool && b.detail == item.detail)
-            {
+            let item = BlockedAction { tool: tool.clone(), detail: detail.clone(), rule: rule.clone() };
+            if !head.blocked.iter().any(|b| b.tool == item.tool && b.detail == item.detail) {
                 head.blocked.push(item);
             }
         }
@@ -274,12 +220,7 @@ pub fn apply(
             return Effect::Limits(serde_json::to_value(ev).unwrap_or(Value::Null));
         }
         HarnessEvent::Billing { kind } => {
-            return Effect::Billing(
-                serde_json::to_value(kind)
-                    .ok()
-                    .and_then(|v| v.as_str().map(str::to_owned))
-                    .unwrap_or_default(),
-            );
+            return Effect::Billing(serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default());
         }
         HarnessEvent::Tools { list } => head.tools = Some(list.clone()),
         HarnessEvent::Cli { .. } => head.cli = serde_json::to_value(ev).ok(),
@@ -290,17 +231,7 @@ pub fn apply(
             }
         }
         HarnessEvent::Approval { .. } => {}
-        HarnessEvent::Result {
-            text,
-            is_error,
-            stopped,
-            stats,
-            auth_failed,
-            background,
-            background_agents,
-            stop_reason,
-            ..
-        } => {
+        HarnessEvent::Result { text, is_error, stopped, stats, auth_failed, background, background_agents, stop_reason, .. } => {
             // Its subagents are still at work: whatever it said, it isn't done; their reports come back into this run
             // and the answer after them ends the turn (v1 #775: a goal is checked on that one, not this).
             if background_agents.unwrap_or(0) > 0 && !*is_error && !*stopped {
@@ -331,14 +262,9 @@ pub fn apply(
 /// The run let go while the turn still ran: the interim result is the best we have, else an error.
 pub fn exit_without_result(head: &mut Head) -> Effect {
     match head.interim.take() {
-        Some((text, stats)) => Effect::Finish {
-            text,
-            is_error: false,
-            stopped: false,
-            stats,
-            auth_failed: false,
-            stop_reason: String::new(),
-        },
+        Some((text, stats)) => {
+            Effect::Finish { text, is_error: false, stopped: false, stats, auth_failed: false, stop_reason: String::new() }
+        }
         None => Effect::Finish {
             text: "The agent exited without a result.".into(),
             is_error: true,

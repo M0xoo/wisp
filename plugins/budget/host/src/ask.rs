@@ -32,7 +32,14 @@ pub fn learn(runs: &mut Runs, e: &TurnEnded, at: i64) -> bool {
     }
     let list = runs.entry(e.agent.clone()).or_default();
     list.retain(|r| r.at > at - ask::LOOKBACK_MS);
-    list.push(Run { at, account: account_of(e.account.as_deref().unwrap_or_default()), session: e.session_id.0.clone(), units, first: e.first, inner: e.inner });
+    list.push(Run {
+        at,
+        account: account_of(e.account.as_deref().unwrap_or_default()),
+        session: e.session_id.0.clone(),
+        units,
+        first: e.first,
+        inner: e.inner,
+    });
     let extra = list.len().saturating_sub(KEEP);
     list.drain(..extra);
     true
@@ -88,7 +95,12 @@ impl State {
             let until = ask::until(&h, now(ctx));
             lock(&self.asked).push((c.session_id.0.clone(), c.turn_id.0.clone(), until));
             let why = ask::message(&h);
-            c.hold = Some(Held { by: PLUGIN_ID.into(), kind: HOLD_KIND.into(), until: Some(until), data: json!({ "window": h.id, "label": h.label, "used": h.used, "to": h.to, "line": h.line, "why": why }) });
+            c.hold = Some(Held {
+                by: PLUGIN_ID.into(),
+                kind: HOLD_KIND.into(),
+                until: Some(until),
+                data: json!({ "window": h.id, "label": h.label, "used": h.used, "to": h.to, "line": h.line, "why": why }),
+            });
             return Some(Verdict::Modify { ctx: c });
         }
         Some(Verdict::Veto { code: wisp_budget_api::VETO_CODE.into(), message: ask::message(&h), then: Vec::new() })
@@ -108,7 +120,21 @@ mod tests {
     use super::*;
 
     fn ended(cost: f64, first: bool) -> TurnEnded {
-        TurnEnded { session_id: "t1".into(), turn_id: "u1".into(), status: wisp_runtime_api::model::TurnStatus::Done, interrupted: false, error_text: None, cost_usd: Some(cost), changed_files: None, agent: "claude".into(), model: "opus".into(), account: None, tokens: None, first, inner: false }
+        TurnEnded {
+            session_id: "t1".into(),
+            turn_id: "u1".into(),
+            status: wisp_runtime_api::model::TurnStatus::Done,
+            interrupted: false,
+            error_text: None,
+            cost_usd: Some(cost),
+            changed_files: None,
+            agent: "claude".into(),
+            model: "opus".into(),
+            account: None,
+            tokens: None,
+            first,
+            inner: false,
+        }
     }
 
     #[test]

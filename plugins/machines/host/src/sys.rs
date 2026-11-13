@@ -44,7 +44,12 @@ pub async fn hosts() -> Vec<SshHost> {
 async fn run(ctx: &Ctx, bin: &str, args: &[&str]) -> Option<String> {
     let proc = ctx.service::<Proc>().ok()?;
     let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
-    let opts = ExecOpts { timeout: Some(Duration::from_secs(3)), max_output: 4 * 1024 * 1024, scope: Some(ctx.scope().clone()), ..ExecOpts::default() };
+    let opts = ExecOpts {
+        timeout: Some(Duration::from_secs(3)),
+        max_output: 4 * 1024 * 1024,
+        scope: Some(ctx.scope().clone()),
+        ..ExecOpts::default()
+    };
     let r = proc.exec(bin, &args, opts).await.ok()?;
     (r.exit.success() && !r.timed_out).then(|| r.stdout_text())
 }
@@ -80,12 +85,21 @@ pub async fn reachable(ctx: &Ctx) -> Reachability {
     let status = run(ctx, "tailscale", &["status", "--json"]).await;
     let prefs = if status.is_some() { run(ctx, "tailscale", &["debug", "prefs"]).await } else { None };
     let keys = tokio::fs::read_to_string(ssh_dir().join("authorized_keys")).await.map_or(0, |t| reachable::authorized_keys(&t));
-    let hostname = run(ctx, "hostname", &[]).await.map(|h| h.trim().to_owned()).filter(|h| !h.is_empty()).unwrap_or_else(|| "localhost".into());
+    let hostname =
+        run(ctx, "hostname", &[]).await.map(|h| h.trim().to_owned()).filter(|h| !h.is_empty()).unwrap_or_else(|| "localhost".into());
     let user = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_default();
     let os = match std::env::consts::OS {
         "macos" => "darwin",
         "windows" => "win32",
         o => o,
     };
-    reachable::reachability(Facts { os, user: &user, hostname: &hostname, ssh_port: 22, banner: banner(22).await, tailscale: reachable::tailscale_self(status.as_deref(), prefs.as_deref()), keys })
+    reachable::reachability(Facts {
+        os,
+        user: &user,
+        hostname: &hostname,
+        ssh_port: 22,
+        banner: banner(22).await,
+        tailscale: reachable::tailscale_self(status.as_deref(), prefs.as_deref()),
+        keys,
+    })
 }

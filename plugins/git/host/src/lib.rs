@@ -6,9 +6,9 @@ mod changes;
 mod checkpoint;
 pub mod commands;
 mod error;
+mod place;
 mod read;
 mod repo;
-mod place;
 pub mod run;
 pub mod service;
 mod shared;
@@ -16,9 +16,7 @@ mod write;
 
 use std::sync::Arc;
 
-use wisp_git_api::commands::{
-    Checkout, Clone as CloneCmd, Commit, GetChanges, GetOrigin, GetStatus, GetTools, Revert, Stage,
-};
+use wisp_git_api::commands::{Checkout, Clone as CloneCmd, Commit, GetChanges, GetOrigin, GetStatus, GetTools, Revert, Stage};
 use wisp_git_api::{Blobs, GitServiceV1};
 use wisp_kernel::{Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::Proc;
@@ -38,20 +36,13 @@ pub struct GitPlugin {
 }
 
 /// The service on its own, for an install or a test that has a proc service but no kernel yet.
-pub fn service(
-    proc: Proc,
-    blobs: Option<Arc<dyn Blobs>>,
-    now: Now,
-    git_bin: Option<String>,
-) -> Arc<GitServiceImpl> {
+pub fn service(proc: Proc, blobs: Option<Arc<dyn Blobs>>, now: Now, git_bin: Option<String>) -> Arc<GitServiceImpl> {
     GitServiceImpl::new(run::Git::new(proc, git_bin), blobs, now)
 }
 
 fn system_now() -> Now {
     Arc::new(|| {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
     })
 }
 
@@ -131,7 +122,8 @@ impl Plugin for GitPlugin {
                 call.require("git:clone")?;
                 let home = std::env::var("HOME").unwrap_or_default();
                 let set = ctx.setting(CLONE_DIR);
-                let parent = wisp_git_core::repo_url::clone_root(set.as_ref().and_then(|v| v.as_str()), &home, |d| std::path::Path::new(d).is_dir());
+                let parent =
+                    wisp_git_core::repo_url::clone_root(set.as_ref().and_then(|v| v.as_str()), &home, |d| std::path::Path::new(d).is_dir());
                 sv.checkout(a, &home, parent).await.map_err(w)
             }
         });
@@ -143,7 +135,9 @@ impl Plugin for GitPlugin {
                 if a.parent.trim().is_empty() {
                     let home = std::env::var("HOME").unwrap_or_default();
                     let set = ctx.setting(CLONE_DIR);
-                    a.parent = wisp_git_core::repo_url::clone_root(set.as_ref().and_then(|v| v.as_str()), &home, |d| std::path::Path::new(d).is_dir());
+                    a.parent = wisp_git_core::repo_url::clone_root(set.as_ref().and_then(|v| v.as_str()), &home, |d| {
+                        std::path::Path::new(d).is_dir()
+                    });
                 }
                 wisp_git_api::GitService::clone_repo(&sv, &call, a).await
             }

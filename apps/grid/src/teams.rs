@@ -65,12 +65,21 @@ fn slug_ok(s: &str) -> bool {
 
 impl Teams {
     fn team_id(&self, slug: &str) -> Result<String> {
-        self.db.with(|c| c.query_row("SELECT id FROM teams WHERE slug = ?1", [slug], |r| r.get(0)).optional())?.ok_or_else(|| bad(format!("There's no team {slug}."), 404))
+        self.db
+            .with(|c| c.query_row("SELECT id FROM teams WHERE slug = ?1", [slug], |r| r.get(0)).optional())?
+            .ok_or_else(|| bad(format!("There's no team {slug}."), 404))
     }
 
     /// A user's role in a team; None when they aren't in it (or there's no such team).
     pub fn role(&self, user_id: &str, slug: &str) -> Result<Option<Role>> {
-        let r: Option<String> = self.db.with(|c| c.query_row("SELECT m.role FROM team_members m JOIN teams t ON t.id = m.team_id WHERE t.slug = ?1 AND m.user_id = ?2", params![slug, user_id], |r| r.get(0)).optional())?;
+        let r: Option<String> = self.db.with(|c| {
+            c.query_row(
+                "SELECT m.role FROM team_members m JOIN teams t ON t.id = m.team_id WHERE t.slug = ?1 AND m.user_id = ?2",
+                params![slug, user_id],
+                |r| r.get(0),
+            )
+            .optional()
+        })?;
         Ok(r.as_deref().and_then(Role::parse))
     }
 
@@ -88,7 +97,10 @@ impl Teams {
                 return Err(bad(format!("The team {slug} exists already."), 409));
             }
             tx.execute("INSERT INTO teams (id, slug, name, created_at) VALUES (?1, ?2, ?3, ?4)", params![id, slug, name, now])?;
-            tx.execute("INSERT INTO team_members (team_id, user_id, role, created_at) VALUES (?1, ?2, 'owner', ?3)", params![id, user.id, now])?;
+            tx.execute(
+                "INSERT INTO team_members (team_id, user_id, role, created_at) VALUES (?1, ?2, 'owner', ?3)",
+                params![id, user.id, now],
+            )?;
             Ok(())
         })?;
         Ok(json!({ "slug": slug, "name": name, "role": "owner" }))
@@ -102,7 +114,10 @@ impl Teams {
             return Err(bad(format!("Only an owner or admin of {slug} adds people (and only an owner adds owners)."), 403));
         }
         let tid = self.team_id(slug)?;
-        let uid: String = self.db.with(|c| c.query_row("SELECT id FROM users WHERE handle = ?1", [handle], |r| r.get(0)).optional())?.ok_or_else(|| bad(format!("There's nobody called {handle} here."), 404))?;
+        let uid: String = self
+            .db
+            .with(|c| c.query_row("SELECT id FROM users WHERE handle = ?1", [handle], |r| r.get(0)).optional())?
+            .ok_or_else(|| bad(format!("There's nobody called {handle} here."), 404))?;
         if self.role(&uid, slug)? == Some(Role::Owner) && mine != Role::Owner {
             return Err(bad("Only an owner changes an owner's role.", 403));
         }
@@ -122,7 +137,10 @@ impl Teams {
     pub fn remove(&self, actor: &UserRow, slug: &str, handle: &str) -> Result<()> {
         let mine = self.role(&actor.id, slug)?.ok_or_else(|| bad(format!("You aren't in {slug}."), 403))?;
         let tid = self.team_id(slug)?;
-        let uid: String = self.db.with(|c| c.query_row("SELECT id FROM users WHERE handle = ?1", [handle], |r| r.get(0)).optional())?.ok_or_else(|| bad(format!("There's nobody called {handle} here."), 404))?;
+        let uid: String = self
+            .db
+            .with(|c| c.query_row("SELECT id FROM users WHERE handle = ?1", [handle], |r| r.get(0)).optional())?
+            .ok_or_else(|| bad(format!("There's nobody called {handle} here."), 404))?;
         let theirs = self.role(&uid, slug)?.ok_or_else(|| bad(format!("{handle} isn't in {slug}."), 404))?;
         let own = uid == actor.id;
         if !own && (!mine.manages() || (theirs == Role::Owner && mine != Role::Owner)) {
@@ -138,8 +156,13 @@ impl Teams {
     /// The teams a user is in, with their role.
     pub fn of(&self, user_id: &str) -> Result<Vec<Value>> {
         self.db.with(|c| {
-            let mut s = c.prepare("SELECT t.slug, t.name, m.role FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ?1 ORDER BY t.slug")?;
-            s.query_map([user_id], |r| Ok(json!({ "slug": r.get::<_, String>(0)?, "name": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)? })))?.collect()
+            let mut s = c.prepare(
+                "SELECT t.slug, t.name, m.role FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ?1 ORDER BY t.slug",
+            )?;
+            s.query_map([user_id], |r| {
+                Ok(json!({ "slug": r.get::<_, String>(0)?, "name": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)? }))
+            })?
+            .collect()
         })
     }
 
@@ -165,7 +188,8 @@ mod tests {
         let clock = ManualClock::new(1);
         let a = Accounts { db: db.clone(), clock: clock.clone() };
         let t = Teams { db, clock };
-        let (ada, bo, cy, di) = (a.dev_user("ada").unwrap(), a.dev_user("bo").unwrap(), a.dev_user("cy").unwrap(), a.dev_user("di").unwrap());
+        let (ada, bo, cy, di) =
+            (a.dev_user("ada").unwrap(), a.dev_user("bo").unwrap(), a.dev_user("cy").unwrap(), a.dev_user("di").unwrap());
         t.create(&ada, "acme", "Acme").unwrap();
         assert!(t.create(&bo, "acme", "").is_err());
         assert!(t.create(&bo, "x", "").is_err(), "too short");

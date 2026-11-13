@@ -175,7 +175,11 @@ fn reply(status: u16, headers: &[(&str, &str)], body: impl Into<Body>) -> Respon
 }
 
 fn json(status: u16, v: &serde_json::Value) -> Response<Body> {
-    reply(status, &[("content-type", "application/json"), ("cache-control", "no-store"), ("x-content-type-options", "nosniff")], v.to_string())
+    reply(
+        status,
+        &[("content-type", "application/json"), ("cache-control", "no-store"), ("x-content-type-options", "nosniff")],
+        v.to_string(),
+    )
 }
 
 fn header<'a>(req: &'a Request<Body>, name: &str) -> Option<&'a str> {
@@ -192,11 +196,23 @@ async fn serve(s: &Served, req: Request<Body>) -> Response<Body> {
     let body = |b: &'static str| if head { Body::empty() } else { Body::from(b) };
     match route {
         AppRoute::Forbidden => reply(403, &[("content-type", "text/plain")], "forbidden host"),
-        AppRoute::PaneJs => reply(200, &[("content-type", "text/javascript; charset=utf-8"), ("cache-control", "no-store"), ("x-content-type-options", "nosniff")], body(PANE_JS)),
-        AppRoute::PaneCss => reply(200, &[("content-type", "text/css; charset=utf-8"), ("cache-control", "no-cache"), ("x-content-type-options", "nosniff")], if head { Body::empty() } else { Body::from(pane_css()) }),
+        AppRoute::PaneJs => reply(
+            200,
+            &[("content-type", "text/javascript; charset=utf-8"), ("cache-control", "no-store"), ("x-content-type-options", "nosniff")],
+            body(PANE_JS),
+        ),
+        AppRoute::PaneCss => reply(
+            200,
+            &[("content-type", "text/css; charset=utf-8"), ("cache-control", "no-cache"), ("x-content-type-options", "nosniff")],
+            if head { Body::empty() } else { Body::from(pane_css()) },
+        ),
         AppRoute::NoDb => json(404, &no_db()),
         AppRoute::WispNotFound => json(404, &serde_json::json!({ "error": "not found" })),
-        AppRoute::Db { js: true } => reply(200, &[("content-type", "text/javascript; charset=utf-8"), ("cache-control", "no-store"), ("x-content-type-options", "nosniff")], body(DB_CLIENT)),
+        AppRoute::Db { js: true } => reply(
+            200,
+            &[("content-type", "text/javascript; charset=utf-8"), ("cache-control", "no-store"), ("x-content-type-options", "nosniff")],
+            body(DB_CLIENT),
+        ),
         AppRoute::Db { js: false } => db_query(s, req).await,
         AppRoute::MethodNotAllowed => reply(405, &[("allow", "GET, HEAD")], Body::empty()),
         AppRoute::NotFound => reply(404, &[("content-type", "text/plain; charset=utf-8")], "Not found in this app."),

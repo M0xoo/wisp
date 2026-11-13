@@ -20,14 +20,7 @@ pub fn safe_method(m: &Method) -> bool {
 }
 
 /// Host, then (non-GET) Origin.
-pub fn check(
-    method: &Method,
-    h: &HeaderMap,
-    port: u16,
-    proxy: &TrustedProxy,
-    via_proxy: bool,
-    open: bool,
-) -> Result<(), ApiError> {
+pub fn check(method: &Method, h: &HeaderMap, port: u16, proxy: &TrustedProxy, via_proxy: bool, open: bool) -> Result<(), ApiError> {
     if open {
         return Ok(());
     }
@@ -37,16 +30,8 @@ pub fn check(
     if safe_method(method) {
         return Ok(());
     }
-    let origin_ok = if via_proxy {
-        proxy.origin_ok(h)
-    } else {
-        header(h, "origin").is_none_or(|o| local_host(strip_scheme(o), port))
-    };
-    if origin_ok {
-        Ok(())
-    } else {
-        Err(ApiError::ForbiddenOrigin)
-    }
+    let origin_ok = if via_proxy { proxy.origin_ok(h) } else { header(h, "origin").is_none_or(|o| local_host(strip_scheme(o), port)) };
+    if origin_ok { Ok(()) } else { Err(ApiError::ForbiddenOrigin) }
 }
 
 /// Non-GET bodies are JSON; `application/octet-stream` only where the route takes uploads.
@@ -55,8 +40,7 @@ pub fn content_ok(method: &Method, h: &HeaderMap, upload: bool) -> Result<(), Ap
         return Ok(());
     }
     let ct = header(h, "content-type").unwrap_or("");
-    if ct.starts_with("application/json") || (upload && ct.starts_with("application/octet-stream"))
-    {
+    if ct.starts_with("application/json") || (upload && ct.starts_with("application/octet-stream")) {
         Ok(())
     } else {
         Err(ApiError::JsonOnly)
@@ -88,14 +72,7 @@ mod tests {
         for ok in ["127.0.0.1:4477", "localhost:4477", "[::1]:4477"] {
             assert!(local_host(ok, P), "{ok}");
         }
-        for no in [
-            "127.0.0.1:4478",
-            "evil.com:4477",
-            "localhost",
-            "127.0.0.1.evil.com:4477",
-            "[::1]",
-            "localhost:4477x",
-        ] {
+        for no in ["127.0.0.1:4478", "evil.com:4477", "localhost", "127.0.0.1.evil.com:4477", "[::1]", "localhost:4477x"] {
             assert!(!local_host(no, P), "{no}");
         }
     }
@@ -104,98 +81,29 @@ mod tests {
     fn host_is_checked_unless_via_proxy_or_open() {
         let p = TrustedProxy::off();
         let bad = hm(&[("host", "attacker.example:4477")]);
-        assert!(matches!(
-            check(&Method::GET, &bad, P, &p, false, false),
-            Err(ApiError::ForbiddenHost)
-        ));
+        assert!(matches!(check(&Method::GET, &bad, P, &p, false, false), Err(ApiError::ForbiddenHost)));
         assert!(check(&Method::GET, &bad, P, &p, true, false).is_ok());
         assert!(check(&Method::POST, &bad, P, &p, false, true).is_ok());
-        assert!(matches!(
-            check(&Method::GET, &hm(&[]), P, &p, false, false),
-            Err(ApiError::ForbiddenHost)
-        ));
+        assert!(matches!(check(&Method::GET, &hm(&[]), P, &p, false, false), Err(ApiError::ForbiddenHost)));
     }
 
     #[test]
     fn non_get_origin_must_be_local() {
         let p = TrustedProxy::off();
         let h = |o: &str| hm(&[("host", "127.0.0.1:4477"), ("origin", o)]);
-        assert!(
-            check(
-                &Method::POST,
-                &h("http://localhost:4477"),
-                P,
-                &p,
-                false,
-                false
-            )
-            .is_ok()
-        );
-        assert!(matches!(
-            check(
-                &Method::POST,
-                &h("https://evil.example"),
-                P,
-                &p,
-                false,
-                false
-            ),
-            Err(ApiError::ForbiddenOrigin)
-        ));
+        assert!(check(&Method::POST, &h("http://localhost:4477"), P, &p, false, false).is_ok());
+        assert!(matches!(check(&Method::POST, &h("https://evil.example"), P, &p, false, false), Err(ApiError::ForbiddenOrigin)));
         // a GET with a foreign Origin is a read the browser won't show the page anyway
-        assert!(
-            check(
-                &Method::GET,
-                &h("https://evil.example"),
-                P,
-                &p,
-                false,
-                false
-            )
-            .is_ok()
-        );
-        assert!(
-            check(
-                &Method::POST,
-                &hm(&[("host", "127.0.0.1:4477")]),
-                P,
-                &p,
-                false,
-                false
-            )
-            .is_ok()
-        );
+        assert!(check(&Method::GET, &h("https://evil.example"), P, &p, false, false).is_ok());
+        assert!(check(&Method::POST, &hm(&[("host", "127.0.0.1:4477")]), P, &p, false, false).is_ok());
     }
 
     #[test]
     fn via_proxy_origin_is_the_public_url() {
-        let p = TrustedProxy::new(
-            Some("0123456789abcdef0123456789abcdef"),
-            Some("https://ada.grid.trywisp.dev"),
-        );
+        let p = TrustedProxy::new(Some("0123456789abcdef0123456789abcdef"), Some("https://ada.grid.trywisp.dev"));
         let h = |o: &str| hm(&[("host", "anything"), ("origin", o)]);
-        assert!(
-            check(
-                &Method::POST,
-                &h("https://ada.grid.trywisp.dev"),
-                P,
-                &p,
-                true,
-                false
-            )
-            .is_ok()
-        );
-        assert!(matches!(
-            check(
-                &Method::POST,
-                &h("http://localhost:4477"),
-                P,
-                &p,
-                true,
-                false
-            ),
-            Err(ApiError::ForbiddenOrigin)
-        ));
+        assert!(check(&Method::POST, &h("https://ada.grid.trywisp.dev"), P, &p, true, false).is_ok());
+        assert!(matches!(check(&Method::POST, &h("http://localhost:4477"), P, &p, true, false), Err(ApiError::ForbiddenOrigin)));
     }
 
     #[test]
@@ -204,19 +112,10 @@ mod tests {
         let o = hm(&[("content-type", "application/octet-stream")]);
         let t = hm(&[("content-type", "text/plain")]);
         assert!(content_ok(&Method::POST, &j, false).is_ok());
-        assert!(matches!(
-            content_ok(&Method::POST, &o, false),
-            Err(ApiError::JsonOnly)
-        ));
+        assert!(matches!(content_ok(&Method::POST, &o, false), Err(ApiError::JsonOnly)));
         assert!(content_ok(&Method::POST, &o, true).is_ok());
-        assert!(matches!(
-            content_ok(&Method::DELETE, &t, true),
-            Err(ApiError::JsonOnly)
-        ));
-        assert!(matches!(
-            content_ok(&Method::PATCH, &hm(&[]), false),
-            Err(ApiError::JsonOnly)
-        ));
+        assert!(matches!(content_ok(&Method::DELETE, &t, true), Err(ApiError::JsonOnly)));
+        assert!(matches!(content_ok(&Method::PATCH, &hm(&[]), false), Err(ApiError::JsonOnly)));
         assert!(content_ok(&Method::GET, &t, false).is_ok());
     }
 }

@@ -68,9 +68,7 @@ pub struct Ship {
 
 impl std::fmt::Debug for Ship {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Ship")
-            .field("shipper", &self.shipper)
-            .finish_non_exhaustive()
+        f.debug_struct("Ship").field("shipper", &self.shipper).finish_non_exhaustive()
     }
 }
 
@@ -105,10 +103,7 @@ impl Ship {
     }
 
     pub(crate) fn is_starting(&self, session: &str) -> bool {
-        self.starting
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .contains(session)
+        self.starting.lock().unwrap_or_else(PoisonError::into_inner).contains(session)
     }
 
     pub(crate) fn emit(&self, out: Out) {
@@ -117,9 +112,7 @@ impl Ship {
 
     /// The tracked task, or not found.
     pub fn task(&self, session: &str) -> Result<ShipTask> {
-        self.tasks
-            .get(session)
-            .ok_or_else(|| ShipError::NotFound(format!("no such session: {session}")))
+        self.tasks.get(session).ok_or_else(|| ShipError::NotFound(format!("no such session: {session}")))
     }
 
     pub(crate) fn save(&self, task: ShipTask) {

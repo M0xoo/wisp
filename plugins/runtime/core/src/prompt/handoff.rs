@@ -19,19 +19,8 @@ const RULE_CHARS: usize = 300;
 const PER_TURN: usize = 6_000;
 
 /// The parts of a report worth passing on. Diffs, code and terminal output are on disk or in git.
-pub const KEEP: [&str; 11] = [
-    "hero",
-    "markdown",
-    "steps",
-    "stats",
-    "files",
-    "tests",
-    "commits",
-    "checklist",
-    "callout",
-    "question",
-    "next",
-];
+pub const KEEP: [&str; 11] =
+    ["hero", "markdown", "steps", "stats", "files", "tests", "commits", "checklist", "callout", "question", "next"];
 
 /// Renders blocks as markdown (the `blocks` module's renderer, which this module doesn't depend on).
 #[derive(Clone, Copy)]
@@ -141,20 +130,9 @@ pub struct Handoff<'a> {
 
 impl Handoff<'_> {
     fn mine(&self, t: &PastTurn<'_>) -> bool {
-        let agent = if t.turn.agent.is_empty() {
-            self.agent
-        } else {
-            t.turn.agent.as_str()
-        };
+        let agent = if t.turn.agent.is_empty() { self.agent } else { t.turn.agent.as_str() };
         agent == self.agent
-            && self.login.is_none_or(|login| {
-                t.turn
-                    .account
-                    .as_deref()
-                    .filter(|a| !a.is_empty())
-                    .unwrap_or("default")
-                    == login
-            })
+            && self.login.is_none_or(|login| t.turn.account.as_deref().filter(|a| !a.is_empty()).unwrap_or("default") == login)
     }
 }
 
@@ -164,22 +142,12 @@ impl Handoff<'_> {
 pub fn missed_turns(h: &Handoff<'_>) -> Vec<usize> {
     let prior = h.turns.len().saturating_sub(1);
     let from = if h.resume_id.is_some_and(|r| !r.is_empty()) {
-        h.turns[..prior]
-            .iter()
-            .rposition(|t| !t.elsewhere() && h.mine(t))
-            .map_or(0, |i| i + 1)
+        h.turns[..prior].iter().rposition(|t| !t.elsewhere() && h.mine(t)).map_or(0, |i| i + 1)
     } else {
         0
     };
     let missed: Vec<usize> = (from..prior).collect();
-    if missed
-        .iter()
-        .any(|&i| h.turns[i].elsewhere() || !h.mine(&h.turns[i]))
-    {
-        missed
-    } else {
-        Vec::new()
-    }
+    if missed.iter().any(|&i| h.turns[i].elsewhere() || !h.mine(&h.turns[i])) { missed } else { Vec::new() }
 }
 
 /// One earlier turn as markdown: the request, its report and the files it edited. /btw uses it too.
@@ -192,23 +160,11 @@ pub fn turn_text(t: &PastTurn<'_>, n: usize, render: Render<'_>) -> String {
             .presentation
             .iter()
             .flat_map(|p| p.blocks.iter())
-            .filter(|b| {
-                b.get("type")
-                    .and_then(Value::as_str)
-                    .is_some_and(|ty| KEEP.contains(&ty))
-            })
+            .filter(|b| b.get("type").and_then(Value::as_str).is_some_and(|ty| KEEP.contains(&ty)))
             .cloned()
             .collect();
-        let md = if blocks.is_empty() {
-            String::new()
-        } else {
-            (render.0)(&blocks, turn)
-        };
-        if md.is_empty() {
-            clip(turn.text.as_deref().unwrap_or(""), 1500)
-        } else {
-            md
-        }
+        let md = if blocks.is_empty() { String::new() } else { (render.0)(&blocks, turn) };
+        if md.is_empty() { clip(turn.text.as_deref().unwrap_or(""), 1500) } else { md }
     };
     let mut head = format!("### Turn {n} · {}", t.name);
     if !turn.model.is_empty() {
@@ -226,29 +182,13 @@ pub fn turn_text(t: &PastTurn<'_>, n: usize, render: Render<'_>) -> String {
         head.push_str(" · rolled back, its edits were undone");
     }
     let files: Vec<String> = t.files.iter().map(|f| format!("`{f}`")).collect();
-    let delegated: Vec<String> = t
-        .delegations
-        .iter()
-        .map(|d| format!("@{} ({})", d.name, clip(&text_mentions(&d.prompt), 120)))
-        .collect();
+    let delegated: Vec<String> = t.delegations.iter().map(|d| format!("@{} ({})", d.name, clip(&text_mentions(&d.prompt), 120))).collect();
     let parts = [
         head,
         format!("**User:** {}", text_mentions(&turn.prompt)),
-        if report.is_empty() {
-            String::new()
-        } else {
-            format!("**Report:**\n\n{report}")
-        },
-        if files.is_empty() {
-            String::new()
-        } else {
-            format!("**Files it edited:** {}", files.join(", "))
-        },
-        if delegated.is_empty() {
-            String::new()
-        } else {
-            format!("**Delegated:** {}", delegated.join("; "))
-        },
+        if report.is_empty() { String::new() } else { format!("**Report:**\n\n{report}") },
+        if files.is_empty() { String::new() } else { format!("**Files it edited:** {}", files.join(", ")) },
+        if delegated.is_empty() { String::new() } else { format!("**Delegated:** {}", delegated.join("; ")) },
     ];
     truncate(&join_some(&parts, "\n\n"), PER_TURN)
 }
@@ -265,13 +205,7 @@ static RULES: [Re; 6] = [
     Re::new(r"(?i)\bkeep\b[^\n\r\x{2028}\x{2029}]{1,60}?\b(?:as (?:it )?is|unchanged|untouched)\b"),
     Re::new(r"(?i)\b(?:no new|not? (?:any )?new) (?:dependenc|packages?|librar|files?)"),
 ];
-static BULLET: Re = Re::new(concat!(
-    "^",
-    js_s!(),
-    "*(?:[-*•>]|[0-9]+[.)])",
-    js_s!(),
-    "*"
-));
+static BULLET: Re = Re::new(concat!("^", js_s!(), "*(?:[-*•>]|[0-9]+[.)])", js_s!(), "*"));
 
 /// `text.split(/\n+|(?<=[.!?])\s+(?=[A-Z])/)`: lines, and sentences that end and start a new one.
 fn sentences(text: &str) -> Vec<&str> {
@@ -281,10 +215,7 @@ fn sentences(text: &str) -> Vec<&str> {
     let mut it = text.char_indices().peekable();
     while let Some((i, c)) = it.next() {
         let run_end = |from: usize, pred: &dyn Fn(char) -> bool| {
-            text[from..]
-                .char_indices()
-                .find(|&(_, c)| !pred(c))
-                .map_or(text.len(), |(j, _)| from + j)
+            text[from..].char_indices().find(|&(_, c)| !pred(c)).map_or(text.len(), |(j, _)| from + j)
         };
         if c == '\n' {
             let end = run_end(i, &|c| c == '\n');
@@ -316,10 +247,7 @@ fn sentences(text: &str) -> Vec<&str> {
 pub fn constraints_of(turns: &[PastTurn<'_>]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for t in turns {
-        if t.turn.by.as_deref().is_some_and(|b| !b.is_empty())
-            || t.automated
-            || t.turn.prompt.is_empty()
-        {
+        if t.turn.by.as_deref().is_some_and(|b| !b.is_empty()) || t.automated || t.turn.prompt.is_empty() {
             continue;
         }
         let text = text_mentions(&t.turn.prompt).replace(['\u{2018}', '\u{2019}'], "'");
@@ -381,42 +309,22 @@ pub fn map_effort<S: AsRef<str>>(effort: &str, levels: &[S]) -> String {
 }
 
 fn intro(h: &Handoff<'_>, missed: &[&PastTurn<'_>], others: &str, places: &str) -> String {
-    if let Some(sh) = h
-        .shared_from
-        .as_ref()
-        .filter(|_| missed.iter().any(|t| t.shared))
-    {
-        let who = if sh.name.is_empty() {
-            "someone"
-        } else {
-            &sh.name
-        };
-        let handle = if sh.handle.is_empty() {
-            String::new()
-        } else {
-            format!(" (@{})", sh.handle)
-        };
+    if let Some(sh) = h.shared_from.as_ref().filter(|_| missed.iter().any(|t| t.shared)) {
+        let who = if sh.name.is_empty() { "someone" } else { &sh.name };
+        let handle = if sh.handle.is_empty() { String::new() } else { format!(" (@{})", sh.handle) };
         return format!(
             "You are carrying on a task that {who}{handle} shared from their wisp (“{}”), now in the user's own wisp. Its work so far is in this folder when it came with the share: committed work as commits, the rest as uncommitted changes. Below is what happened so far, oldest first; read the files and `git diff` for the details, then do what the follow-up asks.",
             sh.title
         );
     }
-    if let Some(f) = h
-        .forked_from
-        .as_ref()
-        .filter(|_| missed.iter().any(|t| t.forked))
-    {
+    if let Some(f) = h.forked_from.as_ref().filter(|_| missed.iter().any(|t| t.forked)) {
         return format!(
             "This task is a fork of another one (“{}”), made from its turn {} of {} to try another way. You carry on from there in a copy of its work, on a branch of its own: what you change here doesn’t touch the original, which carries on separately. Below is what happened up to the fork, oldest first; read the files and `git diff` for the details, then do what the follow-up asks.",
             f.title, f.turn, f.of
         );
     }
     if !places.is_empty() {
-        let on = if others.is_empty() {
-            String::new()
-        } else {
-            format!(", on {others}")
-        };
+        let on = if others.is_empty() { String::new() } else { format!(", on {others}") };
         return format!(
             "You are taking over a task that ran on another computer ({places}){on}, and was moved here. Its work so far is already in this folder: committed work as commits, the rest as uncommitted changes. Below is what happened so far, oldest first; read the files and `git diff` for the details, then carry on with the follow-up."
         );
@@ -460,33 +368,15 @@ pub fn handoff_note(h: &Handoff<'_>, render: Render<'_>) -> String {
         used += len;
     }
     let dropped = missed.len() - parts.len();
-    let others = unique(
-        missed
-            .iter()
-            .filter(|t| t.turn.agent != h.agent)
-            .map(|t| t.name.clone()),
-    )
-    .join(", ");
-    let others = if others.is_empty() {
-        format!("{}, signed in to another account", h.turns[last].name)
-    } else {
-        others
-    };
-    let places = unique(
-        missed
-            .iter()
-            .filter_map(|t| t.moved.clone().filter(|m| !m.is_empty())),
-    )
-    .join(", ");
+    let others = unique(missed.iter().filter(|t| t.turn.agent != h.agent).map(|t| t.name.clone())).join(", ");
+    let others = if others.is_empty() { format!("{}, signed in to another account", h.turns[last].name) } else { others };
+    let places = unique(missed.iter().filter_map(|t| t.moved.clone().filter(|m| !m.is_empty()))).join(", ");
     let mut all = vec![
         "## Earlier in this task".to_owned(),
         intro(h, &missed, &others, &places),
         keep_note(h.turns, h.done_when),
         if dropped > 0 {
-            format!(
-                "_{dropped} earlier turn{} left out for length._",
-                if dropped > 1 { "s" } else { "" }
-            )
+            format!("_{dropped} earlier turn{} left out for length._", if dropped > 1 { "s" } else { "" })
         } else {
             String::new()
         },
@@ -508,10 +398,7 @@ mod tests {
 
     #[test]
     fn sentences_split_as_v1_did() {
-        assert_eq!(
-            sentences("a. B c\n\nd! e. F"),
-            vec!["a.", "B c", "d! e.", "F"]
-        );
+        assert_eq!(sentences("a. B c\n\nd! e. F"), vec!["a.", "B c", "d! e.", "F"]);
         assert_eq!(sentences("x.  \nY"), vec!["x.", "Y"]);
         assert_eq!(sentences("v1.2 ok. fine"), vec!["v1.2 ok. fine"]);
         assert_eq!(sentences(""), vec![""]);

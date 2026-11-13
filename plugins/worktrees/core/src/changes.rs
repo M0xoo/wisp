@@ -41,7 +41,8 @@ pub fn files_changed(project: &str, porcelain_z: &str, cursor: &Value, wisp_home
     if in_own_worktree(root, wisp_home) {
         return (None, cursor.clone());
     }
-    let paths: Vec<String> = changed_paths(porcelain_z).into_iter().filter(|p| !in_own_worktree(&format!("{root}/{p}"), wisp_home)).collect();
+    let paths: Vec<String> =
+        changed_paths(porcelain_z).into_iter().filter(|p| !in_own_worktree(&format!("{root}/{p}"), wisp_home)).collect();
     let mut h = Sha256::new();
     for p in &paths {
         h.update(p.as_bytes());
@@ -61,7 +62,14 @@ pub fn files_changed(project: &str, porcelain_z: &str, cursor: &Value, wisp_home
         [first, rest @ ..] => format!("{first} and {} more changed", rest.len()),
         [] => String::new(),
     };
-    let ev = TriggerEvent { on: "files.changed".into(), key: format!("files:{root}:{digest}"), at, payload: json!({ "project": root, "cwd": root, "paths": paths }), summary, ..TriggerEvent::default() };
+    let ev = TriggerEvent {
+        on: "files.changed".into(),
+        key: format!("files:{root}:{digest}"),
+        at,
+        payload: json!({ "project": root, "cwd": root, "paths": paths }),
+        summary,
+        ..TriggerEvent::default()
+    };
     (Some(ev), next)
 }
 
@@ -80,7 +88,11 @@ mod tests {
         let more = format!("{st}?? b.txt\0");
         let (ev, c2) = files_changed("/w/api", &more, &c, home, 2);
         let ev = ev.unwrap();
-        assert_eq!(ev.payload["paths"], json!(["b.txt", "notes.md", "src/a.rs", "src/new.rs"]), "a rename's new name; the old one isn't a path");
+        assert_eq!(
+            ev.payload["paths"],
+            json!(["b.txt", "notes.md", "src/a.rs", "src/new.rs"]),
+            "a rename's new name; the old one isn't a path"
+        );
         assert!(files_changed("/w/api", &more, &c2, home, 3).0.is_none(), "the same set again: nothing new");
         // a project that is one of wisp's own worktrees never fires, however much changes
         let wt = "/Users/me/.wisp/worktrees/api-1f2e";

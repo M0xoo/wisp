@@ -106,7 +106,9 @@ pub fn tagged_delegate(m: &Member, place: &str) -> TeamRow {
         crew: Some(m.id.clone()),
         label: Some(m.name.clone()),
         role: Some(m.role.clone()),
-        use_: format!("{role}The user tagged them in this {place} to work on it with you: hand them their part rather than doing it all yourself"),
+        use_: format!(
+            "{role}The user tagged them in this {place} to work on it with you: hand them their part rather than doing it all yourself"
+        ),
         count: 1,
         ..TeamRow::default()
     }

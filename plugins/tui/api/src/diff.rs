@@ -66,7 +66,9 @@ pub fn parse_unified(text: &str) -> Option<Vec<Row>> {
     }
     Some(
         text.lines()
-            .filter(|l| !(l.starts_with("+++") || l.starts_with("---") || l.starts_with("diff ") || l.starts_with("index ") || l.starts_with("@@")))
+            .filter(|l| {
+                !(l.starts_with("+++") || l.starts_with("---") || l.starts_with("diff ") || l.starts_with("index ") || l.starts_with("@@"))
+            })
             .map(|l| match l.chars().next() {
                 Some('+') => Row::Add(l[1..].to_owned()),
                 Some('-') => Row::Del(l[1..].to_owned()),
@@ -110,7 +112,11 @@ pub fn hunks(rows: &[Row], ctx: usize) -> (Vec<Option<&Row>>, Vec<usize>) {
     (out, starts)
 }
 
-const KEYWORDS: [&str; 34] = ["fn", "let", "mut", "pub", "use", "impl", "struct", "enum", "match", "if", "else", "for", "while", "loop", "return", "async", "await", "const", "static", "trait", "type", "function", "var", "export", "import", "from", "class", "def", "self", "true", "false", "null", "None", "new"];
+const KEYWORDS: [&str; 34] = [
+    "fn", "let", "mut", "pub", "use", "impl", "struct", "enum", "match", "if", "else", "for", "while", "loop", "return", "async", "await",
+    "const", "static", "trait", "type", "function", "var", "export", "import", "from", "class", "def", "self", "true", "false", "null",
+    "None", "new",
+];
 
 /// One line of code, coloured lightly.
 pub fn highlight(line: &str, th: &Theme, base: Style) -> Vec<Span<'static>> {
@@ -127,7 +133,13 @@ pub fn highlight(line: &str, th: &Theme, base: Style) -> Vec<Span<'static>> {
         if w.is_empty() {
             return;
         }
-        let s = if KEYWORDS.contains(&w.as_str()) { base.fg(kw) } else if w.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '_') && w.starts_with(|c: char| c.is_ascii_digit()) { base.fg(nu) } else { base };
+        let s = if KEYWORDS.contains(&w.as_str()) {
+            base.fg(kw)
+        } else if w.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '_') && w.starts_with(|c: char| c.is_ascii_digit()) {
+            base.fg(nu)
+        } else {
+            base
+        };
         out.push(Span::styled(std::mem::take(w), s));
     };
     while let Some(c) = chars.next() {
@@ -193,7 +205,8 @@ pub fn render(rows: &[Row], width: u16, th: &Theme) -> (Vec<Line<'static>>, Vec<
         match shown[i] {
             Some(Row::Del(_)) => {
                 let dels: Vec<&Row> = shown[i..].iter().take_while(|r| matches!(r, Some(Row::Del(_)))).filter_map(|r| *r).collect();
-                let adds: Vec<&Row> = shown[i + dels.len()..].iter().take_while(|r| matches!(r, Some(Row::Add(_)))).filter_map(|r| *r).collect();
+                let adds: Vec<&Row> =
+                    shown[i + dels.len()..].iter().take_while(|r| matches!(r, Some(Row::Add(_)))).filter_map(|r| *r).collect();
                 for k in 0..dels.len().max(adds.len()) {
                     out.push(pair(dels.get(k).copied(), adds.get(k).copied(), half, th));
                 }
@@ -233,7 +246,17 @@ mod tests {
     #[test]
     fn a_line_diff_keeps_what_stayed() {
         let rows = lines("a\nb\nc\nd\n", "a\nB\nc\nd\ne\n");
-        assert_eq!(rows, vec![Row::Same("a".into()), Row::Del("b".into()), Row::Add("B".into()), Row::Same("c".into()), Row::Same("d".into()), Row::Add("e".into())]);
+        assert_eq!(
+            rows,
+            vec![
+                Row::Same("a".into()),
+                Row::Del("b".into()),
+                Row::Add("B".into()),
+                Row::Same("c".into()),
+                Row::Same("d".into()),
+                Row::Add("e".into())
+            ]
+        );
         assert_eq!(counts(&rows), (2, 1));
         let u = parse_unified("--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@\n a\n-b\n+B\n").unwrap();
         assert_eq!(u, vec![Row::Same("a".into()), Row::Del("b".into()), Row::Add("B".into())]);

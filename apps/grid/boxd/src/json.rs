@@ -154,10 +154,19 @@ impl P<'_> {
         while self.b.get(self.i).is_some_and(|c| c.is_ascii_digit() || b"+-.eE".contains(c)) {
             self.i += 1;
         }
-        std::str::from_utf8(&self.b[start..self.i]).ok().and_then(|s| s.parse().ok()).map(J::Num).ok_or_else(|| format!("bad number at {start}"))
+        std::str::from_utf8(&self.b[start..self.i])
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .map(J::Num)
+            .ok_or_else(|| format!("bad number at {start}"))
     }
     fn hex4(&mut self) -> Result<u32, String> {
-        let h = self.b.get(self.i..self.i + 4).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u32::from_str_radix(h, 16).ok()).ok_or("bad \\u escape")?;
+        let h = self
+            .b
+            .get(self.i..self.i + 4)
+            .and_then(|h| std::str::from_utf8(h).ok())
+            .and_then(|h| u32::from_str_radix(h, 16).ok())
+            .ok_or("bad \\u escape")?;
         self.i += 4;
         Ok(h)
     }

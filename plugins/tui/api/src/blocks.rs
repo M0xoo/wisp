@@ -104,6 +104,31 @@ fn title(t: &str, th: &Theme) -> Option<Line<'static>> {
     (!t.is_empty()).then(|| Line::from(Span::styled(t.to_owned(), th.strong())))
 }
 
+/// A test run: the command, its counts in their tones, then one line per failure.
+fn tests(b: &Value, th: &Theme, out: &mut Vec<Line<'static>>) {
+    let (passed, failed, skipped) = (num(b, "passed"), num(b, "failed"), num(b, "skipped"));
+    let (g, st) = if failed > 0 { ("✗", Style::default().fg(th.bad)) } else { ("✓", Style::default().fg(th.good)) };
+    let tone = |n: i64, c| if n > 0 { Style::default().fg(c).add_modifier(Modifier::BOLD) } else { th.dim() };
+    out.push(Line::from(vec![
+        Span::styled(format!("{g} "), st.add_modifier(Modifier::BOLD)),
+        Span::styled(s(b, "command").to_owned(), th.text()),
+        Span::raw("  "),
+        Span::styled(format!("{passed} passed"), tone(passed, th.good)),
+        Span::styled(" · ", th.dim()),
+        Span::styled(format!("{failed} failed"), tone(failed, th.bad)),
+        Span::styled(" · ", th.dim()),
+        Span::styled(format!("{skipped} skipped"), tone(skipped, th.warn)),
+    ]));
+    for x in b.get("failures").and_then(Value::as_array).into_iter().flatten() {
+        out.push(Line::from(vec![
+            Span::styled("  ✗ ", Style::default().fg(th.bad)),
+            Span::styled(s(x, "name").to_owned(), th.text()),
+            Span::styled(format!("  {}", s(x, "message")), th.dim()),
+            Span::styled(format!("  {}", s(x, "file")), th.dim()),
+        ]));
+    }
+}
+
 /// One block as lines; `width` decides side-by-side diffs.
 pub fn render(b: &Value, width: u16, th: &Theme) -> Vec<Line<'static>> {
     let mut out: Vec<Line<'static>> = Vec::new();
@@ -112,10 +137,16 @@ pub fn render(b: &Value, width: u16, th: &Theme) -> Vec<Line<'static>> {
         "hero" => {
             let (g, st) = status(s(b, "status"), th);
             let bar = Span::styled("▌ ", st);
-            out.push(Line::from(vec![bar.clone(), Span::styled(format!("{g} "), st.add_modifier(Modifier::BOLD)), Span::styled(s(b, "title").to_owned(), th.strong())]));
+            out.push(Line::from(vec![
+                bar.clone(),
+                Span::styled(format!("{g} "), st.add_modifier(Modifier::BOLD)),
+                Span::styled(s(b, "title").to_owned(), th.strong()),
+            ]));
             for l in markdown(s(b, "summary"), th) {
                 let mut spans = vec![bar.clone()];
-                spans.extend(l.spans.into_iter().map(|x| if x.style.fg == Some(th.ink) { x.style(Style::default().fg(th.ink2)) } else { x }));
+                spans.extend(
+                    l.spans.into_iter().map(|x| if x.style.fg == Some(th.ink) { x.style(Style::default().fg(th.ink2)) } else { x }),
+                );
                 out.push(Line::from(spans));
             }
         }
@@ -123,7 +154,11 @@ pub fn render(b: &Value, width: u16, th: &Theme) -> Vec<Line<'static>> {
         "steps" | "checklist" => {
             out.extend(title(s(b, "title"), th));
             for it in items(b) {
-                let (g, st) = if s(b, "type") == "checklist" { if it["done"] == true { ("✓", Style::default().fg(th.good)) } else { ("○", th.dim()) } } else { status(s(&it, "status"), th) };
+                let (g, st) = if s(b, "type") == "checklist" {
+                    if it["done"] == true { ("✓", Style::default().fg(th.good)) } else { ("○", th.dim()) }
+                } else {
+                    status(s(&it, "status"), th)
+                };
                 let label = if s(&it, "title").is_empty() { s(&it, "text") } else { s(&it, "title") };
                 let mut spans = vec![Span::styled(format!("{g} "), st), Span::styled(label.to_owned(), th.text())];
                 if !s(&it, "detail").is_empty() {
@@ -132,28 +167,16 @@ pub fn render(b: &Value, width: u16, th: &Theme) -> Vec<Line<'static>> {
                 out.push(Line::from(spans));
             }
         }
-        "tests" => {
-            let (passed, failed, skipped) = (num(b, "passed"), num(b, "failed"), num(b, "skipped"));
-            let (g, st) = if failed > 0 { ("✗", Style::default().fg(th.bad)) } else { ("✓", Style::default().fg(th.good)) };
-            let tone = |n: i64, c| if n > 0 { Style::default().fg(c).add_modifier(Modifier::BOLD) } else { th.dim() };
-            out.push(Line::from(vec![
-                Span::styled(format!("{g} "), st.add_modifier(Modifier::BOLD)),
-                Span::styled(s(b, "command").to_owned(), th.text()),
-                Span::raw("  "),
-                Span::styled(format!("{passed} passed"), tone(passed, th.good)),
-                Span::styled(" · ", th.dim()),
-                Span::styled(format!("{failed} failed"), tone(failed, th.bad)),
-                Span::styled(" · ", th.dim()),
-                Span::styled(format!("{skipped} skipped"), tone(skipped, th.warn)),
-            ]));
-            for x in b.get("failures").and_then(Value::as_array).into_iter().flatten() {
-                out.push(Line::from(vec![Span::styled("  ✗ ", Style::default().fg(th.bad)), Span::styled(s(x, "name").to_owned(), th.text()), Span::styled(format!("  {}", s(x, "message")), th.dim()), Span::styled(format!("  {}", s(x, "file")), th.dim())]));
-            }
-        }
+        "tests" => tests(b, th, &mut out),
         "diff" => {
             let rows = diff::lines(s(b, "before"), s(b, "after"));
             let (a, d) = diff::counts(&rows);
-            out.push(Line::from(vec![Span::styled(s(b, "file").to_owned(), th.strong()), Span::styled(format!("  +{a}"), Style::default().fg(th.add)), Span::styled(format!(" −{d}"), Style::default().fg(th.del)), Span::styled(format!("  {}", s(b, "caption")), th.dim())]));
+            out.push(Line::from(vec![
+                Span::styled(s(b, "file").to_owned(), th.strong()),
+                Span::styled(format!("  +{a}"), Style::default().fg(th.add)),
+                Span::styled(format!(" −{d}"), Style::default().fg(th.del)),
+                Span::styled(format!("  {}", s(b, "caption")), th.dim()),
+            ]));
             out.extend(diff::render(&rows, width, th).0);
         }
         "files" | "tree" => {
@@ -165,7 +188,11 @@ pub fn render(b: &Value, width: u16, th: &Theme) -> Vec<Line<'static>> {
                     "renamed" => ("→", Style::default().fg(th.info)),
                     _ => ("~", Style::default().fg(th.warn)),
                 };
-                out.push(Line::from(vec![Span::styled(format!("{sign} "), st), Span::styled(s(&it, "path").to_owned(), th.text()), Span::styled(format!("  {}", s(&it, "note")), th.dim())]));
+                out.push(Line::from(vec![
+                    Span::styled(format!("{sign} "), st),
+                    Span::styled(s(&it, "path").to_owned(), th.text()),
+                    Span::styled(format!("  {}", s(&it, "note")), th.dim()),
+                ]));
             }
         }
         "stats" | "chart" => {
@@ -207,14 +234,24 @@ fn more(b: &Value, th: &Theme, out: &mut Vec<Line<'static>>) {
             }
         }
         "question" => {
-            out.push(Line::from(Span::styled(format!("? {}", s(b, "question")), Style::default().fg(th.warn).add_modifier(Modifier::BOLD))));
+            out.push(Line::from(Span::styled(
+                format!("? {}", s(b, "question")),
+                Style::default().fg(th.warn).add_modifier(Modifier::BOLD),
+            )));
             for (i, o) in b.get("options").and_then(Value::as_array).into_iter().flatten().enumerate() {
-                out.push(Line::from(vec![Span::styled(format!("  {} ", i + 1), th.accent()), Span::styled(s(o, "label").to_owned(), th.text())]));
+                out.push(Line::from(vec![
+                    Span::styled(format!("  {} ", i + 1), th.accent()),
+                    Span::styled(s(o, "label").to_owned(), th.text()),
+                ]));
             }
         }
         "code" | "terminal" => {
             // a terminal block without its command shows only its output (no lone `$`)
-            let head = if s(b, "type") == "terminal" { if s(b, "command").is_empty() { String::new() } else { format!("$ {}", s(b, "command")) } } else { s(b, "caption").to_owned() };
+            let head = if s(b, "type") == "terminal" {
+                if s(b, "command").is_empty() { String::new() } else { format!("$ {}", s(b, "command")) }
+            } else {
+                s(b, "caption").to_owned()
+            };
             out.extend(title(&head, th));
             let body = if s(b, "type") == "terminal" { s(b, "output") } else { s(b, "code") };
             for l in body.lines() {
@@ -225,15 +262,24 @@ fn more(b: &Value, th: &Theme, out: &mut Vec<Line<'static>>) {
         }
         "commits" => {
             for c in items(b) {
-                out.push(Line::from(vec![Span::styled(format!("{} ", s(&c, "hash")), th.accent()), Span::styled(s(&c, "message").to_owned(), th.text())]));
+                out.push(Line::from(vec![
+                    Span::styled(format!("{} ", s(&c, "hash")), th.accent()),
+                    Span::styled(s(&c, "message").to_owned(), th.text()),
+                ]));
             }
         }
         "compare" => {
             for side in ["before", "after"] {
                 let x = &b[side];
-                out.push(Line::from(Span::styled(if s(x, "label").is_empty() { side.to_owned() } else { s(x, "label").to_owned() }, th.strong())));
+                out.push(Line::from(Span::styled(
+                    if s(x, "label").is_empty() { side.to_owned() } else { s(x, "label").to_owned() },
+                    th.strong(),
+                )));
                 for i in x.get("items").and_then(Value::as_array).into_iter().flatten() {
-                    out.push(Line::from(vec![Span::styled("• ", th.dim()), Span::styled(i.as_str().unwrap_or_default().to_owned(), th.text())]));
+                    out.push(Line::from(vec![
+                        Span::styled("• ", th.dim()),
+                        Span::styled(i.as_str().unwrap_or_default().to_owned(), th.text()),
+                    ]));
                 }
             }
         }
@@ -246,11 +292,16 @@ fn more(b: &Value, th: &Theme, out: &mut Vec<Line<'static>>) {
         }
         "blocked" => {
             for i in items(b) {
-                out.push(Line::from(vec![Span::styled("⊘ ", Style::default().fg(th.bad)), Span::styled(format!("{} {}", s(&i, "tool"), s(&i, "detail")), th.text()), Span::styled(format!("  {}", s(&i, "why")), th.dim())]));
+                out.push(Line::from(vec![
+                    Span::styled("⊘ ", Style::default().fg(th.bad)),
+                    Span::styled(format!("{} {}", s(&i, "tool"), s(&i, "detail")), th.text()),
+                    Span::styled(format!("  {}", s(&i, "why")), th.dim()),
+                ]));
             }
         }
         other => {
-            let what = ["title", "caption", "path", "url", "question", "text"].iter().map(|k| s(b, k)).find(|t| !t.is_empty()).unwrap_or_default();
+            let what =
+                ["title", "caption", "path", "url", "question", "text"].iter().map(|k| s(b, k)).find(|t| !t.is_empty()).unwrap_or_default();
             out.push(Line::from(vec![Span::styled(format!("[{other}] "), th.dim()), Span::styled(what.to_owned(), th.text())]));
         }
     }
@@ -284,10 +335,22 @@ mod tests {
     fn every_answer_block_has_a_terminal_form() {
         let th = Theme::DARK;
         let cases = [
-            (json!({ "type": "hero", "title": "Login fixed", "status": "done", "summary": "The **redirect** was `wrong`." }), "▌ ✓ Login fixed\n▌ The redirect was wrong."),
-            (json!({ "type": "tests", "command": "cargo test", "passed": 41, "failed": 1, "skipped": 0, "failures": [{ "name": "auth", "message": "401", "file": "a.rs:3" }] }), "✗ cargo test  41 passed · 1 failed · 0 skipped\n  ✗ auth  401  a.rs:3"),
-            (json!({ "type": "checklist", "items": [{ "text": "merged", "done": true }, { "text": "deployed", "done": false }] }), "✓ merged\n○ deployed"),
-            (json!({ "type": "question", "question": "Which?", "options": [{ "label": "A" }, { "label": "B" }] }), "? Which?\n  1 A\n  2 B"),
+            (
+                json!({ "type": "hero", "title": "Login fixed", "status": "done", "summary": "The **redirect** was `wrong`." }),
+                "▌ ✓ Login fixed\n▌ The redirect was wrong.",
+            ),
+            (
+                json!({ "type": "tests", "command": "cargo test", "passed": 41, "failed": 1, "skipped": 0, "failures": [{ "name": "auth", "message": "401", "file": "a.rs:3" }] }),
+                "✗ cargo test  41 passed · 1 failed · 0 skipped\n  ✗ auth  401  a.rs:3",
+            ),
+            (
+                json!({ "type": "checklist", "items": [{ "text": "merged", "done": true }, { "text": "deployed", "done": false }] }),
+                "✓ merged\n○ deployed",
+            ),
+            (
+                json!({ "type": "question", "question": "Which?", "options": [{ "label": "A" }, { "label": "B" }] }),
+                "? Which?\n  1 A\n  2 B",
+            ),
             (json!({ "type": "files", "items": [{ "path": "a.rs", "change": "added", "note": "new" }] }), "+ a.rs  new"),
             (json!({ "type": "flow", "title": "Data" }), "[flow] Data"),
             (json!({ "type": "terminal", "output": "exit 0" }), "  exit 0"),

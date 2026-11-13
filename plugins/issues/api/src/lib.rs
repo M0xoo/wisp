@@ -115,7 +115,11 @@ impl Command for List {
     const READ_ONLY: bool = true;
     type Args = ListArgs;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <ListArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <ListArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <ListArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <ListArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
     type Out = IssueList;
 }
@@ -180,8 +184,5 @@ pub struct HttpResponse {
 /// The kernel's one HTTP client (`ctx.service::<Arc<dyn Http>>()`). Declared here until the kernel's
 /// `net` service exists; `Err` is "couldn't reach it" in words.
 pub trait Http: Send + Sync + 'static {
-    fn send(
-        &self,
-        req: HttpRequest,
-    ) -> BoxFuture<'static, std::result::Result<HttpResponse, String>>;
+    fn send(&self, req: HttpRequest) -> BoxFuture<'static, std::result::Result<HttpResponse, String>>;
 }

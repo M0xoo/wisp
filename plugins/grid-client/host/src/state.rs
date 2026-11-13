@@ -25,7 +25,16 @@ fn on_topic(_: &Row) -> Vec<String> {
     vec![TOPIC.into()]
 }
 
-pub const DOC: EntityDef = EntityDef { kind: "grid_client_doc", table: "grid_client_doc", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: on_topic };
+pub const DOC: EntityDef = EntityDef {
+    kind: "grid_client_doc",
+    table: "grid_client_doc",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: on_topic,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -101,7 +110,11 @@ fn doc(id: &str, body: &impl Serialize) -> wisp_store::Result<Row> {
 impl St {
     pub async fn load(ctx: Ctx, store: Store) -> Result<Arc<Self>> {
         let docs = store.read_async(|r| r.query(DOC.kind, &Query::new())).await.map_err(|e| WireError::internal(e.to_string()))?;
-        let account = docs.iter().find(|d| d.get("id").and_then(Value::as_str) == Some("account")).and_then(|d| d.get("body").cloned()).and_then(|b| serde_json::from_value(b).ok());
+        let account = docs
+            .iter()
+            .find(|d| d.get("id").and_then(Value::as_str) == Some("account"))
+            .and_then(|d| d.get("body").cloned())
+            .and_then(|b| serde_json::from_value(b).ok());
         Ok(Arc::new(Self {
             ctx,
             store,
@@ -142,11 +155,19 @@ impl St {
 
     pub async fn imports(&self) -> Result<Vec<Import>> {
         let docs = self.store.read_async(|r| r.query(DOC.kind, &Query::new())).await.map_err(|e| WireError::internal(e.to_string()))?;
-        Ok(docs.iter().filter(|d| d.get("id").and_then(Value::as_str).is_some_and(|i| i.starts_with("import:"))).filter_map(|d| d.get("body").cloned()).filter_map(|b| serde_json::from_value(b).ok()).collect())
+        Ok(docs
+            .iter()
+            .filter(|d| d.get("id").and_then(Value::as_str).is_some_and(|i| i.starts_with("import:")))
+            .filter_map(|d| d.get("body").cloned())
+            .filter_map(|b| serde_json::from_value(b).ok())
+            .collect())
     }
 
     pub async fn save_import(&self, i: Import) -> Result<()> {
-        self.store.write(move |w| w.upsert(DOC.kind, doc(&format!("import:{}", i.id), &i)?).map(|_| ())).await.map_err(|e| WireError::internal(e.to_string()))
+        self.store
+            .write(move |w| w.upsert(DOC.kind, doc(&format!("import:{}", i.id), &i)?).map(|_| ()))
+            .await
+            .map_err(|e| WireError::internal(e.to_string()))
     }
 
     pub fn new_flow_id() -> String {

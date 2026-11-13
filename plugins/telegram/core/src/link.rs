@@ -43,10 +43,7 @@ pub enum LinkOutcome {
 /// `/start` (a first open of the bot) and chatter offer nothing, and aren't counted.
 pub fn links_it(text: &str) -> Option<&str> {
     let t = text.trim();
-    let arg = ["/start", "/link"].iter().find_map(|p| {
-        t.strip_prefix(p)
-            .filter(|r| r.is_empty() || r.starts_with(char::is_whitespace))
-    });
+    let arg = ["/start", "/link"].iter().find_map(|p| t.strip_prefix(p).filter(|r| r.is_empty() || r.starts_with(char::is_whitespace)));
     match arg {
         Some(r) => Some(r.trim()).filter(|r| !r.is_empty()),
         None => (t.len() == 6 && t.bytes().all(|b| b.is_ascii_digit())).then_some(t),
@@ -65,12 +62,7 @@ impl LinkBook<'_> {
     pub fn attempt(&mut self, tried: &str, who: &str, today: &str) -> LinkOutcome {
         if self.guess.day != today {
             // A new day keeps the run of wrong codes (the code hasn't changed), not the spending.
-            *self.guess = Guess {
-                day: today.to_owned(),
-                wrong: self.guess.wrong,
-                spent: 0,
-                by: BTreeMap::new(),
-            };
+            *self.guess = Guess { day: today.to_owned(), wrong: self.guess.wrong, spent: 0, by: BTreeMap::new() };
         }
         let theirs = self.guess.by.get(who).copied().unwrap_or(0);
         if self.guess.spent >= LINK_DAY || theirs >= LINK_EACH {
@@ -126,14 +118,8 @@ mod tests {
     #[test]
     fn right_code_links_and_resets_the_run() {
         let mut g = Guess::default();
-        let mut b = LinkBook {
-            guess: &mut g,
-            code: "424242",
-        };
-        assert_eq!(
-            b.attempt("111111", "a", "2026-11-08"),
-            LinkOutcome::Wrong { rotate: false }
-        );
+        let mut b = LinkBook { guess: &mut g, code: "424242" };
+        assert_eq!(b.attempt("111111", "a", "2026-11-08"), LinkOutcome::Wrong { rotate: false });
         assert_eq!(b.attempt("424242", "a", "2026-11-08"), LinkOutcome::Linked);
         assert_eq!(g.wrong, 0);
         assert_eq!(g.spent, 1, "the day still counts it");
@@ -142,60 +128,31 @@ mod tests {
     #[test]
     fn five_wrong_in_a_row_change_the_code() {
         let mut g = Guess::default();
-        let mut b = LinkBook {
-            guess: &mut g,
-            code: "424242",
-        };
+        let mut b = LinkBook { guess: &mut g, code: "424242" };
         for i in 0..4 {
-            assert_eq!(
-                b.attempt("0", &format!("s{i}"), "d"),
-                LinkOutcome::Wrong { rotate: false }
-            );
+            assert_eq!(b.attempt("0", &format!("s{i}"), "d"), LinkOutcome::Wrong { rotate: false });
         }
-        assert_eq!(
-            b.attempt("0", "s9", "d"),
-            LinkOutcome::Wrong { rotate: true }
-        );
+        assert_eq!(b.attempt("0", "s9", "d"), LinkOutcome::Wrong { rotate: true });
         assert_eq!(g.wrong, 0);
     }
 
     #[test]
     fn five_per_sender_then_even_the_right_code_does_nothing() {
         let mut g = Guess::default();
-        let mut b = LinkBook {
-            guess: &mut g,
-            code: "424242",
-        };
+        let mut b = LinkBook { guess: &mut g, code: "424242" };
         for _ in 0..5 {
-            assert!(matches!(
-                b.attempt("0", "x", "d"),
-                LinkOutcome::Wrong { .. }
-            ));
+            assert!(matches!(b.attempt("0", "x", "d"), LinkOutcome::Wrong { .. }));
         }
-        assert_eq!(
-            b.attempt("424242", "x", "d"),
-            LinkOutcome::Spent,
-            "else guessing goes on"
-        );
-        assert_eq!(
-            b.attempt("424242", "y", "d"),
-            LinkOutcome::Linked,
-            "someone else still can"
-        );
+        assert_eq!(b.attempt("424242", "x", "d"), LinkOutcome::Spent, "else guessing goes on");
+        assert_eq!(b.attempt("424242", "y", "d"), LinkOutcome::Linked, "someone else still can");
     }
 
     #[test]
     fn fifty_a_day_from_everyone_then_tomorrow() {
         let mut g = Guess::default();
-        let mut b = LinkBook {
-            guess: &mut g,
-            code: "424242",
-        };
+        let mut b = LinkBook { guess: &mut g, code: "424242" };
         for i in 0..50 {
-            assert!(matches!(
-                b.attempt("0", &format!("s{}", i / 4), "d1"),
-                LinkOutcome::Wrong { .. }
-            ));
+            assert!(matches!(b.attempt("0", &format!("s{}", i / 4), "d1"), LinkOutcome::Wrong { .. }));
         }
         assert_eq!(b.attempt("424242", "new", "d1"), LinkOutcome::Spent);
         assert_eq!(b.attempt("424242", "new", "d2"), LinkOutcome::Linked);
@@ -204,11 +161,7 @@ mod tests {
     #[test]
     fn the_book_survives_a_restart() {
         let mut g = Guess::default();
-        LinkBook {
-            guess: &mut g,
-            code: "1",
-        }
-        .attempt("2", "h", "d");
+        LinkBook { guess: &mut g, code: "1" }.attempt("2", "h", "d");
         let back: Guess = serde_json::from_value(serde_json::to_value(&g).unwrap()).unwrap();
         assert_eq!(back, g);
     }

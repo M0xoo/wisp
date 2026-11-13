@@ -6,7 +6,8 @@ use wisp_channels_api::{AgentView, ChannelCtx, MemberView, Mode, ModelView, Prob
 use crate::mentions::crew_mentions;
 
 /// Words a bare in/on can't take as the start of a name: "in the login page", "on my laptop".
-const NOT_A_NAME: [&str; 18] = ["a", "an", "the", "my", "our", "your", "this", "that", "these", "those", "all", "it", "its", "one", "some", "any", "each", "every"];
+const NOT_A_NAME: [&str; 18] =
+    ["a", "an", "the", "my", "our", "your", "this", "that", "these", "those", "all", "it", "its", "one", "some", "any", "each", "every"];
 
 pub(crate) fn is_colon(c: char) -> bool {
     c == ':' || c == '：'
@@ -130,10 +131,15 @@ pub(crate) fn match_models<'a>(a: &'a AgentView, w: &str) -> (u8, Vec<&'a ModelV
     if w.chars().count() < 3 {
         return (2, Vec::new()); // "with a test" isn't a model
     }
-    (2, model_ids(a).filter(|m| {
-        let id = lower(&m.id);
-        id.starts_with(w) || id.rsplit('/').next().is_some_and(|t| t.starts_with(w)) || label(m).starts_with(w)
-    }).collect())
+    (
+        2,
+        model_ids(a)
+            .filter(|m| {
+                let id = lower(&m.id);
+                id.starts_with(w) || id.rsplit('/').next().is_some_and(|t| t.starts_with(w)) || label(m).starts_with(w)
+            })
+            .collect(),
+    )
 }
 
 fn model_known(c: &ChannelCtx, w: &str) -> bool {
@@ -165,7 +171,11 @@ pub(crate) fn pick_name(names: &[&str], s: &str, exact: bool) -> Option<Pick> {
     order.sort_by_key(|&i| std::cmp::Reverse(names[i].chars().count()));
     for i in order {
         let n = lower(names[i]);
-        if !n.is_empty() && text.starts_with(&n) && (text.len() == n.len() || text[n.len()..].starts_with(|c: char| c.is_whitespace() || matches!(c, ':' | '：' | ',' | '*' | '_' | '~' | '`'))) {
+        if !n.is_empty()
+            && text.starts_with(&n)
+            && (text.len() == n.len()
+                || text[n.len()..].starts_with(|c: char| c.is_whitespace() || matches!(c, ':' | '：' | ',' | '*' | '_' | '~' | '`')))
+        {
             let tail = s.get(n.len()..).unwrap_or_default();
             if exact {
                 let twins: Vec<usize> = (0..names.len()).filter(|&j| lower(names[j]) == n).collect();
@@ -205,7 +215,14 @@ fn options_to_colon(s: &str, o: &Opts, c: &ChannelCtx) -> bool {
     if starts_colon(s) {
         return true;
     }
-    let mut probe = Opts { crew: o.crew.clone(), project: o.project.clone(), machine: o.machine.clone(), withs: o.withs.clone(), mode: o.mode, ..Opts::default() };
+    let mut probe = Opts {
+        crew: o.crew.clone(),
+        project: o.project.clone(),
+        machine: o.machine.clone(),
+        withs: o.withs.clone(),
+        mode: o.mode,
+        ..Opts::default()
+    };
     let mut rest = s.to_owned();
     while !rest.is_empty() {
         let r = rest.clone();
@@ -228,7 +245,14 @@ enum Found {
 type Special<'a> = &'a dyn Fn(&str) -> Option<(String, String, bool)>;
 
 #[allow(clippy::many_single_char_names)] // v1's names: t token, o options, c ctx, s text, v the next token
-fn read_place(t: &Token<'_>, o: &mut Opts, c: &ChannelCtx, names: &[&str], kind: &str, special: Option<Special<'_>>) -> Option<(Found, Step)> {
+fn read_place(
+    t: &Token<'_>,
+    o: &mut Opts,
+    c: &ChannelCtx,
+    names: &[&str],
+    kind: &str,
+    special: Option<Special<'_>>,
+) -> Option<(Found, Step)> {
     let s = t.after;
     if s.is_empty() {
         return None;
@@ -352,12 +376,15 @@ fn read_mode(t: &Token<'_>, o: &mut Opts, count: usize) -> Option<Step> {
     if o.mode.is_some() {
         return None;
     }
-    let (mut mode, mut last) = (match t.low.as_str() {
-        "plan" => Some(Mode::Plan),
-        "edits" => Some(Mode::Edits),
-        "full-auto" => Some(Mode::Auto),
-        _ => None,
-    }, t.clone());
+    let (mut mode, mut last) = (
+        match t.low.as_str() {
+            "plan" => Some(Mode::Plan),
+            "edits" => Some(Mode::Edits),
+            "full-auto" => Some(Mode::Auto),
+            _ => None,
+        },
+        t.clone(),
+    );
     if t.low == "full" && !t.colon {
         let next = token(t.after);
         if next.low == "auto" {
@@ -383,7 +410,18 @@ fn find_project<'a>(list: &'a [ProjectView], q: &str) -> Option<&'a ProjectView>
 pub(crate) fn read_option(t: &Token<'_>, s: &str, o: &mut Opts, c: &ChannelCtx, count: usize) -> Option<Step> {
     let thread = c.thread.is_some();
     if t.word.starts_with('@') && !t.word.contains('/') {
-        let src = format!("{}{}{}", t.word, if t.colon { ":" } else if t.comma { "," } else { "" }, &s[t.raw.len()..]);
+        let src = format!(
+            "{}{}{}",
+            t.word,
+            if t.colon {
+                ":"
+            } else if t.comma {
+                ","
+            } else {
+                ""
+            },
+            &s[t.raw.len()..]
+        );
         let m = crew_mentions(&src, &c.crew);
         if !m.lead.is_empty() && (!thread || o.crew.is_none()) {
             let trimmed = src.trim_end();

@@ -50,11 +50,7 @@ fn world(seed: u64) -> World {
         let (mut hard, mut soft) = (Vec::new(), Vec::new());
         for _ in 0..r.below(3) {
             // mostly existing plugins, sometimes a missing one; cycles happen
-            let t = if r.below(8) == 0 {
-                "acme.ghost".to_owned()
-            } else {
-                ids[usize::try_from(r.below(n)).unwrap()].clone()
-            };
+            let t = if r.below(8) == 0 { "acme.ghost".to_owned() } else { ids[usize::try_from(r.below(n)).unwrap()].clone() };
             if t == *id || req.contains_key(&t) {
                 continue;
             }
@@ -66,33 +62,17 @@ fn world(seed: u64) -> World {
                 hard.push(t);
             }
         }
-        manifests.push(common::manifest(
-            id,
-            json!({ "requires": Value::Object(req) }),
-        ));
+        manifests.push(common::manifest(id, json!({ "requires": Value::Object(req) })));
         deps.insert(id.clone(), (hard, soft));
     }
-    let off = ids
-        .iter()
-        .filter(|_| r.below(6) == 0)
-        .map(|id| (id.clone(), format!("{id} was switched off")))
-        .collect();
-    World {
-        manifests,
-        off,
-        deps,
-    }
+    let off = ids.iter().filter(|_| r.below(6) == 0).map(|id| (id.clone(), format!("{id} was switched off"))).collect();
+    World { manifests, off, deps }
 }
 
 /// The reference: a plugin runs iff it isn't off, every hard dep exists and runs, and it isn't on a
 /// hard cycle. Computed as a greatest fixpoint, nothing clever.
 fn model(w: &World) -> BTreeSet<String> {
-    let mut run: BTreeSet<String> = w
-        .deps
-        .keys()
-        .filter(|id| !w.off.contains_key(*id))
-        .cloned()
-        .collect();
+    let mut run: BTreeSet<String> = w.deps.keys().filter(|id| !w.off.contains_key(*id)).cloned().collect();
     loop {
         let before = run.len();
         let snapshot = run.clone();
@@ -131,20 +111,12 @@ fn model(w: &World) -> BTreeSet<String> {
 fn random_sets_match_the_model_and_keep_the_invariants() {
     for seed in 1..=400 {
         let w = world(seed);
-        let input = Input {
-            manifests: w.manifests.iter().collect(),
-            off: w.off.clone(),
-            ..Input::default()
-        };
+        let input = Input { manifests: w.manifests.iter().collect(), off: w.off.clone(), ..Input::default() };
         let res = resolve(&input);
         let all: BTreeSet<String> = w.deps.keys().cloned().collect();
         let ran: BTreeSet<String> = res.order.iter().cloned().collect();
         let refused: BTreeSet<String> = res.refused.keys().cloned().collect();
-        assert_eq!(
-            ran.union(&refused).cloned().collect::<BTreeSet<_>>(),
-            all,
-            "seed {seed}: every plugin runs or is refused"
-        );
+        assert_eq!(ran.union(&refused).cloned().collect::<BTreeSet<_>>(), all, "seed {seed}: every plugin runs or is refused");
         assert!(ran.is_disjoint(&refused), "seed {seed}");
         assert_eq!(ran, model(&w), "seed {seed}: refusals match the model");
         // dependencies first, optional ones too when they run
@@ -155,24 +127,14 @@ fn random_sets_match_the_model_and_keep_the_invariants() {
         }
         // every refusal says why, naming what it needs
         for (id, why) in &res.refused {
-            let ok = w.off.contains_key(id)
-                || why.starts_with("dependency cycle:")
-                || why.contains(" requires ");
+            let ok = w.off.contains_key(id) || why.starts_with("dependency cycle:") || why.contains(" requires ");
             assert!(ok, "seed {seed}: {id}: {why}");
         }
         // registration order doesn't change who runs
         let mut rev: Vec<&Manifest> = w.manifests.iter().collect();
         rev.reverse();
-        let res2 = resolve(&Input {
-            manifests: rev,
-            off: w.off.clone(),
-            ..Input::default()
-        });
-        assert_eq!(
-            res2.order.iter().cloned().collect::<BTreeSet<_>>(),
-            ran,
-            "seed {seed}: order-independent"
-        );
+        let res2 = resolve(&Input { manifests: rev, off: w.off.clone(), ..Input::default() });
+        assert_eq!(res2.order.iter().cloned().collect::<BTreeSet<_>>(), ran, "seed {seed}: order-independent");
     }
 }
 
@@ -183,10 +145,7 @@ fn optional_requirements_order_but_never_refuse() {
         json!({ "requires": { "acme.b": { "version": "^1", "optional": true }, "acme.ghost": { "version": "^1", "optional": true } } }),
     );
     let b = common::manifest("acme.b", json!({}));
-    let res = resolve(&Input {
-        manifests: vec![&a, &b],
-        ..Input::default()
-    });
+    let res = resolve(&Input { manifests: vec![&a, &b], ..Input::default() });
     assert_eq!(res.order, ["acme.b", "acme.a"]);
     assert!(res.refused.is_empty());
 }
@@ -196,20 +155,8 @@ fn kernel_api_and_exact_reasons() {
     let a = common::manifest("acme.a", json!({ "api": "^2" }));
     let b = common::manifest("acme.b", json!({ "requires": { "acme.a": "^1" } }));
     let c = common::manifest("acme.c", json!({ "requires": { "x.service": "^1" } }));
-    let res = resolve(&Input {
-        manifests: vec![&a, &b, &c],
-        ..Input::default()
-    });
-    assert_eq!(
-        res.refused["acme.a"],
-        "acme.a needs kernel api ^2, this kernel is 1.0.0"
-    );
-    assert!(
-        res.refused["acme.b"]
-            .starts_with("acme.b requires acme.a, which is refused (acme.a needs kernel api")
-    );
-    assert_eq!(
-        res.refused["acme.c"],
-        "acme.c requires x.service, which is missing"
-    );
+    let res = resolve(&Input { manifests: vec![&a, &b, &c], ..Input::default() });
+    assert_eq!(res.refused["acme.a"], "acme.a needs kernel api ^2, this kernel is 1.0.0");
+    assert!(res.refused["acme.b"].starts_with("acme.b requires acme.a, which is refused (acme.a needs kernel api"));
+    assert_eq!(res.refused["acme.c"], "acme.c requires x.service, which is missing");
 }

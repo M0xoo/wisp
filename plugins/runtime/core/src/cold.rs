@@ -9,9 +9,9 @@
 //! `cacheTtlMs` (every one but Claude today) never shows it.
 
 pub use wisp_runtime_api::commands::{ColdCache as Cold, CompactOffer as Offer};
-use wisp_runtime_api::model::{Session, SessionState, Turn, TurnStats};
 #[cfg(test)]
 use wisp_runtime_api::model::TurnStatus;
+use wisp_runtime_api::model::{Session, SessionState, Turn, TurnStats};
 
 /// Tokens worth a line: at or just under the median cold write in v1's transcripts (99k–119k vs 1–6k warm).
 pub const LARGE: u64 = 100_000;
@@ -136,7 +136,13 @@ mod tests {
     fn task(tokens: u64, model: &str, ended: i64) -> (Session, Vec<Turn>) {
         let s = Session { agent: "claude".into(), resume_id: Some("r".into()), state: SessionState::Review, ..Session::default() };
         let models = BTreeMap::from([(format!("{model}[1m]"), serde_json::json!({ "input": 10, "cacheRead": tokens }))]);
-        let st = TurnStats { context_tokens: Some(tokens), cache_ttl_ms: Some(HOUR), output_tokens: Some(500), models: Some(models), ..TurnStats::default() };
+        let st = TurnStats {
+            context_tokens: Some(tokens),
+            cache_ttl_ms: Some(HOUR),
+            output_tokens: Some(500),
+            models: Some(models),
+            ..TurnStats::default()
+        };
         let t = Turn { agent: "claude".into(), status: TurnStatus::Done, ended_at: Some(ended), stats: Some(st), ..Turn::default() };
         (s, vec![t])
     }
@@ -178,7 +184,13 @@ mod tests {
     #[test]
     fn a_later_turn_that_worked_without_a_number_is_not_guessed() {
         let (s, mut turns) = task(300_000, "claude-opus-5-5", 0);
-        turns.push(Turn { agent: "claude".into(), status: TurnStatus::Done, ended_at: Some(5), stats: Some(TurnStats { output_tokens: Some(9), ..TurnStats::default() }), ..Turn::default() });
+        turns.push(Turn {
+            agent: "claude".into(),
+            status: TurnStatus::Done,
+            ended_at: Some(5),
+            stats: Some(TurnStats { output_tokens: Some(9), ..TurnStats::default() }),
+            ..Turn::default()
+        });
         assert!(cold_cache(&s, &turns, 0).is_none());
         turns.pop();
         turns.push(Turn { agent: "claude".into(), status: TurnStatus::Running, ..Turn::default() });

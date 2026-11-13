@@ -116,7 +116,13 @@ pub fn cell(row: &Value, pointer: &str) -> String {
     match row.pointer(pointer) {
         None | Some(Value::Null) => String::new(),
         Some(Value::String(s)) => s.clone(),
-        Some(Value::Bool(b)) => if *b { "✓".into() } else { String::new() },
+        Some(Value::Bool(b)) => {
+            if *b {
+                "✓".into()
+            } else {
+                String::new()
+            }
+        }
         Some(Value::Array(a)) => a.iter().map(|x| x.as_str().map_or_else(|| x.to_string(), str::to_owned)).collect::<Vec<_>>().join(", "),
         Some(v) => v.to_string(),
     }
@@ -224,7 +230,11 @@ pub struct Registry {
 
 impl std::fmt::Debug for Registry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Registry").field("views", &self.views.iter().map(|v| v.id().to_owned()).collect::<Vec<_>>()).field("inputs", &self.inputs.len()).field("blocks", &self.blocks.len()).finish()
+        f.debug_struct("Registry")
+            .field("views", &self.views.iter().map(|v| v.id().to_owned()).collect::<Vec<_>>())
+            .field("inputs", &self.inputs.len())
+            .field("blocks", &self.blocks.len())
+            .finish()
     }
 }
 
@@ -278,19 +288,31 @@ mod tests {
         assert!(r.render_block(&hero, 80, &Theme::DARK)[0].spans.iter().any(|s| s.content.contains("done it")));
         r.block(Shout);
         assert_eq!(r.render_block(&hero, 80, &Theme::DARK)[0].spans[0].content, "DONE IT");
-        assert!(r.render_block(&json!({ "type": "markdown", "text": "x" }), 80, &Theme::DARK)[0].spans.iter().any(|s| s.content == "x"), "the rest stay built-in");
+        assert!(
+            r.render_block(&json!({ "type": "markdown", "text": "x" }), 80, &Theme::DARK)[0].spans.iter().any(|s| s.content == "x"),
+            "the rest stay built-in"
+        );
     }
 
     #[test]
     fn a_tables_cells_and_actions_read_the_row() {
         let row = json!({ "id": "m1", "name": "Ada", "on": ["ci.failed", "schedule"], "paused": true });
-        assert_eq!((cell(&row, "/name"), cell(&row, "/on"), cell(&row, "/paused"), cell(&row, "/nope")), ("Ada".into(), "ci.failed, schedule".into(), "✓".into(), String::new()));
-        assert_eq!(fill(&json!({ "id": "{/id}", "why": "from the tui", "n": [ "{/name}" ] }), &row), json!({ "id": "m1", "why": "from the tui", "n": ["Ada"] }));
+        assert_eq!(
+            (cell(&row, "/name"), cell(&row, "/on"), cell(&row, "/paused"), cell(&row, "/nope")),
+            ("Ada".into(), "ci.failed, schedule".into(), "✓".into(), String::new())
+        );
+        assert_eq!(
+            fill(&json!({ "id": "{/id}", "why": "from the tui", "n": [ "{/name}" ] }), &row),
+            json!({ "id": "m1", "why": "from the tui", "n": ["Ada"] })
+        );
         let asked = json!({ "target": "{?File}", "repo": "{cwd}", "byLine": true });
         assert_eq!(asks(&asked).as_deref(), Some("File"));
         assert_eq!(fill_asked(&asked, "src/a.rs", "/w/api"), json!({ "target": "src/a.rs", "repo": "/w/api", "byLine": true }));
         assert_eq!(asks(&json!({ "id": "{/id}" })), None);
-        let t = Table::new("crew", "Crew", Source::Command { id: "crew.list".into(), args: json!({}), rows: String::new() }).goto('c').col("Name", "/name", 20).act('w', "Wake", "crew.wake", json!({ "id": "{/id}" }), false);
+        let t = Table::new("crew", "Crew", Source::Command { id: "crew.list".into(), args: json!({}), rows: String::new() })
+            .goto('c')
+            .col("Name", "/name", 20)
+            .act('w', "Wake", "crew.wake", json!({ "id": "{/id}" }), false);
         assert_eq!((TuiView::goto(&t), t.columns().len(), t.actions()[0].key), (Some('c'), 1, 'w'));
     }
 }

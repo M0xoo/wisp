@@ -39,7 +39,14 @@ esac
 }
 
 fn boxd(dir: &Path) -> (Arc<Boxd>, PathBuf) {
-    let o = Opts { socket: dir.join("box.sock"), group: String::new(), data: dir.join("data"), boxes: dir.join("boxes"), docker: fake_docker(dir), container: Container::default() };
+    let o = Opts {
+        socket: dir.join("box.sock"),
+        group: String::new(),
+        data: dir.join("data"),
+        boxes: dir.join("boxes"),
+        docker: fake_docker(dir),
+        container: Container::default(),
+    };
     let b = Boxd::new(o);
     let sock = b.o.socket.clone();
     let l = UnixListener::bind(&sock).unwrap();
@@ -129,7 +136,14 @@ fn ping_and_remove() {
 #[test]
 fn homes_move_once_and_never_through_a_link() {
     let dir = tmp("migrate");
-    let o = Opts { socket: dir.join("s"), group: String::new(), data: dir.join("data"), boxes: dir.join("boxes"), docker: fake_docker(&dir), container: Container::default() };
+    let o = Opts {
+        socket: dir.join("s"),
+        group: String::new(),
+        data: dir.join("data"),
+        boxes: dir.join("boxes"),
+        docker: fake_docker(&dir),
+        container: Container::default(),
+    };
     std::fs::create_dir_all(dir.join("data/users/u1/home/.wisp")).unwrap();
     std::fs::write(dir.join("data/users/u1/home/.wisp/x"), "1").unwrap();
     // u2's home is a link to somewhere else: never followed

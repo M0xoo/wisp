@@ -64,8 +64,22 @@ fn route_section(route: &RouteView, computers: &[ComputerView], hidden: &str) ->
     let inner = if route.set {
         let bot = route.bot.as_deref().map_or_else(|| "Your bot".to_owned(), |b| format!("@{}", esc(b)));
         let who = if n == 1 { "One person".to_owned() } else { format!("{n} people") };
-        let moved = if route.moved { route_warn("The webhook moved", "Telegram no longer sends this bot’s messages to the grid, so they aren’t reaching your computers. Something else with this bot’s token set it. Remove the bot here and connect it again.") } else { String::new() };
-        let shared = if route.shared { route_warn("Your cloud wisp also has this bot", "Anything on your cloud wisp can read this bot’s token, and with it your messages and reports, or speak as this bot. It can’t start anything on your computers. Make a new bot with BotFather, then Remove this one and connect that.") } else { String::new() };
+        let moved = if route.moved {
+            route_warn(
+                "The webhook moved",
+                "Telegram no longer sends this bot’s messages to the grid, so they aren’t reaching your computers. Something else with this bot’s token set it. Remove the bot here and connect it again.",
+            )
+        } else {
+            String::new()
+        };
+        let shared = if route.shared {
+            route_warn(
+                "Your cloud wisp also has this bot",
+                "Anything on your cloud wisp can read this bot’s token, and with it your messages and reports, or speak as this bot. It can’t start anything on your computers. Make a new bot with BotFather, then Remove this one and connect that.",
+            )
+        } else {
+            String::new()
+        };
         format!(
             r#"<div class="r wrap"><span class="ic">{SHIELD}</span><div class="tx"><b>{bot}</b><small>{who} can send: {senders}</small></div><form class="inline" method="post" action="/channels/route/remove">{hidden}<button class="ghost quiet">Remove</button></form></div>{moved}{shared}"#,
             senders = esc(&route.senders.join(", "))
@@ -90,7 +104,9 @@ fn route_section(route: &RouteView, computers: &[ComputerView], hidden: &str) ->
 
 fn devices(p: &AccountPage, hidden: &str) -> String {
     if p.devices.is_empty() {
-        return format!(r#"<div class="r"><span class="ic">{LAPTOP}</span><div class="tx"><b>No devices yet</b><small>wisp on a computer and the phone app sign in here once, with a code.</small></div></div>"#);
+        return format!(
+            r#"<div class="r"><span class="ic">{LAPTOP}</span><div class="tx"><b>No devices yet</b><small>wisp on a computer and the phone app sign in here once, with a code.</small></div></div>"#
+        );
     }
     p.devices
         .iter()
@@ -196,7 +212,11 @@ mod tests {
         AccountPage {
             user: PageUser { handle: "ada".into(), email: Some("ada@example.com".into()), ..PageUser::default() },
             identities: vec![IdentityView { provider: "github".into(), login: Some("ada".into()), email: None }],
-            providers: vec![Provider { id: "github".into(), label: "GitHub".into() }, Provider { id: "google".into(), label: "Google".into() }, Provider { id: "dev".into(), label: "Dev".into() }],
+            providers: vec![
+                Provider { id: "github".into(), label: "GitHub".into() },
+                Provider { id: "google".into(), label: "Google".into() },
+                Provider { id: "dev".into(), label: "Dev".into() },
+            ],
             now_ms: 1_793_000_000_000,
             ..AccountPage::default()
         }
@@ -216,9 +236,11 @@ mod tests {
     #[test]
     fn devices_say_which_computer_they_are() {
         let mut p = page();
-        p.devices = vec![DeviceView { id: "d1".into(), name: "Ada’s iPhone".into(), created_at: Some(p.now_ms - 90_000), last_seen_at: None }];
+        p.devices =
+            vec![DeviceView { id: "d1".into(), name: "Ada’s iPhone".into(), created_at: Some(p.now_ms - 90_000), last_seen_at: None }];
         p.computers = vec![ComputerView { device_id: "d1".into(), name: "mac".into(), ..ComputerView::default() }];
-        p.route = Some(RouteView { set: true, bot: Some("ada_bot".into()), senders: vec!["1".into(), "2".into()], moved: true, shared: false });
+        p.route =
+            Some(RouteView { set: true, bot: Some("ada_bot".into()), senders: vec!["1".into(), "2".into()], moved: true, shared: false });
         let a = account_page(&PageCfg::default(), &p);
         assert!(a.contains("On the grid as mac · added 2 min ago · last used never"));
         assert!(a.contains("<b>@ada_bot</b><small>2 people can send: 1, 2</small>"));

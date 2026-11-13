@@ -59,7 +59,14 @@ impl Runtime {
 
     /// Puts a question on task `id`: `state: waiting`, unread, back from the archive, and an
     /// "Asked you: …" (or "Needs your OK to …") row on its turn. A question already open is replaced.
-    async fn ask_in(self: &Arc<Self>, id: &SessionId, question: &str, context: &str, options: &[String], permission: Option<Value>) -> Result<String> {
+    async fn ask_in(
+        self: &Arc<Self>,
+        id: &SessionId,
+        question: &str,
+        context: &str,
+        options: &[String],
+        permission: Option<Value>,
+    ) -> Result<String> {
         let (tid, label, ask_id) = {
             let _g = self.task_lock(id.as_str()).await;
             let mut s = self.repo.session(id.as_str()).await?;
@@ -116,17 +123,24 @@ impl Runtime {
                 if d.always {
                     with_slot(&mut s.ext, |m| push(m, "grants", json!({ "tool": tool, "detail": detail })));
                 }
-                if !d.allow && let Some(mut t) = last.clone() {
+                if !d.allow
+                    && let Some(mut t) = last.clone()
+                {
                     with_slot(&mut t.ext, |m| push(m, "denied", json!({ "tool": tool, "detail": detail })));
                     turns.push(t);
                 }
-                if d.allow { format!("You allowed{}: {action}", if d.always { " (always in this task)" } else { "" }) } else { format!("You denied: {action}{}", d.message.map(|m| format!(" (“{m}”)")).unwrap_or_default()) }
+                if d.allow {
+                    format!("You allowed{}: {action}", if d.always { " (always in this task)" } else { "" })
+                } else {
+                    format!("You denied: {action}{}", d.message.map(|m| format!(" (“{m}”)")).unwrap_or_default())
+                }
             }
             None => format!("You answered: {text}"),
         };
         self.asks().remove(&ask_id);
         self.answers().insert(ask_id.clone(), text.to_owned());
-        s.state = if self.run_state(id.as_str()) == wisp_runtime_core::queue::Run::Idle { SessionState::Review } else { SessionState::Running };
+        s.state =
+            if self.run_state(id.as_str()) == wisp_runtime_core::queue::Run::Idle { SessionState::Review } else { SessionState::Running };
         self.persist(&mut s, turns).await?;
         if let Some(t) = last {
             self.add_row(id.as_str(), t.id.as_str(), tool_row(ToolKind::Answer, label)).await?;
@@ -173,18 +187,36 @@ impl Runtime {
         let s = self.repo.session(a.id.as_str()).await?;
         let h = self.harness(&s.agent)?;
         // a harness that can't say what the call does: the grant covers only this exact input
-        let p = h.permission(&a.tool, &a.input, &s.cwd).unwrap_or_else(|| PermissionAsk { tool: a.tool.clone(), action: format!("use {}", a.tool), detail: a.input.to_string(), why: None });
+        let p = h.permission(&a.tool, &a.input, &s.cwd).unwrap_or_else(|| PermissionAsk {
+            tool: a.tool.clone(),
+            action: format!("use {}", a.tool),
+            detail: a.input.to_string(),
+            why: None,
+        });
         let last = self.last_turn(a.id.as_str()).await?;
         if slot(&s).and_then(|m| m.get("sideOf")).is_some() {
             if let Some(t) = &last {
-                self.add_row(a.id.as_str(), t.id.as_str(), tool_row(ToolKind::Answer, format!("Refused (a side discussion only reads): {}", p.action))).await?;
+                self.add_row(
+                    a.id.as_str(),
+                    t.id.as_str(),
+                    tool_row(ToolKind::Answer, format!("Refused (a side discussion only reads): {}", p.action)),
+                )
+                .await?;
             }
             return Ok(json!({ "behavior": "deny", "message": SIDE_DENIED }));
         }
-        let granted = slot(&s).and_then(|m| m.get("grants")).and_then(Value::as_array).is_some_and(|g| g.iter().any(|x| str_at(x, "tool") == p.tool && str_at(x, "detail") == p.detail));
+        let granted = slot(&s)
+            .and_then(|m| m.get("grants"))
+            .and_then(Value::as_array)
+            .is_some_and(|g| g.iter().any(|x| str_at(x, "tool") == p.tool && str_at(x, "detail") == p.detail));
         if granted {
             if let Some(t) = &last {
-                self.add_row(a.id.as_str(), t.id.as_str(), tool_row(ToolKind::Answer, format!("Allowed (always in this task): {}", p.action))).await?;
+                self.add_row(
+                    a.id.as_str(),
+                    t.id.as_str(),
+                    tool_row(ToolKind::Answer, format!("Allowed (always in this task): {}", p.action)),
+                )
+                .await?;
             }
             return Ok(json!({ "behavior": "allow", "updatedInput": a.input }));
         }
@@ -196,6 +228,10 @@ impl Runtime {
             return Ok(json!({ "behavior": "deny", "message": "No answer from the user in time, or the task was stopped." }));
         };
         let d = approval_decision(&answer);
-        Ok(if d.allow { json!({ "behavior": "allow", "updatedInput": a.input }) } else { json!({ "behavior": "deny", "message": d.message.unwrap_or_else(|| "The user denied this.".into()) }) })
+        Ok(if d.allow {
+            json!({ "behavior": "allow", "updatedInput": a.input })
+        } else {
+            json!({ "behavior": "deny", "message": d.message.unwrap_or_else(|| "The user denied this.".into()) })
+        })
     }
 }

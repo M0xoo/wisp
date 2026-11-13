@@ -12,32 +12,17 @@ fn queries_decode_like_url_search_params() {
             ("d".into(), "%zz".into())
         ]
     );
-    assert_eq!(
-        parse_query(None),
-        [] as [(std::string::String, std::string::String); 0]
-    );
+    assert_eq!(parse_query(None), [] as [(std::string::String, std::string::String); 0]);
 }
 
 #[test]
 fn json_bodies() {
     let mut h = HeaderMap::new();
     h.insert("content-type", "application/json".parse().unwrap());
-    assert_eq!(
-        json_body(&h, Bytes::new()).unwrap(),
-        Bytes::from_static(b"{}")
-    );
-    assert!(matches!(
-        json_body(&h, Bytes::from_static(b"{nope")),
-        Err(ApiError::InvalidJson)
-    ));
+    assert_eq!(json_body(&h, Bytes::new()).unwrap(), Bytes::from_static(b"{}"));
+    assert!(matches!(json_body(&h, Bytes::from_static(b"{nope")), Err(ApiError::InvalidJson)));
     assert!(json_body(&h, Bytes::from_static("{\"t\":\"✓\"}".as_bytes())).is_ok());
-    assert!(matches!(
-        json_body(&h, Bytes::from_static(b"\xff\xfe")),
-        Err(ApiError::InvalidJson)
-    ));
+    assert!(matches!(json_body(&h, Bytes::from_static(b"\xff\xfe")), Err(ApiError::InvalidJson)));
     h.insert("content-type", "application/octet-stream".parse().unwrap());
-    assert_eq!(
-        json_body(&h, Bytes::from_static(b"\xff")).unwrap(),
-        Bytes::from_static(b"\xff")
-    );
+    assert_eq!(json_body(&h, Bytes::from_static(b"\xff")).unwrap(), Bytes::from_static(b"\xff"));
 }

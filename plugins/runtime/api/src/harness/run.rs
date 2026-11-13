@@ -167,13 +167,7 @@ pub trait HarnessParser: Send {
 /// What the runtime drives for one run. Async only so a harness can run its parser's disk steps (through
 /// `sys`, never directly) in order; it must not block, and must not hold `sys` calls across inputs.
 pub trait RunDriver: Send {
-    fn on<'a>(
-        &'a mut self,
-        input: ParserInput<'a>,
-        now_ms: i64,
-        sys: &'a dyn HarnessSys,
-        out: &'a mut ParserOutput,
-    ) -> BoxFuture<'a, ()>;
+    fn on<'a>(&'a mut self, input: ParserInput<'a>, now_ms: i64, sys: &'a dyn HarnessSys, out: &'a mut ParserOutput) -> BoxFuture<'a, ()>;
 }
 
 /// A pure parser as a driver (no disk steps).
@@ -184,13 +178,7 @@ pub fn pure(parser: impl HarnessParser + 'static) -> Box<dyn RunDriver> {
 struct Pure<P>(P);
 
 impl<P: HarnessParser> RunDriver for Pure<P> {
-    fn on<'a>(
-        &'a mut self,
-        input: ParserInput<'a>,
-        now_ms: i64,
-        _sys: &'a dyn HarnessSys,
-        out: &'a mut ParserOutput,
-    ) -> BoxFuture<'a, ()> {
+    fn on<'a>(&'a mut self, input: ParserInput<'a>, now_ms: i64, _sys: &'a dyn HarnessSys, out: &'a mut ParserOutput) -> BoxFuture<'a, ()> {
         self.0.on(input, now_ms, out);
         Box::pin(std::future::ready(()))
     }

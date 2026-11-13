@@ -81,9 +81,7 @@ pub(crate) fn head_seq(db: &Connection) -> Result<i64> {
 }
 
 pub(crate) fn oldest_seq(db: &Connection) -> Result<i64> {
-    let min: Option<i64> = db
-        .prepare_cached("SELECT min(seq) FROM change")?
-        .query_row([], |r| r.get(0))?;
+    let min: Option<i64> = db.prepare_cached("SELECT min(seq) FROM change")?.query_row([], |r| r.get(0))?;
     match min {
         Some(s) => Ok(s),
         None => Ok(head_seq(db)? + 1),
@@ -95,19 +93,12 @@ pub(crate) fn can_resume(db: &Connection, cursor: i64) -> Result<bool> {
     Ok(cursor >= 0 && cursor <= head_seq(db)? && cursor >= oldest_seq(db)? - 1)
 }
 
-pub(crate) fn read(
-    db: &Connection,
-    since: i64,
-    topics: Option<&[&str]>,
-    limit: u32,
-) -> Result<Vec<ChangeRow>> {
+pub(crate) fn read(db: &Connection, since: i64, topics: Option<&[&str]>, limit: u32) -> Result<Vec<ChangeRow>> {
     if since < 0 {
         return Err(invalid("changes_since: seq must be a whole number ≥ 0"));
     }
     if limit == 0 || limit > MAX_LIMIT {
-        return Err(invalid(format!(
-            "changes_since: limit must be 1…{MAX_LIMIT}"
-        )));
+        return Err(invalid(format!("changes_since: limit must be 1…{MAX_LIMIT}")));
     }
     let seqs = match topics {
         Some([]) => return Ok(Vec::new()),
@@ -117,9 +108,7 @@ pub(crate) fn read(
     let mut out = Vec::new();
     match seqs {
         None => {
-            let mut st = db.prepare_cached(&format!(
-                "SELECT {COLS} FROM change WHERE seq > ? ORDER BY seq LIMIT ?"
-            ))?;
+            let mut st = db.prepare_cached(&format!("SELECT {COLS} FROM change WHERE seq > ? ORDER BY seq LIMIT ?"))?;
             let mut rows = st.query([since, i64::from(limit)])?;
             while let Some(r) = rows.next()? {
                 out.push(decode(r)?);
@@ -141,9 +130,7 @@ pub(crate) fn read(
 /// The first `limit` seqs after `since` on any of `topics`: one index range per topic (each already in
 /// seq order and cut at `limit`), merged. A change on two watched topics counts once.
 fn topic_seqs(db: &Connection, since: i64, topics: &[&str], limit: u32) -> Result<Vec<i64>> {
-    let mut st = db.prepare_cached(
-        "SELECT seq FROM change_topic WHERE topic = ? AND seq > ? ORDER BY seq LIMIT ?",
-    )?;
+    let mut st = db.prepare_cached("SELECT seq FROM change_topic WHERE topic = ? AND seq > ? ORDER BY seq LIMIT ?")?;
     let mut all = Vec::new();
     for t in topics {
         let mut rows = st.query(params![t, since, i64::from(limit)])?;
@@ -208,10 +195,7 @@ pub(crate) fn changed_since(
         }
     }
     order.reverse(); // collected newest first; deliver oldest first, each at its latest change
-    let mut delta = Delta {
-        head,
-        ..Delta::default()
-    };
+    let mut delta = Delta { head, ..Delta::default() };
     for (entity, id) in order {
         let Some(k) = kinds(&entity) else { continue }; // an owner that is not loaded: skip its rows
         match get_row(db, &k, &id)? {
@@ -230,12 +214,7 @@ fn touched(c: &ChangeRow, kinds: &dyn Fn(&str) -> Option<std::sync::Arc<Kind>>) 
         return Ok(Vec::new());
     };
     let rows = c.patch.as_array().map(Vec::as_slice).unwrap_or_default();
-    let mut ids = rows
-        .iter()
-        .rev()
-        .filter_map(|r| r.as_object())
-        .map(|r| k.id_value(r))
-        .collect::<Result<Vec<_>>>()?;
+    let mut ids = rows.iter().rev().filter_map(|r| r.as_object()).map(|r| k.id_value(r)).collect::<Result<Vec<_>>>()?;
     ids.dedup();
     Ok(ids)
 }

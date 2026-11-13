@@ -26,7 +26,8 @@ pub trait TermSource: Send + Sync + 'static {
 pub const SOURCE: Point<dyn TermSource> = Point::new("termctx.source", 1);
 
 /// The environment variables a source may look at (the CLI sends only these).
-pub const ENV_KEYS: [&str; 8] = ["TMUX", "TMUX_PANE", "WEZTERM_PANE", "KITTY_WINDOW_ID", "KITTY_LISTEN_ON", "KITTY_PID", "ITERM_SESSION_ID", "TERM_PROGRAM"];
+pub const ENV_KEYS: [&str; 8] =
+    ["TMUX", "TMUX_PANE", "WEZTERM_PANE", "KITTY_WINDOW_ID", "KITTY_LISTEN_ON", "KITTY_PID", "ITERM_SESSION_ID", "TERM_PROGRAM"];
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "termctx/")]

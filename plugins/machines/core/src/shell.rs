@@ -16,15 +16,8 @@ pub fn is_target(s: &str) -> bool {
         Some((u, h)) => (u, Some(h)),
         None => (s, None),
     };
-    let user_ok = !user.is_empty()
-        && user
-            .chars()
-            .all(|c| word(c) || matches!(c, '.' | '%' | '+' | '-'));
-    let host_ok = host.is_none_or(|h| {
-        !h.is_empty()
-            && h.chars()
-                .all(|c| word(c) || matches!(c, '.' | '%' | ':' | '[' | ']' | '-'))
-    });
+    let user_ok = !user.is_empty() && user.chars().all(|c| word(c) || matches!(c, '.' | '%' | '+' | '-'));
+    let host_ok = host.is_none_or(|h| !h.is_empty() && h.chars().all(|c| word(c) || matches!(c, '.' | '%' | ':' | '[' | ']' | '-')));
     user_ok && host_ok
 }
 
@@ -39,38 +32,16 @@ mod tests {
 
     #[test]
     fn quoting() {
-        assert_eq!(
-            shq("npx -y wisp-agents@1.2.3 # it's"),
-            r"'npx -y wisp-agents@1.2.3 # it'\''s'"
-        );
+        assert_eq!(shq("npx -y wisp-agents@1.2.3 # it's"), r"'npx -y wisp-agents@1.2.3 # it'\''s'");
         assert_eq!(shq(""), "''");
     }
 
     #[test]
     fn targets_never_become_options() {
-        for ok in [
-            "devbox",
-            "me@devbox",
-            "me@10.0.0.5",
-            "me@[fe80::1]",
-            "a.b-c_d%e+f",
-            "studio.tail1.ts.net",
-        ] {
+        for ok in ["devbox", "me@devbox", "me@10.0.0.5", "me@[fe80::1]", "a.b-c_d%e+f", "studio.tail1.ts.net"] {
             assert!(is_target(ok), "{ok}");
         }
-        for bad in [
-            "-oProxyCommand=touch /tmp/x",
-            "a b",
-            "",
-            "me@",
-            "@box",
-            "me@box@x",
-            "a;b",
-            "me@box/x",
-            "$(x)",
-            "a\nb",
-            "é",
-        ] {
+        for bad in ["-oProxyCommand=touch /tmp/x", "a b", "", "me@", "@box", "me@box@x", "a;b", "me@box/x", "$(x)", "a\nb", "é"] {
             assert!(!is_target(bad), "{bad}");
         }
         assert_eq!(host_of("me@box"), "box");

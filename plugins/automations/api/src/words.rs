@@ -12,21 +12,12 @@ use std::sync::LazyLock;
 
 use regex::{Captures, Regex};
 
-pub const DAY_NAMES: [&str; 7] = [
-    "sunday",
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-];
+pub const DAY_NAMES: [&str; 7] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const ALIASES: [&str; 5] = ["@hourly", "@daily", "@weekly", "@monthly", "@weekdays"];
 // Words that carry no meaning of their own once the rest is read.
 const FILLER: [&str; 31] = [
-    "every", "each", "on", "at", "in", "the", "and", "a", "an", "of", "run", "runs", "check",
-    "checks", "please", "o", "clock", "o'clock", "around", "about", "only", "per", "once", "from",
-    "to", "until", "till", "through", "thru", "between", "during",
+    "every", "each", "on", "at", "in", "the", "and", "a", "an", "of", "run", "runs", "check", "checks", "please", "o", "clock", "o'clock",
+    "around", "about", "only", "per", "once", "from", "to", "until", "till", "through", "thru", "between", "during",
 ];
 
 const DAY: &str = r"(sun|mon|tue|wed|thu|fri|sat)[a-z]*";
@@ -57,39 +48,27 @@ struct Patterns {
 }
 
 static P: LazyLock<Patterns> = LazyLock::new(|| Patterns {
-    every: re(
-        r" (?:every|each) (?:(\d+|other|half an?|half|quarter|a) )?(minutes?|mins?|m|hours?|hrs?|h)\b(?: (?:past|after) the hour)?",
-    ),
+    every: re(r" (?:every|each) (?:(\d+|other|half an?|half|quarter|a) )?(minutes?|mins?|m|hours?|hrs?|h)\b(?: (?:past|after) the hour)?"),
     hourly: re(r" (?:hourly|every hour on the hour)\b"),
     past: re(r" (\d{1,2}) (?:minutes? )?past the hour\b"),
     work_hours: re(r" (?:during )?(?:work|working|office|business) hours\b"),
-    between: re(&format!(
-        r" (?:between|from) {CLOCK} (?:and|to|until|till|-) {CLOCK}\b"
-    )),
+    between: re(&format!(r" (?:between|from) {CLOCK} (?:and|to|until|till|-) {CLOCK}\b")),
     weekdays: re(
         r" (?:every |each |on )?(?:weekdays?|work ?days?|working days?|business days?|mon(?:day)?s? ?(?:-|to|through|thru) ?fri(?:day)?s?)\b",
     ),
     weekends: re(r" (?:every |each |on |at )?(?:the )?weekends?\b"),
-    day_range: re(&format!(
-        r" ({DAY}) ?(?:-|to|through|thru|until) ?({DAY})\b"
-    )),
+    day_range: re(&format!(r" ({DAY}) ?(?:-|to|through|thru|until) ?({DAY})\b")),
     day: re(&format!(r" {DAY}\b")),
     daily: re(
         r" (?:every day|each day|daily|nightly|everyday|(?:once )?(?:a|per) day|every night|every morning|every evening|every afternoon)\b",
     ),
-    nth: re(
-        r" (?:every |each |on )?(?:the )?(first|1st|last|\d{1,2}(?:st|nd|rd|th)?) (?:day )?of (?:the |each |every )?month\b",
-    ),
+    nth: re(r" (?:every |each |on )?(?:the )?(first|1st|last|\d{1,2}(?:st|nd|rd|th)?) (?:day )?of (?:the |each |every )?month\b"),
     monthly: re(r" (?:every month|each month|monthly|(?:once )?(?:a|per) month)\b"),
     weekly: re(r" (?:every week|each week|weekly|(?:once )?(?:a|per) week)\b"),
     at: re(&format!(r" (?:at |@ ?)?{CLOCK}(?P<la> |$)")),
-    part: re(
-        r" (?:in the |at |every )?(morning|mornings|noon|midday|lunchtime|afternoons?|evenings?|nights?|tonight|midnight)\b",
-    ),
+    part: re(r" (?:in the |at |every )?(morning|mornings|noon|midday|lunchtime|afternoons?|evenings?|nights?|tonight|midnight)\b"),
     and: re(r" (?:and|&) (\d{1,2})(?P<la> |$)"),
-    is_day: re(
-        r"^(?:(?:sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)|(?:sun|mon|tues|wednes|thurs|fri|satur)days?)$",
-    ),
+    is_day: re(r"^(?:(?:sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)|(?:sun|mon|tues|wednes|thurs|fri|satur)days?)$"),
 });
 
 fn part_of_day(w: &str) -> Option<u32> {
@@ -184,19 +163,11 @@ fn is_day(w: &str) -> bool {
 
 fn day_index(w: &str) -> u32 {
     let p: String = w.chars().take(3).collect::<String>().to_lowercase();
-    DAY_NAMES
-        .iter()
-        .position(|d| d.starts_with(&p))
-        .and_then(|i| u32::try_from(i).ok())
-        .unwrap_or(0)
+    DAY_NAMES.iter().position(|d| d.starts_with(&p)).and_then(|i| u32::try_from(i).ok()).unwrap_or(0)
 }
 
 fn day_range(a: u32, b: u32) -> Vec<u32> {
-    if a <= b {
-        (a..=b).collect()
-    } else {
-        (a..=6).chain(0..=b).collect()
-    }
+    if a <= b { (a..=b).collect() } else { (a..=6).chain(0..=b).collect() }
 }
 
 /// `[1,2,3,4,5]` → `"1-5"`: what a person would write, and what cron words read back.
@@ -330,11 +301,7 @@ fn read_days(r: &mut Read) {
     });
     take(r, P.daily.as_ref(), |r, m| {
         let all = g(m, 0).unwrap_or("");
-        if let Some(h) = ["morning", "evening", "afternoon", "night"]
-            .iter()
-            .find(|p| all.contains(*p))
-            .and_then(|p| part_of_day(p))
-        {
+        if let Some(h) = ["morning", "evening", "afternoon", "night"].iter().find(|p| all.contains(*p)).and_then(|p| part_of_day(p)) {
             r.times.push((h, 0));
         }
         r.dow.get_or_insert_with(Vec::new);
@@ -373,10 +340,7 @@ fn read_times(r: &mut Read) {
     take(r, P.at.as_ref(), |r, m| {
         // A bare number only counts after "at" ("at 9"), or with a colon ("17:30"), or am/pm.
         let all = g(m, 0).unwrap_or("").trim_start();
-        if !(all.starts_with("at") || all.starts_with('@'))
-            && g(m, 2).is_none()
-            && g(m, 3).is_none()
-        {
+        if !(all.starts_with("at") || all.starts_with('@')) && g(m, 2).is_none() && g(m, 3).is_none() {
             return Keep::Leave;
         }
         match clock(n(g(m, 1)), n(g(m, 2)), g(m, 3)) {
@@ -386,8 +350,7 @@ fn read_times(r: &mut Read) {
         Keep::Cut
     });
     take(r, P.part.as_ref(), |r, m| {
-        r.times
-            .push((g(m, 1).and_then(part_of_day).unwrap_or(9), 0));
+        r.times.push((g(m, 1).and_then(part_of_day).unwrap_or(9), 0));
         Keep::Cut
     });
     take(r, P.and.as_ref(), |r, m| {
@@ -420,11 +383,7 @@ fn minute_hour(r: &Read) -> Option<(String, String)> {
     if r.minute.is_some() || r.hour.is_some() {
         let mut h = r.hour.clone().unwrap_or_else(|| "*".into());
         if let Some((a, b)) = r.hours {
-            h = if h == "*" {
-                format!("{a}-{}", b - 1)
-            } else {
-                format!("{a}-{}/{}", b - 1, h.get(2..).unwrap_or(""))
-            };
+            h = if h == "*" { format!("{a}-{}", b - 1) } else { format!("{a}-{}/{}", b - 1, h.get(2..).unwrap_or("")) };
         }
         return Some((r.minute.clone().unwrap_or_else(|| "0".into()), h));
     }
@@ -436,20 +395,12 @@ fn minute_hour(r: &Read) -> Option<(String, String)> {
 
 fn is_cron(raw: &str) -> bool {
     let parts: Vec<&str> = raw.split_whitespace().collect();
-    parts.len() == 5
-        && parts.iter().all(|p| {
-            p.bytes()
-                .all(|b| b.is_ascii_digit() || b"*,/-".contains(&b))
-        })
+    parts.len() == 5 && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit() || b"*,/-".contains(&b)))
 }
 
 // Lower case, curly quotes made straight, punctuation that ends a word dropped, spaces collapsed.
 fn normalise(raw: &str) -> String {
-    let lower: Vec<char> = raw
-        .to_lowercase()
-        .chars()
-        .map(|c| if c == '’' || c == '`' { '\'' } else { c })
-        .collect();
+    let lower: Vec<char> = raw.to_lowercase().chars().map(|c| if c == '’' || c == '`' { '\'' } else { c }).collect();
     let mut out = String::with_capacity(lower.len() + 2);
     let mut i = 0;
     while i < lower.len() {
@@ -482,23 +433,13 @@ pub fn to_cron(text: &str) -> Option<String> {
     if ALIASES.contains(&raw) || is_cron(raw) {
         return Some(raw.to_owned());
     }
-    let mut r = Read {
-        s: normalise(raw),
-        ..Read::default()
-    };
+    let mut r = Read { s: normalise(raw), ..Read::default() };
     read_every(&mut r);
     read_within(&mut r);
     read_days(&mut r);
     read_times(&mut r);
-    let left =
-        r.s.split(' ')
-            .any(|w| !w.is_empty() && !FILLER.contains(&w));
-    let said = r.minute.is_some()
-        || r.hour.is_some()
-        || r.hours.is_some()
-        || !r.times.is_empty()
-        || r.dow.is_some()
-        || r.dom.is_some();
+    let left = r.s.split(' ').any(|w| !w.is_empty() && !FILLER.contains(&w));
+    let said = r.minute.is_some() || r.hour.is_some() || r.hours.is_some() || !r.times.is_empty() || r.dow.is_some() || r.dom.is_some();
     if r.bad || left || !said {
         return None;
     }

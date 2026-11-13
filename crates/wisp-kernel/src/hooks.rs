@@ -22,20 +22,10 @@ pub const TIMEOUT_MAX_MS: u64 = 2000;
 type Typed<V> = Arc<dyn Fn(Ctx, Call, V) -> BoxFuture<'static, Verdict<V>> + Send + Sync>;
 
 /// Hook `H` from plugin code (`Ctx::run_hook`).
-pub(crate) fn typed<H: Hook>(
-    ctx: Ctx,
-    call: Call,
-    hctx: H::Ctx,
-) -> BoxFuture<'static, Result<H::Ctx>> {
+pub(crate) fn typed<H: Hook>(ctx: Ctx, call: Call, hctx: H::Ctx) -> BoxFuture<'static, Result<H::Ctx>> {
     Box::pin(async move {
         let k = ctx.k()?;
-        chain(&k, &call, H::ID, hctx, |h| {
-            h.typed
-                .as_deref()
-                .and_then(|t| t.downcast_ref::<TypedHook<H>>())
-                .map(|t| t.0.clone())
-        })
-        .await
+        chain(&k, &call, H::ID, hctx, |h| h.typed.as_deref().and_then(|t| t.downcast_ref::<TypedHook<H>>()).map(|t| t.0.clone())).await
     })
 }
 
@@ -64,26 +54,11 @@ fn ordered(k: &KernelState, hook: &str) -> Result<Vec<Arc<HookEntry>>> {
 }
 
 fn delay(k: &KernelState, owner: &str, hook: &str) -> u64 {
-    k.chaos
-        .read()
-        .ok()
-        .and_then(|c| {
-            c.delays
-                .iter()
-                .find(|(p, h, _)| p == owner && h == hook)
-                .map(|(_, _, ms)| *ms)
-        })
-        .unwrap_or(0)
+    k.chaos.read().ok().and_then(|c| c.delays.iter().find(|(p, h, _)| p == owner && h == hook).map(|(_, _, ms)| *ms)).unwrap_or(0)
 }
 
 #[allow(clippy::many_single_char_names)]
-async fn chain<V, F>(
-    k: &Arc<KernelState>,
-    call: &Call,
-    hook: &str,
-    mut v: V,
-    typed_of: F,
-) -> Result<V>
+async fn chain<V, F>(k: &Arc<KernelState>, call: &Call, hook: &str, mut v: V, typed_of: F) -> Result<V>
 where
     V: Clone + Serialize + DeserializeOwned + Send + 'static,
     F: Fn(&HookEntry) -> Option<Typed<V>>,
@@ -93,19 +68,11 @@ where
         let mut stack = p.stack.clone();
         stack.push(h.frame.clone());
         if p.stack.contains(&h.frame) {
-            let m = format!(
-                "{hook} would run {}'s interceptor again inside itself ({})",
-                h.owner,
-                stack.join(" → ")
-            );
+            let m = format!("{hook} would run {}'s interceptor again inside itself ({})", h.owner, stack.join(" → "));
             return Err(refuse(k, Code::ReentrantHook, m, &h.owner, stack));
         }
         if p.depth + 1 >= MAX_DEPTH {
-            let m = format!(
-                "{hook} would run at depth {} ({})",
-                p.depth + 1,
-                stack.join(" → ")
-            );
+            let m = format!("{hook} would run at depth {} ({})", p.depth + 1, stack.join(" → "));
             return Err(refuse(k, Code::DepthExceeded, m, &h.owner, stack));
         }
         let child = CallInner {
@@ -139,20 +106,9 @@ where
         match out {
             Ok(Verdict::Continue) => {}
             Ok(Verdict::Modify { ctx }) => v = ctx,
-            Ok(Verdict::Veto {
-                code,
-                message,
-                then,
-            }) => return Err(veto(k, call, &h, hook, &code, message, then)),
+            Ok(Verdict::Veto { code, message, then }) => return Err(veto(k, call, &h, hook, &code, message, then)),
             Err((code, message)) => {
-                k.diag.record(
-                    k.now_ms(),
-                    &h.owner,
-                    "interceptor",
-                    &code,
-                    message.clone(),
-                    stack,
-                );
+                k.diag.record(k.now_ms(), &h.owner, "interceptor", &code, message.clone(), stack);
                 if h.opts.failure == Failure::Closed {
                     return Err(veto(k, call, &h, hook, &code, message, Vec::new()));
                 }
@@ -164,21 +120,11 @@ where
 }
 
 fn code_of(c: Code) -> String {
-    serde_json::to_value(c)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_owned))
-        .unwrap_or_default()
+    serde_json::to_value(c).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()
 }
 
 /// One interceptor, typed when it shares the hook's Rust type, else through JSON.
-fn one<V>(
-    k: &KernelState,
-    h: &HookEntry,
-    hook: &str,
-    child: Call,
-    v: V,
-    typed: Option<Typed<V>>,
-) -> BoxFuture<'static, Result<Verdict<V>>>
+fn one<V>(k: &KernelState, h: &HookEntry, hook: &str, child: Call, v: V, typed: Option<Typed<V>>) -> BoxFuture<'static, Result<Verdict<V>>>
 where
     V: Serialize + DeserializeOwned + Send + 'static,
 {
@@ -196,51 +142,26 @@ where
         Ok(match json_fn(ctx, child, input).await? {
             Verdict::Continue => Verdict::Continue,
             Verdict::Modify { ctx } => Verdict::Modify {
-                ctx: serde_json::from_value(ctx).map_err(|e| {
-                    WireError::invalid(format!("a modified context that doesn't fit: {e}"))
-                })?,
+                ctx: serde_json::from_value(ctx).map_err(|e| WireError::invalid(format!("a modified context that doesn't fit: {e}")))?,
             },
-            Verdict::Veto {
-                code,
-                message,
-                then,
-            } => Verdict::Veto {
-                code,
-                message,
-                then,
-            },
+            Verdict::Veto { code, message, then } => Verdict::Veto { code, message, then },
         })
     })
 }
 
 /// A veto: follow-ups queued on the root (or run now outside a command), `kernel.vetoed` published
 /// (nothing commits for a refused action, so the fact goes out at once), and the error the caller reads.
-fn veto(
-    k: &Arc<KernelState>,
-    call: &Call,
-    h: &HookEntry,
-    hook: &str,
-    code: &str,
-    message: String,
-    then: Vec<FollowUp>,
-) -> WireError {
+fn veto(k: &Arc<KernelState>, call: &Call, h: &HookEntry, hook: &str, code: &str, message: String, then: Vec<FollowUp>) -> WireError {
     match &call.inner.tx {
         Some(tx) => {
             if let Ok(mut f) = tx.follow.lock() {
                 f.extend(then.into_iter().map(|t| (t.cmd, t.args, h.ctx.clone())));
             }
         }
-        None => then
-            .into_iter()
-            .for_each(|t| spawn_root(k, h.ctx.clone(), t.cmd, t.args)),
+        None => then.into_iter().for_each(|t| spawn_root(k, h.ctx.clone(), t.cmd, t.args)),
     }
-    let data = json!({ "hook": hook, "by": &*h.owner, "code": code, "message": &message, "root": &call.inner.root, "stack": &call.inner.stack });
-    k.bus.publish(
-        k,
-        &call.inner.root,
-        None,
-        Pending::plain("kernel.vetoed", Arc::from("wisp.kernel"), Payload::Json(Arc::new(data))),
-    );
-    WireError::new(Code::Vetoed, message)
-        .with_details(json!({ "by": &*h.owner, "reason": code, "hook": hook }))
+    let data =
+        json!({ "hook": hook, "by": &*h.owner, "code": code, "message": &message, "root": &call.inner.root, "stack": &call.inner.stack });
+    k.bus.publish(k, &call.inner.root, None, Pending::plain("kernel.vetoed", Arc::from("wisp.kernel"), Payload::Json(Arc::new(data))));
+    WireError::new(Code::Vetoed, message).with_details(json!({ "by": &*h.owner, "reason": code, "hook": hook }))
 }

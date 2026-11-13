@@ -22,7 +22,8 @@ pub const DEAD_BUTTON: &str = "That button doesn’t work any more.";
 pub const IN_WORDS: &str = "Say that in words here, so it runs in Edits at most.";
 pub const WENT_WRONG: &str = "wisp hit an error answering that. Check in wisp before you try again.";
 pub const STRANGER_BOX: &str = "This wisp only answers people linked to it. To link, use `/wisp` here with `link` and the code shown in wisp → Settings → Phone → Discord.";
-pub const NO_HUB: &str = "Discord can’t reach this wisp: its grid doesn’t hold messages for it. Set Discord up on a computer that stays on.";
+pub const NO_HUB: &str =
+    "Discord can’t reach this wisp: its grid doesn’t hold messages for it. Set Discord up on a computer that stays on.";
 
 /// The ids held interactions were seen by, kept in the config (a box forgets when it sleeps), by age.
 const SEEN_KEY: &str = "seenHeld";
@@ -129,9 +130,17 @@ impl Discord {
         let pairs: Vec<(String, String)> = match option {
             "crew" => ctx.crew.iter().map(|m| pair(&m.name, &handle_of(&m.name))).collect(),
             "project" => ctx.projects.iter().map(|p| pair(&p.name, &p.name)).collect(),
-            "machine" if !self.hub.grid().in_box() => std::iter::once(pair("here", "here")).chain(ctx.machines.iter().filter(|m| m.usable).map(|m| pair(&m.name, &m.name))).collect(),
+            "machine" if !self.hub.grid().in_box() => std::iter::once(pair("here", "here"))
+                .chain(ctx.machines.iter().filter(|m| m.usable).map(|m| pair(&m.name, &m.name)))
+                .collect(),
             "model" => {
-                let mut ids: Vec<String> = ctx.agents.iter().filter(|a| a.available).flat_map(|a| a.models.iter().map(|m| m.id.clone())).filter(|m| !m.is_empty()).collect();
+                let mut ids: Vec<String> = ctx
+                    .agents
+                    .iter()
+                    .filter(|a| a.available)
+                    .flat_map(|a| a.models.iter().map(|m| m.id.clone()))
+                    .filter(|m| !m.is_empty())
+                    .collect();
                 ids.dedup();
                 ids.iter().map(|m| pair(m, m)).collect()
             }
@@ -175,7 +184,18 @@ impl Discord {
             let (mut seen, mut limit) = (lock(&self.seen), lock(&self.limit));
             let at_s = (!held).then(|| snowflake_ms(&i.id).map(|ms| ms / 1000)).flatten();
             let id = format!("ix:{}", i.id);
-            gate(GateArgs { sender: Some(&i.user), senders: &senders, id: Some(&id), at_s, seen: Some(&mut seen), limit: Some(&mut limit), now_ms: self.hub.now_ms(), dm: i.dm, stranger_line: if held { STRANGER_BOX } else { STRANGER }, ..GateArgs::default() })
+            gate(GateArgs {
+                sender: Some(&i.user),
+                senders: &senders,
+                id: Some(&id),
+                at_s,
+                seen: Some(&mut seen),
+                limit: Some(&mut limit),
+                now_ms: self.hub.now_ms(),
+                dm: i.dm,
+                stranger_line: if held { STRANGER_BOX } else { STRANGER },
+                ..GateArgs::default()
+            })
         };
         let Gate::Refused { reply, why } = g else { return Ok(true) };
         self.hub.phone().count("refused", Some(&format!("{why:?}").to_lowercase()));
@@ -184,7 +204,12 @@ impl Discord {
             if held {
                 self.rest("PATCH", &self.original(i), Some(&crate::post_body(&r, None))).await?;
             } else {
-                self.respond(i, ix::MESSAGE, Some(json!({ "content": discord_text(&r), "flags": EPHEMERAL | SUPPRESS_EMBEDS, "allowed_mentions": { "parse": [] } }))).await?;
+                self.respond(
+                    i,
+                    ix::MESSAGE,
+                    Some(json!({ "content": discord_text(&r), "flags": EPHEMERAL | SUPPRESS_EMBEDS, "allowed_mentions": { "parse": [] } })),
+                )
+                .await?;
             }
         } else if held {
             let _ = self.rest("DELETE", &self.original(i), None).await;
@@ -214,10 +239,23 @@ impl Discord {
         if !held {
             self.respond(i, ix::DEFERRED, None).await?; // Discord gives this three seconds
         }
-        let m = Message { id: i.id.clone(), channel: i.channel.clone(), dm: i.dm, author: i.user.clone(), content: text.clone(), reference: None };
+        let m = Message {
+            id: i.id.clone(),
+            channel: i.channel.clone(),
+            dm: i.dm,
+            author: i.user.clone(),
+            content: text.clone(),
+            reference: None,
+        };
         let phone = self.hub.phone();
         let ctx = phone.context().await?;
-        let typed = if text.is_empty() { "help".to_owned() } else if text.to_lowercase().starts_with("new ") || text.eq_ignore_ascii_case("new") { format!("/{text}") } else { text };
+        let typed = if text.is_empty() {
+            "help".to_owned()
+        } else if text.to_lowercase().starts_with("new ") || text.eq_ignore_ascii_case("new") {
+            format!("/{text}")
+        } else {
+            text
+        };
         let session = self.session_for(&i.channel, None);
         let mut c = crate::conv::DiscordConv::new(self, phone, ctx, &m, Some(self.original(i)));
         c.slash_thread = i.in_thread;
@@ -248,10 +286,15 @@ impl Discord {
         if !self.hub.verify(&Signed { s: session.clone(), k, r: r.clone(), i: index, sig }) {
             return say(DEAD_BUTTON).await;
         }
-        if kind == ActionKind::Reply && self.hub.phone().session(&session).await.ok().flatten().is_none_or(|sv| sv.mode == Some(Mode::Auto)) {
+        if kind == ActionKind::Reply && self.hub.phone().session(&session).await.ok().flatten().is_none_or(|sv| sv.mode == Some(Mode::Auto))
+        {
             return say(IN_WORDS).await;
         }
-        let result = match self.hub.act(&ActArgs { session_id: session, kind: kind.into(), reference: Some(r), index: Some(index), text: None, approvals: false }).await {
+        let result = match self
+            .hub
+            .act(&ActArgs { session_id: session, kind: kind.into(), reference: Some(r), index: Some(index), text: None, approvals: false })
+            .await
+        {
             Ok(r) => r,
             Err(e) => format!("Couldn’t send that: {}", wisp_channels_api::scrub::truncate(&e.message, 300)),
         };
@@ -265,7 +308,13 @@ impl Discord {
             .actions
             .iter()
             .filter(|a| a.kind == ActionKind::Answer || (a.kind == ActionKind::Reply && sv.mode != Some(Mode::Auto)))
-            .map(|a| (discord_text(&a.label), ix::custom_id(a.kind.code(), &sv.id, &a.reference, a.index, &self.hub.sign(&sv.id, a.kind, &a.reference, a.index)), false))
+            .map(|a| {
+                (
+                    discord_text(&a.label),
+                    ix::custom_id(a.kind.code(), &sv.id, &a.reference, a.index, &self.hub.sign(&sv.id, a.kind, &a.reference, a.index)),
+                    false,
+                )
+            })
             .collect();
         ix::rows(&b)
     }
@@ -279,7 +328,14 @@ impl Discord {
         if c["enabled"] != true || self.hub.grid().grid().is_none() {
             return InboundResult::error(409, "Discord isn’t on here.");
         }
-        if !opts.verified && !ix::signed(s(&c, "publicKey"), header(headers, "x-signature-timestamp").unwrap_or_default(), raw, header(headers, "x-signature-ed25519").unwrap_or_default()) {
+        if !opts.verified
+            && !ix::signed(
+                s(&c, "publicKey"),
+                header(headers, "x-signature-timestamp").unwrap_or_default(),
+                raw,
+                header(headers, "x-signature-ed25519").unwrap_or_default(),
+            )
+        {
             return InboundResult::error(401, "Bad signature.");
         }
         let j: Value = serde_json::from_slice(raw).unwrap_or(Value::Null);
@@ -288,7 +344,10 @@ impl Discord {
             Kind::Ping => return InboundResult::new(200, json!({ "type": ix::PONG })),
             Kind::Autocomplete { option, typed } => {
                 let ctx = self.hub.phone().context().await.unwrap_or_default();
-                return InboundResult::new(200, json!({ "type": ix::CHOICES, "data": { "choices": self.choices(&ctx, &i.user, option, typed) } }));
+                return InboundResult::new(
+                    200,
+                    json!({ "type": ix::CHOICES, "data": { "choices": self.choices(&ctx, &i.user, option, typed) } }),
+                );
             }
             _ => {}
         }
@@ -302,11 +361,17 @@ impl Discord {
             }
             return InboundResult::error(410, "Too old.");
         }
-        let ours = allowed(Some(&i.user), &senders) || (i.dm && matches!(&i.kind, Kind::Command(t) if link_code(t).flatten().is_some_and(|code| code_matches(Some(code), s(&c, "linkCode")))));
+        let ours = allowed(Some(&i.user), &senders)
+            || (i.dm
+                && matches!(&i.kind, Kind::Command(t) if link_code(t).flatten().is_some_and(|code| code_matches(Some(code), s(&c, "linkCode")))));
         let mut cfg = c.clone();
         let mut seen: Vec<Value> = cfg.get(SEEN_KEY).and_then(Value::as_array).cloned().unwrap_or_default();
         if seen.iter().any(|x| x.as_str() == Some(i.id.as_str())) {
-            return if ours { InboundResult::new(200, json!({ "ok": true, "duplicate": true })) } else { InboundResult::error(403, "Not from someone linked.") };
+            return if ours {
+                InboundResult::new(200, json!({ "ok": true, "duplicate": true }))
+            } else {
+                InboundResult::error(403, "Not from someone linked.")
+            };
         }
         // by age, not count: a stranger's flood can't push an id out, and past this age it's refused anyway
         seen.push(json!(i.id));

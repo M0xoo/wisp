@@ -80,7 +80,9 @@ pub(crate) async fn follow_up(ctx: &Ctx, call: &Call, id: &str, text: String, at
 
 /// An entry's attachments as runtime takes them; one that isn't runtime's shape refuses the send (as runtime did).
 fn attachments_of(v: &[Value]) -> Result<Vec<Attachment>> {
-    v.iter().map(|a| serde_json::from_value(a.clone()).map_err(|e| WireError::invalid(format!("an attachment isn't one runtime knows: {e}")))).collect()
+    v.iter()
+        .map(|a| serde_json::from_value(a.clone()).map_err(|e| WireError::invalid(format!("an attachment isn't one runtime knows: {e}"))))
+        .collect()
 }
 
 /// `runtime.note`: the reminder's text in the task's transcript (logged when refused).
@@ -98,7 +100,8 @@ pub(crate) async fn for_later(ctx: &Ctx, call: &Call, id: &str, on: bool, at: Op
 
 /// `runtime.setState` to `state` (a wire name: `review`, `done`, …).
 pub(crate) async fn set_state(ctx: &Ctx, call: &Call, id: &str, state: &str) -> Result<()> {
-    let state: SessionState = serde_json::from_value(Value::String(state.to_owned())).map_err(|_| WireError::invalid(format!("{state} isn't a task state.")))?;
+    let state: SessionState =
+        serde_json::from_value(Value::String(state.to_owned())).map_err(|_| WireError::invalid(format!("{state} isn't a task state.")))?;
     ctx.run::<r::SetState>(call, r::SetStateArgs { id: SessionId(id.to_owned()), state }).await.map(drop)
 }
 
@@ -106,7 +109,8 @@ pub(crate) async fn set_state(ctx: &Ctx, call: &Call, id: &str, state: &str) -> 
 /// (empty, `.`, relative) is left out, so the runtime picks its own folder instead of resolving it against the
 /// server's.
 pub(crate) fn start_args(body: Option<&Value>) -> Result<r::StartArgs> {
-    let mut a: r::StartArgs = serde_json::from_value(body.cloned().unwrap_or_else(|| Value::Object(Map::new()))).map_err(|e| WireError::invalid(format!("a plan's task isn't one runtime can start: {e}")))?;
+    let mut a: r::StartArgs = serde_json::from_value(body.cloned().unwrap_or_else(|| Value::Object(Map::new())))
+        .map_err(|e| WireError::invalid(format!("a plan's task isn't one runtime can start: {e}")))?;
     a.by = Some("later".into());
     a.cwd = a.cwd.and_then(|c| match Folder::of(&c) {
         Ok(f) => Some(f.to_string()),
@@ -149,7 +153,10 @@ mod tests {
     #[test]
     fn a_task_is_read_from_the_typed_session() {
         let t = task_of_session(&session(&json!({ "state": "running", "account": "" })));
-        assert_eq!((t.busy, t.asking, t.account.as_str(), t.state, t.sub, t.tour), (true, false, "default", TaskState::Running, false, false));
+        assert_eq!(
+            (t.busy, t.asking, t.account.as_str(), t.state, t.sub, t.tour),
+            (true, false, "default", TaskState::Running, false, false)
+        );
         let t = task_of_session(&session(&json!({ "state": "waiting", "parentId": "lead", "agent": "wisp", "account": "work" })));
         assert_eq!((t.busy, t.asking, t.account.as_str(), t.state, t.sub, t.tour), (false, true, "work", TaskState::Review, true, true));
         let t = task_of_session(&session(&json!({ "ext": { "wisp.runtime": { "ask": { "q": "?" } } }, "archived": true })));
@@ -175,7 +182,10 @@ mod tests {
     fn a_reminder_note_carries_a_label() {
         let a = r::NoteArgs { id: SessionId("t1".into()), turn_id: None, tone: None, label: "call back".into() };
         assert_eq!(serde_json::to_value(a).unwrap()["label"], "call back");
-        assert!(serde_json::from_value::<r::NoteArgs>(json!({ "id": "t1", "text": "call back" })).is_err(), "the old shape never reached the task");
+        assert!(
+            serde_json::from_value::<r::NoteArgs>(json!({ "id": "t1", "text": "call back" })).is_err(),
+            "the old shape never reached the task"
+        );
     }
 
     #[test]

@@ -124,7 +124,8 @@ async fn resolve(store: &Store, a: &mut StartArgs, asked: &str) -> Result<Option
     } else {
         profile(store, "default").await?
     };
-    let resolved: Option<(String, AgentSpec)> = a.profile.clone().map(|p| (asked.to_owned(), p)).or_else(|| stored.map(|p| (p.name, p.spec)));
+    let resolved: Option<(String, AgentSpec)> =
+        a.profile.clone().map(|p| (asked.to_owned(), p)).or_else(|| stored.map(|p| (p.name, p.spec)));
     if let Some((_, p)) = &resolved {
         if !p.harness.is_empty() {
             a.agent = Some(p.harness.clone());
@@ -218,7 +219,8 @@ async fn act(kinds: Option<&crate::kinds::Kinds>, a: &mut StartArgs, profile: Op
             return Err(WireError::invalid(format!("no team named {t} (teams: in a formula)")));
         };
         let team: crate::kinds::TeamSpec = serde_json::from_value(spec).unwrap_or_default();
-        let subs: Vec<Value> = team.members.iter().map(|(n, m)| json!({ "name": n, "agent": m.agent, "count": m.count, "why": m.why })).collect();
+        let subs: Vec<Value> =
+            team.members.iter().map(|(n, m)| json!({ "name": n, "agent": m.agent, "count": m.count, "why": m.why })).collect();
         let mut own = match a.ext.remove("wisp.runtime") {
             Some(Value::Object(m)) => m,
             _ => Map::new(),
@@ -235,7 +237,11 @@ async fn act(kinds: Option<&crate::kinds::Kinds>, a: &mut StartArgs, profile: Op
             let Some((n, spec)) = all.iter().find(|(n, _)| n == want) else { continue };
             let k: crate::kinds::SkillSpec = serde_json::from_value(spec.clone()).unwrap_or_default();
             let body = if k.body.is_empty() && !k.path.is_empty() {
-                let file = if std::path::Path::new(&k.path).extension().is_some_and(|e| e.eq_ignore_ascii_case("md")) { k.path.clone() } else { format!("{}/SKILL.md", k.path.trim_end_matches('/')) };
+                let file = if std::path::Path::new(&k.path).extension().is_some_and(|e| e.eq_ignore_ascii_case("md")) {
+                    k.path.clone()
+                } else {
+                    format!("{}/SKILL.md", k.path.trim_end_matches('/'))
+                };
                 tokio::fs::read_to_string(&file).await.unwrap_or_default()
             } else {
                 k.body.clone()
@@ -262,7 +268,10 @@ async fn act(kinds: Option<&crate::kinds::Kinds>, a: &mut StartArgs, profile: Op
 /// fresh worktree or clone only, never on every task).
 pub async fn project_setup(kinds: Option<&crate::kinds::Kinds>, a: &StartArgs) -> Vec<String> {
     let projects = specs_of(a, "projects", kinds.map(|k| &k.project)).await;
-    crate::kinds::project_for(&projects, a.cwd.as_deref().unwrap_or_default()).filter(|(_, p)| p.trust.as_ref().is_none_or(|t| t.setup)).map(|(_, p)| p.setup).unwrap_or_default()
+    crate::kinds::project_for(&projects, a.cwd.as_deref().unwrap_or_default())
+        .filter(|(_, p)| p.trust.as_ref().is_none_or(|t| t.setup))
+        .map(|(_, p)| p.setup)
+        .unwrap_or_default()
 }
 
 /// Runs the setup in `dir`, in order; the first failure, said for the held card.
@@ -307,7 +316,9 @@ pub async fn folder(home: Option<&std::path::Path>, a: &mut StartArgs) -> Result
     let cwd = a.cwd.clone().unwrap_or_default();
     if cwd.trim().is_empty() {
         let dir = home.map_or_else(std::env::temp_dir, std::path::Path::to_path_buf).join("scratch").join(wisp_kernel::ids::uuid7());
-        tokio::fs::create_dir_all(&dir).await.map_err(|e| WireError::internal(format!("couldn't make a scratch folder at {}: {e}", dir.display())))?;
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| WireError::internal(format!("couldn't make a scratch folder at {}: {e}", dir.display())))?;
         a.cwd = Some(dir.display().to_string());
         return Ok(());
     }
@@ -319,35 +330,10 @@ pub async fn folder(home: Option<&std::path::Path>, a: &mut StartArgs) -> Result
     Ok(())
 }
 
-pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>, kinds: Option<&crate::kinds::Kinds>, mut a: StartArgs) -> Result<Prepared> {
-    defaults(&mut a, kinds).await;
-    let asked = a.agent.clone().unwrap_or_default();
-    // the spec keeps what was asked; the profile's values fill the task, not the spec (ADR-0029:
-    // flags > the spec's own fields > the formula's profile, so a rerun under another formula re-resolves)
-    let (asked_model, asked_effort, asked_mode) = (a.model.clone().unwrap_or_default(), a.effort.clone().unwrap_or_default(), a.mode);
-    let project = a.cwd.clone().unwrap_or_default();
-    // the spec keeps "no folder", so a rerun gets a fresh scratch folder of its own
-    folder(home, &mut a).await?;
-    let resolved = resolve(store, &mut a, &asked).await?;
-    let brief = act(kinds, &mut a, resolved.as_ref().map(|(_, p)| p)).await?;
-    // the code it starts from
-    let cwd = a.cwd.clone().unwrap_or_default();
-    let mut base = if cwd.is_empty() { None } else { base_at(proc, &cwd).await };
-    if let (Some(want), Some(have)) = (a.base.clone().filter(|b| !b.sha.is_empty()), base.clone())
-        && !have.sha.starts_with(&want.sha)
-    {
-        let dir = home.map_or_else(std::env::temp_dir, |h| h.join("worktrees")).join(format!("rerun-{}-{}", &want.sha[..want.sha.len().min(10)], &wisp_kernel::ids::uuid7()[24..]));
-        let path = dir.display().to_string();
-        let made = git(proc, &cwd, &["worktree", "add", "--detach", &path, &want.sha]).await.is_some() || dir.join(".git").exists();
-        if !made {
-            return Err(WireError::invalid(format!("couldn't check out {} in {cwd}: is that commit in this repo? (--from latest runs on today's code)", want.sha)));
-        }
-        base = Some(Base { sha: git(proc, &path, &["rev-parse", "HEAD"]).await.unwrap_or(want.sha), worktree: path.clone(), ..have });
-        a.cwd = Some(path);
-    }
-    // the effective formula, once per content
+/// The effective formula, stored once per content: its hash is what the spec keeps.
+async fn save_formula(store: &Store, resolved: Option<&(String, AgentSpec)>, a: &StartArgs) -> Result<String> {
     let mut formula = Map::new();
-    if let Some((name, p)) = &resolved {
+    if let Some((name, p)) = resolved {
         let mut o = serde_json::to_value(p).unwrap_or_default();
         o["name"] = json!(if name.is_empty() { "inline" } else { name.as_str() });
         formula.insert("agents".into(), json!([o]));
@@ -382,13 +368,58 @@ pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>,
         })
         .await
         .map_err(store_err)?;
+    Ok(h)
+}
+
+pub async fn prepare(
+    store: &Store,
+    proc: &Proc,
+    home: Option<&std::path::Path>,
+    kinds: Option<&crate::kinds::Kinds>,
+    mut a: StartArgs,
+) -> Result<Prepared> {
+    defaults(&mut a, kinds).await;
+    let asked = a.agent.clone().unwrap_or_default();
+    // the spec keeps what was asked; the profile's values fill the task, not the spec (ADR-0029:
+    // flags > the spec's own fields > the formula's profile, so a rerun under another formula re-resolves)
+    let (asked_model, asked_effort, asked_mode) = (a.model.clone().unwrap_or_default(), a.effort.clone().unwrap_or_default(), a.mode);
+    let project = a.cwd.clone().unwrap_or_default();
+    // the spec keeps "no folder", so a rerun gets a fresh scratch folder of its own
+    folder(home, &mut a).await?;
+    let resolved = resolve(store, &mut a, &asked).await?;
+    let brief = act(kinds, &mut a, resolved.as_ref().map(|(_, p)| p)).await?;
+    // the code it starts from
+    let cwd = a.cwd.clone().unwrap_or_default();
+    let mut base = if cwd.is_empty() { None } else { base_at(proc, &cwd).await };
+    if let (Some(want), Some(have)) = (a.base.clone().filter(|b| !b.sha.is_empty()), base.clone())
+        && !have.sha.starts_with(&want.sha)
+    {
+        let dir = home.map_or_else(std::env::temp_dir, |h| h.join("worktrees")).join(format!(
+            "rerun-{}-{}",
+            &want.sha[..want.sha.len().min(10)],
+            &wisp_kernel::ids::uuid7()[24..]
+        ));
+        let path = dir.display().to_string();
+        let made = git(proc, &cwd, &["worktree", "add", "--detach", &path, &want.sha]).await.is_some() || dir.join(".git").exists();
+        if !made {
+            return Err(WireError::invalid(format!(
+                "couldn't check out {} in {cwd}: is that commit in this repo? (--from latest runs on today's code)",
+                want.sha
+            )));
+        }
+        base = Some(Base { sha: git(proc, &path, &["rev-parse", "HEAD"]).await.unwrap_or(want.sha), worktree: path.clone(), ..have });
+        a.cwd = Some(path);
+    }
+    let h = save_formula(store, resolved.as_ref(), &a).await?;
     let spec = TaskSpec {
         prompt: a.prompt.clone(),
         steps: Vec::new(),
         agent: asked,
         model: asked_model,
         effort: asked_effort,
-        mode: asked_mode.map(|m| serde_json::to_value(m).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()).unwrap_or_default(),
+        mode: asked_mode
+            .map(|m| serde_json::to_value(m).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default())
+            .unwrap_or_default(),
         cwd: project,
         dirs: a.dirs.clone(),
         base,
@@ -422,14 +453,17 @@ pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>,
 /// A task's spec: what was stored at start, its steps read back from the turns the user (or a step)
 /// sent. A task from before specs gets one made from its session and turns.
 pub fn spec_of(s: &Session, turns: &[Turn]) -> TaskSpec {
-    let mut spec: TaskSpec = s.ext.get("wisp.runtime").and_then(|m| m.get("spec")).and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_else(|| TaskSpec {
-        agent: s.agent.clone(),
-        model: s.model.clone(),
-        effort: s.effort.clone(),
-        cwd: s.cwd.clone(),
-        dirs: s.dirs.clone(),
-        ..TaskSpec::default()
-    });
+    let mut spec: TaskSpec =
+        s.ext.get("wisp.runtime").and_then(|m| m.get("spec")).and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_else(|| {
+            TaskSpec {
+                agent: s.agent.clone(),
+                model: s.model.clone(),
+                effort: s.effort.clone(),
+                cwd: s.cwd.clone(),
+                dirs: s.dirs.clone(),
+                ..TaskSpec::default()
+            }
+        });
     let mut prompts = turns.iter().filter(|t| t.by.as_deref().is_none_or(|b| b == "user" || b == "step")).map(|t| t.prompt.clone());
     if let Some(first) = prompts.next()
         && spec.prompt.is_empty()
@@ -475,10 +509,21 @@ fn field<'a>(v: Option<&'a Value>, k: &str) -> Option<&'a str> {
 
 /// `runtime.history`: every task that fits all the filters, newest first. `snapshot` reads a
 /// snapshot's formula by hash (cached per call).
-pub fn history(sessions: &[Session], costs: &std::collections::HashMap<String, f64>, a: &HistoryArgs, snapshot: &mut dyn FnMut(&str) -> Option<Value>) -> Vec<HistoryRow> {
+pub fn history(
+    sessions: &[Session],
+    costs: &std::collections::HashMap<String, f64>,
+    a: &HistoryArgs,
+    snapshot: &mut dyn FnMut(&str) -> Option<Value>,
+) -> Vec<HistoryRow> {
     let spec = |s: &Session| spec_of(s, &[]);
     // a workflow's runs (parents), so their steps match too
-    let runs: Vec<&str> = a.workflow.as_ref().map(|w| sessions.iter().filter(|s| field(s.ext.get("wisp.workflows"), "workflow") == Some(w.as_str())).map(|s| s.id.as_str()).collect()).unwrap_or_default();
+    let runs: Vec<&str> = a
+        .workflow
+        .as_ref()
+        .map(|w| {
+            sessions.iter().filter(|s| field(s.ext.get("wisp.workflows"), "workflow") == Some(w.as_str())).map(|s| s.id.as_str()).collect()
+        })
+        .unwrap_or_default();
     let mut out = Vec::new();
     for s in sessions {
         let sp = spec(s);
@@ -494,7 +539,8 @@ pub fn history(sessions: &[Session], costs: &std::collections::HashMap<String, f
                 continue;
             }
         }
-        if a.workflow.is_some() && !runs.contains(&s.id.as_str()) && !sp.lineage.workflow_run.as_deref().is_some_and(|r| runs.contains(&r)) {
+        if a.workflow.is_some() && !runs.contains(&s.id.as_str()) && !sp.lineage.workflow_run.as_deref().is_some_and(|r| runs.contains(&r))
+        {
             continue;
         }
         if let Some(p) = &a.project
@@ -532,7 +578,10 @@ pub fn history(sessions: &[Session], costs: &std::collections::HashMap<String, f
 
 /// A session run outside wisp as `runtime.adopt`'s args (ADR-0035): its prompts are the spec's steps,
 /// its answers the turns, its id what the next follow-up resumes there.
-pub fn adopted(s: &wisp_runtime_api::harness::sessions::OutsideSession, turns: &[wisp_runtime_api::harness::sessions::SessionTurn]) -> wisp_runtime_api::spec::AdoptArgs {
+pub fn adopted(
+    s: &wisp_runtime_api::harness::sessions::OutsideSession,
+    turns: &[wisp_runtime_api::harness::sessions::SessionTurn],
+) -> wisp_runtime_api::spec::AdoptArgs {
     let from = match s.harness.as_str() {
         "claude" => "claude-code",
         other => other,
@@ -542,12 +591,25 @@ pub fn adopted(s: &wisp_runtime_api::harness::sessions::OutsideSession, turns: &
         .enumerate()
         .map(|(i, t)| json!({ "id": wisp_kernel::ids::uuid7(), "sessionId": "", "idx": i, "prompt": t.prompt, "agent": s.harness, "model": t.model, "effort": "", "mode": "auto", "attachments": [], "status": "done", "startedAt": t.started_at, "endedAt": t.ended_at, "text": t.text, "resumeId": s.id, "isError": false }))
         .collect();
-    let spec = TaskSpec { prompt: turns.first().map(|t| t.prompt.clone()).unwrap_or_default(), steps: turns.iter().skip(1).map(|t| t.prompt.clone()).collect(), agent: s.harness.clone(), cwd: s.cwd.clone(), ..TaskSpec::default() };
+    let spec = TaskSpec {
+        prompt: turns.first().map(|t| t.prompt.clone()).unwrap_or_default(),
+        steps: turns.iter().skip(1).map(|t| t.prompt.clone()).collect(),
+        agent: s.harness.clone(),
+        cwd: s.cwd.clone(),
+        ..TaskSpec::default()
+    };
     let mut ext = Map::new();
     ext.insert("wisp.adopted".into(), json!({ "from": from, "session": s.id, "at": s.started_at }));
-    wisp_runtime_api::spec::AdoptArgs { title: if s.title.is_empty() { format!("{from} session") } else { s.title.clone() }, agent: s.harness.clone(), cwd: s.cwd.clone(), turns: tv, spec, ext, resume_id: Some(s.id.clone()) }
+    wisp_runtime_api::spec::AdoptArgs {
+        title: if s.title.is_empty() { format!("{from} session") } else { s.title.clone() },
+        agent: s.harness.clone(),
+        cwd: s.cwd.clone(),
+        turns: tv,
+        spec,
+        ext,
+        resume_id: Some(s.id.clone()),
+    }
 }
-
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
@@ -592,11 +654,24 @@ mod tests {
         };
         let sessions = vec![
             mk("run", "claude", json!({ "prompt": "wf" }), json!({ "wisp.workflows": { "workflow": "release" } })),
-            mk("a", "codex", json!({ "prompt": "x", "agent": "reviewer", "formula": "h1", "lineage": { "workflowRun": "run" } }), Value::Null),
+            mk(
+                "a",
+                "codex",
+                json!({ "prompt": "x", "agent": "reviewer", "formula": "h1", "lineage": { "workflowRun": "run" } }),
+                Value::Null,
+            ),
             mk("b", "claude", json!({ "prompt": "y", "agent": "fixer", "formula": "h2", "crew": "Ada" }), Value::Null),
         ];
-        let snaps = |h: &str| Some(if h == "h1" { json!({ "agents": [{ "name": "reviewer", "harness": "codex", "effort": "high" }] }) } else { json!({ "agents": [{ "name": "fixer", "harness": "claude" }] }) });
-        let ids = |a: HistoryArgs| history(&sessions, &std::collections::HashMap::new(), &a, &mut |h: &str| snaps(h)).into_iter().map(|r| r.id).collect::<Vec<_>>();
+        let snaps = |h: &str| {
+            Some(if h == "h1" {
+                json!({ "agents": [{ "name": "reviewer", "harness": "codex", "effort": "high" }] })
+            } else {
+                json!({ "agents": [{ "name": "fixer", "harness": "claude" }] })
+            })
+        };
+        let ids = |a: HistoryArgs| {
+            history(&sessions, &std::collections::HashMap::new(), &a, &mut |h: &str| snaps(h)).into_iter().map(|r| r.id).collect::<Vec<_>>()
+        };
         assert_eq!(ids(HistoryArgs { agent: Some("reviewer".into()), ..HistoryArgs::default() }), ["a"]);
         assert_eq!(ids(HistoryArgs { crew: Some("Ada".into()), ..HistoryArgs::default() }), ["b"]);
         assert_eq!(ids(HistoryArgs { workflow: Some("release".into()), ..HistoryArgs::default() }), ["run", "a"]);
@@ -613,6 +688,9 @@ mod tests {
         let s = Session { agent: "claude".into(), cwd: "/w".into(), ..Session::default() };
         let t = |p: &str, by: Option<&str>| Turn { prompt: p.into(), by: by.map(str::to_owned), ..Turn::default() };
         let spec = spec_of(&s, &[t("fix it", None), t("check", Some("wisp")), t("now the tests", None)]);
-        assert_eq!((spec.prompt.as_str(), spec.steps.as_slice(), spec.agent.as_str()), ("fix it", &["now the tests".to_owned()][..], "claude"));
+        assert_eq!(
+            (spec.prompt.as_str(), spec.steps.as_slice(), spec.agent.as_str()),
+            ("fix it", &["now the tests".to_owned()][..], "claude")
+        );
     }
 }

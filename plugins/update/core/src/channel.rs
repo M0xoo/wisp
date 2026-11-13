@@ -12,11 +12,8 @@ pub enum Channel {
 }
 
 /// Every channel with the npm dist-tags it follows, in v1's order.
-pub const CHANNELS: [(&str, &[&str]); 3] = [
-    ("stable", &["latest"]),
-    ("beta", &["latest", "next"]),
-    ("nightly", &["latest", "next", "nightly"]),
-];
+pub const CHANNELS: [(&str, &[&str]); 3] =
+    [("stable", &["latest"]), ("beta", &["latest", "next"]), ("nightly", &["latest", "next", "nightly"])];
 
 impl Channel {
     pub fn name(self) -> &'static str {

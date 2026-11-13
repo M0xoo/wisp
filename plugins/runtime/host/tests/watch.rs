@@ -23,14 +23,21 @@ async fn a_watch_opens_beside_its_task_and_a_state_leaves_the_page_alone_v1_watc
     let dir = std::env::temp_dir().join(format!("wisp-watch-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("watch.html"), "<h1>from a file</h1>").unwrap();
-    let id = r.rt.create(StartArgs { prompt: "migrate".into(), cwd: Some(dir.display().to_string()), hold: true, ..StartArgs::default() }).await.unwrap().id;
+    let id =
+        r.rt.create(StartArgs { prompt: "migrate".into(), cwd: Some(dir.display().to_string()), hold: true, ..StartArgs::default() })
+            .await
+            .unwrap()
+            .id;
     let sid = id.0;
 
     // before open: the agent is told what to do
     let no = r.rt.agent_watch(call(&sid, json!({ "action": "state", "state": 1 }))).await.unwrap_err();
     assert!(no.contains("open\" first"), "{no}");
 
-    let said = r.rt.agent_watch(call(&sid, json!({ "action": "open", "title": "Migration", "html": "<p>0 of 9</p>", "state": { "done": 0 } }))).await.unwrap();
+    let said =
+        r.rt.agent_watch(call(&sid, json!({ "action": "open", "title": "Migration", "html": "<p>0 of 9</p>", "state": { "done": 0 } })))
+            .await
+            .unwrap();
     assert!(said.starts_with("Opened “Migration”"), "{said}");
     assert_eq!(body(&r.store, "watch_page", &sid).unwrap()["html"], "<p>0 of 9</p>");
     // the row's marker (the summary field `watch` reads it), written with the watch

@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 /// A lean run (the retro) only reads its prompt and answers: none of codex's extras (v1 `LEAN_FEATURES`).
-pub const LEAN_FEATURES: [&str; 8] = ["plugins", "apps", "multi_agent", "skill_search", "browser_use", "computer_use", "goals", "code_mode_host"];
+pub const LEAN_FEATURES: [&str; 8] =
+    ["plugins", "apps", "multi_agent", "skill_search", "browser_use", "computer_use", "goals", "code_mode_host"];
 /// The one-line base prompt a lean run gets instead of the coding agent's (v1 `LEAN_BASE`).
 pub const LEAN_BASE: &str = "You answer in one message. Do not run tools, read files or edit anything.";
 /// `ask_user` may wait a week (v1 `ASK_TIMEOUT_MS / 1000`).
@@ -137,7 +138,8 @@ mod tests {
     #[test]
     fn developer_instructions_and_images() {
         let imgs = vec!["/up/a.png".to_owned()];
-        let a = args(&CodexArgs { mode: "plan", developer: Some(" # You are running inside wisp\n"), images: &imgs, ..CodexArgs::default() });
+        let a =
+            args(&CodexArgs { mode: "plan", developer: Some(" # You are running inside wisp\n"), images: &imgs, ..CodexArgs::default() });
         assert!(a.iter().any(|x| x == r##"developer_instructions="# You are running inside wisp""##));
         assert!(a.windows(2).any(|w| w == ["-i", "/up/a.png"]));
     }

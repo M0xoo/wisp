@@ -80,7 +80,11 @@ pub fn view_of(a: &Stored, now: i64) -> AccountView {
     } else {
         "Account".into()
     };
-    let kind = a.kind.as_deref().and_then(AccountKind::parse).unwrap_or(if work_plan(&a.plan) { AccountKind::Work } else { AccountKind::Personal });
+    let kind = a.kind.as_deref().and_then(AccountKind::parse).unwrap_or(if work_plan(&a.plan) {
+        AccountKind::Work
+    } else {
+        AccountKind::Personal
+    });
     AccountView {
         id: a.id.clone(),
         label,
@@ -88,7 +92,13 @@ pub fn view_of(a: &Stored, now: i64) -> AccountView {
         plan: a.plan.clone(),
         default: a.id == DEFAULT,
         kind,
-        state: if a.signed_in == Some(false) { AccountState::SignedOut } else if limit.is_some() { AccountState::Limit } else { AccountState::Ready },
+        state: if a.signed_in == Some(false) {
+            AccountState::SignedOut
+        } else if limit.is_some() {
+            AccountState::Limit
+        } else {
+            AccountState::Ready
+        },
         until: limit.map(|l| l.until),
         why: limit.map(|l| l.why.clone()).unwrap_or_default(),
     }
@@ -129,7 +139,13 @@ pub fn add(list: &[Stored], id: &str, label: &str, kind: &str, now: i64, name: &
     if l.iter().any(|a| a.id == id) {
         return Err(Refused::Invalid("That account is there already.".into()));
     }
-    l.push(Stored { id, label: clip_chars(label, LABEL), kind: (!kind.is_empty()).then(|| kind.to_owned()), added_at: Some(now), ..Stored::default() });
+    l.push(Stored {
+        id,
+        label: clip_chars(label, LABEL),
+        kind: (!kind.is_empty()).then(|| kind.to_owned()),
+        added_at: Some(now),
+        ..Stored::default()
+    });
     Ok(l)
 }
 
@@ -235,6 +251,10 @@ mod tests {
         assert_eq!(pick(&l, "default", true, 2000), "default", "the limit ended");
         identify(&mut l, "default", Some("ann.b@x.dev"), Some("team"), Some(true));
         let v = view(&l, 10);
-        assert_eq!((v[0].state, v[0].kind, v[0].label.as_str()), (AccountState::Ready, AccountKind::Work, "Ann.b"), "signing in clears the limit; a team plan is work");
+        assert_eq!(
+            (v[0].state, v[0].kind, v[0].label.as_str()),
+            (AccountState::Ready, AccountKind::Work, "Ann.b"),
+            "signing in clears the limit; a team plan is work"
+        );
     }
 }

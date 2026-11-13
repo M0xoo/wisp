@@ -83,7 +83,17 @@ impl Theme {
     pub const LIGHT: Self = Self::from_tokens(Mode::Light, &crate::tokens::LIGHT);
 
     /// Dark with the text at full strength and the lines lifted: for low vision and bright rooms.
-    pub const CONTRAST: Self = Self { mode: Mode::Contrast, ink: hex(0xff_ffff), ink2: hex(0xff_ffff), muted: hex(0xd4_d4d4), faint: hex(0xbd_bdbd), line: hex(0x8a_8a8a), line2: hex(0xbd_bdbd), bg: hex(0x00_0000), ..Self::DARK };
+    pub const CONTRAST: Self = Self {
+        mode: Mode::Contrast,
+        ink: hex(0xff_ffff),
+        ink2: hex(0xff_ffff),
+        muted: hex(0xd4_d4d4),
+        faint: hex(0xbd_bdbd),
+        line: hex(0x8a_8a8a),
+        line2: hex(0xbd_bdbd),
+        bg: hex(0x00_0000),
+        ..Self::DARK
+    };
 
     pub fn of(mode: Mode) -> Self {
         match mode {
@@ -97,7 +107,33 @@ impl Theme {
     #[must_use]
     pub fn indexed(mut self) -> Self {
         let f = to_256;
-        for c in [&mut self.bg, &mut self.bg2, &mut self.rail, &mut self.panel, &mut self.surface, &mut self.accent_soft, &mut self.add_bg, &mut self.del_bg, &mut self.term_bg, &mut self.term_ink, &mut self.ink, &mut self.ink2, &mut self.muted, &mut self.faint, &mut self.line, &mut self.line2, &mut self.accent, &mut self.accent_ink, &mut self.on_accent, &mut self.good, &mut self.warn, &mut self.bad, &mut self.info, &mut self.add, &mut self.del] {
+        for c in [
+            &mut self.bg,
+            &mut self.bg2,
+            &mut self.rail,
+            &mut self.panel,
+            &mut self.surface,
+            &mut self.accent_soft,
+            &mut self.add_bg,
+            &mut self.del_bg,
+            &mut self.term_bg,
+            &mut self.term_ink,
+            &mut self.ink,
+            &mut self.ink2,
+            &mut self.muted,
+            &mut self.faint,
+            &mut self.line,
+            &mut self.line2,
+            &mut self.accent,
+            &mut self.accent_ink,
+            &mut self.on_accent,
+            &mut self.good,
+            &mut self.warn,
+            &mut self.bad,
+            &mut self.info,
+            &mut self.add,
+            &mut self.del,
+        ] {
             *c = f(*c);
         }
         for c in &mut self.tk {
@@ -111,13 +147,39 @@ impl Theme {
     #[must_use]
     pub fn basic(mut self) -> Self {
         let f = to_16;
-        for c in [&mut self.ink, &mut self.ink2, &mut self.muted, &mut self.faint, &mut self.line, &mut self.line2, &mut self.accent, &mut self.accent_ink, &mut self.on_accent, &mut self.good, &mut self.warn, &mut self.bad, &mut self.info, &mut self.add, &mut self.del, &mut self.term_ink] {
+        for c in [
+            &mut self.ink,
+            &mut self.ink2,
+            &mut self.muted,
+            &mut self.faint,
+            &mut self.line,
+            &mut self.line2,
+            &mut self.accent,
+            &mut self.accent_ink,
+            &mut self.on_accent,
+            &mut self.good,
+            &mut self.warn,
+            &mut self.bad,
+            &mut self.info,
+            &mut self.add,
+            &mut self.del,
+            &mut self.term_ink,
+        ] {
             *c = f(*c);
         }
         for c in &mut self.tk {
             *c = f(*c);
         }
-        for c in [&mut self.bg, &mut self.rail, &mut self.panel, &mut self.surface, &mut self.term_bg, &mut self.add_bg, &mut self.del_bg, &mut self.accent_soft] {
+        for c in [
+            &mut self.bg,
+            &mut self.rail,
+            &mut self.panel,
+            &mut self.surface,
+            &mut self.term_bg,
+            &mut self.add_bg,
+            &mut self.del_bg,
+            &mut self.accent_soft,
+        ] {
             *c = Color::Reset;
         }
         self.bg2 = if self.mode == Mode::Light { Color::Gray } else { Color::Black };
@@ -168,7 +230,9 @@ pub fn to_256(c: Color) -> Color {
         (u8::try_from(i).unwrap_or(0), *s)
     };
     let ((ri, rv), (gi, gv), (bi, bv)) = (cube(r), cube(g), cube(b));
-    let d = |a: (u8, u8, u8)| (i32::from(a.0) - i32::from(r)).pow(2) + (i32::from(a.1) - i32::from(g)).pow(2) + (i32::from(a.2) - i32::from(b)).pow(2);
+    let d = |a: (u8, u8, u8)| {
+        (i32::from(a.0) - i32::from(r)).pow(2) + (i32::from(a.1) - i32::from(g)).pow(2) + (i32::from(a.2) - i32::from(b)).pow(2)
+    };
     let cube_d = d((rv, gv, bv));
     let avg = (u16::from(r) + u16::from(g) + u16::from(b)) / 3;
     let gi2 = u8::try_from(((avg.saturating_sub(8)) / 10).min(23)).unwrap_or(23);
@@ -184,7 +248,9 @@ pub fn from_env(get: &dyn Fn(&str) -> Option<String>) -> Theme {
         Some("contrast" | "high-contrast") => Mode::Contrast,
         Some("dark") => Mode::Dark,
         // no choice made: a terminal that says its background is light (`COLORFGBG=0;15`) gets the light theme
-        _ if get("COLORFGBG").and_then(|v| v.rsplit(';').next().map(str::to_owned)).is_some_and(|bg| matches!(bg.as_str(), "7" | "15")) => Mode::Light,
+        _ if get("COLORFGBG").and_then(|v| v.rsplit(';').next().map(str::to_owned)).is_some_and(|bg| matches!(bg.as_str(), "7" | "15")) => {
+            Mode::Light
+        }
         _ => Mode::Dark,
     };
     let t = Theme::of(mode);
@@ -243,7 +309,9 @@ const ANSI16: [(Color, (u8, u8, u8)); 16] = [
 #[allow(clippy::many_single_char_names)] // r g b
 pub fn to_16(c: Color) -> Color {
     let Color::Rgb(r, g, b) = c else { return c };
-    let d = |x: (u8, u8, u8)| (i32::from(x.0) - i32::from(r)).pow(2) + (i32::from(x.1) - i32::from(g)).pow(2) + (i32::from(x.2) - i32::from(b)).pow(2);
+    let d = |x: (u8, u8, u8)| {
+        (i32::from(x.0) - i32::from(r)).pow(2) + (i32::from(x.1) - i32::from(g)).pow(2) + (i32::from(x.2) - i32::from(b)).pow(2)
+    };
     // a colour keeps its hue (a red stays red, not the nearest grey); a grey stays grey
     let grey = |x: &Color| matches!(x, Color::Black | Color::DarkGray | Color::Gray | Color::White);
     let chroma = r.max(g).max(b) - r.min(g).min(b);
@@ -261,7 +329,13 @@ mod tests {
             if let Some(h) = v.strip_prefix('#') {
                 return hex(u32::from_str_radix(h, 16).unwrap());
             }
-            let nums: Vec<f64> = v.trim_start_matches("rgba(").trim_start_matches("rgb(").trim_end_matches(')').split(',').map(|x| x.trim().parse().unwrap()).collect();
+            let nums: Vec<f64> = v
+                .trim_start_matches("rgba(")
+                .trim_start_matches("rgb(")
+                .trim_end_matches(')')
+                .split(',')
+                .map(|x| x.trim().parse().unwrap())
+                .collect();
             let a = nums.get(3).copied().unwrap_or(1.0);
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let mix = |c: f64, o: u8| (c * a + f64::from(o) * (1.0 - a)).round() as u8;
@@ -278,7 +352,12 @@ mod tests {
             let pairs = t.pairs();
             assert!(pairs.len() > 40, "every token is generated");
             for (name, have) in pairs {
-                let group = j.as_object().unwrap().iter().find(|(_, g)| g.get(name).is_some()).map_or_else(|| panic!("{name} is no longer a token: node tools/gen-tui-theme.ts"), |(g, _)| g.clone());
+                let group = j
+                    .as_object()
+                    .unwrap()
+                    .iter()
+                    .find(|(_, g)| g.get(name).is_some())
+                    .map_or_else(|| panic!("{name} is no longer a token: node tools/gen-tui-theme.ts"), |(g, _)| g.clone());
                 assert_eq!(Some(have), token(&j, &group, name, m), "{m} {name}: node tools/gen-tui-theme.ts");
             }
         }
@@ -289,7 +368,9 @@ mod tests {
     /// `WISP_TUI_COLOR` overrides either way.
     #[test]
     fn apple_terminal_gets_256_colours_even_with_colorterm_truecolor() {
-        let env = |pairs: &'static [(&'static str, &'static str)]| move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| (*v).to_owned());
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| (*v).to_owned())
+        };
         let apple = env(&[("TERM_PROGRAM", "Apple_Terminal"), ("COLORTERM", "truecolor")]);
         assert_eq!(depth(&apple), Depth::C256);
         assert!(matches!(from_env(&apple).ink, Color::Indexed(_)));

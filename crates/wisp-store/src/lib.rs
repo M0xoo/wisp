@@ -54,9 +54,7 @@ pub use reads::Reader;
 pub use row::{Id, from_row, is_topic, to_row};
 pub use schema::{KERNEL_OWNER, PLUGIN, SETTING};
 pub use search::{SearchHit, to_match};
-pub use store::{
-    DEFAULT_RETENTION, EpochFn, Location, PruneResult, Retention, Store, StoreOptions,
-};
+pub use store::{DEFAULT_RETENTION, EpochFn, Location, PruneResult, Retention, Store, StoreOptions};
 pub use writer::{MutationResult, Writer};
 
 /// rusqlite, for owners' `Up::Fn` data migrations (so a plugin needs no SQLite dependency of its own).

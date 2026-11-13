@@ -20,17 +20,12 @@ fn fail(msg: &str) -> ! {
 }
 
 fn flag(argv: &[String], f: &str) -> Option<String> {
-    argv.iter()
-        .position(|a| a == f)
-        .and_then(|i| argv.get(i + 1))
-        .cloned()
+    argv.iter().position(|a| a == f).and_then(|i| argv.get(i + 1)).cloned()
 }
 
 fn git(args: &[&str]) -> Option<String> {
     let o = std::process::Command::new("git").args(args).output().ok()?;
-    o.status
-        .success()
-        .then(|| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+    o.status.success().then(|| String::from_utf8_lossy(&o.stdout).trim().to_owned())
 }
 
 struct Lock(PathBuf);
@@ -47,12 +42,7 @@ fn lock(file: &Path) -> Lock {
             return Lock(dir);
         }
         // a gh killed while it held the lock never takes it away
-        if std::fs::metadata(&dir)
-            .and_then(|m| m.modified())
-            .ok()
-            .and_then(|t| t.elapsed().ok())
-            .is_some_and(|e| e.as_secs() > 10)
-        {
+        if std::fs::metadata(&dir).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|e| e.as_secs() > 10) {
             let _ = std::fs::remove_dir(&dir);
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -62,38 +52,25 @@ fn lock(file: &Path) -> Lock {
 
 fn main() {
     let argv: Vec<String> = std::env::args().skip(1).collect();
-    let file =
-        PathBuf::from(std::env::var("FAKE_GH_STATE").unwrap_or_else(|_| "gh-state.json".into()));
+    let file = PathBuf::from(std::env::var("FAKE_GH_STATE").unwrap_or_else(|_| "gh-state.json".into()));
     if let Ok(dir) = std::env::var("FAKE_RECORD") {
         let _ = std::fs::create_dir_all(&dir);
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(Path::new(&dir).join("gh.jsonl"))
-        {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(Path::new(&dir).join("gh.jsonl")) {
             // one write per line, so a reader never sees half a record
             let line = json!({ "argv": argv, "cwd": std::env::current_dir().ok() });
             let _ = f.write_all(format!("{line}\n").as_bytes());
         }
     }
-    let (a, b) = (
-        argv.first().map_or("", String::as_str),
-        argv.get(1).map_or("", String::as_str),
-    );
-    let writes =
-        (a == "pr" && matches!(b, "create" | "ready" | "merge")) || (a == "gist" && b == "create");
+    let (a, b) = (argv.first().map_or("", String::as_str), argv.get(1).map_or("", String::as_str));
+    let writes = (a == "pr" && matches!(b, "create" | "ready" | "merge")) || (a == "gist" && b == "create");
     let _guard = writes.then(|| lock(&file));
-    let mut state: Value = std::fs::read_to_string(&file)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_else(|| json!({}));
+    let mut state: Value = std::fs::read_to_string(&file).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| json!({}));
     if !state["prs"].is_object() {
         state["prs"] = json!({});
     }
     let out = run(&argv, a, b, &mut state);
     if writes {
-        std::fs::write(&file, serde_json::to_string_pretty(&state).unwrap())
-            .unwrap_or_else(|e| fail(&format!("fake gh: {e}")));
+        std::fs::write(&file, serde_json::to_string_pretty(&state).unwrap()).unwrap_or_else(|e| fail(&format!("fake gh: {e}")));
     }
     if !out.is_empty() {
         println!("{out}");
@@ -101,11 +78,7 @@ fn main() {
 }
 
 fn find<'a>(prs: &'a mut Map<String, Value>, r: &str) -> Option<&'a mut Value> {
-    prs.values_mut().find(|p| {
-        p["number"].as_u64().is_some_and(|n| n.to_string() == r)
-            || p["url"] == r
-            || p["headRefName"] == r
-    })
+    prs.values_mut().find(|p| p["number"].as_u64().is_some_and(|n| n.to_string() == r) || p["url"] == r || p["headRefName"] == r)
 }
 
 fn run(argv: &[String], a: &str, b: &str, state: &mut Value) -> String {
@@ -113,10 +86,7 @@ fn run(argv: &[String], a: &str, b: &str, state: &mut Value) -> String {
     match (a, b) {
         ("pr", "create") => {
             let n = state["prs"].as_object().map_or(0, Map::len) + 1;
-            let (head, base) = (
-                flag(argv, "--head").unwrap_or_default(),
-                flag(argv, "--base").unwrap_or_default(),
-            );
+            let (head, base) = (flag(argv, "--head").unwrap_or_default(), flag(argv, "--base").unwrap_or_default());
             let url = format!("https://github.com/acme/repo/pull/{n}");
             let pr = json!({
                 "number": n, "url": url, "title": flag(argv, "--title"), "body": flag(argv, "--body"), "state": "OPEN",
@@ -128,17 +98,9 @@ fn run(argv: &[String], a: &str, b: &str, state: &mut Value) -> String {
             format!("Creating pull request for {head} into {base}\n\n{url}")
         }
         ("pr", "view") => {
-            let (checks, review, mergeable) = (
-                state.get("checks").cloned(),
-                state.get("review").cloned(),
-                state.get("mergeable").cloned(),
-            );
-            let prs = state["prs"]
-                .as_object_mut()
-                .unwrap_or_else(|| fail("no pull requests found"));
-            let Some(pr) = find(prs, &refarg) else {
-                fail("no pull requests found")
-            };
+            let (checks, review, mergeable) = (state.get("checks").cloned(), state.get("review").cloned(), state.get("mergeable").cloned());
+            let prs = state["prs"].as_object_mut().unwrap_or_else(|| fail("no pull requests found"));
+            let Some(pr) = find(prs, &refarg) else { fail("no pull requests found") };
             // tests flip CI, review and mergeability between polls
             if let Some(c) = checks {
                 pr["statusCheckRollup"] = c;
@@ -149,58 +111,31 @@ fn run(argv: &[String], a: &str, b: &str, state: &mut Value) -> String {
             if let Some(m) = mergeable {
                 pr["mergeable"] = m;
             }
-            let head = format!(
-                "refs/remotes/origin/{}",
-                pr["headRefName"].as_str().unwrap_or_default()
-            );
+            let head = format!("refs/remotes/origin/{}", pr["headRefName"].as_str().unwrap_or_default());
             if let Some(oid) = git(&["rev-parse", "--verify", "--quiet", &head]) {
                 pr["headRefOid"] = Value::from(oid);
             }
             pr.to_string()
         }
         ("pr", "ready") => {
-            let prs = state["prs"]
-                .as_object_mut()
-                .unwrap_or_else(|| fail("no pull requests found"));
-            let Some(pr) = find(prs, &refarg) else {
-                fail("no pull requests found")
-            };
+            let prs = state["prs"].as_object_mut().unwrap_or_else(|| fail("no pull requests found"));
+            let Some(pr) = find(prs, &refarg) else { fail("no pull requests found") };
             pr["isDraft"] = Value::Bool(false);
             String::new()
         }
         ("pr", "merge") => {
-            let prs = state["prs"]
-                .as_object_mut()
-                .unwrap_or_else(|| fail("no pull requests found"));
-            let Some(pr) = find(prs, &refarg) else {
-                fail("no pull requests found")
-            };
-            let (head, base) = (
-                pr["headRefName"].as_str().unwrap_or_default().to_owned(),
-                pr["baseRefName"].as_str().unwrap_or_default().to_owned(),
-            );
+            let prs = state["prs"].as_object_mut().unwrap_or_else(|| fail("no pull requests found"));
+            let Some(pr) = find(prs, &refarg) else { fail("no pull requests found") };
+            let (head, base) =
+                (pr["headRefName"].as_str().unwrap_or_default().to_owned(), pr["baseRefName"].as_str().unwrap_or_default().to_owned());
             pr["state"] = Value::from("MERGED");
             pr["mergedAt"] = Value::from("2026-11-08T00:00:00Z");
             let _ = git(&["push", "origin", &format!("{head}:{base}")]);
             String::new()
         }
-        ("pr", "list") => Value::Array(
-            state["prs"]
-                .as_object()
-                .map(|m| m.values().cloned().collect())
-                .unwrap_or_default(),
-        )
-        .to_string(),
-        ("run", "list") => state
-            .get("runs")
-            .cloned()
-            .unwrap_or_else(|| json!([]))
-            .to_string(),
-        ("issue", "list") => state
-            .get("issues")
-            .cloned()
-            .unwrap_or_else(|| json!([]))
-            .to_string(),
+        ("pr", "list") => Value::Array(state["prs"].as_object().map(|m| m.values().cloned().collect()).unwrap_or_default()).to_string(),
+        ("run", "list") => state.get("runs").cloned().unwrap_or_else(|| json!([])).to_string(),
+        ("issue", "list") => state.get("issues").cloned().unwrap_or_else(|| json!([])).to_string(),
         ("gist", "create") => {
             let n = state["gists"].as_u64().unwrap_or(0) + 1;
             state["gists"] = Value::from(n);
@@ -218,10 +153,7 @@ fn api(route: &str, state: &Value) -> String {
         }
         return state["user"].to_string();
     }
-    if let Some(repo) = route
-        .strip_prefix("repos/")
-        .filter(|r| r.matches('/').count() == 1)
-    {
+    if let Some(repo) = route.strip_prefix("repos/").filter(|r| r.matches('/').count() == 1) {
         return if let Some(r) = state["repos"].get(repo) {
             r.to_string()
         } else {

@@ -27,7 +27,10 @@ const PATTERNS: [(&str, &str); 14] = [
     ("a JSON Web Token", r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
     ("a password in a URL", r"(?i)\b[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s/@]{4,}@"),
     // key = "value": a name that says secret, then something long enough to be one.
-    ("a secret value", r#"(?i)\b[\w-]*(api[_-]?key|secret|token|passw(or)?d|private[_-]?key)\b["']?\s*[:=]\s*["']?([A-Za-z0-9/+_.=-]{16,})"#),
+    (
+        "a secret value",
+        r#"(?i)\b[\w-]*(api[_-]?key|secret|token|passw(or)?d|private[_-]?key)\b["']?\s*[:=]\s*["']?([A-Za-z0-9/+_.=-]{16,})"#,
+    ),
     // A placeholder, not a secret (v1's negative lookahead; checked after the match).
     ("", r"(?i)^(xxx|your[_-]|example|placeholder|changeme)"),
 ];

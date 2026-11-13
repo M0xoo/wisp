@@ -21,10 +21,7 @@ use serde_json::{Value, json};
 use support::{FakeStore, Op, TestChange, ch, make_server, title, topic};
 use wisp_protocol::Notice;
 use wisp_sync::sse::{SseParser, decode_frame};
-use wisp_sync::{
-    CloseReason, CommandOutcome, ConnId, ConnectQuery, Input, Output, SnapshotAnswer, SyncOptions,
-    SyncServer,
-};
+use wisp_sync::{CloseReason, CommandOutcome, ConnId, ConnectQuery, Input, Output, SnapshotAnswer, SyncOptions, SyncServer};
 
 type Out = Output<String>;
 
@@ -56,15 +53,7 @@ fn q(pairs: &[(&str, &str)]) -> ConnectQuery {
 }
 
 fn sends(outs: &[Out]) -> Vec<(ConnId, &str, Option<u64>)> {
-    outs.iter()
-        .filter_map(|o| {
-            if let Output::Send { conn, frame, id } = o {
-                Some((*conn, frame.as_str(), *id))
-            } else {
-                None
-            }
-        })
-        .collect()
+    outs.iter().filter_map(|o| if let Output::Send { conn, frame, id } = o { Some((*conn, frame.as_str(), *id)) } else { None }).collect()
 }
 
 /// Every message of every frame, decoded through the real SSE parser.
@@ -95,13 +84,7 @@ fn kinds(outs: &[Out]) -> Vec<&'static str> {
 
 fn requests(outs: &[Out]) -> Vec<(String, Option<u64>)> {
     outs.iter()
-        .filter_map(|o| {
-            if let Output::SnapshotRequest { topic, since, .. } = o {
-                Some((topic.to_string(), *since))
-            } else {
-                None
-            }
-        })
+        .filter_map(|o| if let Output::SnapshotRequest { topic, since, .. } = o { Some((topic.to_string(), *since)) } else { None })
         .collect()
 }
 
@@ -120,34 +103,15 @@ struct S {
 impl S {
     fn new(query: ConnectQuery, f: impl FnOnce(&mut SyncOptions<String>)) -> Self {
         let mut store = FakeStore::default();
-        store.commit(
-            &[ch(
-                "list",
-                "session",
-                "s1",
-                Op::Upsert(json!({"title": "one"})),
-            )],
-            0,
-        );
+        store.commit(&[ch("list", "session", "s1", Op::Upsert(json!({"title": "one"})))], 0);
         let server = make_server(&store, f);
-        Self {
-            store,
-            server,
-            now: 1000,
-            query,
-        }
+        Self { store, server, now: 1000, query }
     }
 
     fn run(&mut self, outs: Vec<Out>) -> Vec<Out> {
         let mut all = Vec::new();
         for o in outs {
-            let req = if let Output::SnapshotRequest {
-                conn,
-                topic,
-                since,
-                req,
-            } = &o
-            {
+            let req = if let Output::SnapshotRequest { conn, topic, since, req } = &o {
                 Some((*conn, topic.clone(), *since, *req))
             } else {
                 None
@@ -161,16 +125,7 @@ impl S {
                         (r, d, false)
                     }
                 };
-                let a = SnapshotAnswer {
-                    conn,
-                    topic,
-                    req,
-                    seq: self.store.seq,
-                    rows,
-                    full,
-                    deleted,
-                    more: false,
-                };
+                let a = SnapshotAnswer { conn, topic, req, seq: self.store.seq, rows, full, deleted, more: false };
                 let more = self.server.handle(Input::SnapshotRows(a), self.now);
                 all.extend(self.run(more));
             }
@@ -189,11 +144,7 @@ impl S {
     }
 
     fn connect_with(&mut self, conn: ConnId, query: ConnectQuery) -> Vec<Out> {
-        self.handle(Input::Connect {
-            conn,
-            caller: "me".into(),
-            query,
-        })
+        self.handle(Input::Connect { conn, caller: "me".into(), query })
     }
 
     fn commit(&mut self, changes: &[TestChange]) -> Vec<Out> {
@@ -211,63 +162,29 @@ impl S {
     }
 
     fn drained(&mut self, conn: ConnId, bytes: usize) -> Vec<Out> {
-        self.handle(Input::Drained {
-            conn,
-            buffered_bytes: bytes,
-        })
+        self.handle(Input::Drained { conn, buffered_bytes: bytes })
     }
 }
 
 #[test]
 fn welcome_resumes_only_with_the_same_epoch_and_a_cursor_the_log_still_covers() {
     let cases: [(&[(&str, &str)], bool, Option<u64>); 6] = [
-        (
-            &[("epoch", "E1"), ("cursor", "1"), ("topics", "list")],
-            true,
-            Some(1),
-        ),
-        (
-            &[("epoch", "E1"), ("cursor", "0"), ("topics", "list")],
-            true,
-            Some(0),
-        ), // oldest_seq is 0: everything after 0 is kept
-        (
-            &[("epoch", "E0"), ("cursor", "1"), ("topics", "list")],
-            false,
-            None,
-        ), // a restore made a new epoch
-        (&[("epoch", "E1"), ("topics", "list")], false, None), // no cursor
-        (
-            &[("epoch", "E1"), ("cursor", "9"), ("topics", "list")],
-            false,
-            None,
-        ), // from the future: not this log
-        (
-            &[("epoch", "E1"), ("last_event_id", "1"), ("topics", "list")],
-            true,
-            Some(1),
-        ), // the browser's own reconnect
+        (&[("epoch", "E1"), ("cursor", "1"), ("topics", "list")], true, Some(1)),
+        (&[("epoch", "E1"), ("cursor", "0"), ("topics", "list")], true, Some(0)), // oldest_seq is 0: everything after 0 is kept
+        (&[("epoch", "E0"), ("cursor", "1"), ("topics", "list")], false, None),   // a restore made a new epoch
+        (&[("epoch", "E1"), ("topics", "list")], false, None),                    // no cursor
+        (&[("epoch", "E1"), ("cursor", "9"), ("topics", "list")], false, None),   // from the future: not this log
+        (&[("epoch", "E1"), ("last_event_id", "1"), ("topics", "list")], true, Some(1)), // the browser's own reconnect
     ];
     for (pairs, resume, since) in cases {
         let mut s = S::new(q(pairs), |_| {});
         let outs = s.connect(C1);
         assert_eq!(msgs(&outs)[0]["resume"], json!(resume), "{pairs:?}");
         // resume asks for the delta since the cursor; otherwise the whole topic
-        assert_eq!(
-            requests(&outs),
-            vec![("list".to_owned(), since)],
-            "{pairs:?}"
-        );
+        assert_eq!(requests(&outs), vec![("list".to_owned(), since)], "{pairs:?}");
     }
-    let mut s = S::new(
-        q(&[("epoch", "E1"), ("cursor", "0"), ("topics", "list")]),
-        |o| o.oldest_seq = 1,
-    );
-    assert_eq!(
-        msgs(&s.connect(C1))[0]["resume"],
-        json!(false),
-        "retention passed the cursor"
-    );
+    let mut s = S::new(q(&[("epoch", "E1"), ("cursor", "0"), ("topics", "list")]), |o| o.oldest_seq = 1);
+    assert_eq!(msgs(&s.connect(C1))[0]["resume"], json!(false), "retention passed the cursor");
 }
 
 #[test]
@@ -275,32 +192,12 @@ fn welcome_carries_the_peer_and_a_client_outside_the_window_is_told_and_closed()
     let mut s = S::new(q(&[("fresh", "list")]), |_| {});
     let w = msgs(&s.connect(C1))[0].clone();
     assert_eq!(
-        (
-            w["epoch"].clone(),
-            w["head_seq"].clone(),
-            w["oldest_seq"].clone(),
-            w["proto"].clone(),
-            w["peer"]["peer"].clone()
-        ),
+        (w["epoch"].clone(), w["head_seq"].clone(), w["oldest_seq"].clone(), w["proto"].clone(), w["peer"]["peer"].clone()),
         (json!("E1"), json!(1), json!(0), json!(2), json!("laptop"))
     );
-    let old = s.connect_with(
-        C2,
-        q(&[("proto_min", "1"), ("proto_max", "1"), ("fresh", "list")]),
-    );
+    let old = s.connect_with(C2, q(&[("proto_min", "1"), ("proto_max", "1"), ("fresh", "list")]));
     assert_eq!(msgs(&old)[0]["t"], "welcome");
-    assert_eq!(
-        old.iter()
-            .filter(|o| matches!(
-                o,
-                Output::Close {
-                    reason: CloseReason::Incompatible,
-                    ..
-                }
-            ))
-            .count(),
-        1
-    );
+    assert_eq!(old.iter().filter(|o| matches!(o, Output::Close { reason: CloseReason::Incompatible, .. })).count(), 1);
     assert!(requests(&old).is_empty());
 }
 
@@ -308,34 +205,12 @@ fn welcome_carries_the_peer_and_a_client_outside_the_window_is_told_and_closed()
 fn the_welcome_goes_before_the_snapshot_requests_of_the_same_connect() {
     let s = S::new(q(&[("fresh", "list,machines")]), |_| {});
     let mut server = s.server;
-    let outs = server.handle(
-        Input::Connect {
-            conn: C1,
-            caller: "me".into(),
-            query: s.query,
-        },
-        0,
-    );
-    assert_eq!(
-        kinds(&outs),
-        vec!["send", "snapshotRequest", "snapshotRequest", "activity"]
-    );
+    let outs = server.handle(Input::Connect { conn: C1, caller: "me".into(), query: s.query }, 0);
+    assert_eq!(kinds(&outs), vec!["send", "snapshotRequest", "snapshotRequest", "activity"]);
     assert_eq!(ts(&msgs(&outs)), vec!["welcome"]);
     // answered at once, the snapshot goes in the next frame, not held back by the welcome's flush
-    let a = SnapshotAnswer {
-        conn: C1,
-        topic: topic("list"),
-        req: 1,
-        seq: 1,
-        rows: vec![],
-        full: true,
-        deleted: vec![],
-        more: false,
-    };
-    assert_eq!(
-        ts(&msgs(&server.handle(Input::SnapshotRows(a), 0))),
-        vec!["snapshot"]
-    );
+    let a = SnapshotAnswer { conn: C1, topic: topic("list"), req: 1, seq: 1, rows: vec![], full: true, deleted: vec![], more: false };
+    assert_eq!(ts(&msgs(&server.handle(Input::SnapshotRows(a), 0))), vec!["snapshot"]);
 }
 
 #[test]
@@ -366,13 +241,7 @@ fn streaming_10_entities_for_1_s_is_bounded_by_the_flush_rate_not_the_change_rat
     let (mut frames, mut changes) = (0, 0);
     for ms in (0..1000).step_by(5) {
         for e in 0..10 {
-            frames += sends(&s.commit(&[ch(
-                "session:x",
-                "turn",
-                &format!("t{e}"),
-                Op::Append(vec![json!(ms)]),
-            )]))
-            .len();
+            frames += sends(&s.commit(&[ch("session:x", "turn", &format!("t{e}"), Op::Append(vec![json!(ms)]))])).len();
             changes += 1;
         }
         frames += sends(&s.tick(5)).len();
@@ -383,11 +252,8 @@ fn streaming_10_entities_for_1_s_is_bounded_by_the_flush_rate_not_the_change_rat
 }
 
 #[test]
-fn priority_acks_then_the_session_then_the_list_then_the_rest_and_the_watermark_never_passes_what_is_queued()
- {
-    let mut s = S::new(q(&[("fresh", "list,session:a,machines")]), |o| {
-        o.high_water_bytes = 500
-    });
+fn priority_acks_then_the_session_then_the_list_then_the_rest_and_the_watermark_never_passes_what_is_queued() {
+    let mut s = S::new(q(&[("fresh", "list,session:a,machines")]), |o| o.high_water_bytes = 500);
     s.connect(C1);
     s.drained(C1, 0);
     s.tick(100); // the snapshots go
@@ -406,29 +272,10 @@ fn priority_acks_then_the_session_then_the_list_then_the_rest_and_the_watermark_
     let out = s.server.handle(Input::Committed { rows }, s.now);
     // the budget fits two: the session first, then the list; machines waits
     let patch = msgs(&out).into_iter().find(|m| m["t"] == "patch").unwrap();
-    let topics: Vec<&str> = patch["ops"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|o| o["topic"].as_str().unwrap())
-        .collect();
+    let topics: Vec<&str> = patch["ops"].as_array().unwrap().iter().map(|o| o["topic"].as_str().unwrap()).collect();
     assert_eq!(topics, vec!["session:a", "list"]);
-    assert_eq!(
-        sends(&out)[0].2,
-        Some(machines - 1),
-        "a resume from this frame must still get the queued machines row"
-    );
-    s.server.handle(
-        Input::CommandResult {
-            conn: C1,
-            mid: "m1".into(),
-            outcome: CommandOutcome::Ok {
-                seq: 1,
-                result: None,
-            },
-        },
-        s.now,
-    );
+    assert_eq!(sends(&out)[0].2, Some(machines - 1), "a resume from this frame must still get the queued machines row");
+    s.server.handle(Input::CommandResult { conn: C1, mid: "m1".into(), outcome: CommandOutcome::Ok { seq: 1, result: None } }, s.now);
     s.drained(C1, 0);
     let next = s.tick(50);
     assert_eq!(ts(&msgs(&next)), vec!["ack", "patch"]);
@@ -441,120 +288,63 @@ fn an_ack_waits_until_the_effects_it_reports_have_been_sent() {
     s.connect(C1);
     s.drained(C1, 0);
     s.tick(100);
-    let rows = s.store.commit(
-        &[
-            ch("list", "session", "s2", Op::Upsert(json!("y".repeat(400)))),
-            title("t"),
-        ],
-        s.now,
-    );
+    let rows = s.store.commit(&[ch("list", "session", "s2", Op::Upsert(json!("y".repeat(400)))), title("t")], s.now);
     let first = s.server.handle(Input::Committed { rows }, s.now); // the budget takes the first row only
     assert_eq!(ts(&msgs(&first)), vec!["patch"]);
     assert_eq!(sends(&first)[0].2, Some(s.store.seq - 1));
     let seq = s.store.seq;
     s.server.handle(
-        Input::CommandResult {
-            conn: C1,
-            mid: "m1".into(),
-            outcome: CommandOutcome::Ok {
-                seq,
-                result: Some(json!({"id": "s2"})),
-            },
-        },
+        Input::CommandResult { conn: C1, mid: "m1".into(), outcome: CommandOutcome::Ok { seq, result: Some(json!({"id": "s2"})) } },
         s.now,
     );
     s.drained(C1, 0);
-    assert_eq!(
-        msgs(&s.tick(50))[0],
-        json!({"t": "ack", "mid": "m1", "seq": seq, "result": {"id": "s2"}})
-    );
+    assert_eq!(msgs(&s.tick(50))[0], json!({"t": "ack", "mid": "m1", "seq": seq, "result": {"id": "s2"}}));
     // a reject has nothing to wait for
     s.server.handle(
         Input::CommandResult {
             conn: C1,
             mid: "m2".into(),
-            outcome: CommandOutcome::Err {
-                code: "vetoed".into(),
-                message: "over budget".into(),
-            },
+            outcome: CommandOutcome::Err { code: "vetoed".into(), message: "over budget".into() },
         },
         s.now,
     );
-    assert_eq!(
-        msgs(&s.tick(50)),
-        vec![json!({"t": "reject", "mid": "m2", "code": "vetoed", "message": "over budget"})]
-    );
+    assert_eq!(msgs(&s.tick(50)), vec![json!({"t": "reject", "mid": "m2", "code": "vetoed", "message": "over budget"})]);
 }
 
 #[test]
-fn backpressure_drops_a_topic_with_resync_past_the_high_water_mark_and_it_recovers_from_its_since()
-{
-    let mut s = S::new(q(&[("fresh", "list,session:a")]), |o| {
-        o.high_water_bytes = 1000
-    });
+fn backpressure_drops_a_topic_with_resync_past_the_high_water_mark_and_it_recovers_from_its_since() {
+    let mut s = S::new(q(&[("fresh", "list,session:a")]), |o| o.high_water_bytes = 1000);
     s.connect(C1);
     s.tick(100);
     let before = s.store.seq;
     s.drained(C1, 5000); // the phone stopped reading
     for i in 0..20 {
-        s.commit(&[
-            ch("session:a", "turn", &format!("t{i}"), Op::Upsert(json!(i))),
-            title(&format!("x{i}")),
-        ]);
+        s.commit(&[ch("session:a", "turn", &format!("t{i}"), Op::Upsert(json!(i))), title(&format!("x{i}"))]);
     }
     let shed = s.tick(50);
-    let mut resynced: Vec<String> = msgs(&shed)
-        .iter()
-        .filter(|m| m["t"] == "resync")
-        .map(|m| m["topic"].as_str().unwrap().to_owned())
-        .collect();
+    let mut resynced: Vec<String> =
+        msgs(&shed).iter().filter(|m| m["t"] == "resync").map(|m| m["topic"].as_str().unwrap().to_owned()).collect();
     resynced.sort();
     assert_eq!(resynced, vec!["list", "session:a"]);
-    assert!(
-        !msgs(&shed).iter().any(|m| m["t"] == "patch"),
-        "nothing heavy goes into a full socket"
-    );
-    assert_eq!(
-        sends(&shed)[0].2,
-        Some(before),
-        "the cursor stays before what was dropped"
-    );
+    assert!(!msgs(&shed).iter().any(|m| m["t"] == "patch"), "nothing heavy goes into a full socket");
+    assert_eq!(sends(&shed)[0].2, Some(before), "the cursor stays before what was dropped");
     assert_eq!(s.server.stats().resyncs, 2);
     // while dropped, new changes for the topic are not queued
     s.commit(&[title("late")]);
     // the client resubscribes from its cursor; the socket is still full, so the delta waits
-    assert!(
-        requests(&s.send(C1, json!({"t": "sub", "topic": "list", "since": before}))).is_empty()
-    );
+    assert!(requests(&s.send(C1, json!({"t": "sub", "topic": "list", "since": before}))).is_empty());
     let recover = s.drained(C1, 0);
     assert_eq!(requests(&recover), vec![("list".to_owned(), Some(before))]);
-    let patch = msgs(&s.tick(50))
-        .into_iter()
-        .find(|m| m["t"] == "patch")
-        .unwrap();
-    assert_eq!(
-        patch["ops"],
-        json!([{"topic": "list", "e": "session", "id": "s1", "op": "upsert", "v": {"title": "late"}}])
-    );
+    let patch = msgs(&s.tick(50)).into_iter().find(|m| m["t"] == "patch").unwrap();
+    assert_eq!(patch["ops"], json!([{"topic": "list", "e": "session", "id": "s1", "op": "upsert", "v": {"title": "late"}}]));
 }
 
 #[test]
 fn changes_during_a_snapshot_are_held_and_sent_after_it_without_the_ones_it_already_has() {
     let mut store = FakeStore::default();
     let mut server = make_server(&store, |_| {});
-    let out = server.handle(
-        Input::Connect {
-            conn: C1,
-            caller: "me".into(),
-            query: q(&[("fresh", "list")]),
-        },
-        0,
-    );
-    let Some(Output::SnapshotRequest { req, .. }) = out
-        .iter()
-        .find(|o| matches!(o, Output::SnapshotRequest { .. }))
-        .cloned()
-    else {
+    let out = server.handle(Input::Connect { conn: C1, caller: "me".into(), query: q(&[("fresh", "list")]) }, 0);
+    let Some(Output::SnapshotRequest { req, .. }) = out.iter().find(|o| matches!(o, Output::SnapshotRequest { .. })).cloned() else {
         panic!()
     };
     let r1 = store.commit(&[title("a")], 0);
@@ -563,82 +353,37 @@ fn changes_during_a_snapshot_are_held_and_sent_after_it_without_the_ones_it_alre
     let r2 = store.commit(&[title("b")], 0);
     server.handle(Input::Committed { rows: r2 }, 100); // after the snapshot's read
     // an answer to an older request is ignored
-    let stale = SnapshotAnswer {
-        conn: C1,
-        topic: topic("list"),
-        req: req + 7,
-        seq: 0,
-        rows: vec![],
-        full: true,
-        deleted: vec![],
-        more: false,
-    };
+    let stale =
+        SnapshotAnswer { conn: C1, topic: topic("list"), req: req + 7, seq: 0, rows: vec![], full: true, deleted: vec![], more: false };
     assert!(server.handle(Input::SnapshotRows(stale), 100).is_empty());
-    let a = SnapshotAnswer {
-        conn: C1,
-        topic: topic("list"),
-        req,
-        seq: snap_at,
-        rows: snap_rows,
-        full: true,
-        deleted: vec![],
-        more: false,
-    };
+    let a = SnapshotAnswer { conn: C1, topic: topic("list"), req, seq: snap_at, rows: snap_rows, full: true, deleted: vec![], more: false };
     let sent = msgs(&server.handle(Input::SnapshotRows(a), 200));
     assert_eq!(ts(&sent), vec!["snapshot", "patch"]);
-    assert_eq!(
-        sent[1]["ops"][0]["ops"],
-        json!([{"op": "replace", "path": "/title", "value": "b"}])
-    );
+    assert_eq!(sent[1]["ops"][0]["ops"], json!([{"op": "replace", "path": "/title", "value": "b"}]));
 }
 
 #[test]
 fn snapshot_pages_go_in_order_and_the_cursor_holds_for_a_resumed_topic_until_the_last_page() {
     let store = FakeStore::default();
     let mut server = make_server(&store, |o| o.head_seq = 5);
-    let out = server.handle(
-        Input::Connect {
-            conn: C1,
-            caller: "me".into(),
-            query: q(&[("epoch", "E1"), ("cursor", "3"), ("topics", "list")]),
-        },
-        0,
-    );
+    let out = server
+        .handle(Input::Connect { conn: C1, caller: "me".into(), query: q(&[("epoch", "E1"), ("cursor", "3"), ("topics", "list")]) }, 0);
     assert_eq!(requests(&out), vec![("list".to_owned(), Some(3))]);
     let page = |n: u32, more: bool| SnapshotAnswer {
         conn: C1,
         topic: topic("list"),
         req: 1,
         seq: 5,
-        rows: vec![wisp_protocol::Row {
-            e: "x".into(),
-            id: n.to_string(),
-            v: json!(n),
-        }],
+        rows: vec![wisp_protocol::Row { e: "x".into(), id: n.to_string(), v: json!(n) }],
         full: true,
         deleted: vec![],
         more,
     };
     let p1 = server.handle(Input::SnapshotRows(page(1, true)), 100);
-    assert_eq!(
-        sends(&p1)[0].2,
-        Some(3),
-        "not past the since until the whole topic is there"
-    );
-    assert!(
-        server
-            .handle(Input::SnapshotRows(page(2, false)), 100)
-            .is_empty(),
-        "within the flush interval: it waits for the tick"
-    );
+    assert_eq!(sends(&p1)[0].2, Some(3), "not past the since until the whole topic is there");
+    assert!(server.handle(Input::SnapshotRows(page(2, false)), 100).is_empty(), "within the flush interval: it waits for the tick");
     let p2 = server.handle(Input::Tick, 150);
-    assert_eq!(
-        msgs(&p2)
-            .iter()
-            .map(|m| m.get("more").is_some())
-            .collect::<Vec<_>>(),
-        vec![false]
-    );
+    assert_eq!(msgs(&p2).iter().map(|m| m.get("more").is_some()).collect::<Vec<_>>(), vec![false]);
     assert_eq!(sends(&p2)[0].2, Some(5));
 }
 
@@ -647,41 +392,20 @@ fn a_client_that_reconnects_replaces_its_old_stream() {
     let mut s = S::new(q(&[("client_id", "phone"), ("fresh", "list")]), |_| {});
     s.connect(C1);
     let out = s.connect(C2);
-    assert_eq!(
-        out.iter()
-            .filter(|o| **o
-                == Output::Close {
-                    conn: C1,
-                    reason: CloseReason::Replaced
-                })
-            .count(),
-        1
-    );
+    assert_eq!(out.iter().filter(|o| **o == Output::Close { conn: C1, reason: CloseReason::Replaced }).count(), 1);
     assert_eq!(s.server.conn_of("phone"), Some(C2));
 }
 
 #[test]
 fn denied_topics_get_a_notice_and_no_data() {
     let store = FakeStore::default();
-    let mut server = make_server(&store, |o| {
-        o.can_read = Box::new(|caller: &String, t: &wisp_protocol::Topic| {
-            caller == "owner" || !t.is_session()
-        })
-    });
+    let mut server =
+        make_server(&store, |o| o.can_read = Box::new(|caller: &String, t: &wisp_protocol::Topic| caller == "owner" || !t.is_session()));
     let mut store = store;
-    let out = server.handle(
-        Input::Connect {
-            conn: C1,
-            caller: "agent".into(),
-            query: q(&[("fresh", "list,session:secret,bogus topic")]),
-        },
-        0,
-    );
+    let out =
+        server.handle(Input::Connect { conn: C1, caller: "agent".into(), query: q(&[("fresh", "list,session:secret,bogus topic")]) }, 0);
     assert_eq!(requests(&out), vec![("list".to_owned(), None)]);
-    let notices: Vec<Value> = msgs(&out)
-        .into_iter()
-        .filter(|m| m["t"] == "notice")
-        .collect();
+    let notices: Vec<Value> = msgs(&out).into_iter().filter(|m| m["t"] == "notice").collect();
     assert_eq!(
         notices,
         vec![
@@ -689,12 +413,12 @@ fn denied_topics_get_a_notice_and_no_data() {
             json!({"t": "notice", "kind": "denied", "data": {"topic": "session:secret", "code": "forbidden"}})
         ]
     );
-    let win = server.handle(Input::Message { conn: C1, message: json!({"t": "window", "req": "w1", "topic": "session:secret", "before_seq": 9, "limit": 50}) }, 100);
-    assert!(!kinds(&win).contains(&"windowRequest"));
-    let rows = store.commit(
-        &[ch("session:secret", "turn", "t", Op::Upsert(json!(1)))],
-        0,
+    let win = server.handle(
+        Input::Message { conn: C1, message: json!({"t": "window", "req": "w1", "topic": "session:secret", "before_seq": 9, "limit": 50}) },
+        100,
     );
+    assert!(!kinds(&win).contains(&"windowRequest"));
+    let rows = store.commit(&[ch("session:secret", "turn", "t", Op::Upsert(json!(1)))], 0);
     assert!(server.handle(Input::Committed { rows }, 200).is_empty());
 }
 
@@ -705,28 +429,13 @@ fn passive_subscriptions_never_count_as_use_and_one_active_sub_does() {
     assert!(!kinds(&out).contains(&"activity"));
     assert_eq!(s.server.active_count(), 0);
     let sub = s.send(C1, json!({"t": "sub", "topic": "session:a"}));
-    assert_eq!(
-        sub.iter()
-            .filter(|o| **o
-                == Output::Activity {
-                    conn: C1,
-                    active: true
-                })
-            .count(),
-        1
-    );
+    assert_eq!(sub.iter().filter(|o| **o == Output::Activity { conn: C1, active: true }).count(), 1);
     assert_eq!(s.server.active_count(), 1);
     // the same sub again, passive: only the flag changes (no second snapshot)
-    let again = s.send(
-        C1,
-        json!({"t": "sub", "topic": "session:a", "passive": true}),
-    );
+    let again = s.send(C1, json!({"t": "sub", "topic": "session:a", "passive": true}));
     assert_eq!(kinds(&again), vec!["activity"]);
     assert_eq!(s.server.active_count(), 0);
-    let mut mixed = S::new(
-        q(&[("fresh", "list,machines"), ("passive", "machines")]),
-        |_| {},
-    );
+    let mut mixed = S::new(q(&[("fresh", "list,machines"), ("passive", "machines")]), |_| {});
     mixed.connect(C1);
     assert_eq!(mixed.server.active_count(), 1);
 }
@@ -735,38 +444,12 @@ fn passive_subscriptions_never_count_as_use_and_one_active_sub_does() {
 fn window_paging_goes_to_the_host_and_its_rows_come_back_on_the_stream() {
     let mut s = S::new(q(&[("fresh", "session:a")]), |_| {});
     s.connect(C1);
-    let req = s.send(
-        C1,
-        json!({"t": "window", "req": "w1", "topic": "session:a", "before_seq": 900, "limit": 5000}),
-    );
-    assert_eq!(
-        req,
-        vec![Output::WindowRequest {
-            conn: C1,
-            req: "w1".into(),
-            topic: topic("session:a"),
-            before_seq: 900,
-            limit: 1000
-        }]
-    );
+    let req = s.send(C1, json!({"t": "window", "req": "w1", "topic": "session:a", "before_seq": 900, "limit": 5000}));
+    assert_eq!(req, vec![Output::WindowRequest { conn: C1, req: "w1".into(), topic: topic("session:a"), before_seq: 900, limit: 1000 }]);
     s.tick(100);
-    let rows = vec![wisp_protocol::Row {
-        e: "event".into(),
-        id: "1".into(),
-        v: json!("old"),
-    }];
-    let out = s.handle(Input::WindowRows {
-        conn: C1,
-        req: "w1".into(),
-        rows,
-        done: true,
-    });
-    assert_eq!(
-        msgs(&out),
-        vec![
-            json!({"t": "rows", "req": "w1", "rows": [{"e": "event", "id": "1", "v": "old"}], "done": true})
-        ]
-    );
+    let rows = vec![wisp_protocol::Row { e: "event".into(), id: "1".into(), v: json!("old") }];
+    let out = s.handle(Input::WindowRows { conn: C1, req: "w1".into(), rows, done: true });
+    assert_eq!(msgs(&out), vec![json!({"t": "rows", "req": "w1", "rows": [{"e": "event", "id": "1", "v": "old"}], "done": true})]);
 }
 
 #[test]
@@ -818,27 +501,10 @@ fn notices_go_to_every_stream_or_only_to_those_on_the_topic() {
     s.connect(C1);
     s.connect_with(C2, q(&[("client_id", "b"), ("fresh", "machines")]));
     s.tick(100);
-    let notice = Notice {
-        t: wisp_protocol::tag::Notice,
-        kind: "toast".into(),
-        data: json!("hi"),
-    };
-    let out = s.handle(Input::Notice {
-        notice: notice.clone(),
-        topic: Some(topic("machines")),
-    });
-    assert_eq!(
-        sends(&out).iter().map(|f| f.0).collect::<Vec<_>>(),
-        vec![C2]
-    );
+    let notice = Notice { t: wisp_protocol::tag::Notice, kind: "toast".into(), data: json!("hi") };
+    let out = s.handle(Input::Notice { notice: notice.clone(), topic: Some(topic("machines")) });
+    assert_eq!(sends(&out).iter().map(|f| f.0).collect::<Vec<_>>(), vec![C2]);
     s.tick(50); // c2 just flushed: its next frame waits out the interval
-    let all = s.handle(Input::Notice {
-        notice,
-        topic: None,
-    });
-    assert_eq!(
-        sends(&all).iter().map(|f| f.0).collect::<Vec<_>>(),
-        vec![C1, C2]
-    );
+    let all = s.handle(Input::Notice { notice, topic: None });
+    assert_eq!(sends(&all).iter().map(|f| f.0).collect::<Vec<_>>(), vec![C1, C2]);
 }
-

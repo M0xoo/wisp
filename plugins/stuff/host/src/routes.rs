@@ -20,7 +20,14 @@ use crate::state::{self, Cell, Stuff, ok_json};
 pub type Handler<Fut> = fn(Arc<Stuff>, Ctx, Call, Request) -> Fut;
 
 /// A route whose handler gets the plugin's state, answering v1's `{ error }` on a refusal.
-pub fn route<Fut>(cell: &Cell, method: &'static str, pattern: &'static str, permission: &'static str, summary: &'static str, f: Handler<Fut>) -> Route
+pub fn route<Fut>(
+    cell: &Cell,
+    method: &'static str,
+    pattern: &'static str,
+    permission: &'static str,
+    summary: &'static str,
+    f: Handler<Fut>,
+) -> Route
 where
     Fut: Future<Output = Result<Response>> + Send + 'static,
 {
@@ -79,13 +86,25 @@ pub async fn upload(s: Arc<Stuff>, ctx: Ctx, call: Call, req: Request) -> Result
     };
     let from = match &t {
         Some(t) => from_task(Some((t.id.as_str(), t.title.as_str())), q("turn"), q("key")),
-        None => q("key").map(|k| StuffFrom { key: Some(k.chars().take(300).collect()), session: q("session").map(str::to_owned), title: q("from").map(str::to_owned), turn: None }),
+        None => q("key").map(|k| StuffFrom {
+            key: Some(k.chars().take(300).collect()),
+            session: q("session").map(str::to_owned),
+            title: q("from").map(str::to_owned),
+            turn: None,
+        }),
     };
     if let Some(same) = s.shelf.find_key(from.as_ref().and_then(|f| f.key.as_deref())) {
         return ok_json(s.view(&same).await, 200);
     }
     let fields = Fields { title: q("title").map(|t| wisp_stuff_core::kind::clip(t, 140)), ..Fields::default() };
-    let o = SaveOpts { fields, from, by: Some("you".into()), name: q("name").map(str::to_owned), mime: q("type").map(str::to_owned), ..SaveOpts::default() };
+    let o = SaveOpts {
+        fields,
+        from,
+        by: Some("you".into()),
+        name: q("name").map(str::to_owned),
+        mime: q("type").map(str::to_owned),
+        ..SaveOpts::default()
+    };
     let it = s.shelf.save_bytes(req.body, o).await?;
     saved(&ctx, &call, &it, false);
     ok_json(s.view(&it).await, 201)
@@ -131,13 +150,19 @@ pub async fn reveal(s: Arc<Stuff>, _c: Ctx, _call: Call, req: Request) -> Result
 
 pub fn all(cell: &Cell) -> Vec<Route> {
     vec![
-        Route { max_body: Some(500 * 1024 * 1024), ..route(cell, "POST", "/stuff/upload", "stuff:save", "Save a raw body (a dropped file)", upload) },
+        Route {
+            max_body: Some(500 * 1024 * 1024),
+            ..route(cell, "POST", "/stuff/upload", "stuff:save", "Save a raw body (a dropped file)", upload)
+        },
         route(cell, "GET", "/stuff/starters", "stuff:read", "The panes wisp ships", starters_list),
         route(cell, "POST", "/stuff/starters/:starter", "stuff:save", "Add a starter pane", starter_add),
         route(cell, "GET", "/stuff/:id/file", "stuff:read", "An item's file", crate::files::file),
         route(cell, "GET", "/stuff/:id/cover", "stuff:read", "An app's picture", crate::files::cover),
         route(cell, "POST", "/stuff/:id/reveal", "stuff:read", "Show an item in its folder", reveal),
-        Route { max_body: Some(500 * 1024 * 1024), ..route(cell, "POST", "/uploads", "stuff:save", "Attach a file", crate::files::upload_post) },
+        Route {
+            max_body: Some(500 * 1024 * 1024),
+            ..route(cell, "POST", "/uploads", "stuff:save", "Attach a file", crate::files::upload_post)
+        },
         route(cell, "GET", "/uploads/:id", "stuff:read", "An attachment's bytes", crate::files::upload_get),
         Route { doc: false, ..route(cell, "DELETE", "/uploads/:id", "stuff:save", "Remove an attachment", crate::files::upload_delete) },
     ]

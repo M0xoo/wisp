@@ -5,10 +5,7 @@
 
 use std::path::Path;
 
-use wisp_git_api::{
-    Applied, ApplyRequest, CommitRequest, FetchRequest, PushRequest, StageRequest, Synced,
-    WorktreeAdd, WorktreeEntry,
-};
+use wisp_git_api::{Applied, ApplyRequest, CommitRequest, FetchRequest, PushRequest, StageRequest, Synced, WorktreeAdd, WorktreeEntry};
 use wisp_git_core::{SNAPSHOT_ENV, porcelain};
 
 use crate::error::{GitError, Result};
@@ -16,14 +13,8 @@ use crate::repo::Inner;
 use crate::run::{Opts, args, read_args};
 
 fn snapshot_env(index: &Path) -> Vec<(String, String)> {
-    let mut env: Vec<(String, String)> = SNAPSHOT_ENV
-        .iter()
-        .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
-        .collect();
-    env.push((
-        "GIT_INDEX_FILE".into(),
-        index.to_string_lossy().into_owned(),
-    ));
+    let mut env: Vec<(String, String)> = SNAPSHOT_ENV.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+    env.push(("GIT_INDEX_FILE".into(), index.to_string_lossy().into_owned()));
     env
 }
 
@@ -33,32 +24,14 @@ impl Inner {
     pub async fn fetch(&self, req: FetchRequest) -> Result<()> {
         let remote = req.remote.unwrap_or_else(|| "origin".into());
         if let Some(spec) = req.refspec {
-            let _ = self
-                .git
-                .exec(
-                    &self.dir,
-                    &args(&["fetch", "--quiet", &remote, &spec]),
-                    Opts::timeout(30),
-                )
-                .await?;
+            let _ = self.git.exec(&self.dir, &args(&["fetch", "--quiet", &remote, &spec]), Opts::timeout(30)).await?;
         } else {
             let mut clock = self.shared.fetching.lock().await;
             let key = format!("{}\0{remote}", self.info.root);
-            if !clock.due(
-                &key,
-                (self.now)(),
-                i64::try_from(req.max_age_ms).unwrap_or(i64::MAX),
-            ) {
+            if !clock.due(&key, (self.now)(), i64::try_from(req.max_age_ms).unwrap_or(i64::MAX)) {
                 return Ok(());
             }
-            let _ = self
-                .git
-                .exec(
-                    &self.root,
-                    &args(&["fetch", "--quiet", &remote]),
-                    Opts::timeout(20),
-                )
-                .await?;
+            let _ = self.git.exec(&self.root, &args(&["fetch", "--quiet", &remote]), Opts::timeout(20)).await?;
         }
         self.notify("fetched");
         Ok(())
@@ -75,100 +48,46 @@ impl Inner {
             None => a.extend(args(&[&req.path, &req.branch])),
         }
         self.git.run(&self.root, &a, Opts::timeout(120)).await?;
-        let head = self
-            .git
-            .quiet(Path::new(&req.path), &["rev-parse", "HEAD"])
-            .await;
+        let head = self.git.quiet(Path::new(&req.path), &["rev-parse", "HEAD"]).await;
         self.notify("worktrees");
-        Ok(WorktreeEntry {
-            path: req.path,
-            head,
-            branch: req.branch,
-            ..WorktreeEntry::default()
-        })
+        Ok(WorktreeEntry { path: req.path, head, branch: req.branch, ..WorktreeEntry::default() })
     }
 
     /// Removes the worktree and its folder, then forgets what git calls prunable. A large `node_modules`
     /// takes a while: five minutes.
     pub async fn worktree_remove(&self, path: &str) -> Result<()> {
         let _turn = self.shared.worktrees.lock().await;
-        let _ = self
-            .git
-            .exec(
-                &self.root,
-                &args(&["worktree", "remove", "--force", path]),
-                Opts::timeout(300),
-            )
-            .await?;
+        let _ = self.git.exec(&self.root, &args(&["worktree", "remove", "--force", path]), Opts::timeout(300)).await?;
         match tokio::fs::remove_dir_all(path).await {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
             _ => {}
         }
-        let _ = self
-            .git
-            .exec(&self.root, &args(&["worktree", "prune"]), Opts::timeout(60))
-            .await?;
+        let _ = self.git.exec(&self.root, &args(&["worktree", "prune"]), Opts::timeout(60)).await?;
         self.notify("worktrees");
         Ok(())
     }
 
     pub async fn worktree_prune(&self) -> Result<()> {
         let _turn = self.shared.worktrees.lock().await;
-        let _ = self
-            .git
-            .exec(&self.root, &args(&["worktree", "prune"]), Opts::timeout(60))
-            .await?;
+        let _ = self.git.exec(&self.root, &args(&["worktree", "prune"]), Opts::timeout(60)).await?;
         Ok(())
     }
 
     /// Only the paths git has something for move (v1 stageFile).
     pub async fn stage(&self, req: StageRequest) -> Result<bool> {
-        let list: Vec<&str> = req
-            .paths
-            .iter()
-            .map(String::as_str)
-            .filter(|p| !p.is_empty())
-            .collect();
+        let list: Vec<&str> = req.paths.iter().map(String::as_str).filter(|p| !p.is_empty()).collect();
         let has = if req.unstage {
-            porcelain::paths(
-                &self
-                    .git
-                    .quiet(
-                        &self.dir,
-                        &["diff", "--cached", "--name-only", "--no-renames", "-z"],
-                    )
-                    .await,
-            )
+            porcelain::paths(&self.git.quiet(&self.dir, &["diff", "--cached", "--name-only", "--no-renames", "-z"]).await)
         } else {
-            let mut v = porcelain::paths(
-                &self
-                    .git
-                    .quiet(&self.dir, &["diff", "--name-only", "--no-renames", "-z"])
-                    .await,
-            );
-            v.extend(porcelain::paths(
-                &self
-                    .git
-                    .quiet(
-                        &self.dir,
-                        &["ls-files", "--others", "--exclude-standard", "-z"],
-                    )
-                    .await,
-            ));
+            let mut v = porcelain::paths(&self.git.quiet(&self.dir, &["diff", "--name-only", "--no-renames", "-z"]).await);
+            v.extend(porcelain::paths(&self.git.quiet(&self.dir, &["ls-files", "--others", "--exclude-standard", "-z"]).await));
             v
         };
-        let go: Vec<&str> = list
-            .into_iter()
-            .filter(|p| has.iter().any(|h| h == p))
-            .collect();
+        let go: Vec<&str> = list.into_iter().filter(|p| has.iter().any(|h| h == p)).collect();
         if go.is_empty() {
             return Ok(false);
         }
-        let mut a = if req.unstage {
-            args(&["restore", "--staged", "--"])
-        } else {
-            args(&["add", "-A", "--"])
-        };
+        let mut a = if req.unstage { args(&["restore", "--staged", "--"]) } else { args(&["add", "-A", "--"]) };
         a.extend(go.iter().map(|s| (*s).to_owned()));
         self.git.run(&self.dir, &a, Opts::timeout(60)).await?;
         self.notify("status");
@@ -193,51 +112,26 @@ impl Inner {
                 a.push("--3way".into());
             }
             a.push("-".into());
-            let o = Opts {
-                input: Some(req.patch.clone().into_bytes()),
-                timeout: Some(std::time::Duration::from_secs(120)),
-                ..Opts::default()
-            };
+            let o =
+                Opts { input: Some(req.patch.clone().into_bytes()), timeout: Some(std::time::Duration::from_secs(120)), ..Opts::default() };
             async move { self.git.run(&self.dir, &a, o).await }
         };
         let first = run(false).await;
         if first.is_ok() || !req.three_way {
             self.notify("status");
             return Ok(match first {
-                Ok(_) => Applied {
-                    applied: true,
-                    ..Applied::default()
-                },
-                Err(e) => Applied {
-                    error: Some(e.to_string()),
-                    ..Applied::default()
-                },
+                Ok(_) => Applied { applied: true, ..Applied::default() },
+                Err(e) => Applied { error: Some(e.to_string()), ..Applied::default() },
             });
         }
         let out = match run(true).await {
-            Ok(_) => Applied {
-                applied: true,
-                merged: true,
-                ..Applied::default()
-            },
+            Ok(_) => Applied { applied: true, merged: true, ..Applied::default() },
             Err(e) => {
-                let conflicts = porcelain::paths(
-                    &self
-                        .git
-                        .quiet(&self.dir, &["diff", "--name-only", "--diff-filter=U"])
-                        .await,
-                );
+                let conflicts = porcelain::paths(&self.git.quiet(&self.dir, &["diff", "--name-only", "--diff-filter=U"]).await);
                 if conflicts.is_empty() {
-                    Applied {
-                        error: Some(e.to_string()),
-                        ..Applied::default()
-                    }
+                    Applied { error: Some(e.to_string()), ..Applied::default() }
                 } else {
-                    Applied {
-                        applied: true,
-                        conflicts,
-                        ..Applied::default()
-                    }
+                    Applied { applied: true, conflicts, ..Applied::default() }
                 }
             }
         };
@@ -248,19 +142,10 @@ impl Inner {
     /// The new commit's sha, or None when nothing was staged (a merge's conclusion always commits).
     pub async fn commit(&self, req: CommitRequest) -> Result<Option<String>> {
         if req.all {
-            self.git
-                .run(&self.dir, &args(&["add", "-A"]), Opts::timeout(120))
-                .await?;
+            self.git.run(&self.dir, &args(&["add", "-A"]), Opts::timeout(120)).await?;
         }
         if !req.no_edit {
-            let r = self
-                .git
-                .exec(
-                    &self.dir,
-                    &args(&["diff", "--cached", "--quiet"]),
-                    Opts::default(),
-                )
-                .await?;
+            let r = self.git.exec(&self.dir, &args(&["diff", "--cached", "--quiet"]), Opts::default()).await?;
             match r.exit.code {
                 Some(0) => return Ok(None),
                 Some(1) => {}
@@ -305,10 +190,7 @@ impl Inner {
     }
 
     pub async fn branch_delete(&self, name: &str) -> Result<bool> {
-        let r = self
-            .git
-            .exec(&self.root, &args(&["branch", "-D", name]), Opts::default())
-            .await?;
+        let r = self.git.exec(&self.root, &args(&["branch", "-D", name]), Opts::default()).await?;
         if r.exit.success() {
             self.notify("branches");
         }
@@ -319,45 +201,18 @@ impl Inner {
     /// checked out, else the ref is moved with a fast-forward-only fetch. Never anything more.
     pub async fn sync_base(&self, base: &str) -> Result<Synced> {
         let go = async {
-            self.git
-                .run(
-                    &self.root,
-                    &args(&["fetch", "--quiet", "origin"]),
-                    Opts::timeout(60),
-                )
-                .await?;
-            let current = self
-                .git
-                .quiet(&self.root, &["symbolic-ref", "--quiet", "--short", "HEAD"])
-                .await;
+            self.git.run(&self.root, &args(&["fetch", "--quiet", "origin"]), Opts::timeout(60)).await?;
+            let current = self.git.quiet(&self.root, &["symbolic-ref", "--quiet", "--short", "HEAD"]).await;
             if current == base {
-                self.git
-                    .run(
-                        &self.root,
-                        &args(&["merge", "--ff-only", "--quiet", &format!("origin/{base}")]),
-                        Opts::default(),
-                    )
-                    .await?;
+                self.git.run(&self.root, &args(&["merge", "--ff-only", "--quiet", &format!("origin/{base}")]), Opts::default()).await?;
             } else {
-                self.git
-                    .run(
-                        &self.root,
-                        &args(&["fetch", "--quiet", "origin", &format!("{base}:{base}")]),
-                        Opts::timeout(60),
-                    )
-                    .await?;
+                self.git.run(&self.root, &args(&["fetch", "--quiet", "origin", &format!("{base}:{base}")]), Opts::timeout(60)).await?;
             }
             Ok::<(), GitError>(())
         };
         let out = match go.await {
-            Ok(()) => Synced {
-                ok: true,
-                text: format!("Local {base} is up to date with origin/{base}."),
-            },
-            Err(e) => Synced {
-                ok: false,
-                text: format!("Local {base} was not updated: {e}"),
-            },
+            Ok(()) => Synced { ok: true, text: format!("Local {base} is up to date with origin/{base}.") },
+            Err(e) => Synced { ok: false, text: format!("Local {base} was not updated: {e}") },
         };
         self.notify("branches");
         Ok(out)
@@ -373,34 +228,12 @@ impl Inner {
         let Some(tree) = self.work_tree().await? else {
             return Ok(None);
         };
-        if self
-            .git
-            .quiet(&self.dir, &["rev-parse", "HEAD^{tree}"])
-            .await
-            == tree
-        {
+        if self.git.quiet(&self.dir, &["rev-parse", "HEAD^{tree}"]).await == tree {
             return Ok(None);
         }
         let index = temp_index();
-        let o = Opts {
-            env: snapshot_env(&index),
-            ..Opts::default()
-        };
-        let sha = self
-            .git
-            .run(
-                &self.dir,
-                &args(&[
-                    "commit-tree",
-                    &tree,
-                    "-p",
-                    &head,
-                    "-m",
-                    "wisp: work in progress",
-                ]),
-                o,
-            )
-            .await;
+        let o = Opts { env: snapshot_env(&index), ..Opts::default() };
+        let sha = self.git.run(&self.dir, &args(&["commit-tree", &tree, "-p", &head, "-m", "wisp: work in progress"]), o).await;
         let _ = tokio::fs::remove_file(&index).await;
         sha.map(Some)
     }
@@ -437,21 +270,7 @@ impl Inner {
         let Some(tree) = self.work_tree().await? else {
             return Ok(String::new());
         };
-        let out = self
-            .git
-            .raw(
-                &self.dir,
-                &[
-                    "diff",
-                    "--binary",
-                    "--no-color",
-                    "--no-ext-diff",
-                    "--full-index",
-                    base,
-                    &tree,
-                ],
-            )
-            .await?;
+        let out = self.git.raw(&self.dir, &["diff", "--binary", "--no-color", "--no-ext-diff", "--full-index", base, &tree]).await?;
         Ok(String::from_utf8_lossy(&out).into_owned())
     }
 
@@ -463,29 +282,18 @@ impl Inner {
             return Ok(None);
         }
         let index = temp_index();
-        let o = || Opts {
-            env: snapshot_env(&index),
-            timeout: Some(std::time::Duration::from_secs(120)),
-            ..Opts::default()
-        };
-        let git_dir = self
-            .git
-            .quiet(&self.dir, &["rev-parse", "--absolute-git-dir"])
-            .await;
+        let o = || Opts { env: snapshot_env(&index), timeout: Some(std::time::Duration::from_secs(120)), ..Opts::default() };
+        let git_dir = self.git.quiet(&self.dir, &["rev-parse", "--absolute-git-dir"]).await;
         let go = async {
             let seeded = !git_dir.is_empty()
                 && copy_keeping_mtime(Path::new(&git_dir).join("index"), index.clone()).await
                 && self.git.run(&self.dir, &args(&["add", "-A"]), o()).await.is_ok();
             if !seeded {
                 let _ = tokio::fs::remove_file(&index).await;
-                self.git
-                    .run(&self.dir, &args(&["read-tree", "HEAD"]), o())
-                    .await?;
+                self.git.run(&self.dir, &args(&["read-tree", "HEAD"]), o()).await?;
                 self.git.run(&self.dir, &args(&["add", "-A"]), o()).await?;
             }
-            self.git
-                .run(&self.dir, &read_args(&["write-tree"]), o())
-                .await
+            self.git.run(&self.dir, &read_args(&["write-tree"]), o()).await
         };
         let tree = go.await;
         let _ = tokio::fs::remove_file(&index).await;
@@ -505,15 +313,9 @@ async fn copy_keeping_mtime(from: std::path::PathBuf, to: std::path::PathBuf) ->
         std::io::copy(&mut src, &mut dst)?;
         dst.set_modified(mtime)
     };
-    tokio::task::spawn_blocking(copy)
-        .await
-        .is_ok_and(|r| r.is_ok())
+    tokio::task::spawn_blocking(copy).await.is_ok_and(|r| r.is_ok())
 }
 
 fn temp_index() -> std::path::PathBuf {
-    std::env::temp_dir().join(format!(
-        "wisp-index-{}-{}",
-        std::process::id(),
-        wisp_kernel::ids::uuid7()
-    ))
+    std::env::temp_dir().join(format!("wisp-index-{}-{}", std::process::id(), wisp_kernel::ids::uuid7()))
 }

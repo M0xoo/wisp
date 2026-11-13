@@ -16,7 +16,11 @@ fn dir() -> std::path::PathBuf {
 }
 
 fn names() -> Vec<String> {
-    let mut n: Vec<String> = std::fs::read_dir(dir()).unwrap().filter_map(Result::ok).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned)).collect();
+    let mut n: Vec<String> = std::fs::read_dir(dir())
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned))
+        .collect();
     n.sort();
     n
 }
@@ -56,7 +60,8 @@ fn every_fixture_builds_v1s_argv() {
     for name in names() {
         let m = meta(&name);
         let o = &m["opts"];
-        let a = args(if o["mode"].is_string() { s(&o["mode"]) } else { "edits" }, s(&o["model"]), s(&o["effort"]), o["resumeId"].as_str(), &[]);
+        let a =
+            args(if o["mode"].is_string() { s(&o["mode"]) } else { "edits" }, s(&o["model"]), s(&o["effort"]), o["resumeId"].as_str(), &[]);
         let want: Vec<String> = m["argv"].as_array().unwrap().iter().map(|x| s(x).to_owned()).collect();
         assert_eq!(a, want, "{name}");
     }

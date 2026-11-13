@@ -39,7 +39,8 @@ pub fn frameable(headers: &[(String, String)]) -> Vec<(String, String)> {
             continue;
         }
         if name == "content-security-policy" {
-            let kept = v.split(';').filter(|d| !d.trim_start().to_ascii_lowercase().starts_with("frame-ancestors")).collect::<Vec<_>>().join(";");
+            let kept =
+                v.split(';').filter(|d| !d.trim_start().to_ascii_lowercase().starts_with("frame-ancestors")).collect::<Vec<_>>().join(";");
             let kept = kept.trim();
             if !kept.is_empty() {
                 out.push((k.clone(), kept.to_owned()));
@@ -54,7 +55,9 @@ pub fn frameable(headers: &[(String, String)]) -> Vec<(String, String)> {
 /// Whether an answer gets the picker: a GET's HTML page, not too big to hold (no length said counts as small, as v1).
 #[must_use]
 pub fn takes_picker(method: &str, content_type: Option<&str>, length: Option<u64>) -> bool {
-    method.eq_ignore_ascii_case("GET") && content_type.is_some_and(|t| t.trim_start().to_ascii_lowercase().starts_with("text/html")) && length.unwrap_or(0) <= HTML_MAX
+    method.eq_ignore_ascii_case("GET")
+        && content_type.is_some_and(|t| t.trim_start().to_ascii_lowercase().starts_with("text/html"))
+        && length.unwrap_or(0) <= HTML_MAX
 }
 
 /// The picker's script tag, as early in the page as it can go: right after `<head …>`, else `<html …>`, else first.
@@ -130,7 +133,8 @@ fn local_port_in_clean(text: &str) -> Option<u16> {
         while let Some(i) = text[from..].find(scheme).map(|i| i + from) {
             let rest = &text[i + scheme.len()..];
             // `[::1]:5173`: the host's own colons are inside its brackets
-            let host_end = if rest.starts_with('[') { rest.find(']').map(|b| b + 1).filter(|&b| rest[b..].starts_with(':')) } else { rest.find(':') };
+            let host_end =
+                if rest.starts_with('[') { rest.find(']').map(|b| b + 1).filter(|&b| rest[b..].starts_with(':')) } else { rest.find(':') };
             if let Some(h) = host_end {
                 let host = &rest[..h];
                 let digits: String = rest[h + 1..].chars().take_while(char::is_ascii_digit).collect();
@@ -162,12 +166,23 @@ mod tests {
     /// Host, the proxy's port beside the app's and never the same.
     #[test]
     fn the_preview_proxy_frames_the_app_and_adds_the_picker_as_v1() {
-        let out = frameable(&h(&[("X-Frame-Options", "DENY"), ("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; img-src *"), ("content-type", "text/html")]));
+        let out = frameable(&h(&[
+            ("X-Frame-Options", "DENY"),
+            ("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; img-src *"),
+            ("content-type", "text/html"),
+        ]));
         assert_eq!(out, h(&[("Content-Security-Policy", "default-src 'self'; img-src *"), ("content-type", "text/html")]));
-        assert_eq!(frameable(&h(&[("content-security-policy", "frame-ancestors 'self'")])), Vec::<(String, String)>::new(), "nothing left: no CSP");
+        assert_eq!(
+            frameable(&h(&[("content-security-policy", "frame-ancestors 'self'")])),
+            Vec::<(String, String)>::new(),
+            "nothing left: no CSP"
+        );
 
         let tag = "<script src=\"/__wisp/pick.js\"></script>";
-        assert_eq!(with_picker("<!doctype html><html lang=en><head><title>x</title></head></html>"), format!("<!doctype html><html lang=en><head>{tag}<title>x</title></head></html>"));
+        assert_eq!(
+            with_picker("<!doctype html><html lang=en><head><title>x</title></head></html>"),
+            format!("<!doctype html><html lang=en><head>{tag}<title>x</title></head></html>")
+        );
         assert_eq!(with_picker("<HTML><body>hi</body></HTML>"), format!("<HTML>{tag}<body>hi</body></HTML>"));
         assert_eq!(with_picker("<header>not the head</header><p>x</p>"), format!("{tag}<header>not the head</header><p>x</p>"));
         assert_eq!(with_picker(&format!("<head>{tag}</head>")), format!("<head>{tag}</head>"), "already there: once");
@@ -179,7 +194,12 @@ mod tests {
         assert!(!takes_picker("GET", Some("text/html"), Some(HTML_MAX + 1)));
 
         assert!(loopback_host("localhost:42123") && loopback_host("127.0.0.1:42123") && loopback_host("[::1]:42123"));
-        assert!(!loopback_host("evil.example:42123") && !loopback_host("localhost") && !loopback_host("localhost.evil.example:1") && !loopback_host("localhost:abc"));
+        assert!(
+            !loopback_host("evil.example:42123")
+                && !loopback_host("localhost")
+                && !loopback_host("localhost.evil.example:1")
+                && !loopback_host("localhost:abc")
+        );
 
         let (app, proxy) = (crate::run::port_for("s1"), proxy_port_for("s1"));
         assert!((42_000..42_900).contains(&proxy) && app != proxy);
@@ -190,14 +210,20 @@ mod tests {
     /// v1 urlIn: the first local address the app's output prints, its port; a remote address or no port isn't one.
     #[test]
     fn the_app_s_address_is_the_first_local_one_it_prints() {
-        assert_eq!(local_port_in("  VITE v7 ready\n  ➜  Local:   http://localhost:5173/\n  ➜  Network: http://192.168.1.4:5173/"), Some(5173));
+        assert_eq!(
+            local_port_in("  VITE v7 ready\n  ➜  Local:   http://localhost:5173/\n  ➜  Network: http://192.168.1.4:5173/"),
+            Some(5173)
+        );
         assert_eq!(local_port_in("listening on http://127.0.0.1:8080"), Some(8080));
         assert_eq!(local_port_in("see https://example.com:443/docs"), None);
         assert_eq!(local_port_in("http://localhost/ no port"), None);
         assert_eq!(local_port_in("http://0.0.0.0:3000 and http://localhost:4000"), Some(3000));
         assert_eq!(local_port_in("Listening on http://[::1]:8000/"), Some(8000));
         // vite colours the port: the colours go first
-        assert_eq!(local_port_in("  \u{1b}[32m➜\u{1b}[39m  Local:   \u{1b}[36mhttp://localhost:\u{1b}[1m5173\u{1b}[22m/\u{1b}[39m"), Some(5173));
+        assert_eq!(
+            local_port_in("  \u{1b}[32m➜\u{1b}[39m  Local:   \u{1b}[36mhttp://localhost:\u{1b}[1m5173\u{1b}[22m/\u{1b}[39m"),
+            Some(5173)
+        );
         assert_eq!(strip_ansi("\u{1b}]0;title\u{7}ok \u{1b}[1mbold\u{1b}[0m"), "ok bold");
     }
 }

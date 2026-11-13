@@ -117,7 +117,11 @@ impl Catalogue {
 
     /// The plugin's verbs whose first word is `word`, for "did you mean".
     pub fn near(&self, plugin: &str, word: &str) -> Vec<String> {
-        self.verbs.iter().filter(|v| same(plugin, &v.plugin) && v.words.first().is_some_and(|w| w.starts_with(word) || word.starts_with(w.as_str()))).map(Verb::path).collect()
+        self.verbs
+            .iter()
+            .filter(|v| same(plugin, &v.plugin) && v.words.first().is_some_and(|w| w.starts_with(word) || word.starts_with(w.as_str())))
+            .map(Verb::path)
+            .collect()
     }
 }
 
@@ -147,7 +151,11 @@ fn value_of(f: &Field, raw: &str) -> Result<Value, Usage> {
     }
     match &f.kind {
         Kind::Str => Ok(json!(raw)),
-        Kind::Num => raw.parse::<i64>().map(Value::from).or_else(|_| raw.parse::<f64>().map(Value::from)).map_err(|_| Usage(format!("--{} takes a number, not {raw:?}", f.flag()))),
+        Kind::Num => raw
+            .parse::<i64>()
+            .map(Value::from)
+            .or_else(|_| raw.parse::<f64>().map(Value::from))
+            .map_err(|_| Usage(format!("--{} takes a number, not {raw:?}", f.flag()))),
         Kind::Bool => match raw {
             "true" | "yes" | "on" | "1" => Ok(json!(true)),
             "false" | "no" | "off" | "0" => Ok(json!(false)),
@@ -221,7 +229,11 @@ pub fn build(v: &Verb, rest: &[String]) -> Result<Value, Usage> {
         }
         let Some(f) = spec.field(&name) else {
             let known: Vec<String> = spec.fields.iter().map(|f| format!("--{}", f.flag())).collect();
-            return Err(Usage(if known.is_empty() { format!("wisp {} takes no --{name} (see --help)", v.path()) } else { format!("wisp {} has no --{name}: {}", v.path(), known.join(" ")) }));
+            return Err(Usage(if known.is_empty() {
+                format!("wisp {} takes no --{name} (see --help)", v.path())
+            } else {
+                format!("wisp {} has no --{name}: {}", v.path(), known.join(" "))
+            }));
         };
         let raw = match (inline, &f.kind) {
             (Some(x), _) => x,
@@ -284,7 +296,13 @@ pub fn help_verb(v: &Verb) -> String {
         let _ = writeln!(s, "  {}", v.spec.doc);
     }
     let pos: Vec<String> = v.spec.positionals().iter().map(|f| format!("<{}>", f.flag())).collect();
-    let _ = write!(s, "\nusage: wisp {}{}{}", v.path(), if pos.is_empty() { String::new() } else { format!(" {}", pos.join(" ")) }, if v.spec.fields.iter().any(|f| f.optional) { " [--flags]" } else { "" });
+    let _ = write!(
+        s,
+        "\nusage: wisp {}{}{}",
+        v.path(),
+        if pos.is_empty() { String::new() } else { format!(" {}", pos.join(" ")) },
+        if v.spec.fields.iter().any(|f| f.optional) { " [--flags]" } else { "" }
+    );
     s.push_str("\n\n");
     let mut rows: Vec<(String, String)> = v
         .spec
@@ -298,7 +316,10 @@ pub fn help_verb(v: &Verb) -> String {
         })
         .collect();
     if !v.spec.object || v.spec.fields.is_empty() {
-        rows.push(("--args JSON".into(), if v.spec.object { "the arguments as one JSON object".into() } else { "the arguments as JSON".into() }));
+        rows.push((
+            "--args JSON".into(),
+            if v.spec.object { "the arguments as one JSON object".into() } else { "the arguments as JSON".into() },
+        ));
     }
     rows.push(("--json".into(), "print the result as JSON".into()));
     let w = rows.iter().map(|(f, _)| f.chars().count()).max().unwrap_or(0).min(34);
@@ -344,14 +365,27 @@ mod tests {
     use super::*;
 
     fn info(id: &str, args: Option<&str>) -> CommandInfo {
-        CommandInfo { id: id.into(), plugin: "wisp.x".into(), title: Some(format!("the {id}")), read_only: false, permission: id.replace('.', ":"), args: args.map(str::to_owned), ui_only: None }
+        CommandInfo {
+            id: id.into(),
+            plugin: "wisp.x".into(),
+            title: Some(format!("the {id}")),
+            read_only: false,
+            permission: id.replace('.', ":"),
+            args: args.map(str::to_owned),
+            ui_only: None,
+        }
     }
 
     fn cat() -> Catalogue {
         Catalogue::new(vec![
             info("settings.set", Some("{ \n/**\n * the setting's key\n */\nkey: string, value: unknown, }")),
             info("crew.set_layout", Some("{ layout: Array<unknown>, }")),
-            info("crew.create", Some("{ name?: string, paused?: boolean, parallel?: number, on?: Array<string>, mode?: \"plan\" | \"auto\", wakeAt?: number | null, }")),
+            info(
+                "crew.create",
+                Some(
+                    "{ name?: string, paused?: boolean, parallel?: number, on?: Array<string>, mode?: \"plan\" | \"auto\", wakeAt?: number | null, }",
+                ),
+            ),
             info("runtime.queue.sendNow", Some("{ id: SessionId, itemId: string, }")),
             info("runtime.create", Some("{ prompt: string, agent?: string, }")),
             info("runtime.list", None),

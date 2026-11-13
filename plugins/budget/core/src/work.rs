@@ -110,7 +110,9 @@ pub fn turn_plan(t: &TurnLike) -> Vec<Share> {
     if let Some(p) = &t.plan {
         return p.clone();
     }
-    let Some(plan) = t.ext.as_ref().and_then(|e| e.get("wisp.budget")).and_then(|m| m.get("plan")).and_then(Value::as_array) else { return Vec::new() };
+    let Some(plan) = t.ext.as_ref().and_then(|e| e.get("wisp.budget")).and_then(|m| m.get("plan")).and_then(Value::as_array) else {
+        return Vec::new();
+    };
     plan.iter().filter_map(|v| serde_json::from_value::<Share>(v.clone()).ok()).collect()
 }
 

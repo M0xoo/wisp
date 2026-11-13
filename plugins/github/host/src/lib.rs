@@ -36,14 +36,19 @@ fn opts(cwd: &str) -> ExecOpts {
 async fn poll(proc: Arc<Proc>, on: String, spec: Value, cursor: Value) -> Result<Polled> {
     let s = |k: &str| spec.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
     let cwd = s("project");
-    let r = proc.exec(&gh_bin(), &ci::run_list_args(&s("branch")), opts(&cwd)).await.map_err(|e| WireError::unavailable(format!("gh: {e}")))?;
+    let r =
+        proc.exec(&gh_bin(), &ci::run_list_args(&s("branch")), opts(&cwd)).await.map_err(|e| WireError::unavailable(format!("gh: {e}")))?;
     if r.timed_out {
         return Err(WireError::unavailable("gh run list timed out after 30 s"));
     }
     if !r.exit.success() {
         let err = r.stderr_text();
         if ci::rate_limited(&err) {
-            let reset = proc.exec(&gh_bin(), &["api".into(), "rate_limit".into()], opts(&cwd)).await.ok().and_then(|o| ci::reset_at(&o.stdout_text()));
+            let reset = proc
+                .exec(&gh_bin(), &["api".into(), "rate_limit".into()], opts(&cwd))
+                .await
+                .ok()
+                .and_then(|o| ci::reset_at(&o.stdout_text()));
             // no reset said (0): the engine waits an hour
             return Ok(Polled { events: Vec::new(), cursor, retry_at: Some(reset.unwrap_or(0)) });
         }

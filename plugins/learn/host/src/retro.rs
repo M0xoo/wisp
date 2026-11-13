@@ -61,14 +61,22 @@ fn turn_read(t: &Value, steps: &[Value]) -> TurnRead {
     let trail = steps
         .iter()
         .filter_map(|a| match (a.get("kind").and_then(Value::as_str), a.get("tool").and_then(Value::as_str)) {
-            (Some("tool"), Some("run")) => Some(Trail::Run(a.get("detail").and_then(Value::as_str).map_or_else(|| s(a, "label"), str::to_owned))),
+            (Some("tool"), Some("run")) => {
+                Some(Trail::Run(a.get("detail").and_then(Value::as_str).map_or_else(|| s(a, "label"), str::to_owned)))
+            }
             (Some("tool"), Some("ask")) => Some(Trail::Ask(s(a, "label"))),
             (Some("tool"), Some("answer")) => Some(Trail::Answer(s(a, "label"))),
             (Some("tool_error"), _) => Some(Trail::Failed(format!("{}: {}", s(a, "name"), s(a, "text")))),
             _ => None,
         })
         .collect();
-    TurnRead { prompt: s(t, "prompt"), status: s(t, "status"), trail, hero: of("hero").map(|h| (s(h, "status"), s(h, "title"), s(h, "summary"))), question: of("question").map(|q| s(q, "question")).filter(|q| !q.is_empty()) }
+    TurnRead {
+        prompt: s(t, "prompt"),
+        status: s(t, "status"),
+        trail,
+        hero: of("hero").map(|h| (s(h, "status"), s(h, "title"), s(h, "summary"))),
+        question: of("question").map(|q| s(q, "question")).filter(|q| !q.is_empty()),
+    }
 }
 
 /// The task's turns as read for its digest; the activity only for the turns from `from` (at most the last 6).
@@ -113,7 +121,16 @@ pub(crate) async fn run(ctx: &Ctx, st: &State, id: &str, forced: bool) -> Result
     let name = std::path::Path::new(&project).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let prompt = retro_prompt(&global, &mine, &name, &digest(&turns, from));
     let agent = s.get("agent").and_then(Value::as_str).unwrap_or_default().to_owned();
-    let mut run = Retro { id: wisp_kernel::ids::uuid7(), session_id: id.to_owned(), title: s.get("title").and_then(Value::as_str).unwrap_or_default().to_owned(), project: project.clone(), agent: agent.clone(), turns: upto - u32::try_from(from).unwrap_or(0), at: now(ctx), ..Retro::default() };
+    let mut run = Retro {
+        id: wisp_kernel::ids::uuid7(),
+        session_id: id.to_owned(),
+        title: s.get("title").and_then(Value::as_str).unwrap_or_default().to_owned(),
+        project: project.clone(),
+        agent: agent.clone(),
+        turns: upto - u32::try_from(from).unwrap_or(0),
+        at: now(ctx),
+        ..Retro::default()
+    };
     let args = json!({ "prompt": prompt, "cwd": s.get("cwd"), "pick": { "agent": agent }, "timeoutMs": RETRO_TIMEOUT_MS });
     let reply = ctx.run_json(&call, "runtime.quick", args).await;
     let proposal = match &reply {
@@ -123,7 +140,10 @@ pub(crate) async fn run(ctx: &Ctx, st: &State, id: &str, forced: bool) -> Result
     let Some(p) = proposal else {
         run.status = "failed".into();
         run.error = Some(match reply {
-            Ok(r) => format!("Unreadable reply: {}", r.get("text").and_then(Value::as_str).unwrap_or("(empty)").chars().take(200).collect::<String>()),
+            Ok(r) => format!(
+                "Unreadable reply: {}",
+                r.get("text").and_then(Value::as_str).unwrap_or("(empty)").chars().take(200).collect::<String>()
+            ),
             Err(e) => e.message.chars().take(240).collect(),
         });
         record(ctx, st, &run, upto).await;

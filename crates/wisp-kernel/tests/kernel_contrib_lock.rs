@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde_json::json;
-use wisp_kernel::{Point, PluginGroup};
+use wisp_kernel::{PluginGroup, Point};
 
 static WORDS: Point<str> = Point::new("lock.words", 1);
 

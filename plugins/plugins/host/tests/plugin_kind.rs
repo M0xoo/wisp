@@ -19,7 +19,8 @@ impl Command for Look {
 struct Acme;
 impl Plugin for Acme {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.x", "version": "1.0.0", "api": "^1", "activation": ["onStartup"] })).unwrap()
+        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.x", "version": "1.0.0", "api": "^1", "activation": ["onStartup"] }))
+            .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.command::<Look, _, _>(|_c, _call, _a| async { Ok(json!("looked")) });
@@ -35,7 +36,8 @@ fn plugin(name: &str, spec: Value) -> Value {
 async fn a_formula_switches_a_plugin_off_and_back_on() {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
     let k = TestApp::new().with(wisp_resources::ResourcesPlugin).with(wisp_plugins::PluginsPlugin).with(Acme).service(store).start().await;
-    let state = |list: &Value| list.as_array().unwrap().iter().find(|p| p["id"] == "acme.x").map(|p| p["state"].clone()).unwrap_or_default();
+    let state =
+        |list: &Value| list.as_array().unwrap().iter().find(|p| p["id"] == "acme.x").map(|p| p["state"].clone()).unwrap_or_default();
     assert_eq!(k.call(Caller::user(), "x.look", json!({})).await.unwrap(), json!("looked"));
 
     k.call(Caller::user(), "resources.apply", plugin("acme.x", json!({ "enabled": false }))).await.unwrap();
@@ -44,7 +46,13 @@ async fn a_formula_switches_a_plugin_off_and_back_on() {
     assert_eq!(state(&list), json!("off"), "{list}");
 
     // removing the resource (pruned for another) switches it back on
-    k.call(Caller::user(), "resources.apply", json!({ "resources": [{ "kind": "plugin", "name": "wisp.resources", "spec": { "version": "2" } }], "prune": true })).await.unwrap();
+    k.call(
+        Caller::user(),
+        "resources.apply",
+        json!({ "resources": [{ "kind": "plugin", "name": "wisp.resources", "spec": { "version": "2" } }], "prune": true }),
+    )
+    .await
+    .unwrap();
     assert_eq!(k.call(Caller::user(), "x.look", json!({})).await.unwrap(), json!("looked"));
 
     // refused: itself, and a plugin this wisp doesn't have (nothing stored either way)

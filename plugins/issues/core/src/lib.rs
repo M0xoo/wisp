@@ -12,8 +12,7 @@ use wisp_issues_api::{IssueList, Problem, Source};
 
 pub use rows::{adf_text, body, clip, gh_issue, jira_issue, linear_issue};
 pub use sources::{
-    JiraCreds, gh_args, gh_list, gh_problem, jira_creds, jira_request, jira_response, linear_key,
-    linear_request, linear_response,
+    JiraCreds, gh_args, gh_list, gh_problem, jira_creds, jira_request, jira_response, linear_key, linear_request, linear_response,
 };
 
 /// A list is good for a minute: the picker opens and is searched often.
@@ -49,12 +48,7 @@ pub fn github_repo(url: &str) -> Option<String> {
         // scp-like: user@host:path (not host://)
         let (user_host, path) = s.split_once(':')?;
         let (user, host) = user_host.split_once('@')?;
-        if user.is_empty()
-            || path.starts_with("//")
-            || !user
-                .chars()
-                .all(|c| c.is_alphanumeric() || "_.-".contains(c))
-        {
+        if user.is_empty() || path.starts_with("//") || !user.chars().all(|c| c.is_alphanumeric() || "_.-".contains(c)) {
             return None;
         }
         host_path(host, path)?
@@ -72,10 +66,7 @@ fn host_path(host: &str, path: &str) -> Option<String> {
     let mut parts = path.split('/').filter(|p| !p.is_empty());
     let owner = parts.next()?;
     let repo = parts.next()?;
-    let repo = repo
-        .strip_suffix(".git")
-        .or_else(|| repo.strip_suffix(".GIT"))
-        .unwrap_or(repo);
+    let repo = repo.strip_suffix(".git").or_else(|| repo.strip_suffix(".GIT")).unwrap_or(repo);
     (!repo.is_empty()).then(|| format!("{owner}/{repo}"))
 }
 
@@ -86,26 +77,20 @@ pub fn repo_of_project(project_repo: &str, origin: Option<&str>) -> Option<Strin
 
 /// An empty list for `source` carrying `p`.
 pub fn refused(source: Source, linear: bool, jira: bool, p: Problem) -> IssueList {
-    IssueList {
-        source,
-        linear,
-        jira,
-        error: Some(p.error),
-        fix: p.fix,
-        ..IssueList::default()
-    }
+    IssueList { source, linear, jira, error: Some(p.error), fix: p.fix, ..IssueList::default() }
 }
 
 /// Before any IO: a source that isn't connected, or GitHub without a project, is refused in words.
 pub fn precheck(source: Source, has_project: bool, linear: bool, jira: bool) -> Option<IssueList> {
-    let p = |error: &str, fix: &str| Problem {
-        error: error.into(),
-        fix: Some(fix.into()),
-    };
+    let p = |error: &str, fix: &str| Problem { error: error.into(), fix: Some(fix.into()) };
     let why = match source {
         // v1 #766: a connector with a key, or one signed in with the browser
-        Source::Jira if !jira => p("Connect Jira to list the issues assigned to you: add Jira in Settings → Connectors and sign in.", "jira"),
-        Source::Linear if !linear => p("Connect Linear to list the issues assigned to you: add Linear in Settings → Connectors and sign in.", "linear"),
+        Source::Jira if !jira => {
+            p("Connect Jira to list the issues assigned to you: add Jira in Settings → Connectors and sign in.", "jira")
+        }
+        Source::Linear if !linear => {
+            p("Connect Linear to list the issues assigned to you: add Linear in Settings → Connectors and sign in.", "linear")
+        }
         Source::Github if !has_project => p("Pick a project to see its issues.", "project"),
         _ => return None,
     };
@@ -113,29 +98,18 @@ pub fn precheck(source: Source, has_project: bool, linear: bool, jira: bool) -> 
 }
 
 pub fn no_remote(name: &str, linear: bool, jira: bool) -> IssueList {
-    let name = if name.is_empty() {
-        "This project"
-    } else {
-        name
-    };
+    let name = if name.is_empty() { "This project" } else { name };
     refused(
         Source::Github,
         linear,
         jira,
-        Problem {
-            error: format!("{name} has no GitHub remote, so it has no issues to list."),
-            fix: Some("remote".into()),
-        },
+        Problem { error: format!("{name} has no GitHub remote, so it has no issues to list."), fix: Some("remote".into()) },
     )
 }
 
 /// What the cache keys on: the source, GitHub's project, the words.
 pub fn cache_key(source: Source, project: &str, q: &str) -> String {
-    let p = if source == Source::Github {
-        project
-    } else {
-        ""
-    };
+    let p = if source == Source::Github { project } else { "" };
     format!("{}:{p}:{q}", source.as_str())
 }
 
@@ -150,11 +124,7 @@ impl IssueCache {
     /// A fresh hit, with `linear`/`jira` as they are now (a connector added since shows at once).
     pub fn get(&self, key: &str, now: i64, linear: bool, jira: bool) -> Option<IssueList> {
         let (at, v) = self.map.get(key)?;
-        (now - at < TTL_MS).then(|| IssueList {
-            linear,
-            jira,
-            ..v.clone()
-        })
+        (now - at < TTL_MS).then(|| IssueList { linear, jira, ..v.clone() })
     }
 
     pub fn put(&mut self, key: String, now: i64, value: IssueList) {

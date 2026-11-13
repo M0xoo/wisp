@@ -49,11 +49,7 @@ fn hang() -> ! {
 
 fn final_text(name: &str, prompt: &str) -> String {
     let mut hero = json!({ "type": "hero", "title": format!("Fake {name} finished"), "summary": "No question asked.", "status": "done" });
-    if let Some(t) = prompt
-        .split_once("TOPIC[")
-        .and_then(|(_, r)| r.split_once(']'))
-        .map(|(t, _)| t)
-    {
+    if let Some(t) = prompt.split_once("TOPIC[").and_then(|(_, r)| r.split_once(']')).map(|(t, _)| t) {
         hero["topic"] = Value::from(t);
     }
     format!("All done.\n```wisp\n{}\n```", json!({ "blocks": [hero] }))
@@ -96,7 +92,9 @@ fn meta(name: &str, argv: &[String]) -> Option<i32> {
             let Ok(m) = serde_json::from_str::<Value>(line) else { continue };
             match m["id"].as_i64() {
                 Some(1) => out(&json!({ "id": 1, "result": {} })),
-                Some(2) => out(&json!({ "id": 2, "result": { "rateLimits": { "primary": { "usedPercent": 42, "windowDurationMins": 300, "resetsAt": 1_900_000_000 } } } })),
+                Some(2) => out(
+                    &json!({ "id": 2, "result": { "rateLimits": { "primary": { "usedPercent": 42, "windowDurationMins": 300, "resetsAt": 1_900_000_000 } } } }),
+                ),
                 _ => {}
             }
         }
@@ -117,15 +115,7 @@ fn meta(name: &str, argv: &[String]) -> Option<i32> {
         }
         return Some(0);
     }
-    [
-        "auth status",
-        "auth logout",
-        "login status",
-        "logout",
-        "status",
-    ]
-    .contains(&joined.as_str())
-    .then_some(0)
+    ["auth status", "auth logout", "login status", "logout", "status"].contains(&joined.as_str()).then_some(0)
 }
 
 fn record(name: &str, argv: &[String], prompt: &str) {
@@ -134,11 +124,7 @@ fn record(name: &str, argv: &[String], prompt: &str) {
     };
     let _ = std::fs::create_dir_all(&dir);
     let line = json!({ "argv": argv, "stdin": prompt, "cwd": std::env::current_dir().ok(), "pid": std::process::id(), "codexHome": env("CODEX_HOME") });
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(Path::new(&dir).join(format!("{name}.jsonl")))
-    {
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(Path::new(&dir).join(format!("{name}.jsonl"))) {
         // one write per line: `writeln!` may split a long argv line, and a reader would see half of it
         let _ = f.write_all(format!("{line}\n").as_bytes());
     }
@@ -193,12 +179,8 @@ fn codex(prompt: &str, target: &Path, after: &str) {
     out(
         &json!({ "type": "item.completed", "item": { "id": "i1", "type": "file_change", "changes": [{ "path": target, "kind": "update" }, { "path": "notes.txt", "kind": "add" }], "status": "completed" } }),
     );
-    out(
-        &json!({ "type": "item.completed", "item": { "id": "i2", "type": "agent_message", "text": final_text("codex", prompt) } }),
-    );
-    out(
-        &json!({ "type": "turn.completed", "usage": { "input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 5 } }),
-    );
+    out(&json!({ "type": "item.completed", "item": { "id": "i2", "type": "agent_message", "text": final_text("codex", prompt) } }));
+    out(&json!({ "type": "turn.completed", "usage": { "input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 5 } }));
 }
 
 /// Each other CLI's recorded turn (the G6 fixtures), with this run's folder and answer.
@@ -243,11 +225,7 @@ fn replay_turn(name: &str, stream: &str, prompt: &str, target: &Path, after: &st
 fn main() {
     let mut args = std::env::args();
     let me = args.next().unwrap_or_default();
-    let name = Path::new(&me)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("agent")
-        .to_owned();
+    let name = Path::new(&me).file_stem().and_then(|s| s.to_str()).unwrap_or("agent").to_owned();
     let argv: Vec<String> = args.collect();
     if let Some(code) = meta(&name, &argv) {
         std::process::exit(code);
@@ -256,7 +234,10 @@ fn main() {
     let _ = std::io::stdin().read_to_string(&mut prompt);
     // agy takes it as a stream-json `user` event, grok as a file
     if name == "agy" {
-        prompt = serde_json::from_str::<Value>(prompt.lines().next().unwrap_or("")).ok().and_then(|v| v["message"]["content"].as_str().map(str::to_owned)).unwrap_or_default();
+        prompt = serde_json::from_str::<Value>(prompt.lines().next().unwrap_or(""))
+            .ok()
+            .and_then(|v| v["message"]["content"].as_str().map(str::to_owned))
+            .unwrap_or_default();
     }
     if let Some(i) = argv.iter().position(|a| a == "--prompt-file") {
         prompt = std::fs::read_to_string(argv.get(i + 1).map_or("", String::as_str)).unwrap_or_default();
@@ -270,11 +251,7 @@ fn main() {
         && !Path::new(&f).exists()
     {
         let _ = std::fs::write(&f, "1");
-        eprintln!(
-            "{}",
-            env("FAKE_LIMIT_TEXT")
-                .unwrap_or_else(|| "Claude AI usage limit reached|1767225600".into())
-        );
+        eprintln!("{}", env("FAKE_LIMIT_TEXT").unwrap_or_else(|| "Claude AI usage limit reached|1767225600".into()));
         std::process::exit(1);
     }
     if env("FAKE_FAIL").is_some() {

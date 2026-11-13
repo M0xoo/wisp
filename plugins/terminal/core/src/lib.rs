@@ -8,15 +8,7 @@
 //! - `size`, `env`, `folder`: sizes, the environment and the folder a terminal starts with
 //! - `apps`, `plan`, `quote`: terminal apps per platform and the steps that open one
 //! - `route`: what a v1 route body asks for
-#![cfg_attr(
-    test,
-    allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::panic,
-        clippy::indexing_slicing
-    )
-)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]
 
 pub mod apps;
 pub mod env;
@@ -24,11 +16,11 @@ pub mod error;
 pub mod flow;
 pub mod folder;
 pub mod order;
+pub mod pick;
 pub mod plan;
 pub mod quote;
 pub mod replay;
 pub mod route;
-pub mod pick;
 pub mod run;
 pub mod size;
 pub mod sse;

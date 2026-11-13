@@ -8,7 +8,10 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 use wisp_kernel::{BoxFuture, CancellationToken, Ctx};
-use wisp_machines_api::{AddArgs, Channel, ChannelEnd, Cleaned, ConnectIo, EndReason, Failing, LetInOut, PeerRow, StepStatus, Stopped, Transport, TransportFailure};
+use wisp_machines_api::{
+    AddArgs, Channel, ChannelEnd, Cleaned, ConnectIo, EndReason, Failing, LetInOut, PeerRow, StepStatus, Stopped, Transport,
+    TransportFailure,
+};
 use wisp_machines_core::bootstrap::{self, Api, BootLine, BootOpts, TUNNEL};
 use wisp_machines_core::conn::{READY_TIMEOUT_MS, TOO_LONG, no_ssh};
 use wisp_machines_core::{hint, ssh, view};
@@ -86,7 +89,14 @@ fn on_line(io: &dyn ConnectIo, line: &str) -> Option<Failing<()>> {
 }
 
 /// Reads the bootstrap until wisp is ready there, it fails, ssh exits or it takes too long.
-async fn until_ready(child: &ChildHandle, out: &mut mpsc::Receiver<Output>, io: &dyn ConnectIo, stderr: &mut String, target: &str, cancel: &CancellationToken) -> Failing<()> {
+async fn until_ready(
+    child: &ChildHandle,
+    out: &mut mpsc::Receiver<Output>,
+    io: &dyn ConnectIo,
+    stderr: &mut String,
+    target: &str,
+    cancel: &CancellationToken,
+) -> Failing<()> {
     let mut lines = Lines::default();
     let deadline = tokio::time::sleep(Duration::from_millis(READY_TIMEOUT_MS));
     tokio::pin!(deadline);
@@ -115,7 +125,14 @@ async fn until_ready(child: &ChildHandle, out: &mut mpsc::Receiver<Output>, io: 
 }
 
 /// After ready: the rest of ssh's output goes to the log; its exit ends the channel (and says why).
-async fn hold(child: ChildHandle, mut out: mpsc::Receiver<Output>, ch: Arc<HttpChannel>, io: Arc<dyn ConnectIo>, mut stderr: String, target: String) {
+async fn hold(
+    child: ChildHandle,
+    mut out: mpsc::Receiver<Output>,
+    ch: Arc<HttpChannel>,
+    io: Arc<dyn ConnectIo>,
+    mut stderr: String,
+    target: String,
+) {
     let scope = ch.scope().clone();
     loop {
         tokio::select! {
@@ -150,7 +167,14 @@ async fn connect(ctx: Ctx, version: String, peer: PeerRow, io: Arc<dyn ConnectIo
         TransportFailure { hint: Some(hint), ..TransportFailure::new(msg).final_() }
     })?;
     let (child, mut out) = child.split();
-    let script = bootstrap::bootstrap_script(&BootOpts { port: peer.port, command: &peer.command, api: Api::Any, install: true, version: &version, dist: None });
+    let script = bootstrap::bootstrap_script(&BootOpts {
+        port: peer.port,
+        command: &peer.command,
+        api: Api::Any,
+        install: true,
+        version: &version,
+        dist: None,
+    });
     child.write(script.into_bytes()).map_err(|e| TransportFailure::new(e.to_string()))?;
     let mut stderr = String::new();
     if let Err(f) = until_ready(&child, &mut out, io.as_ref(), &mut stderr, &peer.address, &cancel).await {
@@ -178,12 +202,23 @@ impl Transport for SshTransport {
     fn stop_remote(&self, peer: PeerRow, pid: Option<u32>, _io: Arc<dyn ConnectIo>) -> BoxFuture<'static, Failing<Stopped>> {
         let ctx = self.ctx.clone();
         Box::pin(async move {
-            let pid = pid.ok_or_else(|| TransportFailure { status: Some(409), ..TransportFailure::new(format!("wisp’s process on {} isn’t known yet: connect first.", peer.name)) })?;
+            let pid = pid.ok_or_else(|| TransportFailure {
+                status: Some(409),
+                ..TransportFailure::new(format!("wisp’s process on {} isn’t known yet: connect first.", peer.name))
+            })?;
             let proc = proc_of(&ctx)?;
             let args = ssh::run_args(&peer.address, &ssh::kill_command(pid));
-            let opts = wisp_proc::ExecOpts { timeout: Some(Duration::from_secs(30)), scope: Some(ctx.scope().clone()), ..wisp_proc::ExecOpts::default() };
+            let opts = wisp_proc::ExecOpts {
+                timeout: Some(Duration::from_secs(30)),
+                scope: Some(ctx.scope().clone()),
+                ..wisp_proc::ExecOpts::default()
+            };
             let r = proc.exec(SSH_BIN, &args, opts).await.map_err(|e| TransportFailure::new(e.to_string()))?;
-            if r.exit.success() { Ok(Stopped::Off) } else { Err(TransportFailure { status: Some(502), ..ended_early(r.exit.code, &r.stderr_text(), &peer.address) }) }
+            if r.exit.success() {
+                Ok(Stopped::Off)
+            } else {
+                Err(TransportFailure { status: Some(502), ..ended_early(r.exit.code, &r.stderr_text(), &peer.address) })
+            }
         })
     }
     fn terminal_argv(&self, peer: &PeerRow, command: &str) -> Option<Vec<String>> {

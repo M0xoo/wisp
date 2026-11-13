@@ -22,12 +22,7 @@ pub trait MachinesService: Send + Sync + 'static {
         timeout_ms: Option<u64>,
     ) -> BoxFuture<'static, Result<Value>>;
     /// a raw request (files, uploads, terminals)
-    fn stream(
-        &self,
-        call: &Call,
-        id: &str,
-        req: ChannelRequest,
-    ) -> BoxFuture<'static, Result<ChannelResponse>>;
+    fn stream(&self, call: &Call, id: &str, req: ChannelRequest) -> BoxFuture<'static, Result<ChannelResponse>>;
     /// online, or asleep and woken by a request
     fn usable(&self, call: &Call, id: &str) -> Result<bool>;
     fn online(&self, call: &Call, id: &str) -> Result<bool>;
@@ -64,11 +59,7 @@ pub fn peer_error(message: impl Into<String>, status: u16, hold: Option<Value>) 
     if let Some(h) = hold {
         details["hold"] = h;
     }
-    WireError {
-        retry: matches!(status, 502 | 503),
-        ..WireError::new(code, message)
-    }
-    .with_details(details)
+    WireError { retry: matches!(status, 502 | 503), ..WireError::new(code, message) }.with_details(details)
 }
 
 /// The HTTP status a route answers with: the peer's own, when the error came from one.
@@ -95,10 +86,7 @@ mod tests {
         let e = peer_error("box is offline", 503, None);
         assert!(e.retry);
         let e = peer_error("near the limit", 409, Some(json!({"until": 5})));
-        assert_eq!(
-            e.details.as_ref().and_then(|d| d.get("hold")),
-            Some(&json!({"until": 5}))
-        );
+        assert_eq!(e.details.as_ref().and_then(|d| d.get("hold")), Some(&json!({"until": 5})));
         assert_eq!(http_status(&WireError::not_found("x")), 404);
     }
 }

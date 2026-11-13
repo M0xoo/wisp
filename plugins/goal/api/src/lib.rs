@@ -39,7 +39,11 @@ macro_rules! goal_command {
             type Args = TaskArgs;
             type Out = serde_json::Value;
             fn args_ts() -> Option<String> {
-                Some(format!("{}{}", <TaskArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <TaskArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+                Some(format!(
+                    "{}{}",
+                    <TaskArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+                    <TaskArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+                ))
             }
         }
     };
@@ -56,7 +60,11 @@ impl Command for Set {
     type Args = SetArgs;
     type Out = serde_json::Value;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <SetArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <SetArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <SetArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <SetArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
 }
 

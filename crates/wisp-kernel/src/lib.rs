@@ -152,11 +152,7 @@ pub struct InterceptOpts {
 
 impl Default for InterceptOpts {
     fn default() -> Self {
-        Self {
-            priority: 0,
-            failure: Failure::Open,
-            timeout_ms: 200,
-        }
+        Self { priority: 0, failure: Failure::Open, timeout_ms: 200 }
     }
 }
 
@@ -170,11 +166,7 @@ pub struct Point<T: ?Sized + Send + Sync + 'static> {
 
 impl<T: ?Sized + Send + Sync + 'static> Point<T> {
     pub const fn new(id: &'static str, version: u32) -> Self {
-        Self {
-            id,
-            version,
-            _t: std::marker::PhantomData,
-        }
+        Self { id, version, _t: std::marker::PhantomData }
     }
 }
 
@@ -270,10 +262,7 @@ pub struct PluginGroup {
 
 impl std::fmt::Debug for PluginGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PluginGroup")
-            .field("plugins", &self.plugins.len())
-            .field("disabled", &self.disabled)
-            .finish()
+        f.debug_struct("PluginGroup").field("plugins", &self.plugins.len()).field("disabled", &self.disabled).finish()
     }
 }
 

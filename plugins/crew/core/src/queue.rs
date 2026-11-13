@@ -2,7 +2,7 @@
 //! `parallel` limit, or while it's paused (except your own tasks and @mentions); a full queue refuses.
 //! A job the budget held is skipped: one log line, counting skips in a row, and not a check-in.
 
-use wisp_crew_api::{Held, JobKind, LOG_MAX, LogEntry, Member, QUEUE_MAX, TaskRef, LINKS_MAX, Link};
+use wisp_crew_api::{Held, JobKind, LINKS_MAX, LOG_MAX, Link, LogEntry, Member, QUEUE_MAX, TaskRef};
 
 use crate::error::{Error, Result};
 use crate::text::truncate;
@@ -71,7 +71,17 @@ pub fn record_skip(m: &mut Member, job: JobKind, held: &Held, now: i64) {
 
 /// A job that couldn't start for another reason.
 pub fn record_failed(m: &mut Member, job: JobKind, why: &str, now: i64) {
-    push_log(m, LogEntry { at: now, job, title: "Couldn’t start".into(), summary: truncate(why, 160), status: "blocked".into(), ..LogEntry::default() });
+    push_log(
+        m,
+        LogEntry {
+            at: now,
+            job,
+            title: "Couldn’t start".into(),
+            summary: truncate(why, 160),
+            status: "blocked".into(),
+            ..LogEntry::default()
+        },
+    );
 }
 
 /// A check-in that starts counts; one that didn't start is put back (v1 crew.js:656, :670).

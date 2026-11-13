@@ -50,7 +50,14 @@ pub fn exit_of(meta: &Value) -> Exit {
 }
 
 /// Replays `stdout` (with `@CWD@` as `cwd`) through `parser` and compares with `v1`. Err: where they part.
-pub fn check<P: LineParser + ?Sized>(parser: &mut P, cwd: &str, meta: &Value, stdout: &str, v1: &str, io: &mut dyn ReplayIo) -> Result<(), String> {
+pub fn check<P: LineParser + ?Sized>(
+    parser: &mut P,
+    cwd: &str,
+    meta: &Value,
+    stdout: &str,
+    v1: &str,
+    io: &mut dyn ReplayIo,
+) -> Result<(), String> {
     let stdout = stdout.replace("@CWD@", cwd);
     let lines: Vec<&str> = stdout.lines().collect();
     let mut events = Vec::new();
@@ -77,7 +84,9 @@ pub fn check<P: LineParser + ?Sized>(parser: &mut P, cwd: &str, meta: &Value, st
     }
     parser.close(&exit_of(meta), at(lines.len()), &mut outs);
     take(&mut outs, &mut events);
-    let text = serde_json::to_string(&events.iter().map(HarnessEvent::to_json).collect::<Vec<_>>()).map_err(|e| e.to_string())?.replace(cwd, "@CWD@");
+    let text = serde_json::to_string(&events.iter().map(HarnessEvent::to_json).collect::<Vec<_>>())
+        .map_err(|e| e.to_string())?
+        .replace(cwd, "@CWD@");
     let mut got: Vec<Value> = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     let drops: Vec<&str> = meta["drop"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
     for e in &mut got {
@@ -91,7 +100,13 @@ pub fn check<P: LineParser + ?Sized>(parser: &mut P, cwd: &str, meta: &Value, st
     }
     let at = got.iter().zip(&want).position(|(a, b)| !same(a, b)).unwrap_or(got.len().min(want.len()));
     let show = |v: Option<&Value>| v.map_or_else(|| "-".into(), Value::to_string);
-    Err(format!("{} events, v1 had {}; first difference at #{at}:\n  got  {}\n  want {}", got.len(), want.len(), show(got.get(at)), show(want.get(at))))
+    Err(format!(
+        "{} events, v1 had {}; first difference at #{at}:\n  got  {}\n  want {}",
+        got.len(),
+        want.len(),
+        show(got.get(at)),
+        show(want.get(at))
+    ))
 }
 
 #[cfg(test)]

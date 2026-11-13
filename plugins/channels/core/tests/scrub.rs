@@ -25,7 +25,10 @@ fn scrub_and_defuse_leave_ordinary_text_alone() {
 #[test]
 fn a_secret_in_a_report_goes_nowhere_and_the_message_says_so_once() {
     let t = token();
-    let out = safe_msg(&Msg { title: format!("Done {t}"), text: format!("The deploy used {t} and worked."), actions: vec![action(&format!("Use {t}"))] }, false);
+    let out = safe_msg(
+        &Msg { title: format!("Done {t}"), text: format!("The deploy used {t} and worked."), actions: vec![action(&format!("Use {t}"))] },
+        false,
+    );
     assert!(!serde_json::to_string(&out).unwrap_or_default().contains(&t));
     assert!(out.text.contains(NOTE));
     assert!(!out.title.contains(NOTE));
@@ -57,7 +60,12 @@ fn with_the_channel_layer_a_report_is_scrubbed_and_defused() {
 
 #[test]
 fn a_private_key_is_cut_to_its_end_two_secrets_are_counted_and_the_note_splits_off() {
-    let key = format!("{}\nMIIEv{}\n{}", ["-----BEGIN", "PRIVATE KEY-----"].join(" "), "Q".repeat(40), ["-----END", "PRIVATE KEY-----"].join(" "));
+    let key = format!(
+        "{}\nMIIEv{}\n{}",
+        ["-----BEGIN", "PRIVATE KEY-----"].join(" "),
+        "Q".repeat(40),
+        ["-----END", "PRIVATE KEY-----"].join(" ")
+    );
     let out = scrub_out(&format!("Found {}\n{key}\nall done", token()), true);
     assert!(!out.text.contains("MIIEv"));
     assert_eq!(out.hits, 2);
@@ -88,7 +96,13 @@ fn names_ctx() -> ChannelCtx {
     ChannelCtx {
         projects: vec![ProjectView { id: "p".into(), name: "api".into(), path: "/code/api".into(), ..ProjectView::default() }],
         machines: vec![MachineView { id: "m".into(), name: "laptop".into(), ..MachineView::default() }],
-        crew: vec![MemberView { id: "c".into(), name: "Ada".into(), agent: "claude".into(), cwd: Some("/code/ada".into()), ..MemberView::default() }],
+        crew: vec![MemberView {
+            id: "c".into(),
+            name: "Ada".into(),
+            agent: "claude".into(),
+            cwd: Some("/code/ada".into()),
+            ..MemberView::default()
+        }],
         ..ChannelCtx::default()
     }
 }
@@ -109,7 +123,11 @@ fn no_media_no_image_renders_no_tag_is_a_tag() {
 }
 
 fn perm(action: &str, detail: &str) -> AskView {
-    AskView { id: "a".into(), permission: Some(Permission { tool: Some("Bash".into()), action: Some(action.into()), detail: Some(detail.into()), why: None }), ..AskView::default() }
+    AskView {
+        id: "a".into(),
+        permission: Some(Permission { tool: Some("Bash".into()), action: Some(action.into()), detail: Some(detail.into()), why: None }),
+        ..AskView::default()
+    }
 }
 
 #[test]
@@ -118,11 +136,20 @@ fn waiting_line_says_what_it_wants_on_one_line_in_a_bounded_length() {
     assert_eq!(waiting_line(&edit, false), "Waiting for your OK in wisp: edit src/a.ts");
     assert_eq!(waiting_line(&perm("use Grep", "needle"), false), "Waiting for your OK in wisp: use Grep: needle");
     assert_eq!(waiting_line(&perm("run `a\n  && b`", "a\n  && b"), false), "Waiting for your OK in wisp: run `a && b`");
-    let connector = AskView { id: "a".into(), question: Some("Sign in to Linear".into()), connector: Some(serde_json::json!({"name": "Linear"})), ..AskView::default() };
+    let connector = AskView {
+        id: "a".into(),
+        question: Some("Sign in to Linear".into()),
+        connector: Some(serde_json::json!({"name": "Linear"})),
+        ..AskView::default()
+    };
     assert_eq!(waiting_line(&connector, false), "Waiting for your OK in wisp: Sign in to Linear");
     assert_eq!(waiting_line(&perm("", ""), false), "Waiting for your OK in wisp.");
     let clipped_action = format!("run `{}…`", "x".repeat(199));
-    assert_eq!(waiting_line(&perm(&clipped_action, &"x".repeat(5000)), false), format!("Waiting for your OK in wisp: {clipped_action}"), "the command once");
+    assert_eq!(
+        waiting_line(&perm(&clipped_action, &"x".repeat(5000)), false),
+        format!("Waiting for your OK in wisp: {clipped_action}"),
+        "the command once"
+    );
     let long = waiting_line(&perm("use Grep", &"x".repeat(5000)), false);
     assert!(long.chars().count() < 340 && long.ends_with('…'), "{long}");
 }
@@ -142,6 +169,9 @@ fn waiting_line_no_secret_leaves_not_even_half_of_one() {
     let cut: String = format!("run `{pad} {t}").chars().take(200).collect();
     let line = waiting_line(&perm(&format!("{cut}…"), &format!("{pad} {t} --go")), false);
     assert!(!line.contains(&t[..10]), "{line}");
-    let key = waiting_line(&AskView { id: "a".into(), question: Some(format!("Set {t}")), connector: Some(serde_json::json!({})), ..AskView::default() }, false);
+    let key = waiting_line(
+        &AskView { id: "a".into(), question: Some(format!("Set {t}")), connector: Some(serde_json::json!({})), ..AskView::default() },
+        false,
+    );
     assert!(!key.contains(&t) && !key.contains("took a secret"), "{key}");
 }

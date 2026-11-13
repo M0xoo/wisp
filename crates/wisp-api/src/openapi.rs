@@ -46,14 +46,11 @@ fn operation(e: &Entry, params: &[String]) -> Value {
         }
     });
     if !params.is_empty() {
-        op["parameters"] = params.iter().map(|n| json!({"name": n, "in": "path", "required": true, "schema": {"type": "string"}})).collect();
+        op["parameters"] =
+            params.iter().map(|n| json!({"name": n, "in": "path", "required": true, "schema": {"type": "string"}})).collect();
     }
     if !matches!(e.method.as_str(), "GET" | "HEAD" | "DELETE") {
-        let ct = if e.max_body.is_some() {
-            "application/octet-stream"
-        } else {
-            "application/json"
-        };
+        let ct = if e.max_body.is_some() { "application/octet-stream" } else { "application/json" };
         op["requestBody"] = json!({ "content": { ct: { "schema": {} } } });
     }
     op
@@ -63,9 +60,7 @@ pub fn document(routes: &[std::sync::Arc<Entry>], version: &str) -> Value {
     let mut paths = Map::new();
     for e in routes.iter().filter(|e| e.doc) {
         let (path, params) = templated(&e.path);
-        let item = paths
-            .entry(path)
-            .or_insert_with(|| Value::Object(Map::new()));
+        let item = paths.entry(path).or_insert_with(|| Value::Object(Map::new()));
         if let Value::Object(item) = item {
             item.insert(e.method.to_ascii_lowercase(), operation(e, &params));
         }
@@ -100,18 +95,9 @@ mod tests {
 
     #[test]
     fn templates_and_ids() {
-        assert_eq!(
-            templated("/api/sessions/:id/turns/:tid").0,
-            "/api/sessions/{id}/turns/{tid}"
-        );
-        assert_eq!(
-            templated("/api/sessions/:id/turns/:tid").1,
-            vec!["id", "tid"]
-        );
-        assert_eq!(
-            operation_id("POST", "/api/sessions/:id/stop"),
-            "postSessionsIdStop"
-        );
+        assert_eq!(templated("/api/sessions/:id/turns/:tid").0, "/api/sessions/{id}/turns/{tid}");
+        assert_eq!(templated("/api/sessions/:id/turns/:tid").1, vec!["id", "tid"]);
+        assert_eq!(operation_id("POST", "/api/sessions/:id/stop"), "postSessionsIdStop");
         assert_eq!(operation_id("GET", "/api/openapi.json"), "getOpenapijson");
     }
 }

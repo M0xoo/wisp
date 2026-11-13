@@ -31,7 +31,8 @@ fn the_context_is_the_newest_measured_turns_with_the_window_of_the_turn_that_sai
     let compacted = [base.clone(), vec![turn(2, ctx(0, None, 0))]].concat();
     assert_eq!(context_of(&usages(&compacted)), Some(Context { tokens: 0, window: 200_000 }));
     // a later turn that worked without a number (another harness): no guess
-    let other = [base.clone(), vec![turn(2, TurnStats { input_tokens: Some(900), output_tokens: Some(40), ..TurnStats::default() })]].concat();
+    let other =
+        [base.clone(), vec![turn(2, TurnStats { input_tokens: Some(900), output_tokens: Some(40), ..TurnStats::default() })]].concat();
     assert_eq!(context_of(&usages(&other)), None);
     // one still running doesn't count yet; one that did no work changes nothing
     let running = Turn { idx: 3, status: TurnStatus::Running, ..Turn::default() };
@@ -52,7 +53,16 @@ fn a_tasks_tokens_count_cache_and_its_cli_subagents_through_its_models_v1_785() 
         ("claude-opus-5-5".to_owned(), json!({ "input": 500, "cacheRead": 4500, "cacheWrite": 0, "output": 200 })),
         ("claude-haiku-5-5".to_owned(), json!({ "input": 2000, "cacheRead": 0, "cacheWrite": 0, "output": 300 })),
     ]);
-    let sub = turn(1, TurnStats { input_tokens: Some(500), cache_tokens: Some(4500), output_tokens: Some(200), models: Some(models), ..TurnStats::default() });
+    let sub = turn(
+        1,
+        TurnStats {
+            input_tokens: Some(500),
+            cache_tokens: Some(4500),
+            output_tokens: Some(200),
+            models: Some(models),
+            ..TurnStats::default()
+        },
+    );
     let running = Turn { idx: 2, status: TurnStatus::Running, ..Turn::default() };
     let own = own_of(&usages(&[plain, sub, running]));
     assert_eq!(own.tokens, 10_500 + 7_500);
@@ -61,14 +71,33 @@ fn a_tasks_tokens_count_cache_and_its_cli_subagents_through_its_models_v1_785() 
 
 #[test]
 fn a_leads_usage_adds_its_subagents_and_only_the_same_plans_share_v1_785() {
-    let lead = own_of(&usages(&[with_plan(turn(0, TurnStats { input_tokens: Some(100), cache_tokens: Some(900), output_tokens: Some(50), ..TurnStats::default() }), "claude", "seven_day", 0.04)]));
+    let lead = own_of(&usages(&[with_plan(
+        turn(0, TurnStats { input_tokens: Some(100), cache_tokens: Some(900), output_tokens: Some(50), ..TurnStats::default() }),
+        "claude",
+        "seven_day",
+        0.04,
+    )]));
     assert_eq!(lead.tokens, 1050);
-    let tester = own_of(&usages(&[with_plan(turn(0, TurnStats { input_tokens: Some(10), output_tokens: Some(5), ..TurnStats::default() }), "claude", "seven_day", 0.02)]));
-    let reviewer = own_of(&usages(&[with_plan(turn(0, TurnStats { input_tokens: Some(20), output_tokens: Some(5), ..TurnStats::default() }), "codex", "seven_day", 0.1)]));
-    let subs: Vec<SubUsage> = [("k", "tester", "Tests", "claude", &tester), ("c", "reviewer", "Tests", "codex", &reviewer), ("z", "", "Idle", "claude", &Own::default())]
-        .into_iter()
-        .filter_map(|(id, name, title, agent, own)| sub_usage(&lead, "claude default", (id, name, title, agent), own))
-        .collect();
+    let tester = own_of(&usages(&[with_plan(
+        turn(0, TurnStats { input_tokens: Some(10), output_tokens: Some(5), ..TurnStats::default() }),
+        "claude",
+        "seven_day",
+        0.02,
+    )]));
+    let reviewer = own_of(&usages(&[with_plan(
+        turn(0, TurnStats { input_tokens: Some(20), output_tokens: Some(5), ..TurnStats::default() }),
+        "codex",
+        "seven_day",
+        0.1,
+    )]));
+    let subs: Vec<SubUsage> = [
+        ("k", "tester", "Tests", "claude", &tester),
+        ("c", "reviewer", "Tests", "codex", &reviewer),
+        ("z", "", "Idle", "claude", &Own::default()),
+    ]
+    .into_iter()
+    .filter_map(|(id, name, title, agent, own)| sub_usage(&lead, "claude default", (id, name, title, agent), own))
+    .collect();
     assert_eq!(subs.len(), 2, "one that took nothing measured isn't listed");
     assert_eq!((subs[0].name.as_str(), subs[0].tokens, subs[0].same_plan), ("tester", 15, true));
     // one on another harness is on another plan
@@ -85,7 +114,8 @@ fn a_leads_usage_adds_its_subagents_and_only_the_same_plans_share_v1_785() {
 #[test]
 fn before_the_lead_has_a_share_its_plan_is_the_one_it_runs_on_v1_785() {
     let lead = own_of(&usages(&[turn(0, TurnStats { output_tokens: Some(5), ..TurnStats::default() })]));
-    let sub = own_of(&usages(&[with_plan(turn(0, TurnStats { output_tokens: Some(5), ..TurnStats::default() }), "claude", "five_hour", 0.03)]));
+    let sub =
+        own_of(&usages(&[with_plan(turn(0, TurnStats { output_tokens: Some(5), ..TurnStats::default() }), "claude", "five_hour", 0.03)]));
     let on_claude = sub_usage(&lead, "claude default", ("k", "tester", "", "claude"), &sub).unwrap();
     assert!(on_claude.same_plan);
     let on_codex = sub_usage(&lead, "codex default", ("k", "tester", "", "claude"), &sub).unwrap();
@@ -104,7 +134,11 @@ fn a_turn_keeps_its_cli_subagents_and_the_fold_sums_them_by_type_v1_785() {
         json!([{ "type": "web-fetch", "calls": 2, "read": 2100, "output": 27000, "model": "claude-opus-5-5", "same": true }, { "type": "", "calls": 1 }, { "type": "Plan", "calls": 0 }]),
     );
     let st = wisp_runtime_core::land::turn_stats(&hs);
-    assert_eq!(st.subagents, vec![SubagentStat { kind: "web-fetch".into(), calls: 2, read: 2100, output: 27000, model: "claude-opus-5-5".into() }], "a row with no type or no call is dropped");
+    assert_eq!(
+        st.subagents,
+        vec![SubagentStat { kind: "web-fetch".into(), calls: 2, read: 2100, output: 27000, model: "claude-opus-5-5".into() }],
+        "a row with no type or no call is dropped"
+    );
     assert_eq!(wisp_runtime_core::land::turn_stats(&wisp_runtime_api::harness::HarnessStats::default()).subagents, vec![]);
     // a v1 turn from before stats.totals: its output could be the conversation's, so it reads as unknown
     let before = wisp_runtime_core::land::subagents_of(Some(&json!([{ "type": "Explore", "calls": 1, "output": 300, "read": 40 }])), false);
@@ -112,13 +146,30 @@ fn a_turn_keeps_its_cli_subagents_and_the_fold_sums_them_by_type_v1_785() {
     assert_eq!(before[0].read, 40);
 
     let sa = |kind: &str, calls, output, model: &str| SubagentStat { kind: kind.into(), calls, read: 1, output, model: model.into() };
-    let t0 = turn(0, TurnStats { output_tokens: Some(500), subagents: vec![sa("Explore", 2, 300, "claude-haiku-5-5"), sa("Plan", 1, 50, "claude-opus-5-5")], ..TurnStats::default() });
-    let t1 = turn(1, TurnStats { output_tokens: Some(200), subagents: vec![sa("Explore", 1, 100, "claude-haiku-5-5"), sa("Explore", 1, 900, "claude-opus-5-5")], ..TurnStats::default() });
+    let t0 = turn(
+        0,
+        TurnStats {
+            output_tokens: Some(500),
+            subagents: vec![sa("Explore", 2, 300, "claude-haiku-5-5"), sa("Plan", 1, 50, "claude-opus-5-5")],
+            ..TurnStats::default()
+        },
+    );
+    let t1 = turn(
+        1,
+        TurnStats {
+            output_tokens: Some(200),
+            subagents: vec![sa("Explore", 1, 100, "claude-haiku-5-5"), sa("Explore", 1, 900, "claude-opus-5-5")],
+            ..TurnStats::default()
+        },
+    );
     let running = Turn { idx: 2, status: TurnStatus::Running, ..Turn::default() };
     let own = own_of(&usages(&[t0, t1, running]));
     let a = |kind: &str, model: &str, calls, output| Agents { kind: kind.into(), model: model.into(), calls, output };
     // by type and model, most output first
-    assert_eq!(own.agents, vec![a("Explore", "claude-opus-5-5", 1, 900), a("Explore", "claude-haiku-5-5", 3, 400), a("Plan", "claude-opus-5-5", 1, 50)]);
+    assert_eq!(
+        own.agents,
+        vec![a("Explore", "claude-opus-5-5", 1, 900), a("Explore", "claude-haiku-5-5", 3, 400), a("Plan", "claude-opus-5-5", 1, 50)]
+    );
     // on the row: `agents`, absent when none ran
     let v = serde_json::to_value(&own).unwrap();
     assert_eq!(v["agents"][1], json!({ "type": "Explore", "model": "claude-haiku-5-5", "calls": 3, "output": 400 }));

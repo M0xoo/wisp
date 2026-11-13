@@ -81,7 +81,13 @@ pub struct StoreRows {
 impl Rows for StoreRows {
     fn items(&self) -> BoxFuture<'static, Result<Vec<StuffItem>>> {
         let store = self.store.clone();
-        Box::pin(async move { store.read_async(|r| r.query(ITEM.kind, &Query::new())).await.map(|rows| rows.into_iter().filter_map(body).collect()).map_err(err) })
+        Box::pin(async move {
+            store
+                .read_async(|r| r.query(ITEM.kind, &Query::new()))
+                .await
+                .map(|rows| rows.into_iter().filter_map(body).collect())
+                .map_err(err)
+        })
     }
     fn put_item(&self, it: StuffItem) -> BoxFuture<'static, Result<()>> {
         let store = self.store.clone();

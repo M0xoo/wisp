@@ -37,9 +37,7 @@ fn truthy(v: &Value) -> bool {
 }
 
 fn text(v: Option<&Value>) -> Option<String> {
-    v.and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
+    v.and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned)
 }
 
 impl AppManifest {
@@ -60,12 +58,7 @@ impl AppManifest {
         let was = v
             .get("was")
             .and_then(Value::as_array)
-            .map(|a| {
-                a.iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_owned)
-                    .collect()
-            })
+            .map(|a| a.iter().filter_map(Value::as_str).map(str::to_owned).collect())
             .unwrap_or_default();
         Ok(Self {
             name: text(v.get("name")),
@@ -96,10 +89,7 @@ pub fn uses_of(manifest: &Value) -> Result<Vec<String>, String> {
     for x in u {
         let Some(s) = x.as_str().filter(|s| is_scope(s)) else {
             let known: Vec<&str> = PANE_USES.iter().map(|(k, _)| *k).collect();
-            return Err(format!(
-                "\"uses\" in wisp-app.json: {x} isn't something an app can use ({}).",
-                known.join(", ")
-            ));
+            return Err(format!("\"uses\" in wisp-app.json: {x} isn't something an app can use ({}).", known.join(", ")));
         };
         if !out.iter().any(|o| o == s) {
             out.push(s.to_owned());
@@ -116,33 +106,18 @@ pub fn db_spec(d: &Value, exists: impl Fn(&str) -> bool) -> Result<Option<DbSpec
     if let Value::String(s) = d {
         return bundle_path(s.trim_start_matches('/'))
             .map(|seed| Some(DbSpec { seed }))
-            .ok_or_else(|| {
-                "\"db\" in wisp-app.json names its seed file inside the app, like \"seed.sql\"."
-                    .into()
-            });
+            .ok_or_else(|| "\"db\" in wisp-app.json names its seed file inside the app, like \"seed.sql\".".into());
     }
-    Ok(Some(DbSpec {
-        seed: if exists("seed.sql") {
-            "seed.sql".into()
-        } else {
-            String::new()
-        },
-    }))
+    Ok(Some(DbSpec { seed: if exists("seed.sql") { "seed.sql".into() } else { String::new() } }))
 }
 
 /// A relative path inside an app: forward slashes, no `.`/`..`/empty segments, no control
 /// characters or backslashes, at most 400 bytes. None when it isn't one.
 pub fn bundle_path(p: &str) -> Option<String> {
-    if p.is_empty()
-        || p.len() > 400
-        || p.starts_with('/')
-        || p.chars().any(|c| c == '\\' || (c as u32) < 0x20)
-    {
+    if p.is_empty() || p.len() > 400 || p.starts_with('/') || p.chars().any(|c| c == '\\' || (c as u32) < 0x20) {
         return None;
     }
-    p.split('/')
-        .all(|x| !x.is_empty() && x != "." && x != "..")
-        .then(|| p.to_owned())
+    p.split('/').all(|x| !x.is_empty() && x != "." && x != "..").then(|| p.to_owned())
 }
 
 fn is_env(name: &str) -> bool {
@@ -150,8 +125,7 @@ fn is_env(name: &str) -> bool {
 }
 
 fn ext_in(name: &str, list: &[&str]) -> bool {
-    name.rsplit_once('.')
-        .is_some_and(|(_, e)| list.contains(&e))
+    name.rsplit_once('.').is_some_and(|(_, e)| list.contains(&e))
 }
 
 /// v1 bundle.js PRIVATE: a file name that holds secrets (or hands out the source, like a `.map`).
@@ -159,39 +133,17 @@ fn ext_in(name: &str, list: &[&str]) -> bool {
 #[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn private_name(n: &str) -> bool {
     let stem_ext = |prefix: &str, exts: &[&str]| {
-        n.strip_prefix(prefix)
-            .is_some_and(|r| r.is_empty() || r.strip_prefix('.').is_some_and(|e| exts.contains(&e)))
+        n.strip_prefix(prefix).is_some_and(|r| r.is_empty() || r.strip_prefix('.').is_some_and(|e| exts.contains(&e)))
     };
     is_env(n)
         || n.ends_with(".env")
         || n == ".envrc"
-        || stem_ext(
-            "credentials",
-            &["json", "yaml", "yml", "toml", "ini", "txt", "csv", "xml"],
-        )
-        || stem_ext(
-            ".credentials",
-            &["json", "yaml", "yml", "toml", "ini", "txt", "csv", "xml"],
-        )
+        || stem_ext("credentials", &["json", "yaml", "yml", "toml", "ini", "txt", "csv", "xml"])
+        || stem_ext(".credentials", &["json", "yaml", "yml", "toml", "ini", "txt", "csv", "xml"])
         || (n.starts_with("client_secret") && n.ends_with(".json"))
-        || (["serviceaccount", "service-account", "service_account"]
-            .iter()
-            .any(|p| n.starts_with(p))
-            && n.ends_with(".json"))
-        || ["secret", "secrets"].iter().any(|s| {
-            n.strip_prefix(s)
-                .is_some_and(|r| [".json", ".yaml", ".yml", ".toml"].contains(&r))
-        })
-        || [
-            ".npmrc",
-            ".netrc",
-            ".pgpass",
-            ".pypirc",
-            ".htpasswd",
-            ".git-credentials",
-            ".dockercfg",
-        ]
-        .contains(&n)
+        || (["serviceaccount", "service-account", "service_account"].iter().any(|p| n.starts_with(p)) && n.ends_with(".json"))
+        || ["secret", "secrets"].iter().any(|s| n.strip_prefix(s).is_some_and(|r| [".json", ".yaml", ".yml", ".toml"].contains(&r)))
+        || [".npmrc", ".netrc", ".pgpass", ".pypirc", ".htpasswd", ".git-credentials", ".dockercfg"].contains(&n)
         || ext_in(n, &["pem", "key", "p12", "pfx", "jks", "keystore", "ppk"])
         || ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"].contains(&n)
         || n.ends_with(".map")
@@ -210,9 +162,5 @@ pub fn private_file(rel: &str) -> bool {
 /// `.well-known`.
 pub fn public_file(rel: &str) -> bool {
     let lower = rel.to_lowercase();
-    !private_file(rel)
-        && lower
-            .split(['/', '\\'])
-            .enumerate()
-            .all(|(i, s)| !s.starts_with('.') || (i == 0 && s == ".well-known"))
+    !private_file(rel) && lower.split(['/', '\\']).enumerate().all(|(i, s)| !s.starts_with('.') || (i == 0 && s == ".well-known"))
 }

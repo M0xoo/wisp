@@ -99,14 +99,23 @@ pub(crate) const NOTES_IDENTITY: &[(&str, &str)] = &[
 /// `git notes --ref=wisp <args>` as wisp: stdout, or git's stderr (trimmed) when it fails.
 async fn git_notes(proc: &Proc, root: &std::path::Path, args: &[&str]) -> std::result::Result<String, String> {
     let env = NOTES_IDENTITY.iter().fold(wisp_proc::Env::default(), |e, (k, v)| e.with(*k, *v));
-    let opts = wisp_proc::ExecOpts { cwd: Some(root.to_owned()), env, timeout: Some(std::time::Duration::from_secs(60)), ..wisp_proc::ExecOpts::default() };
+    let opts = wisp_proc::ExecOpts {
+        cwd: Some(root.to_owned()),
+        env,
+        timeout: Some(std::time::Duration::from_secs(60)),
+        ..wisp_proc::ExecOpts::default()
+    };
     let argv: Vec<String> = ["notes", "--ref=wisp"].iter().chain(args).map(|a| (*a).to_owned()).collect();
     let r = proc.exec("git", &argv, opts).await.map_err(|e| e.to_string())?;
     if r.exit.success() { Ok(r.stdout_text()) } else { Err(String::from_utf8_lossy(&r.stderr).trim().to_owned()) }
 }
 
 async fn key_blob(proc: &Proc, root: &std::path::Path, rel: &str) -> Option<String> {
-    let opts = wisp_proc::ExecOpts { cwd: Some(root.to_owned()), input: Some(format!("wisp history {rel}\n").into_bytes()), ..wisp_proc::ExecOpts::default() };
+    let opts = wisp_proc::ExecOpts {
+        cwd: Some(root.to_owned()),
+        input: Some(format!("wisp history {rel}\n").into_bytes()),
+        ..wisp_proc::ExecOpts::default()
+    };
     let r = proc.exec("git", &["hash-object".to_owned(), "-w".to_owned(), "--stdin".to_owned()], opts).await.ok()?;
     r.exit.success().then(|| r.stdout_text().trim().to_owned())
 }
@@ -121,7 +130,9 @@ impl HistoryStore for Notes {
             let (notes, tree): (Vec<_>, Vec<_>) = files.into_iter().partition(|(rel, _)| rel.starts_with("history/"));
             let mut out = write_files(&root, tree).await?;
             for (rel, bytes) in notes {
-                let blob = key_blob(&p, &root, &rel).await.ok_or_else(|| WireError::invalid(format!("{} isn't a git repo: notes need one", root.display())))?;
+                let blob = key_blob(&p, &root, &rel)
+                    .await
+                    .ok_or_else(|| WireError::invalid(format!("{} isn't a git repo: notes need one", root.display())))?;
                 // the bytes as a blob of their own (`-C`: no message clean-up, so a binary transcript stays exact)
                 let opts = wisp_proc::ExecOpts { cwd: Some(root.clone()), input: Some(bytes), ..wisp_proc::ExecOpts::default() };
                 let content = match p.exec("git", &["hash-object".to_owned(), "-w".to_owned(), "--stdin".to_owned()], opts).await {

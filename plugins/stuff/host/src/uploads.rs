@@ -33,7 +33,11 @@ impl Shelf {
             return Err(bad(413, "file too large (500 MB max)"));
         }
         let name = upload_name(name);
-        let mime = mime.filter(|m| !m.is_empty()).map(str::to_owned).or_else(|| known_mime(&name).map(str::to_owned)).unwrap_or_else(|| "application/octet-stream".into());
+        let mime = mime
+            .filter(|m| !m.is_empty())
+            .map(str::to_owned)
+            .or_else(|| known_mime(&name).map(str::to_owned))
+            .unwrap_or_else(|| "application/octet-stream".into());
         let size = bytes.len() as u64;
         let blob = self.blobs.put(bytes).await?;
         let u = Upload { id: wisp_kernel::ids::uuid7(), name, mime, size, blob: Some(blob), path: None };

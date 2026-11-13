@@ -41,10 +41,7 @@ pub fn parse_memorystatus(text: &str) -> Option<f64> {
     if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    t.parse::<u64>()
-        .ok()
-        .filter(|n| *n <= 100)
-        .map(|n| f64::from(u32::try_from(n).unwrap_or(100)))
+    t.parse::<u64>().ok().filter(|n| *n <= 100).map(|n| f64::from(u32::try_from(n).unwrap_or(100)))
 }
 
 /// The number after `^<name>:\s+` on some line.
@@ -72,10 +69,7 @@ pub fn parse_vm_stat(text: &str, total: u64) -> Option<f64> {
         .and_then(|i| {
             let r = &text[i + "page size of ".len()..];
             let n = r.bytes().take_while(u8::is_ascii_digit).count();
-            r[n..]
-                .starts_with(" bytes")
-                .then(|| r[..n].parse::<u64>().ok())
-                .flatten()
+            r[n..].starts_with(" bytes").then(|| r[..n].parse::<u64>().ok()).flatten()
         })
         .filter(|n| *n > 0)
         .unwrap_or(4096);
@@ -83,10 +77,8 @@ pub fn parse_vm_stat(text: &str, total: u64) -> Option<f64> {
     if total == 0 {
         return None;
     }
-    let pages = ["Pages inactive", "Pages speculative", "Pages purgeable"]
-        .iter()
-        .filter_map(|n| field(text, n))
-        .fold(free, u64::saturating_add);
+    let pages =
+        ["Pages inactive", "Pages speculative", "Pages purgeable"].iter().filter_map(|n| field(text, n)).fold(free, u64::saturating_add);
     Some(share(pages.saturating_mul(size), total))
 }
 
@@ -104,13 +96,8 @@ pub fn parse_pressure(text: &str) -> Option<f64> {
         if rest.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_') {
             return None;
         }
-        let i = rest
-            .split_whitespace()
-            .find_map(|w| w.strip_prefix("avg10="))?;
-        let n = i
-            .bytes()
-            .take_while(|b| b.is_ascii_digit() || *b == b'.')
-            .count();
+        let i = rest.split_whitespace().find_map(|w| w.strip_prefix("avg10="))?;
+        let n = i.bytes().take_while(|b| b.is_ascii_digit() || *b == b'.').count();
         i[..n].parse::<f64>().ok()
     })
 }
@@ -132,13 +119,7 @@ pub fn cpu_busy(a: &[CoreTimes], b: &[CoreTimes]) -> Option<f64> {
     }
     let (mut busy, mut all) = (0.0, 0.0);
     for (x, y) in a.iter().zip(b) {
-        let d = [
-            y.user - x.user,
-            y.nice - x.nice,
-            y.sys - x.sys,
-            y.idle - x.idle,
-            y.irq - x.irq,
-        ];
+        let d = [y.user - x.user, y.nice - x.nice, y.sys - x.sys, y.idle - x.idle, y.irq - x.irq];
         let total: f64 = d.iter().sum();
         all += total;
         busy += total - d[3];
@@ -154,9 +135,7 @@ fn pick<'a>(v: Option<&'a str>, list: &[&str], dflt: &'a str) -> &'a str {
 
 /// `maxRuns: auto`: a run (a CLI plus the tests and builds it starts) can reach 3 GB.
 pub fn auto_runs(total_bytes: u64) -> u32 {
-    u32::try_from(total_bytes / GB / 3)
-        .unwrap_or(u32::MAX)
-        .max(2)
+    u32::try_from(total_bytes / GB / 3).unwrap_or(u32::MAX).max(2)
 }
 
 pub fn limits_of(k: &Knobs, total_bytes: u64) -> Limits {
@@ -165,11 +144,7 @@ pub fn limits_of(k: &Knobs, total_bytes: u64) -> Limits {
     Limits {
         floor: n(pick(k.memory_floor.as_deref(), MEMORY_FLOORS, "15")),
         ceiling: n(pick(k.cpu_ceiling.as_deref(), CPU_CEILINGS, "200")),
-        max_runs: if runs == "auto" {
-            Some(auto_runs(total_bytes))
-        } else {
-            n(runs)
-        },
+        max_runs: if runs == "auto" { Some(auto_runs(total_bytes)) } else { n(runs) },
     }
 }
 
@@ -234,26 +209,14 @@ impl Load {
         lifted
     }
 
-    #[allow(
-        clippy::many_single_char_names,
-        reason = "m, p: memory and pressure, as in v1 load.js"
-    )]
+    #[allow(clippy::many_single_char_names, reason = "m, p: memory and pressure, as in v1 load.js")]
     fn settle(&mut self, a: &Against<'_>) {
         let l = limits_of(a.knobs, a.total);
-        let Sample {
-            mem_free_pct: m,
-            pressure: p,
-            cpu,
-        } = self.last;
+        let Sample { mem_free_pct: m, pressure: p, cpu } = self.last;
         self.mem_held = match l.floor.map(f64::from) {
             None => false,
-            Some(floor) if !self.mem_held => {
-                m.is_some_and(|m| m < floor) || p.is_some_and(|p| p >= PSI_HOLD)
-            }
-            Some(floor) => {
-                !(m.is_none_or(|m| m >= floor + f64::from(MARGIN))
-                    && p.is_none_or(|p| p < PSI_CLEAR))
-            }
+            Some(floor) if !self.mem_held => m.is_some_and(|m| m < floor) || p.is_some_and(|p| p >= PSI_HOLD),
+            Some(floor) => !(m.is_none_or(|m| m >= floor + f64::from(MARGIN)) && p.is_none_or(|p| p < PSI_CLEAR)),
         };
         match (l.ceiling, cpu) {
             (Some(c), Some(cpu)) if cpu > f64::from(c) => {
@@ -274,61 +237,35 @@ impl Load {
         }
         self.settle(a);
         let l = limits_of(a.knobs, a.total);
-        let Sample {
-            mem_free_pct: m,
-            pressure: p,
-            cpu,
-        } = self.last;
-        let hold = |kind, why| {
-            Some(Hold {
-                load: true,
-                kind,
-                why,
-                until: a.now + RETRY_MS,
-            })
-        };
+        let Sample { mem_free_pct: m, pressure: p, cpu } = self.last;
+        let hold = |kind, why| Some(Hold { load: true, kind, why, until: a.now + RETRY_MS });
         if let Some(floor) = l.floor.filter(|_| self.mem_held) {
             let needs = f64::from(floor + MARGIN);
             let why = match m {
                 Some(m) if m < needs => {
                     format!("Waiting for memory: {} free, needs {}", pct(m), pct(needs))
                 }
-                _ => format!(
-                    "Waiting for memory: the system is stalling on it ({} of the last 10 s)",
-                    pct(p.unwrap_or(0.0))
-                ),
+                _ => format!("Waiting for memory: the system is stalling on it ({} of the last 10 s)", pct(p.unwrap_or(0.0))),
             };
             return hold(HoldKind::Memory, why);
         }
         if let (Some(c), Some(since)) = (l.ceiling, self.cpu_over)
             && a.now - since >= CPU_HOLD_MS
         {
-            let why = format!(
-                "Waiting for the CPU: load at {} of its cores, needs under {}",
-                pct(cpu.unwrap_or(0.0)),
-                pct(f64::from(c))
-            );
+            let why = format!("Waiting for the CPU: load at {} of its cores, needs under {}", pct(cpu.unwrap_or(0.0)), pct(f64::from(c)));
             return hold(HoldKind::Cpu, why);
         }
         match l.max_runs {
-            Some(max) if a.runs >= max => hold(
-                HoldKind::Runs,
-                format!(
-                    "Waiting for a run slot: {} run{} going, at most {max}",
-                    a.runs,
-                    plural(a.runs)
-                ),
-            ),
+            Some(max) if a.runs >= max => {
+                hold(HoldKind::Runs, format!("Waiting for a run slot: {} run{} going, at most {max}", a.runs, plural(a.runs)))
+            }
             _ => None,
         }
     }
 
     /// The machine is short (memory, CPU): the worktree sweep waits. Full run slots aren't.
     pub fn busy(&mut self, a: &Against<'_>, extra: Option<Hold>) -> bool {
-        matches!(
-            self.hold(a, extra).map(|h| h.kind),
-            Some(HoldKind::Memory | HoldKind::Cpu)
-        )
+        matches!(self.hold(a, extra).map(|h| h.kind), Some(HoldKind::Memory | HoldKind::Cpu))
     }
 
     /// A run you start by hand goes anyway; when memory is under the floor the page says so.
@@ -339,22 +276,12 @@ impl Load {
         let floor = f64::from(limits_of(a.knobs, a.total).floor?);
         let m = self.last.mem_free_pct.filter(|m| *m < floor)?;
         let machine = if a.mac { "Your Mac" } else { "This computer" };
-        Some(Short {
-            why: format!(
-                "{machine} is short on memory: {} free, {} run{} going",
-                pct(m),
-                a.runs,
-                plural(a.runs)
-            ),
-        })
+        Some(Short { why: format!("{machine} is short on memory: {} free, {} run{} going", pct(m), a.runs, plural(a.runs)) })
     }
 
     /// What the page and `GET /load` see.
     pub fn reading(&mut self, a: &Against<'_>, extra: Option<Hold>) -> LoadReading {
-        let held = self.hold(a, extra).map(|h| Held {
-            kind: h.kind,
-            why: h.why,
-        });
+        let held = self.hold(a, extra).map(|h| Held { kind: h.kind, why: h.why });
         LoadReading {
             mem_free_pct: self.last.mem_free_pct,
             cpu: self.last.cpu,

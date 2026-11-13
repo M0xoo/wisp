@@ -22,12 +22,7 @@ pub trait Disk: Send + Sync {
     }
     /// `git <args>` in `cwd` with `env` added (a temporary `GIT_INDEX_FILE`): its stdout when it exited 0.
     /// Additive (2026-11-13).
-    fn git_env<'a>(
-        &'a self,
-        cwd: &'a str,
-        args: &'a [&'a str],
-        env: &'a [(&'a str, &'a str)],
-    ) -> DiskFuture<'a, Option<String>>;
+    fn git_env<'a>(&'a self, cwd: &'a str, args: &'a [&'a str], env: &'a [(&'a str, &'a str)]) -> DiskFuture<'a, Option<String>>;
     /// Removes a file wisp made (a temporary index); a missing one is fine. Additive (2026-11-13).
     fn remove<'a>(&'a self, abs: &'a str) -> DiskFuture<'a, ()>;
     /// Copies `from` to `to` byte for byte, read from one open file and with `from`'s mtime kept (git's
@@ -46,13 +41,7 @@ pub async fn read_up_to(disk: &dyn Disk, abs: &str, max: usize) -> Option<String
 
 /// The file now: None when it isn't one, '' when it is over `MAX_SNAPSHOT` (v1 `readSnapshot`).
 pub async fn snapshot(disk: &dyn Disk, abs: &str) -> Option<String> {
-    disk.read(abs).await.map(|s| {
-        if s.len() <= MAX_SNAPSHOT {
-            s
-        } else {
-            String::new()
-        }
-    })
+    disk.read(abs).await.map(|s| if s.len() <= MAX_SNAPSHOT { s } else { String::new() })
 }
 
 /// The git base of a run: not looked up yet, or looked up (None: not a repo).
@@ -75,14 +64,7 @@ pub struct Driver<P> {
 
 impl<P: LineParser> Driver<P> {
     pub fn new(parser: P, paths: RunPaths) -> Self {
-        Self {
-            parser,
-            paths,
-            tracker: Tracker::new(),
-            base: Pin::Unpinned,
-            outs: Vec::new(),
-            stop: false,
-        }
+        Self { parser, paths, tracker: Tracker::new(), base: Pin::Unpinned, outs: Vec::new(), stop: false }
     }
 
     /// The parser asked to stop the process since the last call (once).
@@ -104,48 +86,26 @@ impl<P: LineParser> Driver<P> {
         let cwd = self.paths.cwd.clone();
         let base = match crate::wip::work_in_progress(disk, &cwd).await {
             Some(s) => Some(s),
-            None => disk
-                .git(&cwd, &["rev-parse", "--verify", "HEAD"])
-                .await
-                .map(|s| s.trim().to_owned())
-                .filter(|s| !s.is_empty()),
+            None => disk.git(&cwd, &["rev-parse", "--verify", "HEAD"]).await.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()),
         };
         self.base = Pin::Base(base);
     }
 
-    pub async fn stdout(
-        &mut self,
-        line: &str,
-        now_ms: i64,
-        disk: &dyn Disk,
-        events: &mut Vec<HarnessEvent>,
-    ) {
+    pub async fn stdout(&mut self, line: &str, now_ms: i64, disk: &dyn Disk, events: &mut Vec<HarnessEvent>) {
         let mut outs = std::mem::take(&mut self.outs);
         self.parser.line(line, now_ms, &mut outs);
         self.take(&mut outs, disk, events).await;
         self.outs = outs;
     }
 
-    pub async fn stderr(
-        &mut self,
-        text: &str,
-        now_ms: i64,
-        disk: &dyn Disk,
-        events: &mut Vec<HarnessEvent>,
-    ) {
+    pub async fn stderr(&mut self, text: &str, now_ms: i64, disk: &dyn Disk, events: &mut Vec<HarnessEvent>) {
         let mut outs = std::mem::take(&mut self.outs);
         self.parser.stderr(text, now_ms, &mut outs);
         self.take(&mut outs, disk, events).await;
         self.outs = outs;
     }
 
-    pub async fn exit(
-        &mut self,
-        exit: &Exit,
-        now_ms: i64,
-        disk: &dyn Disk,
-        events: &mut Vec<HarnessEvent>,
-    ) {
+    pub async fn exit(&mut self, exit: &Exit, now_ms: i64, disk: &dyn Disk, events: &mut Vec<HarnessEvent>) {
         let mut outs = std::mem::take(&mut self.outs);
         self.parser.close(exit, now_ms, &mut outs);
         self.take(&mut outs, disk, events).await;
@@ -213,11 +173,7 @@ impl<P: LineParser> Driver<P> {
         let spec = format!("{base}:./{file}");
         let cwd = self.paths.cwd.clone();
         let out = disk.git(&cwd, &["show", &spec]).await?;
-        Some(if out.len() <= MAX_SNAPSHOT {
-            out
-        } else {
-            String::new()
-        })
+        Some(if out.len() <= MAX_SNAPSHOT { out } else { String::new() })
     }
 }
 
@@ -252,17 +208,9 @@ mod tests {
     impl LineParser for Script {
         fn line(&mut self, line: &str, _now: i64, out: &mut Vec<Out>) {
             match line {
-                "announce" => out.push(Out::Io(IoStep::Remember {
-                    file: "a.js".into(),
-                })),
-                "wrote" => out.push(Out::Io(IoStep::Changed {
-                    file: "a.js".into(),
-                })),
-                "write" => out.push(Out::Io(IoStep::WriteBefore {
-                    abs: "/w/b.js".into(),
-                    file: "b.js".into(),
-                    after: "new b".into(),
-                })),
+                "announce" => out.push(Out::Io(IoStep::Remember { file: "a.js".into() })),
+                "wrote" => out.push(Out::Io(IoStep::Changed { file: "a.js".into() })),
+                "write" => out.push(Out::Io(IoStep::WriteBefore { abs: "/w/b.js".into(), file: "b.js".into(), after: "new b".into() })),
                 _ => out.push(Out::Event(HarnessEvent::text(line))),
             }
         }
@@ -302,19 +250,11 @@ mod tests {
         let json: Vec<_> = ev.iter().map(HarnessEvent::to_json).collect();
         assert_eq!(json[0]["text"], "hi");
         assert_eq!(
-            (
-                json[1]["op"].as_str(),
-                json[1]["edits"][0]["before"].as_str(),
-                json[1]["edits"][0]["after"].as_str()
-            ),
+            (json[1]["op"].as_str(), json[1]["edits"][0]["before"].as_str(), json[1]["edits"][0]["after"].as_str()),
             (Some("write"), Some("old a"), Some("new a"))
         );
         assert_eq!(
-            (
-                json[2]["op"].as_str(),
-                json[2]["early"].as_bool(),
-                json[2]["edits"][0]["before"].as_str()
-            ),
+            (json[2]["op"].as_str(), json[2]["early"].as_bool(), json[2]["edits"][0]["before"].as_str()),
             (Some("write"), Some(true), Some("old b"))
         );
     }

@@ -72,7 +72,10 @@ impl Seen {
 pub enum RateHit {
     Ok,
     /// `tell`: true once per window, so a sender is told, not flooded
-    Over { tell: bool, retry_s: i64 },
+    Over {
+        tell: bool,
+        retry_s: i64,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -140,7 +143,10 @@ pub enum Why {
 pub enum Gate {
     Ok,
     /// `reply`: what to tell the sender; None is silence
-    Refused { why: Why, reply: Option<String> },
+    Refused {
+        why: Why,
+        reply: Option<String>,
+    },
 }
 
 impl Gate {
@@ -233,11 +239,16 @@ pub fn tighter(cap: Mode, capped: Option<Capped>) -> Mode {
 }
 /// What the agent reads. Word for word the kernel's refusal for `agent:capped`.
 pub fn capped_refusal(what: &str) -> String {
-    format!("Refused: this task was started from a channel with a mode cap, so it can't {what}. Say so in your report; the user can do it in wisp.")
+    format!(
+        "Refused: this task was started from a channel with a mode cap, so it can't {what}. Say so in your report; the user can do it in wisp."
+    )
 }
 pub fn over_cap(mode: Mode, capped: Capped) -> String {
     let c = capped.mode.label();
-    format!("Refused: {} is above this task's cap of {c}, set by the channel that started it. Use {c} or lower; the user can raise it in wisp.", mode.label())
+    format!(
+        "Refused: {} is above this task's cap of {c}, set by the channel that started it. Use {c} or lower; the user can raise it in wisp.",
+        mode.label()
+    )
 }
 
 // ---------- outside text reaching an agent ----------

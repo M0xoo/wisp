@@ -134,7 +134,10 @@ async fn after(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
         }
         Some(Next::Review(agent)) => match calls::task(ctx, &call, id).await {
             Ok(task) => {
-                let prompt = format!("Review what the task \"{}\" ({id}) just changed in this folder: correctness first, then risks. Report what to fix.", task.title);
+                let prompt = format!(
+                    "Review what the task \"{}\" ({id}) just changed in this folder: correctness first, then risks. Report what to fix.",
+                    task.title
+                );
                 calls::create(ctx, &call, prompt, &task.cwd, &agent, format!("pipeline:{name}")).await.map(|_| ())
             }
             Err(err) => Err(err),
@@ -177,7 +180,12 @@ async fn best_of(ctx: &Ctx, name: &str, id: &str, spec: &TaskSpec, n: u32, judge
         answers.push(text);
     }
     let list: Vec<String> = answers.iter().enumerate().map(|(i, a)| format!("## Run {}\n{a}", i + 1)).collect();
-    let prompt = format!("These are {} runs of the same task: \"{}\". Which did it best? Answer with its number first, then one line why.\n\n{}", runs.len(), spec.prompt, list.join("\n\n"));
+    let prompt = format!(
+        "These are {} runs of the same task: \"{}\". Which did it best? Answer with its number first, then one line why.\n\n{}",
+        runs.len(),
+        spec.prompt,
+        list.join("\n\n")
+    );
     let agent = if judge.is_empty() { spec.agent.as_str() } else { judge };
     // a task with no folder has no judge (it never runs in the server's folder): the first run wins
     let said = if spec.cwd.is_empty() {
@@ -199,7 +207,13 @@ struct PipelineKind {
 }
 
 async fn refresh(inner: &StoredKind, cache: &Cache) {
-    let list = inner.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value::<PipelineSpec>(v).ok()?))).collect();
+    let list = inner
+        .specs()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(n, v)| Some((n, serde_json::from_value::<PipelineSpec>(v).ok()?)))
+        .collect();
     *cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = list;
 }
 
@@ -220,7 +234,8 @@ impl ResourceKind for PipelineKind {
 }
 
 pub fn register_pipeline(s: &mut Setup) {
-    let inner = Arc::new(StoredKind::new(KindInfo::new("pipeline", "pipelines", "wisp.router", schema_of::<PipelineSpec>()).order(32), s.ctx()));
+    let inner =
+        Arc::new(StoredKind::new(KindInfo::new("pipeline", "pipelines", "wisp.router", schema_of::<PipelineSpec>()).order(32), s.ctx()));
     let cache: Cache = Arc::default();
     let k: Arc<dyn ResourceKind> = Arc::new(PipelineKind { inner: inner.clone(), cache: cache.clone() });
     s.contribute(&RESOURCE_KIND, k);
@@ -247,7 +262,10 @@ mod tests {
         let t = |status, by, from| Ended { status, by, from, error: None, first: false };
         let p = PipelineSpec { on_error: "escalate".into(), review: "reviewer".into(), ..PipelineSpec::default() };
         assert_eq!(next(&p, t(TurnStatus::Error, "you", "")), Some(Next::Again(true)));
-        assert_eq!(next(&PipelineSpec { on_error: "retry".into(), ..p.clone() }, t(TurnStatus::Error, "you", "")), Some(Next::Again(false)));
+        assert_eq!(
+            next(&PipelineSpec { on_error: "retry".into(), ..p.clone() }, t(TurnStatus::Error, "you", "")),
+            Some(Next::Again(false))
+        );
         assert_eq!(next(&p, t(TurnStatus::Done, "you", "")), Some(Next::Review("reviewer".into())));
         assert_eq!(next(&p, t(TurnStatus::Error, BY, "")), None, "its own retry isn't retried");
         assert_eq!(next(&p, t(TurnStatus::Done, "you", "pipeline:default")), None, "a review isn't reviewed");
@@ -255,7 +273,10 @@ mod tests {
         assert_eq!(next(&PipelineSpec::default(), t(TurnStatus::Error, "you", "")), None);
         // at a limit: another harness, before onError; best of N after the first turn only
         let lim = PipelineSpec { at_limit: "next".into(), best_of: Some(3), judge: "reviewer".into(), ..p.clone() };
-        assert_eq!(next(&lim, Ended { error: Some("Claude AI usage limit reached|1767225600"), ..t(TurnStatus::Error, "you", "") }), Some(Next::Switch));
+        assert_eq!(
+            next(&lim, Ended { error: Some("Claude AI usage limit reached|1767225600"), ..t(TurnStatus::Error, "you", "") }),
+            Some(Next::Switch)
+        );
         assert_eq!(next(&lim, Ended { first: true, ..t(TurnStatus::Done, "you", "") }), Some(Next::BestOf(3, "reviewer".into())));
         assert_eq!(next(&lim, t(TurnStatus::Done, "you", "")), Some(Next::Review("reviewer".into())), "later turns: the review");
         assert_eq!((winner("Run 2 did it best", 3), winner("none", 3), winner("9", 3)), (2, 1, 1));

@@ -20,7 +20,14 @@ pub(super) fn retention(ctx: &wisp_kernel::Ctx, slot: &Slot) {
             {
                 let before = clock.now_ms() - days * 86_400_000;
                 let call = ctx2.root_call();
-                for s in list.iter().filter(|s| !s.archived && s.updated_at < before && !matches!(s.state, wisp_runtime_api::model::SessionState::Running | wisp_runtime_api::model::SessionState::Waiting)) {
+                for s in list.iter().filter(|s| {
+                    !s.archived
+                        && s.updated_at < before
+                        && !matches!(
+                            s.state,
+                            wisp_runtime_api::model::SessionState::Running | wisp_runtime_api::model::SessionState::Waiting
+                        )
+                }) {
                     let _ = ctx2.run_json(&call, "runtime.archive", serde_json::json!({ "id": s.id, "archived": true })).await;
                 }
             }

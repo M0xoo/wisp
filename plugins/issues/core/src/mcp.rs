@@ -29,7 +29,14 @@ pub fn tool_json(r: &Value) -> Value {
     if let Some(s) = r.get("structuredContent").filter(|s| !s.is_null()) {
         return s.clone();
     }
-    let t: Vec<&str> = r.get("content").and_then(Value::as_array).into_iter().flatten().filter(|x| x.get("type").and_then(Value::as_str) == Some("text")).filter_map(|x| x.get("text").and_then(Value::as_str)).collect();
+    let t: Vec<&str> = r
+        .get("content")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|x| x.get("type").and_then(Value::as_str) == Some("text"))
+        .filter_map(|x| x.get("text").and_then(Value::as_str))
+        .collect();
     let t = t.join("\n");
     serde_json::from_str(t.trim()).unwrap_or(Value::String(t.trim().to_owned()))
 }
@@ -42,7 +49,10 @@ fn list_of<'a>(v: &'a Value, keys: &[&str]) -> Vec<&'a Value> {
 }
 
 fn name_of(v: &Value) -> String {
-    v.as_str().map(str::to_owned).or_else(|| v.get("displayName").or_else(|| v.get("name")).and_then(Value::as_str).map(str::to_owned)).unwrap_or_default()
+    v.as_str()
+        .map(str::to_owned)
+        .or_else(|| v.get("displayName").or_else(|| v.get("name")).and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or_default()
 }
 
 fn closed(state: &str) -> bool {
@@ -53,13 +63,28 @@ fn closed(state: &str) -> bool {
 pub fn linear_mcp_issue(n: &Value) -> Option<Issue> {
     let state = name_of(n.get("status").or_else(|| n.get("state")).unwrap_or(&Value::Null));
     let kind = n.get("statusType").and_then(Value::as_str).unwrap_or_default().to_lowercase();
-    if kind == "completed" || kind == "canceled" || closed(&state) || n.get("completedAt").is_some_and(|v| !v.is_null()) || n.get("canceledAt").is_some_and(|v| !v.is_null()) {
+    if kind == "completed"
+        || kind == "canceled"
+        || closed(&state)
+        || n.get("completedAt").is_some_and(|v| !v.is_null())
+        || n.get("canceledAt").is_some_and(|v| !v.is_null())
+    {
         return None;
     }
     let s = |k: &str| n.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
     let key = n.get("identifier").and_then(Value::as_str).map_or_else(|| s("id"), str::to_owned);
     let labels = n.get("labels").map(|l| if l.is_array() { names(l) } else { names(&l["nodes"]) }).unwrap_or_default();
-    Some(Issue { id: n.get("id").and_then(Value::as_str).map_or_else(|| key.clone(), str::to_owned), reference: key.clone(), number: IssueNumber::Key(key), title: s("title"), url: s("url"), labels, assignee: name_of(n.get("assignee").unwrap_or(&Value::Null)), body: body(&s("description")), updated_at: n.get("updatedAt").and_then(Value::as_str).map(str::to_owned) })
+    Some(Issue {
+        id: n.get("id").and_then(Value::as_str).map_or_else(|| key.clone(), str::to_owned),
+        reference: key.clone(),
+        number: IssueNumber::Key(key),
+        title: s("title"),
+        url: s("url"),
+        labels,
+        assignee: name_of(n.get("assignee").unwrap_or(&Value::Null)),
+        body: body(&s("description")),
+        updated_at: n.get("updatedAt").and_then(Value::as_str).map(str::to_owned),
+    })
 }
 
 const LINEAR_FIELDS: [&str; 9] = ["id", "title", "url", "labels", "assignee", "status", "statusType", "updatedAt", "description"];
@@ -88,7 +113,9 @@ pub fn linear_list(result: &Value) -> Vec<Issue> {
 pub fn jira_site(result: &Value) -> Option<(String, String)> {
     let v = tool_json(result);
     let sites = list_of(&v, &["resources"]);
-    let jira = |s: &&&Value| s.get("scopes").and_then(Value::as_array).is_some_and(|a| a.iter().filter_map(Value::as_str).any(|x| x.contains("jira")));
+    let jira = |s: &&&Value| {
+        s.get("scopes").and_then(Value::as_array).is_some_and(|a| a.iter().filter_map(Value::as_str).any(|x| x.contains("jira")))
+    };
     let site = sites.iter().find(jira).or_else(|| sites.first())?;
     let id = site.get("id").and_then(Value::as_str).filter(|s| !s.is_empty())?;
     Some((id.to_owned(), site.get("url").and_then(Value::as_str).unwrap_or_default().trim_end_matches('/').to_owned()))
@@ -110,7 +137,9 @@ pub fn mcp_problem(source: Source, error: &str) -> Problem {
     let label = if source == Source::Jira { "Jira" } else { "Linear" };
     let low = error.to_lowercase();
     if ["sign-in", "sign in", "http 401", "http 403", "unauthorized", "unauthorised"].iter().any(|w| low.contains(w)) {
-        return Problem { error: format!("{label} wants you to sign in again: Settings → Connectors."), fix: Some(source.as_str().into()) };
+        return Problem {
+            error: format!("{label} wants you to sign in again: Settings → Connectors."), fix: Some(source.as_str().into())
+        };
     }
     Problem { error: format!("{label} couldn’t list your issues: {}", clip(error, 200)), fix: None }
 }

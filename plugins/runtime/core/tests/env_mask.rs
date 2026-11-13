@@ -7,7 +7,9 @@ use wisp_envmask::DOTS;
 use wisp_runtime_api::harness::HarnessEvent;
 use wisp_runtime_api::model::{Activity, ToolKind};
 use wisp_runtime_core::activity::{Effect, Head, apply};
-use wisp_runtime_core::env_mask::{Item, mask_answer_text, mask_event_rows, mask_patch, mask_row, mask_step, mask_steps, mask_turn, unmasked_of_turn, unmasked_step};
+use wisp_runtime_core::env_mask::{
+    Item, mask_answer_text, mask_event_rows, mask_patch, mask_row, mask_step, mask_steps, mask_turn, unmasked_of_turn, unmasked_step,
+};
 
 fn turn() -> Value {
     json!({
@@ -84,7 +86,15 @@ fn a_tool_output_is_masked_when_the_turn_machine_flagged_it() {
 fn the_turn_machine_flags_the_output_of_a_call_that_read_a_env_file() {
     let mut h = Head::default();
     let no = |_: &str| false;
-    let call = |id: &str, detail: &str| HarnessEvent::Tool { kind: ToolKind::Run, label: "Run".into(), file: None, detail: Some(detail.into()), id: Some(id.into()), output: None, title: None };
+    let call = |id: &str, detail: &str| HarnessEvent::Tool {
+        kind: ToolKind::Run,
+        label: "Run".into(),
+        file: None,
+        detail: Some(detail.into()),
+        id: Some(id.into()),
+        output: None,
+        title: None,
+    };
     apply(&mut h, &call("c1", "cat .env.local"), false, &no);
     apply(&mut h, &call("c2", "ls"), false, &no);
     let out = |id: &str| HarnessEvent::ToolOutput { id: id.into(), text: "K=v".into() };
@@ -154,7 +164,9 @@ fn reveal_gives_the_stored_item_back_and_only_a_masked_one_v1_unmasked() {
 fn empty_and_huge_turns() {
     let mut empty = json!({});
     assert!(!mask_turn(&mut empty));
-    let blocks: Vec<Value> = (0..2000).map(|i| json!({ "type": "code", "file": if i % 2 == 0 { ".env" } else { "a.rs" }, "code": format!("K{i}=sk-{i}") })).collect();
+    let blocks: Vec<Value> = (0..2000)
+        .map(|i| json!({ "type": "code", "file": if i % 2 == 0 { ".env" } else { "a.rs" }, "code": format!("K{i}=sk-{i}") }))
+        .collect();
     let mut big = json!({ "presentation": { "blocks": blocks } });
     assert!(mask_turn(&mut big));
     let j = big.to_string();
@@ -185,5 +197,15 @@ fn an_output_stored_before_the_flag_is_decided_by_its_call_in_the_batch_or_else_
     ];
     assert!(mask_event_rows(rows.iter_mut()));
     assert!(!rows[1].to_string().contains("pw@db"));
-    assert_eq!(unmasked_step(&[json!({ "seq": 1, "kind": "tool", "detail": "cat .env", "callId": "c1", "label": "Run" }), json!({ "seq": 2, "kind": "tool_output", "callId": "c1", "text": "K=v" })], 2).unwrap()["text"], "K=v");
+    assert_eq!(
+        unmasked_step(
+            &[
+                json!({ "seq": 1, "kind": "tool", "detail": "cat .env", "callId": "c1", "label": "Run" }),
+                json!({ "seq": 2, "kind": "tool_output", "callId": "c1", "text": "K=v" })
+            ],
+            2
+        )
+        .unwrap()["text"],
+        "K=v"
+    );
 }

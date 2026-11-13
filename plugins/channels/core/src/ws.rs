@@ -184,12 +184,16 @@ impl Decoder {
             9 => Some(Event::Ping(payload)),
             10 => Some(Event::Pong),
             0 => {
-                let Some((first, mut so_far)) = self.partial.take() else { return Some(Event::Broken(1002, "a continuation with nothing to continue".into())) };
+                let Some((first, mut so_far)) = self.partial.take() else {
+                    return Some(Event::Broken(1002, "a continuation with nothing to continue".into()));
+                };
                 so_far.extend_from_slice(&payload);
                 if so_far.len() > MAX_MESSAGE {
                     return Some(Event::Broken(1009, "a message too big".into()));
                 }
-                if fin { Some(Self::message(first, so_far)) } else {
+                if fin {
+                    Some(Self::message(first, so_far))
+                } else {
                     self.partial = Some((first, so_far));
                     self.next()
                 }

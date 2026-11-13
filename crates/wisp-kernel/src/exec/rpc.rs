@@ -57,13 +57,8 @@ impl Peer {
         W: AsyncWrite + Unpin + Send + 'static,
     {
         let (tx, rx) = mpsc::unbounded_channel::<String>();
-        let peer = Arc::new(Self {
-            out: tx,
-            pending: Mutex::default(),
-            next: AtomicU64::new(1),
-            closed: Mutex::default(),
-            stop: stop.clone(),
-        });
+        let peer =
+            Arc::new(Self { out: tx, pending: Mutex::default(), next: AtomicU64::new(1), closed: Mutex::default(), stop: stop.clone() });
         tokio::spawn(write_loop(rx, output, stop.clone()));
         tokio::spawn(read_loop(peer.clone(), input, handler, stop));
         peer
@@ -90,13 +85,7 @@ impl Peer {
         }
         self.send(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
         let m = method.to_owned();
-        Box::pin(async move {
-            rx.await.unwrap_or_else(|_| {
-                Err(WireError::unavailable(format!(
-                    "{m}: the connection closed"
-                )))
-            })
-        })
+        Box::pin(async move { rx.await.unwrap_or_else(|_| Err(WireError::unavailable(format!("{m}: the connection closed")))) })
     }
 
     #[allow(clippy::needless_pass_by_value)]
@@ -114,11 +103,7 @@ impl Peer {
             }
             *c = Some(why.to_owned());
         }
-        let pending: Vec<Waiter> = self
-            .pending
-            .lock()
-            .map(|mut p| p.drain().map(|(_, w)| w).collect())
-            .unwrap_or_default();
+        let pending: Vec<Waiter> = self.pending.lock().map(|mut p| p.drain().map(|(_, w)| w).collect()).unwrap_or_default();
         for w in pending {
             let _ = w.send(Err(WireError::unavailable(why.to_owned())));
         }
@@ -129,11 +114,7 @@ impl Peer {
         match r {
             Ok(v) => self.send(&json!({ "jsonrpc": "2.0", "id": id, "result": v })),
             Err(e) => {
-                let code = if e.code == Code::NotFound && e.message.starts_with("no method") {
-                    METHOD_NOT_FOUND
-                } else {
-                    SERVER_ERROR
-                };
+                let code = if e.code == Code::NotFound && e.message.starts_with("no method") { METHOD_NOT_FOUND } else { SERVER_ERROR };
                 self.send(&json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": e.message, "data": wire(&e) } }));
             }
         }
@@ -151,44 +132,25 @@ impl Peer {
             Some(err) => Err(err
                 .get("data")
                 .and_then(|d| serde_json::from_value::<WireError>(d.clone()).ok())
-                .unwrap_or_else(|| {
-                    WireError::internal(
-                        err.get("message")
-                            .and_then(Value::as_str)
-                            .unwrap_or("error")
-                            .to_owned(),
-                    )
-                })),
+                .unwrap_or_else(|| WireError::internal(err.get("message").and_then(Value::as_str).unwrap_or("error").to_owned()))),
         };
         let _ = w.send(r);
     }
 }
 
-async fn write_loop<W: AsyncWrite + Unpin>(
-    mut rx: mpsc::UnboundedReceiver<String>,
-    mut out: W,
-    stop: CancellationToken,
-) {
+async fn write_loop<W: AsyncWrite + Unpin>(mut rx: mpsc::UnboundedReceiver<String>, mut out: W, stop: CancellationToken) {
     loop {
         let line = tokio::select! {
             () = stop.cancelled() => return,
             l = rx.recv() => match l { Some(l) => l, None => return },
         };
-        if out.write_all(line.as_bytes()).await.is_err()
-            || out.write_all(b"\n").await.is_err()
-            || out.flush().await.is_err()
-        {
+        if out.write_all(line.as_bytes()).await.is_err() || out.write_all(b"\n").await.is_err() || out.flush().await.is_err() {
             return;
         }
     }
 }
 
-async fn read_loop<R: AsyncRead + Unpin>(
-    peer: Arc<Peer>,
-    input: R,
-    handler: Handler,
-    stop: CancellationToken,
-) {
+async fn read_loop<R: AsyncRead + Unpin>(peer: Arc<Peer>, input: R, handler: Handler, stop: CancellationToken) {
     let mut lines = BufReader::new(input).lines();
     loop {
         let line = tokio::select! {

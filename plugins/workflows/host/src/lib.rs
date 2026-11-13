@@ -32,7 +32,16 @@ fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.workflows:workflows".into()]
 }
 
-const DEF: EntityDef = EntityDef { kind: "workflows_def", table: "workflows_def", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+const DEF: EntityDef = EntityDef {
+    kind: "workflows_def",
+    table: "workflows_def",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 /// How often a run looks at its steps when nothing woke it (timeouts).
 const LOOK_MS: u64 = 2_000;
@@ -119,20 +128,33 @@ async fn report(ctx: &Ctx, call: &Call, parent: &str, name: &str, run: &Run, sta
 /// How the node's task stands: None while it runs (or waits on you); else (ok, its output, why).
 async fn ended(ctx: &Ctx, call: &Call, task: &str) -> Option<(bool, Value, String)> {
     let t = ctx.run_json(call, "runtime.get", json!({ "id": task })).await.ok()?;
-    let busy = matches!(s(&t, "state"), "running" | "waiting") || t.get("queue").and_then(Value::as_array).is_some_and(|q| !q.is_empty()) && t.get("queueHeld") != Some(&json!(true));
+    let busy = matches!(s(&t, "state"), "running" | "waiting")
+        || t.get("queue").and_then(Value::as_array).is_some_and(|q| !q.is_empty()) && t.get("queueHeld") != Some(&json!(true));
     if busy {
         return None;
     }
     let turns = ctx.run_json(call, "runtime.turns", json!({ "id": task })).await.ok()?;
     let last = turns.as_array().and_then(|a| a.last()).cloned().unwrap_or(Value::Null);
     let ok = s(&last, "status") == "done" && last.get("isError") != Some(&json!(true));
-    let why = if ok { String::new() } else { format!("it ended {}", if s(&last, "status").is_empty() { s(&t, "state") } else { s(&last, "status") }) };
+    let why = if ok {
+        String::new()
+    } else {
+        format!("it ended {}", if s(&last, "status").is_empty() { s(&t, "state") } else { s(&last, "status") })
+    };
     Some((ok, output_of(&last), why))
 }
 
 /// Runs `w` under the parent task until every step has ended.
 #[allow(clippy::too_many_arguments)]
-async fn drive(ctx: Ctx, mut wake: broadcast::Receiver<(String, f64)>, parent: String, name: String, project: String, spec: WorkflowSpec, inputs: BTreeMap<String, Value>) {
+async fn drive(
+    ctx: Ctx,
+    mut wake: broadcast::Receiver<(String, f64)>,
+    parent: String,
+    name: String,
+    project: String,
+    spec: WorkflowSpec,
+    inputs: BTreeMap<String, Value>,
+) {
     let call = ctx.root_call();
     let Ok(clock) = ctx.clock() else { return };
     let mut run = Run::new(spec, &inputs);
@@ -172,7 +194,13 @@ async fn drive(ctx: Ctx, mut wake: broadcast::Receiver<(String, f64)>, parent: S
             }
             () = clock.sleep(LOOK_MS) => {}
         }
-        let running: Vec<(String, String)> = run.runs.iter().filter_map(|(id, r)| (r.state == wisp_workflows_api::StepState::Running).then(|| r.task.clone().map(|t| (id.clone(), t))).flatten()).collect();
+        let running: Vec<(String, String)> = run
+            .runs
+            .iter()
+            .filter_map(|(id, r)| {
+                (r.state == wisp_workflows_api::StepState::Running).then(|| r.task.clone().map(|t| (id.clone(), t))).flatten()
+            })
+            .collect();
         for (node, task) in running {
             if let Some((ok, output, why)) = ended(&ctx, &call, &task).await {
                 run.finished(&node, ok, output, &why, costs.remove(&task).unwrap_or(0.0));
@@ -192,7 +220,11 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, a: RunArgs) -> Result<Started
     };
     let missing: Vec<&String> = w.spec.inputs.iter().filter(|(k, v)| v.is_null() && !a.inputs.contains_key(*k)).map(|(k, _)| k).collect();
     if !missing.is_empty() {
-        return Err(WireError::invalid(format!("{} needs {}", w.name, missing.iter().map(|m| format!("{m}=…")).collect::<Vec<_>>().join(" "))));
+        return Err(WireError::invalid(format!(
+            "{} needs {}",
+            w.name,
+            missing.iter().map(|m| format!("{m}=…")).collect::<Vec<_>>().join(" ")
+        )));
     }
     let project = a.project.clone().unwrap_or_else(|| w.spec.project.clone());
     let steps: Vec<String> = w.spec.tasks.keys().cloned().collect();
@@ -236,7 +268,10 @@ impl Plugin for WorkflowsPlugin {
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let info = KindInfo::new("workflow", "workflows", PLUGIN_ID, schema_of::<WorkflowSpec>()).order(90);
-        let kind: Arc<dyn ResourceKind> = Arc::new(WorkflowKind(CrudKind::new::<WorkflowSpec>(info, s.ctx(), "workflows.list", "workflows.set", "workflows.set", "workflows.remove").keyed("name", "name", "name")));
+        let kind: Arc<dyn ResourceKind> = Arc::new(WorkflowKind(
+            CrudKind::new::<WorkflowSpec>(info, s.ctx(), "workflows.list", "workflows.set", "workflows.set", "workflows.remove")
+                .keyed("name", "name", "name"),
+        ));
         s.contribute(&RESOURCE_KIND, kind);
         let st = Arc::new(State { ended: broadcast::channel(256).0 });
         s.command::<List, _, _>(|ctx, _, _| async move { list(&*ctx.service::<Store>()?).await });

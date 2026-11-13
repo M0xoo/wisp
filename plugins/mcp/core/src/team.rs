@@ -48,7 +48,9 @@ fn description(team: &[TeamEntry]) -> String {
 
 /// The names `subagent` takes: each member, and each copy of one with copies.
 fn names(team: &[TeamEntry]) -> Vec<&str> {
-    team.iter().flat_map(|m| std::iter::once(m.name.as_str()).chain(m.copies.iter().map(String::as_str).filter(move |_| m.count > 1))).collect()
+    team.iter()
+        .flat_map(|m| std::iter::once(m.name.as_str()).chain(m.copies.iter().map(String::as_str).filter(move |_| m.count > 1)))
+        .collect()
 }
 
 /// `delegate`'s definition for this team, as JSON text.
@@ -57,7 +59,9 @@ pub fn delegate(team: &[TeamEntry]) -> String {
     let mut s = String::with_capacity(4096);
     s.push_str("{\"name\":\"delegate\",\"description\":");
     s.push_str(&quote(&description(team)));
-    s.push_str(r#","inputSchema":{"type":"object","properties":{"tasks":{"type":"array","minItems":1,"items":{"type":"object","properties":{"#);
+    s.push_str(
+        r#","inputSchema":{"type":"object","properties":{"tasks":{"type":"array","minItems":1,"items":{"type":"object","properties":{"#,
+    );
     if !team.is_empty() {
         let list = names(team).iter().map(|n| quote(n)).collect::<Vec<_>>().join(",");
         let _ = write!(s, "\"subagent\":{{\"type\":\"string\",\"enum\":[{list}],\"description\":{}}},", quote(SUBAGENT_WORDS));

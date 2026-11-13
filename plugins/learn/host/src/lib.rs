@@ -104,7 +104,8 @@ impl Plugin for LearnPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        let st = Arc::new(State { data: Mutex::default(), store: OnceLock::new(), waits: Mutex::default(), one: tokio::sync::Mutex::new(()) });
+        let st =
+            Arc::new(State { data: Mutex::default(), store: OnceLock::new(), waits: Mutex::default(), one: tokio::sync::Mutex::new(()) });
         let note: Arc<dyn PromptPart> = Arc::new(Note { st: st.clone(), ctx: s.ctx() });
         s.contribute(&PROMPT, note);
         let reader = st.clone();

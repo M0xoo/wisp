@@ -12,7 +12,9 @@ use std::time::Duration;
 use rusqlite::types::Value as Sql;
 use rusqlite::{Connection, params_from_iter};
 use serde_json::{Map, Value, json};
-use wisp_stuff_core::appdb::{MAX_BYTES, MAX_ROWS, Param, Query, Refused, SEEDING, TIMEOUT_MS, error_words, max_pages, returns_rows, timeout_words};
+use wisp_stuff_core::appdb::{
+    MAX_BYTES, MAX_ROWS, Param, Query, Refused, SEEDING, TIMEOUT_MS, error_words, max_pages, returns_rows, timeout_words,
+};
 
 /// What the page gets for an app with no database.
 pub fn no_db() -> Value {
@@ -122,7 +124,9 @@ impl AppDb {
     pub async fn query(&self, file: PathBuf, seed: String, q: Query) -> Result<Value, Refused> {
         let max = self.max_bytes;
         let have = self.open.lock().ok().and_then(|m| m.get(&file).cloned());
-        let conn = if let Some(c) = have { c } else {
+        let conn = if let Some(c) = have {
+            c
+        } else {
             let (f, s) = (file.clone(), seed);
             let c = tokio::task::spawn_blocking(move || open_seeded(&f, &s, max)).await.map_err(|e| refuse(500, e.to_string()))??;
             let c = Arc::new(Mutex::new(c));
@@ -138,7 +142,9 @@ impl AppDb {
         });
         let limit = Duration::from_millis(self.timeout_ms);
         let mut job = std::pin::pin!(job);
-        if let Ok(r) = tokio::time::timeout(limit, &mut job).await { r.map_err(|e| refuse(500, e.to_string()))? } else {
+        if let Ok(r) = tokio::time::timeout(limit, &mut job).await {
+            r.map_err(|e| refuse(500, e.to_string()))?
+        } else {
             handle.interrupt();
             let _ = job.await;
             Err(refuse(408, timeout_words(self.timeout_ms)))
@@ -169,7 +175,10 @@ mod tests {
         let _ = std::fs::remove_file(&file);
         let db = AppDb::default();
         let seed = "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT); INSERT INTO todos (text) VALUES ('first');".to_owned();
-        let w = db.query(file.clone(), seed.clone(), q("INSERT INTO todos (text) VALUES (?)", vec![Param::Text("second".into())])).await.unwrap();
+        let w = db
+            .query(file.clone(), seed.clone(), q("INSERT INTO todos (text) VALUES (?)", vec![Param::Text("second".into())]))
+            .await
+            .unwrap();
         assert_eq!(w, json!({ "changes": 1, "lastId": 2 }));
         db.release(&file);
         let r = db.query(file.clone(), seed, q("SELECT text FROM todos ORDER BY id", vec![])).await.unwrap();

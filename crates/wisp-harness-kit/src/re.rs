@@ -49,10 +49,7 @@ pub struct Re {
 
 impl Re {
     pub const fn new(pattern: &'static str) -> Self {
-        Self {
-            pattern,
-            cell: OnceLock::new(),
-        }
+        Self { pattern, cell: OnceLock::new() }
     }
 
     pub fn pattern(&self) -> &'static str {
@@ -61,9 +58,7 @@ impl Re {
 
     /// The compiled regex, or None when the pattern is broken (a test catches that).
     pub fn get(&self) -> Option<&Regex> {
-        self.cell
-            .get_or_init(|| Regex::new(self.pattern).ok())
-            .as_ref()
+        self.cell.get_or_init(|| Regex::new(self.pattern).ok()).as_ref()
     }
 
     /// Whether the pattern compiles (for tests).

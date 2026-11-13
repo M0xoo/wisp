@@ -31,7 +31,16 @@ fn crew_example(c: &ChannelCtx) -> String {
 }
 
 fn machine_example(c: &ChannelCtx) -> String {
-    c.machines.iter().find(|m| m.usable).map_or_else(|| example(c), |m| format!("Try: on {} {}fix the flaky test", m.name, c.default_project.as_ref().map(|p| format!("in {} ", p.name)).unwrap_or_default()))
+    c.machines.iter().find(|m| m.usable).map_or_else(
+        || example(c),
+        |m| {
+            format!(
+                "Try: on {} {}fix the flaky test",
+                m.name,
+                c.default_project.as_ref().map(|p| format!("in {} ", p.name)).unwrap_or_default()
+            )
+        },
+    )
 }
 
 /// Help, with an example in this wisp's names.
@@ -71,7 +80,11 @@ pub fn projects(c: &ChannelCtx) -> String {
 /// For this computer, or a machine named in `arg` (`models laptop`).
 pub fn models(c: &ChannelCtx, arg: &str) -> String {
     let q = arg.trim().strip_prefix("on ").unwrap_or(arg.trim()).trim().to_lowercase();
-    let m = if q.is_empty() { None } else { c.machines.iter().find(|x| x.name.to_lowercase() == q).or_else(|| c.machines.iter().find(|x| x.name.to_lowercase().starts_with(&q))) };
+    let m = if q.is_empty() {
+        None
+    } else {
+        c.machines.iter().find(|x| x.name.to_lowercase() == q).or_else(|| c.machines.iter().find(|x| x.name.to_lowercase().starts_with(&q)))
+    };
     if !q.is_empty() && m.is_none() {
         return format!("No machine “{arg}”. Send machines to see them.");
     }
@@ -93,9 +106,25 @@ pub fn models(c: &ChannelCtx, arg: &str) -> String {
         let think = if a.efforts.is_empty() { String::new() } else { format!(" (thinking: {})", a.efforts.join(", ")) };
         format!("• {}{models}{think}", a.id)
     };
-    let eg = up.iter().flat_map(|a| a.models.iter().filter(|x| !x.id.is_empty()).map(move |x| format!("{}{}", x.id, if a.efforts.iter().any(|e| e == "high") { " high" } else { "" }))).next().unwrap_or_else(|| up[0].id.clone());
+    let eg = up
+        .iter()
+        .flat_map(|a| {
+            a.models
+                .iter()
+                .filter(|x| !x.id.is_empty())
+                .map(move |x| format!("{}{}", x.id, if a.efforts.iter().any(|e| e == "high") { " high" } else { "" }))
+        })
+        .next()
+        .unwrap_or_else(|| up[0].id.clone());
     let on = m.map(|m| format!("on {} ", m.name)).unwrap_or_default();
-    truncate(&format!("On {place}:\n{}\n• auto: {}\n\nTry: {on}with {eg} fix the flaky test", up.iter().map(|a| line(a)).collect::<Vec<_>>().join("\n"), c.goals.join(", ")), MAX)
+    truncate(
+        &format!(
+            "On {place}:\n{}\n• auto: {}\n\nTry: {on}with {eg} fix the flaky test",
+            up.iter().map(|a| line(a)).collect::<Vec<_>>().join("\n"),
+            c.goals.join(", ")
+        ),
+        MAX,
+    )
 }
 
 pub fn crew(c: &ChannelCtx) -> String {
@@ -103,7 +132,13 @@ pub fn crew(c: &ChannelCtx) -> String {
         return format!("No crew yet. Add someone in wisp.\n\n{}", example(c));
     }
     let line = |m: &wisp_channels_api::MemberView| {
-        let busy = if m.paused { "paused".to_owned() } else if m.running > 0 { format!("on {} job{}", m.running, if m.running > 1 { "s" } else { "" }) } else { "free".to_owned() };
+        let busy = if m.paused {
+            "paused".to_owned()
+        } else if m.running > 0 {
+            format!("on {} job{}", m.running, if m.running > 1 { "s" } else { "" })
+        } else {
+            "free".to_owned()
+        };
         let role = m.role.as_deref().filter(|r| !r.is_empty()).map(|r| format!(" · {r}")).unwrap_or_default();
         let waiting = if m.queue.is_empty() { String::new() } else { format!(", {} waiting", m.queue.len()) };
         format!("• @{}{role} · {busy}{waiting}", handle_of(&m.name))
@@ -113,7 +148,19 @@ pub fn crew(c: &ChannelCtx) -> String {
 
 pub fn machines(c: &ChannelCtx) -> String {
     let mut lines = vec!["• this computer · online".to_owned()];
-    lines.extend(c.machines.iter().map(|m| format!("• {} · {}", m.name, if !m.usable { "offline" } else if m.agents.is_some() { "online" } else { "asleep, wakes when it gets work" })));
+    lines.extend(c.machines.iter().map(|m| {
+        format!(
+            "• {} · {}",
+            m.name,
+            if !m.usable {
+                "offline"
+            } else if m.agents.is_some() {
+                "online"
+            } else {
+                "asleep, wakes when it gets work"
+            }
+        )
+    }));
     truncate(&format!("Machines:\n{}\n\n{}", lines.join("\n"), machine_example(c)), MAX)
 }
 
@@ -154,10 +201,16 @@ pub fn model_label(c: &ChannelCtx, agent: &str, model: &str, effort: &str, mode:
     if agent == "auto" {
         return if model.is_empty() { "Auto".into() } else { format!("Auto {model}") };
     }
-    let swapped = mode.and_then(|md| c.adapters.iter().find(|a| a.agent.id == agent)?.overrides.iter().find(|o| o.model == model && o.mode == md)).map(|o| o.label.clone());
+    let swapped = mode
+        .and_then(|md| c.adapters.iter().find(|a| a.agent.id == agent)?.overrides.iter().find(|o| o.model == model && o.mode == md))
+        .map(|o| o.label.clone());
     let a = c.agents.iter().chain(c.adapters.iter().map(|x| &x.agent)).find(|x| x.id == agent);
     let label = a.and_then(|a| a.models.iter().find(|m| !model.is_empty() && m.id == model)).and_then(|m| m.label.clone());
-    let name = swapped.or(label).or_else(|| (!model.is_empty()).then(|| model.to_owned())).or_else(|| a.and_then(|a| a.name.clone())).unwrap_or_else(|| agent.to_owned());
+    let name = swapped
+        .or(label)
+        .or_else(|| (!model.is_empty()).then(|| model.to_owned()))
+        .or_else(|| a.and_then(|a| a.name.clone()))
+        .unwrap_or_else(|| agent.to_owned());
     if effort.is_empty() { name } else { format!("{name} {effort}") }
 }
 
@@ -180,7 +233,11 @@ pub struct Ack<'a> {
 
 pub fn ack_task(a: &Ack<'_>) -> String {
     let on = a.machine.map(|m| format!("on {m}"));
-    let head: Vec<String> = [a.project.map(str::to_owned), (!a.label.is_empty()).then(|| a.label.to_owned()), a.mode.map(|m| m.label().to_owned()), on].into_iter().flatten().collect();
+    let head: Vec<String> =
+        [a.project.map(str::to_owned), (!a.label.is_empty()).then(|| a.label.to_owned()), a.mode.map(|m| m.label().to_owned()), on]
+            .into_iter()
+            .flatten()
+            .collect();
     let mut out = vec![format!("▶ {}", head.join(" · "))];
     out.extend(task_line(a.task));
     out.extend(a.notes.iter().cloned());
@@ -195,11 +252,15 @@ pub fn ack_crew(name: &str, ahead: Option<u32>, paused: bool, a: &Ack<'_>) -> St
         _ => String::new(),
     };
     let on = a.machine.map(|m| format!("on {m}"));
-    let tail: String = [a.project.map(str::to_owned), (!a.label.is_empty()).then(|| a.label.to_owned()), a.mode.map(|m| m.label().to_owned()), on].into_iter().flatten().fold(String::new(), |mut out, x| {
-        out.push_str(" · ");
-        out.push_str(&x);
-        out
-    });
+    let tail: String =
+        [a.project.map(str::to_owned), (!a.label.is_empty()).then(|| a.label.to_owned()), a.mode.map(|m| m.label().to_owned()), on]
+            .into_iter()
+            .flatten()
+            .fold(String::new(), |mut out, x| {
+                out.push_str(" · ");
+                out.push_str(&x);
+                out
+            });
     let mut out = vec![format!("▶ {name} has it{state}{tail}")];
     out.extend(task_line(a.task));
     out.extend(a.notes.iter().cloned());
@@ -213,8 +274,22 @@ mod tests {
 
     fn ctx() -> ChannelCtx {
         let api = ProjectView { id: "p1".into(), name: "api".into(), path: "/work/api".into(), ..ProjectView::default() };
-        let claude = AgentView { id: "claude".into(), name: Some("Claude Code".into()), available: true, signed_in: true, models: vec![ModelView { id: "opus".into(), label: Some("Opus".into()), efforts: Vec::new() }], efforts: vec!["high".into()] };
-        ChannelCtx { projects: vec![api.clone()], default_project: Some(api), agents: vec![claude], machines: vec![MachineView { id: "m1".into(), name: "laptop".into(), usable: true, agents: None, ..MachineView::default() }], goals: vec!["balanced".into()], ..ChannelCtx::default() }
+        let claude = AgentView {
+            id: "claude".into(),
+            name: Some("Claude Code".into()),
+            available: true,
+            signed_in: true,
+            models: vec![ModelView { id: "opus".into(), label: Some("Opus".into()), efforts: Vec::new() }],
+            efforts: vec!["high".into()],
+        };
+        ChannelCtx {
+            projects: vec![api.clone()],
+            default_project: Some(api),
+            agents: vec![claude],
+            machines: vec![MachineView { id: "m1".into(), name: "laptop".into(), usable: true, agents: None, ..MachineView::default() }],
+            goals: vec!["balanced".into()],
+            ..ChannelCtx::default()
+        }
     }
 
     #[test]
@@ -222,7 +297,10 @@ mod tests {
         let c = ctx();
         assert!(help_for(&c).ends_with("Try: in api with opus plan: fix the flaky test"));
         assert!(projects(&c).contains("• api  ← default") && projects(&c).ends_with("Try: in api fix the flaky test"));
-        assert!(models(&c, "").contains("• claude: opus (thinking: high)") && models(&c, "").ends_with("Try: with opus high fix the flaky test"));
+        assert!(
+            models(&c, "").contains("• claude: opus (thinking: high)")
+                && models(&c, "").ends_with("Try: with opus high fix the flaky test")
+        );
         assert_eq!(models(&c, "laptop"), "laptop is offline, so I can’t say what it has.");
         assert!(machines(&c).contains("• laptop · asleep, wakes when it gets work"));
         assert!(status(&c).starts_with("Nothing running or waiting."));
@@ -240,7 +318,14 @@ mod tests {
     fn the_first_reply_names_where_and_how_it_runs() {
         let c = ctx();
         let label = model_label(&c, "claude", "opus", "high", None);
-        let a = Ack { project: Some("api"), label: &label, mode: Some(Mode::Plan), machine: Some("laptop"), task: "fix the   flaky test", notes: &[] };
+        let a = Ack {
+            project: Some("api"),
+            label: &label,
+            mode: Some(Mode::Plan),
+            machine: Some("laptop"),
+            task: "fix the   flaky test",
+            notes: &[],
+        };
         assert_eq!(ack_task(&a), "▶ api · Opus high · Plan · on laptop\n  Fix the flaky test");
         assert!(ack_crew("Ada", Some(1), false, &a).starts_with("▶ Ada has it (queued, 1 ahead) · api · Opus high"));
         assert_eq!(model_label(&c, "auto", "", "", None), "Auto");

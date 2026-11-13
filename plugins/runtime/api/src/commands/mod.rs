@@ -180,7 +180,11 @@ impl Command for AgentSessions {
     const READS_ANY_TASK: bool = true;
     type Args = AgentSessionsArgs;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <AgentSessionsArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <AgentSessionsArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <AgentSessionsArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <AgentSessionsArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
     type Out = AgentText;
 }
@@ -205,7 +209,11 @@ impl Command for AgentSession {
     const READS_ANY_TASK: bool = true;
     type Args = AgentSessionArgs;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <AgentSessionArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <AgentSessionArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <AgentSessionArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <AgentSessionArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
     type Out = AgentText;
 }

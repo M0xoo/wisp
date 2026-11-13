@@ -13,10 +13,7 @@ use crate::BoxFuture;
 
 use crate::child::{ChildHandle, tie_to_scope};
 use crate::resolve::{self, Platform, RealFs, Resolved};
-use crate::{
-    Child, ExecOpts, ExecResult, MAX_EXEC_OUTPUT, ProcError, ProcService, Result, Signal,
-    SpawnOpts, Stream, pipes, pty,
-};
+use crate::{Child, ExecOpts, ExecResult, MAX_EXEC_OUTPUT, ProcError, ProcService, Result, Signal, SpawnOpts, Stream, pipes, pty};
 
 #[derive(Debug, Default)]
 struct Registry {
@@ -36,18 +33,11 @@ impl LocalProc {
 
     fn track(&self, handle: &ChildHandle) {
         let id = self.reg.next.fetch_add(1, Ordering::Relaxed);
-        self.reg
-            .live
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .insert(id, handle.clone());
+        self.reg.live.lock().unwrap_or_else(PoisonError::into_inner).insert(id, handle.clone());
         let (reg, handle) = (self.reg.clone(), handle.clone());
         tokio::spawn(async move {
             handle.exited().await;
-            reg.live
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .remove(&id);
+            reg.live.lock().unwrap_or_else(PoisonError::into_inner).remove(&id);
         });
     }
 }
@@ -59,23 +49,10 @@ fn lookup_env(opts_env: &crate::Env) -> Vec<(String, String)> {
 
 fn resolve_for(bin: &str, args: &[String], opts: &SpawnOpts) -> Resolved {
     if Platform::current() == Platform::Unix {
-        return Resolved {
-            command: bin.to_owned(),
-            args: args.to_vec(),
-            verbatim: opts.verbatim,
-        };
+        return Resolved { command: bin.to_owned(), args: args.to_vec(), verbatim: opts.verbatim };
     }
-    let r = resolve::resolve_command(
-        bin,
-        args,
-        &lookup_env(&opts.env),
-        Platform::Windows,
-        &RealFs,
-    );
-    Resolved {
-        verbatim: r.verbatim || opts.verbatim,
-        ..r
-    }
+    let r = resolve::resolve_command(bin, args, &lookup_env(&opts.env), Platform::Windows, &RealFs);
+    Resolved { verbatim: r.verbatim || opts.verbatim, ..r }
 }
 
 fn check_cwd(cwd: Option<&Path>) -> Result<()> {
@@ -86,21 +63,15 @@ fn check_cwd(cwd: Option<&Path>) -> Result<()> {
 }
 
 impl ProcService for LocalProc {
-    fn which(
-        &self,
-        bin: &str,
-        env: Option<Vec<(String, String)>>,
-    ) -> BoxFuture<'static, Option<PathBuf>> {
+    fn which(&self, bin: &str, env: Option<Vec<(String, String)>>) -> BoxFuture<'static, Option<PathBuf>> {
         let bin = bin.to_owned();
         Box::pin(async move {
             let env = env.unwrap_or_else(|| std::env::vars().collect());
-            tokio::task::spawn_blocking(move || {
-                resolve::which(&bin, &env, Platform::current(), &RealFs)
-            })
-            .await
-            .ok()
-            .flatten()
-            .map(PathBuf::from)
+            tokio::task::spawn_blocking(move || resolve::which(&bin, &env, Platform::current(), &RealFs))
+                .await
+                .ok()
+                .flatten()
+                .map(PathBuf::from)
         })
     }
 
@@ -114,13 +85,7 @@ impl ProcService for LocalProc {
             Some(size) => {
                 // portable-pty searches PATH itself and words a miss its own way: say NotFound, as pipes do.
                 if !r.command.contains(['/', '\\'])
-                    && resolve::which(
-                        &r.command,
-                        &lookup_env(&opts.env),
-                        Platform::current(),
-                        &RealFs,
-                    )
-                    .is_none()
+                    && resolve::which(&r.command, &lookup_env(&opts.env), Platform::current(), &RealFs).is_none()
                 {
                     return Err(ProcError::NotFound(bin.to_owned()));
                 }
@@ -133,12 +98,7 @@ impl ProcService for LocalProc {
         Ok(child)
     }
 
-    fn exec(
-        &self,
-        bin: &str,
-        args: &[String],
-        opts: ExecOpts,
-    ) -> BoxFuture<'static, Result<ExecResult>> {
+    fn exec(&self, bin: &str, args: &[String], opts: ExecOpts) -> BoxFuture<'static, Result<ExecResult>> {
         let spawn = SpawnOpts {
             cwd: opts.cwd.clone(),
             env: opts.env.clone(),
@@ -155,10 +115,7 @@ impl ProcService for LocalProc {
                 let name = bin.clone();
                 let child = tokio::task::spawn_blocking(move || me.spawn(&bin, &args, spawn))
                     .await
-                    .map_err(|e| ProcError::Spawn {
-                        bin: name,
-                        message: e.to_string(),
-                    })??;
+                    .map_err(|e| ProcError::Spawn { bin: name, message: e.to_string() })??;
                 collect(child, opts).await
             },
             span,
@@ -181,10 +138,7 @@ impl ProcService for LocalProc {
             cmd.env_remove(k);
         }
         cmd.envs(opts.env.set.iter().map(|(k, v)| (k, v)));
-        cmd.stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .kill_on_drop(false);
+        cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(false);
         detach(&mut cmd);
         let mut child = cmd.spawn().map_err(|e| ProcError::from_spawn(bin, &e))?;
         let pid = child.id().unwrap_or(0);
@@ -196,27 +150,13 @@ impl ProcService for LocalProc {
     }
 
     fn live(&self) -> usize {
-        self.reg
-            .live
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .len()
+        self.reg.live.lock().unwrap_or_else(PoisonError::into_inner).len()
     }
 
     fn kill_all(&self, grace: Duration) -> BoxFuture<'static, ()> {
-        let handles: Vec<ChildHandle> = self
-            .reg
-            .live
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .values()
-            .cloned()
-            .collect();
+        let handles: Vec<ChildHandle> = self.reg.live.lock().unwrap_or_else(PoisonError::into_inner).values().cloned().collect();
         Box::pin(async move {
-            let kills: Vec<_> = handles
-                .iter()
-                .map(|h| tokio::spawn(h.kill_with(Signal::Term, grace)))
-                .collect();
+            let kills: Vec<_> = handles.iter().map(|h| tokio::spawn(h.kill_with(Signal::Term, grace))).collect();
             for k in kills {
                 let _ = k.await;
             }
@@ -261,13 +201,8 @@ pub(crate) async fn collect(child: Child, opts: ExecOpts) -> Result<ExecResult> 
         let _ = handle.write(input);
     }
     handle.close_stdin();
-    let max = if opts.max_output == 0 {
-        MAX_EXEC_OUTPUT
-    } else {
-        opts.max_output
-    };
-    let (mut stdout, mut stderr, mut truncated, mut timed_out) =
-        (Vec::new(), Vec::new(), false, false);
+    let max = if opts.max_output == 0 { MAX_EXEC_OUTPUT } else { opts.max_output };
+    let (mut stdout, mut stderr, mut truncated, mut timed_out) = (Vec::new(), Vec::new(), false, false);
     let deadline = opts.timeout.map(|t| tokio::time::Instant::now() + t);
     loop {
         let next = match deadline {
@@ -283,21 +218,11 @@ pub(crate) async fn collect(child: Child, opts: ExecOpts) -> Result<ExecResult> 
             None => output.recv().await,
         };
         let Some(chunk) = next else { break };
-        let buf = if chunk.stream == Stream::Stdout {
-            &mut stdout
-        } else {
-            &mut stderr
-        };
+        let buf = if chunk.stream == Stream::Stdout { &mut stdout } else { &mut stderr };
         let room = max.saturating_sub(buf.len());
         truncated |= chunk.data.len() > room;
         buf.extend_from_slice(&chunk.data[..chunk.data.len().min(room)]);
     }
     let exit = handle.exited().await;
-    Ok(ExecResult {
-        exit,
-        stdout,
-        stderr,
-        timed_out,
-        truncated,
-    })
+    Ok(ExecResult { exit, stdout, stderr, timed_out, truncated })
 }

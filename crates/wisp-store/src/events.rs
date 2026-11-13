@@ -90,8 +90,20 @@ pub(crate) fn append_on(db: &Connection, st: &LogState, now: i64, rows: &[NewEve
             added.push(id);
         }
         let (codec, data) = encode(&r.data);
-        db.prepare_cached("INSERT INTO event (type, plugin, subject, key, cause, root, at, codec, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")?
-            .execute(params![r.ty, r.plugin, r.subject, r.key, r.cause.and_then(|c| i64::try_from(c).ok()), r.root, if r.at > 0 { r.at } else { now }, codec, data])?;
+        db.prepare_cached(
+            "INSERT INTO event (type, plugin, subject, key, cause, root, at, codec, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        )?
+        .execute(params![
+            r.ty,
+            r.plugin,
+            r.subject,
+            r.key,
+            r.cause.and_then(|c| i64::try_from(c).ok()),
+            r.root,
+            if r.at > 0 { r.at } else { now },
+            codec,
+            data
+        ])?;
         out.push(u64::try_from(db.last_insert_rowid()).ok());
     }
     Ok((out, added))
@@ -115,7 +127,8 @@ pub(crate) fn trim_on(db: &Connection, now: i64, keep_ms: i64, keep_rows: i64) -
     let max: i64 = db.query_row("SELECT coalesce(max(seq), 0) FROM event", [], |r| r.get(0))?;
     let a = db.execute("DELETE FROM event WHERE seq <= ?1", [max - keep_rows])?;
     // oldest first: stop at the first row young enough (rowid order is time order)
-    let cut: Option<i64> = db.query_row("SELECT seq FROM event WHERE at >= ?1 ORDER BY seq LIMIT 1", [now - keep_ms], |r| r.get(0)).optional()?;
+    let cut: Option<i64> =
+        db.query_row("SELECT seq FROM event WHERE at >= ?1 ORDER BY seq LIMIT 1", [now - keep_ms], |r| r.get(0)).optional()?;
     let b = match cut {
         Some(s) => db.execute("DELETE FROM event WHERE seq < ?1", [s])?,
         None => db.execute("DELETE FROM event", [])?,
@@ -274,16 +287,19 @@ impl EventLog for Store {
     fn get(&self, seq: u64) -> BoxFuture<'static, wisp_kernel::Result<Option<StoredEvent>>> {
         let s = self.clone();
         Box::pin(async move {
-            s.read_async(move |r| Ok(r.db.prepare_cached(&format!("SELECT {COLS} FROM event WHERE seq = ?1"))?.query_row([i(seq)], row).optional()?))
-                .await
-                .map_err(|e| wire(&e))
+            s.read_async(move |r| {
+                Ok(r.db.prepare_cached(&format!("SELECT {COLS} FROM event WHERE seq = ?1"))?.query_row([i(seq)], row).optional()?)
+            })
+            .await
+            .map_err(|e| wire(&e))
         })
     }
     fn bounds(&self) -> BoxFuture<'static, wisp_kernel::Result<(u64, u64)>> {
         let s = self.clone();
         Box::pin(async move {
             s.read_async(|r| {
-                let (a, b): (i64, i64) = r.db.query_row("SELECT coalesce(min(seq), 0), coalesce(max(seq), 0) FROM event", [], |x| Ok((x.get(0)?, x.get(1)?)))?;
+                let (a, b): (i64, i64) =
+                    r.db.query_row("SELECT coalesce(min(seq), 0), coalesce(max(seq), 0) FROM event", [], |x| Ok((x.get(0)?, x.get(1)?)))?;
                 Ok((u64::try_from(a).unwrap_or(0), u64::try_from(b).unwrap_or(0)))
             })
             .await
@@ -293,9 +309,14 @@ impl EventLog for Store {
     fn cursor(&self, plugin: &str, name: &str) -> BoxFuture<'static, wisp_kernel::Result<Option<u64>>> {
         let (s, p, n) = (self.clone(), plugin.to_owned(), name.to_owned());
         Box::pin(async move {
-            s.read_async(move |r| Ok(r.db.query_row("SELECT seq FROM event_cursor WHERE plugin = ?1 AND name = ?2", params![p, n], |x| x.get::<_, i64>(0)).optional()?.and_then(|v| u64::try_from(v).ok())))
-                .await
-                .map_err(|e| wire(&e))
+            s.read_async(move |r| {
+                Ok(r.db
+                    .query_row("SELECT seq FROM event_cursor WHERE plugin = ?1 AND name = ?2", params![p, n], |x| x.get::<_, i64>(0))
+                    .optional()?
+                    .and_then(|v| u64::try_from(v).ok()))
+            })
+            .await
+            .map_err(|e| wire(&e))
         })
     }
     fn set_cursor(&self, plugin: &str, name: &str, seq: u64) -> BoxFuture<'static, wisp_kernel::Result<()>> {
@@ -306,7 +327,10 @@ impl EventLog for Store {
         let s = self.clone();
         Box::pin(async move {
             s.write(move |w| {
-                w.db.execute("INSERT OR REPLACE INTO event_parked (plugin, name, seq, why, at) VALUES (?1, ?2, ?3, ?4, ?5)", params![x.plugin, x.name, i(x.seq), x.why, x.at])?;
+                w.db.execute(
+                    "INSERT OR REPLACE INTO event_parked (plugin, name, seq, why, at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![x.plugin, x.name, i(x.seq), x.why, x.at],
+                )?;
                 Ok(())
             })
             .await
@@ -318,7 +342,17 @@ impl EventLog for Store {
         Box::pin(async move {
             s.read_async(|r| {
                 let mut st = r.db.prepare("SELECT plugin, name, seq, why, at FROM event_parked ORDER BY seq")?;
-                Ok(st.query_map([], |x| Ok(Parked { plugin: x.get(0)?, name: x.get(1)?, seq: u64::try_from(x.get::<_, i64>(2)?).unwrap_or(0), why: x.get(3)?, at: x.get(4)? }))?.collect::<rusqlite::Result<Vec<_>>>()?)
+                Ok(st
+                    .query_map([], |x| {
+                        Ok(Parked {
+                            plugin: x.get(0)?,
+                            name: x.get(1)?,
+                            seq: u64::try_from(x.get::<_, i64>(2)?).unwrap_or(0),
+                            why: x.get(3)?,
+                            at: x.get(4)?,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?)
             })
             .await
             .map_err(|e| wire(&e))
@@ -326,6 +360,12 @@ impl EventLog for Store {
     }
     fn unpark(&self, plugin: &str, name: &str, seq: u64) -> BoxFuture<'static, wisp_kernel::Result<bool>> {
         let (s, p, n) = (self.clone(), plugin.to_owned(), name.to_owned());
-        Box::pin(async move { s.write(move |w| Ok(w.db.execute("DELETE FROM event_parked WHERE plugin = ?1 AND name = ?2 AND seq = ?3", params![p, n, i(seq)])? > 0)).await.map_err(|e| wire(&e)) })
+        Box::pin(async move {
+            s.write(move |w| {
+                Ok(w.db.execute("DELETE FROM event_parked WHERE plugin = ?1 AND name = ?2 AND seq = ?3", params![p, n, i(seq)])? > 0)
+            })
+            .await
+            .map_err(|e| wire(&e))
+        })
     }
 }

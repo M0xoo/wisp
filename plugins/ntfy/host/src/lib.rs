@@ -74,7 +74,14 @@ impl NtfyTransport {
             if let Some(tap) = parse_tap(&m).filter(|t| self.hub.verify(t))
                 && let Some(kind) = ActionKind::from_code(&tap.k)
             {
-                let a = ActArgs { session_id: tap.s.clone(), kind: kind.into(), reference: Some(tap.r.clone()), index: Some(tap.i), text: None, approvals: false };
+                let a = ActArgs {
+                    session_id: tap.s.clone(),
+                    kind: kind.into(),
+                    reference: Some(tap.r.clone()),
+                    index: Some(tap.i),
+                    text: None,
+                    approvals: false,
+                };
                 if let Err(e) = self.hub.act(&a).await {
                     self.hub.warn(&format!("ntfy: a tap on {} didn't act: {}", tap.s, e.message));
                 }

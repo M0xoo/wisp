@@ -7,8 +7,8 @@
 //! once at start.
 
 mod calls;
-mod pipeline;
 mod kind;
+mod pipeline;
 mod service;
 mod store;
 
@@ -17,10 +17,10 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use serde_json::Value;
 use wisp_kernel::services::Paths;
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_resources_api::Resource;
 use wisp_router_api::commands::{Ack, Preview, Record, Reset, Set, Signal, View};
 use wisp_router_api::view::{PreviewArgs, RouterView, Settings};
 use wisp_router_api::{AgentInfo, ChooseArgs, ModelInfo};
-use wisp_resources_api::Resource;
 use wisp_router_core::{Mulberry32, Router, RouterState, auto, choose, report};
 
 #[derive(Debug, Default)]
@@ -40,7 +40,12 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 impl State {
     fn new() -> Self {
-        Self { router: Mutex::new(Router::new(RouterState::default())), settings: Mutex::new(Settings::default()), store: OnceLock::new(), here: Mutex::default() }
+        Self {
+            router: Mutex::new(Router::new(RouterState::default())),
+            settings: Mutex::new(Settings::default()),
+            store: OnceLock::new(),
+            here: Mutex::default(),
+        }
     }
 
     /// The tables, v1's files once, then the state from the tables. At start, before any command.
@@ -118,7 +123,13 @@ fn view(st: &State, here: &[AgentInfo], projects: Vec<Value>, now: i64) -> Route
     let mut r = lock(&st.router);
     r.sync(here, false, now);
     let prefs = auto::prefs(&s, here);
-    RouterView { goals: auto::goals(), goal: auto::goal_of(None, &s).to_owned(), settings: auto::settings_view(&s), projects, report: report::report(&r, here, &prefs, now) }
+    RouterView {
+        goals: auto::goals(),
+        goal: auto::goal_of(None, &s).to_owned(),
+        settings: auto::settings_view(&s),
+        projects,
+        report: report::report(&r, here, &prefs, now),
+    }
 }
 
 /// Tests per project: each declared project (`resources.export`'s `project` kind) with its test command.
@@ -158,7 +169,14 @@ fn preview(st: &State, here: &[AgentInfo], a: PreviewArgs, now: i64) -> wisp_rou
     let prompt = a.prompt.unwrap_or_default();
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // a count of files
     let attachments = a.attachments.unwrap_or(0.0).max(0.0) as u32;
-    let args = ChooseArgs { prompt: prompt.clone(), attachments, goal: a.goal, need_delegate: a.team.unwrap_or(false), preview: true, ..ChooseArgs::default() };
+    let args = ChooseArgs {
+        prompt: prompt.clone(),
+        attachments,
+        goal: a.goal,
+        need_delegate: a.team.unwrap_or(false),
+        preview: true,
+        ..ChooseArgs::default()
+    };
     let r = lock(&st.router);
     let pick = choose(&r.st, now, &args, here, &prefs, &mut Mulberry32::new(seed_of(&prompt)));
     auto::preview_of(pick, a.machine.as_deref().unwrap_or_default())
@@ -299,13 +317,22 @@ mod tests {
         let info = agent_info(serde_json::from_value(a).unwrap());
         assert_eq!((info.id.as_str(), info.name.as_str(), info.available), ("codex", "Codex", true));
         assert_eq!((info.models[0].id.as_str(), info.models[0].label.as_deref()), ("gpt-5", Some("GPT-5")));
-        assert_eq!((info.efforts, info.delegates, info.signed_in, info.version.as_deref()), (Some(vec!["low".into(), "high".into()]), Some(false), Some(true), Some("1.2")));
+        assert_eq!(
+            (info.efforts, info.delegates, info.signed_in, info.version.as_deref()),
+            (Some(vec!["low".into(), "high".into()]), Some(false), Some(true), Some("1.2"))
+        );
     }
 
     #[test]
     fn a_preview_is_the_same_every_time() {
         let st = State::new();
-        let here = vec![AgentInfo { id: "claude".into(), name: "Claude Code".into(), available: true, models: vec![ModelInfo { id: "opus".into(), label: Some("Opus".into()), efforts: None }], ..AgentInfo::default() }];
+        let here = vec![AgentInfo {
+            id: "claude".into(),
+            name: "Claude Code".into(),
+            available: true,
+            models: vec![ModelInfo { id: "opus".into(), label: Some("Opus".into()), efforts: None }],
+            ..AgentInfo::default()
+        }];
         let a = || PreviewArgs { prompt: Some("fix the flaky login test".into()), ..PreviewArgs::default() };
         let one = serde_json::to_value(preview(&st, &here, a(), 1_000)).unwrap();
         let two = serde_json::to_value(preview(&st, &here, a(), 1_000)).unwrap();

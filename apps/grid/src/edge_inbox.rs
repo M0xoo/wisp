@@ -37,8 +37,11 @@ impl Grid {
             return Ok(json(404, &json!({ "error": "not found" })));
         }
         let Some((uid, ch)) = self.inbox.by_token(tok)? else { return Ok(json(404, &json!({ "error": "not found" }))) };
-        let Some(user) = self.accounts.user_by_id(&uid)?.filter(|u| u.handle == handle && u.disabled == 0) else { return Ok(json(404, &json!({ "error": "not found" }))) };
-        let headers: Vec<(String, String)> = req.headers().iter().filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))).collect();
+        let Some(user) = self.accounts.user_by_id(&uid)?.filter(|u| u.handle == handle && u.disabled == 0) else {
+            return Ok(json(404, &json!({ "error": "not found" })));
+        };
+        let headers: Vec<(String, String)> =
+            req.headers().iter().filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))).collect();
         // over the cap: dropped and counted, still a 200 (a retry storm from the sender helps nobody)
         let body = read_bytes(req.into_body(), crate::inbox::BODY_MAX).await.ok();
         let answer = self.inbox.accept(&user, &ch, &headers, body.as_deref()).await?;
@@ -50,7 +53,15 @@ impl Grid {
     }
 
     /// `/api/channels/url`, `/api/channels/rotate`.
-    pub(super) fn channels_route(&self, method: &Method, which: &str, q: &str, h: &http::HeaderMap, bytes: &[u8], who: &Who) -> Result<Resp> {
+    pub(super) fn channels_route(
+        &self,
+        method: &Method,
+        which: &str,
+        q: &str,
+        h: &http::HeaderMap,
+        bytes: &[u8],
+        who: &Who,
+    ) -> Result<Resp> {
         let cred = who.credential().ok_or_else(|| bad("Sign in first.", 401))?;
         if let Some(r) = no(&may(cred, Reach::GridChannels)) {
             return Ok(r);

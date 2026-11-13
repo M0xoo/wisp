@@ -29,9 +29,7 @@ pub type Result<T, E = RuntimeError> = std::result::Result<T, E>;
 impl From<RuntimeError> for WireError {
     fn from(e: RuntimeError) -> Self {
         match e {
-            RuntimeError::NoTask(_) | RuntimeError::NoTurn(_) => {
-                WireError::not_found(e.to_string())
-            }
+            RuntimeError::NoTask(_) | RuntimeError::NoTurn(_) => WireError::not_found(e.to_string()),
             RuntimeError::Invalid(_) | RuntimeError::Json(_) => WireError::invalid(e.to_string()),
             RuntimeError::Conflict(_) => WireError::conflict(e.to_string()),
             RuntimeError::NoHarness(_) => WireError::new(Code::Unavailable, e.to_string()),

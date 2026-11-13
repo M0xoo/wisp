@@ -45,7 +45,9 @@ impl Runtime {
                 return Err(RuntimeError::Conflict(format!("Already {done}.")));
             }
             let last = self.last_turn(id.as_str()).await?;
-            if last.as_ref().is_none_or(|l| l.id != t.id) || (t.status == TurnStatus::Running && self.run_state(id.as_str()) != wisp_runtime_core::queue::Run::Idle) {
+            if last.as_ref().is_none_or(|l| l.id != t.id)
+                || (t.status == TurnStatus::Running && self.run_state(id.as_str()) != wisp_runtime_core::queue::Run::Idle)
+            {
                 return Err(RuntimeError::Conflict("The task has moved on since; send a follow-up instead.".into()));
             }
             with_slot(&mut t.ext, |m| m.insert("approval".into(), json!(if allow { "allowed" } else { "denied" })));
@@ -82,7 +84,10 @@ mod tests {
     #[test]
     fn retry_prompt_is_v1s() {
         let b = vec![json!({"tool": "Bash", "detail": "npm publish", "rule": "Bash(npm publish)"}), json!({"tool": "Write"})];
-        assert_eq!(retry_prompt(&b, true), "These actions were blocked by your permissions last turn:\n- Bash: `npm publish`\n- Write\n\nI allowed exactly these for this follow-up. Run them now and finish the task.");
+        assert_eq!(
+            retry_prompt(&b, true),
+            "These actions were blocked by your permissions last turn:\n- Bash: `npm publish`\n- Write\n\nI allowed exactly these for this follow-up. Run them now and finish the task."
+        );
         assert!(retry_prompt(&b, false).contains("runs in Full auto"));
     }
 }

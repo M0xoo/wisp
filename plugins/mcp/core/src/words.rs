@@ -7,14 +7,16 @@ pub const ASK_CANCELLED: &str = "The user did not answer (the question was cance
 pub const NO_USER: &str = "wisp could not reach the user";
 pub const CAPPED: &str = "Refused: this task was started from a channel with a mode cap, so it can't use this. Say so in your report; the user can do it in wisp.";
 pub const READ_ONLY: &str = "Not available in a side discussion: it only reads and changes nothing.";
-pub const APPROVE_CANCELLED: &str = "The user did not answer (the request was cancelled). Do not retry it; carry on without it and say what was skipped.";
+pub const APPROVE_CANCELLED: &str =
+    "The user did not answer (the request was cancelled). Do not retry it; carry on without it and say what was skipped.";
 pub const DENIED: &str = "The user denied this. Do not retry it; carry on without it or ask how to proceed.";
 
 pub const ADD_IT: &str = "Add it";
 pub const DONT: &str = "Don’t";
 pub const CONNECTOR_UNANSWERED: &str = "The user did not answer, so nothing was added.";
 pub const CARD_CANCELLED: &str = "The card was cancelled; nothing changed. Carry on without it.";
-pub const SIGNIN_SKIPPED: &str = "The user skipped it for now; it stays in Settings → Connectors, where they can sign in later. Carry on without it.";
+pub const SIGNIN_SKIPPED: &str =
+    "The user skipped it for now; it stays in Settings → Connectors, where they can sign in later. Carry on without it.";
 pub const STILL_RUNNING: &str = "Still running (timed out waiting; call wait again for more).";
 
 /// The wait a `wisp_task` / `wisp_launch` call gets unless it asks for longer, and the most it gets.
@@ -72,7 +74,10 @@ pub fn connector_declined(answer: Option<&str>) -> String {
 pub fn signin_answer(answer: Option<&str>) -> String {
     match answer {
         None => CARD_CANCELLED.to_owned(),
-        Some(a) if a.starts_with("Done: ") => format!("{}. Tasks get its tools from their next turn: harnesses load MCP servers when a turn starts, so this turn can't call them yet.", &a["Done: ".len()..]),
+        Some(a) if a.starts_with("Done: ") => format!(
+            "{}. Tasks get its tools from their next turn: harnesses load MCP servers when a turn starts, so this turn can't call them yet.",
+            &a["Done: ".len()..]
+        ),
         Some("Skip") => SIGNIN_SKIPPED.to_owned(),
         Some(a) => format!("The user answered instead: {a}"),
     }
@@ -117,7 +122,8 @@ pub enum Delegated {
 
 pub fn delegated(all: &[Delegation]) -> Delegated {
     let s = |v: &Option<String>| v.clone().unwrap_or_default();
-    let errors = all.iter().filter(|d| d.error.is_some()).map(|d| format!("- {}: {}", s(&d.subagent), s(&d.error))).collect::<Vec<_>>().join("\n");
+    let errors =
+        all.iter().filter(|d| d.error.is_some()).map(|d| format!("- {}: {}", s(&d.subagent), s(&d.error))).collect::<Vec<_>>().join("\n");
     let ok: Vec<&Delegation> = all.iter().filter(|d| d.error.is_none()).collect();
     if ok.is_empty() {
         return Delegated::Nothing(format!("Nothing was delegated.\n{errors}"));

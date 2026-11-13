@@ -69,7 +69,9 @@ impl crate::runtime::Runtime {
         let prev: Option<Watch> = r
             .repo
             .store
-            .read_async(move |rd| Ok(rd.get(WATCH.kind, key.as_str())?.and_then(|row| row.get("body").cloned()).and_then(|b| serde_json::from_value(b).ok())))
+            .read_async(move |rd| {
+                Ok(rd.get(WATCH.kind, key.as_str())?.and_then(|row| row.get("body").cloned()).and_then(|b| serde_json::from_value(b).ok()))
+            })
             .await
             .map_err(|e| WireError::from(e).message)?;
         // the one file this call reads (a path page, or its reload), read before deciding: the core does no I/O

@@ -12,27 +12,9 @@ use ts_rs::TS;
 use wisp_kernel::{BoxFuture, Call, Command, Event, Point, Result};
 
 /// Every harness a review may name, in the order `other` tries them.
-pub const HARNESSES: &[&str] = &[
-    "claude",
-    "codex",
-    "antigravity",
-    "copilot",
-    "opencode",
-    "cursor",
-    "grok",
-];
+pub const HARNESSES: &[&str] = &["claude", "codex", "antigravity", "copilot", "opencode", "cursor", "grok"];
 /// What `defaults.review` may be: off, another harness than the author's, or one harness.
-pub const REVIEW_VALUES: &[&str] = &[
-    "off",
-    "other",
-    "claude",
-    "codex",
-    "antigravity",
-    "copilot",
-    "opencode",
-    "cursor",
-    "grok",
-];
+pub const REVIEW_VALUES: &[&str] = &["off", "other", "claude", "codex", "antigravity", "copilot", "opencode", "cursor", "grok"];
 /// The session ext slots review reads (owned by those plugins, v1 shapes `s.pr` and `s.worktree`) and writes.
 pub const EXT: &str = "wisp.review";
 pub const SHIP_EXT: &str = "wisp.ship";
@@ -202,7 +184,11 @@ impl Command for MaybeReview {
     const ID: &'static str = "review.maybe";
     type Args = MaybeArgs;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <MaybeArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <MaybeArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <MaybeArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <MaybeArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
     type Out = Maybe;
 }
@@ -221,7 +207,11 @@ impl Command for View {
     const READ_ONLY: bool = true;
     type Args = ViewArgs;
     fn args_ts() -> Option<String> {
-        Some(format!("{}{}", <ViewArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <ViewArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+        Some(format!(
+            "{}{}",
+            <ViewArgs as ::ts_rs::TS>::docs().unwrap_or_default(),
+            <ViewArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())
+        ))
     }
     type Out = Option<ReviewView>;
 }
@@ -268,12 +258,7 @@ pub struct TestsRun {
 
 /// `review.tests@1`: runs the project's tests on the PR head's folder (the check plugin). None: no tests.
 pub trait TestRunner: Send + Sync + 'static {
-    fn run(
-        &self,
-        call: &Call,
-        dir: &str,
-        cwd: &str,
-    ) -> BoxFuture<'static, Result<Option<TestsRun>>>;
+    fn run(&self, call: &Call, dir: &str, cwd: &str) -> BoxFuture<'static, Result<Option<TestsRun>>>;
 }
 pub const TESTS: Point<dyn TestRunner> = Point::new("review.tests", 1);
 

@@ -32,12 +32,28 @@ fn setup_text(v: &Value) -> String {
         out.push(format!("Setup: {}", v["note"].as_str().unwrap_or("not recorded")));
     } else {
         let hv = if s(a, "harnessVersion").is_empty() { String::new() } else { format!(" v{}", s(a, "harnessVersion")) };
-        let hc = if s(a, "harnessChangedSince").is_empty() { String::new() } else { format!("  · changed since: {}", s(a, "harnessChangedSince")) };
-        out.push(format!("Harness: {}{hv} {} ({} mode{}){hc}", s(a, "harness"), s(a, "model"), a["mode"].as_str().unwrap_or_default(), if a.pointer("/permissions/untrusted") == Some(&json!(true)) { ", untrusted repo" } else { "" }));
+        let hc = if s(a, "harnessChangedSince").is_empty() {
+            String::new()
+        } else {
+            format!("  · changed since: {}", s(a, "harnessChangedSince"))
+        };
+        out.push(format!(
+            "Harness: {}{hv} {} ({} mode{}){hc}",
+            s(a, "harness"),
+            s(a, "model"),
+            a["mode"].as_str().unwrap_or_default(),
+            if a.pointer("/permissions/untrusted") == Some(&json!(true)) { ", untrusted repo" } else { "" }
+        ));
         out.push("Skills:".into());
         for k in a["skills"].as_array().into_iter().flatten() {
             let n = v.pointer(&format!("/used/skills/{}", s(k, "name"))).and_then(Value::as_u64).unwrap_or(0);
-            out.push(format!("  {}  {}  {}{}", s(k, "name"), if k["outside"] == true { "outside wisp" } else { "from wisp" }, s(k, "hash"), if n > 0 { format!("  → used {n}×") } else { String::new() }));
+            out.push(format!(
+                "  {}  {}  {}{}",
+                s(k, "name"),
+                if k["outside"] == true { "outside wisp" } else { "from wisp" },
+                s(k, "hash"),
+                if n > 0 { format!("  → used {n}×") } else { String::new() }
+            ));
         }
         out.push("MCP servers:".into());
         for m in a["mcpServers"].as_array().into_iter().flatten() {
@@ -46,7 +62,8 @@ fn setup_text(v: &Value) -> String {
                 "failed" => format!("not probed: {}", s(m, "why")),
                 other => other.to_owned(),
             };
-            let since = if s(m, "changedSince").is_empty() { String::new() } else { format!("  · changed since: {}", s(m, "changedSince")) };
+            let since =
+                if s(m, "changedSince").is_empty() { String::new() } else { format!("  · changed since: {}", s(m, "changedSince")) };
             out.push(format!("  {}  {}  ({probe}){since}", s(m, "name"), s(m, "at")));
         }
     }
@@ -192,20 +209,28 @@ pub async fn run_file(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
         }
     }
     let agent = s(&spec, "agent").to_owned();
-    let profile = doc.pointer("/formula/agents").and_then(Value::as_array).and_then(|a| a.iter().find(|x| s(x, "name") == agent)).map(|p| {
-        let mut p = p.clone();
-        if let Some(o) = p.as_object_mut() {
-            o.remove("name");
-        }
-        p
-    });
+    let profile =
+        doc.pointer("/formula/agents").and_then(Value::as_array).and_then(|a| a.iter().find(|x| s(x, "name") == agent)).map(|p| {
+            let mut p = p.clone();
+            if let Some(o) = p.as_object_mut() {
+                o.remove("name");
+            }
+            p
+        });
     let made = c.cmd("runtime.create", start_args(&spec, o, profile, doc.get("formula").cloned())).await?;
     say(&format!("  ◌ started {}  wisp attach {}", s(&made, "id"), s(&made, "id")));
     Ok(0)
 }
 
 /// The sections a task reads from its overlay (the rest is only meaningful applied).
-const OVERLAY: [(&str, &str); 6] = [("agent", "agents"), ("project", "projects"), ("harness", "harnesses"), ("skill", "skills"), ("team", "teams"), ("connector", "connectors")];
+const OVERLAY: [(&str, &str); 6] = [
+    ("agent", "agents"),
+    ("project", "projects"),
+    ("harness", "harnesses"),
+    ("skill", "skills"),
+    ("team", "teams"),
+    ("connector", "connectors"),
+];
 
 /// `runtime.create`'s overlay from loaded resources: `{agents: [{name, …}], …}`, and what it leaves out.
 pub fn overlay_of(resources: &[wisp_resources_api::Resource]) -> (Value, Vec<String>) {
@@ -283,7 +308,11 @@ async fn rerun_one(c: &Client, id: &str, formula: Option<&String>, o: &Opts, cwd
                 }
                 None if asked.is_empty() || o.over.contains_key("agent") => (None, None),
                 None if o.fill => (from_snapshot(), None),
-                None => return Ok(Err(format!("{f} has no agent named {asked}: add it, or --fill-from-snapshot to use the one {id} ran with"))),
+                None => {
+                    return Ok(Err(format!(
+                        "{f} has no agent named {asked}: add it, or --fill-from-snapshot to use the one {id} ran with"
+                    )));
+                }
             }
         }
     };
@@ -364,7 +393,10 @@ pub async fn run_named(c: &Client, words: &[String], o: &Opts) -> Result<Option<
             let id = s(&v, "id").to_owned();
             say(&format!("  {} workflow {name}: {id}", paint(&st, GREEN, "◌")));
             if o.wait {
-                let t = crate::attach::until(c, &id, |s| matches!(s.pointer("/ext/wisp.workflows/state").and_then(Value::as_str), Some("done" | "failed"))).await?;
+                let t = crate::attach::until(c, &id, |s| {
+                    matches!(s.pointer("/ext/wisp.workflows/state").and_then(Value::as_str), Some("done" | "failed"))
+                })
+                .await?;
                 let w = t.pointer("/ext/wisp.workflows").cloned().unwrap_or_default();
                 for step in w.get("steps").and_then(Value::as_array).into_iter().flatten() {
                     let mark = match s(step, "state") {
@@ -373,7 +405,11 @@ pub async fn run_named(c: &Client, words: &[String], o: &Opts) -> Result<Option<
                         _ => paint(&st, DIM, "–"),
                     };
                     let why = s(step, "why");
-                    say(&format!("  {mark} {}{}", s(step, "id"), if why.is_empty() { String::new() } else { paint(&st, DIM, &format!("  {why}")) }));
+                    say(&format!(
+                        "  {mark} {}{}",
+                        s(step, "id"),
+                        if why.is_empty() { String::new() } else { paint(&st, DIM, &format!("  {why}")) }
+                    ));
                 }
                 say(&format!("  {}", s(&w, "state")));
                 return Ok(Some(i32::from(s(&w, "state") != "done")));

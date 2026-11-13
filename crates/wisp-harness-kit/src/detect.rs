@@ -3,9 +3,8 @@
 
 use crate::re::Re;
 
-static VERSION: Re = Re::new(
-    r"[0-9]+(?:\.[0-9]+)+[^\t\n\x0B\x0C\r \xA0\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF},)]*",
-);
+static VERSION: Re =
+    Re::new(r"[0-9]+(?:\.[0-9]+)+[^\t\n\x0B\x0C\r \xA0\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF},)]*");
 static TRIPLE: Re = Re::new(r"([0-9]+)\.([0-9]+)\.([0-9]+)");
 static EFFORT_FLAG: Re = Re::new(r"--(?:reasoning-)?effort\b");
 static NEXT_OPTION: Re = Re::new(concat!(r"\n", crate::js_s!(), r"*-{1,2}", crate::js_w!()));
@@ -29,12 +28,7 @@ pub fn version_in(line: &str) -> String {
 
 /// [major, minor, patch] from a version line, or [] when it has none.
 pub fn version_triple(v: &str) -> Vec<u64> {
-    TRIPLE.captures(v).map_or_else(Vec::new, |c| {
-        (1..=3)
-            .filter_map(|i| c.get(i))
-            .map(|m| m.as_str().parse().unwrap_or(0))
-            .collect()
-    })
+    TRIPLE.captures(v).map_or_else(Vec::new, |c| (1..=3).filter_map(|i| c.get(i)).map(|m| m.as_str().parse().unwrap_or(0)).collect())
 }
 
 /// The thinking levels a CLI's --help gives for its effort flag: "(low, medium, high)",
@@ -47,11 +41,7 @@ pub fn help_efforts(text: &str) -> Vec<String> {
     let rest = &text[at..];
     let entry = NEXT_OPTION.split(rest).first().copied().unwrap_or("");
     match LEVELS.group(entry, 1) {
-        Some(levels) => LEVEL_SEP
-            .split(levels)
-            .into_iter()
-            .map(str::to_owned)
-            .collect(),
+        Some(levels) => LEVEL_SEP.split(levels).into_iter().map(str::to_owned).collect(),
         None => Vec::new(),
     }
 }
@@ -62,14 +52,7 @@ mod tests {
 
     #[test]
     fn patterns_compile() {
-        for r in [
-            &VERSION,
-            &TRIPLE,
-            &EFFORT_FLAG,
-            &NEXT_OPTION,
-            &LEVELS,
-            &LEVEL_SEP,
-        ] {
+        for r in [&VERSION, &TRIPLE, &EFFORT_FLAG, &NEXT_OPTION, &LEVELS, &LEVEL_SEP] {
             assert!(r.compiles(), "{}", r.pattern());
         }
     }
@@ -86,18 +69,9 @@ mod tests {
 
     #[test]
     fn efforts_from_help() {
-        assert_eq!(
-            help_efforts("  --effort <level>  Effort (low, medium, high)\n  --model x"),
-            ["low", "medium", "high"]
-        );
-        assert_eq!(
-            help_efforts("--reasoning-effort  [possible values: low, high]"),
-            ["low", "high"]
-        );
-        assert_eq!(
-            help_efforts("--effort x\n  --other (a|b)"),
-            Vec::<String>::new()
-        );
+        assert_eq!(help_efforts("  --effort <level>  Effort (low, medium, high)\n  --model x"), ["low", "medium", "high"]);
+        assert_eq!(help_efforts("--reasoning-effort  [possible values: low, high]"), ["low", "high"]);
+        assert_eq!(help_efforts("--effort x\n  --other (a|b)"), Vec::<String>::new());
         assert_eq!(help_efforts("nothing"), Vec::<String>::new());
     }
 }

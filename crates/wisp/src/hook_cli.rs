@@ -30,7 +30,12 @@ git interpret-trailers --in-place --if-exists addIfDifferent --trailer "Wisp-Tas
 
 /// The repo's hooks folder (`core.hooksPath` and worktrees respected).
 fn hooks_dir(cwd: &Path) -> Result<PathBuf> {
-    let o = std::process::Command::new("git").args(["rev-parse", "--git-path", "hooks"]).current_dir(cwd).env("GIT_OPTIONAL_LOCKS", "0").output().map_err(|e| CliError::said(format!("git: {e}")))?;
+    let o = std::process::Command::new("git")
+        .args(["rev-parse", "--git-path", "hooks"])
+        .current_dir(cwd)
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .map_err(|e| CliError::said(format!("git: {e}")))?;
     if !o.status.success() {
         return Err(CliError::said("not in a git repository (wisp hook works in one)"));
     }
@@ -65,7 +70,9 @@ pub fn install(dir: &Path) -> std::io::Result<&'static str> {
         }
         Ok(_) => {
             if local.exists() {
-                return Err(std::io::Error::other("both a prepare-commit-msg and a prepare-commit-msg.local are here: move one away first"));
+                return Err(std::io::Error::other(
+                    "both a prepare-commit-msg and a prepare-commit-msg.local are here: move one away first",
+                ));
             }
             std::fs::rename(&hook, &local)?;
         }
@@ -118,7 +125,9 @@ mod tests {
         let d = std::env::temp_dir().join(format!("wisp-hook-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
-        let git = |args: &[&str]| assert!(std::process::Command::new("git").args(args).current_dir(&d).output().unwrap().status.success(), "git {args:?}");
+        let git = |args: &[&str]| {
+            assert!(std::process::Command::new("git").args(args).current_dir(&d).output().unwrap().status.success(), "git {args:?}");
+        };
         git(&["init", "-q"]);
         git(&["config", "user.email", "t@example.com"]);
         git(&["config", "user.name", "t"]);

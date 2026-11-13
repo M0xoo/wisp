@@ -22,16 +22,10 @@ impl<'de, T: Deserialize<'de> + Default> Deserialize<'de> for Lenient<T> {
             fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str("any JSON value")
             }
-            fn visit_map<A: serde::de::MapAccess<'de>>(
-                self,
-                map: A,
-            ) -> Result<Lenient<T>, A::Error> {
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<Lenient<T>, A::Error> {
                 T::deserialize(serde::de::value::MapAccessDeserializer::new(map)).map(Lenient)
             }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> Result<Lenient<T>, A::Error> {
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Lenient<T>, A::Error> {
                 while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                 Ok(Lenient(T::default()))
             }
@@ -90,10 +84,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Content<'a> {
             fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str("any JSON value")
             }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> Result<Content<'a>, A::Error> {
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Content<'a>, A::Error> {
                 let mut parts = Vec::new();
                 while let Some(Lenient(p)) = seq.next_element::<Lenient<Part<'a>>>()? {
                     parts.push(p);
@@ -101,25 +92,13 @@ impl<'de: 'a, 'a> Deserialize<'de> for Content<'a> {
                 Ok(Content { parts, text: None })
             }
             fn visit_borrowed_str<E>(self, s: &'de str) -> Result<Content<'a>, E> {
-                Ok(Content {
-                    parts: Vec::new(),
-                    text: Some(Cow::Borrowed(s)),
-                })
+                Ok(Content { parts: Vec::new(), text: Some(Cow::Borrowed(s)) })
             }
             fn visit_str<E>(self, s: &str) -> Result<Content<'a>, E> {
-                Ok(Content {
-                    parts: Vec::new(),
-                    text: Some(Cow::Owned(s.to_owned())),
-                })
+                Ok(Content { parts: Vec::new(), text: Some(Cow::Owned(s.to_owned())) })
             }
-            fn visit_map<A: serde::de::MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> Result<Content<'a>, A::Error> {
-                while map
-                    .next_entry::<serde::de::IgnoredAny, serde::de::IgnoredAny>()?
-                    .is_some()
-                {}
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Content<'a>, A::Error> {
+                while map.next_entry::<serde::de::IgnoredAny, serde::de::IgnoredAny>()?.is_some() {}
                 Ok(Content::default())
             }
             fn visit_bool<E>(self, _: bool) -> Result<Content<'a>, E> {
@@ -211,8 +190,7 @@ pub struct Part<'a> {
 
 /// A raw field as `Value` (None: missing, which v1 read as undefined).
 pub fn value(raw: Option<&RawValue>) -> Value {
-    raw.and_then(|r| serde_json::from_str(r.get()).ok())
-        .unwrap_or(Value::Null)
+    raw.and_then(|r| serde_json::from_str(r.get()).ok()).unwrap_or(Value::Null)
 }
 
 /// The reference port's `str(v)` over a raw field, borrowed when it is a plain JSON string.
@@ -241,11 +219,7 @@ pub fn is(raw: Option<&RawValue>, want: &str) -> bool {
 pub fn truthy(raw: Option<&RawValue>) -> bool {
     match raw.map(RawValue::get) {
         None | Some("null" | "false" | "\"\"") => false,
-        Some(s)
-            if s.starts_with('"') || s.starts_with('[') || s.starts_with('{') || s == "true" =>
-        {
-            true
-        }
+        Some(s) if s.starts_with('"') || s.starts_with('[') || s.starts_with('{') || s == "true" => true,
         Some(_) => js::truthy(&value(raw)),
     }
 }
@@ -292,13 +266,7 @@ mod tests {
 
     #[test]
     fn reads_like_the_value_helpers() {
-        for s in [
-            r#""a\nb""#,
-            "[1,{\"text\":\"x\"},{\"text\":\"\"},\"s\",{\"text\":7}]",
-            "3",
-            "null",
-            "{}",
-        ] {
+        for s in [r#""a\nb""#, "[1,{\"text\":\"x\"},{\"text\":\"\"},\"s\",{\"text\":7}]", "3", "null", "{}"] {
             let Some(r) = raw(s) else { continue };
             let v: Value = serde_json::from_str(s).unwrap_or_default();
             assert_eq!(flatten(Some(&r)), wisp_harness_kit::flatten(&v), "{s}");
@@ -307,11 +275,7 @@ mod tests {
         }
         for s in ["0", "0.0", "1", "-0", "\"0\"", "[]", "true"] {
             let v: Value = serde_json::from_str(s).unwrap_or_default();
-            assert_eq!(
-                raw(s).as_deref().map(|r| truthy(Some(r))),
-                Some(js::truthy(&v)),
-                "{s}"
-            );
+            assert_eq!(raw(s).as_deref().map(|r| truthy(Some(r))), Some(js::truthy(&v)), "{s}");
         }
     }
 }

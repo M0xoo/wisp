@@ -4,7 +4,9 @@
 
 use serde_json::{Map, Value};
 use wisp_harness_kit::protocol::{crew_tool_label, exit_text};
-use wisp_harness_kit::{Exit, HarnessEvent, IoStep, LineParser, Out, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, flatten, js, json_line, rel};
+use wisp_harness_kit::{
+    Exit, HarnessEvent, IoStep, LineParser, Out, RunPaths, Stats, Tool, ToolKind, TurnResult, clip, clip_value, flatten, js, json_line, rel,
+};
 
 use crate::shell::unwrap_shell;
 use crate::usage::turn_usage;
@@ -34,7 +36,17 @@ pub struct CodexParser {
 impl CodexParser {
     pub fn new(o: CodexOptions) -> Self {
         let thread = if o.fork { String::new() } else { o.resume_id.clone().unwrap_or_default() };
-        Self { o, thread, last_message: String::new(), failure: None, last_error: String::new(), usage: None, completed: false, reported: false, started: None }
+        Self {
+            o,
+            thread,
+            last_message: String::new(),
+            failure: None,
+            last_error: String::new(),
+            usage: None,
+            completed: false,
+            reported: false,
+            started: None,
+        }
     }
 
     fn report(&mut self, ok: bool, stopped: bool, text: String, now: i64, out: &mut Vec<Out>) {
@@ -67,7 +79,10 @@ impl CodexParser {
             }
             ("started", "web_search") => {
                 let q = js::str(&item["query"]);
-                ev(HarnessEvent::Tool(Tool::new(ToolKind::Web, if q.is_empty() { "Searching the web".into() } else { format!("Searching the web: {}", clip(&q, 50)) })));
+                ev(HarnessEvent::Tool(Tool::new(
+                    ToolKind::Web,
+                    if q.is_empty() { "Searching the web".into() } else { format!("Searching the web: {}", clip(&q, 50)) },
+                )));
             }
             ("updated" | "completed", "todo_list") => {
                 if let Some(next) = js::arr(&item["items"]).iter().find(|t| !js::truthy(&t["completed"])) {
@@ -105,14 +120,21 @@ impl CodexParser {
                     out.push(Out::Io(IoStep::Changed { file: f }));
                 }
                 if item["status"] == "failed" {
-                    out.push(HarnessEvent::ToolError { name: Some("apply_patch".into()), text: "The patch did not apply.".into(), id: None }.into());
+                    out.push(
+                        HarnessEvent::ToolError { name: Some("apply_patch".into()), text: "The patch did not apply.".into(), id: None }
+                            .into(),
+                    );
                 }
             }
             ("completed", "mcp_tool_call") => {
                 if item["status"] == "failed" {
                     let msg = js::str(&item["error"]["message"]);
                     let name = format!("{}.{}", js::str(&item["server"]), js::str(&item["tool"]));
-                    ev(HarnessEvent::ToolError { name: Some(name), text: clip(if msg.is_empty() { "failed" } else { &msg }, 400), id: None });
+                    ev(HarnessEvent::ToolError {
+                        name: Some(name),
+                        text: clip(if msg.is_empty() { "failed" } else { &msg }, 400),
+                        id: None,
+                    });
                 } else if js::truthy(&item["result"]["content"]) {
                     ev(HarnessEvent::ToolOutput { id: id(), text: flatten(&item["result"]["content"]) });
                 }

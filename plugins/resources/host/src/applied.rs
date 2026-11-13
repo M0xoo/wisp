@@ -11,14 +11,27 @@ fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.resources:applied".into()]
 }
 
-const DEF: EntityDef = EntityDef { kind: KIND, table: KIND, key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+const DEF: EntityDef = EntityDef {
+    kind: KIND,
+    table: KIND,
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 static READY: std::sync::OnceLock<()> = std::sync::OnceLock::new();
 
 fn store(ctx: &Ctx) -> Result<std::sync::Arc<Store>> {
     let s = ctx.service::<Store>()?;
     if READY.get().is_none() {
-        s.migrate("resources.applied", &[Migration::sql(1, "CREATE TABLE resources_applied (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")]).map_err(|e| WireError::internal(e.to_string()))?;
+        s.migrate(
+            "resources.applied",
+            &[Migration::sql(1, "CREATE TABLE resources_applied (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")],
+        )
+        .map_err(|e| WireError::internal(e.to_string()))?;
         s.define_entity(DEF).map_err(|e| WireError::internal(e.to_string()))?;
         let _ = READY.set(());
     }

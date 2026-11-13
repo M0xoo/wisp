@@ -68,16 +68,10 @@ pub fn cut_env(s: &str) -> &str {
 /// `[A-Za-z_][A-Za-z0-9_]*=` at the start of `s`.
 fn starts_assignment(s: &str) -> bool {
     let b = s.as_bytes();
-    if !b
-        .first()
-        .is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_')
-    {
+    if !b.first().is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_') {
         return false;
     }
-    let n = b
-        .iter()
-        .take_while(|c| c.is_ascii_alphanumeric() || **c == b'_')
-        .count();
+    let n = b.iter().take_while(|c| c.is_ascii_alphanumeric() || **c == b'_').count();
     b.get(n) == Some(&b'=')
 }
 
@@ -90,10 +84,7 @@ pub fn tag_in(s: &str) -> Option<&str> {
         from = at + KEY.len();
         let before_ok = s[..at].chars().next_back().is_none_or(char::is_whitespace);
         let rest = &s[from..];
-        let n = rest
-            .bytes()
-            .take_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
-            .count();
+        let n = rest.bytes().take_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-')).count();
         let after_ok = rest[n..].chars().next().is_none_or(char::is_whitespace);
         if before_ok && (1..=64).contains(&n) && after_ok {
             return Some(&rest[..n]);
@@ -122,9 +113,7 @@ fn word(s: &str) -> Option<(&str, &str)> {
 /// `ps -o pid=,ppid=,rss=,%cpu=,etime=,command=` (macOS, Linux). `env`: the commands carry their
 /// environment (`ps -E`): the tag is read from it and the rest cut away.
 pub fn parse_ps(text: &str, now: i64, env: bool) -> Vec<Proc> {
-    text.split('\n')
-        .filter_map(|line| ps_line(line.trim_end_matches('\r'), now, env))
-        .collect()
+    text.split('\n').filter_map(|line| ps_line(line.trim_end_matches('\r'), now, env)).collect()
 }
 
 fn ps_line(line: &str, now: i64, env: bool) -> Option<Proc> {
@@ -141,11 +130,7 @@ fn ps_line(line: &str, now: i64, env: bool) -> Option<Proc> {
         return None;
     }
     let rest = r.trim_start();
-    let task = if env {
-        tag_in(rest).map(str::to_owned)
-    } else {
-        None
-    };
+    let task = if env { tag_in(rest).map(str::to_owned) } else { None };
     let command = if env { cut_env(rest) } else { rest.trim() };
     Some(Proc {
         pid: u32::try_from(digits(pid)?).ok()?,
@@ -167,17 +152,9 @@ fn num(v: Option<&Value>) -> f64 {
     v.map_or(0.0, super::js_number)
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss
-)] // clamped to the target's range first
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)] // clamped to the target's range first
 fn as_u64(n: f64) -> u64 {
-    if n.is_finite() && n > 0.0 {
-        n.min(u64::MAX as f64) as u64
-    } else {
-        0
-    }
+    if n.is_finite() && n > 0.0 { n.min(u64::MAX as f64) as u64 } else { 0 }
 }
 
 /// Weekdays from 1970-01-01, a Thursday.
@@ -212,11 +189,7 @@ fn win_proc(p: &Value, now: i64) -> Option<Proc> {
         rss: as_u64(num(p.get("WorkingSetSize"))),
         cpu: 0.0,
         time: as_u64(num(p.get("T"))),
-        since: if start.is_finite() && start != 0.0 {
-            start as i64
-        } else {
-            now
-        },
+        since: if start.is_finite() && start != 0.0 { start as i64 } else { now },
         command: cap(command),
         task: None,
     })
@@ -229,10 +202,8 @@ pub fn parse_footprints(text: &str) -> HashMap<u32, u64> {
         let Some((a, b)) = line.trim().split_once(' ') else {
             continue;
         };
-        if let (Some(pid), Some(bytes)) = (
-            digits(a).and_then(|n| u32::try_from(n).ok()),
-            digits(b).and_then(|n| u64::try_from(n).ok()),
-        ) && bytes > 0
+        if let (Some(pid), Some(bytes)) = (digits(a).and_then(|n| u32::try_from(n).ok()), digits(b).and_then(|n| u64::try_from(n).ok()))
+            && bytes > 0
         {
             out.insert(pid, bytes);
         }
@@ -243,24 +214,13 @@ pub fn parse_footprints(text: &str) -> HashMap<u32, u64> {
 /// What a group of left-behind processes is called: the program and the script or subcommand before
 /// the first flag (`node …/bin/wisp.js`, `npm run dev`), so three test servers on three ports are one line.
 pub fn command_key(command: &str) -> String {
-    let lead: Vec<&str> = command
-        .split_whitespace()
-        .take_while(|w| !w.starts_with('-'))
-        .take(3)
-        .collect();
-    if lead.is_empty() {
-        command.chars().take(80).collect()
-    } else {
-        lead.join(" ")
-    }
+    let lead: Vec<&str> = command.split_whitespace().take_while(|w| !w.starts_with('-')).take(3).collect();
+    if lead.is_empty() { command.chars().take(80).collect() } else { lead.join(" ") }
 }
 
 /// `/proc/<pid>/environ`: NUL-separated.
 pub fn tag_in_environ(text: &str) -> Option<String> {
-    text.split('\0')
-        .find_map(|x| x.strip_prefix("WISP_TASK="))
-        .filter(|v| !v.is_empty())
-        .map(str::to_owned)
+    text.split('\0').find_map(|x| x.strip_prefix("WISP_TASK=")).filter(|v| !v.is_empty()).map(str::to_owned)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -278,10 +238,7 @@ pub fn parse_batt(text: &str) -> Option<Battery> {
         from = start;
         let line = text[start..].split('\n').next().unwrap_or_default();
         if let Some(pct) = first_percent(line) {
-            return Some(Battery {
-                pct,
-                charging: !text.contains("'Battery Power'"),
-            });
+            return Some(Battery { pct, charging: !text.contains("'Battery Power'") });
         }
     }
     None
@@ -304,13 +261,7 @@ fn first_percent(line: &str) -> Option<u32> {
 /// `sysctl -n vm.loadavg` (`{ 1.23 1.45 1.67 }`) or `/proc/loadavg` (`1.23 1.45 1.67 2/345 6789`):
 /// the 1-minute load.
 pub fn parse_loadavg(text: &str) -> Option<f64> {
-    let n: f64 = text
-        .trim()
-        .trim_start_matches('{')
-        .split_whitespace()
-        .next()?
-        .parse()
-        .ok()?;
+    let n: f64 = text.trim().trim_start_matches('{').split_whitespace().next()?.parse().ok()?;
     (n.is_finite() && n >= 0.0).then_some(n)
 }
 

@@ -81,8 +81,13 @@ impl ResourceKind for Kind {
         self.inner.read(call)
     }
     fn describe(&self, op: &Op) -> Option<String> {
-        (self.inner.info.kind == "channel" && op.op != OpKind::Delete && op.spec.get("enabled") == Some(&Value::Bool(true)))
-            .then(|| format!("turns on the {} channel {}: messages there can start tasks", op.spec.get("transport").and_then(Value::as_str).unwrap_or("?"), op.name))
+        (self.inner.info.kind == "channel" && op.op != OpKind::Delete && op.spec.get("enabled") == Some(&Value::Bool(true))).then(|| {
+            format!(
+                "turns on the {} channel {}: messages there can start tasks",
+                op.spec.get("transport").and_then(Value::as_str).unwrap_or("?"),
+                op.name
+            )
+        })
     }
     fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -99,16 +104,30 @@ pub struct Kinds {
 }
 
 pub async fn read(k: &Kinds, ch: &Channels, no: &Notifications) {
-    let c = k.channels.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect();
-    let n = k.notifications.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect();
+    let c =
+        k.channels.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect();
+    let n = k
+        .notifications
+        .specs()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?)))
+        .collect();
     *ch.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = c;
     *no.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = n;
 }
 
 pub fn register(s: &mut Setup, after: &OnChange) -> Arc<Kinds> {
     let ctx = s.ctx();
-    let channels = Arc::new(StoredKind::new(KindInfo::new("channel", "channels", "wisp.channels", schema_of::<ChannelSpec>()).order(40).sensitive(), ctx.clone()));
-    let notifications = Arc::new(StoredKind::new(KindInfo::new("notification", "notifications", "wisp.channels", schema_of::<NotificationSpec>()).order(45), ctx));
+    let channels = Arc::new(StoredKind::new(
+        KindInfo::new("channel", "channels", "wisp.channels", schema_of::<ChannelSpec>()).order(40).sensitive(),
+        ctx.clone(),
+    ));
+    let notifications = Arc::new(StoredKind::new(
+        KindInfo::new("notification", "notifications", "wisp.channels", schema_of::<NotificationSpec>()).order(45),
+        ctx,
+    ));
     for inner in [channels.clone(), notifications.clone()] {
         let k: Arc<dyn ResourceKind> = Arc::new(Kind { inner, after: after.clone() });
         s.contribute(&RESOURCE_KIND, k);

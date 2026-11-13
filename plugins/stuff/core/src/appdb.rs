@@ -27,19 +27,10 @@ pub const SEEDING: i64 = 0x7769_7370;
 
 /// Nothing that reaches past the app's own file (ATTACH writes anywhere), loads code, or changes the
 /// limits set on it. Whole words, so a string that merely says them is refused too: rare.
-const DENY: &[&str] = &[
-    "attach",
-    "detach",
-    "pragma",
-    "vacuum",
-    "load_extension",
-    "sqlite_dbpage",
-];
+const DENY: &[&str] = &["attach", "detach", "pragma", "vacuum", "load_extension", "sqlite_dbpage"];
 
 fn words(sql: &str) -> impl Iterator<Item = String> + '_ {
-    sql.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-        .filter(|w| !w.is_empty())
-        .map(str::to_ascii_lowercase)
+    sql.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).filter(|w| !w.is_empty()).map(str::to_ascii_lowercase)
 }
 
 pub fn allowed_sql(sql: &str) -> bool {
@@ -76,27 +67,15 @@ fn refused(status: u16, msg: &str) -> Refused {
 }
 
 /// The request's own checks, in v1's order: POST, JSON, from the app's own origin.
-pub fn check_request(
-    method: &str,
-    content_type: Option<&str>,
-    origin: Option<&str>,
-    host: Option<&str>,
-) -> Result<(), Refused> {
+pub fn check_request(method: &str, content_type: Option<&str>, origin: Option<&str>, host: Option<&str>) -> Result<(), Refused> {
     if method != "POST" {
         return Err(refused(405, "POST { sql, params }"));
     }
-    if !content_type
-        .unwrap_or_default()
-        .to_ascii_lowercase()
-        .starts_with("application/json")
-    {
+    if !content_type.unwrap_or_default().to_ascii_lowercase().starts_with("application/json") {
         return Err(refused(415, "Send JSON: { sql, params }."));
     }
     if let Some(o) = origin.filter(|o| !o.is_empty() && *o != "null") {
-        let from = o
-            .split_once("://")
-            .map(|(_, rest)| rest.split('/').next().unwrap_or_default())
-            .unwrap_or_default();
+        let from = o.split_once("://").map(|(_, rest)| rest.split('/').next().unwrap_or_default()).unwrap_or_default();
         if Some(from) != host || from.is_empty() {
             return Err(refused(403, "Only this app’s own pages can use its data."));
         }
@@ -115,48 +94,25 @@ pub fn parse_query(body: &[u8], seed: &str) -> Result<Query, Refused> {
         return Err(refused(400, "No SQL."));
     }
     if !allowed_sql(sql) {
-        return Err(refused(
-            400,
-            "Not in an app’s data: ATTACH, DETACH, PRAGMA, VACUUM and loading extensions.",
-        ));
+        return Err(refused(400, "Not in an app’s data: ATTACH, DETACH, PRAGMA, VACUUM and loading extensions."));
     }
-    let raw = v
-        .get("params")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let bad = || {
-        refused(
-            400,
-            "params: up to 999 strings, numbers, booleans or nulls.",
-        )
-    };
+    let raw = v.get("params").and_then(Value::as_array).cloned().unwrap_or_default();
+    let bad = || refused(400, "params: up to 999 strings, numbers, booleans or nulls.");
     if raw.len() > MAX_PARAMS {
         return Err(bad());
     }
-    let params = raw
-        .iter()
-        .map(|p| param(p).ok_or_else(bad))
-        .collect::<Result<Vec<_>, _>>()?;
+    let params = raw.iter().map(|p| param(p).ok_or_else(bad)).collect::<Result<Vec<_>, _>>()?;
     if !seed.is_empty() && !allowed_sql(seed) {
-        return Err(refused(
-            400,
-            "The app’s seed file uses ATTACH, PRAGMA or the like, which apps can’t.",
-        ));
+        return Err(refused(400, "The app’s seed file uses ATTACH, PRAGMA or the like, which apps can’t."));
     }
-    Ok(Query {
-        sql: sql.to_owned(),
-        params,
-    })
+    Ok(Query { sql: sql.to_owned(), params })
 }
 
 fn param(v: &Value) -> Option<Param> {
     Some(match v {
         Value::Null => Param::Null,
         Value::Bool(b) => Param::Int(i64::from(*b)),
-        Value::Number(n) => n
-            .as_i64()
-            .map_or_else(|| Param::Real(n.as_f64().unwrap_or(0.0)), Param::Int),
+        Value::Number(n) => n.as_i64().map_or_else(|| Param::Real(n.as_f64().unwrap_or(0.0)), Param::Int),
         Value::String(s) => Param::Text(s.clone()),
         _ => return None,
     })
@@ -165,10 +121,7 @@ fn param(v: &Value) -> Option<Param> {
 /// SQLite's words for an error, as the page shows them.
 pub fn error_words(e: &str, max_bytes: u64) -> String {
     if e.to_ascii_lowercase().contains("database or disk is full") {
-        return format!(
-            "This app’s data is full ({} MB at most).",
-            max_bytes / 1024 / 1024
-        );
+        return format!("This app’s data is full ({} MB at most).", max_bytes / 1024 / 1024);
     }
     match e.strip_prefix("SQLITE_") {
         Some(rest) => rest.split_once(": ").map_or(e, |(_, m)| m).to_owned(),

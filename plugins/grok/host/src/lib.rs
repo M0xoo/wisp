@@ -18,7 +18,10 @@ use wisp_harness_kit::detect::version_in;
 use wisp_harness_kit::protocol::{FileNote, attachment_note};
 use wisp_harness_kit::{RunPaths, clip};
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
-use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, LaunchFile, ResumeCommand, ResumeOptions, RunDriver, SetupTip};
+use wisp_runtime_api::harness::{
+    ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, LaunchFile, ResumeCommand, ResumeOptions, RunDriver,
+    SetupTip,
+};
 use wisp_runtime_api::model::Mode;
 use wisp_runtime_api::{HARNESS, Harness};
 
@@ -28,7 +31,12 @@ pub fn info() -> HarnessInfo {
     HarnessInfo {
         id: "grok".into(),
         name: "Grok".into(),
-        models: vec![HarnessModel { id: String::new(), label: "Default".into(), hint: Some("Whatever Grok is set to".into()), efforts: Vec::new() }],
+        models: vec![HarnessModel {
+            id: String::new(),
+            label: "Default".into(),
+            hint: Some("Whatever Grok is set to".into()),
+            efforts: Vec::new(),
+        }],
         efforts: ["low", "medium", "high", "xhigh"].map(str::to_owned).to_vec(),
         ask_tool: Some("wisp__ask_user".into()),
         system_prompt_flag: true,
@@ -46,18 +54,36 @@ fn mode(m: Mode) -> &'static str {
 
 /// grok -p doesn't read stdin, and a prompt in argv is capped on Windows: it goes as a file.
 pub fn launch(run: &HarnessRun, bin: &str) -> Launch {
-    let notes: Vec<FileNote> = run.attachments.iter().filter_map(|a| a.path.clone().map(|path| FileNote { path, mime: a.mime.clone(), size: a.size })).collect();
-    let mut files = vec![LaunchFile { path: "grok-prompt.md".into(), contents: format!("{}{}", run.prompt, attachment_note(&notes, None)) }];
+    let notes: Vec<FileNote> =
+        run.attachments.iter().filter_map(|a| a.path.clone().map(|path| FileNote { path, mime: a.mime.clone(), size: a.size })).collect();
+    let mut files =
+        vec![LaunchFile { path: "grok-prompt.md".into(), contents: format!("{}{}", run.prompt, attachment_note(&notes, None)) }];
     let agent = (!run.mcp_servers.is_empty()).then_some("{tmp}/grok-wisp.md");
     if agent.is_some() {
         files.push(LaunchFile { path: "grok-wisp.md".into(), contents: agent_definition(&run.mcp_servers) });
     }
-    let a = GrokArgs { prompt_file: "{tmp}/grok-prompt.md", mode: mode(run.mode), rules: &run.system_prompt, model: &run.model, effort: &run.effort, resume_id: run.resume_id.as_deref(), agent_file: agent };
-    Launch { program: bin.to_owned(), args: args(&a), env: BTreeMap::from([("GROK_DISABLE_AUTOUPDATER".to_owned(), "1".to_owned())]), cwd: run.cwd.clone(), files, ..Launch::default() }
+    let a = GrokArgs {
+        prompt_file: "{tmp}/grok-prompt.md",
+        mode: mode(run.mode),
+        rules: &run.system_prompt,
+        model: &run.model,
+        effort: &run.effort,
+        resume_id: run.resume_id.as_deref(),
+        agent_file: agent,
+    };
+    Launch {
+        program: bin.to_owned(),
+        args: args(&a),
+        env: BTreeMap::from([("GROK_DISABLE_AUTOUPDATER".to_owned(), "1".to_owned())]),
+        cwd: run.cwd.clone(),
+        files,
+        ..Launch::default()
+    }
 }
 
 async fn output(sys: &dyn HarnessSys, bin: &str, args: &[&str]) -> Option<String> {
-    let req = ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
+    let req =
+        ExecReq { program: bin.to_owned(), args: args.iter().map(|a| (*a).to_owned()).collect(), timeout_ms: 15_000, ..ExecReq::default() };
     match sys.exec(req).await {
         Ok(o) if o.code == Some(0) && !o.timed_out => Some(o.stdout),
         _ => None,
@@ -71,8 +97,14 @@ fn models_of(out: &str, cache: &Value) -> (Vec<HarnessModel>, Option<Vec<String>
         .into_iter()
         .map(|id| {
             let info = &cache["models"][&id]["info"];
-            let efforts = if info["supports_reasoning_effort"] == false { Some(Vec::new()) } else { efforts_of(&info["reasoning_efforts"]) };
-            HarnessModel { label: info["name"].as_str().unwrap_or(&id).to_owned(), hint: Some(clip(info["description"].as_str().unwrap_or(&id), 60)), efforts: efforts.unwrap_or_default(), id }
+            let efforts =
+                if info["supports_reasoning_effort"] == false { Some(Vec::new()) } else { efforts_of(&info["reasoning_efforts"]) };
+            HarnessModel {
+                label: info["name"].as_str().unwrap_or(&id).to_owned(),
+                hint: Some(clip(info["description"].as_str().unwrap_or(&id), 60)),
+                efforts: efforts.unwrap_or_default(),
+                id,
+            }
         })
         .collect();
     // Default runs grok's own default, so it takes that model's levels
@@ -94,7 +126,12 @@ impl Default for GrokHarness {
 
 impl GrokHarness {
     fn bin(&self) -> String {
-        self.bin.lock().ok().and_then(|b| b.clone()).or_else(|| std::env::var("WISP_GROK_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned())
+        self.bin
+            .lock()
+            .ok()
+            .and_then(|b| b.clone())
+            .or_else(|| std::env::var("WISP_GROK_BIN").ok().filter(|b| !b.is_empty()))
+            .unwrap_or_else(|| DEFAULT_BIN.to_owned())
     }
 }
 
@@ -122,9 +159,18 @@ impl Harness for GrokHarness {
                 *b = Some(bin.clone());
             }
             let v = version_in(&line);
-            let mut found = HarnessFound { available: true, version: Some(if v.is_empty() { line.trim().to_owned() } else { v }), bin: Some(bin.clone()), ..HarnessFound::default() };
+            let mut found = HarnessFound {
+                available: true,
+                version: Some(if v.is_empty() { line.trim().to_owned() } else { v }),
+                bin: Some(bin.clone()),
+                ..HarnessFound::default()
+            };
             let home = sys.env("GROK_HOME").filter(|h| !h.is_empty()).unwrap_or_else(|| format!("{}/.grok", sys.home()));
-            let cache = sys.read_file(&format!("{home}/models_cache.json")).await.and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+            let cache = sys
+                .read_file(&format!("{home}/models_cache.json"))
+                .await
+                .and_then(|t| serde_json::from_str(&t).ok())
+                .unwrap_or(Value::Null);
             let (models, levels) = models_of(&output(sys, &bin, &["models"]).await.unwrap_or_default(), &cache);
             if !models.is_empty() {
                 found.efforts = levels;
@@ -209,7 +255,8 @@ mod tests {
 
     #[test]
     fn the_prompt_and_agent_go_as_files() {
-        let mut run = HarnessRun { prompt: "fix".into(), cwd: "/w".into(), system_prompt: "SYS".into(), mode: Mode::Plan, ..HarnessRun::default() };
+        let mut run =
+            HarnessRun { prompt: "fix".into(), cwd: "/w".into(), system_prompt: "SYS".into(), mode: Mode::Plan, ..HarnessRun::default() };
         run.mcp_servers.insert("wisp".into(), json!({ "type": "http", "url": "http://x/api/mcp" }));
         let l = launch(&run, "grok");
         assert_eq!(&l.args[..2], ["--prompt-file", "{tmp}/grok-prompt.md"]);

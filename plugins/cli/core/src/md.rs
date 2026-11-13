@@ -81,7 +81,13 @@ fn bullet(line: &str) -> Option<(String, &str)> {
     let indent = line.len() - t.len();
     for m in ["- ", "* ", "+ "] {
         if let Some(r) = t.strip_prefix(m) {
-            let (mark, r) = if let Some(x) = r.strip_prefix("[ ] ") { ("☐ ", x) } else if let Some(x) = r.strip_prefix("[x] ").or_else(|| r.strip_prefix("[X] ")) { ("☑ ", x) } else { ("• ", r) };
+            let (mark, r) = if let Some(x) = r.strip_prefix("[ ] ") {
+                ("☐ ", x)
+            } else if let Some(x) = r.strip_prefix("[x] ").or_else(|| r.strip_prefix("[X] ")) {
+                ("☑ ", x)
+            } else {
+                ("• ", r)
+            };
             return Some((format!("{}{mark}", " ".repeat(indent)), r));
         }
     }
@@ -177,8 +183,28 @@ mod tests {
     #[test]
     fn plain_markdown() {
         let s = Style::plain(40);
-        let got = render(&s, "# Title\n\nSome **bold** and `code` with a [link](https://x.dev).\n\n- one\n- [x] two\n1. first\n\n```rs\nfn main() {}\n```\n> quoted");
-        assert_eq!(got, ["Title", "", "Some bold and code with a link", "<https://x.dev>.", "", "• one", "☑ two", "1. first", "", "┌─ rs", "│ fn main() {}", "└─", "│ quoted"]);
+        let got = render(
+            &s,
+            "# Title\n\nSome **bold** and `code` with a [link](https://x.dev).\n\n- one\n- [x] two\n1. first\n\n```rs\nfn main() {}\n```\n> quoted",
+        );
+        assert_eq!(
+            got,
+            [
+                "Title",
+                "",
+                "Some bold and code with a link",
+                "<https://x.dev>.",
+                "",
+                "• one",
+                "☑ two",
+                "1. first",
+                "",
+                "┌─ rs",
+                "│ fn main() {}",
+                "└─",
+                "│ quoted"
+            ]
+        );
     }
 
     #[test]

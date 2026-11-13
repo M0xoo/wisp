@@ -35,12 +35,23 @@ pub fn script(shell: &str, c: &Catalogue, curated: &[&str]) -> Option<String> {
 
 fn bash(c: &Catalogue, curated: &[&str]) -> String {
     let t = tree(c);
-    let mut s = String::from("# wisp completions for bash: eval \"$(wisp completions bash)\"\n_wisp() {\n  local cur=${COMP_WORDS[COMP_CWORD]} p=${COMP_WORDS[1]} v=${COMP_WORDS[2]}\n  if [ \"$COMP_CWORD\" -eq 1 ]; then\n");
-    let firsts: Vec<String> = curated.iter().map(|x| (*x).to_owned()).chain(t.iter().map(|(p, _)| p.clone())).chain(["help".into(), "completions".into(), "attach".into()]).collect();
+    let mut s = String::from(
+        "# wisp completions for bash: eval \"$(wisp completions bash)\"\n_wisp() {\n  local cur=${COMP_WORDS[COMP_CWORD]} p=${COMP_WORDS[1]} v=${COMP_WORDS[2]}\n  if [ \"$COMP_CWORD\" -eq 1 ]; then\n",
+    );
+    let firsts: Vec<String> = curated
+        .iter()
+        .map(|x| (*x).to_owned())
+        .chain(t.iter().map(|(p, _)| p.clone()))
+        .chain(["help".into(), "completions".into(), "attach".into()])
+        .collect();
     let _ = writeln!(s, "    COMPREPLY=($(compgen -W '{}' -- \"$cur\")); return\n  fi\n  case \"$p\" in", q(&firsts.join(" ")));
     for (p, verbs) in &t {
         let names: Vec<&str> = verbs.iter().map(|(v, _)| v.as_str()).collect();
-        let _ = writeln!(s, "    {p}) if [ \"$COMP_CWORD\" -eq 2 ]; then COMPREPLY=($(compgen -W '{}' -- \"$cur\")); return; fi\n      case \"$v\" in", q(&names.join(" ")));
+        let _ = writeln!(
+            s,
+            "    {p}) if [ \"$COMP_CWORD\" -eq 2 ]; then COMPREPLY=($(compgen -W '{}' -- \"$cur\")); return; fi\n      case \"$v\" in",
+            q(&names.join(" "))
+        );
         for (v, flags) in verbs {
             let _ = writeln!(s, "        {v}) COMPREPLY=($(compgen -W '{} --json --help' -- \"$cur\")) ;;", q(&flags.join(" ")));
         }
@@ -52,12 +63,27 @@ fn bash(c: &Catalogue, curated: &[&str]) -> String {
 
 fn zsh(c: &Catalogue, curated: &[&str]) -> String {
     let t = tree(c);
-    let mut s = String::from("#compdef wisp\n# wisp completions for zsh: wisp completions zsh > \"${fpath[1]}/_wisp\"\n_wisp() {\n  local -a firsts verbs flags\n");
-    let firsts: Vec<String> = curated.iter().map(|x| format!("'{x}:a wisp command'")).chain(t.iter().map(|(p, v)| format!("'{p}:{} commands'", v.len()))).chain(["'help:every command'".into(), "'completions:shell completions'".into(), "'attach:follow a task live'".into()]).collect();
-    let _ = writeln!(s, "  firsts=({})\n  if (( CURRENT == 2 )); then _describe 'command' firsts; return; fi\n  case $words[2] in", firsts.join(" "));
+    let mut s = String::from(
+        "#compdef wisp\n# wisp completions for zsh: wisp completions zsh > \"${fpath[1]}/_wisp\"\n_wisp() {\n  local -a firsts verbs flags\n",
+    );
+    let firsts: Vec<String> = curated
+        .iter()
+        .map(|x| format!("'{x}:a wisp command'"))
+        .chain(t.iter().map(|(p, v)| format!("'{p}:{} commands'", v.len())))
+        .chain(["'help:every command'".into(), "'completions:shell completions'".into(), "'attach:follow a task live'".into()])
+        .collect();
+    let _ = writeln!(
+        s,
+        "  firsts=({})\n  if (( CURRENT == 2 )); then _describe 'command' firsts; return; fi\n  case $words[2] in",
+        firsts.join(" ")
+    );
     for (p, verbs) in &t {
         let names: Vec<String> = verbs.iter().map(|(v, _)| format!("'{}'", q(v))).collect();
-        let _ = writeln!(s, "    {p})\n      verbs=({})\n      if (( CURRENT == 3 )); then _describe 'verb' verbs; return; fi\n      case $words[3] in", names.join(" "));
+        let _ = writeln!(
+            s,
+            "    {p})\n      verbs=({})\n      if (( CURRENT == 3 )); then _describe 'verb' verbs; return; fi\n      case $words[3] in",
+            names.join(" ")
+        );
         for (v, flags) in verbs {
             let _ = writeln!(s, "        {v}) flags=({} --json --help) ;;", flags.join(" "));
         }
@@ -69,7 +95,8 @@ fn zsh(c: &Catalogue, curated: &[&str]) -> String {
 
 fn fish(c: &Catalogue, curated: &[&str]) -> String {
     let t = tree(c);
-    let mut s = String::from("# wisp completions for fish: wisp completions fish > ~/.config/fish/completions/wisp.fish\ncomplete -c wisp -f\n");
+    let mut s =
+        String::from("# wisp completions for fish: wisp completions fish > ~/.config/fish/completions/wisp.fish\ncomplete -c wisp -f\n");
     for x in curated.iter().chain(["help", "completions", "attach"].iter()) {
         let _ = writeln!(s, "complete -c wisp -n '__fish_use_subcommand' -a '{x}'");
     }
@@ -93,7 +120,15 @@ mod tests {
 
     #[test]
     fn each_shell_names_every_plugin_verb_and_flag() {
-        let c = Catalogue::new(vec![CommandInfo { id: "crew.create".into(), plugin: "wisp.crew".into(), title: None, read_only: false, permission: "crew:write".into(), args: Some("{ name?: string, }".into()), ui_only: None }]);
+        let c = Catalogue::new(vec![CommandInfo {
+            id: "crew.create".into(),
+            plugin: "wisp.crew".into(),
+            title: None,
+            read_only: false,
+            permission: "crew:write".into(),
+            args: Some("{ name?: string, }".into()),
+            ui_only: None,
+        }]);
         for sh in ["zsh", "bash", "fish"] {
             let s = script(sh, &c, &["ls", "show"]).unwrap();
             assert!(s.contains("crew") && s.contains("create") && s.contains("name") && s.contains("ls"), "{sh}: {s}");

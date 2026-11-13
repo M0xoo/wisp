@@ -6,19 +6,26 @@
 use std::sync::Arc;
 
 use serde_json::{Value, json};
+use wisp_channels_api::ChannelHub;
 use wisp_channels_api::hub::BoxGrid;
 use wisp_channels_api::testing::{Reply, TestHub};
 use wisp_channels_api::transport::InboundOpts;
-use wisp_channels_api::ChannelHub;
 use wisp_slack_core::sign::signature;
 
 const NOW_S: i64 = 1_700_000_000;
 
 fn hub() -> Arc<TestHub> {
-    let h = TestHub { reply: Some("✓ On it.".into()), on_box: Some(BoxGrid { grid: "https://grid".into(), auth: "a".into() }), ..TestHub::default() }
-        .with_cfg("slack", json!({ "enabled": true, "botToken": "xoxb-1", "signingSecret": "s3cret", "senders": ["U1"] }));
+    let h = TestHub {
+        reply: Some("✓ On it.".into()),
+        on_box: Some(BoxGrid { grid: "https://grid".into(), auth: "a".into() }),
+        ..TestHub::default()
+    }
+    .with_cfg("slack", json!({ "enabled": true, "botToken": "xoxb-1", "signingSecret": "s3cret", "senders": ["U1"] }));
     *h.now.lock().unwrap() = NOW_S * 1000;
-    h.net.replies.lock().unwrap().extend([Reply::json("auth.test", json!({ "ok": true, "user_id": "UBOT", "user": "wisp" })), Reply::json("chat.postMessage", json!({ "ok": true }))]);
+    h.net.replies.lock().unwrap().extend([
+        Reply::json("auth.test", json!({ "ok": true, "user_id": "UBOT", "user": "wisp" })),
+        Reply::json("chat.postMessage", json!({ "ok": true })),
+    ]);
     Arc::new(h)
 }
 

@@ -27,7 +27,11 @@ async fn unattended_work_past_the_stop_line_is_held_until_the_window_resets() {
     let hold = api.cmd("budget.hold", json!({ "agent": "codex", "account": "" })).await;
     assert_eq!(hold["window"], "five_hour", "{hold}");
     // a crew job waits for the plan
-    let crew = api.cmd("runtime.create", json!({ "prompt": "nightly tidy", "cwd": dir.join("proj"), "agent": "codex", "by": "crew" })).await["id"].as_str().unwrap().to_owned();
+    let crew =
+        api.cmd("runtime.create", json!({ "prompt": "nightly tidy", "cwd": dir.join("proj"), "agent": "codex", "by": "crew" })).await["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
     let t = api.until(&crew, "held", |t| t.len() == 1 && t[0]["status"] == "held").await;
     assert_eq!(t[0]["held"]["kind"], "plan", "{:?}", t[0]);
     assert_eq!(t[0]["held"]["by"], "wisp.budget");
@@ -74,7 +78,12 @@ async fn a_run_that_would_take_the_window_past_your_line_is_asked_about_and_a_ye
     assert_eq!(t.last().unwrap()["status"], "done", "{t:?}");
     // nobody's there to say yes to an automation: it waits for the reset
     api.cmd("budget.record", at(0.92)).await;
-    let crew = api.cmd("runtime.create", json!({ "prompt": "nightly tidy", "cwd": dir.join("proj"), "agent": "claude", "by": "crew" })).await["id"].as_str().unwrap().to_owned();
+    let crew = api
+        .cmd("runtime.create", json!({ "prompt": "nightly tidy", "cwd": dir.join("proj"), "agent": "claude", "by": "crew" }))
+        .await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let t = api.until(&crew, "held", |t| t.len() == 1 && t[0]["status"] == "held").await;
     assert_eq!((t[0]["held"]["by"].as_str(), t[0]["held"]["kind"].as_str()), (Some("wisp.budget"), Some("ask")), "{:?}", t[0]);
     drop(serve);

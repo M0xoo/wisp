@@ -68,10 +68,7 @@ pub enum RefusalKind {
 
 impl Refusal {
     pub fn new(kind: RefusalKind, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            message: message.into(),
-        }
+        Self { kind, message: message.into() }
     }
 }
 
@@ -102,10 +99,7 @@ pub fn js_number(v: &serde_json::Value) -> f64 {
             let t = s.trim();
             if t.is_empty() {
                 0.0
-            } else if t
-                .bytes()
-                .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'-' | b'+' | b'e' | b'E'))
-            {
+            } else if t.bytes().all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'-' | b'+' | b'e' | b'E')) {
                 t.parse().unwrap_or(f64::NAN)
             } else {
                 f64::NAN

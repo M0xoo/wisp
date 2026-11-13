@@ -22,8 +22,26 @@ fn topics(_: &Row) -> Vec<String> {
     vec![TOPIC.into()]
 }
 
-pub const ACC: EntityDef = EntityDef { kind: "budget_acc", table: "budget_acc", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
-pub const META: EntityDef = EntityDef { kind: "budget_meta", table: "budget_meta", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+pub const ACC: EntityDef = EntityDef {
+    kind: "budget_acc",
+    table: "budget_acc",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
+pub const META: EntityDef = EntityDef {
+    kind: "budget_meta",
+    table: "budget_meta",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics,
+};
 
 pub fn install(store: &Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
@@ -60,7 +78,9 @@ pub async fn load(store: &Store) -> wisp_store::Result<Loaded> {
             let mut accs = Vec::new();
             for row in r.query(ACC.kind, &Query::new())? {
                 let id = row.get("id").and_then(Value::as_str).unwrap_or_default();
-                if let (Some((agent, account)), Some(acc)) = (id.split_once('|'), row.get("body").cloned().and_then(|b| serde_json::from_value::<Acc>(b).ok())) {
+                if let (Some((agent, account)), Some(acc)) =
+                    (id.split_once('|'), row.get("body").cloned().and_then(|b| serde_json::from_value::<Acc>(b).ok()))
+                {
                     accs.push((agent.to_owned(), account.to_owned(), acc));
                 }
             }
@@ -81,7 +101,12 @@ pub async fn load(store: &Store) -> wisp_store::Result<Loaded> {
 fn import_settings(f: &ImportFile, w: &mut Writer<'_>) -> wisp_store::Result<()> {
     let cfg: Value = f.json()?;
     let mut out = serde_json::Map::new();
-    for k in [wisp_budget_api::settings::AUTO_STOP, wisp_budget_api::settings::AUTO_STOP_CLAUDE, wisp_budget_api::settings::AUTO_STOP_CODEX, wisp_budget_api::settings::DRAIN_WATCH] {
+    for k in [
+        wisp_budget_api::settings::AUTO_STOP,
+        wisp_budget_api::settings::AUTO_STOP_CLAUDE,
+        wisp_budget_api::settings::AUTO_STOP_CODEX,
+        wisp_budget_api::settings::DRAIN_WATCH,
+    ] {
         if let Some(v) = cfg.pointer(&format!("/defaults/{k}")) {
             out.insert(k.into(), v.clone());
         }
@@ -93,6 +118,11 @@ pub async fn import_v1(store: &Store, home: &Path) -> wisp_store::Result<()> {
     if !home.join("config.json").is_file() {
         return Ok(());
     }
-    let opts = ImportOptions { name: "budget.v1config".into(), dir: home.to_owned(), pattern: Some(Arc::new(|n: &str| n == "config.json")), cancel: None };
+    let opts = ImportOptions {
+        name: "budget.v1config".into(),
+        dir: home.to_owned(),
+        pattern: Some(Arc::new(|n: &str| n == "config.json")),
+        cancel: None,
+    };
     wisp_store::import_files(store, opts, Arc::new(import_settings)).await.map(|_| ())
 }

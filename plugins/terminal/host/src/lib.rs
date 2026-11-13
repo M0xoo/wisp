@@ -105,7 +105,13 @@ async fn open_app(ctx: &Ctx, a: &c::OpenAppArgs) -> Result<c::Done> {
 }
 
 /// The programs to start (sync: the lookups are plain closures, not held across an await).
-fn plan_here(platform: &str, found: &[String], a: &c::OpenAppArgs, terminal: &str, custom: &str) -> Result<Vec<wisp_terminal_core::plan::Launch>> {
+fn plan_here(
+    platform: &str,
+    found: &[String],
+    a: &c::OpenAppArgs,
+    terminal: &str,
+    custom: &str,
+) -> Result<Vec<wisp_terminal_core::plan::Launch>> {
     use wisp_terminal_core::apps;
     let env = |k: &str| std::env::var(k).ok();
     let has = |b: &str| found.iter().any(|f| f == b);
@@ -118,8 +124,11 @@ fn plan_here(platform: &str, found: &[String], a: &c::OpenAppArgs, terminal: &st
     if wisp_runtime_api::paths::Folder::of(&a.cwd).is_err() || !std::path::Path::new(&a.cwd).is_dir() {
         return Err(WireError::invalid("That folder isn't on this computer."));
     }
-    let argv = if a.argv.is_empty() { wisp_terminal_core::folder::shell_argv(std::env::var("SHELL").ok().as_deref()) } else { a.argv.clone() };
-    let plan = wisp_terminal_core::plan::terminal_plan(wisp_terminal_core::plan::PlanArgs { cwd: &a.cwd, argv: &argv, terminal, custom }, &l).map_err(|e| WireError::invalid(e.to_string()))?;
+    let argv =
+        if a.argv.is_empty() { wisp_terminal_core::folder::shell_argv(std::env::var("SHELL").ok().as_deref()) } else { a.argv.clone() };
+    let plan =
+        wisp_terminal_core::plan::terminal_plan(wisp_terminal_core::plan::PlanArgs { cwd: &a.cwd, argv: &argv, terminal, custom }, &l)
+            .map_err(|e| WireError::invalid(e.to_string()))?;
     Ok(wisp_terminal_core::plan::schedule(&plan, &a.cwd))
 }
 
@@ -138,7 +147,9 @@ async fn start_run(ctx: &Ctx, call: &wisp_kernel::Call, r: &Arc<Registry>, a: &c
         return Err(WireError::invalid("Say what runs the app (npm run dev, …)."));
     }
     if cfg!(windows) {
-        return Err(WireError::invalid("Preview runs the app under a POSIX shell: it needs macOS or Linux on the computer the task runs on."));
+        return Err(WireError::invalid(
+            "Preview runs the app under a POSIX shell: it needs macOS or Linux on the computer the task runs on.",
+        ));
     }
     if r.live(TermKind::Run, &a.id) && !a.restart {
         let proxy = r.proxies.running(&a.id).then(|| wisp_terminal_core::pick::proxy_port_for(&a.id));
@@ -195,7 +206,9 @@ fn routes(s: &mut Setup, slot: &Slot) {
             max_body: None,
             handler: Arc::new(move |_ctx, _call, req| {
                 let sl = sl.clone();
-                Box::pin(async move { Response::ok(json!({ "ok": reg(&sl)?.close(kind_of(&req), req.param("id").unwrap_or_default()).await })) })
+                Box::pin(
+                    async move { Response::ok(json!({ "ok": reg(&sl)?.close(kind_of(&req), req.param("id").unwrap_or_default()).await })) },
+                )
             }),
         });
     }
@@ -222,14 +235,24 @@ fn routes(s: &mut Setup, slot: &Slot) {
                     r.resize(TermKind::Shell, &id, b["cols"].as_f64(), b["rows"].as_f64());
                     return Response::ok(json!({ "ok": true }));
                 }
-                let out = start_shell(&ctx, &call, &r, &id, b["cols"].as_f64(), b["rows"].as_f64(), b["restart"].as_bool().unwrap_or(false)).await?;
+                let out =
+                    start_shell(&ctx, &call, &r, &id, b["cols"].as_f64(), b["rows"].as_f64(), b["restart"].as_bool().unwrap_or(false))
+                        .await?;
                 Response::ok(out)
             })
         }),
     });
 }
 
-async fn start_shell(ctx: &Ctx, call: &wisp_kernel::Call, r: &Registry, id: &str, cols: Option<f64>, rows: Option<f64>, restart: bool) -> Result<wisp_terminal_api::ShellStarted> {
+async fn start_shell(
+    ctx: &Ctx,
+    call: &wisp_kernel::Call,
+    r: &Registry,
+    id: &str,
+    cols: Option<f64>,
+    rows: Option<f64>,
+    restart: bool,
+) -> Result<wisp_terminal_api::ShellStarted> {
     if r.live(TermKind::Shell, id) && !restart {
         r.resize(TermKind::Shell, id, cols, rows);
         return Ok(wisp_terminal_api::ShellStarted { ok: true, started: false, dir: None, gone: None });
@@ -266,7 +289,10 @@ macro_rules! on {
 fn apps_here(os: &str, env: &dyn Fn(&str) -> Option<String>) -> TerminalApps {
     let platform = wisp_terminal_core::apps::platform_name(os);
     let l = wisp_terminal_core::apps::Lookups { platform, env, has: &|_| false, exists: &|_| false };
-    TerminalApps { terminals: wisp_terminal_core::apps::terminals_here(&l), default_terminal: wisp_terminal_core::apps::default_terminal(platform).to_owned() }
+    TerminalApps {
+        terminals: wisp_terminal_core::apps::terminals_here(&l),
+        default_terminal: wisp_terminal_core::apps::default_terminal(platform).to_owned(),
+    }
 }
 
 #[derive(Debug, Default)]
@@ -283,7 +309,13 @@ impl Plugin for TerminalPlugin {
             let out = r.open(&ctx, &a);
             if a.kind == TermKind::Takeover {
                 // v1 proxy.js / takeover: the harness opened in wisp's own terminal (Open in <harness>)
-                let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "takeover", "props": { "terminal": "wisp", "machine": false } })).await;
+                let _ = ctx
+                    .run_json(
+                        &ctx.root_call(),
+                        "telemetry.track",
+                        json!({ "event": "takeover", "props": { "terminal": "wisp", "machine": false } }),
+                    )
+                    .await;
             }
             Ok(out)
         });
@@ -296,7 +328,16 @@ impl Plugin for TerminalPlugin {
             }
             if ok {
                 // hung up: forgotten, and whoever owns the task hears it ended
-                ctx.emit(&call, &wisp_terminal_api::Changed { kind: a.kind, id: a.id.clone(), state: wisp_terminal_api::TermState::Ended, code: None, gone: true });
+                ctx.emit(
+                    &call,
+                    &wisp_terminal_api::Changed {
+                        kind: a.kind,
+                        id: a.id.clone(),
+                        state: wisp_terminal_api::TermState::Ended,
+                        code: None,
+                        gone: true,
+                    },
+                );
             }
             Ok(c::Done { ok })
         });
@@ -310,7 +351,12 @@ impl Plugin for TerminalPlugin {
         on!(s, slot, c::ShellStart, |r, ctx, call, a| start_shell(&ctx, &call, &r, &a.id, a.cols, a.rows, a.restart).await);
         on!(s, slot, c::ShellInfoOf, |r, ctx, call, a| {
             let shell = std::env::var("SHELL").ok();
-            Ok(ShellInfo { supported: !cfg!(windows), open: r.live(TermKind::Shell, &a.id), app: !a.via_proxy && cfg!(target_os = "macos"), name: wisp_terminal_core::folder::shell_name(shell.as_deref()) })
+            Ok(ShellInfo {
+                supported: !cfg!(windows),
+                open: r.live(TermKind::Shell, &a.id),
+                app: !a.via_proxy && cfg!(target_os = "macos"),
+                name: wisp_terminal_core::folder::shell_name(shell.as_deref()),
+            })
         });
         s.command::<c::OpenApp, _, _>(|ctx, _call, a| async move { open_app(&ctx, &a).await });
         on!(s, slot, c::RunStart, |r, ctx, call, a| start_run(&ctx, &call, &r, &a).await);
@@ -352,9 +398,18 @@ mod tests {
         let got = plan_here("darwin", &[], &a, "terminal", "").unwrap();
         assert_eq!(got.len(), 1);
         assert_eq!(got[0].bin, "osascript");
-        assert!(got[0].args[1].contains("tell application \"Terminal\"") && got[0].args[1].contains("'claude' '--resume' 'x1'"), "{:?}", got[0].args);
-        assert!(plan_here("darwin", &[], &c::OpenAppArgs { via_proxy: true, ..a.clone() }, "terminal", "").is_err(), "through a proxy there's no app for you");
-        assert!(plan_here("darwin", &[], &c::OpenAppArgs { cwd: format!("{cwd}/no-such-folder-wisp"), ..a.clone() }, "terminal", "").is_err());
+        assert!(
+            got[0].args[1].contains("tell application \"Terminal\"") && got[0].args[1].contains("'claude' '--resume' 'x1'"),
+            "{:?}",
+            got[0].args
+        );
+        assert!(
+            plan_here("darwin", &[], &c::OpenAppArgs { via_proxy: true, ..a.clone() }, "terminal", "").is_err(),
+            "through a proxy there's no app for you"
+        );
+        assert!(
+            plan_here("darwin", &[], &c::OpenAppArgs { cwd: format!("{cwd}/no-such-folder-wisp"), ..a.clone() }, "terminal", "").is_err()
+        );
         // the test runs in the crate's folder, which has a `src`: a relative folder is never it
         for bad in ["", "src", "."] {
             assert!(plan_here("darwin", &[], &c::OpenAppArgs { cwd: bad.into(), ..a.clone() }, "terminal", "").is_err(), "{bad:?}");

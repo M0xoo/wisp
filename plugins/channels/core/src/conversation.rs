@@ -147,7 +147,14 @@ async fn in_thread(c: &dyn Conversation, session_id: &str, p: &Parsed) -> Result
         Some("stop") => return c.say(phone.stop(session_id).await?).await,
         Some("status") => return c.say(c.quiet(phone.status(session_id).await?)).await,
         Some("done") => {
-            let a = ActArgs { session_id: session_id.into(), kind: ActKind::Done, reference: Some(String::new()), index: Some(0), text: None, approvals: c.approvals() };
+            let a = ActArgs {
+                session_id: session_id.into(),
+                kind: ActKind::Done,
+                reference: Some(String::new()),
+                index: Some(0),
+                text: None,
+                approvals: c.approvals(),
+            };
             return c.say(phone.act(&a).await?).await;
         }
         _ => {}
@@ -170,7 +177,15 @@ async fn in_thread(c: &dyn Conversation, session_id: &str, p: &Parsed) -> Result
         }
     }
     let undo = if btw { None } else { c.before_run(session_id) };
-    let o = RunOpts { name: c.name().into(), sender: Some(c.sender().into()), cap: Some(c.cap()), btw, about: c.about().map(str::to_owned), approvals: c.approvals(), attachments: c.attachments() };
+    let o = RunOpts {
+        name: c.name().into(),
+        sender: Some(c.sender().into()),
+        cap: Some(c.cap()),
+        btw,
+        about: c.about().map(str::to_owned),
+        approvals: c.approvals(),
+        attachments: c.attachments(),
+    };
     // Only the follow-up itself: a reply that fails to arrive mustn't say it wasn't sent, or it gets
     // sent twice.
     let line = match phone.run(session_id, p, &o, c.later()).await {

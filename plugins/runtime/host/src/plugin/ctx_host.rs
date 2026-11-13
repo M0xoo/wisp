@@ -25,7 +25,11 @@ impl Host for CtxHost {
     fn net(&self) -> Option<wisp_kernel::services::NetService> {
         wisp_kernel::services::net(&self.ctx).ok()
     }
-    fn command(&self, cmd: &str, args: serde_json::Value) -> wisp_kernel::BoxFuture<'static, std::result::Result<serde_json::Value, WireError>> {
+    fn command(
+        &self,
+        cmd: &str,
+        args: serde_json::Value,
+    ) -> wisp_kernel::BoxFuture<'static, std::result::Result<serde_json::Value, WireError>> {
         self.ctx.run_json(&self.ctx.root_call(), cmd, args)
     }
     fn emit(&self, e: Emitted) {

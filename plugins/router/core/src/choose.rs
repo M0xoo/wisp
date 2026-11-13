@@ -10,7 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use wisp_router_api::{AgentInfo, ChooseArgs, GOALS, LEVELS, Pick, Route, RouteAlt, Suggest, arm_key, is_goal, split_key};
 
 use crate::estimate::{Estimate, estimate, form_of, picks, prior_of, taste};
-use crate::keys::{Candidate, base_of, by_named_level, candidates, canon, effort_label, level_of, levels_for, round, rule_matches, stem_key, tier_of};
+use crate::keys::{
+    Candidate, base_of, by_named_level, candidates, canon, effort_label, level_of, levels_for, round, rule_matches, stem_key, tier_of,
+};
 use crate::math::{Mulberry32, Rng, beta_sample};
 use crate::state::{Cool, Life, RouterState};
 
@@ -78,7 +80,14 @@ fn opts<'a>(a: &'a ChooseArgs, p: &'a Prefs) -> Opts<'a> {
         Some(x) => x.as_deref(),
         None => p.allowed.as_deref(),
     };
-    Opts { goal, explore: a.explore.unwrap_or(p.explore), allowed, blocked: a.blocked.as_deref().unwrap_or(&p.blocked), prefer: a.prefer.as_deref().unwrap_or(&p.prefer), habits: a.habits.unwrap_or(p.habits) }
+    Opts {
+        goal,
+        explore: a.explore.unwrap_or(p.explore),
+        allowed,
+        blocked: a.blocked.as_deref().unwrap_or(&p.blocked),
+        prefer: a.prefer.as_deref().unwrap_or(&p.prefer),
+        habits: a.habits.unwrap_or(p.habits),
+    }
 }
 
 fn goal_value(goal: &str) -> f64 {
@@ -89,7 +98,10 @@ fn goal_value(goal: &str) -> f64 {
 fn arms_of(st: &RouterState, now: i64, a: &ChooseArgs, o: &Opts, agents: &[AgentInfo], kind: &str) -> Vec<Arm> {
     let out: BTreeSet<String> = a.exclude.iter().map(|k| stem_key(k)).collect();
     let known: BTreeSet<String> = st.arms.keys().cloned().collect();
-    let usable: Vec<Candidate> = candidates(agents, &known).into_iter().filter(|c| (!a.need_delegate || c.delegates) && o.allowed.is_none_or(|al| al.contains(&c.agent))).collect();
+    let usable: Vec<Candidate> = candidates(agents, &known)
+        .into_iter()
+        .filter(|c| (!a.need_delegate || c.delegates) && o.allowed.is_none_or(|al| al.contains(&c.agent)))
+        .collect();
     let frontier_only = o.goal == "best" && usable.iter().any(|c| tier_of(&c.key) >= 3);
     let defaults = &crate::priors::shipped().priors.defaults;
     let mut levelled = Vec::new();
@@ -119,7 +131,9 @@ fn arms_of(st: &RouterState, now: i64, a: &ChooseArgs, o: &Opts, agents: &[Agent
             None => true,
             Some(&h) => {
                 let have = &levelled[h].0.key;
-                Some(&c.key) == form.as_ref() || (Some(have) != form.as_ref() && (named(&c.key) > named(have) || (named(&c.key) == named(have) && c.key.len() < have.len())))
+                Some(&c.key) == form.as_ref()
+                    || (Some(have) != form.as_ref()
+                        && (named(&c.key) > named(have) || (named(&c.key) == named(have) && c.key.len() < have.len())))
             }
         };
         if better {
@@ -185,7 +199,15 @@ fn draw(arms: &[Arm], v: f64, fixed: bool, r: &mut dyn Rng) -> usize {
 }
 
 fn alt(x: &Arm) -> RouteAlt {
-    RouteAlt { key: x.c.key.clone(), agent: x.c.agent.clone(), model: x.c.model.clone(), effort: x.effort.clone(), label: x.c.label.clone(), chance: round(x.est.mean, 2), usd: round(x.est.usd, 2) }
+    RouteAlt {
+        key: x.c.key.clone(),
+        agent: x.c.agent.clone(),
+        model: x.c.model.clone(),
+        effort: x.effort.clone(),
+        label: x.c.label.clone(),
+        chance: round(x.est.mean, 2),
+        usd: round(x.est.usd, 2),
+    }
 }
 
 /// Pick an arm for a task, or `None` when nothing allowed can run now. `here`: the harnesses used
@@ -211,7 +233,8 @@ pub fn choose(st: &RouterState, now: i64, a: &ChooseArgs, here: &[AgentInfo], pr
     // how likely this pick was: logged so the router's own choices can be corrected for later
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let mut sim = Mulberry32::new((rng.next_f64() * 2_147_483_648.0).floor() as u32);
-    let hits = if fixed || pinned.is_some() { DRAWS } else { (0..DRAWS).filter(|_| draw(&arms, v, false, &mut sim) == pick_i).map(|_| 1).sum() };
+    let hits =
+        if fixed || pinned.is_some() { DRAWS } else { (0..DRAWS).filter(|_| draw(&arms, v, false, &mut sim) == pick_i).map(|_| 1).sum() };
     let mut by_mean: Vec<usize> = (0..arms.len()).collect();
     by_mean.sort_by(|&p, &q| utility(v, &arms[q], arms[q].est.mean, true).total_cmp(&utility(v, &arms[p], arms[p].est.mean, true)));
     let pick = &arms[pick_i];
@@ -242,7 +265,14 @@ pub fn choose(st: &RouterState, now: i64, a: &ChooseArgs, here: &[AgentInfo], pr
         at: now,
         ..Route::default()
     };
-    Some(Pick { agent: pick.c.agent.clone(), model: pick.c.model.clone(), effort: pick.effort.clone(), key: pick.c.key.clone(), label: pick.c.label.clone(), route })
+    Some(Pick {
+        agent: pick.c.agent.clone(),
+        model: pick.c.model.clone(),
+        effort: pick.effort.clone(),
+        key: pick.c.key.clone(),
+        label: pick.c.label.clone(),
+        route,
+    })
 }
 
 /// Something that looks clearly better on the record than your habit: offered, not run.
@@ -252,8 +282,13 @@ fn suggestion(st: &RouterState, arms: &[Arm], pick: usize, v: f64, kind: &str, g
     let pc = canon(&arms[pick].c.key);
     let rival = &arms[*plain.iter().find(|&&i| canon(&arms[i].c.key) != pc && !arms[i].preferred)?];
     let me = &arms[pick];
-    let better = rival.est.mean >= me.est.mean + SUGGEST_MARGIN && utility(v, rival, rival.est.mean, false) > utility(v, me, me.est.mean, false);
-    better.then(|| Suggest { alt: alt(rival), trying: rival.state == Life::New, why: why_of(rival, kind, picks(st, kind, &rival.c.key), goal, Why { suggest: true, ..Why::default() }) })
+    let better =
+        rival.est.mean >= me.est.mean + SUGGEST_MARGIN && utility(v, rival, rival.est.mean, false) > utility(v, me, me.est.mean, false);
+    better.then(|| Suggest {
+        alt: alt(rival),
+        trying: rival.state == Life::New,
+        why: why_of(rival, kind, picks(st, kind, &rival.c.key), goal, Why { suggest: true, ..Why::default() }),
+    })
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -312,7 +347,13 @@ pub fn level_up(st: &RouterState, now: i64, route: &Route, agents: &[AgentInfo])
     let m = a.and_then(|a| a.models.iter().find(|x| x.id == p.model));
     let efforts = m.and_then(|m| m.efforts.clone()).or_else(|| a.and_then(|a| a.efforts.clone())).unwrap_or_default();
     let at = LEVELS.iter().position(|l| *l == lvl)?;
-    let to = if at < 3 { "high" } else if lvl == "high" { "xhigh" } else { return None };
+    let to = if at < 3 {
+        "high"
+    } else if lvl == "high" {
+        "xhigh"
+    } else {
+        return None;
+    };
     if !efforts.iter().any(|e| e == to) {
         return None;
     }
@@ -321,8 +362,19 @@ pub fn level_up(st: &RouterState, now: i64, route: &Route, agents: &[AgentInfo])
         return None;
     }
     let est = estimate(st, if route.kind.is_empty() { "*" } else { &route.kind }, &key, now);
-    let head = ["Minimal", "Low", "Medium", "High"].iter().find_map(|l| route.label.strip_suffix(&format!(" · {l}"))).unwrap_or(&route.label);
+    let head =
+        ["Minimal", "Low", "Medium", "High"].iter().find_map(|l| route.label.strip_suffix(&format!(" · {l}"))).unwrap_or(&route.label);
     let label = format!("{} · {}", if head.is_empty() { &key } else { head }, effort_label(to));
-    let r = Route { key: key.clone(), effort: to.to_owned(), label: label.clone(), chance: round(est.mean, 2), usd: round(est.usd, 2), why: "The same model, thinking harder".into(), at: now, tier: tier_of(&key), ..route.clone() };
+    let r = Route {
+        key: key.clone(),
+        effort: to.to_owned(),
+        label: label.clone(),
+        chance: round(est.mean, 2),
+        usd: round(est.usd, 2),
+        why: "The same model, thinking harder".into(),
+        at: now,
+        tier: tier_of(&key),
+        ..route.clone()
+    };
     Some(Pick { agent: p.agent.to_owned(), model: p.model.to_owned(), effort: to.to_owned(), key, label, route: r })
 }

@@ -43,7 +43,11 @@ fn lex(s: &str) -> Result<Vec<Tok>, String> {
             }
             i += 1;
             out.push(Tok::Str(t));
-        } else if c.is_ascii_digit() || (c == '-' && b.get(i + 1).is_some_and(char::is_ascii_digit) && !matches!(out.last(), Some(Tok::Num(_) | Tok::Ident(_) | Tok::Str(_) | Tok::RParen))) {
+        } else if c.is_ascii_digit()
+            || (c == '-'
+                && b.get(i + 1).is_some_and(char::is_ascii_digit)
+                && !matches!(out.last(), Some(Tok::Num(_) | Tok::Ident(_) | Tok::Str(_) | Tok::RParen)))
+        {
             let st = i;
             i += 1;
             while i < b.len() && (b[i].is_ascii_digit() || b[i] == '.') {
@@ -148,7 +152,10 @@ impl Parser<'_> {
         }
         self.i += 1;
         let r = self.unary()?;
-        let eq = l == r || (num(&l).is_some() && num(&l) == num(&r) && !l.is_string() && !r.is_string()) || (l.is_number() && r.is_string() && num(&r) == num(&l)) || (r.is_number() && l.is_string() && num(&l) == num(&r));
+        let eq = l == r
+            || (num(&l).is_some() && num(&l) == num(&r) && !l.is_string() && !r.is_string())
+            || (l.is_number() && r.is_string() && num(&r) == num(&l))
+            || (r.is_number() && l.is_string() && num(&l) == num(&r));
         Ok(json!(match op {
             "==" => eq,
             "!=" => !eq,
@@ -212,7 +219,11 @@ pub fn eval(expr: &str, scope: &Scope) -> Result<Value, String> {
 pub fn paths(expr: &str) -> Vec<String> {
     let e = expr.trim();
     let e = e.strip_prefix("${{").and_then(|x| x.strip_suffix("}}")).unwrap_or(e);
-    lex(e).unwrap_or_default().into_iter().filter_map(|t| if let Tok::Ident(s) = t { (!["true", "false", "null"].contains(&s.as_str())).then_some(s) } else { None }).collect()
+    lex(e)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|t| if let Tok::Ident(s) = t { (!["true", "false", "null"].contains(&s.as_str())).then_some(s) } else { None })
+        .collect()
 }
 
 /// Every `${{ … }}` in `text` replaced by its value (text as it is; anything else as JSON).
@@ -262,7 +273,10 @@ mod tests {
         assert_eq!(t("tasks.nope.output.x"), Value::Null);
         assert_eq!(t("inputs.v == '2.1'"), json!(true));
         assert_eq!(t("tasks.tests.output.failures.1"), json!("b"));
-        assert_eq!(interpolate("Fix ${{ tasks.tests.output.failures }} on ${{ matrix.agent }} for v${{ inputs.v }}", &s).unwrap(), "Fix [\"a\",\"b\"] on codex for v2.1");
+        assert_eq!(
+            interpolate("Fix ${{ tasks.tests.output.failures }} on ${{ matrix.agent }} for v${{ inputs.v }}", &s).unwrap(),
+            "Fix [\"a\",\"b\"] on codex for v2.1"
+        );
         assert!(eval("tasks.x >", &s).is_err());
         assert_eq!(paths("${{ tasks.tests.output.failed > 0 && inputs.v }}"), ["tasks.tests.output.failed", "inputs.v"]);
     }

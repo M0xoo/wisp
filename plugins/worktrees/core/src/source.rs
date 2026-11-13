@@ -62,7 +62,10 @@ pub use wisp_worktrees_api::Hit;
 /// A name the editor may look for: an identifier, nothing a pattern would read as more.
 pub fn ident(name: &str) -> Option<&str> {
     let n = name.trim();
-    let ok = !n.is_empty() && n.len() <= 120 && n.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') && !n.chars().next().is_some_and(char::is_numeric);
+    let ok = !n.is_empty()
+        && n.len() <= 120
+        && n.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+        && !n.chars().next().is_some_and(char::is_numeric);
     ok.then_some(n)
 }
 
@@ -72,7 +75,9 @@ pub fn def_pattern(name: &str) -> String {
     // POSIX classes and explicit word edges: `git grep -E` has no `\b` or `\s`
     let n = name.replace('$', "[$]");
     let decl = "function|class|const|let|var|def|fn|struct|enum|trait|type|interface|impl|mod|func|module";
-    format!("(^|[^A-Za-z0-9_])({decl})[[:space:]]+{n}([^A-Za-z0-9_$]|$)|(^|[^A-Za-z0-9_$.]){n}[[:space:]]*[:=][[:space:]]*(async[[:space:]]+)?(function([^A-Za-z0-9_$]|$)|\\()")
+    format!(
+        "(^|[^A-Za-z0-9_])({decl})[[:space:]]+{n}([^A-Za-z0-9_$]|$)|(^|[^A-Za-z0-9_$.]){n}[[:space:]]*[:=][[:space:]]*(async[[:space:]]+)?(function([^A-Za-z0-9_$]|$)|\\()"
+    )
 }
 
 /// `git grep -n` output as hits, at most `max`; text cut to 200 characters.
@@ -131,13 +136,25 @@ mod tests {
         assert_eq!(ident(" squash "), Some("squash"));
         assert_eq!((ident("a.b"), ident("1x"), ident("")), (None, None, None));
         let re = regex_lite(&def_pattern("squash"));
-        for yes in ["pub fn squash(s: &str)", "export function squash(a)", "const squash = (a) =>", "  squash: async function () {", "def squash(x):"] {
+        for yes in [
+            "pub fn squash(s: &str)",
+            "export function squash(a)",
+            "const squash = (a) =>",
+            "  squash: async function () {",
+            "def squash(x):",
+        ] {
             assert!(re(yes), "{yes}");
         }
         for no in ["squash(x);", "let squashed = 1", "// squash it"] {
             assert!(!re(no), "{no}");
         }
         let h = hits("src/text.rs:5:pub fn squash(s: &str) -> String {\nweb/a.js:12:export function squash(a) {\nbad line", 10);
-        assert_eq!(h, vec![Hit { path: "src/text.rs".into(), line: 5, text: "pub fn squash(s: &str) -> String {".into() }, Hit { path: "web/a.js".into(), line: 12, text: "export function squash(a) {".into() }]);
+        assert_eq!(
+            h,
+            vec![
+                Hit { path: "src/text.rs".into(), line: 5, text: "pub fn squash(s: &str) -> String {".into() },
+                Hit { path: "web/a.js".into(), line: 12, text: "export function squash(a) {".into() }
+            ]
+        );
     }
 }

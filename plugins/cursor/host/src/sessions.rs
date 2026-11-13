@@ -86,7 +86,12 @@ async fn load(root: &Path, transcript: &Path, id: &str) -> Option<(OutsideSessio
     let mut m = meta(root, id).await;
     if m.get("updatedAtMs").is_none() {
         // no meta: the transcript's own times
-        let at = tokio::fs::metadata(transcript).await.ok().and_then(|md| md.modified().ok()).and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0));
+        let at = tokio::fs::metadata(transcript)
+            .await
+            .ok()
+            .and_then(|md| md.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0));
         m = serde_json::json!({ "cwd": m.get("cwd").cloned().unwrap_or_default(), "createdAtMs": at, "updatedAtMs": at });
     }
     let s = session(id, &m, &mut turns);
@@ -172,7 +177,10 @@ mod tests {
         assert_eq!((t[0].prompt.as_str(), t[0].text.as_str()), ("Reply with OK.", "OK."));
         let root = home("read");
         let (s, turns) = CursorSessions { root: root.clone() }.read(ID).await.unwrap();
-        assert_eq!((s.cwd.as_str(), s.title.as_str(), s.prompts, s.started_at, s.updated_at), ("/private/tmp/wisp-samples/run", "Reply with OK.", 1, 1_794_212_660_234, 1_794_212_665_364));
+        assert_eq!(
+            (s.cwd.as_str(), s.title.as_str(), s.prompts, s.started_at, s.updated_at),
+            ("/private/tmp/wisp-samples/run", "Reply with OK.", 1, 1_794_212_660_234, 1_794_212_665_364)
+        );
         assert_eq!(turns[0].ended_at, 1_794_212_665_364);
         assert!(CursorSessions { root: root.clone() }.read("../x").await.is_none());
         let _ = std::fs::remove_dir_all(root);

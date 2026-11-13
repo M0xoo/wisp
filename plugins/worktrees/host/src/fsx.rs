@@ -13,9 +13,7 @@ pub async fn read_opt(p: impl AsRef<Path>) -> Option<String> {
 
 /// The real path (symlinks, macOS's /private/tmp), else the path as given.
 pub async fn real(p: &str) -> String {
-    tokio::fs::canonicalize(p)
-        .await
-        .map_or_else(|_| p.to_owned(), |r| r.to_string_lossy().into_owned())
+    tokio::fs::canonicalize(p).await.map_or_else(|_| p.to_owned(), |r| r.to_string_lossy().into_owned())
 }
 
 pub async fn mkdirp(p: impl AsRef<Path>) -> std::io::Result<()> {
@@ -48,11 +46,7 @@ pub async fn entries(dir: impl AsRef<Path>) -> Vec<(String, bool)> {
 /// A folder's mtime in ms, or None when it's gone.
 pub async fn mtime_ms(p: impl AsRef<Path>) -> Option<i64> {
     let m = tokio::fs::metadata(p).await.ok()?;
-    let t = m
-        .modified()
-        .ok()?
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?;
+    let t = m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
     i64::try_from(t.as_millis()).ok()
 }
 
@@ -61,7 +55,5 @@ pub fn join(a: &str, b: &str) -> String {
 }
 
 pub fn parent(p: &str) -> String {
-    Path::new(p)
-        .parent()
-        .map_or_else(|| p.to_owned(), |d| d.to_string_lossy().into_owned())
+    Path::new(p).parent().map_or_else(|| p.to_owned(), |d| d.to_string_lossy().into_owned())
 }

@@ -43,7 +43,12 @@ pub async fn cover(s: Arc<Stuff>, _c: Ctx, _call: Call, req: Request) -> Result<
     let hash = it.cover.as_deref().ok_or_else(no)?;
     let data = s.shelf.blobs.get(hash).await?.ok_or_else(no)?;
     let ty = it.cover_mime.clone().unwrap_or_else(|| "application/octet-stream".into());
-    Ok(bytes(200, ty, data.as_ref().clone(), vec![("content-security-policy".into(), COVER_CSP.into()), ("x-content-type-options".into(), "nosniff".into())]))
+    Ok(bytes(
+        200,
+        ty,
+        data.as_ref().clone(),
+        vec![("content-security-policy".into(), COVER_CSP.into()), ("x-content-type-options".into(), "nosniff".into())],
+    ))
 }
 
 pub async fn upload_post(s: Arc<Stuff>, _c: Ctx, _call: Call, req: Request) -> Result<Response> {
@@ -59,7 +64,12 @@ pub async fn upload_get(s: Arc<Stuff>, _c: Ctx, _call: Call, req: Request) -> Re
     let not_found = || Ok(Response::Json { status: 404, body: json!({ "error": "not found" }) });
     let Some(u) = s.shelf.upload(id).await? else { return not_found() };
     let Some(data) = s.shelf.upload_bytes(&u).await? else { return not_found() };
-    Ok(bytes(200, u.mime, data.as_ref().clone(), vec![("x-content-type-options".into(), "nosniff".into()), ("content-security-policy".into(), UPLOAD_CSP.into())]))
+    Ok(bytes(
+        200,
+        u.mime,
+        data.as_ref().clone(),
+        vec![("x-content-type-options".into(), "nosniff".into()), ("content-security-policy".into(), UPLOAD_CSP.into())],
+    ))
 }
 
 pub async fn upload_delete(s: Arc<Stuff>, _c: Ctx, _call: Call, req: Request) -> Result<Response> {

@@ -43,7 +43,13 @@ pub fn refusal_of(v: &Value) -> Option<String> {
     }
     let r = v.get("result")?;
     if r.get("isError") == Some(&Value::Bool(true)) {
-        let text: Vec<&str> = r.get("content").and_then(Value::as_array).into_iter().flatten().filter_map(|c| c.get("text").and_then(Value::as_str)).collect();
+        let text: Vec<&str> = r
+            .get("content")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|c| c.get("text").and_then(Value::as_str))
+            .collect();
         let t = text.join(" ");
         return Some(if t.trim().is_empty() { "The tool failed".to_owned() } else { t.trim().chars().take(300).collect() });
     }
@@ -56,7 +62,15 @@ async fn post(ctx: &Ctx, url: &str, headers: &[(String, String)], session: Optio
     if let Some(s) = session {
         h.push(("mcp-session-id".into(), s.to_owned()));
     }
-    let r = n.fetch(NetRequest { method: "POST".into(), url: url.to_owned(), headers: h, body: body.to_string().into_bytes(), timeout_ms: 60_000 }).await?;
+    let r = n
+        .fetch(NetRequest {
+            method: "POST".into(),
+            url: url.to_owned(),
+            headers: h,
+            body: body.to_string().into_bytes(),
+            timeout_ms: 60_000,
+        })
+        .await?;
     match r.status {
         401 | 403 => Err(WireError::forbidden(format!("needs sign-in (HTTP {})", r.status))),
         s if s >= 400 => Err(WireError::unavailable(format!("HTTP {s}"))),
@@ -65,7 +79,9 @@ async fn post(ctx: &Ctx, url: &str, headers: &[(String, String)], session: Optio
 }
 
 pub async fn call(ctx: &Ctx, kind: &StoredKind, a: &CallArgs) -> Result<CallOut> {
-    let Some((_, mut c)) = specs(kind).await.into_iter().find(|(n, _)| *n == a.id) else { return Err(WireError::not_found(format!("No connector called {}", a.id))) };
+    let Some((_, mut c)) = specs(kind).await.into_iter().find(|(n, _)| *n == a.id) else {
+        return Err(WireError::not_found(format!("No connector called {}", a.id)));
+    };
     if c.url.is_empty() {
         return Err(WireError::invalid(format!("{} runs on this computer: wisp calls only remote connectors' tools", a.id)));
     }
@@ -89,7 +105,14 @@ pub async fn call(ctx: &Ctx, kind: &StoredKind, a: &CallArgs) -> Result<CallOut>
     }
     let _ = post(ctx, &c.url, &headers, session.as_deref(), &json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })).await;
     let args = if a.args.is_null() { json!({}) } else { a.args.clone() };
-    let r = post(ctx, &c.url, &headers, session.as_deref(), &json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": { "name": a.tool, "arguments": args } })).await?;
+    let r = post(
+        ctx,
+        &c.url,
+        &headers,
+        session.as_deref(),
+        &json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": { "name": a.tool, "arguments": args } }),
+    )
+    .await?;
     let v = answer(&r).ok_or_else(|| WireError::unavailable(format!("{} didn't answer {}", a.id, a.tool)))?;
     if let Some(why) = refusal_of(&v) {
         return Err(WireError::unavailable(why));
@@ -118,7 +141,17 @@ impl wisp_issues_api::Connectors for ForIssues {
                     headers.push((k.clone(), crate::kinds::reveal(&ctx, v).await));
                 }
                 let signed_in = c.oauth == Some(true) && token(&ctx, &id).await.is_some();
-                out.push(wisp_issues_api::Connector { name: id.clone(), id, url: c.url, command: c.command, args: c.args, enabled: c.enabled != Some(false), env, headers, signed_in });
+                out.push(wisp_issues_api::Connector {
+                    name: id.clone(),
+                    id,
+                    url: c.url,
+                    command: c.command,
+                    args: c.args,
+                    enabled: c.enabled != Some(false),
+                    env,
+                    headers,
+                    signed_in,
+                });
             }
             Ok(out)
         })

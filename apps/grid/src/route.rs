@@ -48,7 +48,12 @@ pub struct Bot {
 
 /// `BotFather`'s `123456:ABC-DEF`.
 pub fn bot_token_ok(t: &str) -> bool {
-    t.split_once(':').is_some_and(|(id, rest)| (1..=20).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit()) && (1..=100).contains(&rest.len()) && rest.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'))
+    t.split_once(':').is_some_and(|(id, rest)| {
+        (1..=20).contains(&id.len())
+            && id.bytes().all(|b| b.is_ascii_digit())
+            && (1..=100).contains(&rest.len())
+            && rest.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    })
 }
 
 /// The people who may route, as typed (ids, comma or space apart).
@@ -75,7 +80,12 @@ pub fn senders_of(text: &str) -> std::result::Result<Vec<String>, String> {
 pub fn person(m: &Value, b: &Bot) -> bool {
     let from = &m["from"];
     let id = from["id"].as_i64().map(|n| n.to_string()).unwrap_or_default();
-    from.is_object() && from["is_bot"] != json!(true) && m["chat"]["type"] == "private" && b.senders.contains(&id) && m.get("forward_origin").is_none() && m.get("forward_date").is_none()
+    from.is_object()
+        && from["is_bot"] != json!(true)
+        && m["chat"]["type"] == "private"
+        && b.senders.contains(&id)
+        && m.get("forward_origin").is_none()
+        && m.get("forward_date").is_none()
 }
 
 /// Telegram's Bot API, as the grid calls it.
@@ -199,14 +209,21 @@ impl Routes {
         if !self.on {
             return Ok(None);
         }
-        let uid: Option<String> = self.db.with(|c| c.query_row("SELECT user_id FROM channel_routes WHERE token_hash = ?1", [sha256(url_token)], |r| r.get(0)).optional())?;
+        let uid: Option<String> = self.db.with(|c| {
+            c.query_row("SELECT user_id FROM channel_routes WHERE token_hash = ?1", [sha256(url_token)], |r| r.get(0)).optional()
+        })?;
         let Some(uid) = uid else { return Ok(None) };
         let Some(b) = self.bot_of(&uid)? else { return Ok(None) };
         Ok(Some(if !secret.is_empty() && safe_equal(secret, &b.secret) { Ok((uid, b)) } else { Err(()) }))
     }
 
     fn thread(&self, id: &str) -> Result<Option<Thread>> {
-        self.db.with(|c| c.query_row("SELECT id, computer_id, chat, message, created_at FROM channel_threads WHERE id = ?1", [id], |r| Ok(Thread { id: r.get(0)?, computer_id: r.get(1)?, chat: r.get(2)?, message: r.get(3)?, created_at: r.get(4)? })).optional())
+        self.db.with(|c| {
+            c.query_row("SELECT id, computer_id, chat, message, created_at FROM channel_threads WHERE id = ?1", [id], |r| {
+                Ok(Thread { id: r.get(0)?, computer_id: r.get(1)?, chat: r.get(2)?, message: r.get(3)?, created_at: r.get(4)? })
+            })
+            .optional()
+        })
     }
 
     fn thread_ref(&self, id: &str) -> Result<String> {
@@ -220,7 +237,14 @@ impl Routes {
     /// One update past `check`. Decided at once, from the database, before Telegram gets its 200. `computers`: the
     /// user's, to read the place from. `first`: a retry of one already taken stops here. → what to do after.
     #[allow(clippy::many_single_char_names)] // v1's names: u update, m message, b bot, t thread
-    pub fn take(&self, user: &UserRow, b: &Bot, u: &Value, computers: &[ComputerRow], first: &dyn Fn(&str) -> bool) -> Result<Option<Next>> {
+    pub fn take(
+        &self,
+        user: &UserRow,
+        b: &Bot,
+        u: &Value,
+        computers: &[ComputerRow],
+        first: &dyn Fn(&str) -> bool,
+    ) -> Result<Option<Next>> {
         if let Some(id) = u["update_id"].as_i64()
             && !first(&format!("route:telegram:{id}"))
         {
@@ -237,15 +261,34 @@ impl Routes {
         let sender = m["from"]["first_name"].as_str().unwrap_or_default().to_owned();
         let body = |thread: &str, text: &str, follow: bool| json!({ "channel": "telegram", "name": "Telegram", "text": text, "sender": sender, "id": u["update_id"].to_string(), "at": m["date"], "thread": thread, "follow": follow });
         if let Some(up) = m["reply_to_message"]["message_id"].as_i64() {
-            let tid: Option<String> = self.db.with(|c| c.query_row("SELECT thread_id FROM channel_thread_msgs WHERE user_id = ?1 AND chat = ?2 AND message = ?3", params![user.id, chat, up], |r| r.get(0)).optional())?;
+            let tid: Option<String> = self.db.with(|c| {
+                c.query_row(
+                    "SELECT thread_id FROM channel_thread_msgs WHERE user_id = ?1 AND chat = ?2 AND message = ?3",
+                    params![user.id, chat, up],
+                    |r| r.get(0),
+                )
+                .optional()
+            })?;
             let t = tid.map(|t| self.thread(&t)).transpose()?.flatten().filter(|t| self.fresh(t));
             let Some(t) = t.filter(|t| computers.iter().any(|c| c.id == t.computer_id)) else { return Ok(say(EXPIRED)) };
             let r = self.thread_ref(&t.id)?;
-            return Ok(Some(Next::Forward { thread: t.id.clone(), computer: t.computer_id.clone(), body: body(&r, &text, true), chat, reply_to: at, fresh: false }));
+            return Ok(Some(Next::Forward {
+                thread: t.id.clone(),
+                computer: t.computer_id.clone(),
+                body: body(&r, &text, true),
+                chat,
+                reply_to: at,
+                fresh: false,
+            }));
         }
-        let views: Vec<wisp_channels_api::MachineView> = computers.iter().map(|c| wisp_channels_api::MachineView { id: c.id.clone(), name: c.name.clone(), usable: true, ..Default::default() }).collect();
+        let views: Vec<wisp_channels_api::MachineView> = computers
+            .iter()
+            .map(|c| wisp_channels_api::MachineView { id: c.id.clone(), name: c.name.clone(), usable: true, ..Default::default() })
+            .collect();
         match wisp_channels_core::grammar::parse_route(&text, &views) {
-            Some(wisp_channels_core::grammar::Route::Ambiguous(p)) => Ok(say(&format!("{} They share that name, so nothing was sent.", p.first().map_or("", |x| x.text.as_str())))),
+            Some(wisp_channels_core::grammar::Route::Ambiguous(p)) => {
+                Ok(say(&format!("{} They share that name, so nothing was sent.", p.first().map_or("", |x| x.text.as_str()))))
+            }
             Some(wisp_channels_core::grammar::Route::To { machine, text }) => {
                 let id = token("", 12);
                 let now = self.clock.now_ms();
@@ -255,7 +298,9 @@ impl Routes {
             }
             None => {
                 let name = computers.first().map_or("laptop", |c| c.name.as_str());
-                Ok(say(&format!("This bot only reaches your computers: say “on {name} fix the login”. For your cloud wisp, use its own bot.")))
+                Ok(say(&format!(
+                    "This bot only reaches your computers: say “on {name} fix the login”. For your cloud wisp, use its own bot."
+                )))
             }
         }
     }
@@ -263,7 +308,15 @@ impl Routes {
     /// A line in the chat; one sent in a thread is kept, so a reply to it is a follow-up there.
     pub async fn say(&self, user_id: &str, b: &Bot, chat: &str, text: &str, reply_to: i64, thread: Option<&str>) -> Result<()> {
         let t: String = text.chars().take(TEXT_MAX).collect();
-        let sent = self.telegram.call(&b.bot, "sendMessage", json!({ "chat_id": chat, "text": t, "reply_to_message_id": reply_to, "allow_sending_without_reply": true })).await.map_err(|e| bad(format!("Telegram said: {e}"), 502))?;
+        let sent = self
+            .telegram
+            .call(
+                &b.bot,
+                "sendMessage",
+                json!({ "chat_id": chat, "text": t, "reply_to_message_id": reply_to, "allow_sending_without_reply": true }),
+            )
+            .await
+            .map_err(|e| bad(format!("Telegram said: {e}"), 502))?;
         if let (Some(tid), Some(mid)) = (thread, sent["message_id"].as_i64()) {
             let now = self.clock.now_ms();
             self.db.with(|c| {
@@ -281,7 +334,18 @@ impl Routes {
             Next::Forward { thread, computer, body, chat, reply_to, fresh } => {
                 let offline = format!("{computer_name} is offline, so nothing was sent to it. Send this again when it’s back.");
                 let lost = match self.computers.routed(&computer, body).await {
-                    Err(_) => return self.say(user_id, b, &chat, &format!("{computer_name} didn’t answer, so this may or may not have started. Open wisp there to check."), reply_to, Some(&thread)).await,
+                    Err(_) => {
+                        return self
+                            .say(
+                                user_id,
+                                b,
+                                &chat,
+                                &format!("{computer_name} didn’t answer, so this may or may not have started. Open wisp there to check."),
+                                reply_to,
+                                Some(&thread),
+                            )
+                            .await;
+                    }
                     Ok(None) => offline,
                     Ok(Some((status, v))) => {
                         let reply = v["reply"].as_str().unwrap_or_default().to_owned();
@@ -290,7 +354,11 @@ impl Routes {
                         } else if status >= 300 {
                             if reply.is_empty() { format!("{computer_name} couldn’t take this.") } else { reply }
                         } else {
-                            return if reply.is_empty() { Ok(()) } else { self.say(user_id, b, &chat, &reply, reply_to, Some(&thread)).await };
+                            return if reply.is_empty() {
+                                Ok(())
+                            } else {
+                                self.say(user_id, b, &chat, &reply, reply_to, Some(&thread)).await
+                            };
                         }
                     }
                 };
@@ -334,7 +402,14 @@ pub struct HttpTelegram {
 #[async_trait::async_trait]
 impl Telegram for HttpTelegram {
     async fn call(&self, bot: &str, method: &str, body: Value) -> std::result::Result<Value, String> {
-        let r = self.client.post(format!("{}/bot{bot}/{method}", self.base.trim_end_matches('/'))).json(&body).timeout(std::time::Duration::from_secs(15)).send().await.map_err(|e| e.to_string())?;
+        let r = self
+            .client
+            .post(format!("{}/bot{bot}/{method}", self.base.trim_end_matches('/')))
+            .json(&body)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
         let status = r.status().as_u16();
         let j: Value = r.json().await.unwrap_or(Value::Null);
         if j["ok"] != json!(true) {

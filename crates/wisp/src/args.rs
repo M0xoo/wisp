@@ -61,7 +61,31 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
 options:        --port N  --browser  --no-open  --json  --version";
 
 pub const COMMANDS: [&str; 25] = [
-    "attach", "help", "completions", "sdk", "add", "ls", "list", "show", "wait", "reply", "btw", "stop", "mcp", "skill", "ship", "merge", "run", "recipes", "plugin", "plugins", "crew", "grid", "serve", "import", "desktop",
+    "attach",
+    "help",
+    "completions",
+    "sdk",
+    "add",
+    "ls",
+    "list",
+    "show",
+    "wait",
+    "reply",
+    "btw",
+    "stop",
+    "mcp",
+    "skill",
+    "ship",
+    "merge",
+    "run",
+    "recipes",
+    "plugin",
+    "plugins",
+    "crew",
+    "grid",
+    "serve",
+    "import",
+    "desktop",
 ];
 pub const LS_STATES: [&str; 4] = ["running", "waiting", "review", "done"];
 /// wisp-grid's commands (apps/grid's CLI). A test keeps `wisp grid <word>` routing in step.
@@ -195,7 +219,13 @@ pub struct Parsed {
 }
 
 pub fn expand(p: &str, home: &Path, cwd: &Path) -> PathBuf {
-    let p = if p == "~" { home.to_path_buf() } else if let Some(rest) = p.strip_prefix("~/").or_else(|| p.strip_prefix("~\\")) { home.join(rest) } else { PathBuf::from(p) };
+    let p = if p == "~" {
+        home.to_path_buf()
+    } else if let Some(rest) = p.strip_prefix("~/").or_else(|| p.strip_prefix("~\\")) {
+        home.join(rest)
+    } else {
+        PathBuf::from(p)
+    };
     if p.is_absolute() { p } else { cwd.join(p) }
 }
 
@@ -212,7 +242,9 @@ fn compare_list(v: &str) -> Vec<CompareRun> {
 /// v1 session ids are 12 hex characters; v2 ones are UUIDs (with or without dashes).
 pub fn session_id(s: &str) -> bool {
     let hex = |s: &str| s.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
-    (s.len() == 12 && hex(s)) || (s.len() == 32 && hex(s)) || (s.len() == 36 && s.split('-').map(str::len).eq([8, 4, 4, 4, 12]) && hex(&s.replace('-', "")))
+    (s.len() == 12 && hex(s))
+        || (s.len() == 32 && hex(s))
+        || (s.len() == 36 && s.split('-').map(str::len).eq([8, 4, 4, 4, 12]) && hex(&s.replace('-', "")))
 }
 
 /// Newer commands are also common first words of a task ("ship the docs", "usage of X"), so they only
@@ -312,7 +344,12 @@ pub fn parse(input: &[String], env_port: Option<&str>, home: &Path, cwd: &Path) 
     // --state=review is --state review (it used to become a word, and the filter was dropped)
     for a in input {
         match a.split_once('=') {
-            Some((k, v)) if literal == Literal::No && k.starts_with("--") && k.len() > 2 && k[2..].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') => {
+            Some((k, v))
+                if literal == Literal::No
+                    && k.starts_with("--")
+                    && k.len() > 2
+                    && k[2..].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') =>
+            {
                 argv.push(k.to_owned());
                 argv.push(v.to_owned());
             }

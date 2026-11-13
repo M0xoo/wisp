@@ -44,7 +44,10 @@ impl Command for Emit {
 struct Acme(Got);
 impl Plugin for Acme {
     fn manifest(&self) -> Manifest {
-        Manifest::from_value(json!({ "wispPlugin": 1, "id": "acme.metrics", "version": "1.0.0", "api": "^1", "permissions": ["telemetry:track"] })).unwrap()
+        Manifest::from_value(
+            json!({ "wispPlugin": 1, "id": "acme.metrics", "version": "1.0.0", "api": "^1", "permissions": ["telemetry:track"] }),
+        )
+        .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.contribute(&SINK, Arc::new(FileSink(self.0.clone())) as Arc<dyn Sink>);
@@ -56,7 +59,12 @@ impl Plugin for Acme {
 
 async fn kernel(got: &Got) -> wisp_kernel::Kernel {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
-    TestApp::new().with(wisp_telemetry::TelemetryPlugin::with_env(wisp_telemetry_core::Env::new())).with(Acme(got.clone())).service(store).start().await
+    TestApp::new()
+        .with(wisp_telemetry::TelemetryPlugin::with_env(wisp_telemetry_core::Env::new()))
+        .with(Acme(got.clone()))
+        .service(store)
+        .start()
+        .await
 }
 
 async fn flushed(k: &wisp_kernel::Kernel, got: &Got) -> Vec<Value> {
@@ -74,7 +82,14 @@ async fn flushed(k: &wisp_kernel::Kernel, got: &Got) -> Vec<Value> {
 async fn another_sink_gets_the_events_without_posthog() {
     let got = Got::default();
     let k = kernel(&got).await;
-    let r = k.call(Caller::user(), "metrics.emit", json!({ "event": "stuff_save", "props": { "by": "user", "kind": "note", "update": false, "secret": "/Users/me/x" } })).await.unwrap();
+    let r = k
+        .call(
+            Caller::user(),
+            "metrics.emit",
+            json!({ "event": "stuff_save", "props": { "by": "user", "kind": "note", "update": false, "secret": "/Users/me/x" } }),
+        )
+        .await
+        .unwrap();
     assert_eq!(r["queued"], true);
     let batch = flushed(&k, &got).await;
     assert_eq!(batch.len(), 1, "{batch:?}");
@@ -84,7 +99,10 @@ async fn another_sink_gets_the_events_without_posthog() {
     assert!(p["distinct_id"].is_string() && p["$lib"] == "wisp");
     // the page may send only its events and values
     assert_eq!(k.call(Caller::user(), "telemetry.track", json!({ "event": "stuff_save", "props": {} })).await.unwrap()["queued"], false);
-    assert_eq!(k.call(Caller::user(), "telemetry.track", json!({ "event": "getapp_opened", "props": { "from": "button" } })).await.unwrap()["queued"], true);
+    assert_eq!(
+        k.call(Caller::user(), "telemetry.track", json!({ "event": "getapp_opened", "props": { "from": "button" } })).await.unwrap()["queued"],
+        true
+    );
     // opted out: nothing is queued, nothing goes
     got.0.lock().unwrap().clear();
     k.call(Caller::user(), "telemetry.set", json!({ "on": false })).await.unwrap();

@@ -68,25 +68,16 @@ pub struct RunEnd<'a> {
 /// Whether the run turned the task down (v1 `refusalOf`).
 pub fn refusal_of(r: &RunEnd<'_>) -> Option<Refusal> {
     let t = trim(r.text);
-    let line = truncate(
-        t.split('\n').find(|l| !trim(l).is_empty()).unwrap_or(""),
-        200,
-    );
+    let line = truncate(t.split('\n').find(|l| !trim(l).is_empty()).unwrap_or(""), 200);
     if r.stop_reason == "refusal" || POLICY.is_match(t) {
-        return Some(Refusal {
-            kind: RefusalKind::Policy,
-            line,
-        });
+        return Some(Refusal { kind: RefusalKind::Policy, line });
     }
     if r.is_error || r.changes > 0 || t.is_empty() || len16(t) > DECLINE_SHORT {
         return None;
     }
     // Markdown a model may open with (a heading, bold) doesn't hide the sentence.
     let plain = MARKDOWN_OPENER.replace(t, "").replace("**", "");
-    DECLINE.is_match(&plain).then_some(Refusal {
-        kind: RefusalKind::Declined,
-        line,
-    })
+    DECLINE.is_match(&plain).then_some(Refusal { kind: RefusalKind::Declined, line })
 }
 
 #[cfg(test)]

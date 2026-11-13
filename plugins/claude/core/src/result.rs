@@ -32,17 +32,9 @@ pub fn token_words(n: f64) -> String {
                 return format!("{}M", (i + 500_000) / 1_000_000);
             }
             let tenths = (i + 50_000) / 100_000;
-            return if tenths.is_multiple_of(10) {
-                format!("{}M", tenths / 10)
-            } else {
-                format!("{}.{}M", tenths / 10, tenths % 10)
-            };
+            return if tenths.is_multiple_of(10) { format!("{}M", tenths / 10) } else { format!("{}.{}M", tenths / 10, tenths % 10) };
         }
-        let s = if n >= 1e7 {
-            format!("{:.0}", n / 1e6)
-        } else {
-            format!("{:.1}", n / 1e6)
-        };
+        let s = if n >= 1e7 { format!("{:.0}", n / 1e6) } else { format!("{:.1}", n / 1e6) };
         return format!("{}M", s.strip_suffix(".0").unwrap_or(&s));
     }
     if n >= 1e3 {
@@ -55,8 +47,7 @@ pub fn token_words(n: f64) -> String {
 /// answered: a real API duration is the agent's own answer, whatever it says.
 fn unanswered(msg: &Line, auth_failed: &str) -> bool {
     let api = num(&crate::msg::value(msg.duration_api_ms));
-    !api.is_some_and(|a| a > 0.0)
-        && (!auth_failed.is_empty() || (api == Some(0.0) && signed_out(&str(or_null(&msg.result)))))
+    !api.is_some_and(|a| a > 0.0) && (!auth_failed.is_empty() || (api == Some(0.0) && signed_out(&str(or_null(&msg.result)))))
 }
 
 pub fn result_event(msg: &Line, auth_failed: &str) -> TurnResult {
@@ -81,11 +72,7 @@ pub fn result_event(msg: &Line, auth_failed: &str) -> TurnResult {
         || (crate::msg::truthy(msg.subtype) && !crate::msg::is(msg.subtype, "success"))
         || unanswered(msg, auth_failed);
     TurnResult {
-        text: if text.is_empty() {
-            auth_failed.to_owned()
-        } else {
-            text
-        },
+        text: if text.is_empty() { auth_failed.to_owned() } else { text },
         is_error,
         auth_failed: (!auth_failed.is_empty()).then_some(true),
         stop_reason: truthy(&msg.stop_reason).then(|| str(&msg.stop_reason)),
@@ -122,11 +109,7 @@ fn compacted_result(ev: &mut TurnResult, boundary: &Value) {
     stats(ev).extra.insert("compact".into(), compact);
     if !has_text(&ev.text) {
         ev.text = match (pre, post) {
-            (Some(a), Some(b)) => format!(
-                "Compacted from {} to {} tokens.",
-                token_words(a),
-                token_words(b)
-            ),
+            (Some(a), Some(b)) => format!("Compacted from {} to {} tokens.", token_words(a), token_words(b)),
             _ => "Compacted.".into(),
         };
     }
@@ -134,9 +117,7 @@ fn compacted_result(ev: &mut TurnResult, boundary: &Value) {
 
 /// stats.compact.none: nothing shrank, so the context stays as it was.
 fn not_compacted(ev: &mut TurnResult, error: Option<&str>) {
-    stats(ev)
-        .extra
-        .insert("compact".into(), json!({ "none": true }));
+    stats(ev).extra.insert("compact".into(), json!({ "none": true }));
     let trimmed = trim(&ev.text).to_owned();
     ev.text = match error.filter(|e| !e.is_empty()) {
         Some(e) => e.to_owned(),
@@ -152,13 +133,7 @@ fn not_compacted(ev: &mut TurnResult, error: Option<&str>) {
 pub fn is_final(ev: &mut TurnResult, msg: &Line, turn: &mut TurnState) -> bool {
     let local = msg.local_command.as_str() == Some("compact");
     let turns = truthy(or_null(&msg.num_turns));
-    if !ev.is_error
-        && !has_text(&ev.text)
-        && !turns
-        && turn.boundary.is_none()
-        && !local
-        && turn.unshrunk.is_none()
-    {
+    if !ev.is_error && !has_text(&ev.text) && !turns && turn.boundary.is_none() && !local && turn.unshrunk.is_none() {
         return false;
     }
     match &turn.boundary {
@@ -171,14 +146,10 @@ pub fn is_final(ev: &mut TurnResult, msg: &Line, turn: &mut TurnState) -> bool {
         _ => {}
     }
     if turn.context_tokens != 0.0 || turn.compacted {
-        stats(ev)
-            .extra
-            .insert("contextTokens".into(), json_num(turn.context_tokens));
+        stats(ev).extra.insert("contextTokens".into(), json_num(turn.context_tokens));
     }
     if turn.cache_ttl_ms != 0.0 {
-        stats(ev)
-            .extra
-            .insert("cacheTtlMs".into(), json_num(turn.cache_ttl_ms));
+        stats(ev).extra.insert("cacheTtlMs".into(), json_num(turn.cache_ttl_ms));
     }
     // One process can report several results.
     *turn = TurnState::default();

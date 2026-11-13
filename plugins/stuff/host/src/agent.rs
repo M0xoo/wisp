@@ -13,7 +13,8 @@ impl Shelf {
     /// capped agent may see (its own project's); None: everything.
     pub async fn find(&self, a: &FindArgs, mine: Option<&(dyn Fn(&StuffItem) -> bool + Sync)>) -> Result<FindOut> {
         let limit = a.limit.unwrap_or(30).clamp(1, 100);
-        let all: Vec<StuffItem> = self.list().into_iter().filter(|x| matches(x, &a.query, a.kind)).filter(|x| mine.is_none_or(|m| m(x))).collect();
+        let all: Vec<StuffItem> =
+            self.list().into_iter().filter(|x| matches(x, &a.query, a.kind)).filter(|x| mine.is_none_or(|m| m(x))).collect();
         let mut with_paths = Vec::with_capacity(all.len().min(limit));
         for it in all.iter().take(limit) {
             let p = self.local_path(it).await.unwrap_or_default();

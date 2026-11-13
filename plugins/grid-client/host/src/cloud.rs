@@ -32,7 +32,12 @@ impl ShareDestination for Cloud {
     }
     fn ready(&self) -> BoxFuture<'static, std::result::Result<(), String>> {
         let st = self.0.clone();
-        Box::pin(async move { st.signed_in().await.map(|_| ()).map_err(|_| "Not signed in to wisp Cloud: run wisp cloud signin (or share to a file: --to file)".to_owned()) })
+        Box::pin(async move {
+            st.signed_in()
+                .await
+                .map(|_| ())
+                .map_err(|_| "Not signed in to wisp Cloud: run wisp cloud signin (or share to a file: --to file)".to_owned())
+        })
     }
     fn send(&self, out: Outgoing) -> BoxFuture<'static, Result<Value>> {
         let st = self.0.clone();
@@ -123,10 +128,18 @@ pub async fn fetch(st: &St, raw: &str, password: Option<&str>) -> Result<Fetched
         return Err(e);
     }
     let body = B64.decode(v.get("body").and_then(Value::as_str).unwrap_or_default()).unwrap_or_default();
-    let (sig, signer) = (v.get("sig").and_then(Value::as_str).unwrap_or_default(), v.get("signer").and_then(Value::as_str).unwrap_or_default());
+    let (sig, signer) =
+        (v.get("sig").and_then(Value::as_str).unwrap_or_default(), v.get("signer").and_then(Value::as_str).unwrap_or_default());
     let content: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
     let n = |k: &str| v.get(k).and_then(Value::as_i64).unwrap_or(0);
-    Ok(Fetched { card: v.get("card").cloned().unwrap_or(Value::Null), version: n("version"), latest: n("latest"), content, verified: verify(signer, sig, &body), signer: signer.to_owned() })
+    Ok(Fetched {
+        card: v.get("card").cloned().unwrap_or(Value::Null),
+        version: n("version"),
+        latest: n("latest"),
+        content,
+        verified: verify(signer, sig, &body),
+        signer: signer.to_owned(),
+    })
 }
 
 /// Taken in: counted on the grid, and remembered here for "update available".
@@ -137,9 +150,20 @@ pub async fn imported(st: &St, raw: &str, version: i64) -> Result<Value> {
     let grid = grid_of(st, &l)?;
     let token = st.token().await.filter(|_| st.account().is_some_and(|a| a.grid == grid));
     // counted on the grid as taken in; the import stands without it
-    crate::calls::warn("the grid's import count", net::call(&st.http, "POST", &format!("{grid}/api/shares/{id}/import"), token.as_deref(), Some(&json!({})), &[]).await);
+    crate::calls::warn(
+        "the grid's import count",
+        net::call(&st.http, "POST", &format!("{grid}/api/shares/{id}/import"), token.as_deref(), Some(&json!({})), &[]).await,
+    );
     let s = |k: &str| f.card.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-    st.save_import(Import { id, grid, url: s("url"), title: s("title"), kind: s("kind"), version: if version > 0 { version } else { f.version } }).await?;
+    st.save_import(Import {
+        id,
+        grid,
+        url: s("url"),
+        title: s("title"),
+        kind: s("kind"),
+        version: if version > 0 { version } else { f.version },
+    })
+    .await?;
     Ok(json!({ "ok": true }))
 }
 

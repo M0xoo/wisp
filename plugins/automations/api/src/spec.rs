@@ -7,7 +7,6 @@
 
 use std::collections::BTreeMap;
 
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -174,13 +173,15 @@ pub fn duration_ms(s: &str) -> Option<i64> {
     let s = s.trim();
     let (n, unit) = s.split_at(s.len().checked_sub(1)?);
     let n: i64 = n.trim().parse().ok().filter(|n| *n >= 0)?;
-    Some(n * match unit {
-        "s" => 1_000,
-        "m" => 60_000,
-        "h" => 3_600_000,
-        "d" => 86_400_000,
-        _ => return None,
-    })
+    Some(
+        n * match unit {
+            "s" => 1_000,
+            "m" => 60_000,
+            "h" => 3_600_000,
+            "d" => 86_400_000,
+            _ => return None,
+        },
+    )
 }
 
 /// `5/h`, `20/d`, `2/m` → (count, window ms).
@@ -232,7 +233,10 @@ pub fn check(s: &TriggerSpec) -> Vec<String> {
         out.push(format!("rate: like 5/h or 20/d ({})", s.rate));
     }
     let c = s.concurrency.as_str();
-    if !(c.is_empty() || matches!(c, "skip" | "queue" | "replace") || c.strip_prefix("parallel:").is_some_and(|n| n.parse::<u32>().is_ok_and(|n| n > 0))) {
+    if !(c.is_empty()
+        || matches!(c, "skip" | "queue" | "replace")
+        || c.strip_prefix("parallel:").is_some_and(|n| n.parse::<u32>().is_ok_and(|n| n > 0)))
+    {
         out.push(format!("concurrency: skip, queue, replace or parallel:<n> ({c})"));
     }
     let targets = [!s.task.is_empty(), !s.crew.is_empty(), !s.workflow.is_empty(), s.follow_up].iter().filter(|x| **x).count();
@@ -318,10 +322,19 @@ mod tests {
     #[test]
     fn durations_rates_and_checks() {
         assert_eq!((duration_ms("10m"), duration_ms("30s"), duration_ms("x"), duration_ms("")), (Some(600_000), Some(30_000), None, None));
-        assert_eq!((rate_of("5/h"), rate_of("20/d"), rate_of("0/h"), rate_of("5")), (Some((5, 3_600_000)), Some((20, 86_400_000)), None, None));
+        assert_eq!(
+            (rate_of("5/h"), rate_of("20/d"), rate_of("0/h"), rate_of("5")),
+            (Some((5, 3_600_000)), Some((20, 86_400_000)), None, None)
+        );
         let ok = TriggerSpec { on: "pr.opened".into(), prompt: "review {event.summary}".into(), ..TriggerSpec::default() };
         assert!(check(&ok).is_empty());
-        let bad = TriggerSpec { on: "chat.message".into(), crew: "ada".into(), task: "x".into(), concurrency: "lots".into(), ..TriggerSpec::default() };
+        let bad = TriggerSpec {
+            on: "chat.message".into(),
+            crew: "ada".into(),
+            task: "x".into(),
+            concurrency: "lots".into(),
+            ..TriggerSpec::default()
+        };
         let p = check(&bad);
         assert_eq!(p.len(), 3, "{p:?}");
     }

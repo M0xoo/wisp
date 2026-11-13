@@ -37,12 +37,10 @@ fn derive(master: &str, what: &str) -> String {
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
-    bytes
-        .iter()
-        .fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
-            let _ = write!(s, "{b:02x}");
-            s
-        })
+    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
 /// Constant-time equality (lengths may differ: that alone answers false).
@@ -96,24 +94,15 @@ pub struct AuthOptions<'a> {
 }
 
 /// The session ids a request names, in the order they count.
-pub fn named_sessions(
-    params: &BTreeMap<String, String>,
-    h: &HeaderMap,
-    body: &[u8],
-) -> Vec<String> {
-    let mut ids: Vec<String> = ["id", "sid"]
-        .iter()
-        .filter_map(|k| params.get(*k).filter(|v| !v.is_empty()).cloned())
-        .collect();
+pub fn named_sessions(params: &BTreeMap<String, String>, h: &HeaderMap, body: &[u8]) -> Vec<String> {
+    let mut ids: Vec<String> = ["id", "sid"].iter().filter_map(|k| params.get(*k).filter(|v| !v.is_empty()).cloned()).collect();
     if let Some(s) = header(h, "x-wisp-session").filter(|s| !s.is_empty()) {
         ids.push(s.to_owned());
     }
     if ids.is_empty() && !body.is_empty() {
         // bySession routes name it in the body (v1 internal.js): only read when nothing else did
         if let Ok(serde_json::Value::Object(o)) = serde_json::from_slice::<serde_json::Value>(body)
-            && let Some(serde_json::Value::String(s)) = o
-                .get("session")
-                .filter(|s| s.as_str().is_some_and(|s| !s.is_empty()))
+            && let Some(serde_json::Value::String(s)) = o.get("session").filter(|s| s.as_str().is_some_and(|s| !s.is_empty()))
         {
             ids.push(s.clone());
         }
@@ -121,12 +110,7 @@ pub fn named_sessions(
     ids
 }
 
-pub fn resolve(
-    h: &HeaderMap,
-    params: &BTreeMap<String, String>,
-    body: &[u8],
-    o: &AuthOptions<'_>,
-) -> Result<Caller, ApiError> {
+pub fn resolve(h: &HeaderMap, params: &BTreeMap<String, String>, body: &[u8], o: &AuthOptions<'_>) -> Result<Caller, ApiError> {
     // an untrusted plugin's UI speaks as that plugin (ADR-0048): only ever less than the user, never a built-in
     let as_plugin = header(h, "x-wisp-plugin").filter(|p| untrusted_plugin_id(p)).map(str::to_owned);
     let user = || match &as_plugin {
@@ -139,23 +123,12 @@ pub fn resolve(
             return Ok(user());
         }
         if same(token, &connector_token(o.master)) {
-            return Ok(Caller {
-                set: sets::CONNECTOR.into(),
-                session: None,
-                plugin: None,
-            });
+            return Ok(Caller { set: sets::CONNECTOR.into(), session: None, plugin: None });
         }
         for id in named_sessions(params, h, body) {
             if same(token, &session_token(o.master, &id)) {
-                let set = o
-                    .agent_set
-                    .and_then(|f| f(&id))
-                    .unwrap_or_else(|| "agent:session".into());
-                return Ok(Caller {
-                    set,
-                    session: Some(id),
-                    plugin: None,
-                });
+                let set = o.agent_set.and_then(|f| f(&id)).unwrap_or_else(|| "agent:session".into());
+                return Ok(Caller { set, session: Some(id), plugin: None });
             }
         }
         return Err(ApiError::BadToken);
@@ -168,34 +141,25 @@ pub fn resolve(
         };
     }
     if o.via_proxy && header(h, "x-wisp-proxy-via") == Some("key") {
-        return Ok(Caller {
-            set: sets::APIKEY.into(),
-            session: None,
-            plugin: None,
-        });
+        return Ok(Caller { set: sets::APIKEY.into(), session: None, plugin: None });
     }
     if o.public {
-        return Ok(Caller {
-            set: sets::PUBLIC.into(),
-            session: None,
-            plugin: None,
-        });
+        return Ok(Caller { set: sets::PUBLIC.into(), session: None, plugin: None });
     }
     Ok(user())
 }
 
 /// A plugin the user installed (`user.<name>`): the only ids `x-wisp-plugin` may name.
 pub fn untrusted_plugin_id(id: &str) -> bool {
-    id.strip_prefix("user.").is_some_and(|n| !n.is_empty() && n.len() <= 64 && n.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.')))
+    id.strip_prefix("user.")
+        .is_some_and(|n| !n.is_empty() && n.len() <= 64 && n.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.')))
 }
 
 /// Rules the edge keeps whatever the capability data says (v1 edge case 3): a grid API key never
 /// manages API keys, and a connector token opens only the connectors' token route.
 pub fn edge_denies(caller: &Caller, permission: &str) -> bool {
     match caller.set.as_str() {
-        sets::APIKEY => {
-            permission.starts_with("apikeys:") || permission.starts_with("grid:apikeys")
-        }
+        sets::APIKEY => permission.starts_with("apikeys:") || permission.starts_with("grid:apikeys"),
         sets::CONNECTOR => !permission.starts_with("connectors:"),
         _ => false,
     }
@@ -215,14 +179,7 @@ mod tests {
         h
     }
     fn opts(via: bool) -> AuthOptions<'static> {
-        AuthOptions {
-            master: M,
-            user_set: "user:full",
-            via_proxy: via,
-            public: false,
-            agent_set: None,
-            key_set: None,
-        }
+        AuthOptions { master: M, user_set: "user:full", via_proxy: via, public: false, agent_set: None, key_set: None }
     }
     fn params(id: &str) -> BTreeMap<String, String> {
         BTreeMap::from([("id".to_owned(), id.to_owned())])
@@ -258,173 +215,54 @@ mod tests {
 
     #[test]
     fn master_is_the_user_set() {
-        let c = resolve(
-            &hm(&[("x-wisp-token", M)]),
-            &BTreeMap::new(),
-            b"",
-            &opts(false),
-        )
-        .unwrap();
+        let c = resolve(&hm(&[("x-wisp-token", M)]), &BTreeMap::new(), b"", &opts(false)).unwrap();
         assert_eq!(c.set, "user:full");
-        let on_box = AuthOptions {
-            user_set: "box",
-            ..opts(false)
-        };
-        assert_eq!(
-            resolve(&hm(&[("x-wisp-token", M)]), &BTreeMap::new(), b"", &on_box)
-                .unwrap()
-                .set,
-            "box"
-        );
+        let on_box = AuthOptions { user_set: "box", ..opts(false) };
+        assert_eq!(resolve(&hm(&[("x-wisp-token", M)]), &BTreeMap::new(), b"", &on_box).unwrap().set, "box");
     }
 
     #[test]
     fn agent_token_speaks_for_its_session_only() {
         let t = session_token(M, "s1");
-        let c = resolve(
-            &hm(&[("x-wisp-token", &t)]),
-            &params("s1"),
-            b"",
-            &opts(false),
-        )
-        .unwrap();
-        assert_eq!(
-            (c.set.as_str(), c.session.as_deref()),
-            ("agent:session", Some("s1"))
-        );
-        assert!(matches!(
-            resolve(
-                &hm(&[("x-wisp-token", &t)]),
-                &params("s2"),
-                b"",
-                &opts(false)
-            ),
-            Err(ApiError::BadToken)
-        ));
+        let c = resolve(&hm(&[("x-wisp-token", &t)]), &params("s1"), b"", &opts(false)).unwrap();
+        assert_eq!((c.set.as_str(), c.session.as_deref()), ("agent:session", Some("s1")));
+        assert!(matches!(resolve(&hm(&[("x-wisp-token", &t)]), &params("s2"), b"", &opts(false)), Err(ApiError::BadToken)));
         // the header names it when the URL doesn't
-        assert!(
-            resolve(
-                &hm(&[("x-wisp-token", &t), ("x-wisp-session", "s1")]),
-                &BTreeMap::new(),
-                b"",
-                &opts(false)
-            )
-            .is_ok()
-        );
+        assert!(resolve(&hm(&[("x-wisp-token", &t), ("x-wisp-session", "s1")]), &BTreeMap::new(), b"", &opts(false)).is_ok());
         // then the body
-        assert!(
-            resolve(
-                &hm(&[("x-wisp-token", &t)]),
-                &BTreeMap::new(),
-                br#"{"session":"s1"}"#,
-                &opts(false)
-            )
-            .is_ok()
-        );
-        assert!(
-            resolve(
-                &hm(&[("x-wisp-token", &t)]),
-                &BTreeMap::new(),
-                br#"{"session":"s2"}"#,
-                &opts(false)
-            )
-            .is_err()
-        );
+        assert!(resolve(&hm(&[("x-wisp-token", &t)]), &BTreeMap::new(), br#"{"session":"s1"}"#, &opts(false)).is_ok());
+        assert!(resolve(&hm(&[("x-wisp-token", &t)]), &BTreeMap::new(), br#"{"session":"s2"}"#, &opts(false)).is_err());
         // the URL wins over the body: naming another session in the body doesn't help
-        assert!(
-            resolve(
-                &hm(&[("x-wisp-token", &t)]),
-                &params("s2"),
-                br#"{"session":"s1"}"#,
-                &opts(false)
-            )
-            .is_err()
-        );
+        assert!(resolve(&hm(&[("x-wisp-token", &t)]), &params("s2"), br#"{"session":"s1"}"#, &opts(false)).is_err());
         // nothing named: a 403
-        assert!(
-            resolve(
-                &hm(&[("x-wisp-token", &t)]),
-                &BTreeMap::new(),
-                b"",
-                &opts(false)
-            )
-            .is_err()
-        );
+        assert!(resolve(&hm(&[("x-wisp-token", &t)]), &BTreeMap::new(), b"", &opts(false)).is_err());
     }
 
     #[test]
     fn capped_sessions_get_their_set() {
-        let f: AgentSet =
-            std::sync::Arc::new(|id: &str| (id == "s1").then(|| "agent:capped".to_owned()));
-        let o = AuthOptions {
-            agent_set: Some(&f),
-            ..opts(false)
-        };
-        let c = resolve(
-            &hm(&[("x-wisp-token", &session_token(M, "s1"))]),
-            &params("s1"),
-            b"",
-            &o,
-        )
-        .unwrap();
+        let f: AgentSet = std::sync::Arc::new(|id: &str| (id == "s1").then(|| "agent:capped".to_owned()));
+        let o = AuthOptions { agent_set: Some(&f), ..opts(false) };
+        let c = resolve(&hm(&[("x-wisp-token", &session_token(M, "s1"))]), &params("s1"), b"", &o).unwrap();
         assert_eq!(c.set, "agent:capped");
     }
 
     #[test]
     fn wrong_token_is_403_whatever_else() {
-        assert!(matches!(
-            resolve(
-                &hm(&[("x-wisp-token", "nope")]),
-                &BTreeMap::new(),
-                b"",
-                &opts(true)
-            ),
-            Err(ApiError::BadToken)
-        ));
-        assert!(matches!(
-            resolve(
-                &hm(&[("x-wisp-token", "")]),
-                &BTreeMap::new(),
-                b"",
-                &opts(false)
-            ),
-            Err(ApiError::BadToken)
-        ));
+        assert!(matches!(resolve(&hm(&[("x-wisp-token", "nope")]), &BTreeMap::new(), b"", &opts(true)), Err(ApiError::BadToken)));
+        assert!(matches!(resolve(&hm(&[("x-wisp-token", "")]), &BTreeMap::new(), b"", &opts(false)), Err(ApiError::BadToken)));
     }
 
     #[test]
     fn connectors_and_api_keys() {
-        let c = resolve(
-            &hm(&[("x-wisp-token", &connector_token(M))]),
-            &BTreeMap::new(),
-            b"",
-            &opts(false),
-        )
-        .unwrap();
+        let c = resolve(&hm(&[("x-wisp-token", &connector_token(M))]), &BTreeMap::new(), b"", &opts(false)).unwrap();
         assert_eq!(c.set, "connector");
         assert!(edge_denies(&c, "settings:write"));
         assert!(!edge_denies(&c, "connectors:token"));
-        let k = resolve(
-            &hm(&[("x-wisp-proxy-via", "key")]),
-            &BTreeMap::new(),
-            b"",
-            &opts(true),
-        )
-        .unwrap();
+        let k = resolve(&hm(&[("x-wisp-proxy-via", "key")]), &BTreeMap::new(), b"", &opts(true)).unwrap();
         assert_eq!(k.set, "apikey");
         assert!(edge_denies(&k, "apikeys:create"));
         assert!(!edge_denies(&k, "runtime:create"));
         // not through the proxy, the header means nothing
-        assert_eq!(
-            resolve(
-                &hm(&[("x-wisp-proxy-via", "key")]),
-                &BTreeMap::new(),
-                b"",
-                &opts(false)
-            )
-            .unwrap()
-            .set,
-            "user:full"
-        );
+        assert_eq!(resolve(&hm(&[("x-wisp-proxy-via", "key")]), &BTreeMap::new(), b"", &opts(false)).unwrap().set, "user:full");
     }
 }

@@ -54,7 +54,9 @@ impl ArgSpec {
         self.fields.iter().filter(|f| !f.optional && f.kind != Kind::Bool).collect()
     }
     pub fn field(&self, flag_or_name: &str) -> Option<&Field> {
-        self.fields.iter().find(|f| f.name == flag_or_name || f.flag() == flag_or_name || f.name.eq_ignore_ascii_case(&flag_or_name.replace('-', "")))
+        self.fields
+            .iter()
+            .find(|f| f.name == flag_or_name || f.flag() == flag_or_name || f.name.eq_ignore_ascii_case(&flag_or_name.replace('-', "")))
     }
 }
 
@@ -154,7 +156,9 @@ fn kind_of(ty: &str) -> (Kind, bool) {
         ["Array<string>"] => Kind::List,
         // ts-rs names id newtypes `SessionId`, `TurnId`: strings on the wire
         [one] if one.ends_with("Id") && one.chars().next().is_some_and(|c| c.is_ascii_uppercase()) => Kind::Str,
-        many if !many.is_empty() && many.iter().all(|p| p.len() >= 2 && p.starts_with('"') && p.ends_with('"')) => Kind::Choice(many.iter().map(|p| p[1..p.len() - 1].to_owned()).collect()),
+        many if !many.is_empty() && many.iter().all(|p| p.len() >= 2 && p.starts_with('"') && p.ends_with('"')) => {
+            Kind::Choice(many.iter().map(|p| p[1..p.len() - 1].to_owned()).collect())
+        }
         _ => Kind::Json,
     };
     (kind, nullable)
@@ -187,7 +191,9 @@ pub fn parse(decl: Option<&str>) -> ArgSpec {
     // `{ … } & ({ … } | { … })`: the object part's fields; the rest goes in --args
     let first = split_top(body, '&').into_iter().next().unwrap_or_default();
     let first = first.trim();
-    let (Some(inner), true) = (first.strip_prefix('{').and_then(|s| s.strip_suffix('}')), split_top(body, '|').len() == 1 || split_top(body, '&').len() > 1) else {
+    let (Some(inner), true) =
+        (first.strip_prefix('{').and_then(|s| s.strip_suffix('}')), split_top(body, '|').len() == 1 || split_top(body, '&').len() > 1)
+    else {
         return ArgSpec { doc, ..ArgSpec::default() };
     };
     let fields = split_top(inner, ',')

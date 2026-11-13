@@ -21,9 +21,15 @@ const RULES: [(&str, &str); 7] = [
     ("docs", r"(?i)\b(readme|docs?|documentation|typos?|comment(s)? in|jsdoc|docstring)\b"),
     ("test", r"(?i)\b(tests?|coverage|flaky|spec(s)?|e2e|unit test)\b"),
     ("bug", r"(?i)\b(fix|bug|broken|crash(es|ing)?|error|exception|fails?|failing|regression|doesn'?t work|not working|wrong|issue)\b"),
-    ("ui", r"(?i)\b(ui|ux|button|css|layout|style|styling|color|colour|dark mode|dialog|modal|popup|screen|page|responsive|icon|animation|card|sidebar|toolbar)\b"),
+    (
+        "ui",
+        r"(?i)\b(ui|ux|button|css|layout|style|styling|color|colour|dark mode|dialog|modal|popup|screen|page|responsive|icon|animation|card|sidebar|toolbar)\b",
+    ),
     ("refactor", r"(?i)\b(refactor|clean ?up|rename|simplif(y|ies)|extract|reorgani[sz]e|dedupe|split)\b"),
-    ("question", r"(?i)^(how|why|what|where|when|which|can|could|should|is|are|does|do)\b.*\?\s*$|\b(explain|investigate|look into|research|compare)\b"),
+    (
+        "question",
+        r"(?i)^(how|why|what|where|when|which|can|could|should|is|are|does|do)\b.*\?\s*$|\b(explain|investigate|look into|research|compare)\b",
+    ),
 ];
 const FILES: &str = r"[A-Za-z0-9_./-]+\.(js|ts|tsx|jsx|py|go|rs|rb|java|css|html|md|json|ya?ml)\b";
 const DEVICE: &str = r"(?i)\b(?:devices?|device[- ]session) limit|too many (?:devices|active sessions|concurrent sessions|sessions (?:are )?(?:active|open|signed in))|(?:maximum|max) (?:number of )?(?:devices|active sessions|concurrent sessions)|signed in on too many|concurrent session limit";

@@ -78,7 +78,10 @@ fn every_message_of_v1s_table_reads_the_same() {
     let (c, rows) = fixture();
     assert!(rows.len() >= 140, "{} messages", rows.len());
     assert!(rows.iter().filter(|r| r["want"]["same"] == json!(true)).count() >= 15, "sentences that must not parse as options");
-    let failed: Vec<String> = rows.iter().filter_map(|r| check(r["text"].as_str().unwrap(), &r["want"], &c).err().map(|e| format!("{}: {e}", r["text"]))).collect();
+    let failed: Vec<String> = rows
+        .iter()
+        .filter_map(|r| check(r["text"].as_str().unwrap(), &r["want"], &c).err().map(|e| format!("{}: {e}", r["text"])))
+        .collect();
     assert!(failed.is_empty(), "{} of {} rows:\n{}", failed.len(), rows.len(), failed.join("\n"));
 }
 
@@ -87,7 +90,10 @@ fn every_option_reads_the_same_in_any_order() {
     let (c, _) = fixture();
     for t in ["with opus in api plan: x", "in api plan with opus: x"] {
         let p = parse_message(t, &c);
-        assert_eq!((p.project.unwrap().name.as_str(), p.model.as_deref(), p.mode.map(wisp_channels_api::Mode::as_str), p.prompt.as_str()), ("api", Some("opus"), Some("plan"), "x"));
+        assert_eq!(
+            (p.project.unwrap().name.as_str(), p.model.as_deref(), p.mode.map(wisp_channels_api::Mode::as_str), p.prompt.as_str()),
+            ("api", Some("opus"), Some("plan"), "x")
+        );
     }
 }
 
@@ -145,7 +151,10 @@ fn find_project_takes_the_exact_name_then_a_prefix_then_anywhere() {
 fn each_channels_markup_goes_before_the_grammar_reads_it() {
     assert_eq!(strip_formatting("/new@wispbot in api fix it", Markup::Telegram, "wispbot"), "/new in api fix it");
     assert_eq!(strip_formatting("@WispBot, fix it", Markup::Telegram, "wispbot"), "fix it");
-    assert_eq!(strip_formatting("<@U123|wisp> look at <https://x.dev/a|https://x.dev/a> &amp; <#C1|ops>", Markup::Slack, "U123"), "look at https://x.dev/a & #ops");
+    assert_eq!(
+        strip_formatting("<@U123|wisp> look at <https://x.dev/a|https://x.dev/a> &amp; <#C1|ops>", Markup::Slack, "U123"),
+        "look at https://x.dev/a & #ops"
+    );
     assert_eq!(strip_formatting("see <https://x.dev|the docs>", Markup::Slack, ""), "see the docs (https://x.dev)");
     assert_eq!(strip_formatting("<@!42> fix <https://x.dev/a>", Markup::Discord, "42"), "fix https://x.dev/a");
     assert_eq!(strip_formatting("\u{200b}fix\u{a0}it\r\n", Markup::Plain, ""), "fix it");
@@ -156,11 +165,17 @@ fn a_router_reads_on_a_computer_and_nothing_else() {
     let (c, _) = fixture();
     let computers: Vec<_> = c.machines.iter().filter(|m| ["m-lap", "m-mini"].contains(&m.id.as_str())).cloned().collect();
     assert_eq!(parse_route("on laptop fix it", &computers), Some(Route::To { machine: "m-lap".into(), text: "fix it".into() }));
-    assert_eq!(parse_route("/new on mac mini: fix it", &computers), Some(Route::To { machine: "m-mini".into(), text: "/new : fix it".into() }));
+    assert_eq!(
+        parse_route("/new on mac mini: fix it", &computers),
+        Some(Route::To { machine: "m-mini".into(), text: "/new : fix it".into() })
+    );
     assert_eq!(parse_route("on mac fix it", &computers), None, "whole names only");
     assert_eq!(parse_route("fix it on laptop", &computers), None);
     assert_eq!(parse_route("on cloud fix it", &computers), None, "cloud is the box's");
     assert_eq!(parse_route("on laptop", &computers), None, "nothing to do there");
-    let twins = vec![computers[0].clone(), wisp_channels_api::MachineView { id: "m-2".into(), name: "laptop".into(), usable: true, ..Default::default() }];
+    let twins = vec![
+        computers[0].clone(),
+        wisp_channels_api::MachineView { id: "m-2".into(), name: "laptop".into(), usable: true, ..Default::default() },
+    ];
     assert!(matches!(parse_route("on laptop fix it", &twins), Some(Route::Ambiguous(_))));
 }

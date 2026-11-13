@@ -16,10 +16,8 @@ mod check;
 use check::{resolve_providers, validate_auth, validate_channels, validate_hostd};
 
 /// Handles nobody may take: they name the grid's own addresses.
-pub const RESERVED: &[&str] = &[
-    "www", "api", "app", "admin", "auth", "grid", "mail", "static", "status", "docs", "help",
-    "root", "wisp", "edge", "login", "signin",
-];
+pub const RESERVED: &[&str] =
+    &["www", "api", "app", "admin", "auth", "grid", "mail", "static", "status", "docs", "help", "root", "wisp", "edge", "login", "signin"];
 
 pub type Env = HashMap<String, String>;
 
@@ -90,18 +88,12 @@ impl std::ops::DerefMut for GridConfig {
 impl GridConfig {
     /// `<scheme>://<label>.<domain><port>`: a user's wisp, a computer, a preview, a site.
     pub fn instance_url(&self, label: &str) -> String {
-        format!(
-            "{}://{label}.{}{}",
-            self.scheme, self.domain, self.port_suffix
-        )
+        format!("{}://{label}.{}{}", self.scheme, self.domain, self.port_suffix)
     }
 
     /// Whether channels (the inbox) are on.
     pub fn channels_on(&self) -> bool {
-        self.channels
-            .as_ref()
-            .and_then(|c| c.enabled)
-            .unwrap_or(false)
+        self.channels.as_ref().and_then(|c| c.enabled).unwrap_or(false)
     }
 
     /// Whether the container driver runs the boxes.
@@ -152,21 +144,14 @@ pub fn merge(a: &Value, b: &Value) -> Value {
 }
 
 /// A secret from a value, a file, or an env var (VAR, then `VAR_FILE`).
-pub fn read_secret(
-    value: Option<&str>,
-    file: Option<&Path>,
-    env_name: Option<&str>,
-    env: &Env,
-) -> Result<String> {
+pub fn read_secret(value: Option<&str>, file: Option<&Path>, env_name: Option<&str>, env: &Env) -> Result<String> {
     if let Some(v) = value.filter(|v| !v.is_empty()) {
         return Ok(v.to_owned());
     }
     if let Some(v) = env_name.and_then(|n| env.get(n)).filter(|v| !v.is_empty()) {
         return Ok(v.clone());
     }
-    let from_env = env_name
-        .and_then(|n| env.get(&format!("{n}_FILE")))
-        .map(PathBuf::from);
+    let from_env = env_name.and_then(|n| env.get(&format!("{n}_FILE"))).map(PathBuf::from);
     let Some(f) = file.map(Path::to_path_buf).or(from_env) else {
         return Ok(String::new());
     };
@@ -177,8 +162,7 @@ pub fn read_secret(
 
 fn read_file(file: &Path) -> Result<Value> {
     match std::fs::read_to_string(file) {
-        Ok(text) => serde_json::from_str(&text)
-            .map_err(|e| GridError::Config(format!("grid.json isn’t valid JSON: {e}"))),
+        Ok(text) => serde_json::from_str(&text).map_err(|e| GridError::Config(format!("grid.json isn’t valid JSON: {e}"))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(json!({})),
         Err(e) => Err(e.into()),
     }
@@ -207,10 +191,7 @@ fn from_env(env: &Env) -> Value {
     for id in ["github", "google"] {
         let up = id.to_uppercase();
         if let Some(cid) = env.get(&format!("GRID_{up}_CLIENT_ID")) {
-            providers.insert(
-                id.into(),
-                json!({ "clientId": cid, "clientSecretEnv": format!("GRID_{up}_CLIENT_SECRET") }),
-            );
+            providers.insert(id.into(), json!({ "clientId": cid, "clientSecretEnv": format!("GRID_{up}_CLIENT_SECRET") }));
         }
     }
     if !providers.is_empty() {
@@ -241,27 +222,17 @@ fn absolute(p: &Path) -> PathBuf {
 /// Read grid.json, the environment and the overrides, and check them.
 pub fn load(opts: LoadOptions) -> Result<GridConfig> {
     let env = opts.env.unwrap_or_else(process_env);
-    let dir = opts
-        .data_dir
-        .or_else(|| env.get("GRID_DATA").map(PathBuf::from))
-        .unwrap_or_else(|| home().join(".wisp-grid"));
+    let dir = opts.data_dir.or_else(|| env.get("GRID_DATA").map(PathBuf::from)).unwrap_or_else(|| home().join(".wisp-grid"));
     let dir = absolute(&dir);
     let file = dir.join("grid.json");
-    let merged = merge(
-        &merge(&merge(&defaults(), &read_file(&file)?), &from_env(&env)),
-        &opts.overrides.unwrap_or(Value::Null),
-    );
+    let merged = merge(&merge(&merge(&defaults(), &read_file(&file)?), &from_env(&env)), &opts.overrides.unwrap_or(Value::Null));
     from_value(merged, dir, file, &env)
 }
 
 fn config_error(e: &serde_json::Error) -> GridError {
     let text = e.to_string();
     // serde's text for MaxUsers is already ours; anything else names the field that's wrong.
-    GridError::Config(if text.starts_with("auth.") {
-        text
-    } else {
-        format!("grid.json: {text}")
-    })
+    GridError::Config(if text.starts_with("auth.") { text } else { format!("grid.json: {text}") })
 }
 
 /// Check a merged config value (`load` without the files).
@@ -269,43 +240,22 @@ fn config_error(e: &serde_json::Error) -> GridError {
 pub fn from_value(merged: Value, dir: PathBuf, file: PathBuf, env: &Env) -> Result<GridConfig> {
     let mut f: GridFile = serde_json::from_value(merged).map_err(|e| config_error(&e))?;
     f.domain.to_lowercase().trim_matches('.').clone_into(&mut f.domain);
-    if f.domain.is_empty()
-        || !f
-            .domain
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-')
-    {
-        return Err(GridError::Config(format!(
-            "domain: \"{}\" isn’t a host name.",
-            f.domain
-        )));
+    if f.domain.is_empty() || !f.domain.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-') {
+        return Err(GridError::Config(format!("domain: \"{}\" isn’t a host name.", f.domain)));
     }
     if f.scheme != "http" && f.scheme != "https" {
         return Err(GridError::Config("scheme: http or https.".into()));
     }
-    let port = f.public_port.or(if f.scheme == "http" {
-        Some(f.listen.port)
-    } else {
-        None
-    });
+    let port = f.public_port.or(if f.scheme == "http" { Some(f.listen.port) } else { None });
     let port_suffix = match port {
-        Some(p)
-            if (f.scheme != "http" || p != 80) && (f.scheme != "https" || p != 443) && p != 0 =>
-        {
+        Some(p) if (f.scheme != "http" || p != 80) && (f.scheme != "https" || p != 443) && p != 0 => {
             format!(":{p}")
         }
         _ => String::new(),
     };
     let secure = f.scheme == "https";
     let public_url = format!("{}://{}{port_suffix}", f.scheme, f.domain);
-    let mut cfg = GridConfig {
-        file_cfg: f,
-        data_dir: dir.clone(),
-        file,
-        port_suffix,
-        public_url,
-        secure,
-    };
+    let mut cfg = GridConfig { file_cfg: f, data_dir: dir.clone(), file, port_suffix, public_url, secure };
     resolve_providers(&mut cfg, &dir, env)?;
     validate_auth(&cfg)?;
     validate_hostd(&cfg)?;
@@ -323,28 +273,19 @@ pub fn write(cfg: &GridConfig) -> Result<()> {
         }
     }
     if let Some(m) = f.mail.as_mut()
-        && (m.outbound.secret_access_key_file.is_some()
-            || m.outbound.secret_access_key_env.is_some())
+        && (m.outbound.secret_access_key_file.is_some() || m.outbound.secret_access_key_env.is_some())
     {
         m.outbound.secret_access_key = None;
     }
     std::fs::create_dir_all(&cfg.data_dir)?;
-    std::fs::write(
-        &cfg.file,
-        format!("{}\n", serde_json::to_string_pretty(&f)?),
-    )?;
+    std::fs::write(&cfg.file, format!("{}\n", serde_json::to_string_pretty(&f)?))?;
     Ok(())
 }
 
 /// A config for tests: defaults plus `overrides`, in `dir`, with no environment.
 #[allow(clippy::needless_pass_by_value)] // tests write `for_test(dir, json!({..}))`
 pub fn for_test(dir: &Path, overrides: Value) -> Result<GridConfig> {
-    from_value(
-        merge(&defaults(), &overrides),
-        dir.to_path_buf(),
-        dir.join("grid.json"),
-        &Env::new(),
-    )
+    from_value(merge(&defaults(), &overrides), dir.to_path_buf(), dir.join("grid.json"), &Env::new())
 }
 
 #[cfg(test)]

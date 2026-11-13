@@ -132,7 +132,9 @@ fn open_path(dir: &str, path: &str) -> String {
 #[must_use]
 pub fn page_path(prev: Option<&Watch>, body: &Map<String, Value>, dir: &str) -> Option<String> {
     match str_of(body, "action") {
-        "open" if str_of(body, "url").is_empty() && str_of(body, "html").is_empty() && !str_of(body, "path").is_empty() => Some(open_path(dir, str_of(body, "path"))),
+        "open" if str_of(body, "url").is_empty() && str_of(body, "html").is_empty() && !str_of(body, "path").is_empty() => {
+            Some(open_path(dir, str_of(body, "path")))
+        }
         "reload" => prev.and_then(|w| w.path.clone()),
         _ => None,
     }
@@ -153,7 +155,13 @@ pub fn marker(w: &Watch) -> Value {
 ///
 /// # Errors
 /// What the agent did wrong, in words it can act on.
-pub fn apply(prev: Option<&Watch>, body: &Map<String, Value>, dir: &str, page: &dyn Fn(&str) -> Option<String>, now: i64) -> Result<Applied, String> {
+pub fn apply(
+    prev: Option<&Watch>,
+    body: &Map<String, Value>,
+    dir: &str,
+    page: &dyn Fn(&str) -> Option<String>,
+    now: i64,
+) -> Result<Applied, String> {
     let action = str_of(body, "action");
     if action == "open" {
         return open(prev, body, dir, page, now);
@@ -198,7 +206,9 @@ pub fn apply(prev: Option<&Watch>, body: &Map<String, Value>, dir: &str, page: &
         }
         "navigate" => {
             let Some(base) = w.url.clone() else {
-                return Err("navigate is for a watch that shows a url (open it with url); your own page draws what it gets in \"state\".".into());
+                return Err(
+                    "navigate is for a watch that shows a url (open it with url); your own page draws what it gets in \"state\".".into()
+                );
             };
             let to = Some(str_of(body, "path")).filter(|s| !s.is_empty()).unwrap_or_else(|| str_of(body, "url"));
             let url = navigate_to(&base, to).ok_or("navigate needs path (e.g. \"/settings\") or an http(s) url.")?;
@@ -222,7 +232,8 @@ pub fn apply(prev: Option<&Watch>, body: &Map<String, Value>, dir: &str, page: &
             }
             w.closed = false;
             bump(&mut w, true);
-            let said = w.url.as_ref().map_or_else(|| "Reloaded the page; it gets the last state again.".to_owned(), |u| format!("Reloaded {u}."));
+            let said =
+                w.url.as_ref().map_or_else(|| "Reloaded the page; it gets the last state again.".to_owned(), |u| format!("Reloaded {u}."));
             (html, said)
         }
         "close" => {
@@ -236,8 +247,17 @@ pub fn apply(prev: Option<&Watch>, body: &Map<String, Value>, dir: &str, page: &
     Ok(Applied { watch: w, html, text: said, note: None })
 }
 
-fn open(prev: Option<&Watch>, body: &Map<String, Value>, dir: &str, page: &dyn Fn(&str) -> Option<String>, now: i64) -> Result<Applied, String> {
-    let title = Some(text(body.get("title"), MAX_TITLE)).filter(|t| !t.is_empty()).or_else(|| prev.map(|w| w.title.clone())).unwrap_or_else(|| "Progress".into());
+fn open(
+    prev: Option<&Watch>,
+    body: &Map<String, Value>,
+    dir: &str,
+    page: &dyn Fn(&str) -> Option<String>,
+    now: i64,
+) -> Result<Applied, String> {
+    let title = Some(text(body.get("title"), MAX_TITLE))
+        .filter(|t| !t.is_empty())
+        .or_else(|| prev.map(|w| w.title.clone()))
+        .unwrap_or_else(|| "Progress".into());
     let (url, path, html) = if !str_of(body, "url").is_empty() {
         let u = page_url(str_of(body, "url")).ok_or("url must be an http:// or https:// page, e.g. http://localhost:5173.")?;
         (Some(u), None, String::new())
@@ -279,7 +299,10 @@ fn open(prev: Option<&Watch>, body: &Map<String, Value>, dir: &str, page: &dyn F
     Ok(Applied {
         watch,
         html: Some(html),
-        text: format!("{} “{title}” beside the task: the user can watch it now. {next}", if reopened { "Replaced the page" } else { "Opened" }),
+        text: format!(
+            "{} “{title}” beside the task: the user can watch it now. {next}",
+            if reopened { "Replaced the page" } else { "Opened" }
+        ),
         note: (!reopened).then(|| format!("Opened Watch: {title}")),
     })
 }
@@ -298,10 +321,24 @@ mod tests {
 
     #[test]
     fn open_then_state_moves_seq_not_rev_and_merge_keeps_the_rest_v1_watch_apply() {
-        let a = apply(None, &args(json!({ "action": "open", "title": "  TS   migration ", "html": "<p>hi</p>", "state": { "done": 1 } })), "/w", NONE, 10).unwrap();
+        let a = apply(
+            None,
+            &args(json!({ "action": "open", "title": "  TS   migration ", "html": "<p>hi</p>", "state": { "done": 1 } })),
+            "/w",
+            NONE,
+            10,
+        )
+        .unwrap();
         assert_eq!((a.watch.title.as_str(), a.watch.seq, a.watch.rev, a.html.as_deref()), ("TS migration", 1, 1, Some("<p>hi</p>")));
         assert_eq!(a.note.as_deref(), Some("Opened Watch: TS migration"));
-        let s = apply(Some(&a.watch), &args(json!({ "action": "state", "state": { "total": 9 }, "merge": true, "caption": "Files" })), "/w", NONE, 11).unwrap();
+        let s = apply(
+            Some(&a.watch),
+            &args(json!({ "action": "state", "state": { "total": 9 }, "merge": true, "caption": "Files" })),
+            "/w",
+            NONE,
+            11,
+        )
+        .unwrap();
         assert_eq!((s.watch.seq, s.watch.rev, s.html), (2, 1, None));
         assert_eq!(s.watch.opened, 1, "a state is not an open");
         assert_eq!(s.watch.state, json!({ "done": 1, "total": 9 }));
@@ -317,9 +354,13 @@ mod tests {
     fn refusals_say_what_to_do_v1_watch_refusals() {
         assert!(apply(None, &args(json!({ "action": "state", "state": 1 })), "/w", NONE, 1).unwrap_err().contains("open\" first"));
         assert!(apply(None, &args(json!({ "action": "open" })), "/w", NONE, 1).unwrap_err().starts_with("open needs html"));
-        assert!(apply(None, &args(json!({ "action": "open", "url": "file:///etc" })), "/w", NONE, 1).unwrap_err().starts_with("url must be"));
+        assert!(
+            apply(None, &args(json!({ "action": "open", "url": "file:///etc" })), "/w", NONE, 1).unwrap_err().starts_with("url must be")
+        );
         let big = "x".repeat(MAX_STATE + 1);
-        assert!(apply(None, &args(json!({ "action": "open", "html": "<p/>", "state": big })), "/w", NONE, 1).unwrap_err().contains("64 KB"));
+        assert!(
+            apply(None, &args(json!({ "action": "open", "html": "<p/>", "state": big })), "/w", NONE, 1).unwrap_err().contains("64 KB")
+        );
         let app = apply(None, &args(json!({ "action": "open", "url": "http://localhost:5173" })), "/w", NONE, 1).unwrap().watch;
         assert!(apply(Some(&app), &args(json!({ "action": "state", "state": 1 })), "/w", NONE, 2).unwrap_err().contains("running app"));
         assert!(apply(Some(&app), &args(json!({ "action": "dance" })), "/w", NONE, 2).unwrap_err().starts_with("action must be"));
@@ -331,7 +372,14 @@ mod tests {
         let n = apply(Some(&app), &args(json!({ "action": "navigate", "path": "/settings" })), "/w", NONE, 2).unwrap();
         assert_eq!((n.watch.url.as_deref(), n.watch.rev), (Some("http://localhost:5173/settings"), 2));
         let file = |p: &str| (p == "/w/out/watch.html").then(|| "<h1>v1</h1>".to_owned());
-        let o = apply(None, &args(json!({ "action": "open", "path": "out/watch.html", "run": { "command": "npm test", "cwd": "web" } })), "/w", &file, 1).unwrap();
+        let o = apply(
+            None,
+            &args(json!({ "action": "open", "path": "out/watch.html", "run": { "command": "npm test", "cwd": "web" } })),
+            "/w",
+            &file,
+            1,
+        )
+        .unwrap();
         assert_eq!((o.watch.path.as_deref(), o.html.as_deref()), (Some("/w/out/watch.html"), Some("<h1>v1</h1>")));
         assert_eq!(o.watch.run.as_ref().map(|r| r.cwd.as_str()), Some("/w/web"));
         let r = apply(Some(&o.watch), &args(json!({ "action": "reload" })), "/w", &file, 2).unwrap();

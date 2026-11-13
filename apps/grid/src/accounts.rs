@@ -60,7 +60,10 @@ pub enum Poll {
     Expired,
     /// unknown or already used
     Invalid,
-    Token { token: String, user: UserRow },
+    Token {
+        token: String,
+        user: UserRow,
+    },
 }
 
 impl Poll {
@@ -97,7 +100,8 @@ pub fn computer_slug(name: &str) -> String {
     let s: String = s.trim_matches('-').chars().take(20).collect();
     let s = s.trim_end_matches('-').to_owned();
     let preview = s.strip_prefix('p').is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()));
-    let sandbox = s.strip_prefix("sb-").is_some_and(|d| d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
+    let sandbox =
+        s.strip_prefix("sb-").is_some_and(|d| d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
     if s.is_empty() {
         "computer".into()
     } else if preview || sandbox {
@@ -112,7 +116,12 @@ pub fn computer_slug(name: &str) -> String {
 pub fn allowed(auth: &crate::config::AuthConfig, idn: &crate::auth::Identity) -> bool {
     let a = &auth.allow;
     let low = |v: &[String]| v.iter().map(|x| x.trim().to_lowercase()).collect::<Vec<_>>();
-    let (emails, domains, orgs, accounts) = (low(&a.emails), low(&a.domains).into_iter().map(|d| d.trim_start_matches('@').to_owned()).collect::<Vec<_>>(), low(&a.github_orgs), low(&a.accounts));
+    let (emails, domains, orgs, accounts) = (
+        low(&a.emails),
+        low(&a.domains).into_iter().map(|d| d.trim_start_matches('@').to_owned()).collect::<Vec<_>>(),
+        low(&a.github_orgs),
+        low(&a.accounts),
+    );
     if emails.is_empty() && domains.is_empty() && orgs.is_empty() && accounts.is_empty() {
         return true;
     }
@@ -142,7 +151,9 @@ pub fn unique_handle(c: &rusqlite::Connection, base: &str) -> rusqlite::Result<S
     if h.len() < 3 || reserved(&h) {
         h = format!("{}-{}", if h.is_empty() { "user" } else { &h }, hex_id(4));
     }
-    let taken = |x: &str| -> rusqlite::Result<bool> { Ok(c.query_row("SELECT 1 FROM users WHERE handle = ?1", [x], |_| Ok(())).optional()?.is_some() || reserved(x)) };
+    let taken = |x: &str| -> rusqlite::Result<bool> {
+        Ok(c.query_row("SELECT 1 FROM users WHERE handle = ?1", [x], |_| Ok(())).optional()?.is_some() || reserved(x))
+    };
     let mut out = h.clone();
     let mut n = 2;
     while taken(&out)? {
@@ -168,13 +179,16 @@ impl Accounts {
     }
 
     pub fn user_by_handle(&self, handle: &str) -> Result<Option<UserRow>> {
-        self.db.with(|c| c.query_row(&format!("SELECT {} FROM users WHERE handle = ?1", UserRow::COLS), [handle], UserRow::from_row).optional())
+        self.db.with(|c| {
+            c.query_row(&format!("SELECT {} FROM users WHERE handle = ?1", UserRow::COLS), [handle], UserRow::from_row).optional()
+        })
     }
 
     /// A development sign-in: the user with this handle, made if there is none.
     pub fn dev_user(&self, handle: &str) -> Result<UserRow> {
         let h = handle.trim().to_ascii_lowercase();
-        if h.is_empty() || h.len() > 30 || h.contains("--") || !crate::hosts::is_handle_label(&h) || h.starts_with('-') || h.ends_with('-') {
+        if h.is_empty() || h.len() > 30 || h.contains("--") || !crate::hosts::is_handle_label(&h) || h.starts_with('-') || h.ends_with('-')
+        {
             return Err(bad("A handle is a-z, 0-9 and single dashes.", 400));
         }
         if let Some(u) = self.user_by_handle(&h)? {
@@ -195,25 +209,41 @@ impl Accounts {
             return Err(bad("The provider didn't say who you are.", 400));
         }
         let now = self.now();
-        let found: Option<String> = self.db.with(|c| c.query_row("SELECT user_id FROM identities WHERE provider = ?1 AND subject = ?2", params![idn.provider, idn.subject], |r| r.get(0)).optional())?;
+        let found: Option<String> = self.db.with(|c| {
+            c.query_row("SELECT user_id FROM identities WHERE provider = ?1 AND subject = ?2", params![idn.provider, idn.subject], |r| {
+                r.get(0)
+            })
+            .optional()
+        })?;
         let opt = |s: &str| (!s.is_empty()).then(|| s.to_owned());
         if let Some(uid) = link_to {
             if found.as_deref().is_some_and(|f| f != uid) {
                 return Err(bad("That account already signs in to another user here.", 409));
             }
             if found.is_none() {
-                self.db.with(|c| c.execute("INSERT INTO identities (provider, subject, user_id, email, login, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![idn.provider, idn.subject, uid, opt(&idn.email), opt(&idn.login), now]))?;
+                self.db.with(|c| {
+                    c.execute(
+                        "INSERT INTO identities (provider, subject, user_id, email, login, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        params![idn.provider, idn.subject, uid, opt(&idn.email), opt(&idn.login), now],
+                    )
+                })?;
             }
             self.audit(Some(uid), "identity.link", &idn.provider)?;
             return self.user_by_id(uid)?.ok_or_else(|| bad("That user is gone.", 404));
         }
         if let Some(uid) = found {
-            let u = self.user_by_id(&uid)?.filter(|u| u.disabled == 0).ok_or_else(|| bad("This account is turned off. Ask the grid's operator.", 403))?;
+            let u = self
+                .user_by_id(&uid)?
+                .filter(|u| u.disabled == 0)
+                .ok_or_else(|| bad("This account is turned off. Ask the grid's operator.", 403))?;
             if !allowed(auth, idn) {
                 return Err(bad("This grid no longer lets this account in.", 403));
             }
             self.db.with(|c| {
-                c.execute("UPDATE identities SET email = ?1, login = ?2 WHERE provider = ?3 AND subject = ?4", params![opt(&idn.email), opt(&idn.login), idn.provider, idn.subject])?;
+                c.execute(
+                    "UPDATE identities SET email = ?1, login = ?2 WHERE provider = ?3 AND subject = ?4",
+                    params![opt(&idn.email), opt(&idn.login), idn.provider, idn.subject],
+                )?;
                 if u.avatar.as_deref().unwrap_or_default().is_empty() && !idn.avatar.is_empty() {
                     c.execute("UPDATE users SET avatar = ?1 WHERE id = ?2", params![idn.avatar, u.id])?;
                 }
@@ -234,8 +264,14 @@ impl Accounts {
         let base = if idn.login.is_empty() { idn.email.split('@').next().unwrap_or("user").to_owned() } else { idn.login.clone() };
         self.db.tx(|c| {
             let handle = unique_handle(c, &base)?;
-            c.execute("INSERT INTO users (id, handle, email, name, avatar, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![id, handle, opt(&idn.email), opt(&idn.name), opt(&idn.avatar), now])?;
-            c.execute("INSERT INTO identities (provider, subject, user_id, email, login, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![idn.provider, idn.subject, id, opt(&idn.email), opt(&idn.login), now])?;
+            c.execute(
+                "INSERT INTO users (id, handle, email, name, avatar, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![id, handle, opt(&idn.email), opt(&idn.name), opt(&idn.avatar), now],
+            )?;
+            c.execute(
+                "INSERT INTO identities (provider, subject, user_id, email, login, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![idn.provider, idn.subject, id, opt(&idn.email), opt(&idn.login), now],
+            )?;
             c.execute("INSERT INTO instances (user_id, state, created_at) VALUES (?1, 'stopped', ?2)", params![id, now])?;
             Ok(())
         })?;
@@ -255,7 +291,12 @@ impl Accounts {
     pub fn new_session(&self, user_id: &str) -> Result<String> {
         let t = token("");
         let now = self.now();
-        self.db.with(|c| c.execute("INSERT INTO sessions (id_hash, user_id, scope, created_at, expires_at, last_seen_at) VALUES (?1, ?2, 'grid', ?3, ?4, ?3)", params![sha256_hex(&t), user_id, now, now + SESSION_MS]))?;
+        self.db.with(|c| {
+            c.execute(
+                "INSERT INTO sessions (id_hash, user_id, scope, created_at, expires_at, last_seen_at) VALUES (?1, ?2, 'grid', ?3, ?4, ?3)",
+                params![sha256_hex(&t), user_id, now, now + SESSION_MS],
+            )
+        })?;
         Ok(t)
     }
 
@@ -264,7 +305,12 @@ impl Accounts {
             return Ok(None);
         }
         let now = self.now();
-        let uid: Option<String> = self.db.with(|c| c.query_row("SELECT user_id FROM sessions WHERE id_hash = ?1 AND expires_at > ?2", params![sha256_hex(cookie), now], |r| r.get(0)).optional())?;
+        let uid: Option<String> = self.db.with(|c| {
+            c.query_row("SELECT user_id FROM sessions WHERE id_hash = ?1 AND expires_at > ?2", params![sha256_hex(cookie), now], |r| {
+                r.get(0)
+            })
+            .optional()
+        })?;
         match uid {
             Some(u) => Ok(self.user_by_id(&u)?.filter(|u| u.disabled == 0)),
             None => Ok(None),
@@ -285,7 +331,10 @@ impl Accounts {
             while c.query_row("SELECT 1 FROM device_codes WHERE user_code = ?1", [&uc], |_| Ok(())).optional()?.is_some() {
                 uc = format!("{}-{}", pick(), pick());
             }
-            c.execute("INSERT INTO device_codes (code_hash, user_code, name, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5)", params![sha256_hex(&code), uc, n, now, now + CODE_TTL_MS])?;
+            c.execute(
+                "INSERT INTO device_codes (code_hash, user_code, name, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![sha256_hex(&code), uc, n, now, now + CODE_TTL_MS],
+            )?;
             c.execute("DELETE FROM device_codes WHERE expires_at < ?1", [now - DAY])?;
             Ok(uc)
         })?;
@@ -312,7 +361,12 @@ impl Accounts {
         }
         let now = self.now();
         let col = if allow { "approved_at" } else { "denied_at" };
-        self.db.with(|c| c.execute(&format!("UPDATE device_codes SET {col} = ?1, user_id = ?2 WHERE user_code = ?3"), params![now, user_id, normal_code(user_code)]))?;
+        self.db.with(|c| {
+            c.execute(
+                &format!("UPDATE device_codes SET {col} = ?1, user_id = ?2 WHERE user_code = ?3"),
+                params![now, user_id, normal_code(user_code)],
+            )
+        })?;
         Ok(())
     }
 
@@ -344,7 +398,10 @@ impl Accounts {
         let id = hex_id(12);
         self.db.tx(|tx| {
             tx.execute("UPDATE device_codes SET consumed_at = ?1 WHERE code_hash = ?2", params![now, h])?;
-            tx.execute("INSERT INTO devices (id, user_id, name, token_hash, created_at, last_seen_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)", params![id, uid, name, sha256_hex(&t), now])?;
+            tx.execute(
+                "INSERT INTO devices (id, user_id, name, token_hash, created_at, last_seen_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+                params![id, uid, name, sha256_hex(&t), now],
+            )?;
             Ok(())
         })?;
         let user = self.user_by_id(&uid)?.ok_or_else(|| bad("That account is gone.", 410))?;
@@ -359,7 +416,10 @@ impl Accounts {
         if !t.starts_with("wgd_") {
             return Ok(None);
         }
-        let d: Option<DeviceRow> = self.db.with(|c| c.query_row(&format!("SELECT {} FROM devices WHERE token_hash = ?1", DeviceRow::COLS), [sha256_hex(t)], DeviceRow::from_row).optional())?;
+        let d: Option<DeviceRow> = self.db.with(|c| {
+            c.query_row(&format!("SELECT {} FROM devices WHERE token_hash = ?1", DeviceRow::COLS), [sha256_hex(t)], DeviceRow::from_row)
+                .optional()
+        })?;
         let Some(d) = d.filter(|d| d.revoked_at.is_none()) else { return Ok(None) };
         let Some(u) = self.user_by_id(&d.user_id)?.filter(|u| u.disabled == 0) else { return Ok(None) };
         let now = self.now();
@@ -373,7 +433,10 @@ impl Accounts {
     pub fn revoke_device(&self, user_id: &str, id: &str) -> Result<bool> {
         let now = self.now();
         self.db.tx(|tx| {
-            let n = tx.execute("UPDATE devices SET revoked_at = ?1 WHERE id = ?2 AND user_id = ?3 AND revoked_at IS NULL", params![now, id, user_id])?;
+            let n = tx.execute(
+                "UPDATE devices SET revoked_at = ?1 WHERE id = ?2 AND user_id = ?3 AND revoked_at IS NULL",
+                params![now, id, user_id],
+            )?;
             tx.execute("DELETE FROM computers WHERE device_id = ?1 AND user_id = ?2", params![id, user_id])?;
             Ok(n > 0)
         })
@@ -385,7 +448,10 @@ impl Accounts {
     pub fn add_computer(&self, user: &UserRow, device: &DeviceRow, name: &str) -> Result<ComputerRow> {
         let n: String = name.trim().chars().take(40).collect();
         let n = if n.is_empty() { "Computer".to_owned() } else { n };
-        let have: Option<ComputerRow> = self.db.with(|c| c.query_row(&format!("SELECT {} FROM computers WHERE device_id = ?1", ComputerRow::COLS), [&device.id], ComputerRow::from_row).optional())?;
+        let have: Option<ComputerRow> = self.db.with(|c| {
+            c.query_row(&format!("SELECT {} FROM computers WHERE device_id = ?1", ComputerRow::COLS), [&device.id], ComputerRow::from_row)
+                .optional()
+        })?;
         if let Some(mut h) = have {
             if h.name != n {
                 self.db.with(|c| c.execute("UPDATE computers SET name = ?1 WHERE id = ?2", params![n, h.id]))?;
@@ -398,7 +464,8 @@ impl Accounts {
         let id = hex_id(12);
         let label = self.db.with(|c| {
             let taken = |l: &str| -> rusqlite::Result<bool> {
-                Ok(c.query_row("SELECT 1 FROM computers WHERE label = ?1", [l], |_| Ok(())).optional()?.is_some() || c.query_row("SELECT 1 FROM users WHERE handle = ?1", [l], |_| Ok(())).optional()?.is_some())
+                Ok(c.query_row("SELECT 1 FROM computers WHERE label = ?1", [l], |_| Ok(())).optional()?.is_some()
+                    || c.query_row("SELECT 1 FROM users WHERE handle = ?1", [l], |_| Ok(())).optional()?.is_some())
             };
             let mut label = format!("{slug}--{}", user.handle);
             let mut k = 2;
@@ -406,7 +473,10 @@ impl Accounts {
                 label = format!("{slug}-{k}--{}", user.handle);
                 k += 1;
             }
-            c.execute("INSERT INTO computers (id, user_id, device_id, name, label, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![id, user.id, device.id, n, label, now])?;
+            c.execute(
+                "INSERT INTO computers (id, user_id, device_id, name, label, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![id, user.id, device.id, n, label, now],
+            )?;
             Ok(label)
         })?;
         Ok(ComputerRow { id, user_id: user.id.clone(), device_id: device.id.clone(), name: n, label, created_at: now, last_seen_at: None })

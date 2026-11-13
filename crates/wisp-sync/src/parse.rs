@@ -43,18 +43,12 @@ pub struct ParsedHello {
 /// Up to 15 digits, as the TS twin reads them (a seq stays far below 2^53).
 fn int(s: Option<&String>) -> Option<u64> {
     let s = s?;
-    (!s.is_empty() && s.len() <= 15 && s.bytes().all(|b| b.is_ascii_digit()))
-        .then(|| s.parse().ok())
-        .flatten()
+    (!s.is_empty() && s.len() <= 15 && s.bytes().all(|b| b.is_ascii_digit())).then(|| s.parse().ok()).flatten()
 }
 
 fn topic_list(s: Option<&String>, invalid: &mut Vec<String>) -> Vec<Topic> {
     let mut out: Vec<Topic> = Vec::new();
-    for t in s
-        .map_or("", String::as_str)
-        .split(',')
-        .filter(|t| !t.is_empty())
-    {
+    for t in s.map_or("", String::as_str).split(',').filter(|t| !t.is_empty()) {
         match Topic::parse(t) {
             Some(topic) if !out.contains(&topic) => out.push(topic),
             Some(_) => {}
@@ -68,10 +62,7 @@ fn topic_list(s: Option<&String>, invalid: &mut Vec<String>) -> Vec<Topic> {
 pub fn parse_hello(q: &ConnectQuery, fallback_client_id: &str) -> ParsedHello {
     let mut invalid = Vec::new();
     let topics = topic_list(q.topics.as_ref(), &mut invalid);
-    let fresh = topic_list(q.fresh.as_ref(), &mut invalid)
-        .into_iter()
-        .filter(|t| !topics.contains(t))
-        .collect();
+    let fresh = topic_list(q.fresh.as_ref(), &mut invalid).into_iter().filter(|t| !topics.contains(t)).collect();
     let passive = match q.passive.as_deref() {
         Some("1" | "true") => Passive::All,
         _ => Passive::Some(topic_list(q.passive.as_ref(), &mut Vec::new())),
@@ -95,18 +86,13 @@ pub fn parse_hello(q: &ConnectQuery, fallback_client_id: &str) -> ParsedHello {
 }
 
 fn short(s: &str, what: &'static str) -> Result<(), SyncError> {
-    if s.is_empty() || s.chars().count() > MAX_STR {
-        Err(SyncError::BadMessage(what))
-    } else {
-        Ok(())
-    }
+    if s.is_empty() || s.chars().count() > MAX_STR { Err(SyncError::BadMessage(what)) } else { Ok(()) }
 }
 
 /// A message posted to a stream. Strings are bounded, a window is capped at 1000 rows, and only
 /// `passive: true` counts as passive.
 pub fn parse_client_message(raw: Value) -> Result<ClientMessage, SyncError> {
-    let mut m: ClientMessage =
-        serde_json::from_value(raw).map_err(|e| SyncError::Decode(e.to_string()))?;
+    let mut m: ClientMessage = serde_json::from_value(raw).map_err(|e| SyncError::Decode(e.to_string()))?;
     match &mut m {
         ClientMessage::Sub(s) => s.passive = s.passive.filter(|p| *p),
         ClientMessage::Unsub(_) => {}

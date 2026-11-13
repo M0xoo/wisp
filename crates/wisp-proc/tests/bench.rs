@@ -13,22 +13,10 @@ const MB: usize = 256;
 async fn throughput(pty: bool) -> f64 {
     let proc = wisp_proc::local();
     // `yes` lines (a terminal adds a \r to each \n): tr would cap it at 16 MB/s on its own.
-    let script = format!(
-        "yes 'wisp proc throughput 0123456789 abcdefghijklmnopqrstuvwxyz' | head -c {}",
-        MB * 1024 * 1024
-    );
-    let opts = SpawnOpts {
-        pty: pty.then_some(PtySize {
-            cols: 200,
-            rows: 50,
-        }),
-        ..SpawnOpts::default()
-    };
+    let script = format!("yes 'wisp proc throughput 0123456789 abcdefghijklmnopqrstuvwxyz' | head -c {}", MB * 1024 * 1024);
+    let opts = SpawnOpts { pty: pty.then_some(PtySize { cols: 200, rows: 50 }), ..SpawnOpts::default() };
     let start = Instant::now();
-    let (h, mut out) = proc
-        .spawn("sh", &["-c".to_owned(), script], opts)
-        .unwrap()
-        .split();
+    let (h, mut out) = proc.spawn("sh", &["-c".to_owned(), script], opts).unwrap().split();
     let mut bytes = 0usize;
     while let Some(o) = out.recv().await {
         bytes += o.data.len();

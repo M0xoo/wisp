@@ -7,7 +7,6 @@ use super::app_css::SHARE_CSS;
 use super::layout::{AppPage, app_page};
 use super::{PageCfg, esc, initial_of};
 
-
 fn str_at<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
     v.get(k).and_then(Value::as_str).filter(|s| !s.is_empty())
 }

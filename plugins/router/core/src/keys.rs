@@ -166,7 +166,9 @@ pub struct Candidate {
 /// yet, and without the tier Auto never offered it).
 fn known_to_priors(k: &str) -> bool {
     let b = &shipped().bases;
-    b.contains(strip_suffix(&base_of(&canon(k)))) || b.contains(strip_suffix(k)) || shipped().priors.tiers.contains_key(strip_suffix(&base_of(k)))
+    b.contains(strip_suffix(&base_of(&canon(k))))
+        || b.contains(strip_suffix(k))
+        || shipped().priors.tiers.contains_key(strip_suffix(&base_of(k)))
 }
 
 /// The arms wisp may route to: each harness's default model, the models the priors know, models
@@ -194,7 +196,14 @@ pub fn candidates(agents: &[AgentInfo], known: &BTreeSet<String>) -> Vec<Candida
                 _ => format!("{} · {id}", a.name),
             };
             let efforts = m.and_then(|m| m.efforts.clone()).or_else(|| a.efforts.clone()).unwrap_or_default();
-            out.push(Candidate { key: k, agent: a.id.clone(), model: id.to_owned(), label, efforts, delegates: a.delegates != Some(false) });
+            out.push(Candidate {
+                key: k,
+                agent: a.id.clone(),
+                model: id.to_owned(),
+                label,
+                efforts,
+                delegates: a.delegates != Some(false),
+            });
         }
     }
     out
@@ -208,7 +217,8 @@ pub fn by_named_level<C: AsRef<Candidate>>(cands: Vec<C>, goal: &str) -> Vec<C> 
         _ => &["medium"],
     };
     let named = |c: &Candidate| if c.efforts.is_empty() { suffix_level(&c.model) } else { None };
-    let fits: BTreeSet<String> = cands.iter().map(AsRef::as_ref).filter(|c| named(c).is_some_and(|n| want.contains(&n))).map(|c| stem_key(&c.key)).collect();
+    let fits: BTreeSet<String> =
+        cands.iter().map(AsRef::as_ref).filter(|c| named(c).is_some_and(|n| want.contains(&n))).map(|c| stem_key(&c.key)).collect();
     cands
         .into_iter()
         .filter(|c| {
@@ -283,8 +293,17 @@ mod fable_tests {
         use crate::state::{Life, RouterState};
         use wisp_router_api::{AgentInfo, ChooseArgs, ModelInfo};
         let m = |id: &str| ModelInfo { id: id.into(), label: None, efforts: None };
-        let agents = vec![AgentInfo { id: "claude".into(), name: "Claude Code".into(), available: true, models: ["", "fable", "opus", "sonnet", "haiku"].map(m).to_vec(), ..AgentInfo::default() }];
-        assert!(candidates(&agents, &std::collections::BTreeSet::new()).iter().any(|c| c.key == "claude:fable"), "a tier row makes it a candidate");
+        let agents = vec![AgentInfo {
+            id: "claude".into(),
+            name: "Claude Code".into(),
+            available: true,
+            models: ["", "fable", "opus", "sonnet", "haiku"].map(m).to_vec(),
+            ..AgentInfo::default()
+        }];
+        assert!(
+            candidates(&agents, &std::collections::BTreeSet::new()).iter().any(|c| c.key == "claude:fable"),
+            "a tier row makes it a candidate"
+        );
         let mut r = Router::new(RouterState::default());
         r.sync(&agents, false, 1_000);
         assert_eq!(r.st.arms.get("claude:fable").map(|a| a.state), Some(Life::New), "no score: on probation from the first look");

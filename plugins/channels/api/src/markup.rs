@@ -64,7 +64,14 @@ fn slack_angles(t: &str, bot: &str) -> String {
 /// A channel's own markup, gone before the grammar reads it. Text stays as written otherwise: an agent should
 /// see what you sent, and `__init__.py` isn't bold.
 pub fn strip_formatting(text: &str, kind: Markup, bot: &str) -> String {
-    let mut t: String = text.replace("\r\n", "\n").chars().filter(|c| !matches!(c, '\u{200b}'..='\u{200d}' | '\u{2060}' | '\u{feff}')).map(|c| if c == '\u{a0}' { ' ' } else { c }).collect::<String>().trim().to_owned();
+    let mut t: String = text
+        .replace("\r\n", "\n")
+        .chars()
+        .filter(|c| !matches!(c, '\u{200b}'..='\u{200d}' | '\u{2060}' | '\u{feff}'))
+        .map(|c| if c == '\u{a0}' { ' ' } else { c })
+        .collect::<String>()
+        .trim()
+        .to_owned();
     let bot_word: String = bot.chars().filter(|c| c.is_alphanumeric() || *c == '_').collect();
     match kind {
         Markup::Telegram => {

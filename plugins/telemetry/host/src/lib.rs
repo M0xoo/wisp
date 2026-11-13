@@ -25,7 +25,10 @@ use wisp_telemetry_core::{Common, Env, ScrubOptions, Telemetry, Tracked};
 
 const MIGRATIONS: &[Migration] = &[
     Migration::sql(1, "CREATE TABLE telemetry_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
-    Migration::sql(2, "CREATE TABLE telemetry_state (id TEXT PRIMARY KEY, \"on\" INTEGER NOT NULL, setting INTEGER NOT NULL, blocked INTEGER NOT NULL) STRICT;"),
+    Migration::sql(
+        2,
+        "CREATE TABLE telemetry_state (id TEXT PRIMARY KEY, \"on\" INTEGER NOT NULL, setting INTEGER NOT NULL, blocked INTEGER NOT NULL) STRICT;",
+    ),
 ];
 
 /// Settings → Privacy reads one row, id `this`: stats on, the switch, and whether the environment turns them off.
@@ -51,7 +54,16 @@ pub fn state_row(setting: bool, env: &Env) -> Row {
     r.insert("blocked".into(), json!(blocked));
     r
 }
-const META: EntityDef = EntityDef { kind: "telemetry_meta", table: "telemetry_meta", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: |_| Vec::new() };
+const META: EntityDef = EntityDef {
+    kind: "telemetry_meta",
+    table: "telemetry_meta",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: |_| Vec::new(),
+};
 
 struct State {
     store: Store,
@@ -186,7 +198,12 @@ async fn facts(ctx: &Ctx, call: &Call, sid: &str, tid: &str) -> Option<(RunFacts
         turn_index: t["idx"].as_u64().and_then(|i| usize::try_from(i).ok()).unwrap_or(0),
         route: s["ext"].get("wisp.router").and_then(|r| r.get("route")).cloned(),
     };
-    let blocks = t["presentation"]["blocks"].as_array().map(|b| b.iter().map(|b| BlockFact { ty: b["type"].as_str().unwrap_or_default().to_owned(), status: str_of(&b["status"]) }).collect()).unwrap_or_default();
+    let blocks = t["presentation"]["blocks"]
+        .as_array()
+        .map(|b| {
+            b.iter().map(|b| BlockFact { ty: b["type"].as_str().unwrap_or_default().to_owned(), status: str_of(&b["status"]) }).collect()
+        })
+        .unwrap_or_default();
     let turn = TurnFacts {
         status: t["status"].as_str().unwrap_or_default().to_owned(),
         started_at: t["startedAt"].as_i64().unwrap_or(0),
@@ -203,7 +220,10 @@ async fn facts(ctx: &Ctx, call: &Call, sid: &str, tid: &str) -> Option<(RunFacts
 }
 
 fn env() -> Env {
-    ["DO_NOT_TRACK", "WISP_TELEMETRY", "CI", "WISP_FEEDBACK", "WISP_DESKTOP", "WISP_GRID_URL"].iter().filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v))).collect()
+    ["DO_NOT_TRACK", "WISP_TELEMETRY", "CI", "WISP_FEEDBACK", "WISP_DESKTOP", "WISP_GRID_URL"]
+        .iter()
+        .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
+        .collect()
 }
 
 /// The telemetry plugin. `env` is the environment it decides opt-out from (`DO_NOT_TRACK`, `WISP_TELEMETRY`,
@@ -300,14 +320,32 @@ impl Plugin for TelemetryPlugin {
             let e = given.unwrap_or_else(env);
             let common = Common {
                 version: env!("CARGO_PKG_VERSION").into(),
-                os: match std::env::consts::OS { "macos" => "darwin".into(), "windows" => "win32".into(), o => o.into() },
+                os: match std::env::consts::OS {
+                    "macos" => "darwin".into(),
+                    "windows" => "win32".into(),
+                    o => o.into(),
+                },
                 os_release: None,
-                arch: match std::env::consts::ARCH { "x86_64" => "x64".into(), "aarch64" => "arm64".into(), a => a.into() },
+                arch: match std::env::consts::ARCH {
+                    "x86_64" => "x64".into(),
+                    "aarch64" => "arm64".into(),
+                    a => a.into(),
+                },
                 node: std::env::var("WISP_NODE_VERSION").ok(),
                 shell: wisp_telemetry_core::shell_of(&e).into(),
             };
             let home = std::env::var("HOME").unwrap_or_default();
-            let mut t = Telemetry::new(e, common.props(), ScrubOptions { home, root: std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_string_lossy().into_owned())).unwrap_or_default() });
+            let mut t = Telemetry::new(
+                e,
+                common.props(),
+                ScrubOptions {
+                    home,
+                    root: std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.parent().map(|d| d.to_string_lossy().into_owned()))
+                        .unwrap_or_default(),
+                },
+            );
             t.install_id = body["installId"].as_str().map(str::to_owned);
             t.setting_on = wisp_telemetry_core::env::setting_on(body.get("telemetry"));
             let outbox = body["outbox"].as_array().cloned().unwrap_or_default();
@@ -318,7 +356,13 @@ impl Plugin for TelemetryPlugin {
             let (c3, st3) = (ctx.clone(), st.clone());
             ctx.spawn(async move {
                 if let Ok(agents) = c3.run_json(&c3.root_call(), "runtime.agents", json!({})).await {
-                    let list: Vec<(String, Option<String>)> = agents.as_array().into_iter().flatten().filter(|a| a["available"] == true).map(|a| (a["id"].as_str().unwrap_or_default().to_owned(), a["version"].as_str().map(str::to_owned))).collect();
+                    let list: Vec<(String, Option<String>)> = agents
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(|a| a["available"] == true)
+                        .map(|a| (a["id"].as_str().unwrap_or_default().to_owned(), a["version"].as_str().map(str::to_owned)))
+                        .collect();
                     st3.track(&c3, "app_started", wisp_telemetry_core::turns::app_started_props(&list)).await;
                 }
             });

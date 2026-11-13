@@ -17,9 +17,8 @@ use ts_rs::TS;
 use wisp_kernel::{Call, Event, Point, Result, Service};
 
 pub use model::{
-    AccountView, Banked, BankedCredit, BankedDue, Drain, DrainFailed, LimitWindow, LimitsReport,
-    NoticeKind, OverageKind, OverageView, Past, Period, RunSubject, Share, WindowNotice, WindowNow,
-    WindowView,
+    AccountView, Banked, BankedCredit, BankedDue, Drain, DrainFailed, LimitWindow, LimitsReport, NoticeKind, OverageKind, OverageView,
+    Past, Period, RunSubject, Share, WindowNotice, WindowNow, WindowView,
 };
 
 // ---------- shared contract (crew, later, goal, automations depend on it) ----------
@@ -80,13 +79,7 @@ pub trait BudgetApi: Send + Sync + 'static {
         Ok(Vec::new())
     }
     /// A window's closed periods, oldest first (the allowance view).
-    fn periods(
-        &self,
-        call: &Call,
-        _agent: &str,
-        _account: &str,
-        _window: &str,
-    ) -> Result<Vec<Period>> {
+    fn periods(&self, call: &Call, _agent: &str, _account: &str, _window: &str) -> Result<Vec<Period>> {
         call.require(PERM_READ)?;
         Ok(Vec::new())
     }
@@ -96,25 +89,12 @@ pub trait BudgetApi: Send + Sync + 'static {
         Ok(None)
     }
     /// Ask near the limit: what a unit of work takes of the window, learned from runs (None: not yet).
-    fn rate(
-        &self,
-        call: &Call,
-        _agent: &str,
-        _account: &str,
-        _window: &str,
-    ) -> Result<Option<f64>> {
+    fn rate(&self, call: &Call, _agent: &str, _account: &str, _window: &str) -> Result<Option<f64>> {
         call.require(PERM_READ)?;
         Ok(None)
     }
     /// Ask near the limit: the line you said yes at for this window while it hasn't reset; 0 if none.
-    fn acked(
-        &self,
-        call: &Call,
-        _agent: &str,
-        _account: &str,
-        _window: &str,
-        _resets_at: Option<i64>,
-    ) -> Result<f64> {
+    fn acked(&self, call: &Call, _agent: &str, _account: &str, _window: &str, _resets_at: Option<i64>) -> Result<f64> {
         call.require(PERM_READ)?;
         Ok(0.0)
     }
