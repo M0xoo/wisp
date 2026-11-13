@@ -16,7 +16,7 @@ use wisp_crew_core::share::{CrewFile, parse_crew_file};
 use wisp_crew_core::transfer::{export_crew, import_members, plan_import};
 use wisp_kernel::{Ctx, Setup, WireError};
 
-use crate::{NewIds, State, lock, wire};
+use crate::{NewIds, State, calls, lock, wire};
 
 /// The bundle for `a` from `crew`, or why it can't go (a secret in it, nobody picked).
 pub fn export(crew: &[Member], a: &c::ExportArgs) -> Result<c::Exported, WireError> {
@@ -74,17 +74,14 @@ pub fn import(crew: &[Member], a: &c::ImportArgs, now: i64) -> Result<(c::Import
 /// What a kit can take here: wisp's skills, and the project's AGENTS.md.
 async fn kit(ctx: &Ctx, cwd: &str) -> Vec<LocalKitFile> {
     let call = ctx.root_call();
-    let mut out: Vec<LocalKitFile> = ctx
-        .run_json(&call, "resources.export", json!({ "kinds": ["skill"] }))
+    let mut out: Vec<LocalKitFile> = calls::export(ctx, &call, &["skill"])
         .await
-        .ok()
-        .and_then(|v| v.as_array().cloned())
         .unwrap_or_default()
-        .iter()
-        .filter(|r| r.get("kind").and_then(Value::as_str) == Some("skill"))
+        .into_iter()
+        .filter(|r| r.kind == "skill")
         .map(|r| {
-            let s = |k: &str| r.pointer(&format!("/spec/{k}")).and_then(Value::as_str).unwrap_or_default().to_owned();
-            LocalKitFile { name: r.get("name").and_then(Value::as_str).unwrap_or_default().to_owned(), description: s("description"), path: s("path"), from: "home".into() }
+            let s = |k: &str| r.spec.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+            LocalKitFile { description: s("description"), path: s("path"), name: r.name, from: "home".into() }
         })
         .collect();
     if !cwd.is_empty() {
@@ -134,7 +131,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
 
 /// A catalogue event for a fact the crew owns (ADR-0021); never fails the command.
 pub(crate) async fn track(ctx: &wisp_kernel::Ctx, event: &str, props: serde_json::Value) {
-    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": event, "props": props })).await;
+    calls::warn(&format!("the {event} event isn't tracked"), calls::track(ctx, event, props).await);
 }
 
 #[cfg(test)]

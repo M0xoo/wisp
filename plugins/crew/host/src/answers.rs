@@ -11,16 +11,13 @@ use wisp_crew_api::{CrewAnswer, JobKind, PLUGIN_ID, ReplyTo, TaskRef, WaitingJob
 use wisp_crew_core::answers::{answers_of, ask_prompt, find, settle, slot_with, thread_reply};
 use wisp_kernel::{Call, Ctx, Setup, WireError};
 
-use crate::State;
+use crate::{State, calls};
 use crate::jobs::{assign, now};
 
 /// A task's turns as `(turn id, its crew slot)`, in order.
 async fn turns_of(ctx: &Ctx, call: &Call, session: &str) -> Result<Vec<(String, Option<Value>)>, WireError> {
-    let turns = ctx.run_json(call, "runtime.turns", json!({ "id": session })).await?;
-    Ok(turns
-        .as_array()
-        .map(|a| a.iter().filter_map(|t| Some((t.get("id")?.as_str()?.to_owned(), t.pointer("/ext/wisp.crew").cloned()))).collect())
-        .unwrap_or_default())
+    let turns = calls::turns(ctx, call, session).await?;
+    Ok(turns.into_iter().map(|t| (t.id.0, t.ext.get(PLUGIN_ID).cloned())).collect())
 }
 
 /// Changes the answers on one turn of `session` (the caller holds `st.answering`).
@@ -32,7 +29,7 @@ async fn change(ctx: &Ctx, call: &Call, session: &str, turn: &str, f: impl FnOnc
         return Ok(false);
     }
     let value = slot_with(slot.as_ref(), &list);
-    ctx.run_json(call, "runtime.turn.setExt", json!({ "id": session, "turnId": turn, "plugin": PLUGIN_ID, "value": value })).await?;
+    calls::turn_set_ext(ctx, call, session, turn, value).await?;
     Ok(true)
 }
 
@@ -46,8 +43,8 @@ pub(crate) async fn started(ctx: &Ctx, call: &Call, st: &State, r: &ReplyTo, job
 
 /// A job reported: if it answers a message in another task, its answer goes there.
 pub(crate) async fn answered(ctx: &Ctx, call: &Call, st: &State, job: &str, text: &str, failed: bool) {
-    let Ok(s) = ctx.run_json(call, "runtime.get", json!({ "id": job })).await else { return };
-    let Some(r) = s.pointer("/ext/wisp.crew/reply").and_then(|v| serde_json::from_value::<ReplyTo>(v.clone()).ok()) else { return };
+    let Ok(s) = calls::task(ctx, call, job).await else { return };
+    let Some(r) = calls::crew_of(&s).get("reply").and_then(|v| serde_json::from_value::<ReplyTo>(v.clone()).ok()) else { return };
     let at = now(ctx);
     let _g = st.answering.lock().await;
     if let Err(e) = change(ctx, call, &r.session_id, &r.turn_id, |l| settle(l, &r.entry_id, text, failed, at)).await {
@@ -59,7 +56,7 @@ pub(crate) async fn answered(ctx: &Ctx, call: &Call, st: &State, job: &str, text
 async fn failed(ctx: &Ctx, call: &Call, st: &State, session: &str, turn: &str, entry: &str, why: &str) {
     let at = now(ctx);
     let _g = st.answering.lock().await;
-    let _ = change(ctx, call, session, turn, |l| settle(l, entry, why, true, at)).await;
+    calls::warn("a crew answer's failure isn't kept under its question", change(ctx, call, session, turn, |l| settle(l, entry, why, true, at)).await);
 }
 
 pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
@@ -72,8 +69,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
             if question.is_empty() {
                 return Err(WireError::invalid("Type your question first."));
             }
-            let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.session_id })).await?;
-            let title = task.get("title").and_then(Value::as_str).unwrap_or_default().to_owned();
+            let title = calls::task(&ctx, &call, &a.session_id).await?.title;
             let entry = CrewAnswer { id: wisp_kernel::ids::uuid7(), crew: m.id.clone(), member: m.name.clone(), question: question.clone(), status: "running".into(), asked_at: now(&ctx), ..CrewAnswer::default() };
             let turn = {
                 let _g = st.answering.lock().await;
@@ -131,14 +127,14 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
             };
             // the same job carries on; its next answer lands under this reply
             let carried = async {
-                let s = ctx.run_json(&call, "runtime.get", json!({ "id": job })).await.map_err(|_| WireError::not_found("That job is gone."))?;
-                let mut ext = s.pointer("/ext/wisp.crew").cloned().unwrap_or_else(|| json!({}));
+                let s = calls::task(&ctx, &call, &job).await.map_err(|_| WireError::not_found("That job is gone."))?;
+                let mut ext = s.ext.get(PLUGIN_ID).cloned().unwrap_or_else(|| json!({}));
                 ext["reply"] = json!(ReplyTo { session_id: a.session_id.clone(), turn_id: turn.clone(), entry_id: entry.id.clone() });
-                ctx.run_json(&call, "runtime.setExt", json!({ "id": job, "plugin": PLUGIN_ID, "value": ext })).await?;
-                ctx.run_json(&call, "runtime.followUp", json!({ "id": job, "text": text, "queue": true, "by": "crew" })).await
+                calls::set_ext(&ctx, &call, &job, ext).await?;
+                calls::follow_up(&ctx, &call, &job, text).await
             };
             match carried.await {
-                Ok(_) => Ok(entry),
+                Ok(()) => Ok(entry),
                 Err(e) => {
                     failed(&ctx, &call, &st, &a.session_id, &turn, &entry.id, &e.message).await;
                     Err(e)

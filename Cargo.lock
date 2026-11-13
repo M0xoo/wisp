@@ -4461,9 +4461,12 @@ dependencies = [
  "wisp-crew-core",
  "wisp-kernel",
  "wisp-later-api",
+ "wisp-machines-api",
  "wisp-resources-api",
  "wisp-runtime-api",
+ "wisp-sandbox-api",
  "wisp-store",
+ "wisp-telemetry-api",
 ]
 
 [[package]]

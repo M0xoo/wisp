@@ -14,8 +14,9 @@ use wisp_crew_core::run::{job_body, job_run};
 use wisp_crew_core::queue::{Placement, checkin_already, count_checkin, drain_count, place};
 use wisp_crew_core::tick::tick;
 use wisp_kernel::{Call, Ctx, Setup, WireError};
+use wisp_runtime_api::commands as rt;
 
-use crate::{State, lock, wire};
+use crate::{State, calls, lock, wire};
 
 pub(crate) fn now(ctx: &Ctx) -> i64 {
     ctx.clock().map_or(0, |c| c.now_ms())
@@ -24,8 +25,8 @@ pub(crate) fn now(ctx: &Ctx) -> i64 {
 /// A job's task: here, or on the machine (a sandbox) it runs on (`<machine>|<id>`).
 async fn job_task(ctx: &Ctx, call: &Call, id: &str) -> Result<Value, WireError> {
     match id.split_once('|') {
-        Some((machine, task)) => ctx.run_json(call, "machines.route", json!({ "id": machine, "cmd": "runtime.get", "args": { "id": task }, "mid": format!("crew-{}", wisp_kernel::ids::uuid7()) })).await,
-        None => ctx.run_json(call, "runtime.get", json!({ "id": id })).await,
+        Some((machine, task)) => calls::routed::<rt::Get>(ctx, call, machine, json!({ "id": task })).await,
+        None => calls::to_json(&calls::task(ctx, call, id).await?),
     }
 }
 
@@ -43,9 +44,7 @@ async fn sandbox_for(ctx: &Ctx, call: &Call, m: &Member) -> Result<Option<(Strin
         _ => return Ok(None),
     };
     let cwd = (!m.cwd.is_empty()).then(|| m.cwd.clone());
-    let placed = ctx.run_json(call, "sandbox.place", json!({ "owner": owner, "cwd": cwd })).await?;
-    let s = |k: &str| placed.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-    Ok(Some((s("machine"), s("cwd"))))
+    Ok(Some(calls::place(ctx, call, owner, cwd).await?))
 }
 
 /// The member's jobs as the runtime has them now.
@@ -86,16 +85,16 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
     let made = match &place {
         Some((machine, cwd)) => {
             args["cwd"] = json!(cwd);
-            let made = ctx.run_json(call, "machines.route", json!({ "id": machine, "cmd": "runtime.create", "args": args, "mid": format!("crew-{}", wisp_kernel::ids::uuid7()) })).await?;
+            let made = calls::routed::<rt::Create>(ctx, call, machine, args).await?;
             let id = format!("{machine}|{}", made.get("id").and_then(Value::as_str).unwrap_or_default());
             if m.sandbox == "job" {
-                let _ = ctx.run_json(call, "sandbox.own", json!({ "machine": machine, "owner": { "crew": m.id, "job": id } })).await;
+                calls::warn("a job's sandbox isn't kept as the job's", calls::own(ctx, call, machine, json!({ "crew": m.id, "job": id })).await);
             }
             let mut made = made;
             made["id"] = json!(id);
             made
         }
-        None => ctx.run_json(call, "runtime.create", args).await?,
+        None => calls::to_json(&ctx.run::<rt::Create>(call, calls::args_of::<rt::Create>(args)?).await?)?,
     };
     if let Some(id) = made.get("id").and_then(Value::as_str) {
         st.add_job(&m.id, id, now(ctx)).await;
@@ -157,15 +156,15 @@ macro_rules! on {
 fn adopt(s: &mut Setup, st: &Arc<State>) {
     // Add to crew… on a task (v1 POST /sessions/:id/crew): a new member, and the task becomes its first job
     on!(s, st, c::Adopt, |st, ctx, call, a| {
-        let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.session_id })).await.map_err(|_| WireError::not_found("That task is gone."))?;
-        if task.pointer("/ext/wisp.crew/id").and_then(|v| v.as_str()).is_some() {
+        let task = calls::task(&ctx, &call, &a.session_id).await.map_err(|_| WireError::not_found("That task is gone."))?;
+        if calls::crew_of(&task).get("id").and_then(Value::as_str).is_some() {
             return Err(WireError::invalid("That task is already a crew member's job."));
         }
         let m = st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await)?;
         st.put(m.clone());
         st.save().await;
         let ext = CrewExt { id: m.id.clone(), job: JobKind::Task, ..CrewExt::default() };
-        ctx.run_json(&call, "runtime.setExt", json!({ "id": a.session_id, "plugin": PLUGIN_ID, "value": ext })).await?;
+        calls::set_ext(&ctx, &call, &a.session_id, calls::to_json(&ext)?).await?;
         ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "task".into() });
         Ok(view(&ctx, &call, &st, &m).await)
     });
@@ -345,5 +344,5 @@ async fn run_tick(ctx: &Ctx, st: &State) {
 
 /// The agent profiles a member may name (wisp.runtime's `runtime.profiles`).
 async fn profile_names(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call) -> Vec<String> {
-    ctx.run_json(call, "runtime.profiles", serde_json::json!({})).await.ok().and_then(|v| v.as_array().map(|a| a.iter().filter_map(|p| p.get("name").and_then(serde_json::Value::as_str).map(str::to_owned)).collect())).unwrap_or_default()
+    calls::profile_names(ctx, call).await
 }

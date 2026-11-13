@@ -6,6 +6,7 @@
 //! touched. v1's config.json crew is imported once at start.
 
 mod answers;
+mod calls;
 mod jobs;
 mod kind;
 mod store;
@@ -246,11 +247,12 @@ fn reported(s: &mut Setup, st: &Arc<State>) {
             async move {
                 let Some(id) = f.crew.clone() else { return Ok(()) };
                 let Ok(m) = st.member(&id) else { return Ok(()) };
-                let turns = ctx.run_json(&call, "runtime.turns", serde_json::json!({ "id": f.session_id })).await.unwrap_or_default();
-                let mut p = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("presentation").cloned()).unwrap_or_default();
+                let turns = calls::turns(&ctx, &call, f.session_id.as_str()).await.unwrap_or_default();
+                let last = turns.last();
+                let mut p = last.and_then(|t| t.presentation.as_ref()).and_then(|p| calls::to_json(p).ok()).unwrap_or_default();
                 let quiet = wisp_crew_core::memory::take_crew_block(&mut p).is_some_and(|d| d.quiet);
                 // asked in another task: the answer goes under the message that asked
-                let text = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("text")).and_then(serde_json::Value::as_str).map_or_else(|| f.text.clone(), str::to_owned);
+                let text = last.and_then(|t| t.text.clone()).unwrap_or_else(|| f.text.clone());
                 let said = wisp_crew_core::answers::answer_text(&text, &p);
                 answers::answered(&ctx, &call, &st, &f.session_id.0, &said, failed).await;
                 ctx.emit(&call, &wisp_crew_api::events::Reported { crew_id: m.id, member: m.name, session_id: f.session_id.0.clone(), status: if failed { "error".into() } else { "done".into() }, quiet, text: f.text.chars().take(500).collect() });
