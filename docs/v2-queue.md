@@ -1,5 +1,12 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 4dfb2791 (2026-11-13).** `crates/wisp/tests/serve_code.rs:33`
+`a_formula_applied_exported_and_its_workflow_run` (node 24): the test's `git commit -qam` still hits `.git/index.lock:
+File exists` after GIT_OPTIONAL_LOCKS=0. Some git call wisp makes during a formula's workflow run *writes* the index
+(add, stash, worktree, checkout, a refresh that isn't read-only). Find which (trace git argv in that test), and either
+make it not touch the user's index while a task runs, or make the test wait for wisp's operation to finish (an event or
+the run's state, never a sleep). Real users commit while wisp works: a wisp write must never fail their commit.
+
 **Fix first: #756 CI on 0ff243fa (2026-11-13).** Only failure, both Node versions:
 `plugins/channels/core/src/ws.rs:266` `ws::tests::fragments_join_and_control_frames_come_through`: the parser yields
 `[Ping, Text("hello"), Pong, Close(1000,"bye")]`, the test wants no `Pong`. Decide by RFC 6455 and the callers (Slack
