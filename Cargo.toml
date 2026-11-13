@@ -42,6 +42,7 @@ wisp-runtime-core = { path = "plugins/runtime/core" }
 wisp-events-api = { path = "plugins/events/api" }
 # plugin contracts and cores (owned by the stuff/plugins/telemetry/update/settings agent)
 wisp-plugins-api = { path = "plugins/plugins/api" }
+wisp-plugins-core = { path = "plugins/plugins/core" }
 wisp-settings-api = { path = "plugins/settings/api" }
 wisp-stuff-api = { path = "plugins/stuff/api" }
 wisp-stuff-core = { path = "plugins/stuff/core" }

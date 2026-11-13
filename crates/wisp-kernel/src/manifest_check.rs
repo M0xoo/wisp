@@ -31,7 +31,7 @@ pub(crate) const TOP: &[&str] = &[
     "trust",
     "qa",
 ];
-const CONTRIB: &[&str] = &[
+pub(crate) const CONTRIB: &[&str] = &[
     "commands",
     "events",
     "topics",
@@ -47,8 +47,8 @@ const CONTRIB: &[&str] = &[
     // the `on` names a plugin offers to triggers (ADR-0043): known by name even while the plugin is off
     "triggerSources",
 ];
-const SETTING_TYPES: &[&str] = &["string", "int", "bool", "enum", "json"];
-const ACTIVATION_KINDS: &[&str] = &["onStartup", "onCommand", "onTopic", "onRoute", "onView", "onBlock", "onSchedule"];
+pub(crate) const SETTING_TYPES: &[&str] = &["string", "int", "bool", "enum", "json"];
+pub(crate) const ACTIVATION_KINDS: &[&str] = &["onStartup", "onCommand", "onTopic", "onRoute", "onView", "onBlock", "onSchedule"];
 
 #[derive(Default)]
 pub(crate) struct Problems(pub(crate) Vec<ManifestError>);
