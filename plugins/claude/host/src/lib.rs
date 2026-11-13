@@ -1,13 +1,14 @@
 //! wisp.claude: Claude Code as a module of wisp.runtime (`runtime.harness@1`).
 //!
 //! What it contributes: the CLI's description (models, efforts, flags), `detect` (`WISP_CLAUDE_BIN`,
-//! else `claude` on PATH, then `--version`), the launch (`launch.rs`, v1 adapters/claude.js `run()`)
+//! else `claude` on PATH, else the native installer's or the desktop app's copy (`find.rs`), then `--version`), the launch (`launch.rs`, v1 adapters/claude.js `run()`)
 //! and a driver over `wisp-claude-core`'s stream-json parser. Everything that touches the system goes
 //! through the runtime's `HarnessSys`.
 
 pub mod sessions;
 
 mod driver;
+mod find;
 mod launch;
 
 use std::sync::{Arc, Mutex};
@@ -139,17 +140,33 @@ impl Harness for ClaudeHarness {
 
     fn detect<'a>(&'a self, sys: &'a dyn HarnessSys) -> BoxFuture<'a, HarnessFound> {
         Box::pin(async move {
-            let bin = match sys.env("WISP_CLAUDE_BIN") {
+            let version_of = async |bin: &str| {
+                let req = ExecReq { program: bin.to_owned(), args: vec!["--version".into()], timeout_ms: 10_000, ..ExecReq::default() };
+                match sys.exec(req).await {
+                    Ok(o) if o.code == Some(0) => Some(o.stdout.split_whitespace().next().map(str::to_owned)),
+                    _ => None,
+                }
+            };
+            let named = match sys.env("WISP_CLAUDE_BIN") {
                 Some(b) if !b.is_empty() => Some(b),
                 _ => sys.which(DEFAULT_BIN).await,
             };
-            let Some(bin) = bin else {
-                return HarnessFound { available: false, error: Some("Claude Code isn't installed".into()), ..HarnessFound::default() };
+            // on PATH (or named): it's the one, even when --version says nothing; else the first fallback that runs
+            let found = if let Some(b) = named {
+                let v = version_of(&b).await.flatten();
+                Some((b, v))
+            } else {
+                let mut hit = None;
+                for b in find::fallback_bins(sys).await {
+                    if let Some(v) = version_of(&b).await {
+                        hit = Some((b, v));
+                        break;
+                    }
+                }
+                hit
             };
-            let req = ExecReq { program: bin.clone(), args: vec!["--version".into()], timeout_ms: 10_000, ..ExecReq::default() };
-            let version = match sys.exec(req).await {
-                Ok(o) if o.code == Some(0) => o.stdout.split_whitespace().next().map(str::to_owned),
-                _ => None,
+            let Some((bin, version)) = found else {
+                return HarnessFound { available: false, error: Some("Claude Code isn't installed".into()), ..HarnessFound::default() };
             };
             if let Ok(mut b) = self.bin.lock() {
                 *b = Some(bin.clone());
