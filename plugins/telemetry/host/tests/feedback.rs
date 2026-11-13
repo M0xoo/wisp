@@ -74,7 +74,7 @@ impl Plugin for Runtime {
 async fn thumbs_stick_to_the_turn_a_note_goes_as_feedback_and_the_outbox_waits_for_a_sink_v1_feedback() {
     let seen = Seen::default();
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
-    let k = TestApp::new().with(wisp_telemetry::TelemetryPlugin).with(Runtime(seen.clone())).service(store).start().await;
+    let k = TestApp::new().with(wisp_telemetry::TelemetryPlugin::with_env(wisp_telemetry_core::Env::new())).with(Runtime(seen.clone())).service(store).start().await;
     let send = |body: Value| k.call(Caller::user(), "telemetry.feedback", body);
 
     // 👍 offline: kept on the turn at once, the event waits

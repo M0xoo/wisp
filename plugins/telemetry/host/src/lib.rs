@@ -206,8 +206,20 @@ fn env() -> Env {
     ["DO_NOT_TRACK", "WISP_TELEMETRY", "CI", "WISP_FEEDBACK", "WISP_DESKTOP", "WISP_GRID_URL"].iter().filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v))).collect()
 }
 
+/// The telemetry plugin. `env` is the environment it decides opt-out from (`DO_NOT_TRACK`, `WISP_TELEMETRY`,
+/// `CI`, …): the process's by default, or a given one so a test runs the same on a CI box as on a laptop.
 #[derive(Debug, Default)]
-pub struct TelemetryPlugin;
+pub struct TelemetryPlugin {
+    env: Option<Env>,
+}
+
+impl TelemetryPlugin {
+    /// Decides from `env` instead of the process environment.
+    #[must_use]
+    pub fn with_env(env: Env) -> Self {
+        Self { env: Some(env) }
+    }
+}
 
 impl Plugin for TelemetryPlugin {
     fn manifest(&self) -> Manifest {
@@ -277,6 +289,7 @@ impl Plugin for TelemetryPlugin {
             }
         });
         let start = slot;
+        let given = self.env.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();
             store.migrate("telemetry", MIGRATIONS).map_err(WireError::from)?;
@@ -284,7 +297,7 @@ impl Plugin for TelemetryPlugin {
             store.define_entity(STATE).map_err(WireError::from)?;
             let saved = store.read_async(|r| r.query(META.kind, &Query::new())).await.map_err(WireError::from)?;
             let body = saved.first().and_then(|r| r.get("body").cloned()).unwrap_or(Value::Null);
-            let e = env();
+            let e = given.unwrap_or_else(env);
             let common = Common {
                 version: env!("CARGO_PKG_VERSION").into(),
                 os: match std::env::consts::OS { "macos" => "darwin".into(), "windows" => "win32".into(), o => o.into() },
@@ -344,6 +357,6 @@ mod tests {
 
     #[test]
     fn manifest_is_valid() {
-        assert_eq!(TelemetryPlugin.manifest().id, "wisp.telemetry");
+        assert_eq!(TelemetryPlugin::default().manifest().id, "wisp.telemetry");
     }
 }

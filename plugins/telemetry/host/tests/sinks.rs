@@ -56,7 +56,7 @@ impl Plugin for Acme {
 
 async fn kernel(got: &Got) -> wisp_kernel::Kernel {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
-    TestApp::new().with(wisp_telemetry::TelemetryPlugin).with(Acme(got.clone())).service(store).start().await
+    TestApp::new().with(wisp_telemetry::TelemetryPlugin::with_env(wisp_telemetry_core::Env::new())).with(Acme(got.clone())).service(store).start().await
 }
 
 async fn flushed(k: &wisp_kernel::Kernel, got: &Got) -> Vec<Value> {

@@ -166,7 +166,7 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         #[cfg(feature = "share")]
         "share" => g.add(wisp_share::SharePlugin),
         #[cfg(feature = "telemetry")]
-        "telemetry" => g.add(wisp_telemetry::TelemetryPlugin),
+        "telemetry" => g.add(wisp_telemetry::TelemetryPlugin::default()),
         #[cfg(feature = "posthog")]
         "posthog" => g.add(wisp_posthog::PostHogPlugin),
         #[cfg(feature = "update")]
