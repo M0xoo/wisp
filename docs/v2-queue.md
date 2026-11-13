@@ -1,5 +1,12 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on c3278499 (2026-11-13).** `plugins/history/host/src/tests.rs:201`
+`notes_keep_the_tree_clean`: `history.track` fails with "git notes couldn't keep history/<id>.jsonl.zst" on Linux CI
+(both Node versions). Likely git notes needs a committer identity CI's git lacks (no user.name/email), or a recent
+change (GIT_OPTIONAL_LOCKS, the temp-index work) broke the notes write. Reproduce with an empty HOME/GIT_CONFIG_GLOBAL;
+wisp must keep notes in a repo whose user has no identity set (give the notes commit wisp's own identity as v1 did,
+never touch the user's config). Show git's stderr in that error.
+
 **Fix first: #756 CI on 1e58037b (2026-11-13).** `plugins/claude/core/tests/g6.rs:105` and `:181` (G6 33/34):
 `compact-real` result event #9 now has `stats.contextWindow` (added by the #785 port), the v1 recording doesn't. Check
 what v1 #785 (`git show fd4d280a`) emits: if v1 now has a context window too, refresh the recording the way G6's
