@@ -8,6 +8,7 @@ import { entityKey, type PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
 import {
   Button,
+  CopyCommand,
   Dialog,
   Inline,
   Input,
@@ -30,7 +31,7 @@ import { Steps } from './Steps.tsx';
 import { addAccount, install, keyRemove, keySet, loginCancel, loginInput, loginStart, logout, recheck, removeAccount, setAsk, trust } from '../commands.ts';
 import { t } from '../i18n.ts';
 import { ACCOUNT, HARNESS, KEY, LOGIN, PLACE, TOOL, TOPIC, loginId, type AccountRow, type HarnessRow, type KeyRow, type LoginRow, type PlaceRow, type ToolRow } from '../types.ts';
-import { accountLine, changeText, changeTip, harnessLine, harnessState, loginControl, loginStep, masked, present, site, stillChanged } from '../words.ts';
+import { accountLine, changeText, changeTip, harnessLine, harnessState, howToGet, loginControl, masked, present, recheckSummary, site, stillChanged } from '../words.ts';
 
 const quiet = (p: Promise<unknown>): void => {
   p.catch(() => {}); // the shell's onError shows the rollback toast
@@ -99,10 +100,42 @@ function Keys(props: { readonly c: PluginClient; readonly h: HarnessRow; readonl
   );
 }
 
+/** Not found here: this OS's tip, the command to copy (v1 setup.js setupCommand), and its install guide. */
+function HowTo(props: { readonly tip: string; readonly command?: string | undefined; readonly onCopy: (cmd: string) => void }): JSX.Element {
+  return (
+    <>
+      {props.tip}
+      <Show when={props.command}>{(cmd) => <CopyCommand part="accounts.setup.command" command={cmd()} label={t('accounts.setup.copy')} onCopy={props.onCopy} />}</Show>
+    </>
+  );
+}
+
+/** v1 setupDocs: the install guide, a ghost button that opens it outside wisp. */
+function Docs(props: { readonly name: string; readonly url?: string | undefined }): JSX.Element {
+  const shell = useShell();
+  return (
+    <Show when={props.url}>
+      {(url) => (
+        <Button size="sm" variant="ghost" icon="external" part="accounts.setup.docs" title={t('accounts.setup.guide', { name: props.name })} onClick={() => shell.platform.openExternal(url())}>
+          {t('accounts.setup.docs')}
+        </Button>
+      )}
+    </Show>
+  );
+}
+
 export default function Agents(props: { readonly client: PluginClient }): JSX.Element {
   const c = props.client;
+  const shell = useShell();
   // each harness's mark, as its own plugin registered it (HarnessUiDef.logo: plugins/claude/ui, …)
-  const marks = useSignal(useShell().harnesses());
+  const marks = useSignal(shell.harnesses());
+  // v1 copySetupCommand: on the clipboard, and what to do next
+  const copy = (cmd: string): void => {
+    void navigator.clipboard?.writeText(cmd).then(
+      () => shell.toast.show(t('accounts.setup.copied')),
+      () => {},
+    );
+  };
   const logoOf = (id: string): string | undefined => marks().find((m) => m.id === id)?.logo;
   const peer = c.home;
   const scope = c.scope.child('agents-pane');
@@ -171,7 +204,11 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
                   part="accounts.harness"
                   title={h.name}
                   {...(logoOf(h.id) && { logo: logoOf(h.id) as string })}
-                  description={harnessLine(h, accs(h.id).length)}
+                  description={
+                    <Show when={howToGet(h)} fallback={harnessLine(h, accs(h.id).length)}>
+                      {(how) => <HowTo tip={how().tip} command={how().command} onCopy={copy} />}
+                    </Show>
+                  }
                   control={
                     <Inline gap="3">
                       <Show when={h.signIn === 'key' && present(h)}>
@@ -180,6 +217,9 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
                         </Button>
                       </Show>
                       <Show when={h.signIn === 'cli' && present(h) && (!h.brand || accs(h.id).length <= 1)}>{signControl(h, '', false)}</Show>
+                      <Show when={!present(h) && !h.installable}>
+                        <Docs name={h.name} url={h.setup?.url} />
+                      </Show>
                       <Show when={!present(h) && h.installable === true}>
                         <Button size="sm" disabled={h.installing === true} onClick={() => quiet(c.run(install, { peer, agent: h.id }))}>
                           {h.installing === true ? t('accounts.installing') : t('accounts.install')}
@@ -248,12 +288,15 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
               part="accounts.tool"
               title={x.id === 'gh' ? t('accounts.tool.github') : x.name}
               icon={x.id === 'gh' ? 'github' : 'branch'}
-              description={x.installed ? t('accounts.tool.gh') : (x.setup?.tip ?? t('accounts.tool.missing'))}
+              description={x.installed ? t('accounts.tool.gh') : <HowTo tip={x.setup?.tip ?? t('accounts.tool.missing')} command={x.setup?.command} onCopy={copy} />}
               control={
                 <Show when={!x.installed}>
-                  <Pill tone="bad" dot variant="plain">
-                    {t('accounts.state.notFound')}
-                  </Pill>
+                  <Inline gap="3">
+                    <Docs name={x.id === 'gh' ? t('accounts.tool.ghCli') : x.name} url={x.setup?.url} />
+                    <Pill tone="bad" dot variant="plain">
+                      {t('accounts.state.notFound')}
+                    </Pill>
+                  </Inline>
                 </Show>
               }
             />
@@ -290,7 +333,12 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
               disabled={rechecking()}
               onClick={() => {
                 setRechecking(true);
-                c.run(recheck, { peer }).finally(() => setRechecking(false));
+                // v1 recheckSummary: what this Re-check turned up, here and on every machine (the server asks them too)
+                const before = new Map(harnesses().map((h) => [h.id, h]));
+                c.run(recheck, { peer })
+                  .then((after) => shell.toast.show(recheckSummary(before, after ?? [])))
+                  .catch(() => {})
+                  .finally(() => setRechecking(false));
               }}
             >
               {rechecking() ? t('accounts.recheck.running') : t('accounts.recheck')}

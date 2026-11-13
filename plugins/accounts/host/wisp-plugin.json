@@ -15,6 +15,7 @@
     "store:write{owner:accounts}",
     "telemetry:track",
     "git:read",
+    "machines:recheckAgents",
     "store:write{owner:accounts_view}"
   ],
   "activation": [

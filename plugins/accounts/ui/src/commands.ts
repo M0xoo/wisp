@@ -44,7 +44,14 @@ export function accountsOf(base: EntityReader, agent: string): AccountRow[] {
 }
 
 /** Re-check (POST /agents/recheck): look for harnesses and models again, here and on every machine. */
-export const recheck = defineCommand<RecheckArgs>({ id: 'accounts.recheck', owner: (a) => a.peer, optimistic: 'none', pending: 'the accounts.recheck control' });
+// it takes no arguments (`()` on the server: only null reads as one), so the peer stays here
+export const recheck = defineCommand<RecheckArgs, readonly HarnessRow[]>({
+  id: 'accounts.recheck',
+  owner: (a) => a.peer,
+  wire: () => null,
+  optimistic: 'none',
+  pending: 'the accounts.recheck control',
+});
 
 /** Install (opencode, into ~/.wisp/tools). */
 export const install = defineCommand<AgentArgs>({

@@ -34,6 +34,15 @@ export function harnessLine(h: HarnessRow, accounts: number): string {
   return parts.filter(Boolean).join(' · ');
 }
 
+/** Not found here (v1 settings.js paintAgents): this OS's tip and the one-line command to copy, unless wisp installs it
+ * itself (Install) or it's installing; undefined while it's found. */
+export function howToGet(h: HarnessRow): { tip: string; command?: string } | undefined {
+  if (present(h) || h.installing) return undefined;
+  const tip = h.setup?.tip ?? t('accounts.setup.tip', { name: h.name });
+  const command = h.installable ? undefined : h.setup?.command;
+  return command ? { tip, command } : { tip };
+}
+
 /** "a@corp.com · Max · Work" (v1 accountsHtml). */
 export const accountLine = (a: Pick<AccountRow, 'email' | 'plan' | 'kind'>): string => [a.email, a.plan, t(a.kind === 'work' ? 'accounts.kind.work' : 'accounts.kind.personal')].filter(Boolean).join(' · ');
 

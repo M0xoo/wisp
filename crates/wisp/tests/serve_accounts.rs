@@ -121,3 +121,62 @@ async fn keys_limits_and_the_v1_routes() {
     assert!(api.cmd("accounts.list", json!({ "agent": "codex" })).await["accounts"].is_array());
     drop(serve);
 }
+
+/// Re-check in Settings → Agents looks for harnesses again here and on every online computer (v1 POST /agents/recheck:
+/// `machines.recheckAgents()` with this one's detect): a harness removed over there reads not found here after it.
+#[tokio::test(flavor = "multi_thread")]
+async fn recheck_finds_harnesses_again_on_every_online_machine() {
+    let (da, db) = (temp("recheck-a"), temp("recheck-b"));
+    let (sa, pa) = start(&da);
+    let (sb, pb) = start(&db);
+    let a = Arc::new(Api { http: reqwest::Client::new(), port: pa, n: 0.into() });
+    let added = a.cmd("machines.add", json!({ "transport": "loopback", "address": "127.0.0.1", "port": pb, "name": "studio" })).await;
+    let id = added["id"].as_str().unwrap().to_owned();
+    let grok =
+        |v: &Value| v["remote"]["agents"].as_array().and_then(|l| l.iter().find(|x| x["id"] == "grok")).map(|x| x["available"].clone());
+    until("the peer comes online with grok", async || {
+        let v = a.cmd("machines.get", json!({ "id": id })).await;
+        (v["state"] == "online" && grok(&v) == Some(json!(true))).then_some(v)
+    })
+    .await;
+    // grok goes from b; a's Re-check finds that over there, not only here
+    std::fs::remove_file(db.join("bin").join(format!("grok{}", std::env::consts::EXE_SUFFIX))).unwrap();
+    let here = a.cmd("accounts.recheck", Value::Null).await;
+    assert!(
+        here.as_array().is_some_and(|l| l.iter().any(|h| h["id"] == "grok" && h["available"] == true)),
+        "a's own grok is still there: {here}"
+    );
+    // the other computer answers on its own row (Re-check never waits for it)
+    until("b's grok is gone after a's Re-check", async || {
+        let v = a.cmd("machines.get", json!({ "id": id })).await;
+        (grok(&v) == Some(json!(false))).then_some(v)
+    })
+    .await;
+    drop((sa, sb));
+}
+
+/// A run you start yourself skips an account at its limit (here the CLI's own login) and runs on the next one; the
+/// turn says which, so its end, its usage reports and Plan budget count it there, not on the CLI's own login.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_moved_to_the_second_account_records_that_account_on_its_turn() {
+    let dir = temp("serve-accounts-pick");
+    std::fs::create_dir_all(dir.join("codex-home")).unwrap();
+    let (serve, port) = start(&dir);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    api.cmd("accounts.add", json!({ "agent": "codex", "id": "w1", "label": "Work", "kind": "work" })).await;
+    until("w1 signs in", async || {
+        let v = api.cmd("accounts.login.status", json!({ "agent": "codex", "account": "w1" })).await;
+        (v["signedIn"] == true).then_some(v)
+    })
+    .await;
+    let until_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() + 3_600_000;
+    api.cmd(
+        "accounts.cool",
+        json!({ "agent": "codex", "account": "default", "until": u64::try_from(until_ms).unwrap(), "why": "5-hour limit" }),
+    )
+    .await;
+    let (turn, _) = run_task(&api, &dir, "codex").await;
+    assert_eq!(turn["status"], "done", "{turn}");
+    assert_eq!(turn["account"], "w1", "the turn ran on w1 and says so: {turn}");
+    drop(serve);
+}

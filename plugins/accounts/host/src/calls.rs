@@ -1,11 +1,12 @@
 //! wisp.accounts' calls to other plugins, through their typed commands (`wisp-runtime-api`, `wisp-telemetry-api`,
-//! `wisp-git-api`). What accounts only reports on (a usage stat, a held turn let go, a sign-in card woken) is logged
+//! `wisp-git-api`, `wisp-machines-api`). What accounts only reports on (a usage stat, a held turn let go, a sign-in card woken) is logged
 //! when refused; what a caller answers with is returned.
 
 use serde_json::{Map, Value};
 use wisp_git_api::Tools;
 use wisp_git_api::commands as g;
 use wisp_kernel::{Ctx, Result};
+use wisp_machines_api::commands as m;
 use wisp_runtime_api::commands::{self as r, AgentStatus};
 use wisp_runtime_api::{SessionId, TurnId};
 use wisp_telemetry_api as tel;
@@ -51,5 +52,13 @@ pub async fn tools(ctx: &Ctx) -> Option<Tools> {
             tracing::debug!(error = %err.message, "accounts: git.tools");
             None
         }
+    }
+}
+
+/// `machines.recheckAgents`: every online computer detects its harnesses again (v1 POST /agents/recheck asked them
+/// with this one's). Reported only: a computer that's gone, or wisp.machines off, leaves this one's answer as it is.
+pub async fn recheck_machines(ctx: &Ctx) {
+    if let Err(err) = ctx.run::<m::RecheckAgents>(&ctx.root_call(), m::RecheckArgs { id: None, agent: None }).await {
+        tracing::debug!(error = %err.message, "accounts: machines.recheckAgents");
     }
 }

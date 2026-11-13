@@ -276,7 +276,11 @@ fn install_and_more(s: &mut Setup, slot: &Slot) {
         }
         serde_json::to_value(agents).map_err(|e| WireError::internal(e.to_string()))
     });
+    // here and on every online computer (v1 Promise.all): the answer is this one's harnesses; the others' come on
+    // their machine rows, so a slow or stuck computer never holds the button
     on!(s, slot, c::Recheck, |_st, ctx, _a| {
+        let others = ctx.clone();
+        ctx.spawn(async move { crate::calls::recheck_machines(&others).await });
         let agents = crate::calls::agents(&ctx, Some("all")).await?;
         serde_json::to_value(agents).map_err(|e| WireError::internal(e.to_string()))
     });
