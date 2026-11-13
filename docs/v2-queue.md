@@ -1,5 +1,11 @@
 # v2 build queue (code first, verify later)
 
+**Fix first: #756 CI on 10ec0372 (2026-11-13).** Linux only: `plugins/accounts/host/src/signin.rs:298`
+`a_login_that_asks_on_a_terminal_gets_one_on_linux`: argv_of gives `script … /dev/null` with the command at another
+index than the test reads (left `("script", "/dev/null")`). Check util-linux `script` usage (`script -qec "<cmd>"
+/dev/null`), make argv_of and the test agree on what really runs a login on a Linux tty, and run it on Linux semantics
+(the test only asserts on linux, so it never ran on the Mac).
+
 **Next one-concern items (2026-11-13):** (1) the answer `code` block has no CSS in v2 (unstyled; v1's `.blk-code`
 values, highlighting, copy button); (2) Claude Code's own subagents per turn in TurnStats so the usage card lists them
 by type (#785 leftover); (3) re-take the task.more and task.right-click v1 references after #786.
