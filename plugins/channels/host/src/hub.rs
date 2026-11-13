@@ -236,6 +236,15 @@ impl KPhone {
     }
 }
 
+/// `project` resources as a channel shows them: the name is the id, the spec's `path` is where a task runs. The
+/// first is the default (wisp keeps no last-used project).
+pub fn project_views(list: &[wisp_resources_api::Resource]) -> Vec<ProjectView> {
+    list.iter()
+        .filter(|r| r.kind == "project")
+        .map(|r| ProjectView { id: r.name.clone(), name: r.name.clone(), path: r.spec.get("path").and_then(Value::as_str).unwrap_or_default().to_owned(), ..ProjectView::default() })
+        .collect()
+}
+
 fn mode_str(m: Option<wisp_channels_api::views::Mode>) -> Option<&'static str> {
     m.map(|m| match m {
         wisp_channels_api::views::Mode::Plan => "plan",
@@ -296,7 +305,12 @@ impl Phone for KPhone {
         let asked = p.mode.or(o.fallback).unwrap_or(wisp_channels_api::views::Mode::Plan);
         let mode = o.cap.map_or(asked, |c| asked.min(c)).min(wisp_channels_api::views::Mode::Edits);
         let mut a = json!({ "prompt": p.prompt, "mode": mode_str(Some(mode)), "by": format!("channel:{}", o.channel) });
-        if let Some(pr) = &p.project {
+        // a message that names no project runs in the default one (v1 phone.js `p.project || ctx.defaultProject`)
+        let project = match &p.project {
+            Some(pr) => Some(pr.clone()),
+            None => self.projects().await.unwrap_or_default().into_iter().next(),
+        };
+        if let Some(pr) = project.filter(|pr| !pr.path.is_empty()) {
             a["cwd"] = json!(pr.path);
         }
         if let Some(ag) = &p.agent {
@@ -362,18 +376,18 @@ impl Phone for KPhone {
             }
         }
     }
+    /// The `project` resources (`resources.export` answers `Vec<Resource>`), as a message picks from them.
     async fn projects(&self) -> Result<Vec<ProjectView>> {
-        let list = self.cmd::<wisp_resources_api::Export>(wisp_resources_api::ExportArgs { kinds: vec!["project".into()], include: Vec::new() }).await.unwrap_or_default();
-        Ok(list
-            .pointer("/projects")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .map(|p| {
-                let s = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-                ProjectView { id: s("name"), name: s("name"), path: s("path"), ..ProjectView::default() }
-            })
-            .collect())
+        let args = wisp_resources_api::ExportArgs { kinds: vec!["project".into()], include: Vec::new() };
+        // a refusal is logged, never silently read as "no projects" (the manifest once named a permission that
+        // doesn't exist, `resources:export`, and every channel said "No projects yet")
+        match self.0.run::<wisp_resources_api::Export>(&self.0.root_call(), args).await {
+            Ok(list) => Ok(project_views(&list)),
+            Err(e) => {
+                tracing::warn!("channels: projects not read: {}", e.message);
+                Ok(Vec::new())
+            }
+        }
     }
     async fn session(&self, id: &str) -> Result<Option<SessionView>> {
         Ok(self.cmd::<rt::Get>(get(id)).await.ok().map(|t| session_view(&t)))
@@ -513,5 +527,27 @@ mod box_tests {
         assert!(box_grid(&env(&[("WISP_GRID_URL", "https://g"), ("WISP_PUBLIC_URL", "https://pia.g")])).is_none(), "no secret: not a box");
         assert!(box_grid(&env(&SANDBOX)).is_none());
         assert_eq!(enc("a b&c"), "a%20b%26c");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use wisp_resources_api::Resource;
+
+    #[test]
+    fn a_channel_reads_projects_from_the_export_list_and_the_first_is_the_default() {
+        // what resources.export answers: an array of resources, not `{ projects: [...] }`
+        let list: Vec<Resource> = serde_json::from_value(json!([
+            { "kind": "project", "name": "api", "spec": { "path": "/w/api", "color": "teal" } },
+            { "kind": "project", "name": "web", "spec": { "path": "/w/web" } },
+            { "kind": "crew", "name": "ada", "spec": {} }
+        ]))
+        .unwrap();
+        let got = project_views(&list);
+        assert_eq!(got.iter().map(|p| (p.name.as_str(), p.path.as_str())).collect::<Vec<_>>(), [("api", "/w/api"), ("web", "/w/web")]);
+        assert_eq!(got[0].id, "api");
+        assert_eq!(project_views(&[]), Vec::<ProjectView>::new());
     }
 }

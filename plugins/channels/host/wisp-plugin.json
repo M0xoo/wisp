@@ -18,7 +18,7 @@
     "stuff:receive",
     "runtime:setState",
     "runtime:answer",
-    "resources:export",
+    "resources:read",
     "runtime:agents",
     "crew:read",
     "telemetry:track",

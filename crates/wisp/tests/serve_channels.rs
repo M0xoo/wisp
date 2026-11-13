@@ -132,3 +132,50 @@ async fn an_ntfy_channel_and_a_webhook_hear_a_finished_task_and_a_tap_marks_it_d
     assert_ne!(api.cmd("runtime.get", json!({ "id": oid })).await["state"], "done", "not signed by wisp: ignored");
     drop(serve);
 }
+
+/// A task started from a channel (here a message the grid routed to this computer) runs in the project it names,
+/// and in the default project (the first) when it names none: the hub reads the `project` resources that
+/// `resources.export` lists (it read `/projects` off that array before, so a channel saw no project at all).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_channel_task_lands_in_the_project_it_names_or_the_default_one() {
+    let dir = temp("serve-channels-project");
+    let (api_dir, web_dir) = (dir.join("api"), dir.join("web"));
+    std::fs::create_dir_all(&api_dir).unwrap();
+    std::fs::create_dir_all(&web_dir).unwrap();
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let applied = api
+        .try_cmd(
+            "resources.apply",
+            json!({ "resources": [
+                { "kind": "project", "name": "api", "spec": { "path": api_dir } },
+                { "kind": "project", "name": "web", "spec": { "path": web_dir } }
+            ], "trust": true }),
+        )
+        .await;
+    assert_eq!(applied["ok"], true, "{applied}");
+    let exported = api.cmd("resources.export", json!({ "kinds": ["project"] })).await;
+    let path = |name: &str| exported.as_array().unwrap().iter().find(|r| r["name"] == name).unwrap()["spec"]["path"].clone();
+    let default = exported[0]["name"].as_str().unwrap().to_owned();
+    api.cmd("settings.set", json!({ "key": "channels.acceptChannels", "value": true })).await;
+
+    let cwds = || async { api.cmd("runtime.list", json!({})).await.as_array().unwrap().iter().map(|t| (t["prompt"].as_str().or(t["title"].as_str()).unwrap_or("").to_owned(), t["cwd"].clone())).collect::<Vec<_>>() };
+    let said = api.cmd("channels.routed", json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": "in web fix the add bug", "thread": "t1" })).await;
+    assert_eq!(said["status"], 200, "{said}");
+    let said = api.cmd("channels.routed", json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": "tidy the readme", "thread": "t2" })).await;
+    assert_eq!(said["status"], 200, "{said}");
+
+    let at = Instant::now();
+    let tasks = loop {
+        let t = cwds().await;
+        if t.len() >= 2 {
+            break t;
+        }
+        assert!(at.elapsed() < Duration::from_secs(30), "two tasks start: {t:?} {said}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let cwd_of = |words: &str| tasks.iter().find(|(p, _)| p.to_lowercase().contains(words)).unwrap_or_else(|| panic!("{words}: {tasks:?}")).1.clone();
+    assert_eq!(cwd_of("add bug"), path("web"), "the project the message names");
+    assert_eq!(cwd_of("readme"), path(&default), "none named: the default project ({default})");
+    drop(serve);
+}
