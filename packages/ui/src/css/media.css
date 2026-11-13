@@ -10,7 +10,7 @@
   [data-kit='rb-image'] {
     display: block;
     width: 100%;
-    max-height: 520px;
+    max-height: var(--size-media-max);
     object-fit: contain;
     background: var(--surface-2);
     cursor: zoom-in;
@@ -21,7 +21,7 @@
   [data-kit='rb-video'] {
     display: block;
     width: 100%;
-    max-height: 520px;
+    max-height: var(--size-media-max);
     background: var(--term-bg);
   }
   [data-kit='rb-media-caption'] {
