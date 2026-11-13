@@ -64,8 +64,8 @@ const MEMBER: EntityDef = EntityDef {
 fn a_fresh_database_migrates_kernel_and_owner_from_v0_with_no_snapshot() {
     let home = tmp_home();
     let store = at(&home, 5000);
-    // 2: the durable event log (ADR-0044)
-    assert_eq!(store.schema_version("kernel").unwrap(), 2);
+    // 2: the durable event log (ADR-0044); 3: a setting's saved value under another plugin's lock
+    assert_eq!(store.schema_version("kernel").unwrap(), 3);
     assert_eq!(
         store.migrate("crew", V1).unwrap(),
         MigrateReport {

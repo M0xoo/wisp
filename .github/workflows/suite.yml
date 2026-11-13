@@ -68,7 +68,8 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: cargo test
-        run: cargo test --workspace --locked
+        # every failing test in one run, not just the first failing binary's
+        run: cargo test --workspace --locked --no-fail-fast
       # a container action: Linux runners only (licences and advisories don't vary by OS)
       - name: cargo deny
         if: runner.os == 'Linux'
