@@ -234,10 +234,18 @@ impl KPhone {
     async fn cmd_json<C: Command>(&self, args: Value) -> Result<Value> {
         typed_json::<C>(&self.0, args).await
     }
+    /// The projects with when each was last used (its newest task, from `runtime.list`), and the default one
+    /// (v1 phone.js `ctx.defaultProject`: the one picked in `channels.project`, else the last used, else the first).
+    async fn projects_and_default(&self, tasks: &[SessionView]) -> (Vec<ProjectView>, Option<ProjectView>) {
+        use wisp_channels_core::default_project as dp;
+        let projects = dp::with_last_used(self.projects().await.unwrap_or_default(), tasks);
+        let picked = self.0.setting(dp::SETTING);
+        let default = dp::default_project(&projects, picked.as_ref().and_then(Value::as_str));
+        (projects, default)
+    }
 }
 
-/// `project` resources as a channel shows them: the name is the id, the spec's `path` is where a task runs. The
-/// first is the default (wisp keeps no last-used project).
+/// `project` resources as a channel shows them: the name is the id, the spec's `path` is where a task runs.
 pub fn project_views(list: &[wisp_resources_api::Resource]) -> Vec<ProjectView> {
     list.iter()
         .filter(|r| r.kind == "project")
@@ -258,13 +266,14 @@ impl Phone for KPhone {
     /// Everything a message may pick from: projects, this computer's harnesses (as the lists and the grammar read
     /// them), the crew, Auto's goals, the default project and harness, the tasks running or waiting.
     async fn context(&self) -> Result<ChannelCtx> {
-        let projects = self.projects().await?;
+        let sessions = self.sessions().await.unwrap_or_default();
+        let (projects, default_project) = self.projects_and_default(&sessions).await;
         let agents: Vec<wisp_channels_api::AgentView> = self.cmd::<rt::Agents>(rt::AgentsArgs::default()).await.ok().and_then(|v| serde_json::from_value::<Vec<Value>>(v).ok()).unwrap_or_default().iter().map(agent_view).collect();
         let crew = self.cmd::<wisp_crew_api::commands::List>(wisp_crew_api::commands::NoArgs {}).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default().iter().map(member_view).collect();
-        let tasks = self.sessions().await.unwrap_or_default().into_iter().filter(|s| matches!(s.state.as_str(), "running" | "waiting")).map(|s| wisp_channels_api::TaskRow { id: s.id, title: s.title, state: s.state }).collect();
+        let tasks = sessions.into_iter().filter(|s| matches!(s.state.as_str(), "running" | "waiting")).map(|s| wisp_channels_api::TaskRow { id: s.id, title: s.title, state: s.state }).collect();
         let adapters = agents.iter().map(|a| wisp_channels_api::AdapterView { agent: a.clone(), overrides: Vec::new() }).collect();
         let default_agent = agents.iter().find(|a| a.available).map(|a| a.id.clone()).unwrap_or_default();
-        Ok(ChannelCtx { default_project: projects.first().cloned(), projects, agents, adapters, crew, goals: wisp_router_api::GOALS.iter().map(|g| g.0.to_owned()).collect(), default_agent, tasks, ..ChannelCtx::default() })
+        Ok(ChannelCtx { default_project, projects, agents, adapters, crew, goals: wisp_router_api::GOALS.iter().map(|g| g.0.to_owned()).collect(), default_agent, tasks, ..ChannelCtx::default() })
     }
     /// v1 phone.js `count`: fixed values only (start, thread, list, refused and their detail), never what a
     /// message said; counted as `channel_event`.
@@ -308,7 +317,7 @@ impl Phone for KPhone {
         // a message that names no project runs in the default one (v1 phone.js `p.project || ctx.defaultProject`)
         let project = match &p.project {
             Some(pr) => Some(pr.clone()),
-            None => self.projects().await.unwrap_or_default().into_iter().next(),
+            None => self.projects_and_default(&self.sessions().await.unwrap_or_default()).await.1,
         };
         if let Some(pr) = project.filter(|pr| !pr.path.is_empty()) {
             a["cwd"] = json!(pr.path);
@@ -487,7 +496,8 @@ impl ChannelHub for Hub {
         }
     }
     async fn default_project(&self) -> Option<ProjectView> {
-        KPhone(self.ctx.clone()).projects().await.ok()?.into_iter().next()
+        let phone = KPhone(self.ctx.clone());
+        phone.projects_and_default(&phone.sessions().await.unwrap_or_default()).await.1
     }
     async fn act(&self, a: &ActArgs) -> Result<String> {
         KPhone(self.ctx.clone()).act(a).await

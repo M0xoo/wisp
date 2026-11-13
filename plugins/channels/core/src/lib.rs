@@ -4,6 +4,7 @@
 //! tokio, fs, net or clock; time comes in as an argument.
 
 pub mod conversation;
+pub mod default_project;
 pub mod grammar;
 pub mod link;
 pub mod lists;

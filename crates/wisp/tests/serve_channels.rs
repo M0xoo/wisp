@@ -133,11 +133,11 @@ async fn an_ntfy_channel_and_a_webhook_hear_a_finished_task_and_a_tap_marks_it_d
     drop(serve);
 }
 
-/// A task started from a channel (here a message the grid routed to this computer) runs in the project it names,
-/// and in the default project (the first) when it names none: the hub reads the `project` resources that
-/// `resources.export` lists (it read `/projects` off that array before, so a channel saw no project at all).
+/// A task started from a channel (here a message the grid routed to this computer) runs in the project it names;
+/// one that names none runs where v1 ran it (remote.js `defaultProject`): the project picked in `channels.project`,
+/// else the last used (the newest task's), else the first. A pick that no longer exists falls through.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_channel_task_lands_in_the_project_it_names_or_the_default_one() {
+async fn a_channel_task_lands_in_the_project_it_names_else_the_picked_else_the_last_used_else_the_first() {
     let dir = temp("serve-channels-project");
     let (api_dir, web_dir) = (dir.join("api"), dir.join("web"));
     std::fs::create_dir_all(&api_dir).unwrap();
@@ -156,26 +156,39 @@ async fn a_channel_task_lands_in_the_project_it_names_or_the_default_one() {
     assert_eq!(applied["ok"], true, "{applied}");
     let exported = api.cmd("resources.export", json!({ "kinds": ["project"] })).await;
     let path = |name: &str| exported.as_array().unwrap().iter().find(|r| r["name"] == name).unwrap()["spec"]["path"].clone();
-    let default = exported[0]["name"].as_str().unwrap().to_owned();
+    let first = exported[0]["name"].as_str().unwrap().to_owned();
+    let other = if first == "api" { "web" } else { "api" };
     api.cmd("settings.set", json!({ "key": "channels.acceptChannels", "value": true })).await;
 
-    let cwds = || async { api.cmd("runtime.list", json!({})).await.as_array().unwrap().iter().map(|t| (t["prompt"].as_str().or(t["title"].as_str()).unwrap_or("").to_owned(), t["cwd"].clone())).collect::<Vec<_>>() };
-    let said = api.cmd("channels.routed", json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": "in web fix the add bug", "thread": "t1" })).await;
-    assert_eq!(said["status"], 200, "{said}");
-    let said = api.cmd("channels.routed", json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": "tidy the readme", "thread": "t2" })).await;
-    assert_eq!(said["status"], 200, "{said}");
-
-    let at = Instant::now();
-    let tasks = loop {
-        let t = cwds().await;
-        if t.len() >= 2 {
-            break t;
+    let tasks = || async { api.cmd("runtime.list", json!({})).await.as_array().unwrap().iter().map(|t| (t["prompt"].as_str().or(t["title"].as_str()).unwrap_or("").to_lowercase(), t["cwd"].clone())).collect::<Vec<_>>() };
+    // one message, then where its task runs (the next is sent once it has started, so "last used" is this one)
+    let n = std::sync::atomic::AtomicUsize::new(0);
+    let send = |text: &'static str| {
+        let (api, tasks, n) = (&api, &tasks, &n);
+        async move {
+            let k = n.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            let said = api.cmd("channels.routed", json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": text, "thread": format!("t{k}") })).await;
+            assert_eq!(said["status"], 200, "{said}");
+            let at = Instant::now();
+            loop {
+                let t = tasks().await;
+                if t.len() >= k {
+                    let words = text.split(' ').next_back().unwrap();
+                    tokio::time::sleep(Duration::from_millis(20)).await; // the next task starts in a later millisecond
+                    break t.iter().find(|(p, _)| p.contains(words)).unwrap_or_else(|| panic!("{text}: {t:?}")).1.clone();
+                }
+                assert!(at.elapsed() < Duration::from_secs(30), "{text} starts: {t:?} {said}");
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
         }
-        assert!(at.elapsed() < Duration::from_secs(30), "two tasks start: {t:?} {said}");
-        tokio::time::sleep(Duration::from_millis(100)).await;
     };
-    let cwd_of = |words: &str| tasks.iter().find(|(p, _)| p.to_lowercase().contains(words)).unwrap_or_else(|| panic!("{words}: {tasks:?}")).1.clone();
-    assert_eq!(cwd_of("add bug"), path("web"), "the project the message names");
-    assert_eq!(cwd_of("readme"), path(&default), "none named: the default project ({default})");
+    assert_eq!(send("tidy the readme").await, path(&first), "no task yet, nothing picked: the first project ({first})");
+    let named = if other == "web" { "in web fix the add bug" } else { "in api fix the add bug" };
+    assert_eq!(send(named).await, path(other), "the project the message names");
+    assert_eq!(send("write the changelog").await, path(other), "none named: the last used ({other})");
+    api.cmd("settings.set", json!({ "key": "channels.project", "value": first })).await;
+    assert_eq!(send("bump the deps").await, path(&first), "none named: the one picked in the channels' settings");
+    api.cmd("settings.set", json!({ "key": "channels.project", "value": "gone" })).await;
+    assert_eq!(send("rename the flag").await, path(&first), "a picked project that's gone: the last used again");
     drop(serve);
 }
