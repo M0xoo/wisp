@@ -1,5 +1,11 @@
 # v2 build queue (code first, verify later)
 
+**Next (lead, 2026-11-13):** v1's spell tools for agents (wisp_spells, _schema, _data, _check) were dead in v2 and are
+removed; ADR-0031 dropped spells, but the intent stays: an agent writing a UI extension. Build their v2 form over the
+untrusted plugin tier (ADR-0048): `wisp_plugins`, `wisp_plugin_schema`, `wisp_plugin_data`, `wisp_plugin_check`, each with
+an owner command a host registers (the new owners check enforces it); docs/v2-coverage.md rows 80, 81, 215, 216, 295,
+296, 298, 344–347 point at them as todo.
+
 **Fix first: #756 CI on 13809a94 (2026-11-13).** fmt, clippy, the Rust suite and tools tests all pass. The monoflow
 run over every package fails 3 of 191 targets, all load-sensitive (each passes in the plain test step):
 plugins/shell-list/ui/test/flat.test.ts:26 (compare card) and plugins/shell-task/ui/test/file-view.test.ts:27 (go to
