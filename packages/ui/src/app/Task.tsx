@@ -467,6 +467,8 @@ export interface ReplyBoxProps {
   readonly inputRef?: (el: HTMLTextAreaElement) => void;
   readonly attach: string;
   readonly attachAct?: Act;
+  /** the phone app's mic (v1 .c-mic): listening shows it on, in the accent. Absent: no mic. Additive (2026-11-13). */
+  readonly mic?: { readonly label: string; readonly on: boolean; readonly act: Act } | undefined;
   readonly mode: { readonly label: string; readonly title: string; readonly icon?: IconName; readonly act?: Act };
   readonly runner: { readonly title: string; readonly logo?: string; readonly act?: Act };
   readonly team: string;
@@ -596,6 +598,18 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
             </button>
           )}
         />
+        <Show when={props.mic}>
+          {(m) => (
+            <WithAct
+              act={m().act}
+              render={(trigger) => (
+                <button type="button" {...trigger()} data-kit="icon-btn" data-part="composer.mic" data-on={flag(m().on)} aria-pressed={m().on} title={m().label} aria-label={m().label}>
+                  <Icon name="mic" />
+                </button>
+              )}
+            />
+          )}
+        </Show>
         <WithAct
           act={props.mode.act}
           render={(trigger) => (

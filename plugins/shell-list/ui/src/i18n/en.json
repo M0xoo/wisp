@@ -72,6 +72,8 @@
   "shell-list.pill.held": "Held",
   "shell-list.pill.reminder": "Reminder",
   "shell-list.pill.pinned": "Pinned",
+  "shell-list.pill.pick": "Pick",
+  "shell-list.pill.pick-tip": "wisp's pick of the two runs: {why}",
   "shell-list.pill.shipping": "Shipping",
   "shell-list.pill.pr": "PR #{n}",
   "shell-list.pill.queued": "{n} queued",

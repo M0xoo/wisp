@@ -4,7 +4,7 @@
 // Android cover share, vibrate and the file picker.
 
 import { browserPlatform } from './browser.ts';
-import type { CapacitorGlobal, Haptic, Platform, PlatformWindow } from './types.ts';
+import type { CapacitorGlobal, Dictation, DictationEvent, Haptic, Platform, PlatformWindow } from './types.ts';
 
 type PluginFn = (args?: unknown) => Promise<unknown>;
 
@@ -14,6 +14,37 @@ function pluginFn(cap: CapacitorGlobal | undefined, plugin: string, method: stri
 
 const IMPACT: Record<Haptic, string> = { tap: 'LIGHT', select: 'LIGHT', success: 'MEDIUM', warning: 'MEDIUM', error: 'HEAVY' };
 
+/** The app's speech recognizer (Dictation.java): `wisp-dictation` events on the window, one listener at a time.
+ * An app without it (older) or a phone without a speech service: none, so no mic shows. */
+export function androidDictation(w: PlatformWindow): Dictation | undefined {
+  const app = w.wispAndroid;
+  const { dictate, dictateStop } = app ?? {};
+  if (!app || typeof dictate !== 'function' || typeof dictateStop !== 'function' || app.dictation?.() !== true) return undefined;
+  let cur: ((e: DictationEvent) => void) | undefined;
+  w.addEventListener('wisp-dictation', (e) => {
+    const d = (e as CustomEvent<{ state?: string; text?: string; error?: string } | null>).detail ?? {};
+    const fn = cur;
+    if (!fn || !d.state) return;
+    if (d.state === 'partial' || d.state === 'final') fn({ state: d.state, text: d.text ?? '' });
+    else if (d.state === 'error') fn({ state: 'error', error: (d.error || 'failed') as never, ...(d.text ? { text: d.text } : {}) });
+    else if (d.state === 'listening' || d.state === 'end') fn({ state: d.state });
+    if (d.state === 'end' || d.state === 'error') cur = undefined;
+  });
+  return {
+    start(onEvent) {
+      if (cur) {
+        cur({ state: 'end' }); // the box that was listening lets go
+        dictateStop.call(app);
+      }
+      cur = onEvent;
+      dictate.call(app);
+      return () => {
+        if (cur === onEvent) dictateStop.call(app); // the final result still comes, then `end`
+      };
+    },
+  };
+}
+
 export function androidPlatform(w: PlatformWindow): Platform {
   const base = browserPlatform(w);
   const cap = w.Capacitor;
@@ -22,11 +53,15 @@ export function androidPlatform(w: PlatformWindow): Platform {
     if (!fn) throw new Error(`${plugin}.${method} is not in this build`);
     return fn(args);
   };
+  const dictation = androidDictation(w);
   return {
     ...base,
     kind: 'android',
     mobile: true,
     standalone: true,
+    // an older app has no camera handler: its attach button stays the file picker
+    camera: w.wispAndroid?.camera?.() === true,
+    ...(dictation && { dictation }),
     async notify(n) {
       const fn = pluginFn(cap, 'LocalNotifications', 'schedule');
       if (!fn) return base.notify(n);

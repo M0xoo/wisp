@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { effortsFor, harnessesFor, modelsFor, runnerWords, type AgentOffer, runPick } from '../src/frame/runner.ts';
+import { effortsFor, harnessesFor, modelsFor, runnerWords, type AgentOffer, runPick, fullest, usedPct } from '../src/frame/runner.ts';
 
 const AGENTS: AgentOffer[] = [
   { id: 'codex', name: 'Codex', available: true, models: [{ id: 'gpt-5.5', label: 'GPT-5.5' }], efforts: ['low', 'high'] },
@@ -26,4 +26,28 @@ test('the_reply_boxs_harness_model_pick_goes_with_the_next_follow_up_and_none_ke
   expect(runPick(undefined)).toBeUndefined();
   expect(runPick({ agent: 'codex', model: '', effort: '' })).toEqual({ agent: 'codex' });
   expect(runPick({ agent: 'claude', model: 'opus', effort: 'high' })).toEqual({ agent: 'claude', model: 'opus', effort: 'high' });
+});
+
+// F-comp-38: before you pick, each harness says how much of its plan is gone: its fullest window over its accounts
+// (v1 runner-picker.js fullest/usageNote), whole percents rounded down; none known, no line.
+test('the harness picker shows each harness fullest plan window_v1_picker_usage', () => {
+  const w = fullest([
+    { windows: [{ label: '5h', used: 0.42 }, { label: 'Week', used: 0.31 }] },
+    { windows: [{ label: '5h', used: 0.879 }] },
+  ]);
+  expect(w?.label).toBe('5h');
+  expect(w && usedPct(w)).toBe(87);
+  expect(fullest([])).toBeUndefined();
+  expect(fullest([{ windows: [] }])).toBeUndefined();
+});
+
+// F-comp-41: a harness that's installed but signed out sits with the set-up ones, so it can be picked to sign in
+// right there (v1 runner-picker.js signedOut / paintSignIn).
+test('a signed out harness sits with the set up ones so it can be picked to sign in_v1_picker_sign_in', () => {
+  const list: AgentOffer[] = [
+    { id: 'cursor', name: 'Cursor', available: false, models: [], efforts: [] },
+    { id: 'codex', name: 'Codex', available: false, signedIn: false, models: [], efforts: [] },
+    { id: 'claude', name: 'Claude Code', available: true, models: [], efforts: [] },
+  ];
+  expect(harnessesFor(list, '').map((a) => a.id)).toEqual(['codex', 'claude', 'cursor']);
 });

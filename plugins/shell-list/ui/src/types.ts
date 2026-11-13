@@ -101,6 +101,8 @@ export interface Session {
   member?: string;
   crew?: { id: string; job?: string };
   sideOf?: { id: string; title: string };
+  /** the run Auto's best of two picked (wisp.router's row field): the judge's why */
+  autoPick?: { why: string };
   machine?: MachineRef;
   goal?: { status: string; text?: string; round?: number; checks?: { progress?: number }[]; last?: { why?: string } };
   overlaps?: { id: string; title?: string; files: string[]; conflicts?: string[] }[];

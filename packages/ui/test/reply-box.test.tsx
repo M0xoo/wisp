@@ -41,3 +41,42 @@ test('a press outside folds the awake box only once it is let go: what was press
   box.click();
   expect(box.hasAttribute('data-awake')).toBe(true);
 });
+
+// F-comp-46: Send from a finished task (Enter, or the Send button) leaves the keyboard in the box, awake, even as the
+// task moves to Working and the box's props change under it (v1: the caret stays for the next follow-up).
+test('send keeps the caret in the reply box while the task moves to working_v1_send_keeps_focus', async () => {
+  const { createSignal } = await import('solid-js');
+  const host = document.createElement('div');
+  document.body.append(host);
+  const [value, setValue] = createSignal('one more thing');
+  const [working, setWorking] = createSignal(false);
+  const send = (): void => {
+    setValue('');
+    setWorking(true); // the row moves to Working: the queue switch shows
+  };
+  dispose = render(
+    () => (
+      <ReplyBox
+        placeholder="Follow up"
+        value={value()}
+        onInput={setValue}
+        onSend={send}
+        attach="Attach"
+        mode={{ label: 'Auto', title: 'Mode' }}
+        runner={{ title: 'Claude Code' }}
+        team="Team"
+        goal="Goal"
+        later="Later"
+        send="Send"
+        queue={working() ? { label: 'Queue', title: 'Queue', on: true, act: { onClick: () => {} } } : undefined}
+      />
+    ),
+    host,
+  );
+  const ta = host.querySelector('textarea') as HTMLTextAreaElement;
+  ta.focus();
+  ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  expect(working()).toBe(true);
+  expect(document.activeElement).toBe(ta);
+  expect(host.querySelector('[data-kit="reply-box"]')?.hasAttribute('data-awake')).toBe(true);
+});

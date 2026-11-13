@@ -50,6 +50,8 @@
   "accounts.login.signIn": "Sign in",
   "accounts.login.signedIn": "Signed in",
   "accounts.login.signOut": "Sign out",
+  "accounts.runner.signedOut": "{name} is signed out",
+  "accounts.runner.how": "Sign in with your {name} account: a link and a code, no terminal.",
   "accounts.account.n": "{brand} {n}",
   "accounts.account.add": "Add another {brand} account",
   "accounts.account.more": "More for {name}",

@@ -1,7 +1,7 @@
 // wisp.automations' UI: Settings → Automations (recipes and the triggers that launch them).
 import { lazy } from 'solid-js';
 import { defineExtension, definePalette, type PluginUiDef } from '@wisp/shell';
-import { parseDraft } from './recipe.ts';
+import { parseDraft, parseRun } from './recipe.ts';
 import { catalogue } from './i18n.ts';
 
 const parsePage = (p: unknown): { tab: 'recipes' | 'triggers' } => ({ tab: (p as { tab?: unknown } | null)?.tab === 'recipes' ? 'recipes' : 'triggers' });
@@ -20,6 +20,15 @@ const ui: PluginUiDef = {
       parse: parsePage,
       component: lazy(() => import('./AutomationsPage.tsx')) as never,
       title: () => catalogue['automations.pane'] ?? 'Automations',
+    },
+    // a recipe from the launcher's Recipes row (v1 runRecipe): its fields, then Run
+    {
+      kind: 'automations.run',
+      slot: 'overlay',
+      overlay: 'dialog',
+      parse: parseRun,
+      component: lazy(() => import('./RecipeRun.tsx')) as never,
+      title: () => catalogue['automations.run.run'] ?? 'Run',
     },
     {
       kind: 'automations.recipe',

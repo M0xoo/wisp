@@ -9,7 +9,8 @@ import type { Platform, PlatformWindow } from './types.ts';
 
 export function detectPlatform(w: PlatformWindow): Platform {
   if (w.__TAURI_INTERNALS__) return desktopPlatform(w);
-  if (w.Capacitor?.isNativePlatform?.() === true) return androidPlatform(w);
+  // the app's WebView on a computer's own page has MainActivity's bridge even without Capacitor's
+  if (w.Capacitor?.isNativePlatform?.() === true || w.wispAndroid !== undefined) return androidPlatform(w);
   return browserPlatform(w);
 }
 

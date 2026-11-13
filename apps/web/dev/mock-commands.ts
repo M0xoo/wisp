@@ -50,6 +50,18 @@ const MOCK_AGENTS = [
   ].map(([id, name]) => ({ id, name, available: false, efforts: [], models: [] })),
 ];
 
+// Opt-in states for looking at the composer (the default mock stays v1's reference, qa/parity.mjs):
+// MOCK_COMPOSER=1: Codex signed out, Claude's plan windows, two recipes; MOCK_NO_AGENTS=1: no harness set up here.
+const env = (k: string): boolean => typeof process !== 'undefined' && process.env[k] === '1';
+const COMPOSER = env('MOCK_COMPOSER');
+const NO_AGENTS = env('MOCK_NO_AGENTS');
+const agentsNow = (): unknown[] =>
+  NO_AGENTS ? MOCK_AGENTS.map((a) => ({ ...a, available: false })) : COMPOSER ? MOCK_AGENTS.map((a) => (a.id === 'codex' ? { ...a, available: false, signedIn: false } : a)) : MOCK_AGENTS;
+const RECIPES = [
+  { name: 'Prepare release', prompt: 'Prepare release {version}: bump, changelog, tag.' },
+  { name: 'Fix lint', prompt: 'Run the linter and fix what it finds.' },
+];
+
 /** The task whose worktree (or folder) is `dir`, and its turns' bodies (their `changes`). */
 function gitCtx(ctx: CommandCtx): GitCtx {
   const task = (dir: string): { id: string; v: Record<string, unknown> } | undefined =>
@@ -449,7 +461,11 @@ export const COMMANDS: Record<string, CommandFn> = {
   // read-only answers the app asks for at start and on a task page: nothing to show in the mock
   // the harnesses the picker offers (runtime.agents' AgentOffer): three set up, the rest registered but not on this
   // machine, so the trigger form's runner picker and New task's show and can be measured
-  'runtime.agents': () => ({ ops: [], result: MOCK_AGENTS }),
+  'runtime.agents': () => ({ ops: [], result: agentsNow() }),
+  // New task warms its project's remote while you type (nothing to fetch on the mock)
+  'worktrees.warm': () => ({ ops: [], result: null }),
+  'accounts.install': () => ({ ops: [], result: {} }),
+  'accounts.recheck': () => ({ ops: [], result: {} }),
   // ⌘K past work: words in a task's prompts and answers (the peer's full-text index), a snippet around them
   'runtime.search': (a, ctx) => {
     const q = str(obj(a), 'q').toLowerCase().trim();
@@ -495,7 +511,9 @@ export const COMMANDS: Record<string, CommandFn> = {
       },
     };
   },
-  'budget.view': () => ({ ops: [], result: [] }), // no plan windows reported yet
+  'budget.view': (a) =>
+    // no plan windows reported yet (MOCK_COMPOSER: Claude's)
+    ({ ops: [], result: COMPOSER && str(obj(a), 'agent') === 'claude' ? [{ account: '', at: null, windows: [{ id: '5h', label: '5h', used: 0.42 }, { id: '7d', label: 'Week', used: 0.18 }] }] : [] }),
   // the side panel's Preview: nothing runs yet, package.json's dev script to start from
   'terminal.run.info': () => ({ ops: [], result: { open: false, port: 41234, dir: '~/code/wisp-repo', guess: 'npm run dev' } }),
   'terminal.run.start': () => ({ ops: [], result: { ok: true, started: true, port: 41234, dir: '~/code/wisp-repo' } }),
@@ -631,7 +649,8 @@ export const COMMANDS: Record<string, CommandFn> = {
     ],
   }),
   // Automations: no recipes or triggers yet (v1's reference shows Recipes 0 · Triggers 0)
-  'automations.tasks': () => ({ ops: [], result: [] }),
+  'automations.tasks': () => ({ ops: [], result: COMPOSER ? RECIPES : [] }),
+  'automations.task.run': () => ({ ops: [], result: {} }),
   'automations.trigger.ls': () => ({ ops: [], result: [] }),
   // Compare runs' Keep this: the other runs' folders (none on the mock)
   'worktrees.clean': () => ({ ops: [], result: { queued: 0 } }),

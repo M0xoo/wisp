@@ -64,6 +64,25 @@
     border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2));
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
+  /* v1 .l-setup: no coding agent here yet, install opencode */
+  [data-kit='l-setup'] {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 4px;
+    padding: 6px 6px 6px 10px;
+    border-radius: 9px;
+    background: var(--accent-soft);
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  [data-kit='ls-logo'] { display: inline-grid; width: 15px; height: 15px; flex: none; color: var(--ink); }
+  [data-kit='ls-logo'] > img { width: 15px; height: 15px; }
+  [data-kit='ls-text'] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='ls-text'][data-bad] { color: var(--bad); }
+  [data-kit='l-setup'] > [data-kit='icon-btn'] { width: 28px; height: 28px; min-width: 28px; color: var(--muted); }
+  [data-kit='l-setup'] > [data-kit='icon-btn'][data-busy] svg { animation: kit-spin 0.8s linear infinite reverse; }
+  [data-kit='l-setup'] > button:last-child { flex: none; }
   [data-kit='l-projects'] {
     display: flex;
     align-items: center;
@@ -292,6 +311,12 @@
   [data-kit='mode-btn']:hover {
     background: var(--bg-2);
     color: var(--ink);
+  }
+  /* the phone app's mic (v1 .icon-btn.c-mic.on): listening shows in the accent, quietly */
+  [data-kit='icon-btn'][data-part~='composer.mic'][data-on],
+  [data-kit='icon-btn'][data-part~='launcher.mic'][data-on] {
+    color: var(--accent-ink);
+    background: var(--accent-soft);
   }
   [data-kit='tog-btn'] {
     display: inline-flex;
@@ -562,6 +587,23 @@
   [data-kit='lr-list'] > [data-kit='lp-chip'] {
     flex: none;
   }
+  /* v1 .lr-list: with recipes the chips wrap beside the label (a Wrap group, design/layout.md) */
+  [data-part='launcher.recipes-wrap'][data-wrap] {
+    flex-wrap: wrap;
+  }
+  [data-kit='lp-chip'][data-recipe] {
+    background: none;
+    color: var(--muted);
+  }
+  [data-kit='lp-chip'][data-recipe]:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2));
+    color: var(--ink);
+  }
+  [data-kit='rc-f'] {
+    font-style: normal;
+    color: var(--faint);
+    margin-left: -3px;
+  }
 
   /* The prompt box folds its toolbar as it narrows, by its own width (launcher.css, auto.css, subagents.css
      @container launcher): labels go to their icons in v1's order, then the bar scrolls with Send pinned. */
@@ -665,7 +707,7 @@
   }
   /* the hint under the recipes wraps on a phone (launcher.css: nowrap from 401 px up) */
   @container launcher (max-width: 400px) {
-    [data-kit='lr-list'] {
+    [data-kit='lr-list']:not([data-wrap]) {
       flex-direction: column;
       align-items: flex-start;
     }

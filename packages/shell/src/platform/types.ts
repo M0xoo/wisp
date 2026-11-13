@@ -37,6 +37,20 @@ export interface PickOptions {
 
 export type Haptic = 'tap' | 'select' | 'success' | 'warning' | 'error';
 
+/** Why dictation stopped (the Android app's Dictation.java words). */
+export type DictationError = 'denied' | 'blocked' | 'silence' | 'network' | 'busy' | 'audio' | 'failed';
+export type DictationEvent =
+  | { readonly state: 'listening' }
+  | { readonly state: 'partial' | 'final'; readonly text: string }
+  | { readonly state: 'error'; readonly error: DictationError; readonly text?: string }
+  | { readonly state: 'end' };
+
+/** Speech to text (the Android app's SpeechRecognizer). One listens at a time. */
+export interface Dictation {
+  /** starts listening; the returned function stops it (the final result still comes, then `end`) */
+  start(onEvent: (e: DictationEvent) => void): () => void;
+}
+
 export interface Platform {
   readonly kind: PlatformKind;
   /** touch-first and narrow: the phone layout's affordances (a FAB, press feedback) */
@@ -66,6 +80,11 @@ export interface Platform {
    * cancel. Absent in a browser: there, a folder is typed with the server's suggestions (kit PathField). */
   pickFolder?(): Promise<string | null>;
   haptic(kind: Haptic): void;
+  /** added 2026-11-13 (additive): the attach button offers Take photo and Record video (the Android app's camera
+   * handler, Capture.java). Absent or false: the file picker, as in a browser. */
+  readonly camera?: boolean;
+  /** added 2026-11-13 (additive): a mic beside the prompt types what you say (the Android app). Absent: no mic. */
+  readonly dictation?: Dictation;
   copy(text: string): Promise<boolean>;
   openExternal(url: string): void;
   /** the app came back to the foreground (a phone unlocking, a window focused) */
@@ -88,6 +107,16 @@ export interface PlatformWindow {
   readonly Notification?: typeof Notification;
   readonly __TAURI_INTERNALS__?: { invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> };
   readonly Capacitor?: CapacitorGlobal;
+  /** the Android app's page bridge (MainActivity's `wispAndroid`): an older app lacks some of it */
+  readonly wispAndroid?: AndroidBridge;
+}
+
+/** The part of MainActivity's `window.wispAndroid` the platform reads (each method may be missing). */
+export interface AndroidBridge {
+  camera?(): boolean;
+  dictation?(): boolean;
+  dictate?(): void;
+  dictateStop?(): void;
 }
 
 /** The part of Capacitor's global the Android implementation uses (no @capacitor dependency). */

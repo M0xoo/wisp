@@ -4,8 +4,8 @@
 import type { Json, PluginClient, PluginStore } from '@wisp/client';
 import type { LauncherTool } from '@wisp/ui';
 
-/** what a first run keeps of each group of the bar: attach (it's how a prompt gets its files) */
-const KEEP: Readonly<Record<'lead' | 'mid' | 'tail', readonly string[]>> = { lead: ['attach'], mid: [], tail: [] };
+/** what a first run keeps of each group of the bar: attach (it's how a prompt gets its files) and the phone's mic */
+const KEEP: Readonly<Record<'lead' | 'mid' | 'tail', readonly string[]>> = { lead: ['attach', 'mic'], mid: [], tail: [] };
 
 /** First run: not opened yet (`full`), no task of yours yet, and the saved answer is in (no flash for a returning user). */
 export const firstRunOf = (full: boolean, mine: boolean, ready = true): boolean => ready && !full && !mine;

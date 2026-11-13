@@ -32,3 +32,13 @@ export function recipeParams(prompt: string): string[] {
 export function draftOf(task: { readonly title?: string; readonly mode?: string; readonly agent?: string; readonly model?: string; readonly effort?: string }, firstPrompt: string): RecipeDraft {
   return { name: (task.title ?? '').slice(0, 60), prompt: firstPrompt, project: '', mode: task.mode ?? '', agent: task.agent ?? '', model: task.model ?? '', effort: task.effort ?? '' };
 }
+
+/** Every `{field}` a recipe's prompt and steps ask for when it's run, once each, in order (v1 recipeParams). */
+export const fieldsOf = (r: { readonly prompt: string; readonly steps?: readonly string[] }): string[] => [...new Set([r.prompt, ...(r.steps ?? [])].flatMap(recipeParams))];
+
+/** The run dialog's params: the recipe's name, and the launcher's project (its folder, '' for none). */
+export const parseRun = (p: unknown): { name: string; project: string } => {
+  const o = (p ?? {}) as Record<string, unknown>;
+  return { name: typeof o['name'] === 'string' ? o['name'] : '', project: typeof o['project'] === 'string' ? o['project'] : '' };
+};
+

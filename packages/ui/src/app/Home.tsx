@@ -2,6 +2,7 @@
 // the greeting, the prompt box (where it runs, the prompt, its toolbar, Recipes), what needs you,
 // then the tips. On a phone it's its own page with a back button in its head.
 import { For, Index, Match, Show, Switch, createSignal, type JSX } from 'solid-js';
+import { LauncherSetup, type LauncherSetupProps } from './LauncherSetup.tsx';
 import { flag } from '../core/props.ts';
 import { useOpenWithin } from '../core/open-within.ts';
 import { reorderable, type OnReorder } from '../core/reorder.ts';
@@ -52,6 +53,16 @@ export interface LauncherTool {
   readonly on?: boolean;
   readonly disabled?: boolean;
   readonly act?: Act;
+}
+
+/** One recipe in the launcher's Recipes row (v1 .lp-chip.rc): its name, its prompt as the tip, and whether it asks
+ * for fields (a "…" after its name). */
+export interface LauncherRecipe {
+  readonly id: string;
+  readonly label: string;
+  readonly title: string;
+  readonly fields: boolean;
+  readonly act: Act;
 }
 
 export interface LauncherChip {
@@ -125,7 +136,19 @@ export interface LauncherProps {
   readonly goal?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void; readonly ref?: (el: HTMLInputElement) => void };
   /** files attached, and when it starts if not now: chips under the prompt */
   readonly extras?: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly removeLabel: string; readonly onRemove: () => void }[];
-  readonly recipes: { readonly label: string; readonly empty: string; readonly add: string; readonly issue: string; readonly issueTitle: string; readonly addAct?: Act; readonly issueAct?: Act };
+  /** no coding agent on this computer (v1 .l-setup): the install strip over the prompt. Additive (2026-11-13). */
+  readonly setup?: LauncherSetupProps | undefined;
+  readonly recipes: {
+    readonly label: string;
+    readonly empty: string;
+    readonly add: string;
+    readonly issue: string;
+    readonly issueTitle: string;
+    readonly addAct?: Act;
+    readonly issueAct?: Act;
+    /** the recipes for the picked project (v1 .lp-chip.rc), a "…" on one with fields to fill. Additive (2026-11-13). */
+    readonly items?: readonly LauncherRecipe[];
+  };
 }
 
 function Tool(props: { readonly t: LauncherTool }): JSX.Element {
@@ -236,6 +259,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
             <For each={props.chips}>{(c) => <Chip c={c} ids={projectIds} onReorder={props.onReorder} />}</For>
           </span>
         </div>
+        <Show when={props.setup}>{(s) => <LauncherSetup {...s()} />}</Show>
         <div data-kit="mn-wrap">
           <textarea
             data-kit="prompt"
@@ -375,12 +399,26 @@ export function Launcher(props: LauncherProps): JSX.Element {
         </div>
         <div data-kit="l-foot">
           <div data-kit="l-recipes" data-part="launcher.recipes">
-            <div data-kit="lr-list">
+            <div data-kit="lr-list" data-part="launcher.recipes-wrap" data-wrap={flag((props.recipes.items?.length ?? 0) > 0)}>
               <span data-kit="l-in" data-icon="">
                 <Icon name="bolt" />
                 {props.recipes.label}
               </span>
-              <span data-kit="lr-empty">{props.recipes.empty}</span>
+              <For each={props.recipes.items} fallback={<span data-kit="lr-empty">{props.recipes.empty}</span>}>
+                {(r) => (
+                  <WithAct
+                    act={r.act}
+                    render={(trigger) => (
+                      <button type="button" {...trigger()} data-kit="lp-chip" data-small="" data-recipe="" data-part="launcher.recipe" title={r.title}>
+                        <span data-text="control">{r.label}</span>
+                        <Show when={r.fields}>
+                          <i data-kit="rc-f">…</i>
+                        </Show>
+                      </button>
+                    )}
+                  />
+                )}
+              </For>
               <WithAct
                 act={props.recipes.addAct}
                 render={(trigger) => (

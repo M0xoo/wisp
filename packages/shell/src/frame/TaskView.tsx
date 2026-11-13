@@ -73,6 +73,9 @@ import { answerContext, blockedOf } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
 import { useAttachments } from './attach.ts';
+import { attachAct } from './capture.ts';
+import { useMic } from './dictate.ts';
+import type { PickOptions } from '../platform/types.ts';
 import { harnessOf } from './harness.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { TurnTranscript } from './TurnTranscript.tsx';
@@ -286,6 +289,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   // a plugin may fill this reply box (the file view's ✦: "@src/a.ts:12-20 "): set it, the caret at its end
   const replyBox = { text: () => text(), set: (v: string) => (setText(v), menu.typed(v)), focus: () => (input?.focus(), input?.setSelectionRange(input.value.length, input.value.length)) };
   if (shell.prompts) onCleanup(shell.prompts.provide('reply', replyBox));
+  // the phone app's mic (v1 dictate.js): none elsewhere
+  const mic = useMic(shell, { text, set: replyBox.set, el: () => input });
   // the reply box's harness · model (v1 S.replyRunners): the next follow-ups run on it, the task keeps its own
   const [replyRun, setReplyRun] = createSignal<Runner | undefined>(undefined);
   const [runnerOpen, setPickingRunner] = createSignal(false);
@@ -630,9 +635,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   };
   document.addEventListener(TASK_KEY, onKey);
   onCleanup(() => document.removeEventListener(TASK_KEY, onKey));
-  const attach = (): void => {
+  const attach = (o: PickOptions): void => {
     setPicking(true);
-    void shell.platform.pickFiles({ multiple: true }).then((picked) => {
+    void shell.platform.pickFiles(o).then((picked) => {
       setPicking(false);
       if (picked.length) att.add(picked);
     });
@@ -971,7 +976,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     onFiles={att.add}
                     inputRef={(el) => (input = el)}
                     attach={t('shell.home.attach')}
-                    attachAct={{ onClick: attach, pending: picking() }}
+                    attachAct={attachAct(shell, attach, picking())}
+                    mic={mic ? { label: mic.label(), on: mic.on(), act: { onClick: mic.toggle } } : undefined}
                     mode={{
                       label: t(`shell.mode.${mode()}`),
                       title: t('shell.home.fullAutoTitle'),

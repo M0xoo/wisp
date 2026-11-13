@@ -8,6 +8,12 @@ import { useProjects } from './projects.ts';
 import { usePromptMenu } from './prompt-menu.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { useAttachments } from './attach.ts';
+import { attachAct } from './capture.ts';
+import { useMic } from './dictate.ts';
+import { warm, warmer } from './warm.ts';
+import { INSTALLABLE, useSetup } from './setup.ts';
+import { useRecipes } from './recipes.ts';
+import type { PickOptions } from '../platform/types.ts';
 import { Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, uuidv7, type EntityKey, type Json, type PeerId } from '@wisp/client';
 import { AutoPop, FeedbackLine, KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
@@ -287,13 +293,22 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     if (files().length === 0) go([]);
     else void att.take().then(go);
   };
-  const attach = (): void => {
+  const attach = (o: PickOptions): void => {
     setPicking(true);
-    void shell.platform.pickFiles({ multiple: true }).then((picked) => {
+    void shell.platform.pickFiles(o).then((picked) => {
       setPicking(false);
       if (picked.length) att.add(picked);
     });
   };
+  // the repo is fetched while you type, so Send starts at once (v1 warmLaunch)
+  const warmUp = warmer(Date.now, (path) => void shell.client.commands.run(warm, { peer: home, path }).catch(() => undefined));
+  const warmIt = (): void => warmUp(worktree() && target() === home ? project()?.path : undefined);
+  // no coding agent on this computer: the install strip (v1 setup.js)
+  const setup = useSetup(shell, () => home, () => harnessOf(harnesses(), INSTALLABLE).logo, () => input?.focus());
+  // the Recipes row: the picked project's recipes, each opening its run dialog (v1 renderLaunchRecipes)
+  const recipes = useRecipes(shell, () => home, () => (target() === home ? project()?.path : undefined));
+  // the phone app's mic (v1 dictate.js): none elsewhere
+  const mic = useMic(shell, { text, set: (v) => (setText(v), menu.typed(v), ask(v)), el: () => input });
   const tool = (id: string, part: string, icon: LauncherTool['icon'], label: string, title: string, more: Partial<LauncherTool> = {}): LauncherTool => ({ id, part, icon, label, title, ...more });
   const view = (id: string): void => shell.navigate({ t: 'openView', id: id as never, params: null as Json });
   const settingsSheet = (pane: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane } } });
@@ -341,10 +356,12 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           setText(v);
           menu.typed(v);
           ask(v);
+          warmIt();
         }}
         onSend={send}
         onKey={onKey}
         firstRun={firstRun()}
+        setup={target() === home ? setup() : undefined}
         suggest={menu.suggest()}
         onPaste={(e) => menu.paste(e) || att.paste(e)}
         onFiles={att.add}
@@ -384,7 +401,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           }),
         }}
         lead={firstRunTools(firstRun(), 'lead', [
-          tool('attach', 'launcher.attach', 'clip', t('shell.home.attach'), t('shell.home.attach'), { act: { onClick: attach, pending: picking() } }),
+          tool('attach', 'launcher.attach', 'clip', t('shell.home.attach'), t('shell.home.attach'), { act: attachAct(shell, attach, picking()) }),
+          ...(mic ? [tool('mic', 'launcher.mic', 'mic', mic.label(), mic.label(), { on: mic.on(), act: { onClick: mic.toggle } })] : []),
           tool('where', 'launcher.where', target() === home ? 'laptop' : 'server', target() === home ? t('shell.home.where') : shell.client.peers.name(target()), t('shell.home.where'), {
             text: target() !== home,
             ...(target() !== home && { on: true }),
@@ -447,7 +465,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         extras={extras()}
         recipes={{
           label: t('shell.home.recipes'),
-          empty: t('shell.home.recipesEmpty'),
+          empty: recipes.empty(),
+          items: recipes.items(),
           add: t('shell.home.recipesNew'),
           issue: t('shell.home.issue'),
           issueTitle: t('shell.home.issueTitle'),

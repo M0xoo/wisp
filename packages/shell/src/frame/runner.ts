@@ -11,6 +11,8 @@ export interface AgentOffer {
   readonly id: string;
   readonly name: string;
   readonly available: boolean;
+  /** false: installed but signed out (runtime.agents `signedIn`); the picker offers its sign-in */
+  readonly signedIn?: boolean | null;
   readonly models: readonly AgentModel[];
   readonly efforts: readonly string[];
 }
@@ -36,7 +38,9 @@ export function modelsFor(agents: readonly AgentOffer[], agent: string, query: s
 export function harnessesFor(agents: readonly AgentOffer[], query: string): AgentOffer[] {
   const q = query.trim().toLowerCase();
   const hit = (a: AgentOffer): boolean => !q || a.name.toLowerCase().includes(q) || a.models.some((m) => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
-  return agents.filter(hit).sort((a, b) => Number(b.available) - Number(a.available));
+  // a signed-out one can be picked to sign in, so it sits with the set-up ones
+  const usable = (a: AgentOffer): number => Number(a.available || a.signedIn === false);
+  return agents.filter(hit).sort((a, b) => usable(b) - usable(a));
 }
 
 /** The thinking levels of a pick: the model's own, else the harness's. */
@@ -58,3 +62,20 @@ export function runnerWords(agents: readonly AgentOffer[], r: Runner, name: (id:
 export function runPick(r: Runner | undefined): { agent: string; model?: string; effort?: string } | undefined {
   return r ? { agent: r.agent, ...(r.model && { model: r.model }), ...(r.effort && { effort: r.effort }) } : undefined;
 }
+
+/** A plan's usage window as `budget.view` gives it (0–1 used). */
+export interface PlanWindow {
+  readonly label: string;
+  readonly used: number;
+  readonly resetsAt?: number | null;
+}
+
+/** How much of a harness's plan is gone (v1 runner-picker.js fullest): its fullest window over its accounts. */
+export function fullest(accounts: readonly { readonly windows: readonly PlanWindow[] }[]): PlanWindow | undefined {
+  let out: PlanWindow | undefined;
+  for (const a of accounts) for (const w of a.windows) if (Number.isFinite(w.used) && (!out || w.used > out.used)) out = w;
+  return out;
+}
+
+/** v1's quiet line under a harness: "5h 42% used" (whole percents, rounded down). */
+export const usedPct = (w: PlanWindow): number => Math.floor(w.used * 100);

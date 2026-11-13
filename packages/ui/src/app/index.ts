@@ -28,12 +28,14 @@ export {
   type LauncherChip,
   type LauncherCompare,
   type LauncherProps,
+  type LauncherRecipe,
   type LauncherTool,
   type NextRow,
   type PlainTip,
   type SetupTip,
   type SplitHomeProps,
 } from './Home.tsx';
+export { LauncherSetup, type LauncherSetupProps } from './LauncherSetup.tsx';
 export {
   OverlapNote,
   ReplyBox,

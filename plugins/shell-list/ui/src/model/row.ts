@@ -181,6 +181,8 @@ export function pillsOf(s: SessionRow): PillView[] {
   if (l && !isScheduled(s)) out.push({ id: 'later', label: s.later && s.later.length > 1 ? tx('shell-list.pill.later-more', { n: s.later.length - 1, at: l.at }) : tx('shell-list.pill.later', { at: l.at }), tone: 'neutral', icon: l.remind ? 'bell' : 'clock', variant: 'outline' });
   if (s.queued) out.push({ id: 'queued', label: tx('shell-list.pill.queued', { n: s.queued }), tone: s.queueHeld ? 'warn' : 'neutral', title: tx(s.queueHeld ? 'shell-list.pill.queued-held-tip' : 'shell-list.pill.queued-tip', { n: s.queued }) });
   if (s.sideOf) out.push({ id: 'side', label: tx('shell-list.pill.side'), tone: 'neutral', icon: 'discuss', variant: 'outline', title: tx('shell-list.pill.side-tip', { title: s.sideOf.title }) });
+  // v1 feed.js autoPill: the run Auto's best of two picked
+  if (s.autoPick && !s.pending) out.push({ id: 'autoPick', label: tx('shell-list.pill.pick'), tone: 'accent', icon: 'spark', title: tx('shell-list.pill.pick-tip', { why: s.autoPick.why }) });
   const pr = prPill(s);
   if (pr) out.push(pr);
   if (s.pinned) out.push({ id: 'pinned', label: tx('shell-list.pill.pinned'), tone: 'neutral', icon: 'pin', variant: 'outline' });

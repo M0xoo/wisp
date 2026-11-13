@@ -26,6 +26,7 @@ import {
   useSignal,
 } from '@wisp/ui';
 import { fromRow, text } from '../source.ts';
+import { Steps } from './Steps.tsx';
 import { addAccount, install, keyRemove, keySet, loginCancel, loginInput, loginStart, logout, recheck, removeAccount, setAsk, trust } from '../commands.ts';
 import { t } from '../i18n.ts';
 import { ACCOUNT, HARNESS, KEY, LOGIN, PLACE, TOOL, TOPIC, loginId, type AccountRow, type HarnessRow, type KeyRow, type LoginRow, type PlaceRow, type ToolRow } from '../types.ts';
@@ -40,53 +41,6 @@ type Rows<T> = () => readonly T[];
 function useRows<T>(c: PluginClient, kind: string): Rows<T> {
   const list = useSignal(c.entities.list<T>(kind));
   return () => list() as readonly T[];
-}
-
-/** A sign-in under way: the page to open, the code, the paste box. */
-function Steps(props: { readonly c: PluginClient; readonly agent: string; readonly account: string; readonly login: LoginRow | undefined }): JSX.Element {
-  const [code, setCode] = createSignal('');
-  const step = () => loginStep(props.agent, props.login);
-  const peer = props.c.home;
-  return (
-    <Pick>
-      <Match when={step().kind === 'failed'}>
-        <Text tone="bad" part="accounts.login.failed">
-          {(step() as { error: string }).error}
-        </Text>
-      </Match>
-      <Match when={step().kind === 'steps'}>
-        {(() => {
-          const s = step() as { url: string; code: string; paste: boolean; checking: boolean };
-          return (
-            <Stack gap="2" part="accounts.login.steps">
-              <Show when={s.url}>
-                <Text>
-                  {t('accounts.login.open')}{' '}
-                  <Link href={s.url} external>
-                    {site(s.url)}
-                  </Link>
-                </Text>
-              </Show>
-              <Show when={s.code}>
-                <Text>{t('accounts.login.code', { code: s.code })}</Text>
-              </Show>
-              <Show when={s.paste}>
-                <Inline gap="2">
-                  <Input size="sm" mono placeholder={t('accounts.login.paste')} value={code()} onInput={setCode} />
-                  <Button size="sm" disabled={code().trim() === ''} onClick={() => quiet(props.c.run(loginInput, { peer, agent: props.agent, account: props.account, code: code().trim() }))}>
-                    {t('accounts.login.send')}
-                  </Button>
-                </Inline>
-              </Show>
-              <Show when={s.checking}>
-                <Text tone="muted">{t('accounts.login.checking')}</Text>
-              </Show>
-            </Stack>
-          );
-        })()}
-      </Match>
-    </Pick>
-  );
 }
 
 /** The keys a harness signs in with (opencode Zen, Go…): set, test, remove; never the key itself. */
