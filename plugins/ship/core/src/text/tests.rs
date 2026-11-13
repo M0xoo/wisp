@@ -75,3 +75,21 @@ fn log_tail_keeps_the_text_and_the_last_lines() {
     assert_eq!(log_tail("no tabs here", 5), "no tabs here");
     assert_eq!(log_tail("", 5), "");
 }
+
+#[test]
+fn the_pr_body_keeps_prose_callouts_steps_and_files_from_the_answer_but_not_its_hero_or_code() {
+    let blocks = vec![
+        serde_json::json!({ "type": "hero", "title": "Login now rate-limited", "summary": "5 tries a minute." }),
+        serde_json::json!({ "type": "markdown", "text": "Uses a sliding window." }),
+        serde_json::json!({ "type": "code", "code": "let x = 1;" }),
+        serde_json::json!({ "type": "callout", "title": "Assumption", "text": "Behind a proxy." }),
+        serde_json::json!({ "type": "steps", "items": [{ "title": "Added limiter", "detail": "src/a.ts" }, { "title": "Tests" }] }),
+        serde_json::json!({ "type": "next", "items": ["ship"] }),
+    ];
+    let (title, summary, md) = super::presentation_parts(&blocks);
+    assert_eq!(title, Some("Login now rate-limited"));
+    assert_eq!(summary, Some("5 tries a minute."));
+    assert_eq!(md, "Uses a sliding window.\n\n> **Assumption** Behind a proxy.\n\n- Added limiter: src/a.ts\n- Tests");
+    let none = super::presentation_parts(&[]);
+    assert_eq!((none.0, none.1, none.2.as_str()), (None, None, ""));
+}

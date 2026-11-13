@@ -6,6 +6,7 @@ mod fake_gh;
 mod fake_git;
 mod flows;
 mod follows;
+mod wire;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};

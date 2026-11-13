@@ -21,7 +21,7 @@ import { openShip, useReviewCtx, useSession, useShip } from './use.ts';
 import type { ShipSession } from './types.ts';
 
 export default function PrStrip(props: ExtensionProps): JSX.Element {
-  const key = (): EntityKey | undefined => props.session?.()?.id as EntityKey | undefined;
+  const key = (): EntityKey | undefined => (props.id ?? props.session?.()?.id) as EntityKey | undefined;
   return (
     <Show when={key()} keyed>
       {(k) => <Strip client={props.client} k={k} />}

@@ -5597,6 +5597,7 @@ dependencies = [
  "wisp-git-api",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-review-api",
  "wisp-runtime-api",
  "wisp-ship-api",
  "wisp-ship-core",

@@ -66,6 +66,41 @@ fn commit_type(text: &str, prompt: &str) -> &'static str {
     }
 }
 
+/// The answer's hero (title, summary) and the blocks a PR body keeps, as markdown (v1 draft's `keep`:
+/// prose, callouts, steps, checklists, files; not the hero, next, question, diff, code, media or tasks).
+pub fn presentation_parts(blocks: &[serde_json::Value]) -> (Option<&str>, Option<&str>, String) {
+    let text = |b: &serde_json::Value, k: &str| b.get(k).and_then(serde_json::Value::as_str).unwrap_or_default().to_owned();
+    let hero = blocks.iter().find(|b| b["type"] == "hero");
+    let field = |k: &str| hero.and_then(|h| h.get(k)).and_then(serde_json::Value::as_str).filter(|s| !s.trim().is_empty());
+    let items = |b: &serde_json::Value, line: &dyn Fn(&serde_json::Value) -> String| -> String {
+        b["items"].as_array().map(|a| a.iter().map(line).collect::<Vec<_>>().join("\n")).unwrap_or_default()
+    };
+    let parts: Vec<String> = blocks
+        .iter()
+        .filter_map(|b| {
+            let md = match b["type"].as_str()? {
+                "markdown" => text(b, "text"),
+                "callout" => match text(b, "title") {
+                    t if t.is_empty() => format!("> {}", text(b, "text")),
+                    t => format!("> **{t}** {}", text(b, "text")),
+                },
+                "steps" => items(b, &|i| {
+                    format!(
+                        "- {}{}",
+                        text(i, "title"),
+                        Some(text(i, "detail")).filter(|d| !d.is_empty()).map(|d| format!(": {d}")).unwrap_or_default()
+                    )
+                }),
+                "checklist" => items(b, &|i| format!("- [{}] {}", if i["done"] == true { "x" } else { " " }, text(i, "text"))),
+                "files" => items(b, &|i| format!("- `{}` {}", text(i, "path"), text(i, "note")).trim_end().to_owned()),
+                _ => String::new(),
+            };
+            Some(md.trim().to_owned()).filter(|m| !m.is_empty())
+        })
+        .collect();
+    (field("title"), field("summary"), parts.join("\n\n"))
+}
+
 /// The default commit message and PR text: conventional, from the hero title.
 pub fn draft(d: &DraftInput<'_>) -> Draft {
     let text = d.hero_title.unwrap_or(d.session_title).trim();

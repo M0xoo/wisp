@@ -30,6 +30,7 @@ impl Plugin for ReviewPlugin {
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let ctx = s.ctx();
+        s.contribute(&wisp_runtime_api::points::SUMMARY, Arc::new(Row(ctx.clone())) as Arc<dyn wisp_runtime_api::points::SummaryField>);
         let env: Arc<dyn Env> = Arc::new(KernelEnv(ctx.clone()));
         let reviewer = Reviewer::new(env.clone());
         let r = reviewer.clone();
@@ -66,6 +67,42 @@ impl Plugin for ReviewPlugin {
             Ok(())
         });
         Ok(())
+    }
+}
+
+/// `runtime.summary@1`: the review on the task's row (`review`, as `review.view` says it, current when
+/// it's of the PR's head) and whether Settings → Review by another harness is on (`reviewOn`).
+struct Row(Ctx);
+
+/// The setting is on: anything but unset or `off`.
+pub fn review_on(v: Option<&Value>) -> bool {
+    v.and_then(Value::as_str).is_some_and(|h| !h.is_empty() && h != "off")
+}
+
+/// The row's review fields from the session's slots.
+pub fn row_fields(session: &wisp_runtime_api::model::Session, on: bool, out: &mut std::collections::BTreeMap<String, Value>) {
+    if on {
+        out.insert("reviewOn".into(), Value::Bool(true));
+    }
+    let r: Option<Review> = serde_json::from_value(session.ext_of(EXT).clone()).ok();
+    let pr = &session.ext_of(wisp_review_api::SHIP_EXT)["pr"];
+    let head = (pr["state"] == "OPEN").then(|| pr["head"].as_str().unwrap_or_default());
+    if let Some(v) = wisp_review_core::review_view(r.as_ref(), head).and_then(|v| serde_json::to_value(v).ok()) {
+        out.insert("review".into(), v);
+    }
+}
+
+impl wisp_runtime_api::points::SummaryField for Row {
+    fn plugin(&self) -> &str {
+        EXT
+    }
+    fn fields(
+        &self,
+        session: &wisp_runtime_api::model::Session,
+        _last: Option<&wisp_runtime_api::model::Turn>,
+        out: &mut std::collections::BTreeMap<String, Value>,
+    ) {
+        row_fields(session, review_on(self.0.setting(SETTING).as_ref()), out);
     }
 }
 
@@ -179,5 +216,47 @@ impl Env for KernelEnv {
     }
     fn now(&self) -> i64 {
         self.0.clock().map_or(0, |c| c.now_ms())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod row_tests {
+    use std::collections::BTreeMap;
+
+    use serde_json::json;
+    use wisp_runtime_api::model::Session;
+
+    use super::{review_on, row_fields};
+
+    fn task(pr_head: &str, review_head: &str) -> Session {
+        let mut s = Session { id: "t1".into(), ..Session::default() };
+        s.ext.insert("wisp.ship".into(), json!({ "pr": { "state": "OPEN", "head": pr_head } }));
+        s.ext.insert("wisp.review".into(), json!({ "status": "done", "head": review_head, "findings": [], "at": 3, "coverage": { "files": 4, "seen": 2, "chars": 10, "seenChars": 5, "cut": [], "missing": [] } }));
+        s
+    }
+
+    #[test]
+    fn the_row_says_the_review_and_whether_it_is_of_the_prs_head() {
+        let mut out = BTreeMap::new();
+        row_fields(&task("abc", "abc"), true, &mut out);
+        assert_eq!(out["reviewOn"], true);
+        assert_eq!(out["review"]["current"], true);
+        assert_eq!(out["review"]["coverage"]["seen"], 2, "a partial read reaches the chip (says Partial, never a pass)");
+        let mut out = BTreeMap::new();
+        row_fields(&task("def", "abc"), false, &mut out);
+        assert_eq!(out["review"]["current"], false, "a push after it: not current");
+        assert!(!out.contains_key("reviewOn"));
+        let mut out = BTreeMap::new();
+        row_fields(&Session::default(), true, &mut out);
+        assert!(!out.contains_key("review"));
+    }
+
+    #[test]
+    fn review_is_on_for_any_harness_but_off() {
+        assert!(!review_on(None));
+        assert!(!review_on(Some(&json!("off"))));
+        assert!(review_on(Some(&json!("other"))));
+        assert!(review_on(Some(&json!("codex"))));
     }
 }

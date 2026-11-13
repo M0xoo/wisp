@@ -7,9 +7,14 @@ import { parseShipParams } from './ShipDialog.tsx';
 import { SHIP_VIEW } from './use.ts';
 import { openPrs, prOf, prsOf, shipLabel, shippable } from './model/pr.ts';
 import { mergeRequest } from './merge-request.ts';
-import { guessShip } from './model/ship.ts';
+import { dialogTitle, guessShip } from './model/ship.ts';
 import { t } from './i18n.ts';
 import type { ShipSession } from './types.ts';
+import { shipRow } from './row.ts';
+import type { ExtensionProps } from '@wisp/shell/contract';
+
+/** The row an extension is shown for, flat and keyed by its entity key (`p.id` in task inputs). */
+const sess = (p: ExtensionProps): ShipSession | undefined => shipRow(p.session?.(), p.id);
 
 export default definePluginUi({
   id: 'wisp.ship',
@@ -22,7 +27,7 @@ export default definePluginUi({
       attachTo: { id: 'shell.row:head' },
       component: lazy(() => import('./PrPill.tsx')),
       if: (p) => {
-        const s = p.session?.() as ShipSession | undefined;
+        const s = sess(p);
         return !!s?.shipping || prOf(s) !== undefined;
       },
     }),
@@ -32,7 +37,7 @@ export default definePluginUi({
       attachTo: { id: 'shell.row:menu' },
       component: () => null,
       order: 50,
-      if: (p) => shippable(p.session?.() as ShipSession | undefined),
+      if: (p) => shippable(sess(p)),
       bar: {
         icon: 'send',
         label: 'wisp.ship.action.ship',
@@ -40,9 +45,9 @@ export default definePluginUi({
         section: 'waiting',
         keys: 'S',
         rowOnly: true, // the open task's bar has Ship it
-        text: (p) => shipLabel(t, p.session?.() as ShipSession),
+        text: (p) => shipLabel(t, sess(p) as ShipSession),
         select: (p) => {
-          const s = p.session?.() as ShipSession | undefined;
+          const s = sess(p);
           if (s) p.client.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: SHIP_VIEW as never, params: { key: s.id, guess: guessShip(s) } as never } });
         },
       },
@@ -53,18 +58,18 @@ export default definePluginUi({
       attachTo: { id: 'shell.row:menu' },
       component: () => null,
       order: 52,
-      if: (p) => openPrs(p.session?.() as ShipSession | undefined).length > 0,
+      if: (p) => openPrs(sess(p)).length > 0,
       bar: {
         icon: 'check',
         label: 'wisp.ship.menu.merge',
         priority: 52,
         section: 'waiting',
         text: (p) => {
-          const open = openPrs(p.session?.() as ShipSession | undefined);
+          const open = openPrs(sess(p));
           return open.length > 1 ? t('wisp.ship.menu.mergeMany', { count: open.length }) : t('wisp.ship.menu.merge', { n: open[0]?.pr.number ?? 0 });
         },
         select: (p) => {
-          const s = p.session?.() as ShipSession | undefined;
+          const s = sess(p);
           if (!s) return;
           mergeRequest(s.id);
           p.client.navigate({ t: 'openTask', id: s.id as never });
@@ -76,7 +81,7 @@ export default definePluginUi({
       attachTo: { id: 'shell.row:menu' },
       component: () => null,
       order: 75, // v1 #786 View ›: Changes, Shell, Review PR, Run app, Watch
-      if: (p) => prsOf(p.session?.() as ShipSession | undefined).length > 0,
+      if: (p) => prsOf(sess(p)).length > 0,
       bar: {
         icon: 'merge',
         label: 'wisp.ship.menu.review',
@@ -84,11 +89,11 @@ export default definePluginUi({
         sub: 'view',
         keys: 'P',
         text: (p) => {
-          const prs = prsOf(p.session?.() as ShipSession | undefined);
+          const prs = prsOf(sess(p));
           return prs.length > 1 ? t('wisp.ship.menu.reviewMany') : t('wisp.ship.menu.review', { n: prs[0]?.pr.number ?? 0 });
         },
         select: (p) => {
-          const id = (p.session?.() as ShipSession | undefined)?.id;
+          const id = sess(p)?.id;
           if (!id) return;
           p.client.navigate({ t: 'openTask', id: id as never });
           p.client.navigate({ t: 'openSide', side: { kind: 'pr', id: id as never } });
@@ -98,5 +103,6 @@ export default definePluginUi({
     // the PR row over the open task: its line and what to do next (Merge, Fix conflicts)
     defineExtension({ id: 'wisp.ship.strip', attachTo: { id: 'shell.task:band' }, component: lazy(() => import('./PrStrip.tsx')) }),
   ],
-  views: [defineView({ kind: SHIP_VIEW, slot: 'overlay', overlay: 'dialog', parse: parseShipParams, component: lazy(() => import('./ShipDialog.tsx')) })],
+  // its title from the click's guess ("Ship it", "Push to PR #412"), never the shell's fallback
+  views: [defineView({ kind: SHIP_VIEW, slot: 'overlay', overlay: 'dialog', parse: parseShipParams, title: (p) => dialogTitle(t, p.guess), component: lazy(() => import('./ShipDialog.tsx')) })],
 });

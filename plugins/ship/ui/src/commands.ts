@@ -4,6 +4,7 @@
 
 import { defineCommand, type EntityKey, type EntityReader, type LocalOp } from '@wisp/client';
 import type { PatchOp } from '@wisp/protocol';
+import { shipRow } from './row.ts';
 import { SESSION, type MergeResult, type PrSummary, type Review, type ShipInfo, type ShipResult, type ShipSession, type ShipStep } from './types.ts';
 
 interface Task {
@@ -15,8 +16,13 @@ const wire = (a: Task): Record<string, unknown> => {
   const { key, ...rest } = a as Task & Record<string, unknown>;
   return { ...rest, session: key.slice(key.indexOf(':') + 1) };
 };
-const row = (base: EntityReader, key: EntityKey): ShipSession | undefined => base.peek<ShipSession>(SESSION, key) as ShipSession | undefined;
-const set = (key: EntityKey, path: string, value: unknown): LocalOp => ({ e: SESSION, id: key, op: 'patch', ops: [{ op: 'add', path, value } satisfies PatchOp] });
+const raw = (base: EntityReader, key: EntityKey): { id: string; summary?: unknown } | undefined => base.peek<{ id: string; summary?: unknown }>(SESSION, key) as never;
+const row = (base: EntityReader, key: EntityKey): ShipSession | undefined => shipRow(raw(base, key), key);
+/** A field of the row where the server keeps it: under `summary` on a synced row (flat on a flat one). */
+const set = (base: EntityReader, key: EntityKey, path: string, value: unknown): LocalOp => {
+  const at = raw(base, key)?.summary !== undefined ? `/summary${path}` : path;
+  return { e: SESSION, id: key, op: 'patch', ops: [{ op: 'add', path: at, value } satisfies PatchOp] };
+};
 
 /** GET /sessions/:id/ship: what would ship (routes, counts, the drafted message). Reads only. */
 export const prepare = defineCommand<Task, ShipInfo>({ id: 'ship.view', owner, wire, optimistic: 'none', pending: 'the ship.prepare control' });
@@ -35,7 +41,7 @@ export interface ShipArgs extends Task {
 export const ship = defineCommand<ShipArgs, ShipResult>({
   id: 'ship.ship',
   owner, wire,
-  optimistic: (base, a) => (row(base, a.key) ? [set(a.key, '/shipping', { step: a.first, update: a.update })] : []),
+  optimistic: (base, a) => (row(base, a.key) ? [set(base, a.key, '/shipping', { step: a.first, update: a.update })] : []),
 });
 
 /** POST /sessions/:id/pr: check the PR now (wisp also checks every minute). */
@@ -47,7 +53,7 @@ export const fixConflicts = defineCommand<Task>({
   owner, wire,
   optimistic: (base, a) => {
     const s = row(base, a.key);
-    return s ? [set(a.key, '/conflictFix', { ...s.conflictFix, step: 'fixing', why: '' })] : [];
+    return s ? [set(base, a.key, '/conflictFix', { ...s.conflictFix, step: 'fixing', why: '' })] : [];
   },
 });
 
@@ -63,7 +69,7 @@ export const review = defineCommand<Task>({
     const was = s.review;
     const head = s.pr.head ?? was?.head;
     const next: Review = { ...was, status: 'running', current: true, findings: [], ...(head !== undefined && { head }), ...(was?.by && { by: was.by }) };
-    return [set(a.key, '/review', next)];
+    return [set(base, a.key, '/review', next)];
   },
 });
 

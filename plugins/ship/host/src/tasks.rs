@@ -3,16 +3,26 @@
 //! through a command's transaction. Also what ship hears from runtime about a task (running, asking).
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use wisp_ship_api::ShipTask;
 use wisp_ship_core::follow::Busy;
 
-#[derive(Debug, Default)]
+/// Told the id of each task written (put or changed in place): the host keeps the slot on the session.
+pub type OnChange = Arc<dyn Fn(&str) + Send + Sync>;
+
+#[derive(Default)]
 pub struct Tasks {
     rows: Mutex<HashMap<String, ShipTask>>,
     live: Mutex<HashSet<String>>,
     asking: Mutex<HashSet<String>>,
+    changed: OnceLock<OnChange>,
+}
+
+impl std::fmt::Debug for Tasks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tasks").field("rows", &lock(&self.rows).len()).finish_non_exhaustive()
+    }
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -24,13 +34,44 @@ impl Tasks {
         lock(&self.rows).get(id).cloned()
     }
 
+    /// Who hears of each write (set once, when the plugin starts).
+    pub fn on_change(&self, f: OnChange) {
+        let _ = self.changed.set(f);
+    }
+
+    fn changed(&self, id: &str) {
+        if let Some(f) = self.changed.get() {
+            f(id);
+        }
+    }
+
+    /// Writes a task; told only when it differs from what was there.
     pub fn put(&self, task: ShipTask) {
-        lock(&self.rows).insert(task.session.clone(), task);
+        let id = task.session.clone();
+        let same = {
+            let mut rows = lock(&self.rows);
+            let same = rows.get(&id) == Some(&task);
+            rows.insert(id.clone(), task);
+            same
+        };
+        if !same {
+            self.changed(&id);
+        }
     }
 
     /// Changes a task in place; None when it's gone.
     pub fn update<R>(&self, id: &str, f: impl FnOnce(&mut ShipTask) -> R) -> Option<R> {
-        lock(&self.rows).get_mut(id).map(f)
+        let (out, differs) = {
+            let mut rows = lock(&self.rows);
+            let t = rows.get_mut(id)?;
+            let was = t.clone();
+            let out = f(t);
+            (out, *t != was)
+        };
+        if differs {
+            self.changed(id);
+        }
+        Some(out)
     }
 
     pub fn remove(&self, id: &str) {

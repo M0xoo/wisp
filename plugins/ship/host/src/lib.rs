@@ -4,6 +4,7 @@
 //! only through `git.service@^1`, gh only through the kernel's proc service, all of it async.
 
 mod agent;
+pub mod draft;
 pub mod error;
 pub mod flow;
 pub mod follow;
@@ -11,6 +12,7 @@ pub mod gh;
 pub mod ops;
 pub mod ship;
 pub mod tasks;
+pub mod wire;
 
 use std::sync::Arc;
 
@@ -21,8 +23,21 @@ use wisp_ship_api as api;
 use wisp_ship_core::follow::PR_TICK_MS;
 use wisp_ship_core::recheck::BOOT_DELAY_MS;
 
-/// The started ship, once its services are there.
-pub type Slot = Arc<std::sync::OnceLock<Arc<Ship>>>;
+/// The started ship, once its services are there. Each start puts its own (switched off and on, the
+/// new one's tasks and writer replace the old one's).
+#[derive(Debug, Default)]
+pub struct Cell(std::sync::RwLock<Option<Arc<Ship>>>);
+
+impl Cell {
+    pub fn get(&self) -> Option<Arc<Ship>> {
+        self.0.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+    fn set(&self, ship: Arc<Ship>) {
+        *self.0.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(ship);
+    }
+}
+
+pub type Slot = Arc<Cell>;
 
 pub use error::ShipError;
 pub use ops::Shipper;
@@ -40,7 +55,7 @@ impl ShipPlugin {
     }
     /// The running Ship (after start), for an install's own wiring and tests.
     pub fn ship(&self) -> Option<Arc<Ship>> {
-        self.slot.get().cloned()
+        self.slot.get()
     }
 }
 
@@ -66,7 +81,8 @@ fn sink(ctx: &Ctx) -> ship::Sink {
                 ctx.emit(&call, &api::PrMerged { session, prs, sync });
             }
             Out::FollowUp { session, prompt } => {
-                ctx.emit(&call, &api::FollowUpWanted { session, prompt });
+                ctx.emit(&call, &api::FollowUpWanted { session: session.clone(), prompt: prompt.clone() });
+                wire::send_follow_up(&ctx, session, prompt);
             }
             Out::Fix { .. } => {}
         }
@@ -74,7 +90,7 @@ fn sink(ctx: &Ctx) -> ship::Sink {
 }
 
 fn get(slot: &Slot) -> Result<Arc<Ship>> {
-    slot.get().cloned().ok_or_else(|| wisp_kernel::WireError::unavailable("wisp.ship is starting"))
+    slot.get().ok_or_else(|| wisp_kernel::WireError::unavailable("wisp.ship is starting"))
 }
 
 fn commands(s: &mut Setup, slot: &Slot) {
@@ -87,9 +103,13 @@ fn commands(s: &mut Setup, slot: &Slot) {
         }
     });
     let sl = slot.clone();
-    s.command::<api::View, _, _>(move |_ctx, call, a| {
+    s.command::<api::View, _, _>(move |ctx, call, a| {
         let sl = sl.clone();
-        async move { Ok(get(&sl)?.view(&call, &a.session, &a.draft).await?) }
+        async move {
+            let ship = get(&sl)?;
+            let d = if a.draft.title.is_empty() { draft::draft_for(&ctx, &call, &a.session).await } else { a.draft };
+            Ok(ship.view(&call, &a.session, &d).await?)
+        }
     });
     let sl = slot.clone();
     s.command::<api::ShipIt, _, _>(move |ctx, call, a| {
@@ -154,18 +174,23 @@ impl Plugin for ShipPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         commands(s, &self.slot);
         agent::register(s, &self.slot);
+        let known = wire::register(s, &self.slot);
         let slot = self.slot.clone();
-        s.on_start(move |ctx| async move {
-            let proc = ctx.service::<Proc>()?;
-            let shipper = Shipper {
-                git: ctx.use_service::<GitServiceV1>()?,
-                gh: gh::Gh::new((*proc).clone(), "gh"),
-                owner: ctx.scope().clone(),
-                clock: ctx.clock()?,
-            };
-            let ship = Arc::new(Ship::new(shipper, Arc::new(Tasks::default()), sink(&ctx)));
-            let _ = slot.set(ship.clone());
-            start_timers(&ctx, &ship)
+        s.on_start(move |ctx| {
+            let known = known.clone();
+            async move {
+                let proc = ctx.service::<Proc>()?;
+                let shipper = Shipper {
+                    git: ctx.use_service::<GitServiceV1>()?,
+                    gh: gh::Gh::new((*proc).clone(), "gh"),
+                    owner: ctx.scope().clone(),
+                    clock: ctx.clock()?,
+                };
+                let ship = Arc::new(Ship::new(shipper, Arc::new(Tasks::default()), sink(&ctx)));
+                slot.set(ship.clone());
+                wire::start(&ctx, &ship, &known);
+                start_timers(&ctx, &ship, known)
+            }
         });
         Ok(())
     }
@@ -179,13 +204,14 @@ pub fn fix_conflicts(v: Option<&serde_json::Value>) -> bool {
     matches!(v, Some(serde_json::Value::Bool(true))) || v.and_then(serde_json::Value::as_str) == Some("on")
 }
 
-/// The boot recheck once the page has loaded, and the 5 s PR tick. Both die with the plugin's scope.
-fn start_timers(ctx: &Ctx, ship: &Arc<Ship>) -> Result<()> {
+/// The boot recheck once the page has loaded (the tasks with a worktree first), and the 5 s PR tick. Both die with the plugin's scope.
+fn start_timers(ctx: &Ctx, ship: &Arc<Ship>, known: Arc<wire::Known>) -> Result<()> {
     let clock = ctx.clock()?;
-    let (boot, call) = (ship.clone(), ctx.root_call());
+    let (boot, call, bx) = (ship.clone(), ctx.root_call(), ctx.clone());
     let c = clock.clone();
     ctx.spawn(async move {
         c.sleep(BOOT_DELAY_MS).await;
+        wire::boot(&bx, &boot, &known).await;
         let sleeper = c.clone();
         boot.boot(&call, Arc::new(move |ms| sleeper.sleep(ms))).await;
     });

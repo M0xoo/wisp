@@ -8,6 +8,7 @@ pub mod detail;
 pub mod follow;
 pub mod pr;
 pub mod recheck;
+pub mod slot;
 pub mod text;
 pub mod time;
 

@@ -11,7 +11,7 @@ import { shipLabel, shippable } from './model/pr.ts';
 import { useSession, useShip } from './use.ts';
 
 export default function ShipButton(props: ExtensionProps): JSX.Element {
-  const key = props.session?.()?.id as EntityKey | undefined;
+  const key = (props.id ?? props.session?.()?.id) as EntityKey | undefined;
   return <Show when={key}>{(k) => <Inner {...props} k={k()} />}</Show>;
 }
 

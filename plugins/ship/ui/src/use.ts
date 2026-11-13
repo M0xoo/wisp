@@ -8,6 +8,7 @@ import { flowsFor, type TaskFlows } from './flows.ts';
 import { t as tr } from './i18n.ts';
 import type { ReviewContext } from './model/review.ts';
 import { guessShip } from './model/ship.ts';
+import { shipRow } from './row.ts';
 import { useShell, type ShipShell } from './shell.ts';
 import { AGENT, SESSION, type AgentRow, type ShipSession } from './types.ts';
 
@@ -16,9 +17,12 @@ export const SHIP_VIEW = 'ship.dialog'; // in the plugin's namespace, as every v
 export function useSession(client: PluginClient, key: () => EntityKey | undefined): Accessor<ShipSession | undefined> {
   const row = createMemo(() => {
     const k = key();
-    return k ? useSignal(client.entities.row<ShipSession>(SESSION, k)) : undefined;
+    return k ? { k, read: useSignal(client.entities.row<{ id: string }>(SESSION, k)) } : undefined;
   });
-  return () => row()?.() as ShipSession | undefined;
+  return () => {
+    const r = row();
+    return r ? shipRow(r.read(), r.k) : undefined;
+  };
 }
 
 /** Who reviews: the agents' names, and whether Settings → Review by another harness is on. */

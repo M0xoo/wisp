@@ -14,7 +14,7 @@ import { useSession, useShip } from './use.ts';
 const DOING = { commit: 'wisp.ship.doing.commit', push: 'wisp.ship.doing.push', pr: 'wisp.ship.doing.pr', start: 'wisp.ship.doing.start' } as const;
 
 export default function PrPill(props: ExtensionProps): JSX.Element {
-  const key = (): EntityKey | undefined => props.session?.()?.id as EntityKey | undefined;
+  const key = (): EntityKey | undefined => (props.id ?? props.session?.()?.id) as EntityKey | undefined;
   const s = useSession(props.client, key);
   const k = key();
   const opener = k ? useShip(props.client, k) : undefined; // a row's task never changes under it
