@@ -249,7 +249,7 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 | F-auto-9 | 0.42.0 | Given a plan near the limit, when work would pass it, then it waits for the reset and goes after | built | `budget.hold`, `later.waitAtLimit` |
 | F-auto-10 | 0.51.0 | Given *Automations stop at* per harness, when usage passes it, then automations wait | built | Settings → Usage: Automations stop at, and each harness's own line (`budget.setStop`), parity shot r13 usage 1440/390; round 13 (2026-11-11) |
 | F-auto-11 | Unrel. | Given low free memory or high CPU, when a check-in or trigger is due, then it waits | built | `machine` guard (round 4), `machine.automations.pause` |
-| F-auto-12 | 0.51.0 | Given a banked Codex reset lands early, when it does, then waiting work goes | partial | needs the budget plugin side (left for the accounts/budget round) |
+| F-auto-12 | 0.51.0 | Given a banked Codex reset lands early, when it does, then waiting work goes | built | budget detects an early reset once per period (`core/model.rs`), releases held and Ask-held runs (`host/early.rs`), `budget.plan_free{started}`; later pulls waiting follow-ups forward and sends v1's note; e2e `serve_budget.rs` `a_banked_codex_reset_that_lands_early_…` (round 175) |
 | F-auto-13 | 0.20.0 | Given a PR conflicts, when I click *Fix conflicts*, then a follow-up resolves it (auto-fix off unless set) | built | `ship.fix_conflicts`; `PrStrip.tsx` |
 | F-auto-14 | 0.18.0 | Given *Auto-fix PR conflicts* on, when main moves, then wisp fixes shipped PRs itself | built | already built (round 121 checked) |
 | F-auto-15 | 0.8.0 | Given a webhook URL in config, when a task finishes or asks, then wisp POSTs it | built | works through event sinks (events.sink@1, ADR-0044); lead accepted round 121 |
