@@ -809,12 +809,14 @@ test('missing or malformed signature headers, and a body too big to check, are a
 test('a timestamp over 5 minutes off, either way, is refused even with a good signature', { timeout: 30_000 }, async () => {
   const g = await edgeBoot();
   const { u, send, keys } = await discordUser(g);
-  const now = Math.floor(Date.now() / 1000);
+  // The clock is read at each send, and every offset is a minute clear of the 300 s window: a slow
+  // runner that spends a second between sends must not move a timestamp across the line.
+  const at = (s) => Math.floor(Date.now() / 1000) + s;
   const body = JSON.stringify(interaction('1'));
-  assert.equal((await send(body, signedBy(keys.privateKey, body, now - 301))).status, 401, 'old');
-  assert.equal((await send(body, signedBy(keys.privateKey, body, now + 301))).status, 401, 'from the future');
+  assert.equal((await send(body, signedBy(keys.privateKey, body, at(-360)))).status, 401, 'old');
+  assert.equal((await send(body, signedBy(keys.privateKey, body, at(360)))).status, 401, 'from the future');
   assert.equal(g.rows(u).length, 0);
-  assert.equal((await send(body, signedBy(keys.privateKey, body, now - 240))).status, 200, 'inside the window');
+  assert.equal((await send(body, signedBy(keys.privateKey, body, at(-240)))).status, 200, 'inside the window');
 });
 
 test('no key from the box yet: everything is a 401', { timeout: 30_000 }, async () => {
