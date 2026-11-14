@@ -203,6 +203,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **v2: desktop start.** The first window no longer waits for a slow ~/.zshrc; wisp starts at once and picks up your login shell's PATH as soon as it answers, so agent CLIs installed since the last start are found without a restart.
 - **v2: share links.** Share again revokes the link it replaces when the grid makes a new one, so no old link stays public after wisp stops listing it; after Stop sharing the link answers 410. Stop sharing while Share again is still making the link no longer leaves a dead link listed, and a link wisp can't take back is reported as maybe still live.
 - **v2: concurrent writes.** Writes to a task's plugin data no longer lose one another: Stop sharing no longer forgets a fresh link, two *Add to crew* on one task make one member, pausing a goal keeps a round that just finished, and a superseded review no longer overwrites the newer one.
 - **v2: History offers.** Saving a task to its repo no longer brings back the *Save it to the repo?* offer, and an offer computed before a save never overwrites it.
