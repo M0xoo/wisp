@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: archived worktrees come back.** A follow-up, rerun or wake on an archived task brings its worktree back on its branch first (or says why it can't, and runs nothing); archiving no longer removes a worktree you kept.
 - **v2: task rows on a phone.** A row's Save for later and Mark done no longer sit on top of the title on a touch screen; the title ends in an ellipsis before the time.
 - **v2: Save to My Stuff and v1's icon.** A reply's picture, video, doc or code block has Save to My Stuff; My Stuff refuses a pane's new grant while Full auto runs (it couldn't tell before); the app uses v1's handwritten w with the orb.
 - **v2: Ship it and worktrees as in v1.** Ship it follows every worktree task, hides when there's nothing to ship, comes back after a merge and shows the review on the row; Mark done asks to remove the task's worktrees; archiving removes a clean worktree and keeps its branch; Bring in lists Conductor's worktrees.
