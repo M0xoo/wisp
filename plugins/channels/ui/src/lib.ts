@@ -3,7 +3,7 @@
 // only so the pane can answer in one frame.
 
 import type { Key } from './i18n.ts';
-import type { ChannelSetup, SetupArgs, SetupState, Tested, Transport } from './types.ts';
+import { NOTIFY, type ChannelSetup, type NotifyEvent, type SetupArgs, type SetupState, type Tested, type Transport } from './types.ts';
 
 export interface FieldDef {
   readonly key: string;
@@ -71,8 +71,74 @@ export function optimistic(row: ChannelSetup, a: SetupArgs, cloud: boolean): Cha
   const missing = missingOf(row.transport, cloud, saved, settings);
   const changed = secrets.length > 0 || Object.keys(a.settings ?? {}).length > 0;
   const state: SetupState = !enabled ? 'off' : missing.length > 0 ? 'incomplete' : changed || !row.enabled ? 'checking' : row.state;
-  const { error: _e, ...rest } = row;
-  return { ...rest, enabled, saved, settings, missing, state, ...(state === 'failing' && row.error !== undefined && { error: row.error }) };
+  const { error: _e, linkCode: _c, who: _w, ...rest } = row;
+  // Send me: first switched on with nothing chosen, the hub sends questions and finished tasks (v1's default)
+  const notify = a.notify ?? (enabled && !row.enabled && row.notify.length === 0 && notifies(row.transport) ? NOTIFY : row.notify);
+  // unlinked: nobody counts, and the new code comes with the answer
+  const linked = a.unlink === true ? 0 : row.linked;
+  const keep = a.unlink !== true;
+  return {
+    ...rest,
+    enabled,
+    saved,
+    settings,
+    missing,
+    state: a.unlink === true && state === 'connected' ? 'linking' : state,
+    notify,
+    linked,
+    ...(state === 'failing' && row.error !== undefined && { error: row.error }),
+    ...(keep && row.linkCode !== undefined && { linkCode: row.linkCode }),
+    ...((keep || row.transport === 'email') && row.who !== undefined && { who: row.who }),
+  };
+}
+
+/** Send me is for the channels that can send unasked (core setup.rs `notifies`). */
+export const notifies = (transport: string): boolean => transport === 'ntfy' || transport === 'telegram';
+
+/** Send me with `e` ticked or not, in Send me's order. */
+export function toggled(now: readonly NotifyEvent[], e: NotifyEvent, on: boolean): NotifyEvent[] {
+  return NOTIFY.filter((x) => (x === e ? on : now.includes(x)));
+}
+
+/** A channel that links people with a code, and has someone linked: Unlink is offered. */
+export const unlinkable = (row: ChannelSetup): boolean => ['telegram', 'slack', 'discord'].includes(row.transport) && row.linked > 0;
+
+/** What the pane shows for a channel: the topic's row (the hub's word, newest) with what only channels.status and the
+ * commands answer (the link code, the endpoint URL, email's address) from the pane's own copy. A save on its way
+ * (`busy`) keeps the pane's copy: it's newer than any row. */
+export function shown(local: ChannelSetup | undefined, live: ChannelSetup | undefined, busy: boolean): ChannelSetup | undefined {
+  if (!live || busy) return local;
+  if (!local) return live;
+  const code = live.enabled && live.linked === 0 ? local.linkCode : undefined;
+  const who = live.transport === 'email' ? local.who : live.who;
+  const endpoint = local.endpoint;
+  // ntfy's topic is a read capability: not on the row, so the pane's own copy says it
+  const topic = live.transport === 'ntfy' && live.settings['topic'] === undefined ? local.settings['topic'] : undefined;
+  const settings = topic === undefined ? live.settings : { ...live.settings, topic };
+  const { linkCode: _c, who: _w, endpoint: _e, ...rest } = live;
+  return { ...rest, settings, ...(code !== undefined && { linkCode: code }), ...(who !== undefined && { who }), ...(endpoint !== undefined && { endpoint }) };
+}
+
+/** What a row looked like when a save was answered: until the topic brings another, that row is older than the answer. */
+export const pinOf = (live: ChannelSetup | undefined): string => JSON.stringify(live ?? null);
+
+/** The topic's row is newer than the answer pinned at `pin` (none pinned: it is). */
+export const newer = (pin: string | undefined, live: ChannelSetup | undefined): boolean => pin === undefined || pinOf(live) !== pin;
+
+/** A row's change that can change what only channels.status says (a new link code, an address, the endpoint): the
+ * pane reads it again then, once, never on a timer. */
+export function readAgain(was: ChannelSetup | undefined, now: ChannelSetup): boolean {
+  if (!was) return false;
+  return was.enabled !== now.enabled || was.linked !== now.linked || (was.state !== now.state && (now.state === 'linking' || now.state === 'connected'));
+}
+
+/** Slack's manifest as it's pasted at api.slack.com (From a manifest → JSON). */
+export const manifestText = (m: unknown): string => JSON.stringify(m, null, 2);
+
+/** Discord's invite link out of channels.extra's answer. */
+export function inviteOf(v: unknown): string | undefined {
+  const url = typeof v === 'object' && v !== null ? (v as { url?: unknown }).url : undefined;
+  return typeof url === 'string' && url.startsWith('https://') ? url : undefined;
 }
 
 /** The pill's tone (v1 .ph-ok / .ph-bad / .ph-wait). */

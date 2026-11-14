@@ -187,14 +187,14 @@ const mockLayout: { value: Record<string, unknown> } = { value: {} };
 
 // Settings → Phone (wisp.channels channels.status / setup / test, plugins/channels/api/src/setup.rs): ntfy working,
 // Telegram waiting for its link code, GitHub on, the rest off; this mock isn't a cloud computer, so no email
-type MockChannel = { transport: string; installed: boolean; enabled: boolean; state: string; saved: string[]; settings: Record<string, unknown>; missing: string[]; linked: number; linkCode?: string; error?: string; who?: string };
-const ch = (transport: string, more: Partial<MockChannel> = {}): MockChannel => ({ transport, installed: true, enabled: false, state: 'off', saved: [], settings: {}, missing: [], linked: 0, ...more });
+type MockChannel = { transport: string; installed: boolean; enabled: boolean; state: string; saved: string[]; settings: Record<string, unknown>; missing: string[]; linked: number; notify: string[]; linkCode?: string; error?: string; who?: string };
+const ch = (transport: string, more: Partial<MockChannel> = {}): MockChannel => ({ transport, installed: true, enabled: false, state: 'off', saved: [], settings: {}, missing: [], linked: 0, notify: [], ...more });
 const mockPhone: { value: MockChannel[] } = {
   value: [
-    ch('ntfy', { enabled: true, state: 'connected', settings: { topic: 'wisp-48213907561234', server: 'https://ntfy.sh' } }),
-    ch('telegram', { enabled: true, state: 'linking', saved: ['token'], settings: { allowStart: false }, linkCode: '482913' }),
+    ch('ntfy', { enabled: true, state: 'connected', settings: { topic: 'wisp-48213907561234', server: 'https://ntfy.sh' }, notify: ['asks', 'finished'] }),
+    ch('telegram', { enabled: true, state: 'connected', saved: ['token'], settings: { allowStart: false }, linked: 1, who: 'Ada', notify: ['finished'] }),
     ch('slack', { missing: ['appToken', 'botToken'] }),
-    ch('discord', { missing: ['token'] }),
+    ch('discord', { enabled: true, state: 'connected', saved: ['token'], linked: 2 }),
     ch('github', { enabled: true, state: 'connected', settings: { publicReports: false } }),
     ch('email', { settings: { sender: '' }, missing: ['cloud'] }),
   ],
@@ -223,11 +223,40 @@ function setupPhone(x: Args): MockChannel {
   if (t === 'email' && c.enabled) refuse('invalid', 'Email works on a cloud computer: set it up there.');
   if (t === 'ntfy' && c.enabled && !String(c.settings['topic'] ?? '')) c.settings['topic'] = 'wisp-90817263544132';
   c.missing = NEEDS[t]?.(c) ?? [];
-  if ((t === 'telegram' || t === 'slack' || t === 'discord') && c.enabled && !c.linkCode) c.linkCode = '315702';
-  c.state = !c.enabled ? 'off' : c.missing.length ? 'incomplete' : c.linked === 0 && c.linkCode ? 'linking' : 'connected';
+  if (Array.isArray(x['notify'])) {
+    if (t !== 'ntfy' && t !== 'telegram') refuse('invalid', `notify: ${t} answers where it was asked, so it sends nothing on its own`);
+    c.notify = ['asks', 'finished'].filter((e) => (x['notify'] as unknown[]).includes(e));
+  } else if (c.enabled && !was.enabled && c.notify.length === 0 && (t === 'ntfy' || t === 'telegram')) c.notify = ['asks', 'finished'];
+  const linking = t === 'telegram' || t === 'slack' || t === 'discord';
+  if (x['unlink'] === true) {
+    if (!linking) refuse('invalid', `unlink: ${t} links nobody`);
+    c.linked = 0;
+    delete c.who;
+    c.linkCode = String(100000 + Math.floor(Math.random() * 900000));
+  }
+  if (linking && c.enabled && !c.linkCode && c.linked === 0) c.linkCode = '315702';
+  const ready = c.enabled && !c.missing.length;
+  // what changed is checked again: the hub says how it went on its own, on the Phone topic, a moment later
+  const recheck = ready && (Object.keys(obj(x['secrets'])).length > 0 || Object.keys(obj(x['settings'])).length > 0 || (c.enabled && !was.enabled));
+  c.state = !c.enabled ? 'off' : c.missing.length ? 'incomplete' : recheck ? 'checking' : c.linked === 0 && c.linkCode ? 'linking' : 'connected';
   delete c.error;
   mockPhone.value = mockPhone.value.map((y, i) => (i === at ? c : y));
   return c;
+}
+
+/** The Phone topic's row for a channel (`chan_phone`): what channels.status says less the link code, email's address and ntfy's topic. */
+export const PHONE_TOPIC = 'plugin:wisp.channels:phone' as Topic;
+function phoneOp(peer: string, c: MockChannel): EntityOp {
+  const { linkCode: _c, who, settings, ...body } = c;
+  const { topic: _t, ...shared } = settings; // ntfy's topic is a read capability: never on the row
+  return { topic: PHONE_TOPIC, e: 'chan_phone', id: `${peer}:${c.transport}`, op: 'upsert', v: { id: c.transport, body: { ...body, settings: c.transport === 'ntfy' ? shared : settings, ...(c.transport !== 'email' && who !== undefined && { who }) } } };
+}
+function settle(transport: string): MockChannel | undefined {
+  const c = mockPhone.value.find((y) => y.transport === transport);
+  if (!c || c.state !== 'checking') return undefined;
+  const next: MockChannel = { ...c, state: c.linked === 0 && c.linkCode ? 'linking' : 'connected' };
+  mockPhone.value = mockPhone.value.map((y) => (y.transport === transport ? next : y));
+  return next;
 }
 
 export const COMMANDS: Record<string, CommandFn> = {
@@ -788,7 +817,32 @@ export const COMMANDS: Record<string, CommandFn> = {
   // Compare runs' Keep this: the other runs' folders (none on the mock)
   'worktrees.clean': () => ({ ops: [], result: { queued: 0 } }),
   'channels.status': () => ({ ops: [], result: { cloud: false, channels: mockPhone.value } }),
-  'channels.setup': (a) => ({ ops: [], result: setupPhone(obj(a)) }),
+  'channels.setup': (a, ctx) => {
+    const c = setupPhone(obj(a));
+    if (c.state === 'checking') ctx.later(1500, () => {
+        const next = settle(c.transport);
+        return next ? [phoneOp(ctx.peer, next)] : [];
+      });
+    return { ops: [phoneOp(ctx.peer, c)], result: c };
+  },
+  // Slack's manifest (its socket-mode one: this mock isn't a cloud computer), Discord's invite
+  'channels.extra': (a) => {
+    const x = obj(a);
+    const what = `${str(x, 'channel')}/${str(x, 'what')}`;
+    if (what === 'slack/manifest')
+      return {
+        ops: [],
+        result: {
+          display_information: { name: 'wisp', description: 'Start and steer your wisp tasks from Slack.', background_color: '#1a1a1a' },
+          features: { app_home: { home_tab_enabled: false, messages_tab_enabled: true, messages_tab_read_only_enabled: false }, bot_user: { display_name: 'wisp', always_online: true } },
+          oauth_config: { scopes: { bot: ['app_mentions:read', 'chat:write', 'chat:write.customize', 'im:history'] } },
+          settings: { event_subscriptions: { bot_events: ['app_mention', 'message.im'] }, interactivity: { is_enabled: true }, org_deploy_enabled: false, socket_mode_enabled: true, token_rotation_enabled: false },
+        },
+      };
+    if (what === 'discord/invite') return { ops: [], result: { url: 'https://discord.com/oauth2/authorize?client_id=1234567890&scope=bot+applications.commands&permissions=309237713920' } };
+    return refuse('not_found', `${what}: none`);
+  },
+  'channels.rotate': () => ({ ops: [], result: { status: 409, body: { error: 'This cloud computer has no address.' } } }),
   // a test through ntfy and Telegram goes; Slack, Discord and GitHub answer only where they're asked
   'channels.test': (a) => {
     const name = str(obj(a), 'channel');
