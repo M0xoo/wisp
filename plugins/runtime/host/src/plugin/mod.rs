@@ -50,6 +50,7 @@ mod retention;
 mod sessions;
 mod specs;
 mod task_files;
+mod trial;
 
 use ctx_host::{CtxHost, Tree};
 
@@ -76,6 +77,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
     s.contribute(&wisp_runtime_api::points::PROMPT, brief);
     agent_task::setup(s, slot, made_kinds.project.clone(), made_kinds.team.clone());
     create::create_and_follow_up(s, slot, made_kinds);
+    trial::trial(s, slot);
     specs::specs(s, slot);
     edits::edits(s, slot);
     reads::reads(s, slot);

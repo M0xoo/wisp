@@ -149,6 +149,17 @@ pub struct StartArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cap: Option<Mode>,
+    /// the model its subagents run on, over `runtime.subagentModel` (v1 `session.subagentModel`, Try it two ways):
+    /// '' is the task's own model, `haiku` or `sonnet`. Kept on the task (`ext["wisp.runtime"].variant`) for every
+    /// turn; a harness that can't (`HarnessInfo::variants`) is refused. Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub subagent_model: Option<String>,
+    /// `off`: without its skills and slash commands (v1 `skills: 'off'`); `on` or none: as usual. Kept and refused
+    /// like `subagent_model`. Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub skills: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cwd: Option<String>,

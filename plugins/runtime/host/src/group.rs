@@ -26,6 +26,13 @@ impl SummaryField for Group {
         if let Some(g) = group_of(session) {
             out.insert("groupId".into(), json!(g));
         }
+        // Try it two ways (ADR-0056): the trial link and the run's variant, so both rows and Compare say it
+        let own = session.ext.get("wisp.runtime");
+        for key in ["trial", "variant"] {
+            if let Some(v) = own.and_then(|o| o.get(key)).filter(|v| v.is_object()) {
+                out.insert(key.into(), v.clone());
+            }
+        }
     }
 }
 
@@ -51,5 +58,20 @@ mod tests {
         s.ext.insert("wisp.runtime".into(), json!({ "titleAuto": true, "group": "g-1" }));
         Group.fields(&s, None, &mut out);
         assert_eq!(out.get("groupId").unwrap(), "g-1");
+    }
+
+    #[test]
+    fn both_runs_of_a_trial_carry_the_link_and_their_variant_on_the_row_v1_try_two_ways() {
+        let mut s = Session::default();
+        let trial = json!({ "group": "g-1", "run": 1, "runs": ["a", "b"], "differs": [{ "key": "skills", "values": ["on", "off"] }] });
+        s.ext.insert("wisp.runtime".into(), json!({ "group": "g-1", "trial": trial, "variant": { "skills": "off" } }));
+        let mut out = BTreeMap::new();
+        Group.fields(&s, None, &mut out);
+        assert_eq!(out["trial"], trial);
+        assert_eq!(out["variant"], json!({ "skills": "off" }));
+        s.ext.insert("wisp.runtime".into(), json!({ "group": "g-1" }));
+        let mut out = BTreeMap::new();
+        Group.fields(&s, None, &mut out);
+        assert!(!out.contains_key("trial") && !out.contains_key("variant"), "a plain compare run has neither");
     }
 }

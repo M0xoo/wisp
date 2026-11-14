@@ -241,6 +241,14 @@
         "title": "Fork the task from a turn"
       },
       {
+        "id": "runtime.trial",
+        "title": "Try it two ways: run a task twice on one harness with one setting changed"
+      },
+      {
+        "id": "runtime.trial.keep",
+        "title": "Keep one run of Try it two ways (the other is archived)"
+      },
+      {
         "id": "runtime.delegate",
         "title": "Start subagents"
       },

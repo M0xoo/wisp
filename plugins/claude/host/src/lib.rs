@@ -50,6 +50,8 @@ pub fn info() -> HarnessInfo {
         reports_cli: true,
         session_ids: true,
         system_prompt_flag: true,
+        // Try it two ways: CLAUDE_CODE_SUBAGENT_MODEL and --disable-slash-commands (launch.rs)
+        variants: [wisp_runtime_api::commands::SUBAGENT_MODEL, wisp_runtime_api::commands::SKILLS].map(str::to_owned).to_vec(),
     }
 }
 

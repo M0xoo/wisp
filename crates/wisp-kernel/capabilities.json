@@ -76,6 +76,7 @@
       { "permission": "runtime:followUp", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you send the follow-up (wisp.tasks.followUp)." },
       { "permission": "runtime:queue.*", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you send it." },
       { "permission": "runtime:fork", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
+      { "permission": "runtime:trial", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
       { "permission": "runtime:card", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
       { "permission": "stuff:allow", "why": "Refused: a pane can't widen its own grant. You allow what it asks for from its bar." }
     ]

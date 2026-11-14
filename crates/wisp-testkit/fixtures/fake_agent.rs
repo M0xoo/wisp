@@ -2,7 +2,7 @@
 //! The CLI it plays comes from its file name (link it as `claude`, `codex`, …). It speaks each one's
 //! stream format, edits `math.js` for real (`a - b` → `a + b`) and ends with a wisp block.
 //!
-//!   `FAKE_RECORD`      directory; each run appends {argv, stdin, cwd, pid} to `<name>.jsonl`
+//!   `FAKE_RECORD`      directory; each run appends {argv, stdin, cwd, pid, codexHome, subagentModel} to `<name>.jsonl`
 //!   `FAKE_HANG=1`      stop after the first events and wait to be killed
 //!   `FAKE_FAIL=1`      exit 1 with an error on stderr, no result
 //!   `FAKE_LIMIT_ONCE`  a file: the first run with a prompt hits a usage limit (stderr, exit 1); later runs work
@@ -123,7 +123,7 @@ fn record(name: &str, argv: &[String], prompt: &str) {
         return;
     };
     let _ = std::fs::create_dir_all(&dir);
-    let line = json!({ "argv": argv, "stdin": prompt, "cwd": std::env::current_dir().ok(), "pid": std::process::id(), "codexHome": env("CODEX_HOME") });
+    let line = json!({ "argv": argv, "stdin": prompt, "cwd": std::env::current_dir().ok(), "pid": std::process::id(), "codexHome": env("CODEX_HOME"), "subagentModel": env("CLAUDE_CODE_SUBAGENT_MODEL") });
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(Path::new(&dir).join(format!("{name}.jsonl"))) {
         // one write per line: `writeln!` may split a long argv line, and a reader would see half of it
         let _ = f.write_all(format!("{line}\n").as_bytes());

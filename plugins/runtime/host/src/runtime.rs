@@ -400,6 +400,10 @@ impl Runtime {
             };
         }
         own.insert("titleAuto".into(), a.title.is_none().into());
+        // Try it two ways' variant (ADR-0056): kept for every turn, refused when it can't run
+        if let Some(v) = self.variant_slot(&a, &s.agent)? {
+            own.insert("variant".into(), v);
+        }
         if a.terminal {
             own.insert("terminal".into(), serde_json::json!({ "prompt": a.prompt, "opened": false }));
         }

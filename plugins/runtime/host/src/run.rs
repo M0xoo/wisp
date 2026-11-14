@@ -357,6 +357,7 @@ impl Runtime {
                 mcp_servers.entry(k).or_insert(v);
             }
         }
+        let variant = crate::trial::variant_of(s);
         HarnessRun {
             session_id: s.id.0.clone(),
             turn_id: t.id.0.clone(),
@@ -378,8 +379,10 @@ impl Runtime {
             probe: true,
             // v1 leanTask: lean when the task asked, or Settings says every run
             quiet: self.lean_task(s),
-            // v1 defaults.subagentModel: the model Claude Code's subagents run on ('task' is the task's own)
-            subagent_model: Some(self.text_setting("runtime.subagentModel")).filter(|m| m == "haiku" || m == "sonnet").unwrap_or_default(),
+            // v1 defaults.subagentModel: the model Claude Code's subagents run on ('task' is the task's own); the task's
+            // own pick (Try it two ways, `ext["wisp.runtime"].variant`) wins, '' included
+            subagent_model: crate::trial::subagents_on(variant.subagent_model.as_deref(), &self.text_setting("runtime.subagentModel")),
+            skills: if variant.skills.as_deref() == Some("off") { "off".into() } else { String::new() },
             ..HarnessRun::default()
         }
     }

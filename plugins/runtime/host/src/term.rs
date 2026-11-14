@@ -42,7 +42,16 @@ pub fn slash(prompt: &str) -> Option<String> {
 /// Whether a create starts as a terminal task: asked for (the flag, or `/terminal`), or the setting, for one you
 /// start by hand (no parent, not held, nothing on behalf of another plugin, no steps).
 pub fn starts_in_terminal(a: &c::StartArgs, setting: bool) -> bool {
-    a.terminal || (setting && a.parent_id.is_none() && !a.hold && a.by.is_none() && a.ext.is_empty() && a.steps.is_empty())
+    a.terminal
+        || (setting
+            && a.parent_id.is_none()
+            && !a.hold
+            && a.by.is_none()
+            && a.ext.is_empty()
+            && a.steps.is_empty()
+            // a variant is wisp's to apply: the CLI in a terminal wouldn't run it (v1 launch.js)
+            && a.subagent_model.is_none()
+            && a.skills.is_none())
 }
 
 /// What opens: `(resume_id, session_id, prompt)`. The first time, a new conversation on the first prompt, named by

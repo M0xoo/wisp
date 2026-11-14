@@ -7,9 +7,11 @@ use wisp_kernel::Command;
 
 mod more;
 mod tasks;
+mod trial;
 
 pub use more::*;
 pub use tasks::*;
+pub use trial::*;
 
 use crate::model::{Presentation, SearchHit, Session, Summary, Turn};
 
@@ -138,6 +140,14 @@ command!(TaskSetup = "runtime.setup": IdArgs => Value, read_only);
 command!(Agents = "runtime.agents": AgentsArgs => Vec<AgentStatus>, read_only);
 command!(Card = "runtime.card": CardArgs => Created);
 command!(Fork = "runtime.fork": ForkArgs => Created);
+command!(
+    /// Try it two ways (F-comp-31): one task twice on one harness, one setting changed, as a linked pair.
+    Trial = "runtime.trial": TrialArgs => TrialStarted
+);
+command!(
+    /// Keep this (Try it two ways): every run of the trial says which one you kept; the others are archived.
+    TrialKeep = "runtime.trial.keep": IdArgs => Ack
+);
 command!(Import = "runtime.import": ImportArgs => ImportReport);
 command!(
     /// The named agent profiles (`agents:` in a formula).

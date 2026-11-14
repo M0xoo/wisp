@@ -36,6 +36,20 @@ impl Fake {
         })
     }
 
+    /// A fake harness that runs Try it two ways' variants (`HarnessInfo::variants`), as Claude Code does.
+    pub fn varies(id: &str, name: &str) -> Arc<dyn Harness> {
+        Arc::new(Self {
+            info: HarnessInfo {
+                id: id.into(),
+                name: name.into(),
+                models: vec![HarnessModel { id: format!("{id}-m"), label: "M".into(), hint: None, efforts: vec![] }],
+                system_prompt_flag: true,
+                variants: vec!["subagentModel".into(), "skills".into()],
+                ..HarnessInfo::default()
+            },
+        })
+    }
+
     pub fn harness() -> Arc<dyn Harness> {
         Arc::new(Self {
             info: HarnessInfo {
@@ -107,6 +121,9 @@ impl Harness for Fake {
         }
         if !run.subagent_model.is_empty() {
             args.push(format!("--sub={}", run.subagent_model));
+        }
+        if !run.skills.is_empty() {
+            args.push(format!("--skills={}", run.skills));
         }
         Ok(Launch { program: "fake".into(), args, ..Launch::default() })
     }

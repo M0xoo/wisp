@@ -55,6 +55,10 @@ pub struct HarnessInfo {
     /// it takes a system prompt by flag; false: the runtime's prompt is put ahead of the first prompt
     #[serde(default)]
     pub system_prompt_flag: bool,
+    /// the run settings Try it two ways may change on it (`subagentModel`, `skills`; ADR-0056): a task asking for
+    /// one it lacks is refused, never run without it. Additive (2026-11-14).
+    #[serde(default)]
+    pub variants: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

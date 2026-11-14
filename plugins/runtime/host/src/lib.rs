@@ -36,6 +36,7 @@ mod side;
 mod specs;
 pub mod sys;
 mod term;
+pub mod trial;
 pub mod turn_window;
 mod usage_row;
 mod watch;
