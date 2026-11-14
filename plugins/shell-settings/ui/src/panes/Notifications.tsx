@@ -67,7 +67,8 @@ function ChannelProject(props: { readonly client: PluginClient }): JSX.Element {
 }
 
 export default function Notifications(props: { readonly client: PluginClient }): JSX.Element {
-  const openMachines = (): void => props.client.navigate({ t: 'openOverlay', overlay: { kind: 'sheet', id: VIEW_ID, params: { pane: 'machines' } } });
+  // v1's Set up opened the Phone dialog: wisp.channels' Settings → Phone pane
+  const openPhone = (): void => props.client.navigate({ t: 'openOverlay', overlay: { kind: 'sheet', id: VIEW_ID, params: { pane: 'phone' } } });
   return (
     <>
       <SettingsGroup part="settings.notifications.here">
@@ -78,7 +79,7 @@ export default function Notifications(props: { readonly client: PluginClient }):
           title={t('shell-settings.phone')}
           description={t('shell-settings.phone.hint')}
           control={
-            <Button size="sm" variant="ghost" onClick={openMachines}>
+            <Button size="sm" variant="ghost" onClick={openPhone}>
               {t('shell-settings.phone.setup')}
             </Button>
           }

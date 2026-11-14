@@ -185,6 +185,51 @@ function copyTask(x: Args, ctx: CommandCtx, kind: 'rerun' | 'fork'): { ops: Enti
 /** the Org layout the mock keeps between calls */
 const mockLayout: { value: Record<string, unknown> } = { value: {} };
 
+// Settings → Phone (wisp.channels channels.status / setup / test, plugins/channels/api/src/setup.rs): ntfy working,
+// Telegram waiting for its link code, GitHub on, the rest off; this mock isn't a cloud computer, so no email
+type MockChannel = { transport: string; installed: boolean; enabled: boolean; state: string; saved: string[]; settings: Record<string, unknown>; missing: string[]; linked: number; linkCode?: string; error?: string; who?: string };
+const ch = (transport: string, more: Partial<MockChannel> = {}): MockChannel => ({ transport, installed: true, enabled: false, state: 'off', saved: [], settings: {}, missing: [], linked: 0, ...more });
+const mockPhone: { value: MockChannel[] } = {
+  value: [
+    ch('ntfy', { enabled: true, state: 'connected', settings: { topic: 'wisp-48213907561234', server: 'https://ntfy.sh' } }),
+    ch('telegram', { enabled: true, state: 'linking', saved: ['token'], settings: { allowStart: false }, linkCode: '482913' }),
+    ch('slack', { missing: ['appToken', 'botToken'] }),
+    ch('discord', { missing: ['token'] }),
+    ch('github', { enabled: true, state: 'connected', settings: { publicReports: false } }),
+    ch('email', { settings: { sender: '' }, missing: ['cloud'] }),
+  ],
+};
+const PHONE_SECRETS: Record<string, string[]> = { ntfy: ['token'], telegram: ['token'], slack: ['appToken', 'botToken', 'signingSecret'], discord: ['token', 'publicKey'] };
+const NEEDS: Record<string, (c: MockChannel) => string[]> = {
+  ntfy: (c) => (String(c.settings['topic'] ?? '') ? [] : ['topic']),
+  telegram: (c) => (c.saved.includes('token') ? [] : ['token']),
+  slack: (c) => ['appToken', 'botToken'].filter((f) => !c.saved.includes(f)),
+  discord: (c) => (c.saved.includes('token') ? [] : ['token']),
+  email: () => ['cloud'],
+};
+function setupPhone(x: Args): MockChannel {
+  const t = str(x, 'transport');
+  const at = mockPhone.value.findIndex((c) => c.transport === t);
+  const was = mockPhone.value[at];
+  if (!was) return refuse('invalid', `transport: Settings → Phone sets up ${mockPhone.value.map((c) => c.transport).join(', ')}`);
+  const c: MockChannel = { ...was, saved: [...was.saved], settings: { ...was.settings } };
+  for (const [k, v] of Object.entries(obj(x['secrets']))) {
+    if (!(PHONE_SECRETS[t] ?? []).includes(k)) refuse('invalid', `secrets.${k}: ${t} has no secret named ${k}`);
+    if (t === 'slack' && k === 'botToken' && String(v) && !String(v).startsWith('xoxb-')) refuse('invalid', 'secrets.botToken: The bot token starts with xoxb-.');
+    c.saved = c.saved.filter((f) => f !== k).concat(String(v).trim() ? [k] : []);
+  }
+  Object.assign(c.settings, obj(x['settings']));
+  if (typeof x['enabled'] === 'boolean') c.enabled = x['enabled'];
+  if (t === 'email' && c.enabled) refuse('invalid', 'Email works on a cloud computer: set it up there.');
+  if (t === 'ntfy' && c.enabled && !String(c.settings['topic'] ?? '')) c.settings['topic'] = 'wisp-90817263544132';
+  c.missing = NEEDS[t]?.(c) ?? [];
+  if ((t === 'telegram' || t === 'slack' || t === 'discord') && c.enabled && !c.linkCode) c.linkCode = '315702';
+  c.state = !c.enabled ? 'off' : c.missing.length ? 'incomplete' : c.linked === 0 && c.linkCode ? 'linking' : 'connected';
+  delete c.error;
+  mockPhone.value = mockPhone.value.map((y, i) => (i === at ? c : y));
+  return c;
+}
+
 export const COMMANDS: Record<string, CommandFn> = {
   ...READS,
   'runtime.rename': (a, ctx) => {
@@ -742,6 +787,15 @@ export const COMMANDS: Record<string, CommandFn> = {
   'automations.trigger.ls': () => ({ ops: [], result: [] }),
   // Compare runs' Keep this: the other runs' folders (none on the mock)
   'worktrees.clean': () => ({ ops: [], result: { queued: 0 } }),
+  'channels.status': () => ({ ops: [], result: { cloud: false, channels: mockPhone.value } }),
+  'channels.setup': (a) => ({ ops: [], result: setupPhone(obj(a)) }),
+  // a test through ntfy and Telegram goes; Slack, Discord and GitHub answer only where they're asked
+  'channels.test': (a) => {
+    const name = str(obj(a), 'channel');
+    const c = mockPhone.value.find((x) => x.transport === name);
+    if (!c?.enabled) return { ops: [], result: [{ channel: name, outcome: 'failed', error: `${name} is off: switch it on first.` }] };
+    return { ops: [], result: [{ channel: name, outcome: name === 'ntfy' || name === 'telegram' ? 'sent' : 'unprompted' }] };
+  },
   'router.view': () => ({ ops: [], result: { settings: { blocked: [] } } }),
   'router.set': () => ({ ops: [], result: {} }),
   // a folder picker's suggestions (runtime.folders, v1 GET /fs?q=): a small home, answered in the form typed

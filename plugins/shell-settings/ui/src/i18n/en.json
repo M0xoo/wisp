@@ -63,7 +63,7 @@
   "shell-settings.notify.blocked": "Blocked — allow notifications for this site in your browser",
   "shell-settings.notify.unsupported": "Not supported here",
   "shell-settings.phone": "Phone",
-  "shell-settings.phone.hint": "Questions and finished tasks on your phone, through the wisp app",
+  "shell-settings.phone.hint": "ntfy, Telegram, GitHub, Slack or Discord: reach wisp from your phone",
   "shell-settings.phone.setup": "Set up",
   "shell-settings.channels": "Accept tasks from channels",
   "shell-settings.channels.hint.pre": "Send ",
