@@ -5,7 +5,7 @@
 
 use serde_json::{Value, json};
 use wisp_kernel::Ctx;
-use wisp_store::{Col, EntityDef, Migration, Query, Row, Store};
+use wisp_store::{Col, EntityDef, Migration, Query, Row, Store, Writer};
 
 pub const OWNER: &str = "goal";
 pub const KIND: &str = "goal_run";
@@ -122,47 +122,60 @@ pub fn past_keep(newest_first: &[Row]) -> Vec<String> {
     newest_first.iter().skip(KEEP).filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_owned)).collect()
 }
 
-/// Writes one record (and drops the task's oldest past [`KEEP`]). A check's end finds its record gone when its task
-/// was deleted meanwhile ([`forget`]): it isn't written back. A refused write is logged: the goal goes on.
-pub async fn put(ctx: &Ctx, r: Row) {
-    let Ok(store) = ctx.service::<Store>() else { return };
+/// The store meta key that marks a deleted task's checks as gone ([`forget`]): no record of it is written after.
+fn gone_key(task: &str) -> String {
+    format!("goal:gone:{task}")
+}
+
+/// One record written in `w`'s transaction (and the task's oldest past [`KEEP`] dropped). Refused (`false`) when
+/// its task was deleted ([`forget`] ran first: a check starting, or ending, as its task goes leaves nothing behind),
+/// and a check's end isn't written back once its record is gone.
+pub fn write(w: &mut Writer<'_>, r: Row) -> wisp_store::Result<bool> {
     let task = r.get("task").and_then(Value::as_str).unwrap_or_default().to_owned();
     let id = r.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
     let ends = r.get("status").and_then(Value::as_str) != Some("running");
-    let out = store
-        .write(move |w| {
-            if ends && w.get(KIND, id)?.is_none() {
-                return Ok(());
-            }
-            w.upsert(KIND, r)?;
-            let all = w.query(KIND, &Query::new().select(&["id"]).eq("task", task.clone()).desc("started_at").desc("id"))?;
-            for id in past_keep(&all) {
-                w.del(KIND, id)?;
-            }
-            Ok(())
-        })
-        .await;
-    if let Err(e) = out {
-        tracing::warn!(error = %e, "goal: writing a check's record");
+    if w.get_meta(&gone_key(&task))?.is_some() {
+        return Ok(false);
     }
+    if ends && w.get(KIND, id)?.is_none() {
+        return Ok(true);
+    }
+    w.upsert(KIND, r)?;
+    let all = w.query(KIND, &Query::new().select(&["id"]).eq("task", task).desc("started_at").desc("id"))?;
+    for id in past_keep(&all) {
+        w.del(KIND, id)?;
+    }
+    Ok(true)
+}
+
+/// A deleted task's records dropped in `w`'s transaction, and the task marked gone so a check still under way
+/// writes none after (`write`). How many went.
+pub fn drop_task(w: &mut Writer<'_>, task: &str) -> wisp_store::Result<usize> {
+    w.set_meta(&gone_key(task), Some("1"))?;
+    let mut n = 0;
+    for r in w.query(KIND, &Query::new().select(&["id"]).eq("task", task.to_owned()))? {
+        if let Some(id) = r.get("id").and_then(Value::as_str) {
+            n += usize::from(w.del(KIND, id.to_owned())?);
+        }
+    }
+    Ok(n)
+}
+
+/// Writes one record ([`write`]). `false` when its task is gone: a check about to start doesn't. A refused write
+/// is logged: the goal goes on.
+pub async fn put(ctx: &Ctx, r: Row) -> bool {
+    let Ok(store) = ctx.service::<Store>() else { return true };
+    store.write(move |w| write(w, r)).await.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "goal: writing a check's record");
+        true
+    })
 }
 
 /// A deleted task's check records go with it (runtime's `session.deleted`). How many went.
 pub async fn forget(ctx: &Ctx, task: &str) -> usize {
     let Ok(store) = ctx.service::<Store>() else { return 0 };
     let task = task.to_owned();
-    let out = store
-        .write(move |w| {
-            let mut n = 0;
-            for r in w.query(KIND, &Query::new().select(&["id"]).eq("task", task.clone()))? {
-                if let Some(id) = r.get("id").and_then(Value::as_str) {
-                    n += usize::from(w.del(KIND, id.to_owned())?);
-                }
-            }
-            Ok(n)
-        })
-        .await;
-    out.unwrap_or_else(|e| {
+    store.write(move |w| drop_task(w, &task)).await.unwrap_or_else(|e| {
         tracing::warn!(error = %e, "goal: dropping a deleted task's checks");
         0
     })
@@ -241,6 +254,27 @@ mod tests {
             (r["status"].clone(), r["end"].clone(), r["turn"]["status"].clone(), r["turn"]["endedAt"].clone()),
             (json!("error"), json!("interrupted"), json!("error"), json!(99))
         );
+    }
+
+    /// The CI flake behind `serve_goal`'s `a_deleted_tasks_goal_checks_are_deleted_with_it`: a check (or the next
+    /// round's) that starts or ends after `session.deleted` cleared its task's records wrote one back, left forever.
+    /// Each write is one transaction, so this is every order they can land in.
+    #[test]
+    fn a_check_that_starts_or_ends_as_its_task_is_deleted_leaves_no_record() {
+        let store = Store::open(wisp_store::Location::Memory, std::sync::Arc::new(wisp_store::SystemClock)).unwrap();
+        install(&store).unwrap();
+        let other = Check { id: "o1", task: "t2", ..check() };
+        let next = Check { id: "r2", round: 3, ..check() };
+        let write_one = |r: Row| store.write_blocking(move |w| write(w, r)).unwrap();
+        assert!(write_one(started(&check())), "a check of a live task is written");
+        assert!(write_one(started(&other)));
+        assert_eq!(store.write_blocking(|w| drop_task(w, "t1")).unwrap(), 1, "the task is deleted mid-check");
+        assert!(!write_one(started(&next)), "a check starting after it was deleted doesn't");
+        let voted = Ended::Voted { met: false, why: "no", text: "NOT MET: no", activity: &[], model: "" };
+        assert!(!write_one(ended(&check(), &voted, 20)), "the check under way ends: not written back");
+        assert!(!write_one(ended(&next, &Ended::Failed { why: "x" }, 21)));
+        let left = |task: &str| store.query(KIND, &Query::new().eq("task", task.to_owned())).unwrap().len();
+        assert_eq!((left("t1"), left("t2")), (0, 1), "nothing of the deleted task, the other task's check stays");
     }
 
     #[test]

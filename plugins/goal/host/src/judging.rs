@@ -46,7 +46,10 @@ async fn one_judge(
         prompt,
         at,
     };
-    runs::put(ctx, runs::started(&check)).await;
+    // its task deleted meanwhile (`session.deleted`): no check starts, no record of it is left
+    if !runs::put(ctx, runs::started(&check)).await {
+        return wisp_goal_core::Verdict { judge: judge.to_owned(), met: false, why: format!("{judge} didn't judge: the task is gone") };
+    }
     let args = rt::QuickArgs {
         prompt: prompt.to_owned(),
         cwd: place.map_or(round.task.cwd.as_str(), |p| p.1.as_str()).to_owned(),
