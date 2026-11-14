@@ -203,6 +203,9 @@ export interface SidebarHeadProps {
   readonly onSwitch?: () => void;
   /** the selector's tip ("Switch project ⌘P") */
   readonly switchLabel?: string;
+  /** added 2026-11-14: several projects picked: the selector names them ("api + web", "4 projects") over their stacked
+   *  dots (three at most), the need-you counts summed, the tip listing every one */
+  readonly pick?: { readonly colors: readonly string[]; readonly label: string; readonly tip: string; readonly need: number; readonly needLabel: string };
   readonly onBrand?: () => void;
   /** Home is open: the brand (which goes there) is where you are */
   readonly homeOn?: boolean;
@@ -308,15 +311,39 @@ export function SidebarHead(props: SidebarHeadProps): JSX.Element {
         <Show when={props.onSwitch} fallback={<Chips {...props} projectIds={projectIds} />}>
           {(open) => {
             const cur = (): ProjectChip | undefined => props.chips.find((c) => c.id === props.on) ?? props.chips[0];
+            const name = (): string | undefined => props.pick?.label ?? cur()?.name;
+            const need = (): number => props.pick?.need ?? cur()?.need ?? 0;
+            const tip = (): string | undefined => (props.pick ? `${props.pick.tip}\n${props.switchLabel ?? ''}`.trim() : props.switchLabel);
             return (
-              <button type="button" data-kit="p-select" data-part="topbar.project-select" data-color={cur()?.color ?? 'slate'} title={props.switchLabel} aria-label={props.switchLabel} aria-haspopup="dialog" onClick={() => open()()}>
-                <Show when={cur()?.color} fallback={<Icon name="feed" />}>
-                  <i data-kit="p-dot" />
+              <button
+                type="button"
+                data-kit="p-select"
+                data-part="topbar.project-select"
+                data-color={props.pick ? undefined : (cur()?.color ?? 'slate')}
+                data-several={flag(props.pick !== undefined)}
+                title={tip()}
+                aria-label={props.pick ? `${props.pick.label} · ${props.switchLabel ?? ''}` : props.switchLabel}
+                aria-haspopup="dialog"
+                onClick={() => open()()}
+              >
+                <Show
+                  when={props.pick}
+                  fallback={
+                    <Show when={cur()?.color} fallback={<Icon name="feed" />}>
+                      <i data-kit="p-dot" />
+                    </Show>
+                  }
+                >
+                  {(pk) => (
+                    <span data-kit="p-dots" data-part="topbar.project-dots">
+                      <For each={pk().colors.slice(0, 3)}>{(c) => <i data-kit="p-dot" data-color={c} />}</For>
+                    </span>
+                  )}
                 </Show>
-                <span data-kit="p-name" data-text="control">{cur()?.name}</span>
-                <Show when={(cur()?.need ?? 0) > 0}>
-                  <span data-kit="p-need" title={cur()?.needLabel}>
-                    {cur()?.need}
+                <span data-kit="p-name" data-text="control">{name()}</span>
+                <Show when={need() > 0}>
+                  <span data-kit="p-need" title={props.pick?.needLabel ?? cur()?.needLabel}>
+                    {need()}
                   </span>
                 </Show>
                 <Icon name="chevron" />

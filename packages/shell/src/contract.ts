@@ -323,6 +323,9 @@ export interface PaletteItem {
   /** choosing it types this into the input instead of running anything */
   fill?: string;
   run?(): void;
+  /** added 2026-11-14 (additive): a second act at the row's end that leaves the palette open (a project's + / −:
+   * add it to the pick, ⌘-Enter); `on` shows the check and the − */
+  toggle?: { readonly on: boolean; readonly label: string; run(): void };
 }
 
 export interface PaletteContext {
@@ -445,7 +448,8 @@ export interface ShellContext {
   /** the list beside the task (split view): `[` folds it */
   readonly sidebar: { open(): boolean; toggle(): void; width(): number; setWidth(px: number): void };
   /** added 2026-11-11 (additive): the project the list shows, set by the top bar's chips ('all', or a project's id);
-   * a list in `shell.sidebar:list` follows it */
+   * a list in `shell.sidebar:list` follows it. Since 2026-11-14 several picked projects are their ids joined by
+   * commas, in the order added (frame/project-pick.ts `parsePick`) */
   readonly projectFilter?: { readonly value: Readable<string>; set(id: string): void };
   /** named things a shortcut can focus ('launcher' for ⌘L, 'reply' for /): the owner registers */
   readonly focusTargets: { provide(name: string, focus: () => void): () => void; focus(name: string): boolean };

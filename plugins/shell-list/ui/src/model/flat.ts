@@ -3,13 +3,15 @@
 // cheap (only what's on screen is in the DOM) and keeps every heading in the flow, as in v1.
 
 import type { EntityKey } from '../types.ts';
-import { SECTION_IDS, type Entry, type SectionId, type Sections } from './sections.ts';
+import { SECTION_IDS, entryProjects, type Entry, type SectionId, type Sections } from './sections.ts';
 
 export type Item =
   | { readonly t: 'head'; readonly id: SectionId; readonly count: number; readonly open: boolean }
   | { readonly t: 'entry'; readonly section: SectionId; readonly entry: Entry }
   | { readonly t: 'run'; readonly section: SectionId; readonly group: string; readonly key: EntityKey; readonly last: boolean }
   | { readonly t: 'sub'; readonly section: SectionId; readonly lead: EntityKey; readonly key: EntityKey }
+  /** several projects picked: a project's heading (its dot and name) over its rows inside a section (2026-11-14) */
+  | { readonly t: 'proj'; readonly section: SectionId; readonly id: string }
   /** what plugins put between the sections: the crew's section after Needs you on the phone (v1 #secCrew) */
   | { readonly t: 'slot'; readonly id: 'shell.list:crew' };
 
@@ -26,6 +28,8 @@ export interface FlatOptions {
   readonly openLead?: EntityKey | undefined;
   /** something fills `shell.list:crew` here (the stacked list): it goes right after Needs you, as v1's #secCrew */
   readonly crew?: boolean | undefined;
+  /** several projects picked, in the order added: each section's rows grouped by project, each group headed */
+  readonly byProject?: readonly string[] | undefined;
 }
 
 /** Open by default unless folded by default; a toggle flips that. */
@@ -46,6 +50,8 @@ export function itemKey(i: Item): string {
       return `s:${i.key}`;
     case 'slot':
       return `x:${i.id}`;
+    case 'proj':
+      return `j:${i.section}:${i.id}`;
   }
 }
 
@@ -66,11 +72,32 @@ export function flatten(sec: Sections, o: FlatOptions): Item[] {
     out.push({ t: 'head', id, count: list.length, open });
     // a folded section in split view keeps the task open beside it: its row stays
     const shown = open ? list : o.split ? list.filter((e) => holds(e, o.open) || holds(e, o.openLead)) : [];
-    for (const e of shown) out.push(...rowsOf(id, e, o));
+    if (o.byProject && o.byProject.length > 1) {
+      for (const [pid, entries] of byProject(shown, o.byProject)) {
+        out.push({ t: 'proj', section: id, id: pid });
+        for (const e of entries) out.push(...rowsOf(id, e, o));
+      }
+    } else for (const e of shown) out.push(...rowsOf(id, e, o));
     if (id === 'needs' && o.crew) out.push({ t: 'slot', id: 'shell.list:crew' });
   }
   // nothing needs you: the crew still comes first
   if (o.crew && !out.some((i) => i.t === 'slot')) out.unshift({ t: 'slot', id: 'shell.list:crew' });
+  return out;
+}
+
+/** A section's rows grouped by the picked project they're in (the first picked that holds them), groups in the pick's
+ *  order and each keeping the section's order. A row in none of them (a filter that changed under it) closes the list. */
+export function byProject(list: readonly Entry[], pick: readonly string[]): [string, Entry[]][] {
+  const groups = new Map<string, Entry[]>(pick.map((id) => [id, []]));
+  const rest: Entry[] = [];
+  for (const e of list) {
+    const mine = entryProjects(e);
+    const pid = pick.find((id) => mine.includes(id));
+    if (pid === undefined) rest.push(e);
+    else groups.get(pid)?.push(e);
+  }
+  const out = [...groups].filter(([, es]) => es.length > 0);
+  if (rest.length > 0) out.push(['', rest]);
   return out;
 }
 

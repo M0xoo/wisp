@@ -13,6 +13,7 @@
   "shell-list.group.mark-all": "Mark all done",
   "shell-list.projects.label": "Projects",
   "shell-list.projects.all": "All projects",
+  "shell-list.projects.other": "Other",
   "shell-list.menu.open": "Open",
   "shell-list.menu.rename": "Rename",
   "shell-list.menu.copy-id": "Copy task ID",

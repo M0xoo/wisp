@@ -37,3 +37,12 @@
   [data-kit='swipe'][data-armed] > [data-kit='swipe-band'] { background: var(--k-tone); color: var(--on-accent); }
   [data-kit='swipe-label'] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
+
+@layer kit {
+  /* several projects picked: a project's line over its rows inside a section (2026-11-14) */
+  [data-kit='proj-head'] {
+    display: flex; align-items: center; gap: var(--space-3); min-width: 0; height: 24px; padding: var(--space-2) var(--space-4) 0;
+    font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); white-space: nowrap;
+  }
+  [data-kit='proj-head'] > [data-text] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}

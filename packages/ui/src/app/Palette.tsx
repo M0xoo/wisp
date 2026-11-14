@@ -22,6 +22,9 @@ export interface PaletteRow {
   readonly icon?: IconName;
   readonly kbd?: readonly string[];
   readonly tip?: string;
+  /** added 2026-11-14: a + at the row's end (hover and the keyboard's row; always on touch) that adds it without
+   *  closing; `on` shows a check and turns the + into − (a project in the pick) */
+  readonly toggle?: { readonly on: boolean; readonly label: string };
 }
 
 export interface PaletteSheetProps {
@@ -37,6 +40,8 @@ export interface PaletteSheetProps {
   readonly onInput: (value: string) => void;
   readonly onKeyDown: (e: KeyboardEvent) => void;
   readonly onPick: (i: number) => void;
+  /** a row's + / − (added 2026-11-14) */
+  readonly onToggle?: (i: number) => void;
   /** the pointer moved over a row (mousemove, not enter: rows sliding under a still pointer don't take it) */
   readonly onHover: (i: number) => void;
   readonly inputRef?: (el: HTMLInputElement) => void;
@@ -139,11 +144,35 @@ export function PaletteSheet(props: PaletteSheetProps): JSX.Element {
                   <Show when={r.sub}>
                     <span data-kit="pal-sub">{r.sub}</span>
                   </Show>
+                  <Show when={r.toggle?.on}>
+                    <span data-kit="pal-check" data-part="shell.palette.check">
+                      <Icon name="check" size="sm" />
+                    </span>
+                  </Show>
                   <Show when={r.kbd}>
                     {(k) => (
                       <span data-kit="pal-kbd">
                         <For each={k()}>{(key) => <kbd data-kit="kbd">{key}</kbd>}</For>
                       </span>
+                    )}
+                  </Show>
+                  <Show when={r.toggle}>
+                    {(tg) => (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        data-kit="pal-add"
+                        data-part="shell.palette.add"
+                        data-on={flag(tg().on)}
+                        title={tg().label}
+                        aria-label={tg().label}
+                        // the row's own click means "only this one": the + is a second act that leaves it open, the
+                        // caret kept in the input
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => (e.stopPropagation(), props.onToggle?.(i()))}
+                      >
+                        <Icon name={tg().on ? 'minus' : 'plus'} size="sm" />
+                      </button>
                     )}
                   </Show>
                 </div>

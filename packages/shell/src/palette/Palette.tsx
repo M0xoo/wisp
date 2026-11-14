@@ -33,6 +33,8 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
   const [query, setQuery] = createSignal('');
   const [sel, setSel] = createSignal(0);
   const [deep, setDeep] = createSignal<{ q: string; items: readonly PaletteItem[] }>({ q: '', items: [] });
+  // a row's + / − changes what the items say (a check, a −) while the palette stays open: read them again
+  const [changed, setChanged] = createSignal(0);
   const scope = shell.client.scope.child('palette');
   onCleanup(() => scope.dispose());
 
@@ -42,7 +44,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
     return { client: host.client(plugin), nav: n, focused };
   };
   const items = createMemo(() =>
-    sources().filter((s) => !params.only || params.only.includes(s.id)).flatMap((s) => {
+    (changed(), sources()).filter((s) => !params.only || params.only.includes(s.id)).flatMap((s) => {
       try {
         return s.items(ctxFor(s.plugin));
       } catch {
@@ -87,6 +89,13 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
     shell.navigate({ t: 'closeOverlay', id: 'shell.palette' as never });
     r.item.run?.();
   };
+  // the + / − (⌘-Enter): its act, the palette left open on the same row
+  const toggle = (r: Ranked | undefined): boolean => {
+    if (!r?.item.toggle) return false;
+    r.item.toggle.run();
+    setChanged((n) => n + 1);
+    return true;
+  };
   const onKey = (e: KeyboardEvent): void => {
     const n = shown().length;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -96,6 +105,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
       document.getElementById(paletteRowId(sel()))?.scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault();
+      if ((shell.platform.apple ? e.metaKey : e.ctrlKey) && toggle(shown()[sel()])) return;
       run(shown()[sel()]);
     }
   };
@@ -117,6 +127,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
         ...(it.color ? { dot: `pc-${it.color}` as ProjectColor } : { icon: (it.icon ?? 'arrow') as IconName }),
         // a row's shortcut always shows (as VS Code and Linear do), not only on hover: it's how you learn it
         ...(it.kbd !== undefined && { kbd: it.kbd.split(' ') }),
+        ...(it.toggle && { toggle: { on: it.toggle.on, label: it.toggle.label } }),
       };
     }),
   );
@@ -137,6 +148,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
       }}
       onKeyDown={onKey}
       onPick={(i) => run(shown()[i])}
+      onToggle={(i) => void toggle(shown()[i])}
       onHover={setSel}
       // the palette loads after its dialog opened, so the dialog's first focus missed the input
       inputRef={(el) => requestAnimationFrame(() => el.focus())}

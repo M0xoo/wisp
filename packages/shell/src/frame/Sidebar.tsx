@@ -7,8 +7,9 @@ import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-
 import type { EntityKey, Json } from '@wisp/client';
 import { forLater, markRead, setState } from './commands.ts';
 import { openSwitcher } from './project-switch.ts';
+import { parsePick, pickLabel, pickOnly, pickRemove, pickValue, pickedProjects, pickHas } from './project-pick.ts';
 import { displayCombo } from '../keys.ts';
-import { CrewRail, EmptyState, Feed, FeedSection, SidebarHead, SplitTop, TaskCard, useSignal, type MenuEntry, type ProjectChip, type RailMember } from '@wisp/ui';
+import { CrewRail, EmptyState, Feed, FeedSection, PickStrip, SidebarHead, SplitTop, TaskCard, useSignal, type MenuEntry, type ProjectChip, type RailMember } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { routeOf, routeTip } from './auto.ts';
 import { useNow } from '../clock.ts';
@@ -96,6 +97,18 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
       }),
     ];
   });
+  // several projects picked: the button names them, their need-you counts summed, the tip listing each
+  const pickIds = createMemo(() => knownPick(props.filter(), projects()));
+  const pick = createMemo(() => {
+    const ids = pickIds();
+    if (ids.length < 2) return undefined;
+    const picked = pickedProjects(ids, projects());
+    const need = chips()
+      .filter((c) => ids.includes(c.id))
+      .reduce((n, c) => n + c.need, 0);
+    return { colors: picked.map((p) => p.color || 'slate'), label: pickLabel(picked, shell.t), tip: picked.map((p) => p.name).join('\n'), need, needLabel: needLabel(need) };
+  });
+  const on = (): string => pickIds()[0] ?? 'all';
   const slots = useHeadSlots();
   const nav = useSignal(shell.nav);
   const homeOn = (): boolean => nav().main.kind === 'home';
@@ -136,7 +149,8 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
       viewLabel={shell.t('shell.side.view')}
       manageLabel={shell.t('shell.side.manage')}
       chips={chips()}
-      on={props.filter()}
+      on={on()}
+      {...((pk) => (pk ? { pick: pk } : {}))(pick())}
       onBrand={() => shell.navigate({ t: 'home' })}
       onSearch={() => shell.palette.open()}
       onView={() => shell.sidebar.toggle()}
@@ -162,6 +176,30 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
         },
       }}
     />
+  );
+}
+
+/** The pick, without ids of projects no longer there (once the projects have loaded). */
+function knownPick(value: string, projects: readonly { readonly id: string }[]): string[] {
+  return parsePick(value, projects.length > 0 ? projects.map((p) => p.id) : undefined);
+}
+
+/** The strip over the list while several projects are picked (project-pick.ts): each a chip with its ×, then
+ *  Only <first> and All projects. Shown over any list (the frame's or shell-list's). */
+export function PickStripView(props: { readonly filter: () => string; readonly setFilter: (v: string) => void }): JSX.Element {
+  const shell = useShell();
+  const projects = useProjects(shell, usePluginClient('shell').home).list;
+  const picked = createMemo(() => pickedProjects(knownPick(props.filter(), projects()), projects()));
+  return (
+    <Show when={picked().length > 1}>
+      <PickStrip
+        label={shell.t('shell.pick.strip')}
+        chips={picked().map((p) => ({ id: p.id, name: p.name, color: p.color || 'slate', title: p.path, removeLabel: shell.t('shell.pick.leave', { name: p.name }) }))}
+        onRemove={(id) => props.setFilter(pickValue(pickRemove(picked().map((p) => p.id), id)))}
+        only={{ label: shell.t('shell.pick.only', { name: picked()[0]?.name ?? '' }), onClick: () => props.setFilter(pickValue(pickOnly(picked()[0]?.id ?? 'all'))) }}
+        all={{ label: shell.t('shell.side.all'), onClick: () => props.setFilter('all') }}
+      />
+    </Show>
   );
 }
 
@@ -210,7 +248,8 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
   const bySection = createMemo(() => {
     const out = new Map<SectionId, SessionRow[]>();
     const who = picked()?.id;
-    const shown = sessions().filter((s) => (props.filter() === 'all' || projectOf(String(s.summary['cwd'] ?? ''), projects())?.id === props.filter()) && (!who || crewOf(s) === who));
+    const ids = knownPick(props.filter(), projects());
+    const shown = sessions().filter((s) => pickHas(ids, projectOf(String(s.summary['cwd'] ?? ''), projects())?.id) && (!who || crewOf(s) === who));
     for (const s of shown.sort((a, b) => b.updated_at - a.updated_at)) {
       const k = sectionOf(s);
       out.set(k, [...(out.get(k) ?? []), s]);

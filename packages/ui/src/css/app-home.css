@@ -145,6 +145,21 @@
     border-color: transparent;
     background: var(--bg-2);
   }
+  /* one task, several folders (F-comp-47, v1 launcher.css .lp-also): a small badge on a chip's corner adds it (+) or
+     leaves it out (×); shown on hover and focus, the + always on touch */
+  [data-kit='lp-also'] {
+    position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--surface); border: 1px solid var(--line-2); color: var(--muted); box-shadow: var(--shadow-1);
+    opacity: 0; transform: scale(0.6); transition: opacity 0.12s, transform 0.12s, color 0.12s, background 0.12s; pointer-events: none;
+  }
+  [data-kit='lp-also'] > [data-kit='icon'] { width: 10px; height: 10px; }
+  [data-kit='lp-chip']:is(:hover, :focus-visible) > [data-kit='lp-also'] { opacity: 1; transform: none; pointer-events: auto; }
+  @media (hover: hover) {
+    [data-kit='lp-also']:hover { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+    [data-kit='lp-also'][data-on]:hover { background: var(--bad); border-color: var(--bad); }
+  }
+  /* on touch both show: a tap can't ⌘-click, so the × is the only way to leave a folder out */
+  @media (hover: none) { [data-kit='lp-also'] { opacity: 1; transform: none; pointer-events: auto; } }
   [data-kit='lp-chip'][data-none] > [data-kit='icon'] {
     width: 13px;
     height: 13px;

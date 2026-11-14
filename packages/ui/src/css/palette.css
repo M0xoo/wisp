@@ -26,6 +26,23 @@
   [data-kit='pal-label'] > mark { background: none; color: var(--accent-ink); font-weight: 600; }
   [data-kit='pal-sub'] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--faint); }
   [data-kit='pal-kbd'] { margin-left: auto; display: flex; gap: 3px; flex: none; }
+  /* a project's + / − (pick several, 2026-11-14): at the row's end, shown on hover and on the keyboard's row (always on
+     touch); a project in the pick shows a check before the shortcut */
+  [data-kit='pal-check'] { display: grid; place-items: center; flex: none; margin-left: auto; color: var(--accent-ink); }
+  [data-kit='pal-check'] > [data-kit='icon'] { width: 14px; height: 14px; }
+  [data-kit='pal-check'] + [data-kit='pal-kbd'] { margin-left: 0; }
+  [data-kit='pal-add'] {
+    display: grid; place-items: center; flex: none; width: 24px; height: 24px; margin: 0 -4px 0 0; padding: 0; border: 1px solid var(--line-2);
+    border-radius: 6px; background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+  }
+  [data-kit='pal-add'] > [data-kit='icon'] { width: 12px; height: 12px; }
+  [data-kit='pal-row']:hover > [data-kit='pal-add'], [data-kit='pal-row'][data-on] > [data-kit='pal-add'] { opacity: 1; }
+  /* a tap leaves :hover on the last button touched: the colours only where there is a pointer that hovers */
+  @media (hover: hover) {
+    [data-kit='pal-add']:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    [data-kit='pal-add'][data-on]:hover { background: var(--bad); border-color: var(--bad); }
+  }
+  @media (hover: none) { [data-kit='pal-add'] { opacity: 1; width: 32px; height: 32px; } }
   [data-kit='pal-empty'] { padding: 34px 12px; text-align: center; color: var(--muted); font-size: 13px; }
   [data-kit='pal-foot'] { flex: none; display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--surface-2); font-size: 11.5px; color: var(--faint); }
   [data-kit='pal-foot'] [data-kit='kbd'] { display: inline; margin-right: 3px; } /* v1 kbd is inline: the line keeps the foot's height */

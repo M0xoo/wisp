@@ -3,6 +3,7 @@
 // are rows of their own (plans.ts). Compare runs (one launch on several harnesses, one groupId) are
 // one task while two or more sit on the same side of archived.
 
+import { parsePick } from '@wisp/shell/pure';
 import type { EntityKey, Plan, Row, Session, SessionRow } from '../types.ts';
 
 export type SectionId = 'needs' | 'working' | 'scheduled' | 'drafts' | 'forLater' | 'done' | 'archived';
@@ -32,7 +33,23 @@ export interface Filter {
 
 export const ALL: Filter = { project: 'all' };
 
-export const inProject = (s: Pick<SessionRow, 'projectId'> & Partial<Pick<SessionRow, 'also'>>, project: string): boolean => project === 'all' || s.projectId === project || (s.also ?? []).some((a) => a.projectId === project);
+/** The projects a filter names: [] for 'all'; several picked are their ids joined by commas (shell's project-pick.ts). */
+export const pickOf = (project: string): readonly string[] => parsePick(project);
+
+/** The projects a task (or a plan) is in: its own, then each other folder it also works in. */
+export const projectsOf = (s: { readonly projectId?: string | null | undefined; readonly also?: SessionRow['also'] }): readonly string[] =>
+  [s.projectId, ...(s.also ?? []).map((a) => a.projectId)].filter((x): x is string => typeof x === 'string' && x !== '');
+
+export const inProject = (s: { readonly projectId?: string | null | undefined; readonly also?: SessionRow['also'] }, project: string): boolean => {
+  const pick = pickOf(project);
+  return pick.length === 0 || projectsOf(s).some((id) => pick.includes(id));
+};
+
+/** The projects an entry is in (a compare task: its first run's). */
+export const entryProjects = (e: Entry): readonly string[] => {
+  const s = e.kind === 'plan' ? e.plan : lead(e);
+  return s ? projectsOf(s) : [];
+};
 
 /** Saved for later: out of Needs you, Scheduled and Done meanwhile (core/state.js isForLater). */
 export const isForLater = (s: SessionRow): boolean => !!s.forLater && !s.archived && !s.reminder && !s.pending && (s.state === 'review' || s.state === 'done');

@@ -75,6 +75,9 @@ export interface LauncherChip {
   readonly color?: string;
   readonly on?: boolean;
   readonly act?: Act;
+  /** added 2026-11-14 (F-comp-47, v1 launcher.js lp-also): one task in several folders. A badge on the chip's corner adds
+   *  this project (+, on hover; always on touch) or leaves it out (×, `on`); ⌘/Ctrl-click the chip does the same */
+  readonly also?: { readonly on: boolean; readonly label: string; readonly onToggle: () => void };
 }
 
 /** One more harness the launch runs on (v1 .vs-del + .runner-btn.cmp-x). */
@@ -190,6 +193,23 @@ function Chip(props: { readonly c: LauncherChip; readonly ids: () => readonly st
           type="button"
           {...reorderable('launcher.projects', props.c.id, props.ids, props.c.kind === 'project' ? props.onReorder : undefined)}
           {...trigger()}
+          onClick={(e: MouseEvent) => {
+            const also = props.c.also;
+            if (also && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              e.stopPropagation();
+              return also.onToggle();
+            }
+            (trigger()['onClick'] as ((e: MouseEvent) => void) | undefined)?.(e);
+          }}
+          // ⌘/Ctrl-Enter on a focused chip: the badge's act from the keyboard
+          onKeyDown={(e: KeyboardEvent) => {
+            if (props.c.also && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              props.c.also.onToggle();
+            }
+          }}
+          aria-description={props.c.also?.label}
           data-kit="lp-chip"
           data-on={flag(props.c.on)}
           data-none={flag(props.c.kind === 'none')}
@@ -202,6 +222,22 @@ function Chip(props: { readonly c: LauncherChip; readonly ids: () => readonly st
             <Match when={props.c.kind === 'project'}>
               <i data-kit="p-dot" />
               {props.c.name}
+              <Show when={props.c.also}>
+                {(a) => (
+                  <span
+                    data-kit="lp-also"
+                    data-part="launcher.also"
+                    data-on={flag(a().on)}
+                    // inside the chip's button, so not a control of its own: the chip says it (aria-description)
+                    // and ⌘/Ctrl-click or ⌘/Ctrl-Enter on the chip does it
+                    aria-hidden="true"
+                    title={a().label}
+                    onClick={(e) => (e.preventDefault(), e.stopPropagation(), a().onToggle())}
+                  >
+                    <Icon name={a().on ? 'x' : 'plus'} />
+                  </span>
+                )}
+              </Show>
             </Match>
             <Match when={props.c.kind === 'none'}>
               <Icon name="text" />

@@ -6,6 +6,7 @@
 import { createEffect, createMemo, createSignal, type JSX } from 'solid-js';
 import { defineCommand, uuidv7, type PluginClient } from '@wisp/client';
 import { projectList, useShell } from '@wisp/shell';
+import { parsePick } from '@wisp/shell/pure';
 import { CrewEditorForm, isSpirit, parseSpirit, rollSpirit, useSignal, type CrewEditorBarItem, type CrewEditorChip } from '@wisp/ui';
 import { CREW_COLORS } from './types.ts';
 import { adoptTask, createMember, updateMember } from './commands.ts';
@@ -55,7 +56,7 @@ export default function CrewEditor(props: { readonly client: PluginClient; reado
   // a new member works where you are: the project the list shows, or your only one (v1: the launcher's project)
   const here = (): string => {
     const all = projectList(projectRows(), undefined);
-    const on = shell.projectFilter?.value();
+    const on = parsePick(shell.projectFilter?.value())[0]; // several picked: the first, where New task starts
     return all.find((p) => p.id === on)?.path ?? (all.length === 1 ? (all[0]?.path ?? '') : '');
   };
   const [d, setD] = createSignal<Draft>(editing() ? before : { ...before, ...faceOf(rollSpirit(String(Math.random()))), cwd: task ? '' : here() });

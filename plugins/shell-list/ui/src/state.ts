@@ -4,7 +4,7 @@
 // (project filter, folded sections). The shell keeps the recent tasks (⌃Tab) itself.
 
 import { computed, defineCommand, entityKey, signal, type DeepReadonly, type EntityKey, type PeerId, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
-import { PROJECT_ORDER, projectList, projectOf, type ProjectView } from '@wisp/shell/pure';
+import { PROJECT_ORDER, parsePick, pickValue, projectList, projectOf, type ProjectView } from '@wisp/shell/pure';
 import { reordered } from '@wisp/ui/pure';
 import { createPlacement } from './model/placement.ts';
 import { flatSession, LATER_TOPIC, listPlan } from './model/wire.ts';
@@ -148,14 +148,20 @@ function createModel(client: PluginClient): ListModel {
   const nest = signal(false);
   const memberRows = client.entities.list<{ id: string }>('crew_member');
   const nested = computed(() => (nest() ? [...new Set(memberRows().map((m) => m.id))].sort() : undefined));
-  const filterOf = (v: DeepReadonly<ViewState>, who: string | undefined, under: readonly string[] | undefined): Filter => ({
-    project: v.filter,
+  // the pick without projects removed since it was saved (once the projects are known): a pick of only those is All
+  const picked = computed(() => {
+    const ps = projects();
+    const f = view.value().filter;
+    return ps.length > 0 ? pickValue(parsePick(f, ps.map((p) => p.id))) : f;
+  });
+  const filterOf = (_v: DeepReadonly<ViewState>, who: string | undefined, under: readonly string[] | undefined): Filter => ({
+    project: picked(),
     ...(who !== undefined && { crew: who }),
     ...(under && { underMember: underMemberOf(new Set(under)) }),
   });
   const sections = computed(() => {
     const under = nested();
-    return filtered({ keys: keys(), rows: rows(), plans: plans(), filter: filterOf(view.value(), crew(), under), filterKey: `${view.value().filter}|${crew() ?? ''}|${under?.join(',') ?? '-'}` });
+    return filtered({ keys: keys(), rows: rows(), plans: plans(), filter: filterOf(view.value(), crew(), under), filterKey: `${picked()}|${crew() ?? ''}|${under?.join(',') ?? '-'}` });
   });
   const everything = computed(() => unfiltered({ keys: keys(), rows: rows(), plans: plans(), filter: ALL, filterKey: 'all' }));
   const needsCount = computed(() => everything().needs.filter((e) => (e.kind === 'task' ? needsYou(e.s) : e.kind === 'group' && e.runs.some((r) => needsYou(r.s)))).length);

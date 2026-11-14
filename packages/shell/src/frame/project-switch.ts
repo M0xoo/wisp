@@ -10,6 +10,7 @@ import type { PaletteItem, ShellContext, ShortcutDef } from '../contract.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { displayCombo } from '../keys.ts';
 import { PROJECT_ORDER, projectList, projectOf, sectionOf, type ProjectView } from './rows-view.ts';
+import { parsePick, pickOnly, pickToggle, pickValue } from './project-pick.ts';
 
 /** The palette source's id: the switcher opens the palette on it alone. */
 export const PROJECT_SOURCE = 'shell.projects';
@@ -38,14 +39,27 @@ export function needCounts(ctx: ShellContext, projects: readonly ProjectView[]):
   return { all, by };
 }
 
-/** The project the list shows now ('all' for every project). */
+/** What the list shows now: 'all', one project's id, or several joined by commas (project-pick.ts). */
 export function currentProject(ctx: ShellContext): string {
   return ctx.projectFilter?.value() ?? 'all';
 }
 
-/** Show `id` ('all' for every project) in the list. */
+/** The projects picked now, in the order added ([] for All projects). */
+export const currentPick = (ctx: ShellContext): string[] => parsePick(currentProject(ctx));
+
+/** Show only `id` ('all' for every project) in the list: a row's name, Enter, ⌘1–⌘9. */
 export function switchTo(ctx: ShellContext, id: string): void {
-  ctx.projectFilter?.set(id);
+  ctx.projectFilter?.set(pickValue(pickOnly(id)));
+}
+
+/** Add `id` to the pick, or take it out (a row's + / −, ⌘-Enter); the menu stays open. */
+export function togglePick(ctx: ShellContext, id: string): void {
+  ctx.projectFilter?.set(pickValue(pickToggle(currentPick(ctx), id)));
+}
+
+/** Set the whole pick (a strip chip's ×). */
+export function setPick(ctx: ShellContext, ids: readonly string[]): void {
+  ctx.projectFilter?.set(pickValue(ids));
 }
 
 /** The switcher: the palette on projects alone. */
@@ -64,7 +78,8 @@ export function openSwitcher(ctx: ShellContext): void {
 export function projectItems(ctx: ShellContext): PaletteItem[] {
   const projects = projectsNow(ctx);
   const { all, by } = needCounts(ctx, projects);
-  const on = currentProject(ctx);
+  const pick = currentPick(ctx);
+  const several = pick.length > 1;
   const g = ctx.t('shell.palette.group.projects');
   const apple = ctx.platform.apple;
   const need = (n: number): string | undefined => (n > 0 ? ctx.t(n === 1 ? 'shell.side.need.one' : 'shell.side.need.other', { count: n }) : undefined);
@@ -72,7 +87,7 @@ export function projectItems(ctx: ShellContext): PaletteItem[] {
     const parts = [current ? ctx.t('shell.projects.current') : undefined, need(n), path].filter((x): x is string => !!x);
     return parts.length > 0 ? parts.join(' · ') : undefined;
   };
-  const allSub = subOf(all, on === 'all');
+  const allSub = subOf(all, pick.length === 0);
   const out: PaletteItem[] = [
     {
       id: 'project:all',
@@ -86,7 +101,8 @@ export function projectItems(ctx: ShellContext): PaletteItem[] {
     },
   ];
   projects.forEach((p, i) => {
-    const sub = subOf(by.get(p.id) ?? 0, on === p.id, p.path);
+    const inPick = pick.includes(p.id);
+    const sub = subOf(by.get(p.id) ?? 0, inPick && !several, p.path);
     out.push({
       id: `project:${p.id}`,
       group: g,
@@ -96,6 +112,8 @@ export function projectItems(ctx: ShellContext): PaletteItem[] {
       ...(i < 9 && { kbd: displayCombo(`mod+${i + 1}`, apple).join(' ') }),
       keywords: `project ${p.path}`,
       run: () => switchTo(ctx, p.id),
+      // the + at the row's end adds it to the pick without closing; once in, a check and a −
+      toggle: { on: inPick, label: ctx.t(inPick ? 'shell.pick.remove' : 'shell.pick.add', { name: p.name, key: displayCombo('mod+enter', apple).join('') }), run: () => togglePick(ctx, p.id) },
     });
   });
   return out; // adding and managing them are Actions (v1), which the switcher lists too

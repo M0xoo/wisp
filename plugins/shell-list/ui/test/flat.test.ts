@@ -61,3 +61,24 @@ test('done_counts_every_task_and_lists_the_older_ones_past_60_v1_0_24', async ()
   expect(rows).toHaveLength(250);
   expect(rows.at(-1)).toMatchObject({ entry: { key: 'd249' } });
 });
+
+test('pick_several_the_list_holds_their_tasks_grouped_by_project_in_the_picks_order', async () => {
+  const { flatten, itemKey } = await import('../src/model/flat.ts');
+  const { inProject } = await import('../src/model/sections.ts');
+  const task = (k: string, projectId: string, also: string[] = []) => ({
+    kind: 'task' as const,
+    key: k as never,
+    s: { projectId, also: also.map((a) => ({ projectId: a, project: a, color: 'teal' })) } as never,
+  });
+  expect(inProject({ projectId: 'a' }, 'b,a')).toBe(true);
+  expect(inProject({ projectId: 'c' }, 'b,a')).toBe(false);
+  expect(inProject({ projectId: 'c', also: [{ projectId: 'a', project: 'api', color: 'teal' as never }] }, 'b,a')).toBe(true);
+  expect(inProject({ projectId: 'c' }, 'all')).toBe(true);
+  const none = { needs: [], working: [], scheduled: [], drafts: [], forLater: [], done: [], archived: [] };
+  const sec = { ...none, needs: [task('1', 'a'), task('2', 'b'), task('3', 'a')], working: [task('4', 'c', ['b'])] };
+  const keys = (byProject?: string[]): string[] => flatten(sec, { toggled: new Set(), split: false, byProject }).map(itemKey);
+  expect(keys(['b', 'a'])).toEqual(['h:needs', 'j:needs:b', '2', 'j:needs:a', '1', '3', 'h:working', 'j:working:b', '4']);
+  // one project, or All: no project lines
+  expect(keys(['a'])).toEqual(['h:needs', '1', '2', '3', 'h:working', '4']);
+  expect(keys()).toEqual(['h:needs', '1', '2', '3', 'h:working', '4']);
+});

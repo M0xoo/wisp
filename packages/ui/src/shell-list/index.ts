@@ -2,6 +2,7 @@
 // phone's swipe on a row.
 export { FoldHead, type FoldHeadProps } from './FoldHead.tsx';
 export { Dot, type DotProps } from './Dot.tsx';
+export { ProjectHead, type ProjectHeadProps } from './ProjectHead.tsx';
 export { Gap, type GapProps } from './Gap.tsx';
 export { RowLogo, type RowLogoProps } from './RowLogo.tsx';
 export { Swipe, type SwipeDir, type SwipeProps, type SwipeSide } from './Swipe.tsx';

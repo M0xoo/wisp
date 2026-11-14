@@ -2,6 +2,7 @@
 // counts, each a list with "+ New …", and the trigger form v1 had (kind tiles, Name, Send to, Project, the kind's own
 // rows, Run, Prompt, Mode, Harness, Cancel / Create trigger). Saved as a `trigger` resource (ADR-0043), the same
 // declaration Settings → Automations, the CLI and formulas write.
+import { parsePick } from '@wisp/shell/pure';
 import { createEffect, createMemo, createResource, createSignal, Match, onMount, Show, Switch, type JSX } from 'solid-js';
 import { defineCommand, type PeerId, type PluginClient } from '@wisp/client';
 import { RunnerPicker, cronWords, projectList, useShell } from '@wisp/shell';
@@ -51,7 +52,7 @@ export default function AutomationsPage(props: { readonly client: PluginClient; 
           <TriggerForm
             client={c}
             recipes={rs() ?? []}
-            here={shell.projectFilter?.value()}
+            here={parsePick(shell.projectFilter?.value())[0]}
             onDone={(saved) => {
               setEditing(false);
               if (saved) void refetch();

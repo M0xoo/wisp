@@ -35,7 +35,9 @@ export const isScheduled = (s: FeedRow | undefined): boolean =>
     (s.state === 'review' && !s.reminder && !s.held && !s.pending && !(s.tui && s.term) && !!s.later?.some((l) => !l.remind)));
 /** Asking you, or a report you haven't read (the tab title, the crew's dots and home count it). */
 export const needsYou = (s: FeedRow): boolean => !isForLater(s) && !s.archived && !isScheduled(s) && (s.state === 'waiting' || (s.state === 'review' && !!s.unread));
-export const inProject = (s: FeedRow, id: string): boolean => s.projectId === id || !!s.also?.some((a) => a.projectId === id);
+/** In the project the list shows; several picked are their ids joined by commas (shell's project-pick.ts). */
+export const inProject = (s: FeedRow, filter: string): boolean =>
+  filter.split(',').some((id) => !!id && (s.projectId === id || !!s.also?.some((a) => a.projectId === id)));
 
 /** A crew job for another task, whose member is still on the crew, and not saved for later. */
 export const underMember = (s: FeedRow | undefined, has: (crewId: string) => boolean): boolean => !!s?.crew && FOR_TASK.has(s.crew.job) && has(s.crew.id) && !isForLater(s);

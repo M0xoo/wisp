@@ -10,7 +10,7 @@ import { useShell } from '../context.tsx';
 import { Area, ClientsProvider, type Clients } from '../slot.tsx';
 import { MainPane, SidePane } from './Panes.tsx';
 import { Overlays } from './Overlays.tsx';
-import { Head, Rail, SidebarList, SidebarTop } from './Sidebar.tsx';
+import { Head, PickStripView, Rail, SidebarList, SidebarTop } from './Sidebar.tsx';
 import { crewTint, type TintMember } from './crew-tint.ts';
 import { flatRow } from './rows-view.ts';
 
@@ -65,6 +65,7 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
         list={
           <>
             <SidebarTop onNew={onNew} homeOn={homeOn()} />
+            <PickStripView filter={filter} setFilter={setFilter} />
             <Area input="shell.sidebar:list" fallback={<SidebarList onNew={onNew} homeOn={homeOn()} filter={filter} />} />
           </>
         }

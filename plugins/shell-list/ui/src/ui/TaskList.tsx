@@ -4,11 +4,13 @@
 // from navigation; the rest (whose menu is open, the dialogs) is local to this list.
 
 import { createEffect, createMemo, Match, on, onCleanup, Show, Switch, type JSX } from 'solid-js';
-import { ContextMenu, EmptyState, Stack, VirtualList, feedDoneColumn, useSignal, type MenuEntry } from '@wisp/ui';
+import { ContextMenu, EmptyState, ProjectHead, Stack, VirtualList, feedDoneColumn, useSignal, type MenuEntry } from '@wisp/ui';
+import type { ProjectColor } from '@wisp/tokens';
 import type { EntityKey } from '@wisp/client';
 import type { ExtensionProps, ResolvedExtension } from '@wisp/shell/contract';
 import { copyId, setUnread, toggleArchived, toggleDone, toggleForLater, togglePin } from '../actions.ts';
 import { flatten, itemKey, sectionGroups, type Item } from '../model/flat.ts';
+import { pickOf } from '../model/sections.ts';
 import { rowMenu } from '../model/menu.ts';
 import { anyShowsDone } from '../model/row.ts';
 import { menuEntryOf } from '@wisp/shell';
@@ -68,7 +70,13 @@ function ListBody(): JSX.Element {
   // or side by side in the face's card beside the rail
   const railCard = hasExtensions('shell.rail:card');
   createEffect(() => env.model.setNest(env.split() ? railCard() : crew()));
-  const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split(), crew: !env.split() && crew() }));
+  // several projects picked: each section's rows grouped by project (none while a crew member is picked)
+  const projects = useSignal(env.model.projects);
+  const byProject = createMemo(() => {
+    const known = new Set(projects().map((p) => p.id));
+    return picked() === undefined ? pickOf(view().filter).filter((id) => known.has(id)) : [];
+  });
+  const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split(), crew: !env.split() && crew(), byProject: byProject() }));
   // on touch, Mark done keeps a column of its own only while some row on the list shows it (v1 feed.js has-quick)
   const doneColumn = createMemo(() => !env.swipes && anyShowsDone(shownRows(items()), (k) => env.rowCtx(k as EntityKey)));
   const plugins = useSignal(env.shell.extensions('shell.row:menu'));
@@ -166,8 +174,17 @@ function ItemView(props: { readonly item: Item }): JSX.Element {
       <Match when={props.item.t === 'slot'}>
         <Slot input="shell.list:crew" layout="stack" />
       </Match>
+      <Match when={props.item.t === 'proj' ? props.item : undefined}>{(j) => <ProjectGroupHead id={j().id} />}</Match>
     </Switch>
   );
+}
+
+/** A project's line over its rows (several picked): its dot and name, from the list's projects. */
+function ProjectGroupHead(props: { readonly id: string }): JSX.Element {
+  const env = useEnv();
+  const projects = useSignal(env.model.projects);
+  const p = createMemo(() => projects().find((x) => x.id === props.id));
+  return <ProjectHead name={p()?.name ?? env.shell.t('shell-list.projects.other')} color={`pc-${p()?.color || 'slate'}` as ProjectColor} {...(p()?.path ? { title: p()?.path as string } : {})} />;
 }
 
 const sessionOf = (env: ListEnv, key: EntityKey): Session | undefined => env.client.entities.peek<Session>(KIND.session, key) as Session | undefined;

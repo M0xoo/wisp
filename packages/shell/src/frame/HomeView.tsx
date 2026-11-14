@@ -14,7 +14,7 @@ import { warm, warmer } from './warm.ts';
 import { INSTALLABLE, useSetup } from './setup.ts';
 import { useRecipes } from './recipes.ts';
 import type { PickOptions } from '../platform/types.ts';
-import { Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, on, onCleanup, type JSX } from 'solid-js';
 import { entityKey, uuidv7, type EntityKey, type Json, type PeerId } from '@wisp/client';
 import { AutoPop, FeedbackLine, KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
 import { useShell } from '../context.tsx';
@@ -23,7 +23,7 @@ import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { longTime, sectionOf, shortAgo, statusOf } from './rows-view.ts';
 import { autoBlocked, autoPreview, autoRules, create, setSetting, type Attachment } from './commands.ts';
-import { goalGate } from './goal-gate.ts';
+import { goalGate, goalOf, goalSent, isBareGoal, type HomeGoal } from './goal-gate.ts';
 import { feedbackCommand, isFeedback, openFeedback } from './feedback.ts';
 import { autoPick, neverRule, overrideOf, popOf, pct, PREVIEW_DEBOUNCE, shortLabel, usd, type AutoPreview } from './auto.ts';
 import { defaultHarness, harnessOf } from './harness.ts';
@@ -31,6 +31,7 @@ import { MAX_RUNNERS, newGroup, nextRun } from './compare.ts';
 import { firstRunOf, firstRunTools, launcherFull } from './first-run.ts';
 import { whereItems } from './where.ts';
 import { placeOn } from './run-on.ts';
+import { alsoToggle, dirsOf, launchOf, parsePick } from './project-pick.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { draftValue, launcherDraft } from './drafts.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
@@ -125,7 +126,19 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     teamTouched = true;
     setTeam(next);
   };
-  const [goal, setGoal] = createSignal<string | undefined>(undefined);
+  // Goal: off for every new prompt, Done when's text a draft (v1 launcherGoal: `home-goal`, kept over a reload)
+  const [goalOn, setGoalOn] = createSignal(false);
+  const goalDraft = useSignal(shell.client.drafts.get<string>(draftKey, 'goal'));
+  const homeGoal = (): HomeGoal => ({ on: goalOn(), text: goalDraft() ?? '' });
+  const putGoal = (g: HomeGoal): void => {
+    setGoalOn(g.on);
+    shell.client.drafts.set(draftKey, 'goal', draftValue(g.text));
+  };
+  const goal = (): string | undefined => goalOf(homeGoal());
+  const setGoal = (v: string | undefined): void => {
+    if (v === undefined) setGoalOn(false);
+    else putGoal({ on: true, text: v });
+  };
   const [when, setWhen] = createSignal<When | undefined>(undefined);
   // files with the new task: picked, pasted or dropped, each uploading at once to this computer
   const att = useAttachments(shell, () => home);
@@ -173,7 +186,18 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     const at = document.activeElement;
     if (!at || at === document.body) input?.focus();
   });
-  const project = createMemo(() => (where() === 'none' ? undefined : (projects().find((p) => p.id === where()) ?? projects()[0])));
+  // several projects picked over the list (project-pick.ts): New task starts in the first, and also works in the others
+  // (runtime.create `dirs`, F-comp-47) until you leave one out with its ×; + on any other chip (or ⌘-click) adds it
+  const listFilter = useSignal(shell.projectFilter?.value ?? (() => 'all'));
+  const listPick = createMemo(() => launchOf(parsePick(listFilter()), projects()));
+  const [ownAlso, setOwnAlso] = createSignal<readonly string[] | undefined>(undefined);
+  createEffect(on(listPick, () => setOwnAlso(undefined), { defer: true }));
+  const project = createMemo(() => (where() === 'none' ? undefined : (projects().find((p) => p.id === (where() ?? listPick().start)) ?? projects()[0])));
+  const also = createMemo(() => (project() ? (ownAlso() ?? listPick().also).filter((id) => id !== project()?.id) : []));
+  const pickWhere = (id: string): void => {
+    setWhere(id);
+    if (also().includes(id)) setOwnAlso(also().filter((x) => x !== id));
+  };
   const worktree = createMemo(() => settings().find((r) => r.key === 'defaults.worktree')?.value !== false);
   const needs = createMemo(() =>
     sessions()
@@ -194,6 +218,13 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
       setText('');
       return feedbackCommand(shell, typed, { home, restore: () => text() === '' && setText(typed) });
     }
+    // a bare /goal: Done when opens, to type it there (v1 box.goalOpen); `/goal <condition>` goes, the peer reads it
+    if (isBareGoal(text())) {
+      setText('');
+      setGoalOn(true);
+      queueMicrotask(() => goalInput?.focus());
+      return;
+    }
     const prompt = menu.encode(text().trim());
     if (prompt) sent.set((cur) => remember(cur as readonly string[], prompt));
     // Goal on and Done when empty: ask first, so a task meant to keep going doesn't start as a one-shot (v1 #769)
@@ -212,6 +243,11 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     const p = project();
     const id = entityKey(target(), uuidv7());
     const g = goal();
+    // sent: Done when empties and Goal goes off for the next prompt; a refused launch puts both back
+    const taken = goalSent(homeGoal());
+    if (g !== undefined) putGoal(taken.next);
+    // unless Done when was opened and typed in again meanwhile
+    const goalBack = (): void => void (g !== undefined && !goalOn() && !goalDraft() && putGoal(taken.back));
     // a plugin's prompt source may take it (`/sandbox …`: a sandbox of its own), with what New task picked
     const w = when();
     const launch = {
@@ -231,7 +267,6 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         .some((s) => (s.where ?? ['home']).includes('home') && s.send?.(prompt, { client: pc, task: '', launch }) === true)
     ) {
       setText('');
-      setGoal(undefined);
       setWhen(undefined);
       return;
     }
@@ -248,6 +283,9 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     const extra = runs();
     const group = extra.length > 0 ? newGroup(crypto.getRandomValues(new Uint8Array(6))) : undefined;
     setRuns([]);
+    // the other folders it works in: on this computer only (another one has its own checkouts, placed per folder later)
+    const dirs = target() === home ? dirsOf(p, also(), projects()) : [];
+    setOwnAlso(undefined);
     const start = (attachments: readonly Attachment[], cwd: string): void => {
       shell.client.commands
         .run(create, {
@@ -259,6 +297,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           mode: mode(),
           at: Date.now(),
           ...(p && { cwd, projectId: p.id, color: p.color, worktree: worktree() }),
+          ...(dirs.length > 0 && { dirs }),
           ...(g && { goal: g }),
           ...(attachments.length > 0 && { attachments }),
           ...(agent() !== 'auto' && model() && { model: model() }),
@@ -266,7 +305,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           ...((a) => (agent() !== 'auto' && a ? { account: a.id } : {}))(account()),
           ...(team().size > 0 && { team: teamRows(team(), subagents(), (a) => agentName(t, harnesses(), a)) }),
         })
-        .catch(() => setText(prompt));
+        .catch(() => (setText(prompt), goalBack()));
       // the other runs after the lead, so the lead is run A (Compare orders runs by when they started)
       for (const a of extra) {
         shell.client.commands
@@ -280,6 +319,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
             group: group ?? '',
             // each run of a compare in its own checkout, or they'd edit one folder (v1 forced it)
             ...(p && { cwd, projectId: p.id, color: p.color, worktree: true }),
+            ...(dirs.length > 0 && { dirs }),
             ...(attachments.length > 0 && { attachments }),
           })
           .catch(() => undefined);
@@ -325,7 +365,22 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const shown = (): { agent: string; label: string } | undefined => (agent() === 'auto' ? autoPick(preview()) : undefined);
   const pick = (): { name: string; logo?: string } => harnessOf(harnesses(), shown()?.agent ?? (agent() === 'auto' ? auto() : agent()));
   const chips = (): LauncherChip[] => [
-    ...projects().map((p) => ({ id: p.id, kind: 'project' as const, name: p.name, title: p.path, color: p.color || 'slate', on: project()?.id === p.id, act: { onClick: () => setWhere(p.id) } })),
+    ...projects().map((p) => {
+      const start = project()?.id === p.id;
+      const added = also().includes(p.id);
+      const several = also().length > 0;
+      return {
+        id: p.id,
+        kind: 'project' as const,
+        name: p.name,
+        title: start && several ? `${p.path}\n${t('shell.home.startsHere')}` : p.path,
+        color: p.color || 'slate',
+        on: start || added,
+        act: { onClick: () => pickWhere(p.id) },
+        // the folder it starts in has no badge; with no folder picked there's nothing to add to
+        ...(!start && project() && { also: { on: added, label: t(added ? 'shell.home.leaveOut' : 'shell.home.also', { name: p.name }), onToggle: () => setOwnAlso(alsoToggle(also(), p.id)) } }),
+      };
+    }),
     { id: 'none', kind: 'none', name: t('shell.home.noFolder'), title: t('shell.home.noFolderTitle'), on: where() === 'none', act: { onClick: () => setWhere('none') } },
     {
       id: 'pick',
@@ -339,7 +394,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
             { kind: 'separator' as const },
             { value: 'add', label: t('shell.home.addProject'), icon: 'folder' as const },
           ],
-          onSelect: (v: string) => (v === 'add' ? shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }) : setWhere(v)),
+          onSelect: (v: string) => (v === 'add' ? shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }) : pickWhere(v)),
         },
       },
     },
@@ -455,8 +510,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           [
             tool('goal', 'launcher.goal', 'target', t('shell.home.goal'), t('shell.home.goalTitle'), {
               text: true,
-              ...(goal() !== undefined && { on: true }),
-              act: { onClick: () => setGoal(goal() === undefined ? '' : undefined) },
+              ...(goalOn() && { on: true }),
+              act: { onClick: () => (setGoalOn(!goalOn()), queueMicrotask(() => (goalOn() ? goalInput : input)?.focus())) },
             }),
             tool('worktree', 'launcher.worktree', 'branch', worktree() ? t('shell.home.worktree') : t('shell.home.inPlace'), t('shell.home.worktreeTitle'), {
               text: true,
