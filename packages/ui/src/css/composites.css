@@ -234,11 +234,32 @@
   [data-kit='list-row'][data-layout='feed'] > [data-kit='gap'] {
     display: none;
   }
-  /* No hover on touch (v1 feed.css .it-later, the phone's .it-quick): the quick actions leave the row, so nothing sits
-     on the title; Save for later and Mark done are in the long-press menu and the swipe. */
+  /* No hover on touch (v1 feed.css .it-later, split.css #feed.has-quick): Save for later leaves the row (it is in the
+     long-press menu and the swipe); Mark done stays, in a 36px column of its own after the time, never over the title.
+     The column is there only while some row in the list shows Mark done: the list sets --k-feed-done (feedDoneColumn);
+     unset, the empty fallback leaves v1's three columns. */
   @media (hover: none) {
-    [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] {
+    [data-kit='list-row'][data-layout='feed'] {
+      grid-template-columns: 10px minmax(0, 1fr) auto var(--k-feed-done,);
+    }
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-title'] {
+      padding-right: calc(36px + var(--k-feed-done-pad, 0px));
+    }
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-kit='time'],
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-part~='list.row.time'] {
+      right: calc(12px + var(--k-feed-done, 0px));
+    }
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button']:not([data-tone='good']) {
       display: none;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick] > [data-kit='icon-button'][data-tone='good'] {
+      top: 50%;
+      right: 8px;
+      width: 36px;
+      height: 36px;
+      margin: -18px 0 0;
+      background: none;
+      opacity: 1;
     }
   }
   /* the item round it (v1 #feed .item): a 1px border, transparent at rest; hover and open fill the item, focus (the

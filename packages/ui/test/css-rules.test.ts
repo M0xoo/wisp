@@ -145,15 +145,25 @@ function rulesIn(css: string): Array<[string, string, string]> {
   return out;
 }
 
-test('on_touch_the_task_rows_quick_buttons_leave_the_row_and_the_title_keeps_its_edge', () => {
+test('on_touch_mark_done_keeps_its_own_column_after_the_time_and_save_for_later_leaves_v1_has_quick', () => {
   // seen at 390 (2026-11-14): on a touch screen Save for later and Mark done sat over the title, a letter peeking
-  // between them. Touch (hover: none) takes them out of the row; the title's reserve for them is mouse-only.
+  // between them. v1 parity (split.css #feed.has-quick): touch (hover: none) hides Save for later only; Mark done sits
+  // in a 36px column of its own after the time, which exists only while the list sets --k-feed-done (no :has()).
   const rules = rulesIn(sheets.find((s) => s.name === 'composites.css')?.css ?? '');
-  const quick = "[data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button']";
+  const row = "[data-kit='list-row'][data-layout='feed']";
+  const quick = `${row} > [data-kit='icon-button']`;
   const touch = rules.filter(([, , media]) => /\(hover:\s*none\)/.test(media));
-  expect(touch.some(([sel, body]) => sel === quick && /display:\s*none/.test(body))).toBe(true);
-  expect(touch.some(([sel, body]) => sel.includes(quick) && /opacity:\s*1/.test(body))).toBe(false);
-  // every rule that pads the feed title for the quick buttons sits under (hover: hover)
+  const at = (sel: string): string => touch.find(([s]) => s === sel)?.[1] ?? '';
+  expect(at(`${quick}:not([data-tone='good'])`)).toMatch(/display:\s*none/);
+  const done = at(`${row}[data-quick] > [data-kit='icon-button'][data-tone='good']`);
+  expect(done).toMatch(/right:\s*8px/);
+  expect(done).toMatch(/width:\s*36px/);
+  expect(done).toMatch(/opacity:\s*1/);
+  // the column, the title's and the time's room for it come only from the list's var: unset, v1's three columns
+  expect(at(row)).toMatch(/grid-template-columns:\s*10px minmax\(0, 1fr\) auto var\(--k-feed-done,\)/);
+  expect(at(`${row} > [data-kit='list-row-title']`)).toMatch(/padding-right:\s*calc\(36px \+ var\(--k-feed-done-pad, 0px\)\)/);
+  expect(touch.some(([sel, body]) => sel.includes("[data-kit='time']") && /right:\s*calc\(12px \+ var\(--k-feed-done, 0px\)\)/.test(body))).toBe(true);
+  // every rule that pads the feed title for the floating quick buttons sits under (hover: hover)
   const reserve = rules.filter(([sel, body]) => sel.includes('[data-quick=') && sel.includes("[data-kit='list-row-title']") && /padding-right/.test(body));
   expect(reserve.length).toBe(6);
   for (const [sel, , media] of reserve) expect(media, sel).toMatch(/\(hover:\s*hover\)/);

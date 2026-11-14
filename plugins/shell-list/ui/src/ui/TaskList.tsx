@@ -4,16 +4,17 @@
 // from navigation; the rest (whose menu is open, the dialogs) is local to this list.
 
 import { createEffect, createMemo, Match, on, onCleanup, Show, Switch, type JSX } from 'solid-js';
-import { ContextMenu, EmptyState, Stack, VirtualList, useSignal, type MenuEntry } from '@wisp/ui';
+import { ContextMenu, EmptyState, Stack, VirtualList, feedDoneColumn, useSignal, type MenuEntry } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import type { ExtensionProps, ResolvedExtension } from '@wisp/shell/contract';
 import { copyId, setUnread, toggleArchived, toggleDone, toggleForLater, togglePin } from '../actions.ts';
 import { flatten, itemKey, sectionGroups, type Item } from '../model/flat.ts';
 import { rowMenu } from '../model/menu.ts';
+import { anyShowsDone } from '../model/row.ts';
 import { menuEntryOf } from '@wisp/shell';
 import { flatSession } from '../model/wire.ts';
 import { useShell } from '../shell.ts';
-import { KIND, type Session } from '../types.ts';
+import { KIND, type Session, type SessionRow } from '../types.ts';
 import { buildEnv } from './build-env.ts';
 import { DeleteDialog, RenameDialog } from './Dialogs.tsx';
 import { Env, useEnv, type ListEnv } from './env.ts';
@@ -68,6 +69,8 @@ function ListBody(): JSX.Element {
   const railCard = hasExtensions('shell.rail:card');
   createEffect(() => env.model.setNest(env.split() ? railCard() : crew()));
   const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split(), crew: !env.split() && crew() }));
+  // on touch, Mark done keeps a column of its own only while some row on the list shows it (v1 feed.js has-quick)
+  const doneColumn = createMemo(() => !env.swipes && anyShowsDone(shownRows(items()), (k) => env.rowCtx(k as EntityKey)));
   const plugins = useSignal(env.shell.extensions('shell.row:menu'));
   const menu = createMemo<MenuEntry[]>(() => menuFor(env, plugins()));
   const box: { el?: HTMLElement } = {};
@@ -87,6 +90,7 @@ function ListBody(): JSX.Element {
             grow
             aria-label={t('shell-list.list.label')}
             part={'list.rows feed' as `${string}.${string}`}
+            vars={feedDoneColumn(doneColumn())}
             gapBefore={(i) =>
               isTaskItem(items()[i]) && isTaskItem(items()[i - 1])
                 ? true
@@ -105,6 +109,21 @@ function ListBody(): JSX.Element {
       <DeleteDialog />
     </Stack>
   );
+}
+
+/** The task rows the list shows (a task, a group's open runs): the ones that may carry Mark done. */
+function* shownRows(items: readonly Item[]): Generator<{ readonly key: string; readonly s: SessionRow }> {
+  const runs = new Map<string, SessionRow>();
+  for (const it of items) {
+    if (it.t !== 'entry') continue;
+    if (it.entry.kind === 'task') yield it.entry;
+    else if (it.entry.kind === 'group') for (const r of it.entry.runs) runs.set(r.key, r.s);
+  }
+  for (const it of items) {
+    if (it.t !== 'run') continue;
+    const s = runs.get(it.key);
+    if (s) yield { key: it.key, s };
+  }
 }
 
 /** A task's row (its FeedItem): two in a row are 2px apart (v1 .f-list gap), a heading and a row are not. */

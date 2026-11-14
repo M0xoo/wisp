@@ -2,7 +2,7 @@
 // column, so selecting, opening or hovering a row moves nothing in it: the time sits in a
 // fixed-width column and hover-only actions appear beside it, never on top of it (v1 #188, #209).
 import { Show, type JSX } from 'solid-js';
-import { flag, sub, type KitProps, type PartName } from '../core/props.ts';
+import { flag, sub, type CssVars, type KitProps, type PartName } from '../core/props.ts';
 import type { ReorderAttrs } from '../core/reorder.ts';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
@@ -85,6 +85,14 @@ function Hit(props: { readonly row: ListRowProps; readonly part: PartName }): JS
       )}
     </Show>
   );
+}
+
+/** The feed list's Mark done column on a touch screen (v1 split.css `#feed.has-quick`): set on the list (its `vars`)
+ *  while some row in it shows Mark done. On touch (hover: none) Save for later leaves the row and Mark done takes a
+ *  36px column of its own after the time, never over the title; with no row showing it there is no column. With a
+ *  mouse the vars do nothing (the quick actions float over the title's end while they show). */
+export function feedDoneColumn(on: boolean): CssVars {
+  return on ? { '--k-feed-done': '36px', '--k-feed-done-pad': '48px' } : {};
 }
 
 /** A row's quick action (v1 .it-quick, .it-later): an icon the pointer presses, hidden from assistive tech and the

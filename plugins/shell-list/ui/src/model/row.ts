@@ -202,6 +202,12 @@ function quickDone(s: SessionRow, c: RowContext): RowView['quickDone'] {
   return s.state === 'review' && !s.parentId && !s.archived && (!c.open || c.split) ? 'show' : 'gap';
 }
 
+/** Some row the list shows has Mark done: on touch the list keeps its 36px column (v1 feed.js `has-quick`). */
+export function anyShowsDone(rows: Iterable<{ readonly key: string; readonly s: SessionRow }>, ctx: (key: string) => RowContext): boolean {
+  for (const r of rows) if (quickDone(r.s, ctx(r.key)) === 'show') return true;
+  return false;
+}
+
 /** Save for later beside it: triage is one click either way. */
 function quickLater(s: SessionRow, c: RowContext): RowView['quickLater'] {
   if (s.pending || s.archived || s.parentId || (c.open && !c.split)) return 'gap';
