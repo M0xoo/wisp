@@ -5,6 +5,7 @@ use serde_json::{Map, Value};
 use wisp_kernel::{Call, Ctx, Result};
 use wisp_resources_api::{Export, ExportArgs, Resource};
 use wisp_runtime_api::commands as r;
+use wisp_runtime_api::ext::{merged, update_ext};
 use wisp_runtime_api::model::{Session, Turn};
 use wisp_runtime_api::spec::{Lineage, TaskSpec};
 use wisp_telemetry_api::{Track, TrackArgs};
@@ -73,18 +74,10 @@ pub(crate) async fn quick(ctx: &Ctx, call: &Call, prompt: String, cwd: &str, age
     ctx.run::<r::Quick>(call, a).await.map(|q| q.text)
 }
 
-/// `runtime.setExt` under `wisp.router`.
-pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> Result<()> {
-    ctx.run::<r::SetExt>(call, r::SetExtArgs { id: id.into(), plugin: "wisp.router".into(), value, expect: None }).await.map(|_| ())
-}
-
-/// Merges `patch`'s keys into the task's `wisp.router` slot (`runtime.setExt` replaces the slot: the route stays).
+/// Merges `patch`'s keys into the task's `wisp.router` slot, as one compare-and-set (`runtime.setExt` replaces the
+/// slot: the route stays, and a write that lands between the read and the write is merged over, never lost).
 pub(crate) async fn merge_ext(ctx: &Ctx, call: &Call, id: &str, patch: Value) -> Result<()> {
-    let mut slot = task(ctx, call, id).await?.ext_of("wisp.router").as_object().cloned().unwrap_or_default();
-    if let Value::Object(p) = patch {
-        slot.extend(p);
-    }
-    set_ext(ctx, call, id, Value::Object(slot)).await
+    update_ext(ctx, call, id, "wisp.router", |slot, _| Ok(Some(merged(slot, &patch)))).await.map(|_| ())
 }
 
 fn some(s: &str) -> Option<String> {
@@ -95,5 +88,27 @@ fn some(s: &str) -> Option<String> {
 pub(crate) fn warn<T>(what: &str, r: Result<T>) {
     if let Err(err) = r {
         tracing::warn!(error = %err.message, "router: {what}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use serde_json::json;
+    use wisp_runtime_api::model::Session;
+    use wisp_runtime_api::testing::{SlotRuntime, caller};
+
+    /// A write that lands between `merge_ext`'s read and its write (the route set again) is kept: the merge reads
+    /// again and writes over it, where a plain read-then-write dropped it.
+    #[tokio::test]
+    async fn a_route_written_between_the_read_and_the_write_stays() {
+        let rt = SlotRuntime::new(Session { id: "t1".into(), ..Session::default() });
+        rt.set("wisp.router", json!({ "route": "a" }));
+        let k = wisp_testkit::TestApp::new().with(rt.clone()).with(caller("wisp.router")).start().await;
+        let ctx = k.ctx("wisp.router").unwrap();
+        rt.race("wisp.router", json!({ "route": "b", "kept": true }));
+        super::merge_ext(&ctx, &ctx.root_call(), "t1", json!({ "pick": { "winner": true } })).await.unwrap();
+        assert_eq!(rt.ext("wisp.router"), json!({ "route": "b", "kept": true, "pick": { "winner": true } }));
+        assert_eq!(rt.writes().iter().map(|w| w.2).collect::<Vec<_>>(), [false, true]);
     }
 }

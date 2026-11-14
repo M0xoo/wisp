@@ -122,11 +122,14 @@ impl State {
 
     /// The task's ext slot, so its list row shows what is scheduled.
     async fn mirror(&self, ctx: &Ctx, call: &Call, id: &str) {
-        let ext = self.meta(id).ext(&self.of_task(id));
-        match serde_json::to_value(ext) {
-            Ok(v) => calls::mirror(ctx, call, id, v).await,
-            Err(e) => tracing::warn!(error = %e, task = id, "later: a task's ext"),
-        }
+        let now = || match serde_json::to_value(self.meta(id).ext(&self.of_task(id))) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::warn!(error = %e, task = id, "later: a task's ext");
+                None
+            }
+        };
+        calls::mirror(ctx, call, id, now).await;
     }
 
     async fn add(&self, ctx: &Ctx, call: &Call, a: &c::AddArgs) -> Result<LaterEntry> {

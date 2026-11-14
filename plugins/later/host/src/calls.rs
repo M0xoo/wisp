@@ -63,10 +63,11 @@ pub(crate) fn held_of(h: &PlanHold) -> LaterHeld {
     LaterHeld { why: h.why.clone(), until: h.until, load: h.load }
 }
 
-/// `runtime.setExt`: the task's list row shows what is scheduled (logged when refused).
-pub(crate) async fn mirror(ctx: &Ctx, call: &Call, id: &str, value: Value) {
-    let a = r::SetExtArgs { id: SessionId(id.to_owned()), plugin: PLUGIN_ID.into(), value, expect: None };
-    if let Err(err) = ctx.run::<r::SetExt>(call, a).await {
+/// `runtime.setExt`: the task's list row shows what is scheduled (logged when refused). `now()` gives the row's value
+/// from later's entries as they are, asked again if another write landed between the read and the write, so of two
+/// mirrors at once the one computed from older entries never lands last.
+pub(crate) async fn mirror(ctx: &Ctx, call: &Call, id: &str, mut now: impl FnMut() -> Option<Value> + Send) {
+    if let Err(err) = wisp_runtime_api::ext::update_ext(ctx, call, id, PLUGIN_ID, |_, _| Ok(now())).await {
         tracing::warn!(error = %err.message, task = id, "later: runtime.setExt");
     }
 }
@@ -192,5 +193,24 @@ mod tests {
     fn a_state_that_isnt_one_is_refused() {
         assert!(serde_json::from_value::<SessionState>(json!("review")).is_ok());
         assert!(serde_json::from_value::<SessionState>(json!("nope")).is_err());
+    }
+
+    /// Two mirrors at once: the one computed from older entries (one scheduled) reads, the newer one (two) lands
+    /// first; the older is refused, asks the entries again, and the row says two, never the stale one.
+    #[tokio::test]
+    async fn a_mirror_from_older_entries_never_lands_last() {
+        use wisp_runtime_api::testing::{SlotRuntime, caller};
+        let rt = SlotRuntime::new(Session { id: "t1".into(), ..Session::default() });
+        let k = wisp_testkit::TestApp::new().with(rt.clone()).with(caller(PLUGIN_ID)).start().await;
+        let ctx = k.ctx(PLUGIN_ID).unwrap();
+        rt.race(PLUGIN_ID, json!({ "count": 2 }));
+        // the entries as they are at each ask: one when it first read, two once the other mirror's change landed
+        let mut asked = 0;
+        mirror(&ctx, &ctx.root_call(), "t1", || {
+            asked += 1;
+            Some(json!({ "count": if asked == 1 { 1 } else { 2 } }))
+        })
+        .await;
+        assert_eq!((rt.ext(PLUGIN_ID), asked), (json!({ "count": 2 }), 2));
     }
 }

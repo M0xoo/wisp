@@ -134,9 +134,16 @@ async fn stop(ctx: &Ctx, call: &Call, a: SessionArgs) -> Result<Value> {
     let Some(id) = task.ext_of(PLUGIN_ID).get("id").and_then(Value::as_str).map(str::to_owned) else {
         return Err(WireError::invalid("This task isn't shared."));
     };
-    calls::revoke(ctx, call, id).await?;
-    calls::set_ext(ctx, call, &a.session, Value::Null).await?;
+    calls::revoke(ctx, call, id.clone()).await?;
+    forget(ctx, call, &a.session, &id).await?;
     Ok(json!({ "ok": true }))
+}
+
+/// The task's link `link` forgotten, in one compare-and-set: only while the slot still holds that link, so one
+/// made meanwhile (Share again while Stop sharing ran) stays on the task instead of being forgotten unrevoked.
+pub(crate) async fn forget(ctx: &Ctx, call: &Call, session: &str, link: &str) -> Result<()> {
+    let still = |slot: &Value, _: &Session| Ok((slot.get("id").and_then(Value::as_str) == Some(link)).then_some(Value::Null));
+    wisp_runtime_api::ext::update_ext(ctx, call, session, PLUGIN_ID, still).await.map(|_| ())
 }
 
 async fn peek(ctx: &Ctx, call: &Call, a: PeekArgs) -> Result<Value> {
@@ -196,5 +203,21 @@ mod tests {
         let s = Session { ext: serde_json::from_value(json!({ PLUGIN_ID: k })).unwrap(), ..Session::default() };
         Shared.fields(&s, None, &mut out);
         assert_eq!(out["shared"]["url"], "https://g/s/s1");
+    }
+
+    /// Stop sharing takes link s1 back while Share again keeps s2 on the task: s2 stays (it's live, not revoked),
+    /// where the plain write forgot it. With nothing newer, the slot is cleared.
+    #[tokio::test]
+    async fn a_link_made_while_stop_sharing_runs_is_not_forgotten() {
+        use wisp_runtime_api::testing::{SlotRuntime, caller};
+        let rt = SlotRuntime::new(Session { id: "t1".into(), ..Session::default() });
+        rt.set(PLUGIN_ID, json!({ "id": "s1", "url": "https://g/s/s1" }));
+        let k = wisp_testkit::TestApp::new().with(rt.clone()).with(caller(PLUGIN_ID)).start().await;
+        let ctx = k.ctx(PLUGIN_ID).unwrap();
+        rt.race(PLUGIN_ID, json!({ "id": "s2", "url": "https://g/s/s2" }));
+        forget(&ctx, &ctx.root_call(), "t1", "s1").await.unwrap();
+        assert_eq!(rt.ext(PLUGIN_ID)["id"], "s2");
+        forget(&ctx, &ctx.root_call(), "t1", "s2").await.unwrap();
+        assert_eq!(rt.ext(PLUGIN_ID), Value::Null);
     }
 }

@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use wisp_crew_api::commands as c;
 use wisp_crew_api::{CrewAnswer, JobKind, PLUGIN_ID, ReplyTo, TaskRef, WaitingJob};
 use wisp_crew_core::answers::{answers_of, ask_prompt, find, settle, slot_with, thread_reply};
@@ -184,13 +184,11 @@ fn register_reply(s: &mut Setup, st: &Arc<State>) {
             };
             // the same job carries on (here, or in its sandbox: `<machine>|<id>`); its next answer lands under this reply
             let carried = async {
-                let s = jobs::job_task(&ctx, &call, &job).await.map_err(|_| WireError::not_found("That job is gone."))?;
+                jobs::job_task(&ctx, &call, &job).await.map_err(|_| WireError::not_found("That job is gone."))?;
                 // a job here is pointed at the reply; a sandbox's job answers the oldest entry waiting on it (`answered`)
                 if !job.contains('|') {
-                    let mut ext =
-                        s.get("ext").and_then(|x| x.get(PLUGIN_ID)).cloned().filter(Value::is_object).unwrap_or_else(|| json!({}));
-                    ext["reply"] = json!(ReplyTo { session_id: a.session_id.clone(), turn_id: turn.clone(), entry_id: entry.id.clone() });
-                    calls::set_ext(&ctx, &call, &job, ext).await?;
+                    let to = ReplyTo { session_id: a.session_id.clone(), turn_id: turn.clone(), entry_id: entry.id.clone() };
+                    calls::point_reply(&ctx, &call, &job, &to).await?;
                 }
                 jobs::job_follow_up(&ctx, &call, &job, text).await
             };

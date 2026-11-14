@@ -24,6 +24,8 @@ wisp-telemetry-api.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+wisp-runtime-api = { workspace = true, features = ["testing"] }
+wisp-testkit.workspace = true
 
 [lints]
 workspace = true

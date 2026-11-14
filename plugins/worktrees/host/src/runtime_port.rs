@@ -10,6 +10,7 @@ use serde_json::Value;
 use wisp_kernel::{BoxFuture, Ctx};
 use wisp_runtime_api::commands::Adopt;
 use wisp_runtime_api::commands::{AdoptSession, AdoptSessionArgs, Get, IdArgs, List, ListArgs, Sessions, SessionsArgs, SetExt, SetExtArgs};
+use wisp_runtime_api::ext::{merged, update_ext};
 use wisp_runtime_api::model::SessionState;
 use wisp_runtime_api::spec::AdoptArgs;
 use wisp_worktrees_api::{EXT, OfferItem, PrRef, Worktree};
@@ -122,10 +123,9 @@ impl Port for RuntimePort {
         let ctx = self.ctx.clone();
         Box::pin(async move {
             let call = ctx.root_call();
-            let Ok(full) = ctx.run::<Get>(&call, IdArgs { id: id.clone().into() }).await else { return };
-            let mut slot = full.ext.get(EXT).cloned().filter(Value::is_object).unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-            slot["kept"] = Value::Bool(kept);
-            if let Err(e) = ctx.run::<SetExt>(&call, SetExtArgs { id: id.into(), plugin: EXT.into(), value: slot, expect: None }).await {
+            // a compare-and-set merge: the slot's other keys (parked, the worktree itself) written meanwhile stay
+            let keep = |slot: &Value, _: &_| Ok(Some(merged(slot, &serde_json::json!({ "kept": kept }))));
+            if let Err(e) = update_ext(&ctx, &call, &id, EXT, keep).await {
                 tracing::warn!(error = %e.message, "worktrees: keeping a worktree");
             }
         })
@@ -221,6 +221,7 @@ impl Port for RuntimePort {
             };
             let wt = Worktree { path: item.path.clone(), cwd: item.path, branch: item.branch, root, foreign: true, ..Worktree::default() };
             let value = serde_json::to_value(&wt).unwrap_or(Value::Null);
+            // set-ext: whole the task was adopted just now for this worktree: its slot is the worktree as found
             if let Err(e) = ctx.run::<SetExt>(&call, SetExtArgs { id: id.clone(), plugin: EXT.into(), value, expect: None }).await {
                 tracing::warn!(error = %e.message, "worktrees: marking a brought-in worktree");
             }
@@ -306,5 +307,20 @@ mod tests {
         let port = super::RuntimePort::new(k.ctx("wisp.worktrees").unwrap(), 0);
         let ids: Vec<String> = crate::ports::Port::tasks(port.as_ref()).await.into_iter().map(|t| t.id).collect();
         assert_eq!(ids, ["live", "old"]);
+    }
+
+    /// Keep (a click) while the slot is written meanwhile (parked by the sweep): both land, where the plain
+    /// read-then-write put the stale copy back and lost the park.
+    #[tokio::test]
+    async fn keeping_a_worktree_keeps_a_write_that_landed_meanwhile() {
+        use wisp_runtime_api::model::Session;
+        use wisp_runtime_api::testing::{SlotRuntime, caller};
+        let rt = SlotRuntime::new(Session { id: "t1".into(), ..Session::default() });
+        rt.set("wisp.worktrees", json!({ "path": "/w/t1" }));
+        let k = wisp_testkit::TestApp::new().with(rt.clone()).with(caller("wisp.worktrees")).start().await;
+        let port = super::RuntimePort::new(k.ctx("wisp.worktrees").unwrap(), 0);
+        rt.race("wisp.worktrees", json!({ "path": "/w/t1", "parked": true }));
+        crate::ports::Port::set_kept(port.as_ref(), "t1".into(), true).await;
+        assert_eq!(rt.ext("wisp.worktrees"), json!({ "path": "/w/t1", "parked": true, "kept": true }));
     }
 }

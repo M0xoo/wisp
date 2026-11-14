@@ -6,6 +6,7 @@ use serde_json::{Map, Value};
 use wisp_crew_api::PLUGIN_ID;
 use wisp_kernel::{Call, Command, Ctx, WireError};
 use wisp_runtime_api::commands as rt;
+use wisp_runtime_api::ext::{merged, update_ext};
 use wisp_runtime_api::model::{Session, Turn};
 
 type R<T> = Result<T, WireError>;
@@ -35,9 +36,18 @@ pub(crate) fn crew_of(s: &Session) -> &Value {
     s.ext_of(PLUGIN_ID)
 }
 
-/// `runtime.setExt`: the crew's slot on a task written.
-pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> R<()> {
-    ctx.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: PLUGIN_ID.into(), value, expect: None }).await.map(|_| ())
+/// Task `id` made a member's job (`ext`: its crew slot, Add to crew…) only while no member has it, in one
+/// compare-and-set: two adds at once make one job and the other is refused. `Ok(false)`: someone's already.
+pub(crate) async fn claim(ctx: &Ctx, call: &Call, id: &str, ext: &Value) -> R<bool> {
+    let free = |slot: &Value, _: &Session| Ok(slot.get("id").and_then(Value::as_str).is_none().then(|| ext.clone()));
+    update_ext(ctx, call, id, PLUGIN_ID, free).await.map(|v| v.is_some())
+}
+
+/// The job task `id`'s `reply` pointed at `to` (`crew.reply`), merged into its crew slot in one compare-and-set:
+/// what's written to the slot meanwhile (its member, another reply's pointer) is merged over, never put back stale.
+pub(crate) async fn point_reply(ctx: &Ctx, call: &Call, id: &str, to: &wisp_crew_api::ReplyTo) -> R<()> {
+    let reply = serde_json::json!({ "reply": to });
+    update_ext(ctx, call, id, PLUGIN_ID, |slot, _| Ok(Some(merged(slot, &reply)))).await.map(|_| ())
 }
 
 /// `runtime.turn.setExt`: the crew's slot on one turn written.
@@ -111,5 +121,43 @@ pub(crate) async fn track(ctx: &Ctx, event: &str, props: Value) -> R<()> {
 pub(crate) fn warn<T>(what: &str, r: R<T>) {
     if let Err(err) = r {
         tracing::warn!(error = %err.message, "crew: {what}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use serde_json::{Value, json};
+    use wisp_crew_api::{PLUGIN_ID, ReplyTo};
+    use wisp_runtime_api::model::Session;
+    use wisp_runtime_api::testing::{SlotRuntime, caller};
+
+    async fn kernel() -> (wisp_kernel::Kernel, SlotRuntime, wisp_kernel::Ctx) {
+        let rt = SlotRuntime::new(Session { id: "t1".into(), ..Session::default() });
+        let k = wisp_testkit::TestApp::new().with(rt.clone()).with(caller(PLUGIN_ID)).start().await;
+        let ctx = k.ctx(PLUGIN_ID).unwrap();
+        (k, rt, ctx)
+    }
+
+    /// Two Add to crew… on one task at once: the add that lands first (between the other's read and its write)
+    /// keeps the task, and the other is refused instead of taking it over.
+    #[tokio::test]
+    async fn an_add_that_lands_first_keeps_the_task() {
+        let (_k, rt, ctx) = kernel().await;
+        rt.race(PLUGIN_ID, json!({ "id": "m1", "job": "task" }));
+        assert!(!super::claim(&ctx, &ctx.root_call(), "t1", &json!({ "id": "m2", "job": "task" })).await.unwrap());
+        assert_eq!(rt.ext(PLUGIN_ID)["id"], "m1");
+    }
+
+    /// A reply's pointer merged while the slot is written meanwhile: the other write's keys stay.
+    #[tokio::test]
+    async fn a_reply_pointer_keeps_a_write_that_landed_meanwhile() {
+        let (_k, rt, ctx) = kernel().await;
+        rt.set(PLUGIN_ID, json!({ "id": "m1", "job": "ask" }));
+        rt.race(PLUGIN_ID, json!({ "id": "m1", "job": "ask", "prompt": "check the build" }));
+        let to = ReplyTo { session_id: "s0".into(), turn_id: "u1".into(), entry_id: "e2".into() };
+        super::point_reply(&ctx, &ctx.root_call(), "t1", &to).await.unwrap();
+        let slot = rt.ext(PLUGIN_ID);
+        assert_eq!((slot["prompt"].clone(), slot["reply"]["entryId"].clone()), (json!("check the build"), Value::from("e2")));
     }
 }

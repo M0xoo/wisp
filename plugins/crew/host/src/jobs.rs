@@ -225,10 +225,13 @@ fn adopt(s: &mut Setup, st: &Arc<State>) {
         }
         let m =
             st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await, &crate::calls::machine_ids(&ctx, &call).await)?;
+        // claimed before the member is kept: of two adds at once, only one makes a member (the other is refused)
+        let ext = CrewExt { id: m.id.clone(), job: JobKind::Task, ..CrewExt::default() };
+        if !calls::claim(&ctx, &call, &a.session_id, &calls::to_json(&ext)?).await? {
+            return Err(WireError::invalid("That task is already a crew member's job."));
+        }
         st.put(m.clone());
         st.save().await;
-        let ext = CrewExt { id: m.id.clone(), job: JobKind::Task, ..CrewExt::default() };
-        calls::set_ext(&ctx, &call, &a.session_id, calls::to_json(&ext)?).await?;
         ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "task".into() });
         Ok(view(&ctx, &call, &st, &m).await)
     });

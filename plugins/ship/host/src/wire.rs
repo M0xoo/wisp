@@ -109,6 +109,7 @@ fn start_writer(ctx: &Ctx, ship: &Arc<Ship>, known: &Arc<Known>) {
                 }
                 known.set(&id, value.clone());
                 let review = slot::new_head(was.as_ref(), &value);
+                // set-ext: whole this loop is the slot's one writer, and the value is ship's own task state, not a read
                 let a = rt::SetExtArgs { id: id.as_str().into(), plugin: PLUGIN.into(), value, expect: None };
                 if let Err(e) = cx.run::<rt::SetExt>(&cx.root_call(), a).await {
                     known.forget(&id);

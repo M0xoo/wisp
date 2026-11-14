@@ -22,5 +22,10 @@ wisp-crew-api.workspace = true
 wisp-telemetry-api.workspace = true
 wisp-grid-client-api.workspace = true
 
+[dev-dependencies]
+tokio.workspace = true
+wisp-runtime-api = { workspace = true, features = ["testing"] }
+wisp-testkit.workspace = true
+
 [lints]
 workspace = true

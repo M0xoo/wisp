@@ -72,8 +72,10 @@ pub(crate) async fn adopt(ctx: &Ctx, call: &Call, args: Value) -> Result<Value> 
     to_json(&ctx.run::<rt::Adopt>(call, a).await?)
 }
 
-/// `runtime.setExt`: the share's slot on a task written (`Null` forgets it).
+/// `runtime.setExt`: the share's slot on a task written whole (`share.create`'s new link; forgetting one is
+/// `link::forget`'s compare-and-set).
 pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> Result<()> {
+    // set-ext: whole a new link replaces whatever was kept: nothing of the old slot is read back into it
     ctx.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: wisp_share_api::PLUGIN_ID.into(), value, expect: None })
         .await
         .map(|_| ())

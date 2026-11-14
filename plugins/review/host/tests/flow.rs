@@ -40,6 +40,9 @@ struct State {
     hold: Option<String>,
     /// the PR's head after the reviewer answers (a push meanwhile)
     head_after_ask: Option<String>,
+    /// another run's record, written over the slot once the reviewer answers (a write between the run's last
+    /// `live` check and its save: the claim is let go before the save)
+    review_after_ask: Option<Review>,
     saved: Vec<(Option<Review>, bool)>,
     asked: Vec<(String, Pick)>,
     finished: Vec<ReviewFinished>,
@@ -97,10 +100,17 @@ impl Env for Fake {
         if let Some(h) = st.head_after_ask.take() {
             st.task.pr_head = h;
         }
+        if let Some(r) = st.review_after_ask.take() {
+            st.task.review = Some(r);
+        }
         ready(st.answer.clone())
     }
-    fn save(&self, _call: &Call, _id: &str, review: Option<&Review>, unread: bool) -> Fut<Result<()>> {
+    fn save(&self, _call: &Call, _id: &str, review: Option<&Review>, unread: bool, over: Option<&Review>) -> Fut<Result<()>> {
         let mut st = self.st();
+        // as runtime.setExt's `expect`: refused unless the slot still holds `over`
+        if over.is_some_and(|o| st.task.review.as_ref() != Some(o)) {
+            return ready(Err(WireError::conflict("changed meanwhile")));
+        }
         st.saved.push((review.cloned(), unread));
         st.task.review = review.cloned();
         ready(Ok(()))
@@ -307,4 +317,19 @@ fn a_session_reads_as_a_task_from_its_ext_slots() {
     assert!(t.is_child && t.pr_open && !t.live);
     assert_eq!((t.pr_head.as_str(), t.dir.as_str(), t.base_ref.as_str(), t.goal.as_str()), ("abc", "/wt", "origin/main", "done"));
     assert_eq!(t.review.unwrap().status, Status::Held);
+}
+
+/// A newer record lands on the slot while a run finishes (after its last `live` check, before its save): the run's
+/// result is refused over it and dropped, so the newer record stays and no finished event goes out for the old one.
+#[tokio::test]
+async fn a_record_written_while_a_run_keeps_its_result_wins() {
+    let f = fake();
+    let newer = Review { head: "h2".into(), status: Status::Running, ..Review::default() };
+    f.st().review_after_ask = Some(newer.clone());
+    let r = Reviewer::new(Arc::new(f.clone()));
+    assert_eq!(maybe(&f, &r, false).await, "");
+    let st = f.st();
+    assert_eq!(st.task.review.as_ref(), Some(&newer));
+    assert_eq!(st.saved.len(), 1); // only the running record
+    assert!(st.finished.is_empty());
 }

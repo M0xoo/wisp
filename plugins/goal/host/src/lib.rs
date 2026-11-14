@@ -21,6 +21,7 @@ use wisp_goal_api::{GoalState, PLUGIN};
 use wisp_goal_core::MAX_ROUNDS;
 use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_runtime_api::events::TurnEnded;
+use wisp_runtime_api::ext::update_ext;
 use wisp_runtime_api::model::{Session, TurnStatus};
 
 /// Who the goal's own follow-ups are by.
@@ -100,6 +101,7 @@ async fn set(ctx: &Ctx, defaults: &kinds::Defaults, live: &Inflight, a: &wisp_go
     let old: Vec<String> = state_of(&task)
         .map(|s| s.running.iter().filter_map(|r| r.get("run").and_then(Value::as_str).map(str::to_owned)).collect())
         .unwrap_or_default();
+    // the user's new goal (or none) replaces the slot whole: a round that read the old one loses at its `put_if`
     put(ctx, &call, &a.id, &st).await?;
     live.stop(ctx, &a.id, Some(&old)).await;
     if a.kick && !text.is_empty() {
@@ -156,11 +158,19 @@ pub fn moved(st: Option<&GoalState>, to: &str, why: Option<&str>) -> GoalState {
 /// `goal.pause` / `goal.resume` / `goal.drop`: the goal's state written, the band's view given back.
 async fn move_goal(ctx: &Ctx, live: &Inflight, a: &wisp_goal_api::TaskArgs, to: &str) -> Result<Value> {
     let call = ctx.root_call();
-    let task = task_of(ctx, &call, &a.id).await?;
-    let had = goal_with(&spec_of(&task), state_of(&task).as_ref(), &kinds::GoalSpec::default()).is_some();
-    refuse_no_goal(had, to)?;
-    let st = moved(state_of(&task).as_ref(), to, a.why.as_deref());
-    put(ctx, &call, &a.id, &st).await?;
+    // read, decided and written in one compare-and-set: a round's result (its count, its verdicts) or a drop that
+    // lands between the read and the write is moved on from, never written back over as it was read
+    let mut out = None;
+    update_ext(ctx, &call, &a.id, PLUGIN, |_, task| {
+        let had = goal_with(&spec_of(task), state_of(task).as_ref(), &kinds::GoalSpec::default()).is_some();
+        refuse_no_goal(had, to)?;
+        let st = moved(state_of(task).as_ref(), to, a.why.as_deref());
+        let v = serde_json::to_value(&st).map_err(|e| WireError::internal(e.to_string()))?;
+        out = Some((st, task.clone()));
+        Ok(Some(v))
+    })
+    .await?;
+    let Some((st, task)) = out else { return Err(WireError::internal("goal: nothing was written")) };
     // dropped: its judges still running stop (a pause lets them finish on their records, as v1 did)
     if to == "cleared" {
         live.stop(ctx, &a.id, None).await;

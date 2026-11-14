@@ -152,6 +152,7 @@ fn plan_here(
 pub(crate) async fn mark_run(ctx: &Ctx, call: &wisp_kernel::Call, id: &str, running: bool) {
     let port = wisp_terminal_core::run::port_for(id);
     let value = json!({ "run": { "running": running, "port": port } });
+    // set-ext: whole the slot holds only `run`, set from the app's state now, never read back and merged
     let a = rt::SetExtArgs { id: SessionId(id.to_owned()), plugin: "wisp.terminal".into(), value, expect: None };
     if let Err(err) = ctx.run::<rt::SetExt>(call, a).await {
         tracing::warn!(error = %err.message, task = id, "terminal: runtime.setExt");

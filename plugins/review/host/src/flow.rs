@@ -91,19 +91,23 @@ impl Reviewer {
         };
         match core::after_pick(&t.pr_head, pick, hold, self.env.now()) {
             Decision::Stop { review, why } => {
+                // whole: this head's claim (`running`) is held until it's written, so no other run of the task writes
+                // the slot meanwhile (let go after: a run let in before it would be overwritten by this stop)
+                let saved = self.env.save(call, id, Some(&review), false, None).await;
                 self.release(id, &t.pr_head);
-                self.env.save(call, id, Some(&review), false).await?;
+                saved?;
                 Ok(Started { why, job: None })
             }
             Decision::Start { review, pick } => {
-                if let Err(e) = self.env.save(call, id, Some(&review), false).await {
+                // whole: this head's claim (`running`) is held, so no other run of the task writes the slot meanwhile
+                if let Err(e) = self.env.save(call, id, Some(&review), false, None).await {
                     self.release(id, &t.pr_head);
                     return Err(e);
                 }
                 let me = self.clone();
                 let call = call.clone();
                 let name = agents.iter().find(|a| a.id == pick.agent).map_or_else(|| pick.agent.clone(), |a| a.name.clone());
-                Ok(Started { why: String::new(), job: Some(Box::pin(async move { me.run(&call, t, pick, name).await })) })
+                Ok(Started { why: String::new(), job: Some(Box::pin(async move { me.run(&call, t, pick, name, review).await })) })
             }
         }
     }
@@ -120,7 +124,8 @@ impl Reviewer {
         self.lock().get(id).is_some_and(|h| h == head) && self.env.task(call, id).await.is_ok_and(|t| t.pr_head == head)
     }
 
-    async fn run(&self, call: &Call, t: Task, pick: Pick, reviewer: String) {
+    /// `started`: the running record this run wrote; its result lands only over it.
+    async fn run(&self, call: &Call, t: Task, pick: Pick, reviewer: String, started: Review) {
         let head = t.pr_head.clone();
         let _span = tracing::info_span!("review.run", session = %t.id, head = %head, reviewer = %pick.agent);
         let mut got = Gathered::default();
@@ -150,10 +155,16 @@ impl Reviewer {
         };
         self.release(&t.id, &head);
         if let (Some(r), true) = (review, keep) {
-            if let Err(e) = self.env.save(call, &t.id, Some(&r), true).await {
-                tracing::warn!(error = %e, "review: couldn't keep the result");
+            // over this run's running record only: the claim is let go above, so a new head's run (or a forced one)
+            // may have written the slot since `live`; that newer record wins, and this result is dropped
+            match self.env.save(call, &t.id, Some(&r), true, Some(&started)).await {
+                Ok(()) => self.env.finished(call, &finished_of(&t, &r)),
+                Err(e) if e.code == wisp_kernel::Code::Conflict => tracing::debug!("review: overtaken while it was kept"),
+                Err(e) => {
+                    tracing::warn!(error = %e, "review: couldn't keep the result");
+                    self.env.finished(call, &finished_of(&t, &r));
+                }
             }
-            self.env.finished(call, &finished_of(&t, &r));
         }
     }
 
@@ -235,6 +246,7 @@ fn finished_of(t: &Task, r: &Review) -> ReviewFinished {
 /// A review cut short by a restart starts over: the running ones are cleared at boot.
 pub async fn boot(env: &dyn Env, call: &Call, tasks: Vec<Task>) {
     for t in tasks.into_iter().filter(|t| t.review.as_ref().is_some_and(|r| r.status == Status::Running)) {
-        let _ = env.save(call, &t.id, core::on_boot(t.review.clone()).as_ref(), false).await;
+        // whole: at boot, before any run of this server can write the slot
+        let _ = env.save(call, &t.id, core::on_boot(t.review.clone()).as_ref(), false, None).await;
     }
 }

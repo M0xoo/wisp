@@ -197,12 +197,12 @@ impl Env for KernelEnv {
         let f = self.0.run::<rt::Quick>(call, args);
         Box::pin(async move { f.await.ok().and_then(|r| r.json) })
     }
-    fn save(&self, call: &Call, id: &str, review: Option<&Review>, unread: bool) -> Fut<Result<()>> {
-        let value = match review.map(serde_json::to_value).transpose() {
-            Ok(v) => v.unwrap_or(Value::Null),
-            Err(e) => return Box::pin(async move { Err(WireError::internal(e.to_string())) }),
+    fn save(&self, call: &Call, id: &str, review: Option<&Review>, unread: bool, over: Option<&Review>) -> Fut<Result<()>> {
+        let (value, expect) = match (review.map(serde_json::to_value).transpose(), over.map(serde_json::to_value).transpose()) {
+            (Ok(v), Ok(o)) => (v.unwrap_or(Value::Null), o.map(|value| rt::ExtExpect { value })),
+            (Err(e), _) | (_, Err(e)) => return Box::pin(async move { Err(WireError::internal(e.to_string())) }),
         };
-        let set = self.0.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: EXT.into(), value, expect: None });
+        let set = self.0.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: EXT.into(), value, expect });
         let read = unread.then(|| self.0.run::<rt::MarkRead>(call, rt::MarkReadArgs { id: id.into(), unread: true }));
         Box::pin(async move {
             set.await?;

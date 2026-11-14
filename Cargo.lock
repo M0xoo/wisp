@@ -4486,6 +4486,7 @@ dependencies = [
  "wisp-share-api",
  "wisp-store",
  "wisp-telemetry-api",
+ "wisp-testkit",
 ]
 
 [[package]]
@@ -5406,6 +5407,7 @@ dependencies = [
  "wisp-runtime-api",
  "wisp-store",
  "wisp-telemetry-api",
+ "wisp-testkit",
 ]
 
 [[package]]
@@ -5560,6 +5562,7 @@ dependencies = [
  "rand 0.9.5",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "wisp-crew-api",
  "wisp-grid-client-api",
@@ -5568,6 +5571,7 @@ dependencies = [
  "wisp-share-api",
  "wisp-share-core",
  "wisp-telemetry-api",
+ "wisp-testkit",
 ]
 
 [[package]]
