@@ -7,6 +7,7 @@
 //! importer map 1:1. Types the UI reads derive `ts_rs::TS` and export under `runtime/`.
 
 pub mod commands;
+pub mod env;
 pub mod events;
 pub mod ext;
 pub mod harness;

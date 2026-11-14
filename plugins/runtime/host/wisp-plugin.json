@@ -8,6 +8,9 @@
   "author": "wisp",
   "kind": "plugin",
   "provides": {
+    "runtime.envmask": {
+      "version": "1.0.0"
+    },
     "runtime.harness": {
       "version": "1.0.0"
     },

@@ -20,7 +20,7 @@ const UNREAD: &str = "unread";
 
 /// `known` and each value as a JSON string writes it (`"` → `\"`, a PEM key's line breaks → `\n`): the raw answer
 /// text carries its wisp block as JSON. Borrowed when no value changes.
-fn with_escaped(known: &[String]) -> Cow<'_, [String]> {
+pub(crate) fn with_escaped(known: &[String]) -> Cow<'_, [String]> {
     let esc = |v: &String| serde_json::to_string(v).ok().map(|j| j[1..j.len() - 1].to_owned()).filter(|j| j != v);
     if !known.iter().any(|v| v.contains(['"', '\\', '\n', '\r', '\t'])) {
         return Cow::Borrowed(known);
@@ -44,6 +44,8 @@ pub fn hide_of(turn: &Value, known: Option<&[String]>) -> Value {
     let Some(known) = known else { return Value::String(UNREAD.into()) };
     let k = with_escaped(known);
     let mut m = es::hide_of(turn, &TURN, &k);
+    // the other plugins' slots (a crew member's answer…), ADR-0054
+    crate::env_other::hide_of_others(turn, &k, &mut m);
     if let Some(t) = turn.get("text").and_then(Value::as_str) {
         let spans = raw_prose_spans(t, &k);
         if !spans.is_empty() {
@@ -125,6 +127,7 @@ pub fn mask_turn(t: &mut Value, known: Known<'_>) -> bool {
         _ => false,
     };
     changed |= es::mask(t, &TURN, "", k.as_deref());
+    changed |= crate::env_other::mask_turn_others(t, k.as_deref());
     env_mask::mask_turn_known(t, known) | changed
 }
 
@@ -135,12 +138,29 @@ pub fn mask_row(row: &mut Value, known: Known<'_>) -> bool {
     let len = |v: Option<&Value>| v.and_then(Value::as_str).map(str::len);
     let clean = row.pointer("/body/envHide/#clean").is_some()
         && es::fresh_hide(row.pointer("/body/envHide"), known.map(with_escaped).as_deref())
-        && len(row.get("answer")) == len(row.pointer("/body/text"));
+        && len(row.get("answer")) == len(row.pointer("/body/text"))
+        // clean said before its ranges held the other plugins' slots and its prompt (ADR-0054): those are looked at
+        && (row.pointer(&format!("/body/envHide/{}", crate::env_other::EXT)).is_some()
+            || row.get("body").is_none_or(|b| {
+                let prompt = b.get("prompt").and_then(Value::as_str).is_some_and(|p| !p.is_empty());
+                !crate::env_other::has_others(b) && (!prompt || known.is_none_or(<[String]>::is_empty))
+            }));
     if clean {
         return false;
     }
     let text = row.pointer("/body/text").and_then(Value::as_str).map(str::to_owned);
+    let prompt = row.pointer("/body/prompt").and_then(Value::as_str).map(str::to_owned);
     let mut changed = row.get_mut("body").is_some_and(|b| mask_turn(b, known));
+    // the prompt column is the body's prompt (ADR-0054): it leaves as that did, or masked on its own
+    if prompt.is_some() && row.get("prompt").and_then(Value::as_str) == prompt.as_deref() {
+        let out = row.pointer("/body/prompt").cloned().unwrap_or(Value::Null);
+        if row.get("prompt") != Some(&out) {
+            row["prompt"] = out;
+            changed = true;
+        }
+    } else if let Some(p) = row.get_mut("prompt") {
+        changed |= crate::env_other::mask_patch_others("/prompt", p, known.map(with_escaped).as_deref());
+    }
     let same = text.is_some() && row.get("answer").and_then(Value::as_str) == text.as_deref();
     if same {
         let out = row.pointer("/body/text").cloned().unwrap_or(Value::Null);
@@ -168,11 +188,12 @@ pub fn mask_patch(path: &str, v: &mut Value, known: Known<'_>) -> bool {
         "" => return mask_row(v, known),
         "/body" => return mask_turn(v, known),
         "/answer" | "/body/text" => return mask_answer(v, known),
+        "/prompt" => return crate::env_other::mask_patch_others("/prompt", v, known.map(with_escaped).as_deref()),
         _ => {}
     }
     let k = known.map(with_escaped);
     let at = path.strip_prefix("/body").filter(|r| r.starts_with('/'));
-    let changed = at.is_some_and(|at| es::mask(v, &TURN, at, k.as_deref()));
+    let changed = at.is_some_and(|at| es::mask(v, &TURN, at, k.as_deref()) | crate::env_other::mask_patch_others(at, v, k.as_deref()));
     env_mask::mask_patch("turn", path, v) | changed
 }
 

@@ -13,7 +13,7 @@ use wisp_kernel::egress::{RowView, VIEWS};
 use wisp_kernel::{Ctx, Setup, WireError};
 use wisp_runtime_api::commands as c;
 use wisp_runtime_core::env_mask::{self, Item};
-use wisp_runtime_core::{env_session, env_turn};
+use wisp_runtime_core::{env_other, env_session, env_turn};
 
 use crate::plugin::{Slot, rt};
 
@@ -23,9 +23,9 @@ pub(crate) fn on(ctx: &Ctx) -> bool {
 }
 
 /// The tasks whose stored reads are being read back (one read per task, however many rows go out meanwhile).
-type Loading = std::sync::Mutex<std::collections::HashSet<String>>;
+pub(crate) type Loading = std::sync::Mutex<std::collections::HashSet<String>>;
 
-fn lock(m: &Loading) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
+pub(crate) fn lock(m: &Loading) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
@@ -38,7 +38,7 @@ fn turn_known(slot: &Slot, loading: &Arc<Loading>, row: &Value) -> Option<Vec<St
 }
 
 /// [`turn_known`] of task `sid`.
-fn known_of(slot: &Slot, loading: &Arc<Loading>, sid: &str) -> Option<Vec<String>> {
+pub(crate) fn known_of(slot: &Slot, loading: &Arc<Loading>, sid: &str) -> Option<Vec<String>> {
     let r = rt(slot).ok()?;
     if let Some(v) = r.env.get(sid) {
         return Some(v.0);
@@ -94,8 +94,14 @@ impl RowView for View {
             let known = session_known(&self.1, &self.2, v);
             env_session::mask_row(v, known.as_deref());
         } else if kind == "turn" {
-            // a row written with its ranges needs no read: what its task read in memory, if it is, masks the rest
-            let known = if v.pointer("/body/envHide").is_some() {
+            // a row written with its ranges needs no read: what its task read in memory, if it is, masks the rest; one
+            // whose ranges don't hold its other plugins' slots or prompt yet (before ADR-0054) reads them back
+            let kept = v.pointer("/body/envHide").is_some_and(|h| {
+                h.get(env_other::EXT).is_some()
+                    || v.get("body")
+                        .is_some_and(|b| !env_other::has_others(b) && b.get("prompt").is_none_or(|p| p.as_str().is_none_or(str::is_empty)))
+            }) && !v.pointer("/body/envHide").is_some_and(Value::is_string);
+            let known = if kept {
                 let sid = v.get("session_id").and_then(Value::as_str);
                 sid.and_then(|sid| rt(&self.1).ok()?.env.get(sid)).map(|x| x.0)
             } else {
@@ -201,7 +207,12 @@ fn mask_presentation(
 }
 
 pub(crate) fn register(s: &mut Setup, slot: &Slot) {
-    s.contribute(&VIEWS, Arc::new(View(s.ctx(), slot.clone(), Arc::default())) as Arc<dyn RowView>);
+    let loading: Arc<Loading> = Arc::default();
+    s.contribute(&VIEWS, Arc::new(View(s.ctx(), slot.clone(), loading.clone())) as Arc<dyn RowView>);
+    // other plugins' data about a task (ADR-0054)
+    s.provide::<wisp_runtime_api::env::EnvMaskService>(
+        Arc::new(crate::env_other::Other(s.ctx(), slot.clone(), loading)) as Arc<dyn wisp_runtime_api::env::EnvMask>
+    );
     let sl = slot.clone();
     s.command::<c::Turns, _, _>(move |ctx, _call, a| {
         let slot = sl.clone();
