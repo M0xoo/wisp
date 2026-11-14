@@ -8,7 +8,7 @@ use wisp_proc::{Env, SpawnOpts, Stream};
 use wisp_runtime_api::harness::{Exit, HarnessRun, ParserInput, ParserOutput, Stdin};
 use wisp_runtime_api::model::Activity;
 use wisp_runtime_api::{Harness, HarnessEvent};
-use wisp_runtime_core::activity::{self, Effect, Head};
+use wisp_runtime_core::activity::{self, Effect, EnvValues, Head};
 
 use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
@@ -76,7 +76,13 @@ impl Runtime {
         }
         let sys = ProcSys { proc: self.proc.clone() };
         let mut driver = h.driver(run);
-        let (mut side, mut head, mut done) = (SideOut::default(), Head::default(), false);
+        // a /btw or a goal check on a task knows what the task's turns read (ADR-0050)
+        let known = if run.session_id.is_empty() { Ok(EnvValues::default()) } else { self.env_known(&run.session_id).await };
+        let known = known.unwrap_or_else(|e| {
+            tracing::warn!(task = %run.session_id, error = %e, "runtime: the task's earlier .env reads are unknown to this side run");
+            EnvValues::default()
+        });
+        let (mut side, mut head, mut done) = (SideOut::default(), Head::seeded(known), false);
         let (mut buf, mut stderr) = (Vec::<u8>::new(), String::new());
         // the deadline on the kernel's clock (a test's FakeClock drives it)
         let deadline = self.clock.sleep(u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX));

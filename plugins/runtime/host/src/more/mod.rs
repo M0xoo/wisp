@@ -50,7 +50,16 @@ fn push(m: &mut serde_json::Map<String, Value>, k: &str, v: Value) {
 }
 
 fn tool_row(tool: ToolKind, label: String) -> Activity {
-    Activity::Tool { tool, label, file: None, detail: None, call_id: None, output: None, title: None }
+    Activity::Tool {
+        tool,
+        label,
+        file: None,
+        detail: None,
+        call_id: None,
+        output: None,
+        title: None,
+        hide: std::collections::BTreeMap::new(),
+    }
 }
 
 /// Runs `f` on runtime's own ext slot (made an object if it wasn't one), then puts it back.

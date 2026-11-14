@@ -40,6 +40,8 @@ pub struct Runtime {
     sign_ins: Mutex<HashMap<String, crate::more::SignIn>>,
     /// each task's turns' usage, folded once per turn (`usage_row.rs`)
     pub(crate) usage: crate::usage_row::UsageCache,
+    /// each task's .env values its turns read, in memory only (`env_known.rs`, ADR-0050)
+    pub(crate) env: crate::env_known::EnvKnown,
 }
 
 impl std::fmt::Debug for Runtime {
@@ -67,6 +69,7 @@ impl Runtime {
             seqs: Mutex::default(),
             sign_ins: Mutex::default(),
             usage: crate::usage_row::UsageCache::default(),
+            env: crate::env_known::EnvKnown::default(),
         })
     }
 

@@ -74,10 +74,15 @@ impl Runtime {
     ) {
         let sys = ProcSys { proc: self.proc.clone() };
         let seq = self.repo.next_seq(&sid).await.unwrap_or(1);
+        // the .env values the task's earlier turns read (ADR-0050); a store that can't say is read again next turn
+        let known = self.env_known(&sid).await.unwrap_or_else(|e| {
+            tracing::warn!(task = %sid, error = %e, "runtime: the task's earlier .env reads are unknown to this turn");
+            wisp_runtime_core::activity::EnvValues::default()
+        });
         let mut d = Drive {
             sid,
             tid,
-            head: Head::default(),
+            head: Head::seeded(known),
             seq,
             coal: Coalescer::new(&self.repo.store, CoalescerOptions::default()),
             finished: false,
@@ -163,6 +168,7 @@ impl Runtime {
         }
         self.publish(&mut d, true);
         d.coal.close().await;
+        self.env_remember(&d.sid, &d.head.env_values);
         self.release_run(&d.sid).await;
     }
 
@@ -223,10 +229,11 @@ impl Runtime {
         if let Ok(row) = rows::event_row(&d.sid, &d.tid, step.seq, t, &step.activity) {
             let _ = d.coal.append("event", vec![row]);
         }
-        if let Activity::Tool { label, .. } = &step.activity
+        if let Activity::Tool { label, hide, .. } = &step.activity
             && let Some(l) = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(&d.sid)
         {
-            l.label = Some(label.clone());
+            // the list row's live line: never a .env value it quotes (ADR-0050)
+            l.label = Some(hide.get("label").map_or_else(|| label.clone(), |h| wisp_envmask::mask_spans(label, h)));
         }
         step
     }

@@ -40,6 +40,7 @@ pub fn from_v0(item: &Value) -> Option<Activity> {
                 call_id: s(item, "call"),
                 output: s(item, "output"),
                 title: s(item, "title"),
+                hide: std::collections::BTreeMap::new(),
             },
             // wisp's own lines (Auto's check, a repair, a hand-over, a side's refusal)
             None => Activity::Notice { text: label, tone: (k == "warn").then_some(Tone::Warn) },
@@ -73,7 +74,7 @@ pub fn to_v0(a: &Activity) -> Value {
             put("kind", Some("thinking"));
             put("label", text.as_deref());
         }
-        Activity::Tool { tool, label, file, detail, call_id, output, title } => {
+        Activity::Tool { tool, label, file, detail, call_id, output, title, .. } => {
             let k = serde_json::to_value(tool).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
             put("kind", Some(&k));
             put("label", Some(label));

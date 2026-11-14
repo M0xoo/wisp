@@ -209,3 +209,97 @@ fn reveal_is_refused_to_a_capped_agent_and_a_share_page() {
     assert!(allowed(&Caller::user(), "runtime:unmasked"), "the user");
     assert!(allowed(&Caller::agent("s1", true), "runtime:turns"), "a capped agent still reads turns, masked");
 }
+
+/// A run's stream as a replay file: each item a content block of one assistant or user message, then its answer.
+fn write_replay(f: &std::path::Path, s: &str, msgs: &[serde_json::Value], title: &str) {
+    let answer = format!("Done.\n```wisp\n{}\n```", json!({ "blocks": [{ "type": "hero", "title": title, "status": "done" }] }));
+    let mut lines = vec![json!({ "type": "system", "subtype": "init", "session_id": s })];
+    lines.extend(msgs.iter().cloned());
+    lines.push(json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "text", "text": answer }] } }));
+    lines.push(json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01 }));
+    std::fs::write(f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
+}
+
+/// A later turn that quotes what an earlier one read: in its thinking (a PEM key's inner line too), a command line
+/// and its description, and the command's output.
+fn quoting_later(s: &str) -> Vec<serde_json::Value> {
+    let a = |c: serde_json::Value| json!({ "type": "assistant", "session_id": s, "message": { "content": [c] } });
+    let u = |c: serde_json::Value| json!({ "type": "user", "session_id": s, "message": { "content": [c] } });
+    vec![
+        a(
+            json!({ "type": "thinking", "thinking": "Earlier the key was sk-live-one and the PEM's body line PEMLINExyz0123456789 looked odd." }),
+        ),
+        a(
+            json!({ "type": "tool_use", "id": "q1", "name": "Bash", "input": { "command": "curl -H \"Authorization: Bearer sk-live-one\" https://api.test", "description": "Call the API with sk-live-one" } }),
+        ),
+        u(json!({ "type": "tool_result", "tool_use_id": "q1", "content": [{ "type": "text", "text": "accepted token sk-live-one" }] })),
+    ]
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_value_read_in_one_turn_and_quoted_in_a_later_one_or_after_a_restart_reaches_no_topic_or_read() {
+    let dir = temp("envlater");
+    let proj = dir.join("proj");
+    let file = "API_KEY=sk-live-one\nPRIVATE_KEY=\"-----BEGIN PRIVATE KEY-----\nPEMLINExyz0123456789\n-----END PRIVATE KEY-----\"\n";
+    std::fs::write(proj.join(".env"), file).unwrap();
+    let f = dir.join("later-run.jsonl");
+    let s = "sess-later";
+    let read = vec![
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c1", "name": "Bash", "input": { "command": "cat .env" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c1", "content": [{ "type": "text", "text": file }] }] } }),
+    ];
+    write_replay(&f, s, &read, "Read it");
+    let env = [("FAKE_REPLAY", f.to_str().unwrap()), ("FAKE_DELAY", "1500")];
+    let (serve, port) = start_with(&dir, &env);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id = api.cmd("runtime.create", json!({ "prompt": "read the env", "cwd": proj, "agent": "claude" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    api.until(&id, "turn 1 to end", |t| t.len() == 1 && ended(&t[0])).await;
+
+    // turn 2, same server: the values the task read are in memory
+    write_replay(&f, s, &quoting_later(s), "Quoted two");
+    let topic = format!("session:{id}");
+    let live = tokio::spawn({
+        let (http, topic) = (http.clone(), topic.clone());
+        async move { stream(&http, port, &topic, "Quoted two", 60).await }
+    });
+    api.cmd("runtime.followUp", json!({ "id": id, "text": "use it" })).await;
+    let turns = api.until(&id, "turn 2 to end", |t| t.len() == 2 && ended(&t[1])).await;
+    let seen = live.await.unwrap();
+    assert!(seen.contains("Quoted two"), "the stream saw turn 2");
+    let check = |what: &str, text: &str| {
+        no_value(what, text);
+        assert!(!text.contains("PEMLINE"), "{what} carried a line of a multi-line .env value");
+    };
+    check("the live sync stream", &seen);
+    check("the sync snapshot", &stream(&http, port, &topic, "Quoted two", 10).await);
+    let tid = turns[1]["id"].as_str().unwrap().to_owned();
+    let steps = api.cmd("runtime.activity", json!({ "id": id, "turnId": tid })).await;
+    check("runtime.activity", &steps.to_string());
+    let call = steps["items"].as_array().unwrap().iter().find(|x| x["kind"] == "tool").cloned().unwrap_or_else(|| panic!("{steps}"));
+    assert!(call.to_string().contains(&format!("Bearer {DOTS}")), "masked, not dropped: {call}");
+    check("runtime.turns", &json!(api.turns(&id).await).to_string());
+    check("runtime.get", &api.cmd("runtime.get", json!({ "id": id })).await.to_string());
+    check("wisp_session", &api.cmd("runtime.agent.session", json!({ "session": id, "of": id })).await.to_string());
+    check("a share", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+
+    // turn 3 after a restart: nothing in memory, the task's stored reads seed it
+    serve.stop();
+    let (_serve, port) = start_with(&dir, &env);
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    write_replay(&f, s, &quoting_later(s), "Quoted three");
+    api.cmd("runtime.followUp", json!({ "id": id, "text": "again" })).await;
+    let turns = api.until(&id, "turn 3 to end", |t| t.len() == 3 && ended(&t[2])).await;
+    let tid = turns[2]["id"].as_str().unwrap().to_owned();
+    let mut steps = api.cmd("runtime.activity", json!({ "id": id, "turnId": tid })).await;
+    check("runtime.activity after a restart", &steps.to_string());
+    // and as the store has it with the setting off: turn 3's rows carry the ranges, so masking is all that's needed
+    api.cmd("settings.set", json!({ "key": "git.maskEnvFiles", "value": false })).await;
+    steps = api.cmd("runtime.activity", json!({ "id": id, "turnId": tid })).await;
+    let think = steps["items"].as_array().unwrap().iter().find(|x| x["kind"] == "thinking").cloned().unwrap_or_else(|| panic!("{steps}"));
+    assert!(think["hide"].as_array().is_some_and(|h| h.len() == 2), "both quotes flagged by the seeded turn: {think}");
+    check("a share with masking off", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+}

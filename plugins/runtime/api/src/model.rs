@@ -149,6 +149,11 @@ pub enum Activity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         title: Option<String>,
+        /// per field (`label`, `detail`, `title`, `output`), the byte ranges that quote a .env value (ADR-0050): they
+        /// leave the server as `••••`. Additive (2026-11-14).
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        #[ts(optional, as = "Option<std::collections::BTreeMap<String, Vec<[u32; 2]>>>")]
+        hide: std::collections::BTreeMap<String, Vec<[u32; 2]>>,
     },
     ToolOutput {
         #[serde(rename = "callId")]
@@ -160,6 +165,11 @@ pub enum Activity {
         #[serde(default)]
         #[ts(as = "Option<bool>", optional)]
         env: bool,
+        /// byte ranges of `text` that quote a .env value the task read (ADR-0050), when it isn't a .env file's text
+        /// itself: they leave the server as `••••`. Additive (2026-11-14).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[ts(optional, as = "Option<Vec<[u32; 2]>>")]
+        hide: Vec<[u32; 2]>,
     },
     ToolError {
         name: String,

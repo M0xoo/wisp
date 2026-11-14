@@ -6,7 +6,7 @@
 use serde_json::json;
 use wisp_envmask::{
     DOTS, env_file_named, env_values, is_env_file, mask_block, mask_diffs, mask_edit, mask_line, mask_on, mask_spans, mask_text,
-    names_env_file, quote_spans, reads_env_file, text_spans,
+    names_env_file, quote_spans, reads_env_file, text_spans, value_spans,
 };
 
 #[test]
@@ -230,4 +230,55 @@ fn spans_that_dont_fit_the_text_hide_all_of_it_fail_closed() {
     assert_eq!(mask_spans("ab", &[[1, 2], [0, 1]]), DOTS, "out of order");
     assert_eq!(mask_spans("é", &[[1, 2]]), DOTS, "inside a character");
     assert_eq!(mask_spans("as is", &[]), "as is");
+}
+
+#[test]
+fn every_line_of_a_multi_line_quoted_value_is_known_a_pem_key_in_quotes() {
+    let pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAzq1line2\nQWERTYsecondline9876\n-----END RSA PRIVATE KEY-----";
+    let file = format!("A=1\nPRIVATE_KEY=\"{pem}\"\nAFTER=after-value\n");
+    let v = env_values(&file);
+    for line in pem.lines() {
+        assert!(v.iter().any(|x| x == line), "{line} in {v:?}");
+    }
+    assert!(v.iter().any(|x| x == pem), "the whole value too");
+    assert!(v.iter().any(|x| x == "after-value"), "the value after it is read as a line again: {v:?}");
+    // quoted later, one line at a time or whole, nothing of it shows
+    for t in ["the key's body is MIIEowIBAAKCAQEAzq1line2 and QWERTYsecondline9876".to_owned(), format!("key:\n{pem}\n")] {
+        let m = mask_spans(&t, &quote_spans(&t, &v));
+        assert!(!m.contains("MIIEow") && !m.contains("QWERTY"), "{m}");
+    }
+    // a single-quoted one, and one never closed (all it ran on to is its value: fail closed)
+    let v = env_values("K='line-one-x\nline-two-y'\n");
+    assert!(v.iter().any(|x| x == "line-two-y") && v.iter().any(|x| x == "line-one-x\nline-two-y"), "{v:?}");
+    let v = env_values("K=\"open-start\nrest-of-file\n");
+    assert!(v.iter().any(|x| x == "rest-of-file"), "{v:?}");
+}
+
+#[test]
+fn a_value_cut_short_in_a_label_or_an_output_is_hidden_as_far_as_it_shows() {
+    let v = env_values("API_KEY=sk-live-abcdef0123456789");
+    // a label clipped inside the value, with or without its ellipsis; an output's tail that starts inside one
+    for (t, want) in [
+        ("Running curl -H 'Bearer sk-live-abc…", format!("Running curl -H 'Bearer {DOTS}…")),
+        ("Running curl -H 'Bearer sk-live-abc", format!("Running curl -H 'Bearer {DOTS}")),
+        ("… 3 lines cut …\n0123456789' done", format!("… 3 lines cut …\n{DOTS}' done")),
+        ("whole sk-live-abcdef0123456789 here", format!("whole {DOTS} here")),
+    ] {
+        assert_eq!(mask_spans(t, &value_spans(t, &v)), want, "{t}");
+    }
+    // a start shorter than a value's shortest part, or text that merely shares letters, stays
+    for t in ["Run sk-li…", "Running npm test", "sk-live is a prefix people know"] {
+        assert!(value_spans(t, &v).is_empty(), "{t}");
+    }
+    // a command line is matched on values only: `NODE_ENV=test` is no secret
+    assert_eq!(value_spans("NODE_ENV=test npm test", &v), Vec::<[u32; 2]>::new());
+    assert!(value_spans("é…é", &env_values("K=ééééééééé")).iter().all(|[a, b]| a < b), "char boundaries");
+}
+
+#[test]
+fn a_quote_never_closed_still_lets_the_keys_after_it_be_known() {
+    let v = env_values("MSG=\"hello there\nAPI_KEY=sk-live-123456\nexport DB='postgres://x'\n");
+    for want in ["sk-live-123456", "postgres://x", "hello there"] {
+        assert!(v.iter().any(|x| x == want), "{want} in {v:?}");
+    }
 }

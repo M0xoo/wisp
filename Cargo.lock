@@ -4998,6 +4998,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "wisp-envmask",
  "wisp-kernel",
  "wisp-learn-api",
  "wisp-learn-core",

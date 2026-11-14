@@ -237,22 +237,54 @@ static SHAPE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\s*(?:[-*>]\s+)?`*(?:export\s+)?[A-Z_][A-Z0-9_]*=([^\s`][^`]*?)`*\s*$").expect("SHAPE"));
 
 /// The values of a .env file's text (`K=v`, `export K="v"`, `K: v`): each as written and without its quotes, the
-/// short and plain ones left out. What the turn machine keeps (in memory only) of a .env file a call read.
+/// short and plain ones left out. A quoted value that runs over several lines (a PEM key in quotes) gives each of its
+/// lines and the whole. What the turn machine keeps (in memory only) of a .env file a call read.
 pub fn env_values(text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
+    let mut push = |x: &str| {
+        if x.chars().count() >= MIN_VALUE && !PLAIN.contains(&x.to_ascii_lowercase().as_str()) && !out.iter().any(|o| o == x) {
+            out.push(x.to_owned());
+        }
+    };
+    // a quoted value that runs on past its line (a PEM key in quotes): its quote and the lines read so far
+    let mut open: Option<(char, Vec<String>)> = None;
     for l in text.split('\n').map(|l| l.trim_end_matches('\r')) {
+        if let Some((q, lines)) = open.as_mut() {
+            // every line of it is a value of its own (each shows alone in a later text), and so is the whole
+            let (piece, closed) = l.split_once(*q).map_or((l, false), |(p, _)| (p, true));
+            push(piece.trim());
+            lines.push(piece.to_owned());
+            if closed {
+                push(&lines.join("\n"));
+                open = None;
+            }
+            // a quote never closed swallows what follows: its `K=v` lines still count as lines (fail closed)
+            if let Some(v) = LINE.captures(l).and_then(|c| c.get(2)) {
+                let v = v.as_str().trim();
+                push(v);
+                push(v.trim_matches(|c| c == '"' || c == '\''));
+            }
+            continue;
+        }
         let Some(v) = LINE.captures(l).and_then(|c| c.get(2)) else { continue };
         let v = v.as_str().trim();
         // `"sec ret" # c` → `sec ret`; `abc123 # prod` → `abc123`
         let bare = match v.chars().next() {
-            Some(q @ ('"' | '\'')) => v[1..].split(q).next().unwrap_or_default(),
+            Some(q @ ('"' | '\'')) => {
+                let rest = &v[1..];
+                if !rest.contains(q) {
+                    open = Some((q, vec![rest.to_owned()]));
+                }
+                rest.split(q).next().unwrap_or_default()
+            }
             _ => v.split(" #").next().unwrap_or(v).trim_end(),
         };
-        for x in [v, bare] {
-            if x.chars().count() >= MIN_VALUE && !PLAIN.contains(&x.to_ascii_lowercase().as_str()) && !out.iter().any(|o| o == x) {
-                out.push(x.to_owned());
-            }
-        }
+        push(v);
+        push(bare);
+    }
+    // never closed: what it ran on to is all its value (fail closed), and each line already counts
+    if let Some((_, lines)) = open {
+        push(&lines.join("\n"));
     }
     out
 }
@@ -260,10 +292,7 @@ pub fn env_values(text: &str) -> Vec<String> {
 /// Byte ranges `[start, end)` of `text` to hide: every place it quotes one of `values`, and the value of each line
 /// shaped like a .env line. Sorted, merged, on char boundaries.
 pub fn quote_spans(text: &str, values: &[String]) -> Vec<[u32; 2]> {
-    let mut spans: Vec<(usize, usize)> = Vec::new();
-    for v in values.iter().filter(|v| !v.is_empty()) {
-        spans.extend(text.match_indices(v.as_str()).map(|(at, m)| (at, at + m.len())));
-    }
+    let mut spans = value_hits(text, values);
     let mut at = 0;
     for l in text.split('\n') {
         if let Some(m) = SHAPE.captures(l).and_then(|c| c.get(1)) {
@@ -272,6 +301,53 @@ pub fn quote_spans(text: &str, values: &[String]) -> Vec<[u32; 2]> {
         at += l.len() + 1;
     }
     merged(spans)
+}
+
+/// Byte ranges of `text` that quote one of `values`, and nothing else: for a tool call's command line, label or
+/// output, where `NODE_ENV=test npm test` or a build's `VERSION=1.2` is no secret. Sorted, merged.
+pub fn value_spans(text: &str, values: &[String]) -> Vec<[u32; 2]> {
+    let mut spans = value_hits(text, values);
+    spans.extend(cut_hits(text, values));
+    merged(spans)
+}
+
+/// Where a value was cut (a label clipped to its first characters, an output to its head and tail): the part of it
+/// that ends the text or meets a `…`, and the part that starts the text or follows one, `MIN_VALUE` characters or more.
+fn cut_hits(text: &str, values: &[String]) -> Vec<(usize, usize)> {
+    let mut ends = vec![text.len()];
+    let mut starts = vec![0];
+    for (at, m) in text.match_indices('…') {
+        ends.push(text[..at].trim_end().len());
+        starts.push(at + m.len());
+    }
+    let mut out = Vec::new();
+    for v in values {
+        // `at[j]`: where the value's j-th character starts; a part is `MIN_VALUE` characters or more, never all of it
+        let at: Vec<usize> = v.char_indices().map(|(i, _)| i).collect();
+        let Some(last) = at.len().checked_sub(MIN_VALUE).filter(|&l| l >= 1) else { continue };
+        for &e in &ends {
+            // the longest start of the value that ends here
+            if let Some(&k) = at[MIN_VALUE..].iter().rev().find(|&&k| text[..e].ends_with(&v[..k])) {
+                out.push((e - k, e));
+            }
+        }
+        for &b in &starts {
+            let from = b + (text[b..].len() - text[b..].trim_start().len());
+            // the longest end of the value that starts here
+            if let Some(&i) = at[1..=last].iter().find(|&&i| text[from..].starts_with(&v[i..])) {
+                out.push((from, from + v.len() - i));
+            }
+        }
+    }
+    out
+}
+
+fn value_hits(text: &str, values: &[String]) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    for v in values.iter().filter(|v| !v.is_empty()) {
+        spans.extend(text.match_indices(v.as_str()).map(|(at, m)| (at, at + m.len())));
+    }
+    spans
 }
 
 /// Byte ranges of `text` that `mask_text` would hide: a whole error text from a call that read a .env file.

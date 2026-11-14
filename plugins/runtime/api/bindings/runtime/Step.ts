@@ -13,12 +13,22 @@ hide?: Array<[number, number]>, } | { "kind": "tool", tool: ToolKind, label: str
 /**
  * its whole title, when `label` had to be cut (v1 #780): an opened step shows it. Additive (2026-11-12).
  */
-title?: string, } | { "kind": "tool_output", callId: string, text: string, 
+title?: string, 
+/**
+ * per field (`label`, `detail`, `title`, `output`), the byte ranges that quote a .env value (ADR-0050): they
+ * leave the server as `••••`. Additive (2026-11-14).
+ */
+hide?: { [key in string]: Array<[number, number]> }, } | { "kind": "tool_output", callId: string, text: string, 
 /**
  * the call it answers read a .env file: its text leaves the server masked (ADR-0050). Always written, so a
  * row without it is one from before (its call decides). Additive (2026-11-13).
  */
-env?: boolean, } | { "kind": "tool_error", name: string, text: string, 
+env?: boolean, 
+/**
+ * byte ranges of `text` that quote a .env value the task read (ADR-0050), when it isn't a .env file's text
+ * itself: they leave the server as `••••`. Additive (2026-11-14).
+ */
+hide?: Array<[number, number]>, } | { "kind": "tool_error", name: string, text: string, 
 /**
  * byte ranges of `text` that quote a .env value (ADR-0050): they leave the server as `••••`. Additive (2026-11-14).
  */

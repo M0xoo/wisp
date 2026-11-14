@@ -237,6 +237,7 @@ impl Runtime {
         }
         let row = self.lock_list().remove(id);
         self.usage.forget(id);
+        self.env.forget(id);
         // a subagent gone: its lead's usage stops counting it
         if let Some(lead) = row.and_then(|r| r.parent_id.clone()) {
             self.refresh_lead(lead);

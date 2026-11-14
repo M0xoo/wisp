@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use wisp_envmask::DOTS;
 use wisp_runtime_api::harness::HarnessEvent;
 use wisp_runtime_api::model::{Activity, ToolKind};
-use wisp_runtime_core::activity::{Effect, Head, apply};
+use wisp_runtime_core::activity::{Effect, EnvValues, Head, apply};
 use wisp_runtime_core::env_mask::{
     Item, mask_answer_text, mask_event_rows, mask_patch, mask_row, mask_step, mask_steps, mask_turn, unmasked_of_turn, unmasked_step,
 };
@@ -100,7 +100,7 @@ fn the_turn_machine_flags_the_output_of_a_call_that_read_a_env_file() {
     let out = |id: &str| HarnessEvent::ToolOutput { id: id.into(), text: "K=v".into() };
     assert!(matches!(apply(&mut h, &out("c1"), false, &no), Effect::Append(Activity::ToolOutput { env: true, .. })));
     assert!(matches!(apply(&mut h, &out("c2"), false, &no), Effect::Append(Activity::ToolOutput { env: false, .. })));
-    let v = serde_json::to_value(Activity::ToolOutput { call_id: "c2".into(), text: "x".into(), env: false }).unwrap();
+    let v = serde_json::to_value(Activity::ToolOutput { call_id: "c2".into(), text: "x".into(), env: false, hide: Vec::new() }).unwrap();
     assert_eq!(v["env"], false, "always written: a row without it is one from before the flag");
 }
 
@@ -309,4 +309,135 @@ fn a_tool_error_printing_a_env_value_leaves_masked() {
     let mut junk = json!({ "kind": "thinking", "text": "sk-live-one", "hide": "x" });
     assert!(mask_step(&mut junk));
     assert_eq!(junk["text"], DOTS);
+}
+
+fn run_ev(id: &str, label: &str, detail: &str) -> HarnessEvent {
+    HarnessEvent::Tool {
+        kind: ToolKind::Run,
+        label: label.into(),
+        file: None,
+        detail: Some(detail.into()),
+        id: Some(id.into()),
+        output: None,
+        title: Some(format!("{label} {detail}")),
+    }
+}
+
+/// Each event through the turn machine, as stored rows (`seq` = its index).
+fn rows_of(h: &mut Head, evs: &[HarnessEvent]) -> Vec<Value> {
+    let no = |_: &str| false;
+    let mut rows = Vec::new();
+    for (i, ev) in evs.iter().enumerate() {
+        if let Effect::Append(a) = apply(h, ev, false, &no) {
+            let mut v = serde_json::to_value(&a).unwrap();
+            v["seq"] = json!(i);
+            rows.push(v);
+        }
+    }
+    rows
+}
+
+#[test]
+fn a_tool_calls_command_line_label_and_title_quoting_a_env_value_leave_masked() {
+    let mut h = Head::default();
+    let rows = rows_of(
+        &mut h,
+        &[
+            run_ev("c1", "Run", "cat .env"),
+            HarnessEvent::ToolOutput { id: "c1".into(), text: "API_KEY=sk-live-one".into() },
+            run_ev("c2", "curl with sk-live-one", "curl -H 'Authorization: Bearer sk-live-one' https://api"),
+            HarnessEvent::ToolOutput { id: "c2".into(), text: "echoed: sk-live-one\nok".into() },
+            run_ev("c3", "Run", "NODE_ENV=test npm test"),
+        ],
+    );
+    let call = &rows[2];
+    assert!(call["hide"]["detail"].is_array() && call["hide"]["label"].is_array() && call["hide"]["title"].is_array(), "{call}");
+    assert!(call["detail"].as_str().unwrap().contains("sk-live-one"), "the stored row keeps the real text");
+    // alone (one live row on the stream, a patch op), and the read's batch
+    let mut one = call.clone();
+    assert!(mask_step(&mut one));
+    none_left("a tool call row", &one);
+    assert_eq!(one["detail"], format!("curl -H 'Authorization: Bearer {DOTS}' https://api"));
+    assert!(one.get("hide").is_none(), "the ranges stay on the server");
+    let mut op = call.clone();
+    assert!(mask_patch("event", "/body", &mut op));
+    none_left("a patch op", &op);
+    // another command's output quoting it
+    let mut out = rows[3].clone();
+    assert!(mask_step(&mut out));
+    assert_eq!(out["text"], format!("echoed: {DOTS}\nok"));
+    // a command with no value in it is shown as it is (an inline `NODE_ENV=test` is no secret)
+    let mut plain = rows[4].clone();
+    assert!(!mask_step(&mut plain), "{plain}");
+    assert_eq!(plain["detail"], "NODE_ENV=test npm test");
+    // a row without `hide` (from before it): the batch's .env read decides
+    let mut old = rows.clone();
+    for r in &mut old {
+        r.as_object_mut().unwrap().remove("hide");
+    }
+    assert!(mask_steps(old.iter_mut()));
+    none_left("a batch of rows without hide", &json!(old));
+    // an unreadable `hide`: every field it could name goes (fail closed)
+    let mut junk = json!({ "kind": "tool", "tool": "run", "label": "Run", "detail": "curl sk-live-one", "hide": 7 });
+    assert!(mask_step(&mut junk));
+    assert_eq!((junk["label"].as_str(), junk["detail"].as_str()), (Some(DOTS), Some(DOTS)));
+}
+
+#[test]
+fn a_value_read_in_an_earlier_turn_and_quoted_in_a_later_one_is_masked() {
+    // turn 1 reads .env
+    let mut first = Head::default();
+    let t1 = rows_of(
+        &mut first,
+        &[run_ev("c1", "Run", "cat .env"), HarnessEvent::ToolOutput { id: "c1".into(), text: "API_KEY=sk-live-one".into() }],
+    );
+    let quoting = [
+        HarnessEvent::Thinking { text: Some("reuse sk-live-one from before".into()) },
+        run_ev("c2", "Run", "curl -u sk-live-one api"),
+        HarnessEvent::ToolError { name: "Bash".into(), text: "401 for sk-live-one".into(), id: Some("c2".into()) },
+    ];
+    // turn 2's own rows, each alone: an unseeded head can't flag them, a seeded one does
+    let unseeded = rows_of(&mut Head::default(), &quoting);
+    assert!(unseeded.iter().all(|r| r.get("hide").is_none()), "nothing known: nothing flagged");
+    // seeded from memory (the head turn 1 ended with) and from the stored steps (after a restart)
+    let stored: Vec<Activity> = t1.iter().map(|r| serde_json::from_value(r.clone()).unwrap()).collect();
+    for seed in [first.env_values.clone(), EnvValues::of_steps(&stored)] {
+        assert_eq!(seed.0.len(), 1, "one value known");
+        let rows = rows_of(&mut Head::seeded(seed), &quoting);
+        for r in &rows {
+            let mut one = r.clone();
+            assert!(mask_step(&mut one), "{r}");
+            none_left("a later turn's row", &one);
+        }
+    }
+    // a stored output from before the `env` flag still counts, by its call
+    let old = [
+        serde_json::from_value::<Activity>(json!({ "kind": "tool", "tool": "read", "label": "Read", "file": ".env", "callId": "r1" }))
+            .unwrap(),
+        serde_json::from_value::<Activity>(json!({ "kind": "tool_output", "callId": "r1", "text": "K=tok-fresh-1" })).unwrap(),
+    ];
+    assert_eq!(EnvValues::of_steps(&old).0, ["tok-fresh-1"]);
+    assert_eq!(format!("{:?}", EnvValues::of_steps(&old)), "EnvValues(1 hidden)", "its Debug never says a value");
+}
+
+#[test]
+fn every_line_of_a_multi_line_value_the_turn_read_is_masked_where_it_is_quoted() {
+    let mut h = Head::default();
+    let pem = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\nsecondLineOfTheKeyQWERTY12\n-----END PRIVATE KEY-----";
+    let rows = rows_of(
+        &mut h,
+        &[
+            run_ev("c1", "Run", "cat .env"),
+            HarnessEvent::ToolOutput { id: "c1".into(), text: format!("PORT=3000\nKEY=\"{pem}\"\nOTHER=x") },
+            HarnessEvent::Thinking { text: Some("its second line secondLineOfTheKeyQWERTY12 looks off".into()) },
+            HarnessEvent::ToolError { name: "Bash".into(), text: format!("bad key:\n{pem}"), id: None },
+            run_ev("c2", "Run", "echo MIIEvQIBADANBgkqhkiG9w0BAQEFAASC | base64 -d"),
+        ],
+    );
+    for r in &rows[2..] {
+        let mut one = r.clone();
+        assert!(mask_step(&mut one), "{r}");
+        let j = one.to_string();
+        assert!(!j.contains("MIIEvQ") && !j.contains("secondLine"), "{j}");
+    }
 }

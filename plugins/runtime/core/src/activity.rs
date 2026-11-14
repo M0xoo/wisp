@@ -101,9 +101,19 @@ pub struct Head {
     pub cli: Option<Value>,
     /// the calls that read a .env file: their `tool_output` is flagged `env` (ADR-0050)
     pub env_calls: Vec<String>,
-    /// the values of the .env files this turn's calls printed, so its thinking and tool errors that quote one are
-    /// flagged where (`hide`). In memory only: never written, never logged.
+    /// the values of the .env files this task's calls printed (seeded with the earlier turns', `Head::seeded`), so
+    /// its thinking, tool errors, tool calls and outputs that quote one are flagged where (`hide`). In memory only:
+    /// never written, never logged.
     pub env_values: EnvValues,
+}
+
+impl Head {
+    /// A turn's head that already knows the .env values its task's earlier turns read (ADR-0050): a value read in
+    /// one turn and quoted in a later one is flagged too.
+    #[must_use]
+    pub fn seeded(env_values: EnvValues) -> Self {
+        Self { env_values, ..Self::default() }
+    }
 }
 
 /// .env values a turn saw. Its `Debug` says how many, never what.
@@ -117,6 +127,40 @@ impl std::fmt::Debug for EnvValues {
 }
 
 impl EnvValues {
+    /// The values a task's stored steps show it read (`env` outputs, and outputs of calls that named a .env file,
+    /// flagged or not): what a turn is seeded with when its task's values aren't in memory (after a restart).
+    /// Stored outputs are clipped (`MAX_OUTPUT`): what the clip cut can't be told from them.
+    #[must_use]
+    pub fn of_steps<'a>(steps: impl IntoIterator<Item = &'a Activity> + Clone) -> Self {
+        let mut calls: Vec<&str> = Vec::new();
+        let mut out = Self::default();
+        for a in steps.clone() {
+            if let Activity::Tool { file, detail, label, call_id, output, .. } = a
+                && crate::env_mask::call_reads_env(file.as_deref(), detail.as_deref(), Some(label))
+            {
+                calls.extend(call_id.as_deref());
+                out.add(output.as_deref().unwrap_or_default());
+            }
+        }
+        for a in steps {
+            if let Activity::ToolOutput { call_id, text, env, .. } = a
+                && (*env || calls.contains(&call_id.as_str()))
+            {
+                out.add(text);
+            }
+        }
+        out
+    }
+
+    /// Adds what `other` knows.
+    pub fn extend(&mut self, other: &Self) {
+        for v in &other.0 {
+            if !self.0.contains(v) {
+                self.0.push(v.clone());
+            }
+        }
+    }
+
     fn add(&mut self, text: &str) {
         for v in wisp_envmask::env_values(text) {
             if !self.0.contains(&v) {
@@ -162,6 +206,7 @@ pub fn step_of(ev: &HarnessEvent) -> Option<Activity> {
             detail: detail.clone(),
             call_id: id.clone(),
             output: output.as_deref().filter(|_| shows_output(*kind)).map(clip_output),
+            hide: std::collections::BTreeMap::new(),
         },
         HarnessEvent::Text { text } => Activity::Text { text: head16(text, MAX_TEXT).to_owned() },
         HarnessEvent::ToolError { name, text, .. } => {
@@ -187,6 +232,7 @@ pub fn waiting_step(tasks: &[String]) -> Activity {
         call_id: None,
         output: None,
         title: None,
+        hide: std::collections::BTreeMap::new(),
     }
 }
 
@@ -216,10 +262,20 @@ fn note_env_call(head: &mut Head, ev: &HarnessEvent) {
 /// .env file inline (its `output`) adds its values.
 fn flag_quotes(head: &mut Head, ev: &HarnessEvent, mut a: Activity) -> Activity {
     match (&mut a, ev) {
-        (_, HarnessEvent::Tool { file, detail, label, output: Some(out), .. })
-            if crate::env_mask::call_reads_env(file.as_deref(), detail.as_deref(), Some(label)) =>
-        {
-            head.env_values.add(out);
+        (Activity::Tool { label, detail, title, output, hide, .. }, HarnessEvent::Tool { file, detail: d, label: l, output: o, .. }) => {
+            let reads = crate::env_mask::call_reads_env(file.as_deref(), d.as_deref(), Some(l));
+            if reads && let Some(out) = o {
+                head.env_values.add(out);
+            }
+            // its own command line or label quoting a value (`curl -H "Bearer sk-…"`); an output it printed inline
+            // that isn't the .env file's own (that one is masked whole)
+            let out = if reads { None } else { output.as_deref() };
+            for (k, t) in [("label", Some(&**label)), ("detail", detail.as_deref()), ("title", title.as_deref()), ("output", out)] {
+                let spans = t.map(|t| wisp_envmask::value_spans(t, &head.env_values.0)).unwrap_or_default();
+                if !spans.is_empty() {
+                    hide.insert(k.to_owned(), spans);
+                }
+            }
         }
         (Activity::Thinking { text: Some(text), hide }, _) => *hide = wisp_envmask::quote_spans(text, &head.env_values.0),
         (Activity::ToolError { text, hide, .. }, HarnessEvent::ToolError { id, .. }) => {
@@ -253,7 +309,10 @@ pub fn apply(head: &mut Head, ev: &HarnessEvent, plain: bool, is_fallback: &dyn 
             if env {
                 head.env_values.add(text);
             }
-            return Effect::Append(Activity::ToolOutput { call_id: id.clone(), text: clip_output(text), env });
+            let text = clip_output(text);
+            // another command's output quoting a value the task read (`printenv`, `echo $KEY`)
+            let hide = if env { Vec::new() } else { wisp_envmask::value_spans(&text, &head.env_values.0) };
+            return Effect::Append(Activity::ToolOutput { call_id: id.clone(), text, env, hide });
         }
         HarnessEvent::Change { file, op, edits, early, .. } => {
             if !*early || !head.changes.iter().any(|c| &c.file == file) {

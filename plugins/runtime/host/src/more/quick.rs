@@ -76,8 +76,8 @@ mod tests {
 
     #[test]
     fn a_quick_runs_env_output_leaves_masked() {
-        let read = Activity::ToolOutput { call_id: "c1".into(), text: "API_KEY=sk-live-123".into(), env: true };
-        let other = Activity::ToolOutput { call_id: "c2".into(), text: "ok".into(), env: false };
+        let read = Activity::ToolOutput { call_id: "c1".into(), text: "API_KEY=sk-live-123".into(), env: true, hide: Vec::new() };
+        let other = Activity::ToolOutput { call_id: "c2".into(), text: "ok".into(), env: false, hide: Vec::new() };
         let out = masked(vec![read, other.clone()]);
         assert!(matches!(&out[0], Activity::ToolOutput { text, .. } if !text.contains("sk-live-123")), "{out:?}");
         assert_eq!(out[1], other);

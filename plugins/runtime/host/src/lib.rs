@@ -6,6 +6,7 @@
 
 mod calls;
 mod drive;
+mod env_known;
 mod env_view;
 pub mod error;
 mod finish;

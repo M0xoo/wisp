@@ -56,6 +56,12 @@ pub(crate) fn schedule(s: &mut Setup, st: &Arc<State>) {
     });
 }
 
+/// A step's text as it may leave: the ranges the turn machine flagged as quoting a .env value hidden (ADR-0050). The
+/// digest goes to an agent, so it never carries one, whatever the setting says.
+fn masked(text: &str, hide: Option<&Vec<[u32; 2]>>) -> String {
+    hide.map_or_else(|| text.to_owned(), |h| wisp_envmask::mask_spans(text, h))
+}
+
 /// A turn as the digest reads it, from wisp.runtime's turn and its activity.
 fn turn_read(t: &Turn, steps: &[Step]) -> TurnRead {
     let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
@@ -64,10 +70,13 @@ fn turn_read(t: &Turn, steps: &[Step]) -> TurnRead {
     let trail = steps
         .iter()
         .filter_map(|a| match &a.activity {
-            Activity::Tool { tool: ToolKind::Run, label, detail, .. } => Some(Trail::Run(detail.clone().unwrap_or_else(|| label.clone()))),
-            Activity::Tool { tool: ToolKind::Ask, label, .. } => Some(Trail::Ask(label.clone())),
-            Activity::Tool { tool: ToolKind::Answer, label, .. } => Some(Trail::Answer(label.clone())),
-            Activity::ToolError { name, text, .. } => Some(Trail::Failed(format!("{name}: {text}"))),
+            Activity::Tool { tool: ToolKind::Run, label, detail, hide, .. } => Some(Trail::Run(match detail {
+                Some(d) => masked(d, hide.get("detail")),
+                None => masked(label, hide.get("label")),
+            })),
+            Activity::Tool { tool: ToolKind::Ask, label, hide, .. } => Some(Trail::Ask(masked(label, hide.get("label")))),
+            Activity::Tool { tool: ToolKind::Answer, label, hide, .. } => Some(Trail::Answer(masked(label, hide.get("label")))),
+            Activity::ToolError { name, text, hide } => Some(Trail::Failed(format!("{name}: {}", masked(text, Some(hide))))),
             _ => None,
         })
         .collect();
@@ -84,12 +93,12 @@ fn turn_read(t: &Turn, steps: &[Step]) -> TurnRead {
 /// turn whose activity runtime refuses is read without it (logged).
 async fn read_turns(ctx: &Ctx, call: &wisp_kernel::Call, id: &str, from: usize) -> Result<Vec<TurnRead>, WireError> {
     let sid = SessionId(id.to_owned());
-    let list = ctx.run::<r::Turns>(call, r::TurnsArgs { id: sid.clone(), before: None, limit: None, masked: None }).await?;
+    let list = ctx.run::<r::Turns>(call, r::TurnsArgs { id: sid.clone(), before: None, limit: None, masked: Some(true) }).await?;
     let mut out = Vec::with_capacity(list.len());
     let deep = from.max(list.len().saturating_sub(6));
     for (i, t) in list.iter().enumerate() {
         let steps = if i >= deep {
-            let a = r::ActivityArgs { id: sid.clone(), turn_id: t.id.clone(), since_seq: None, masked: None };
+            let a = r::ActivityArgs { id: sid.clone(), turn_id: t.id.clone(), since_seq: None, masked: Some(true) };
             match ctx.run::<r::ActivityOf>(call, a).await {
                 Ok(page) => page.items,
                 Err(err) => {
@@ -242,6 +251,7 @@ mod tests {
             call_id: None,
             output: None,
             title: None,
+            hide: std::collections::BTreeMap::new(),
         };
         let steps = [
             step(tool(ToolKind::Run, "Run", Some("npm test"))),
@@ -258,5 +268,37 @@ mod tests {
         assert_eq!(r.status, "done");
         assert_eq!(r.hero.as_ref().map(|h| h.1.as_str()), Some("Build fixed"));
         assert_eq!(r.question.as_deref(), Some("Ship it?"));
+    }
+
+    #[test]
+    fn a_retros_digest_reads_a_tool_errors_and_commands_masked_text_never_the_value() {
+        let t = Turn { prompt: "deploy".into(), status: TurnStatus::Done, ..Turn::default() };
+        let text = "auth failed for sk-live-123";
+        let at = u32::try_from(text.find("sk-").unwrap()).unwrap();
+        let cmd = "curl -H 'Bearer sk-live-123' x";
+        let c = u32::try_from(cmd.find("sk-").unwrap()).unwrap();
+        let steps = [
+            Step { seq: 0, t: 0, activity: Activity::ToolError { name: "bash".into(), text: text.into(), hide: vec![[at, at + 11]] } },
+            Step {
+                seq: 1,
+                t: 0,
+                activity: Activity::Tool {
+                    tool: ToolKind::Run,
+                    label: "Run".into(),
+                    file: None,
+                    detail: Some(cmd.into()),
+                    call_id: None,
+                    output: None,
+                    title: None,
+                    hide: [("detail".to_owned(), vec![[c, c + 11]])].into_iter().collect(),
+                },
+            },
+        ];
+        let r = turn_read(&t, &steps);
+        assert!(!format!("{:?}", r.trail).contains("sk-live-123"), "{:?}", r.trail);
+        assert_eq!(r.trail[0], Trail::Failed("bash: auth failed for ••••".into()));
+        // ranges that don't fit the text hide all of it (fail closed)
+        let bad = [Step { seq: 0, t: 0, activity: Activity::ToolError { name: "bash".into(), text: "short".into(), hide: vec![[2, 99]] } }];
+        assert_eq!(turn_read(&t, &bad).trail, vec![Trail::Failed("bash: ••••".into())]);
     }
 }

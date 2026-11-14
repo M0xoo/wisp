@@ -6,7 +6,9 @@
 //! Pure: no IO, no clock.
 
 use serde_json::{Map, Value};
-use wisp_envmask::{env_values, is_env_file, mask_block, mask_edit, mask_spans, mask_text, names_env_file, quote_spans, reads_env_file};
+use wisp_envmask::{
+    env_values, is_env_file, mask_block, mask_edit, mask_spans, mask_text, names_env_file, quote_spans, reads_env_file, value_spans,
+};
 
 use crate::blocks::parse::json_end;
 
@@ -104,11 +106,16 @@ pub fn mask_steps<'a>(steps: impl IntoIterator<Item = &'a mut Value>) -> bool {
 fn mask_step_in(step: &mut Value, calls: &Calls) -> bool {
     let kind = s(step, "kind").unwrap_or_default();
     if kind == "tool_output" || kind == "output" {
-        return calls.output_is_env(step) && mask_field(step, &["text", "output"]);
+        if calls.output_is_env(step) {
+            step.as_object_mut().map(|o| o.remove("hide"));
+            return mask_field(step, &["text", "output"]);
+        }
+        // another command's output that quotes a value the task read
+        return mask_quotes(step, &["text", "output"], &calls.values, value_spans);
     }
     // what an agent wrote itself: its thinking, a tool's error (v2's `text`, v1's `label`)
     if matches!(kind, "thinking" | "tool_error" | "error") {
-        return mask_quotes(step, &calls.values);
+        return mask_quotes(step, &["text", "label"], &calls.values, quote_spans);
     }
     if kind == "text" {
         let Some(m) = s(step, "text").and_then(mask_answer_text) else { return false };
@@ -116,27 +123,50 @@ fn mask_step_in(step: &mut Value, calls: &Calls) -> bool {
         return true;
     }
     // a v2 tool step, or a v1 activity item (`run`, `read`… with `output`) the importer kept as it was
-    if reads_env_file(s(step, "file"), s(step, "detail"), s(step, "label")) {
-        return mask_field(step, &["output"]);
+    let mut changed = reads_env_file(s(step, "file"), s(step, "detail"), s(step, "label")) && mask_field(step, &["output"]);
+    // its command line, label or title quoting a value (`curl -H "Bearer sk-…"`)
+    changed |= mask_tool_quotes(step, &calls.values);
+    changed
+}
+
+/// A tool step's fields masked where they quote a .env value: the ranges the turn machine flagged per field (`hide`,
+/// dropped as it leaves), then the batch's values. An unreadable `hide` hides
+/// every field it could name (fail closed).
+fn mask_tool_quotes(step: &mut Value, values: &[String]) -> bool {
+    const FIELDS: [&str; 4] = ["label", "detail", "title", "output"];
+    let hide: std::collections::BTreeMap<String, Vec<[u32; 2]>> = match step.as_object_mut().and_then(|o| o.remove("hide")) {
+        Some(h) => serde_json::from_value(h).unwrap_or_else(|_| FIELDS.iter().map(|k| ((*k).to_owned(), vec![[0, u32::MAX]])).collect()),
+        None => std::collections::BTreeMap::new(),
+    };
+    let mut changed = !hide.is_empty();
+    for k in FIELDS {
+        let Some(t) = s(step, k) else { continue };
+        let first = hide.get(k).map_or_else(|| t.to_owned(), |h| mask_spans(t, h));
+        let m = mask_spans(&first, &value_spans(&first, values));
+        if m != t {
+            step[k] = Value::String(m);
+            changed = true;
+        }
     }
-    false
+    changed
 }
 
 /// A thinking or error step's text masked where it quotes a .env value: the ranges the turn machine flagged
 /// (`hide`, dropped as it leaves: they say where the text was masked, and fit it no more), then the batch's values and
 /// any line shaped like a .env line.
-fn mask_quotes(step: &mut Value, values: &[String]) -> bool {
+fn mask_quotes(step: &mut Value, keys: &[&str], values: &[String], spans: fn(&str, &[String]) -> Vec<[u32; 2]>) -> bool {
     let hide: Vec<[u32; 2]> = match step.as_object_mut().and_then(|o| o.remove("hide")) {
         Some(h) => serde_json::from_value(h).unwrap_or_else(|_| vec![[0, u32::MAX]]), // unreadable: all of it (fail closed)
         None => Vec::new(),
     };
     let mut changed = !hide.is_empty();
-    for k in ["text", "label"] {
+    for (i, k) in keys.iter().enumerate() {
         let Some(t) = s(step, k) else { continue };
-        let first = if k == "text" && !hide.is_empty() { mask_spans(t, &hide) } else { t.to_owned() };
-        let m = mask_spans(&first, &quote_spans(&first, values));
+        // `hide` is about the first key (v2's `text`); a v1 row's `label` / `output` has none
+        let first = if i == 0 && !hide.is_empty() { mask_spans(t, &hide) } else { t.to_owned() };
+        let m = mask_spans(&first, &spans(&first, values));
         if m != t {
-            step[k] = Value::String(m);
+            step[*k] = Value::String(m);
             changed = true;
         }
     }
