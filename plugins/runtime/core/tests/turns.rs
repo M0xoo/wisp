@@ -338,7 +338,8 @@ fn the_row_carries_for_later_and_the_held_turns_id() {
 fn a_full_auto_runs_refusals_are_not_kept_to_allow_the_others_are() {
     use wisp_runtime_api::model::Mode;
     use wisp_runtime_core::activity::{BlockedAction, allowable};
-    let refused = vec![BlockedAction { tool: "Bash".into(), detail: "cat <<EOF".into(), rule: None }];
+    let refused =
+        vec![BlockedAction { tool: "Bash".into(), detail: "cat <<EOF".into(), rule: None, hide: std::collections::BTreeMap::default() }];
     // Full auto: its harness's own safety check refused it; no rule lifts that, so there's nothing to retry (v1 #777)
     assert_eq!(allowable(Mode::Auto, &refused), &[] as &[BlockedAction]);
     // Plan and Edits: wisp can allow it, Allow & retry runs it again with that rule

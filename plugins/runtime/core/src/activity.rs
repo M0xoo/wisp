@@ -74,6 +74,25 @@ pub struct BlockedAction {
     pub detail: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
+    /// per field (`detail`, `rule`), the byte ranges that quote a .env value the task read (ADR-0050): they leave the
+    /// server as `••••` (the turn's `blocked` list, the retry prompt). Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub hide: std::collections::BTreeMap<String, Vec<[u32; 2]>>,
+}
+
+impl BlockedAction {
+    /// A refused call as the turn machine keeps it, with where its command line and rule quote one of `values`.
+    #[must_use]
+    pub fn flagged(tool: String, detail: String, rule: Option<String>, values: &EnvValues) -> Self {
+        let mut hide = std::collections::BTreeMap::new();
+        for (k, t) in [("detail", Some(detail.as_str())), ("rule", rule.as_deref())] {
+            let spans = t.map(|t| wisp_envmask::value_spans(t, &values.0)).unwrap_or_default();
+            if !spans.is_empty() {
+                hide.insert(k.to_owned(), spans);
+            }
+        }
+        Self { tool, detail, rule, hide }
+    }
 }
 
 /// What of a turn's refusals wisp can still allow (v1 #777): a run in Full auto was already allowed everything wisp
@@ -320,9 +339,9 @@ pub fn apply(head: &mut Head, ev: &HarnessEvent, plain: bool, is_fallback: &dyn 
             }
         }
         HarnessEvent::Blocked { tool, detail, rule } => {
-            let item = BlockedAction { tool: tool.clone(), detail: detail.clone(), rule: rule.clone() };
-            if !head.blocked.iter().any(|b| b.tool == item.tool && b.detail == item.detail) {
-                head.blocked.push(item);
+            // its command line quoting a value the task read (`curl -H "Bearer sk-…"` refused): flagged like a call's
+            if !head.blocked.iter().any(|b| &b.tool == tool && &b.detail == detail) {
+                head.blocked.push(BlockedAction::flagged(tool.clone(), detail.clone(), rule.clone(), &head.env_values));
             }
         }
         HarnessEvent::Limits { .. } => {

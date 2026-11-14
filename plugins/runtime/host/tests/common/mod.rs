@@ -148,6 +148,17 @@ pub fn script(prompt: &str) -> Vec<Value> {
             json!({"type":"result","text":"I can't help with that.","isError":false,"stopReason":"refusal"}),
         ];
     }
+    // `envread…`: it prints a .env file, then quotes its value in its answer (ADR-0050)
+    if prompt.starts_with("envread") {
+        let text = format!("The key is sk-live-handoff.\n{hero}");
+        return vec![
+            json!({"type":"session","id":"conv-1"}),
+            json!({"type":"tool","kind":"run","label":"cat .env","detail":"cat .env","id":"e1"}),
+            json!({"type":"tool_output","id":"e1","text":"API_KEY=sk-live-handoff\nPORT=3000"}),
+            json!({"type":"text","text":text}),
+            json!({"type":"result","text":text,"isError":false}),
+        ];
+    }
     let cli = prompt.strip_prefix("cli ").map(|v| json!({"type":"cli","version":v}));
     let mut lines = vec![json!({"type":"session","id":"conv-1"})];
     lines.extend(cli);

@@ -441,3 +441,114 @@ fn every_line_of_a_multi_line_value_the_turn_read_is_masked_where_it_is_quoted()
         assert!(!j.contains("MIIEvQ") && !j.contains("secondLine"), "{j}");
     }
 }
+
+/// A turn row whose `wisp.runtime` slot holds `blocked` as the turn machine keeps it.
+fn turn_with_blocked(head: &Head) -> Value {
+    json!({ "id": "t1", "ext": { "wisp.runtime": { "blocked": serde_json::to_value(&head.blocked).unwrap() } } })
+}
+
+#[test]
+fn a_blocked_commands_detail_quoting_a_value_the_task_read_is_flagged_and_leaves_masked() {
+    // the task read the key in an earlier turn (seeded), then this turn's refused command quotes it
+    let mut h = Head::seeded(EnvValues(vec!["sk-live-one".into()]));
+    let detail = "curl -H \"Authorization: Bearer sk-live-one\" https://api.test";
+    let rule = format!("Bash({detail})");
+    let ev = HarnessEvent::Blocked { tool: "Bash".into(), detail: detail.into(), rule: Some(rule.clone()) };
+    assert!(matches!(apply(&mut h, &ev, false, &|_| false), Effect::None));
+    let b = &h.blocked[0];
+    assert_eq!((b.detail.as_str(), b.rule.as_deref()), (detail, Some(rule.as_str())), "the store keeps it as it was (the retry's grant)");
+    assert!(b.hide.contains_key("detail") && b.hide.contains_key("rule"), "flagged: {:?}", b.hide);
+    // the same refusal again is one item still
+    apply(&mut h, &ev, false, &|_| false);
+    assert_eq!(h.blocked.len(), 1);
+    // a refusal that quotes nothing carries no ranges
+    apply(&mut h, &HarnessEvent::Blocked { tool: "Bash".into(), detail: "npm publish".into(), rule: None }, false, &|_| false);
+    assert!(h.blocked[1].hide.is_empty());
+
+    // on the way out: the turn row, the slot as a patch, the list, one item
+    let mut t = turn_with_blocked(&h);
+    assert!(mask_turn(&mut t));
+    none_left("a turn's blocked list", &t);
+    let item = &t["ext"]["wisp.runtime"]["blocked"][0];
+    assert_eq!(item["detail"], format!("curl -H \"Authorization: Bearer {DOTS}\" https://api.test"), "masked, not dropped");
+    assert!(item.get("hide").is_none(), "where it was masked stays on the server");
+    assert_eq!(t["ext"]["wisp.runtime"]["blocked"][1]["detail"], "npm publish");
+    let raw = turn_with_blocked(&h);
+    for (path, v) in [
+        ("/body/ext", raw["ext"].clone()),
+        ("/body/ext/wisp.runtime", raw["ext"]["wisp.runtime"].clone()),
+        ("/body/ext/wisp.runtime/blocked", raw["ext"]["wisp.runtime"]["blocked"].clone()),
+        ("/body/ext/wisp.runtime/blocked/0", raw["ext"]["wisp.runtime"]["blocked"][0].clone()),
+        // too deep to see its ranges: hidden whole (fail closed)
+        ("/body/ext/wisp.runtime/blocked/0/detail", json!(detail)),
+        ("/body/ext/wisp.runtime/blocked/0/rule", json!(rule)),
+    ] {
+        let mut v = v;
+        assert!(mask_patch("turn", path, &mut v), "{path}");
+        none_left(path, &v);
+    }
+    let mut row = json!({ "id": "t1", "body": raw });
+    assert!(mask_row("turn", &mut row));
+    none_left("a turn row", &row);
+    // an unreadable `hide` hides its detail and rule whole
+    let mut bad = json!({ "tool": "Bash", "detail": detail, "rule": rule, "hide": "?" });
+    assert!(wisp_runtime_core::env_mask::mask_blocked_one(&mut bad));
+    assert_eq!((bad["detail"].as_str(), bad["rule"].as_str()), (Some(DOTS), Some(DOTS)));
+}
+
+#[test]
+fn a_hand_off_note_and_a_btw_digest_never_quote_a_value_the_task_read() {
+    use wisp_runtime_api::model::{Turn, TurnStatus};
+    use wisp_runtime_core::prompt::btw::btw_prompt;
+    use wisp_runtime_core::prompt::handoff::{Handoff, PastTurn, Render, handoff_note};
+    let env = vec!["sk-live-one".to_owned(), "PEMLINExyz0123456789".to_owned()];
+    let done = Turn {
+        idx: 0,
+        agent: "a".into(),
+        prompt: "use sk-live-one for the API. Don't touch sk-live-one's config.".into(),
+        text: Some(format!("Tried it: sk-live-one works, PEMLINExyz0123456789 too.\nAPI_KEY=sk-live-one\n{}", "x".repeat(1600))),
+        status: TurnStatus::Done,
+        ..Turn::default()
+    };
+    let live = Turn { idx: 1, agent: "a".into(), prompt: "again".into(), status: TurnStatus::Running, ..Turn::default() };
+    // a running turn's actions: a label the turn machine flagged, one cut short (`…`), a notice and its latest message
+    let acts = vec![
+        Activity::Tool {
+            tool: ToolKind::Run,
+            label: "curl -H 'Bearer sk-live-one'".into(),
+            file: None,
+            detail: None,
+            call_id: None,
+            output: None,
+            title: None,
+            hide: [("label".to_owned(), vec![[16, 27]])].into_iter().collect(),
+        },
+        Activity::Tool {
+            tool: ToolKind::Run,
+            label: "echo PEMLINExyz01…".into(),
+            file: None,
+            detail: None,
+            call_id: None,
+            output: None,
+            title: None,
+            hide: std::collections::BTreeMap::new(),
+        },
+        Activity::Notice { text: "retrying with sk-live-one".into(), tone: None },
+        Activity::Text { text: "the key sk-live-one is fine".into() },
+    ];
+    let next = Turn { idx: 2, agent: "b".into(), prompt: "go on".into(), ..Turn::default() };
+    let past = [
+        PastTurn { env: &env, ..PastTurn::new(&done, "A CLI") },
+        PastTurn { env: &env, activity: &acts, ..PastTurn::new(&live, "A CLI") },
+        PastTurn { env: &env, ..PastTurn::new(&next, "B CLI") },
+    ];
+    let h = Handoff { turns: &past, agent: "b", ..Handoff::default() };
+    let note = handoff_note(&h, Render::default());
+    assert!(note.contains("### Turn 1 · A CLI") && note.contains("What still holds"), "{note}");
+    let btw = btw_prompt(&past[..2], "did it work?", false, 0, Render::default());
+    assert!(btw.contains("What it has done so far"), "{btw}");
+    for (what, text) in [("the hand-off note", &note), ("the /btw prompt", &btw)] {
+        assert!(!text.contains("sk-live") && !text.contains("PEMLINE"), "{what} quoted a .env value: {text}");
+        assert!(text.contains(DOTS), "{what}: masked, not dropped");
+    }
+}

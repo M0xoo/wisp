@@ -5,7 +5,7 @@
 
 use wisp_runtime_api::model::{Activity, TurnStatus};
 
-use super::handoff::{PastTurn, Render, turn_text};
+use super::handoff::{PastTurn, Render, hide_env, turn_text};
 use super::mentions::text_mentions;
 use super::text::{Re, clip, join_some, js_s, trim, truncate};
 
@@ -45,11 +45,15 @@ The user has a quick side question (/btw) about this task. {who} does the work. 
     )
 }
 
-/// What one step of a running turn is called in the digest (v1's activity `label`).
-fn act_label(a: &Activity) -> Option<&str> {
+/// What one step of a running turn is called in the digest (v1's activity `label`), masked where it quotes a .env
+/// value (ADR-0050): the ranges the turn machine flagged, then the task's values.
+fn act_label(a: &Activity, env: &[String]) -> Option<String> {
     match a {
-        Activity::Tool { label, .. } => Some(label),
-        Activity::Notice { text, .. } => Some(text),
+        Activity::Tool { label, hide, .. } => {
+            let flagged = hide.get("label").map_or_else(|| label.clone(), |h| wisp_envmask::mask_spans(label, h));
+            Some(hide_env(&flagged, env))
+        }
+        Activity::Notice { text, .. } => Some(hide_env(text, env)),
         _ => None,
     }
 }
@@ -61,7 +65,7 @@ fn minutes_since(now_ms: i64, started_ms: i64) -> i64 {
 }
 
 fn running_text(t: &PastTurn<'_>, n: usize, now_ms: i64) -> String {
-    let labels: Vec<&str> = t.activity.iter().filter_map(act_label).collect();
+    let labels: Vec<String> = t.activity.iter().filter_map(|a| act_label(a, t.env)).collect();
     let acts = &labels[labels.len().saturating_sub(LIVE_ACTS)..];
     let said = t.activity.iter().rev().find_map(|a| match a {
         Activity::Text { text } => Some(text.as_str()),
@@ -70,7 +74,7 @@ fn running_text(t: &PastTurn<'_>, n: usize, now_ms: i64) -> String {
     let files: Vec<String> = t.files.iter().map(|f| format!("`{f}`")).collect();
     let parts = [
         format!("### Turn {n} · {} · still running (started {} min ago)", t.name, minutes_since(now_ms, t.turn.started_at)),
-        format!("**User:** {}", text_mentions(&t.turn.prompt)),
+        format!("**User:** {}", hide_env(&text_mentions(&t.turn.prompt), t.env)),
         if acts.is_empty() {
             String::new()
         } else {
@@ -79,7 +83,7 @@ fn running_text(t: &PastTurn<'_>, n: usize, now_ms: i64) -> String {
         },
         if files.is_empty() { String::new() } else { format!("**Files it edited so far:** {}", files.join(", ")) },
         match said.filter(|s| !s.is_empty()) {
-            Some(s) => format!("**Its latest message:** {}", truncate(s, 1200)),
+            Some(s) => format!("**Its latest message:** {}", truncate(&hide_env(s, t.env), 1200)),
             None => String::new(),
         },
     ];

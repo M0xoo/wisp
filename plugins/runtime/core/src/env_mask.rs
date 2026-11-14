@@ -133,7 +133,7 @@ fn mask_step_in(step: &mut Value, calls: &Calls) -> bool {
 /// dropped as it leaves), then the batch's values. An unreadable `hide` hides
 /// every field it could name (fail closed).
 fn mask_tool_quotes(step: &mut Value, values: &[String]) -> bool {
-    const FIELDS: [&str; 4] = ["label", "detail", "title", "output"];
+    const FIELDS: [&str; 5] = ["label", "detail", "title", "output", "rule"];
     let hide: std::collections::BTreeMap<String, Vec<[u32; 2]>> = match step.as_object_mut().and_then(|o| o.remove("hide")) {
         Some(h) => serde_json::from_value(h).unwrap_or_else(|_| FIELDS.iter().map(|k| ((*k).to_owned(), vec![[0, u32::MAX]])).collect()),
         None => std::collections::BTreeMap::new(),
@@ -245,7 +245,51 @@ fn mask_changes(list: &mut Value) -> bool {
 }
 
 fn mask_ext(ext: &mut Value) -> bool {
-    ext.get_mut(RUNTIME).and_then(|r| r.get_mut("changes")).is_some_and(mask_changes)
+    ext.get_mut(RUNTIME).is_some_and(mask_runtime_slot)
+}
+
+/// wisp.runtime's slot on a turn: its captured changes, and the calls its permissions refused (`blocked`).
+fn mask_runtime_slot(r: &mut Value) -> bool {
+    let changed = r.get_mut("changes").is_some_and(mask_changes);
+    r.get_mut("blocked").is_some_and(mask_blocked) | changed
+}
+
+fn mask_blocked(list: &mut Value) -> bool {
+    let mut changed = false;
+    for b in list.as_array_mut().into_iter().flatten() {
+        changed |= mask_blocked_one(b);
+    }
+    changed
+}
+
+/// One refused call of a turn's `blocked` list (`{tool, detail, rule, hide}`) masked where its command line or rule
+/// quotes a .env value the task read: the ranges the turn machine flagged (`hide`, dropped as it leaves). An
+/// unreadable `hide` hides its detail and rule whole (fail closed).
+pub fn mask_blocked_one(b: &mut Value) -> bool {
+    const FIELDS: [&str; 2] = ["detail", "rule"];
+    let hide: std::collections::BTreeMap<String, Vec<[u32; 2]>> = match b.as_object_mut().and_then(|o| o.remove("hide")) {
+        Some(h) => serde_json::from_value(h).unwrap_or_else(|_| FIELDS.iter().map(|k| ((*k).to_owned(), vec![[0, u32::MAX]])).collect()),
+        None => return false,
+    };
+    for k in FIELDS {
+        if let (Some(t), Some(h)) = (s(b, k), hide.get(k)) {
+            b[k] = Value::String(mask_spans(t, h));
+        }
+    }
+    true
+}
+
+/// Every string in `v` as `••••`: a patch op too deep in a refused call to say where its value is (fail closed).
+fn hide_strings(v: &mut Value) -> bool {
+    match v {
+        Value::String(t) if !t.is_empty() => {
+            wisp_envmask::DOTS.clone_into(t);
+            true
+        }
+        Value::Array(a) => a.iter_mut().fold(false, |c, x| hide_strings(x) | c),
+        Value::Object(o) => o.values_mut().fold(false, |c, x| hide_strings(x) | c),
+        _ => false,
+    }
 }
 
 /// A turn (its `body`, or a `Turn` as `runtime.turns` returns it) masked in place: its blocks, its captured
@@ -338,7 +382,10 @@ pub fn mask_patch(entity: &str, path: &str, v: &mut Value) -> bool {
         ("turn", ["body", "presentation", "blocks"]) => mask_blocks(v),
         ("turn", ["body", "presentation", "blocks", _]) => mask_one_block(v),
         ("turn", ["body", "ext"]) => mask_ext(v),
-        ("turn", ["body", "ext", RUNTIME]) => v.get_mut("changes").is_some_and(mask_changes),
+        ("turn", ["body", "ext", RUNTIME]) => mask_runtime_slot(v),
+        ("turn", ["body", "ext", RUNTIME, "blocked"]) => mask_blocked(v),
+        ("turn", ["body", "ext", RUNTIME, "blocked", _]) => mask_blocked_one(v),
+        ("turn", ["body", "ext", RUNTIME, "blocked", _, k]) if *k != "hide" && *k != "tool" => hide_strings(v),
         ("turn", ["body", "ext", RUNTIME, "changes"] | ["body", "changes"]) => mask_changes(v),
         ("turn", ["body", "ext", RUNTIME, "changes", _] | ["body", "changes", _]) => mask_change(v),
         ("turn", ["body", "presentation", "blocks", _, ..] | ["body", "ext", RUNTIME, "changes", ..] | ["body", "changes", ..]) => {

@@ -9,6 +9,8 @@ use std::fmt::{self, Write as _};
 use serde_json::Value;
 use wisp_runtime_api::model::{Activity, Turn, TurnStatus};
 
+use wisp_envmask::{mask_spans, quote_spans, value_spans};
+
 use super::mentions::text_mentions;
 use super::text::{Re, clip, join_some, js_s, truncate};
 
@@ -71,6 +73,10 @@ pub struct PastTurn<'a> {
     pub automated: bool,
     /// its activity so far (a running turn's, for /btw)
     pub activity: &'a [Activity],
+    /// the .env values its task read (ADR-0050): every text of it written out for another run (a hand-off, a /btw
+    /// digest, a side discussion's) shows them as `••••`, so a value never reaches another agent's prompt or the
+    /// row that stores it. Empty: nothing to hide but lines shaped like a .env line.
+    pub env: &'a [String],
 }
 
 impl<'a> PastTurn<'a> {
@@ -86,6 +92,7 @@ impl<'a> PastTurn<'a> {
             delegations: Vec::new(),
             automated: false,
             activity: &[],
+            env: &[],
         }
     }
 
@@ -150,6 +157,13 @@ pub fn missed_turns(h: &Handoff<'_>) -> Vec<usize> {
     if missed.iter().any(|&i| h.turns[i].elsewhere() || !h.mine(&h.turns[i])) { missed } else { Vec::new() }
 }
 
+/// `text` written out for another run (ADR-0050): each place it quotes one of `env` (a clipped one's cut part too),
+/// then each line shaped like a .env line, as `••••`. Mask first, then clip: a clip never leaves part of a value.
+pub fn hide_env(text: &str, env: &[String]) -> String {
+    let once = mask_spans(text, &value_spans(text, env));
+    mask_spans(&once, &quote_spans(&once, env))
+}
+
 /// One earlier turn as markdown: the request, its report and the files it edited. /btw uses it too.
 pub fn turn_text(t: &PastTurn<'_>, n: usize, render: Render<'_>) -> String {
     let turn = t.turn;
@@ -163,8 +177,8 @@ pub fn turn_text(t: &PastTurn<'_>, n: usize, render: Render<'_>) -> String {
             .filter(|b| b.get("type").and_then(Value::as_str).is_some_and(|ty| KEEP.contains(&ty)))
             .cloned()
             .collect();
-        let md = if blocks.is_empty() { String::new() } else { (render.0)(&blocks, turn) };
-        if md.is_empty() { clip(turn.text.as_deref().unwrap_or(""), 1500) } else { md }
+        let md = if blocks.is_empty() { String::new() } else { hide_env(&(render.0)(&blocks, turn), t.env) };
+        if md.is_empty() { clip(&hide_env(turn.text.as_deref().unwrap_or(""), t.env), 1500) } else { md }
     };
     let mut head = format!("### Turn {n} · {}", t.name);
     if !turn.model.is_empty() {
@@ -182,10 +196,11 @@ pub fn turn_text(t: &PastTurn<'_>, n: usize, render: Render<'_>) -> String {
         head.push_str(" · rolled back, its edits were undone");
     }
     let files: Vec<String> = t.files.iter().map(|f| format!("`{f}`")).collect();
-    let delegated: Vec<String> = t.delegations.iter().map(|d| format!("@{} ({})", d.name, clip(&text_mentions(&d.prompt), 120))).collect();
+    let delegated: Vec<String> =
+        t.delegations.iter().map(|d| format!("@{} ({})", d.name, clip(&hide_env(&text_mentions(&d.prompt), t.env), 120))).collect();
     let parts = [
         head,
-        format!("**User:** {}", text_mentions(&turn.prompt)),
+        format!("**User:** {}", hide_env(&text_mentions(&turn.prompt), t.env)),
         if report.is_empty() { String::new() } else { format!("**Report:**\n\n{report}") },
         if files.is_empty() { String::new() } else { format!("**Files it edited:** {}", files.join(", ")) },
         if delegated.is_empty() { String::new() } else { format!("**Delegated:** {}", delegated.join("; ")) },
@@ -250,7 +265,7 @@ pub fn constraints_of(turns: &[PastTurn<'_>]) -> Vec<String> {
         if t.turn.by.as_deref().is_some_and(|b| !b.is_empty()) || t.automated || t.turn.prompt.is_empty() {
             continue;
         }
-        let text = text_mentions(&t.turn.prompt).replace(['\u{2018}', '\u{2019}'], "'");
+        let text = hide_env(&text_mentions(&t.turn.prompt), t.env).replace(['\u{2018}', '\u{2019}'], "'");
         for raw in sentences(&text) {
             let line = BULLET.replace(raw, "");
             let line = super::text::trim(&line);
@@ -274,7 +289,8 @@ fn keep_note(turns: &[PastTurn<'_>], done_when: &str) -> String {
     }
     let mut lines: Vec<String> = rules.iter().map(|r| format!("- {r}")).collect();
     if !done_when.is_empty() {
-        lines.push(format!("- Done when: {}", clip(done_when, 600)));
+        let env = turns.last().map_or(&[][..], |t| t.env);
+        lines.push(format!("- Done when: {}", clip(&hide_env(done_when, env), 600)));
     }
     [
         "### What still holds",

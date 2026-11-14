@@ -59,3 +59,29 @@ async fn a_hand_off_to_another_harness_keeps_the_users_rules_and_effort_v1_hando
     until("the fourth turn", || done(4)).await;
     assert_eq!(r.rt.get(id.as_str()).await.unwrap().effort, "low");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_hand_off_note_never_quotes_a_env_value_the_task_read_adr_0050() {
+    let r = rig_on(Recorder::default(), vec![Fake::named("fake", "Fake CLI", &["low"]), Fake::named("other", "Other CLI", &["low"])]).await;
+    let start = StartArgs {
+        prompt: "envread and keep sk-live-handoff. Don't touch the key sk-live-handoff.".into(),
+        agent: Some("fake".into()),
+        cwd: Some("/tmp".into()),
+        ..StartArgs::default()
+    };
+    let id = r.rt.create(start).await.unwrap().id;
+    let done = |n: usize| {
+        let (rt, id) = (r.rt.clone(), id.0.clone());
+        async move { rt.turns(&id, None, None).await.unwrap().iter().filter(|t| t.status == TurnStatus::Done).count() == n }
+    };
+    until("the first turn", || done(1)).await;
+    let run = RunPick { agent: Some("other".into()), ..RunPick::default() };
+    r.rt.follow_up(FollowUpArgs { id: id.clone(), text: "carry on".into(), run: Some(run), ..FollowUpArgs::default() }).await.unwrap();
+    until("the hand-off turn", || done(2)).await;
+    let sent = &r.sim.spawned()[1].args[0];
+    assert!(sent.contains("### Turn 1 · Fake CLI") && sent.contains("### What still holds"), "a note went ahead: {sent}");
+    assert!(!sent.contains("sk-live-handoff"), "the other harness's prompt quoted a .env value: {sent}");
+    assert!(sent.contains("The key is ••••."), "masked, not dropped: {sent}");
+    let last = r.rt.turns(id.as_str(), None, Some(1)).await.unwrap().pop().unwrap();
+    assert!(!last.prompt.contains("sk-live-handoff"), "the stored turn: {}", last.prompt);
+}

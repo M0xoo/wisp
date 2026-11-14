@@ -11,9 +11,16 @@ use super::{SLOT, slot, with_slot};
 use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
 
+/// The follow-up that retries `items`. It is a stored row and goes out with its turn, so a refused command line
+/// that quotes a .env value the task read shows it as `••••` (ADR-0050); the grants keep the rules as they are.
 fn retry_prompt(items: &[Value], scoped: bool) -> String {
     let list: Vec<String> = items
         .iter()
+        .cloned()
+        .map(|mut b| {
+            wisp_runtime_core::env_mask::mask_blocked_one(&mut b);
+            b
+        })
         .map(|b| {
             let tool = b.get("tool").and_then(Value::as_str).unwrap_or("?");
             match b.get("detail").and_then(Value::as_str).filter(|d| !d.is_empty()) {
@@ -89,5 +96,17 @@ mod tests {
             "These actions were blocked by your permissions last turn:\n- Bash: `npm publish`\n- Write\n\nI allowed exactly these for this follow-up. Run them now and finish the task."
         );
         assert!(retry_prompt(&b, false).contains("runs in Full auto"));
+    }
+
+    #[test]
+    fn a_retry_prompt_never_quotes_a_env_value_its_refused_command_did() {
+        let d = "curl -H 'Bearer sk-live-one' x";
+        let b =
+            vec![json!({"tool": "Bash", "detail": d, "rule": format!("Bash({d})"), "hide": {"detail": [[16, 27]], "rule": [[21, 32]]}})];
+        let p = retry_prompt(&b, true);
+        assert!(!p.contains("sk-live") && p.contains("- Bash: `curl -H 'Bearer ••••' x`"), "{p}");
+        // unreadable ranges: the whole line goes
+        let bad = vec![json!({"tool": "Bash", "detail": d, "hide": 7})];
+        assert!(retry_prompt(&bad, true).contains("- Bash: `••••`"));
     }
 }

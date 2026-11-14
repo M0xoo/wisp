@@ -303,3 +303,67 @@ async fn a_value_read_in_one_turn_and_quoted_in_a_later_one_or_after_a_restart_r
     assert!(think["hide"].as_array().is_some_and(|h| h.len() == 2), "both quotes flagged by the seeded turn: {think}");
     check("a share with masking off", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refused_command_quoting_a_value_an_earlier_turn_read_reaches_no_topic_read_share_or_retry_prompt() {
+    let dir = temp("envblocked");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = dir.join("blocked-run.jsonl");
+    let s = "sess-blocked";
+    let read = vec![
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c1", "name": "Bash", "input": { "command": "cat .env" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c1", "content": [{ "type": "text", "text": "API_KEY=sk-live-one\nPORT=3000" }] }] } }),
+    ];
+    write_replay(&f, s, &read, "Read it");
+    let (_serve, port) = start_with(&dir, &[("FAKE_REPLAY", f.to_str().unwrap()), ("FAKE_DELAY", "1500")]);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    // not Full auto: what its permissions refuse is kept for Allow & retry
+    let id = api.cmd("runtime.create", json!({ "prompt": "read the env", "cwd": proj, "agent": "claude", "mode": "edits" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    api.until(&id, "turn 1 to end", |t| t.len() == 1 && ended(&t[0])).await;
+
+    // turn 2 (another batch): its refused call quotes the key turn 1 read
+    let cmd = "curl -H \"Authorization: Bearer sk-live-one\" https://api.test";
+    let answer =
+        format!("Refused.\n```wisp\n{}\n```", json!({ "blocks": [{ "type": "hero", "title": "Call refused", "status": "blocked" }] }));
+    let lines = [
+        json!({ "type": "system", "subtype": "init", "session_id": s }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "text", "text": answer }] } }),
+        json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01,
+                "permission_denials": [{ "tool_name": "Bash", "tool_use_id": "d1", "tool_input": { "command": cmd } }] }),
+    ];
+    std::fs::write(&f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
+    let topic = format!("session:{id}");
+    let live = tokio::spawn({
+        let (http, topic) = (http.clone(), topic.clone());
+        async move { stream(&http, port, &topic, "Call refused", 60).await }
+    });
+    api.cmd("runtime.followUp", json!({ "id": id, "text": "call the API" })).await;
+    let turns = api.until(&id, "turn 2 to end", |t| t.len() == 2 && ended(&t[1])).await;
+    let seen = live.await.unwrap();
+    assert!(seen.contains("Call refused"), "the stream saw turn 2");
+    no_value("the live sync stream", &seen);
+    no_value("the sync snapshot", &stream(&http, port, &topic, "Call refused", 10).await);
+    let blocked = &turns[1]["ext"]["wisp.runtime"]["blocked"][0];
+    assert_eq!(
+        blocked["detail"],
+        format!("curl -H \"Authorization: Bearer {DOTS}\" https://api.test"),
+        "masked, not dropped: {}",
+        turns[1]
+    );
+    assert!(blocked.get("hide").is_none(), "where it was masked stays on the server");
+    no_value("runtime.turns", &json!(turns).to_string());
+    no_value("wisp_session", &api.cmd("runtime.agent.session", json!({ "session": id, "of": id })).await.to_string());
+    no_value("a share", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+
+    // Allow & retry: the follow-up's prompt (a stored row) names the command masked
+    write_replay(&f, s, &[], "Retried");
+    api.cmd("runtime.approveBlocked", json!({ "id": id, "allow": true })).await;
+    let turns = api.until(&id, "the retry to end", |t| t.len() == 3 && ended(&t[2])).await;
+    let prompt = turns[2]["prompt"].as_str().unwrap();
+    assert!(prompt.contains(&format!("Bearer {DOTS}")) && !prompt.contains("sk-live"), "{prompt}");
+}

@@ -40,9 +40,20 @@ impl Runtime {
         all.retain(|t| t.id != turn.id);
         all.sort_by_key(|t| t.idx);
         all.push(turn.clone());
+        // what the task's turns read of .env files (ADR-0050): the note quotes none of it, as it goes to another
+        // harness and is stored as this turn's prompt. Unknown: no note rather than one that may carry a value.
+        let known = match self.env_known(s.id.as_str()).await {
+            Ok(k) => k,
+            Err(e) => {
+                tracing::warn!(task = %s.id.0, error = %e, "runtime: the task's .env reads are unknown, so the hand-off note is left out");
+                return prompt;
+            }
+        };
         let name = |id: &str| self.harness(id).map_or_else(|_| id.to_owned(), |h| h.info().name.clone());
-        let past: Vec<PastTurn<'_>> =
-            all.iter().map(|t| PastTurn::new(t, name(if t.agent.is_empty() { &s.agent } else { &t.agent }))).collect();
+        let past: Vec<PastTurn<'_>> = all
+            .iter()
+            .map(|t| PastTurn { env: &known.0, ..PastTurn::new(t, name(if t.agent.is_empty() { &s.agent } else { &t.agent })) })
+            .collect();
         let h = Handoff { turns: &past, agent: &s.agent, resume_id: s.resume_id.as_deref(), ..Handoff::default() };
         let note = handoff_note(&h, Render::default());
         if note.is_empty() { prompt } else { format!("{note}\n\n{prompt}") }
