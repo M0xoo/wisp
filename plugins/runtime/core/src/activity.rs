@@ -75,8 +75,10 @@ pub struct BlockedAction {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
     /// per field (`detail`, `rule`), the byte ranges that quote a .env value the task read (ADR-0050): they leave the
-    /// server as `••••` (the turn's `blocked` list, the retry prompt). Additive (2026-11-14).
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    /// server as `••••` (the turn's `blocked` list, the retry prompt). Additive (2026-11-14). Always written, `{}` when
+    /// nothing matched: an item with no `hide` was stored before ranges existed, and is masked against the task's
+    /// known values instead (`env_mask::mask_blocked_known`).
+    #[serde(default)]
     pub hide: std::collections::BTreeMap<String, Vec<[u32; 2]>>,
 }
 

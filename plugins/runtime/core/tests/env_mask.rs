@@ -496,6 +496,58 @@ fn a_blocked_commands_detail_quoting_a_value_the_task_read_is_flagged_and_leaves
     assert_eq!((bad["detail"].as_str(), bad["rule"].as_str()), (Some(DOTS), Some(DOTS)));
 }
 
+/// ADR-0050 leftover: a refused call stored before ranges existed has no `hide`, and went out as it was. Now it is
+/// masked against what its task read and `KEY=value` lines (as a tool step with no ranges is); its task unknown, its
+/// detail and rule go whole (fail closed). A new item always carries `hide` (`{}` when nothing matched).
+#[test]
+fn a_blocked_item_stored_before_ranges_is_masked_against_the_tasks_known_values_or_hidden_whole() {
+    use wisp_runtime_core::env_mask::{mask_blocked_known, mask_row_known, mask_turn_known};
+    let detail = "curl -H \"Authorization: Bearer sk-live-one\" https://api.test\ncat > .env <<EOF\nTOKEN=tok-raw-9\nEOF";
+    let rule = format!("Bash({detail})");
+    let old = json!({ "tool": "Bash", "detail": detail, "rule": rule });
+    let known = ["sk-live-one".to_owned()];
+    let turn = |b: Value| json!({ "id": "t0", "ext": { "wisp.runtime": { "blocked": [b, { "tool": "Bash", "detail": "npm publish" }] } } });
+
+    // the task's reads known: masked where it quotes them and on its KEY=value line, the rest kept
+    let mut t = turn(old.clone());
+    assert!(mask_turn_known(&mut t, Some(&known)));
+    none_left("an old blocked item, values known", &t);
+    assert!(!t.to_string().contains("tok-raw"), "a KEY=value line: {t}");
+    let item = &t["ext"]["wisp.runtime"]["blocked"][0];
+    assert!(item["detail"].as_str().unwrap().starts_with(&format!("curl -H \"Authorization: Bearer {DOTS}\" https://api.test")), "{item}");
+    assert_eq!(t["ext"]["wisp.runtime"]["blocked"][1]["detail"], "npm publish", "nothing to hide in it: kept");
+
+    // the turn row as the sync stream sends it
+    let mut row = json!({ "id": "t0", "session_id": "s1", "body": turn(old.clone()) });
+    assert!(mask_row_known("turn", &mut row, Some(&known)));
+    none_left("an old blocked item in a turn row", &row);
+
+    // its task's reads unknown (a patch, a task not loaded yet): hidden whole
+    for mut v in [turn(old.clone()), json!({ "id": "t0", "body": turn(old.clone()) })] {
+        let _ = mask_turn(&mut v) | mask_row("turn", &mut v);
+        none_left("an old blocked item, values unknown", &v);
+        assert!(!v.to_string().contains("tok-raw") && !v.to_string().contains("api.test"), "whole: {v}");
+    }
+    for (path, mut v) in
+        [("/body/ext/wisp.runtime", turn(old.clone())["ext"]["wisp.runtime"].clone()), ("/body/ext/wisp.runtime/blocked/0", old.clone())]
+    {
+        assert!(mask_patch("turn", path, &mut v), "{path}");
+        none_left(path, &v);
+    }
+    let mut b = old.clone();
+    assert!(mask_blocked_known(&mut b, None));
+    assert_eq!((b["detail"].as_str(), b["rule"].as_str()), (Some(DOTS), Some(DOTS)));
+
+    // a new item that matched nothing says so (`hide: {}`): kept as it is even with nothing known
+    let mut h = Head::seeded(EnvValues(Vec::new()));
+    apply(&mut h, &HarnessEvent::Blocked { tool: "Bash".into(), detail: "npm publish".into(), rule: None }, false, &|_| false);
+    let stored = serde_json::to_value(&h.blocked[0]).unwrap();
+    assert_eq!(stored["hide"], json!({}), "{stored}");
+    let mut b = stored;
+    mask_blocked_known(&mut b, None);
+    assert_eq!(b, json!({ "tool": "Bash", "detail": "npm publish" }));
+}
+
 #[test]
 fn a_hand_off_note_and_a_btw_digest_never_quote_a_value_the_task_read() {
     use wisp_runtime_api::model::{Turn, TurnStatus};

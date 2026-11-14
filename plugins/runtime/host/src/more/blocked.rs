@@ -13,12 +13,13 @@ use crate::runtime::Runtime;
 
 /// The follow-up that retries `items`. It is a stored row and goes out with its turn, so a refused command line
 /// that quotes a .env value the task read shows it as `••••` (ADR-0050); the grants keep the rules as they are.
-fn retry_prompt(items: &[Value], scoped: bool) -> String {
+/// `known`: what the task's turns read, for an item stored before ranges existed (`None`: hidden whole).
+fn retry_prompt(items: &[Value], scoped: bool, known: Option<&[String]>) -> String {
     let list: Vec<String> = items
         .iter()
         .cloned()
         .map(|mut b| {
-            wisp_runtime_core::env_mask::mask_blocked_one(&mut b);
+            wisp_runtime_core::env_mask::mask_blocked_known(&mut b, known);
             b
         })
         .map(|b| {
@@ -76,7 +77,8 @@ impl Runtime {
         }
         let rules: Vec<String> = blocked.iter().filter_map(|b| b.get("rule").and_then(Value::as_str).map(str::to_owned)).collect();
         let scoped = rules.len() == blocked.len();
-        let text = retry_prompt(&blocked, scoped);
+        let known = self.env_known(id.as_str()).await.ok().map(|v| v.0);
+        let text = retry_prompt(&blocked, scoped, known.as_deref());
         let out = self.follow_up_with(id, text, if scoped { json!({ "grants": rules }) } else { json!({ "once": "auto" }) }).await?;
         Ok(json!({ "turnId": out.turn_id, "queued": out.queued, "scoped": scoped }))
     }
@@ -101,10 +103,10 @@ mod tests {
     fn retry_prompt_is_v1s() {
         let b = vec![json!({"tool": "Bash", "detail": "npm publish", "rule": "Bash(npm publish)"}), json!({"tool": "Write"})];
         assert_eq!(
-            retry_prompt(&b, true),
+            retry_prompt(&b, true, Some(&[])), // the task read no .env (unknown, a hide-less item goes whole)
             "These actions were blocked by your permissions last turn:\n- Bash: `npm publish`\n- Write\n\nI allowed exactly these for this follow-up. Run them now and finish the task."
         );
-        assert!(retry_prompt(&b, false).contains("runs in Full auto"));
+        assert!(retry_prompt(&b, false, Some(&[])).contains("runs in Full auto"));
     }
 
     #[test]
@@ -112,10 +114,24 @@ mod tests {
         let d = "curl -H 'Bearer sk-live-one' x";
         let b =
             vec![json!({"tool": "Bash", "detail": d, "rule": format!("Bash({d})"), "hide": {"detail": [[16, 27]], "rule": [[21, 32]]}})];
-        let p = retry_prompt(&b, true);
+        let p = retry_prompt(&b, true, None);
         assert!(!p.contains("sk-live") && p.contains("- Bash: `curl -H 'Bearer ••••' x`"), "{p}");
         // unreadable ranges: the whole line goes
         let bad = vec![json!({"tool": "Bash", "detail": d, "hide": 7})];
-        assert!(retry_prompt(&bad, true).contains("- Bash: `••••`"));
+        assert!(retry_prompt(&bad, true, None).contains("- Bash: `••••`"));
+    }
+
+    /// ADR-0050: an item stored before ranges existed has no `hide`; the retry prompt (a stored row) masks it
+    /// against what the task read and `KEY=value` lines, and hides it whole when that is unknown.
+    #[test]
+    fn a_retry_prompt_masks_a_refused_command_stored_before_ranges_against_what_the_task_read() {
+        let d = "curl -H 'Bearer sk-live-one' x\ncat > .env <<EOF\nTOKEN=tok-raw-9\nEOF";
+        let b = vec![json!({"tool": "Bash", "detail": d, "rule": format!("Bash({d})")})];
+        let known = ["sk-live-one".to_owned()];
+        let p = retry_prompt(&b, true, Some(&known));
+        assert!(!p.contains("sk-live") && !p.contains("tok-raw"), "{p}");
+        assert!(p.contains("- Bash: `curl -H 'Bearer ••••' x"), "masked, not dropped: {p}");
+        // its task's reads unknown: the whole line goes (fail closed)
+        assert!(retry_prompt(&b, true, None).contains("- Bash: `••••`"));
     }
 }

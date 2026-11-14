@@ -27,6 +27,10 @@ impl EnvKnown {
     pub(crate) fn forget(&self, id: &str) {
         self.lock().remove(id);
     }
+    /// What task `id`'s turns read, when it is in memory (no store read: the sync stream's view asks).
+    pub(crate) fn get(&self, id: &str) -> Option<EnvValues> {
+        self.lock().get(id).cloned()
+    }
 }
 
 impl Runtime {

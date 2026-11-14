@@ -21,7 +21,35 @@ pub(crate) fn on(ctx: &Ctx) -> bool {
     wisp_envmask::mask_on(ctx.setting(wisp_envmask::SETTING).as_ref())
 }
 
-struct View(Ctx);
+/// The tasks whose stored reads are being read back (one read per task, however many rows go out meanwhile).
+type Loading = std::sync::Mutex<std::collections::HashSet<String>>;
+
+fn lock(m: &Loading) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+struct View(Ctx, Slot, Arc<Loading>);
+
+impl View {
+    /// What the turn row's task read, when it is in memory; when it isn't, it is read back in the background, so
+    /// the next send knows (this one hides a refused call stored before ranges existed whole: fail closed).
+    fn known(&self, row: &Value) -> Option<Vec<String>> {
+        let sid = row.get("session_id").and_then(Value::as_str)?;
+        let r = rt(&self.1).ok()?;
+        if let Some(v) = r.env.get(sid) {
+            return Some(v.0);
+        }
+        if !lock(&self.2).insert(sid.to_owned()) {
+            return None;
+        }
+        let (r2, sid, loading) = (r.clone(), sid.to_owned(), self.2.clone());
+        r.host.spawn(Box::pin(async move {
+            let _ = r2.env_known(&sid).await;
+            lock(&loading).remove(&sid);
+        }));
+        None
+    }
+}
 
 impl RowView for View {
     fn kinds(&self) -> &'static [&'static str] {
@@ -29,7 +57,8 @@ impl RowView for View {
     }
     fn row(&self, kind: &str, v: &mut Value) {
         if on(&self.0) {
-            env_mask::mask_row(kind, v);
+            let known = if kind == "turn" { self.known(v) } else { None };
+            env_mask::mask_row_known(kind, v, known.as_deref());
         }
     }
     fn rows(&self, kind: &str, rows: &mut [&mut Value]) {
@@ -40,7 +69,7 @@ impl RowView for View {
             env_mask::mask_event_rows(rows.iter_mut().map(|v| &mut **v));
         } else {
             for v in rows.iter_mut() {
-                env_mask::mask_row(kind, v);
+                self.row(kind, v);
             }
         }
     }
@@ -68,8 +97,9 @@ fn each(v: &mut Value, f: fn(&mut Value) -> bool) -> bool {
 
 type Masked<T> = Result<T, WireError>;
 
-pub(crate) fn mask_turns(t: Vec<wisp_runtime_api::model::Turn>) -> Masked<Vec<wisp_runtime_api::model::Turn>> {
-    masked(t, |v| each(v, env_mask::mask_turn))
+/// Turns of one task, `known` what its turns read (`Runtime::env_known`; `None` when that couldn't be read).
+pub(crate) fn mask_turns(t: Vec<wisp_runtime_api::model::Turn>, known: Option<&[String]>) -> Masked<Vec<wisp_runtime_api::model::Turn>> {
+    masked(t, |v| v.as_array_mut().into_iter().flatten().fold(false, |c, x| env_mask::mask_turn_known(x, known) | c))
 }
 
 /// Steps as one batch: an output finds its call.
@@ -86,13 +116,19 @@ fn mask_presentation(p: Option<wisp_runtime_api::model::Presentation>) -> Masked
 }
 
 pub(crate) fn register(s: &mut Setup, slot: &Slot) {
-    s.contribute(&VIEWS, Arc::new(View(s.ctx())) as Arc<dyn RowView>);
+    s.contribute(&VIEWS, Arc::new(View(s.ctx(), slot.clone(), Arc::default())) as Arc<dyn RowView>);
     let sl = slot.clone();
     s.command::<c::Turns, _, _>(move |ctx, _call, a| {
         let slot = sl.clone();
         async move {
-            let t = rt(&slot)?.turns(a.id.as_str(), a.before, a.limit).await.map_err(WireError::from)?;
-            if a.masked == Some(true) || on(&ctx) { mask_turns(t) } else { Ok(t) }
+            let r = rt(&slot)?;
+            let t = r.turns(a.id.as_str(), a.before, a.limit).await.map_err(WireError::from)?;
+            if a.masked == Some(true) || on(&ctx) {
+                let known = r.env_known(a.id.as_str()).await.ok().map(|v| v.0);
+                mask_turns(t, known.as_deref())
+            } else {
+                Ok(t)
+            }
         }
     });
     let sl = slot.clone();

@@ -244,39 +244,61 @@ fn mask_changes(list: &mut Value) -> bool {
     changed
 }
 
-fn mask_ext(ext: &mut Value) -> bool {
-    ext.get_mut(RUNTIME).is_some_and(mask_runtime_slot)
+fn mask_ext(ext: &mut Value, known: Known<'_>) -> bool {
+    ext.get_mut(RUNTIME).is_some_and(|r| mask_runtime_slot(r, known))
 }
 
 /// wisp.runtime's slot on a turn: its captured changes, and the calls its permissions refused (`blocked`).
-fn mask_runtime_slot(r: &mut Value) -> bool {
+fn mask_runtime_slot(r: &mut Value, known: Known<'_>) -> bool {
     let changed = r.get_mut("changes").is_some_and(mask_changes);
-    r.get_mut("blocked").is_some_and(mask_blocked) | changed
+    r.get_mut("blocked").is_some_and(|l| mask_blocked(l, known)) | changed
 }
 
-fn mask_blocked(list: &mut Value) -> bool {
+fn mask_blocked(list: &mut Value, known: Known<'_>) -> bool {
     let mut changed = false;
     for b in list.as_array_mut().into_iter().flatten() {
-        changed |= mask_blocked_one(b);
+        changed |= mask_blocked_known(b, known);
     }
     changed
 }
 
+/// The .env values the task's turns read (`env_known`), when the caller has them; `None`: unknown (a patch, which
+/// can't say whose turn it is, or a task whose stored reads aren't loaded yet).
+pub type Known<'a> = Option<&'a [String]>;
+
 /// One refused call of a turn's `blocked` list (`{tool, detail, rule, hide}`) masked where its command line or rule
-/// quotes a .env value the task read: the ranges the turn machine flagged (`hide`, dropped as it leaves). An
-/// unreadable `hide` hides its detail and rule whole (fail closed).
+/// quotes a .env value the task read, its task's values unknown (see [`mask_blocked_known`]).
 pub fn mask_blocked_one(b: &mut Value) -> bool {
+    mask_blocked_known(b, None)
+}
+
+/// One refused call masked: the ranges the turn machine flagged (`hide`, dropped as it leaves), then `known`. An
+/// unreadable `hide` hides its detail and rule whole. An item with no `hide` at all was stored before ranges existed
+/// (the turn machine writes `hide: {}` when nothing matched): masked against `known` and every `KEY=value` line, as a
+/// tool step with no ranges is; with `known` unknown too, its detail and rule are hidden whole (fail closed).
+pub fn mask_blocked_known(b: &mut Value, known: Known<'_>) -> bool {
     const FIELDS: [&str; 2] = ["detail", "rule"];
-    let hide: std::collections::BTreeMap<String, Vec<[u32; 2]>> = match b.as_object_mut().and_then(|o| o.remove("hide")) {
-        Some(h) => serde_json::from_value(h).unwrap_or_else(|_| FIELDS.iter().map(|k| ((*k).to_owned(), vec![[0, u32::MAX]])).collect()),
-        None => return false,
+    let whole = || FIELDS.iter().map(|k| ((*k).to_owned(), vec![[0, u32::MAX]])).collect();
+    let (hide, old): (std::collections::BTreeMap<String, Vec<[u32; 2]>>, bool) = match b.as_object_mut().and_then(|o| o.remove("hide")) {
+        Some(h) => (serde_json::from_value(h).unwrap_or_else(|_| whole()), false),
+        None if known.is_none() && FIELDS.iter().any(|k| s(b, k).is_some_and(|t| !t.is_empty())) => (whole(), true),
+        None => (std::collections::BTreeMap::new(), true),
     };
+    let values = known.unwrap_or_default();
+    let mut changed = !old || !hide.is_empty();
     for k in FIELDS {
-        if let (Some(t), Some(h)) = (s(b, k), hide.get(k)) {
-            b[k] = Value::String(mask_spans(t, h));
+        let Some(t) = s(b, k) else { continue };
+        let first = hide.get(k).map_or_else(|| t.to_owned(), |h| mask_spans(t, h));
+        let mut m = mask_spans(&first, &value_spans(&first, values));
+        if old {
+            m = mask_spans(&m, &quote_spans(&m, values));
+        }
+        if m != t {
+            b[k] = Value::String(m);
+            changed = true;
         }
     }
-    true
+    changed
 }
 
 /// Every string in `v` as `••••`: a patch op too deep in a refused call to say where its value is (fail closed).
@@ -295,8 +317,13 @@ fn hide_strings(v: &mut Value) -> bool {
 /// A turn (its `body`, or a `Turn` as `runtime.turns` returns it) masked in place: its blocks, its captured
 /// changes, the blocks inside its raw answer text.
 pub fn mask_turn(t: &mut Value) -> bool {
+    mask_turn_known(t, None)
+}
+
+/// [`mask_turn`] with what the turn's task read (`known`), for its refused calls stored before ranges existed.
+pub fn mask_turn_known(t: &mut Value, known: Known<'_>) -> bool {
     let mut changed = t.get_mut("presentation").and_then(|p| p.get_mut("blocks")).is_some_and(mask_blocks);
-    changed |= t.get_mut("ext").is_some_and(mask_ext);
+    changed |= t.get_mut("ext").is_some_and(|e| mask_ext(e, known));
     changed |= t.get_mut("changes").is_some_and(mask_changes); // the older place (and v1's)
     if let Some(m) = s(t, "text").and_then(mask_answer_text) {
         t["text"] = Value::String(m);
@@ -354,9 +381,14 @@ fn fence_masked(raw: &str) -> Option<String> {
 
 /// A `turn` or `event` row (the store's columns: `body`, and a turn's `answer`) masked in place.
 pub fn mask_row(entity: &str, row: &mut Value) -> bool {
+    mask_row_known(entity, row, None)
+}
+
+/// [`mask_row`] with what the row's task read (`known`; a `turn` row names its task in `session_id`).
+pub fn mask_row_known(entity: &str, row: &mut Value, known: Known<'_>) -> bool {
     match entity {
         "turn" => {
-            let mut changed = row.get_mut("body").is_some_and(mask_turn);
+            let mut changed = row.get_mut("body").is_some_and(|b| mask_turn_known(b, known));
             if let Some(m) = s(row, "answer").and_then(mask_answer_text) {
                 row["answer"] = Value::String(m);
                 changed = true;
@@ -381,9 +413,9 @@ pub fn mask_patch(entity: &str, path: &str, v: &mut Value) -> bool {
         ("turn", ["body", "presentation"]) => v.get_mut("blocks").is_some_and(mask_blocks),
         ("turn", ["body", "presentation", "blocks"]) => mask_blocks(v),
         ("turn", ["body", "presentation", "blocks", _]) => mask_one_block(v),
-        ("turn", ["body", "ext"]) => mask_ext(v),
-        ("turn", ["body", "ext", RUNTIME]) => mask_runtime_slot(v),
-        ("turn", ["body", "ext", RUNTIME, "blocked"]) => mask_blocked(v),
+        ("turn", ["body", "ext"]) => mask_ext(v, None),
+        ("turn", ["body", "ext", RUNTIME]) => mask_runtime_slot(v, None),
+        ("turn", ["body", "ext", RUNTIME, "blocked"]) => mask_blocked(v, None),
         ("turn", ["body", "ext", RUNTIME, "blocked", _]) => mask_blocked_one(v),
         ("turn", ["body", "ext", RUNTIME, "blocked", _, k]) if *k != "hide" && *k != "tool" => hide_strings(v),
         ("turn", ["body", "ext", RUNTIME, "changes"] | ["body", "changes"]) => mask_changes(v),
