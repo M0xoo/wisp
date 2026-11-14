@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde_json::Value;
 use wisp_runtime_api::commands::{QuickArgs, QuickResult, RunPick};
 use wisp_runtime_api::harness::HarnessRun;
-use wisp_runtime_api::model::Mode;
+use wisp_runtime_api::model::{Activity, Mode};
 
 use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
@@ -17,6 +17,16 @@ fn first_json(text: &str) -> Option<Value> {
     let start = text.find('{')?;
     let end = text.rfind('}')?;
     (end > start).then(|| serde_json::from_str::<Value>(&text[start..=end]).ok()).flatten().filter(Value::is_object)
+}
+
+/// A quick run's steps leave with .env values masked, always (ADR-0050): its caller keeps them (a goal check's page)
+/// where no Reveal reaches.
+fn masked(steps: Vec<Activity>) -> Vec<Activity> {
+    let mut rows: Vec<Value> = steps.iter().filter_map(|s| serde_json::to_value(s).ok()).collect();
+    if !wisp_runtime_core::env_mask::mask_steps(rows.iter_mut()) {
+        return steps;
+    }
+    rows.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect()
 }
 
 impl Runtime {
@@ -46,7 +56,8 @@ impl Runtime {
             return Err(RuntimeError::Conflict(o.text));
         }
         let json = a.json.then(|| first_json(&o.text)).flatten();
-        Ok(QuickResult { text: o.text, json, agent: h.info().id.clone(), model, cost_usd: o.cost_usd, activity: Vec::new() })
+        let activity = masked(o.activity);
+        Ok(QuickResult { text: o.text, json, agent: h.info().id.clone(), model, cost_usd: o.cost_usd, activity })
     }
 }
 
@@ -61,5 +72,14 @@ mod tests {
         assert_eq!(first_json("Sure:\n{\"a\": 1}\nDone"), Some(json!({"a": 1})));
         assert_eq!(first_json("no json"), None);
         assert_eq!(account_of(Some("default")), "");
+    }
+
+    #[test]
+    fn a_quick_runs_env_output_leaves_masked() {
+        let read = Activity::ToolOutput { call_id: "c1".into(), text: "API_KEY=sk-live-123".into(), env: true };
+        let other = Activity::ToolOutput { call_id: "c2".into(), text: "ok".into(), env: false };
+        let out = masked(vec![read, other.clone()]);
+        assert!(matches!(&out[0], Activity::ToolOutput { text, .. } if !text.contains("sk-live-123")), "{out:?}");
+        assert_eq!(out[1], other);
     }
 }

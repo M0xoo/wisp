@@ -3,14 +3,14 @@
 // it saw. Laid over the open task, so Back finds the task where it was. Read-only: no reply box, band
 // or Ship. Under way it grows live from the record's row on the task's topic.
 
-import { For, Show, createSignal, onCleanup, type JSX } from 'solid-js';
+import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import type { EntityKey, PeerId, PluginClient } from '@wisp/client';
 import { Box, Button, Callout, Icon, Inline, Markdown, Pill, Skeleton, Stack, Text, Timeline, TimelineMessage, TimelineStep, useSignal } from '@wisp/ui';
 import { Face } from './Faces.tsx';
 import { t, type Key } from './i18n.ts';
 import { SAID_KEY, VOTE_TONE } from './rules.ts';
 import { bareId } from './task.ts';
-import { stepOf } from './steps.ts';
+import { railOf, stepOf } from './steps.ts';
 import { KIND, type GoalRun, type RunHint, type RunStep } from './types.ts';
 
 const VERDICTS = new Set(['met', 'not_yet', 'impossible', 'unchecked']);
@@ -158,46 +158,49 @@ export default function RunView(props: { readonly client: PluginClient; readonly
     <Stack gap="4" part="goal.run" role="region" aria-label={t('wisp.goal.run.title')}>
       <Head client={props.client} hint={props.params} rec={record()} />
       <Show when={record()} fallback={<Skeletons />}>
-        {(r) => (
-          <>
-            <Prompt text={r().turn.prompt} />
-            {/* a finished check that did nothing but answer has no steps to show (its answer is below) */}
-            <Show when={r().status === 'running' || r().turn.activity.length > 0}>
-              <Stack gap="2">
-                <Text size="sm" weight="medium" tone="muted">
-                  {t('wisp.goal.run.steps')}
-                </Text>
-                <Steps steps={r().turn.activity} />
-                <Show when={r().status === 'running'}>
-                  <Inline gap="2" align="center">
-                    <Pill tone="accent" dot live>
-                      {t('wisp.goal.run.isChecking', { name: r().name })}
-                    </Pill>
-                  </Inline>
-                </Show>
-              </Stack>
-            </Show>
-            {/* everything it answered, as it said it (v1 renderTranscript's answer): the vote is read from this */}
-            <Show when={r().turn.text}>
-              {(said) => (
-                <Stack gap="1" part="goal.runSaid">
+        {(r) => {
+          const rail = createMemo(() => railOf(r().turn.activity, r().turn.text));
+          return (
+            <>
+              <Prompt text={r().turn.prompt} />
+              {/* a finished check that did nothing but answer has no steps to show (its answer is below) */}
+              <Show when={r().status === 'running' || rail().length > 0}>
+                <Stack gap="2">
                   <Text size="sm" weight="medium" tone="muted">
-                    {t('wisp.goal.run.said')}
+                    {t('wisp.goal.run.steps')}
                   </Text>
-                  <Markdown source={said()} />
+                  <Steps steps={rail()} />
+                  <Show when={r().status === 'running'}>
+                    <Inline gap="2" align="center">
+                      <Pill tone="accent" dot live>
+                        {t('wisp.goal.run.isChecking', { name: r().name })}
+                      </Pill>
+                    </Inline>
+                  </Show>
                 </Stack>
-              )}
-            </Show>
-            <Show when={r().evidence?.length}>
-              <Stack gap="1" part="goal.runSaw">
-                <Text size="sm" weight="medium" tone="muted">
-                  {t('wisp.goal.run.saw')}
-                </Text>
-                <For each={r().evidence}>{(e) => <Text size="sm" mono breakAnywhere>{e}</Text>}</For>
-              </Stack>
-            </Show>
-          </>
-        )}
+              </Show>
+              {/* everything it answered, as it said it (v1 renderTranscript's answer): the vote is read from this */}
+              <Show when={r().turn.text}>
+                {(said) => (
+                  <Stack gap="1" part="goal.runSaid">
+                    <Text size="sm" weight="medium" tone="muted">
+                      {t('wisp.goal.run.said')}
+                    </Text>
+                    <Markdown source={said()} />
+                  </Stack>
+                )}
+              </Show>
+              <Show when={r().evidence?.length}>
+                <Stack gap="1" part="goal.runSaw">
+                  <Text size="sm" weight="medium" tone="muted">
+                    {t('wisp.goal.run.saw')}
+                  </Text>
+                  <For each={r().evidence}>{(e) => <Text size="sm" mono breakAnywhere>{e}</Text>}</For>
+                </Stack>
+              </Show>
+            </>
+          );
+        }}
       </Show>
     </Stack>
   );

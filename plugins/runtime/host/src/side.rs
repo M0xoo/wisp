@@ -1,12 +1,14 @@
 //! A run that is not a turn (v1 quick.js, btw.js): the harness's launch spawned through the proc
 //! service, its output fed to the harness's driver, and the answer collected. Nothing is written to
-//! the task's turns or activity; a timeout kills the process tree.
+//! the task's turns or activity (its steps come back with the answer); a timeout kills the process tree.
 
 use std::time::Duration;
 
 use wisp_proc::{Env, SpawnOpts, Stream};
 use wisp_runtime_api::harness::{Exit, HarnessRun, ParserInput, ParserOutput, Stdin};
+use wisp_runtime_api::model::Activity;
 use wisp_runtime_api::{Harness, HarnessEvent};
+use wisp_runtime_core::activity::{self, Effect, Head};
 
 use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
@@ -19,10 +21,21 @@ pub struct SideOut {
     pub is_error: bool,
     pub cost_usd: Option<f64>,
     pub timed_out: bool,
+    /// its steps, as a turn's activity records them (tool calls, their output, texts), at most `MAX_STEPS`
+    pub activity: Vec<Activity>,
 }
 
-fn take(out: ParserOutput, side: &mut SideOut, done: &mut bool) {
+/// A side run keeps this many steps at most (a runaway judge can't grow one answer without bound).
+const MAX_STEPS: usize = 500;
+
+fn take(out: ParserOutput, side: &mut SideOut, head: &mut Head, done: &mut bool) {
     for e in out.events {
+        if !*done
+            && let Effect::Append(step) = activity::apply(head, &e, true, &|_| false)
+            && side.activity.len() < MAX_STEPS
+        {
+            side.activity.push(step);
+        }
         match e {
             HarnessEvent::Result { text, is_error, stats, .. } => {
                 side.text = text;
@@ -63,7 +76,7 @@ impl Runtime {
         }
         let sys = ProcSys { proc: self.proc.clone() };
         let mut driver = h.driver(run);
-        let (mut side, mut done) = (SideOut::default(), false);
+        let (mut side, mut head, mut done) = (SideOut::default(), Head::default(), false);
         let (mut buf, mut stderr) = (Vec::<u8>::new(), String::new());
         // the deadline on the kernel's clock (a test's FakeClock drives it)
         let deadline = self.clock.sleep(u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX));
@@ -82,7 +95,7 @@ impl Runtime {
                             for w in std::mem::take(&mut out.writes) {
                                 let _ = handle.write(w);
                             }
-                            take(out, &mut side, &mut done);
+                            take(out, &mut side, &mut head, &mut done);
                         }
                         if done {
                             break;
@@ -104,7 +117,7 @@ impl Runtime {
             let x = Exit { code: exit.code, signal: exit.signal, stderr: stderr.trim().to_owned(), stopped: false, stop_requested: false };
             let mut out = ParserOutput::default();
             driver.on(ParserInput::Exit(&x), self.now(), &sys, &mut out).await;
-            take(out, &mut side, &mut done);
+            take(out, &mut side, &mut head, &mut done);
         }
         if side.timed_out {
             return Err(RuntimeError::Conflict(format!("It took over {} s and was stopped.", timeout.as_secs())));
