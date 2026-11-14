@@ -8,6 +8,7 @@ use wisp_stuff_api::StuffFrom;
 use wisp_stuff_api::commands as c;
 use wisp_stuff_core::record::{Fields, current_grant};
 
+use crate::egress::Mask;
 use crate::routes::{allow_for, saved};
 use crate::save::SaveOpts;
 use crate::shelf::gone;
@@ -100,10 +101,16 @@ async fn save(s: &Stuff, ctx: &Ctx, call: &Call, mut a: c::SaveArgs) -> WireResu
 }
 
 pub fn register(s: &mut Setup, cell: &Cell) {
-    on!(s, cell, c::List, |st, ctx, call, _a| Ok(st.views().await));
-    on!(s, cell, c::Get, |st, ctx, call, a| Ok(st.shelf.get(&a.id)));
-    on!(s, cell, c::Find, |st, ctx, call, a| st.shelf.find(&a, None).await.map_err(w));
-    on!(s, cell, c::Describe, |st, ctx, call, a| Ok(st.shelf.describe(&a.id).await.map_err(w)?.map(|text| c::Text { text })));
+    // reads answer masked as the rows are (ADR-0055)
+    on!(s, cell, c::List, |st, ctx, call, _a| Mask::of(&ctx).json(st.views().await));
+    on!(s, cell, c::Get, |st, ctx, call, a| Mask::of(&ctx).json(st.shelf.get(&a.id)));
+    on!(s, cell, c::Find, |st, ctx, call, a| st.shelf.find(&a, None, &Mask::of(&ctx)).await.map_err(w));
+    on!(s, cell, c::Describe, |st, ctx, call, a| Ok(st
+        .shelf
+        .describe(&a.id, &Mask::of(&ctx))
+        .await
+        .map_err(w)?
+        .map(|text| c::Text { text })));
     on!(s, cell, c::GrantOf, |st, ctx, call, a| Ok(current_grant(&st.shelf.get(&a.id).ok_or_else(|| w(gone()))?)));
     on!(s, cell, c::Save, |st, ctx, call, a| {
         let update = a.replace.is_some();

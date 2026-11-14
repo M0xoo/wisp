@@ -8,13 +8,27 @@ use wisp_stuff_core::record::{current_grant, matches};
 use crate::error::Result;
 use crate::shelf::Shelf;
 
+/// How a read tells an item: masked as its rows are (ADR-0055: `egress::Mask`), or as it is.
+pub trait Masker: Sync {
+    /// The item as it is told.
+    fn item(&self, it: StuffItem) -> StuffItem;
+    /// Its file's text as it is told.
+    fn text(&self, it: &StuffItem, text: String) -> String;
+}
+
 impl Shelf {
     /// Every item matching the words and kind, newest first, with where its file is. `mine`: what a
-    /// capped agent may see (its own project's); None: everything.
-    pub async fn find(&self, a: &FindArgs, mine: Option<&(dyn Fn(&StuffItem) -> bool + Sync)>) -> Result<FindOut> {
+    /// capped agent may see (its own project's); None: everything. Each as `mask` tells it (and matched as told: a
+    /// search for a hidden value finds nothing).
+    pub async fn find(&self, a: &FindArgs, mine: Option<&(dyn Fn(&StuffItem) -> bool + Sync)>, mask: &dyn Masker) -> Result<FindOut> {
         let limit = a.limit.unwrap_or(30).clamp(1, 100);
-        let all: Vec<StuffItem> =
-            self.list().into_iter().filter(|x| matches(x, &a.query, a.kind)).filter(|x| mine.is_none_or(|m| m(x))).collect();
+        let all: Vec<StuffItem> = self
+            .list()
+            .into_iter()
+            .filter(|x| mine.is_none_or(|m| m(x)))
+            .map(|x| mask.item(x))
+            .filter(|x| matches(x, &a.query, a.kind))
+            .collect();
         let mut with_paths = Vec::with_capacity(all.len().min(limit));
         for it in all.iter().take(limit) {
             let p = self.local_path(it).await.unwrap_or_default();
@@ -27,13 +41,13 @@ impl Shelf {
         Ok(FindOut { items: with_paths.into_iter().map(|(i, _)| i).collect(), text })
     }
 
-    /// One item in full, or None.
-    pub async fn describe(&self, id: &str) -> Result<Option<String>> {
+    /// One item in full, or None, as `mask` tells it.
+    pub async fn describe(&self, id: &str, mask: &dyn Masker) -> Result<Option<String>> {
         let Some(it) = self.get(id) else { return Ok(None) };
         let path = self.local_path(&it).await?;
         let mut d = Detail { allowed: current_grant(&it).allowed, ..Detail::default() };
         if matches!(it.kind, StuffKind::Doc | StuffKind::Code) && texty(&it.name) && it.size <= 20_000 {
-            d.text = self.bytes(&it).await?.and_then(|b| String::from_utf8(b.to_vec()).ok());
+            d.text = self.bytes(&it).await?.and_then(|b| String::from_utf8(b.to_vec()).ok()).map(|t| mask.text(&it, t));
         }
         if let Some(tree) = &it.tree {
             let t = crate::appfiles::tree(self.blobs.as_ref(), tree).await?;
@@ -42,6 +56,6 @@ impl Shelf {
             rels.truncate(40);
             d.files = rels;
         }
-        Ok(Some(stuff_detail(&it, &path, &d)))
+        Ok(Some(stuff_detail(&mask.item(it), &path, &d)))
     }
 }

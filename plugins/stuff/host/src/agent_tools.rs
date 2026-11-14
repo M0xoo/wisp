@@ -293,7 +293,7 @@ async fn list(st: &Stuff, ctx: &Ctx, call: &Call, a: c::AgentListArgs) -> c::Age
         {
             return said(capped_refusal("read an item of another project"));
         }
-        return match st.shelf.describe(id).await {
+        return match st.shelf.describe(id, &crate::egress::Mask::of(ctx)).await {
             Ok(text) => said(text.unwrap_or_else(|| format!("No item {id} in My Stuff."))),
             Err(e) => refused(WireError::from(e).message),
         };
@@ -305,9 +305,9 @@ async fn list(st: &Stuff, ctx: &Ctx, call: &Call, a: c::AgentListArgs) -> c::Age
     let found = if capped {
         let mine = own_sessions(ctx, &s, &st.shelf.list()).await;
         let only = move |it: &StuffItem| from_session(it).is_some_and(|id| mine.contains(id));
-        st.shelf.find(&args, Some(&only)).await
+        st.shelf.find(&args, Some(&only), &crate::egress::Mask::of(ctx)).await
     } else {
-        st.shelf.find(&args, None).await
+        st.shelf.find(&args, None, &crate::egress::Mask::of(ctx)).await
     };
     match found {
         Ok(f) => said(f.text),

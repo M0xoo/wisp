@@ -60,10 +60,14 @@ impl Plugin for StuffPlugin {
             let db = ctx.service::<wisp_store::Store>()?.as_ref().clone();
             store::install(&db).map_err(WireError::from)?;
             view::install(&db).map_err(WireError::from)?;
-            let shelf =
-                Shelf::open(Arc::new(store::StoreBlobs { store: db.clone() }), Arc::new(store::StoreRows { store: db }), dir, ctx.clock()?)
-                    .await
-                    .map_err(WireError::from)?;
+            let shelf = Shelf::open(
+                Arc::new(store::StoreBlobs { store: db.clone() }),
+                Arc::new(store::StoreRows { store: db, ctx: Some(ctx.clone()) }),
+                dir,
+                ctx.clock()?,
+            )
+            .await
+            .map_err(WireError::from)?;
             // v1's stuff, uploads and shots (and the pre-store files), once: what's here already is skipped
             let (bg, home2) = (shelf.clone(), home.clone());
             ctx.spawn(async move {

@@ -30,6 +30,8 @@ fn offset_min(zone: Option<&str>, at: i64) -> i32 {
 
 struct State {
     store: Store,
+    /// its kernel handle: `runtime.envmask@1`, for the ranges each row keeps as it is written
+    ctx: Ctx,
     entries: Mutex<Vec<LaterEntry>>,
     plans: Mutex<Vec<Plan>>,
     metas: Mutex<HashMap<String, TaskMeta>>,
@@ -118,7 +120,9 @@ impl State {
     }
 
     async fn write(&self, ops: store::Ops) -> Result<()> {
-        self.store.write(move |w| ops.apply(w)).await.map_err(WireError::from)
+        let m = self.ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok();
+        let rows = ops.rows(m.as_deref()).map_err(WireError::from)?;
+        self.store.write(move |w| rows.apply(w)).await.map_err(WireError::from)
     }
 
     /// The task's ext slot, so its list row shows what is scheduled.
@@ -295,6 +299,11 @@ impl State {
     }
 }
 
+/// wisp.runtime's `runtime.envmask@1`: a list command's answer is masked as its rows are (ADR-0055).
+fn mask(ctx: &Ctx) -> Option<Arc<dyn wisp_runtime_api::env::EnvMask>> {
+    ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok()
+}
+
 macro_rules! on {
     ($s:ident, $slot:ident, $C:ty, |$st:ident, $ctx:ident, $call:ident, $a:ident| $body:expr) => {{
         let slot = $slot.clone();
@@ -311,7 +320,7 @@ macro_rules! on {
 #[allow(clippy::too_many_lines)] // one handler per v1 route
 fn commands(s: &mut Setup, slot: &Slot) {
     on!(s, slot, c::Add, |st, ctx, call, a| st.add(&ctx, &call, &a).await);
-    on!(s, slot, c::List, |st, _ctx, _call, a| Ok(st.of_task(&a.session_id)));
+    on!(s, slot, c::List, |st, ctx, _call, a| egress::masked(mask(&ctx).as_deref(), store::ENTRY.kind, st.of_task(&a.session_id)));
     on!(s, slot, c::Edit, |st, ctx, call, a| {
         let l = st
             .of_task(&a.session_id)
@@ -365,12 +374,11 @@ fn commands(s: &mut Setup, slot: &Slot) {
             for_later: at.filter(|_| on).map(|at| wisp_later_api::ForLater { at, by: a.by.clone().unwrap_or_else(|| "you".into()) }),
         })
     });
-    on!(s, slot, c::Plans, |st, _ctx, _call, _a| Ok(lock(&st.plans).clone()));
-    on!(s, slot, c::GetPlan, |st, _ctx, _call, a| lock(&st.plans)
-        .iter()
-        .find(|p| p.id == a.id)
-        .cloned()
-        .ok_or_else(|| WireError::not_found("No such plan.")));
+    on!(s, slot, c::Plans, |st, ctx, _call, _a| egress::masked(mask(&ctx).as_deref(), store::PLAN.kind, lock(&st.plans).clone()));
+    on!(s, slot, c::GetPlan, |st, ctx, _call, a| {
+        let p = lock(&st.plans).iter().find(|p| p.id == a.id).cloned().ok_or_else(|| WireError::not_found("No such plan."))?;
+        egress::masked(mask(&ctx).as_deref(), store::PLAN.kind, p)
+    });
     on!(s, slot, c::MakePlan, |st, ctx, call, a| {
         let after = match &a.after {
             Some(v) => {
@@ -503,6 +511,7 @@ impl Plugin for LaterPlugin {
             let zone = store::load_conf(&store).await.map_err(WireError::from)?.get("zone").and_then(Value::as_str).map(str::to_owned);
             let st = Arc::new(State {
                 store,
+                ctx: ctx.clone(),
                 entries: Mutex::new(entries),
                 plans: Mutex::new(plans),
                 metas: Mutex::new(metas.into_iter().collect()),

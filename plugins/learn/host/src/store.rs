@@ -97,13 +97,17 @@ pub async fn load(store: &Store) -> wisp_store::Result<Data> {
         .await
 }
 
-/// One scope's lists (an emptied project scope goes).
-pub async fn put_list(store: &Store, scope: &str, lists: &Lists) -> wisp_store::Result<()> {
-    let (scope, body, gone) = (scope.to_owned(), serde_json::to_value(lists).unwrap_or_default(), scope != GLOBAL && lists.is_empty());
+/// One scope's lists (an emptied project scope goes): `body` (them, with the ranges kept for the items retros added,
+/// `texts`), an item whose ranges couldn't be found now keeping the ones the row it replaces had for it.
+pub async fn put_list(store: &Store, scope: &str, lists: &Lists, mut body: Value, texts: Vec<(String, String)>) -> wisp_store::Result<()> {
+    let (scope, gone) = (scope.to_owned(), scope != GLOBAL && lists.is_empty());
     store
         .write(move |w| {
             if gone {
                 return w.del(LIST.kind, scope.as_str()).map(|_| ());
+            }
+            if let Some(old) = w.get(LIST.kind, scope.as_str())?.and_then(|mut o| o.remove("body")) {
+                wisp_runtime_api::env::carry(&old, &mut body, "", &texts);
             }
             let mut r = Row::new();
             r.insert("scope".into(), json!(scope));
@@ -113,9 +117,9 @@ pub async fn put_list(store: &Store, scope: &str, lists: &Lists) -> wisp_store::
         .await
 }
 
-/// A retro run, and the oldest beyond `keep` dropped; the task read up to `turns`.
-pub async fn put_retro(store: &Store, run: &Retro, drop: Vec<String>, turns: u32) -> wisp_store::Result<()> {
-    let (id, at, body, sid) = (run.id.clone(), run.at, serde_json::to_value(run).unwrap_or_default(), run.session_id.clone());
+/// A retro run (`body`: it, with its kept ranges), and the oldest beyond `keep` dropped; the task read up to `turns`.
+pub async fn put_retro(store: &Store, run: &Retro, body: Value, drop: Vec<String>, turns: u32) -> wisp_store::Result<()> {
+    let (id, at, sid) = (run.id.clone(), run.at, run.session_id.clone());
     store
         .write(move |w| {
             let mut r = Row::new();

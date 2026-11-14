@@ -91,25 +91,56 @@ pub struct Ops {
     pub metas: Vec<(String, TaskMeta)>,
 }
 
+/// What [`Ops`] writes, its rows made (outside the store's writer: their kept ranges are found first).
+#[derive(Debug, Default)]
+pub struct Rows {
+    del: Vec<(&'static str, String)>,
+    put: Vec<(&'static str, Row)>,
+}
+
 impl Ops {
-    pub fn apply(self, w: &mut Writer<'_>) -> wisp_store::Result<()> {
-        for id in self.drop_entries {
-            w.del(ENTRY.kind, id)?;
-        }
+    /// The rows, each with where its text quotes a value its task read (`m`, ADR-0055).
+    pub fn rows(self, m: Option<&dyn wisp_runtime_api::env::EnvMask>) -> wisp_store::Result<Rows> {
+        let mut out = Rows::default();
+        out.del.extend(self.drop_entries.into_iter().map(|id| (ENTRY.kind, id)));
+        out.del.extend(self.drop_plans.into_iter().map(|id| (PLAN.kind, id)));
         for e in self.entries {
             let mut r = row(&e.id, &e)?;
             r.insert("session_id".into(), json!(e.session_id));
             r.insert("at".into(), json!(e.at));
-            w.upsert(ENTRY.kind, r)?;
-        }
-        for id in self.drop_plans {
-            w.del(PLAN.kind, id)?;
+            out.put.push((ENTRY.kind, r));
         }
         for p in self.plans {
-            w.upsert(PLAN.kind, row(&p.id, &p)?)?;
+            out.put.push((PLAN.kind, row(&p.id, &p)?));
         }
         for (id, m) in self.metas {
-            w.upsert(META.kind, row(&id, &m)?)?;
+            out.put.push((META.kind, row(&id, &m)?));
+        }
+        for (kind, r) in &mut out.put {
+            let mut v = Value::Object(std::mem::take(r));
+            crate::egress::keep_ranges(m, kind, &mut v);
+            if let Value::Object(o) = v {
+                *r = o;
+            }
+        }
+        Ok(out)
+    }
+}
+
+impl Rows {
+    pub fn apply(self, w: &mut Writer<'_>) -> wisp_store::Result<()> {
+        for (kind, id) in self.del {
+            w.del(kind, id)?;
+        }
+        for (kind, r) in self.put {
+            let id = r.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
+            let mut v = Value::Object(r);
+            // a text whose task wasn't in memory as it was written keeps the ranges it had, when it is as it was
+            if let Some(old) = w.get(kind, id.as_str())? {
+                crate::egress::carry_ranges(kind, &Value::Object(old), &mut v);
+            }
+            let Value::Object(r) = v else { continue };
+            w.upsert(kind, r)?;
         }
         Ok(())
     }

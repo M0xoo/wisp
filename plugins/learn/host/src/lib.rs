@@ -57,8 +57,17 @@ impl State {
         View { global: d.global.clone(), projects: d.projects.clone(), history: d.history.clone(), enabled: on }
     }
 
-    /// One list replaced (cleaned), saved.
-    pub async fn set(&self, scope: &str, kind: Kind, items: &[String], at: i64) -> Lists {
+    /// One list replaced (cleaned), saved, with where the items retros added (those in the history, and `adding`, the
+    /// retro running now) quote a value (`ctx`'s `runtime.envmask@1`, ADR-0055).
+    pub async fn set(
+        &self,
+        ctx: &Ctx,
+        scope: &str,
+        kind: Kind,
+        items: &[String],
+        at: i64,
+        adding: Option<&wisp_learn_api::Retro>,
+    ) -> Lists {
         let lists = {
             let mut d = lock(&self.data);
             let l = if scope == GLOBAL { &mut d.global } else { d.projects.entry(scope.to_owned()).or_default() };
@@ -70,8 +79,12 @@ impl State {
             }
             out
         };
+        let mut body = serde_json::to_value(&lists).unwrap_or_default();
+        let m = ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok();
+        let retros: Vec<wisp_learn_api::Retro> = lock(&self.data).history.iter().chain(adding).cloned().collect();
+        let texts = egress::keep_list(m.as_deref(), &retros, &mut body);
         if let Some(st) = self.store.get()
-            && let Err(e) = store::put_list(st, scope, &lists).await
+            && let Err(e) = store::put_list(st, scope, &lists, body, texts).await
         {
             tracing::warn!(error = %e, "learn: saving a list");
         }
@@ -124,7 +137,7 @@ impl Plugin for LearnPlugin {
                 if a.scope.trim().is_empty() {
                     return Err(WireError::invalid("Say which list: global, or a project's folder."));
                 }
-                let lists = st.set(a.scope.trim(), a.kind, &a.items, now(&ctx)).await;
+                let lists = st.set(&ctx, a.scope.trim(), a.kind, &a.items, now(&ctx), None).await;
                 let (m, retros) = (ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok(), lock(&st.data).history.clone());
                 egress::masked(lists, |v| egress::mask_list(m.as_deref(), &retros, v))
             }

@@ -72,22 +72,43 @@ pub fn row_of(v: &StuffView) -> Row {
     r
 }
 
+/// `r` with where its text quotes a value its task read, kept in it.
+fn kept_row(m: Option<&dyn wisp_runtime_api::env::EnvMask>, r: Row) -> Row {
+    let mut v = Value::Object(r);
+    crate::egress::keep_item(m, &mut v);
+    match v {
+        Value::Object(r) => r,
+        _ => Row::new(),
+    }
+}
+
 /// Every item's row as it stands; a gone one's row deleted. Off the caller's way.
 pub fn publish(ctx: &Ctx, st: &std::sync::Arc<crate::state::Stuff>) {
     let (c, s) = (ctx.clone(), st.clone());
     ctx.spawn(async move {
         let Ok(store) = c.service::<Store>() else { return };
-        let rows: Vec<Row> = s.views().await.iter().map(row_of).collect();
+        // where each row's text quotes a value its task read, kept in its `from` (ADR-0055); a row whose task isn't in
+        // memory now (every row at start) keeps what it had, where its text is as it was
+        let mask = c.use_service::<wisp_runtime_api::env::EnvMaskService>().ok();
+        let rows: Vec<Row> = s.views().await.iter().map(|x| kept_row(mask.as_deref(), row_of(x))).collect();
         let r = store
             .write(move |w| {
                 let keep: HashSet<String> = rows.iter().filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_owned)).collect();
+                let mut was = std::collections::HashMap::new();
                 for old in w.query(VIEW.kind, &Query::default())? {
-                    if let Some(id) = old.get("id").and_then(Value::as_str).filter(|id| !keep.contains(*id)) {
-                        w.del(VIEW.kind, id.to_owned())?;
+                    match old.get("id").and_then(Value::as_str).map(str::to_owned) {
+                        Some(id) if !keep.contains(&id) => drop(w.del(VIEW.kind, id)?),
+                        Some(id) => drop(was.insert(id, Value::Object(old))),
+                        None => {}
                     }
                 }
-                for r in rows {
-                    w.upsert(VIEW.kind, r)?;
+                for row in rows {
+                    let mut new = Value::Object(row);
+                    if let Some(old) = new.get("id").and_then(Value::as_str).and_then(|id| was.get(id)) {
+                        crate::egress::carry_item(old, &mut new);
+                    }
+                    let Value::Object(row) = new else { continue };
+                    w.upsert(VIEW.kind, row)?;
                 }
                 Ok(())
             })

@@ -39,8 +39,14 @@ fn store(ctx: &Ctx) -> Result<std::sync::Arc<Store>> {
 
 async fn put(ctx: &Ctx, r: &ResumeRequest) -> Result<()> {
     let s = store(ctx)?;
-    let (id, body) = (r.id.clone(), serde_json::to_value(r).unwrap_or_default());
+    let (id, mut body) = (r.id.clone(), serde_json::to_value(r).unwrap_or_default());
+    // where its text quotes a value its task read, kept with it (ADR-0055): a restart's first send masks by them
+    keep_ranges(ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok().as_deref(), &mut body);
     s.write(move |w| {
+        if let Some(old) = w.get(KIND, id.as_str())?.and_then(|mut o| o.remove("body")) {
+            let texts = texts_of(&body);
+            wisp_runtime_api::env::carry(&old, &mut body, "", &texts);
+        }
         let mut row = Row::new();
         row.insert("id".into(), json!(id));
         row.insert("body".into(), body);
@@ -51,11 +57,16 @@ async fn put(ctx: &Ctx, r: &ResumeRequest) -> Result<()> {
 }
 
 async fn all(ctx: &Ctx) -> Result<Vec<ResumeRequest>> {
-    let s = store(ctx)?;
-    let rows = s.read_async(|r| r.query(KIND, &Query::new())).await.map_err(|e| WireError::internal(e.to_string()))?;
-    let mut out: Vec<ResumeRequest> = rows.into_iter().filter_map(|r| serde_json::from_value(r.get("body")?.clone()).ok()).collect();
+    let mut out: Vec<ResumeRequest> = bodies(ctx).await?.into_iter().filter_map(|b| serde_json::from_value(b).ok()).collect();
     out.sort_by_key(|r| std::cmp::Reverse(r.at));
     Ok(out)
+}
+
+/// Every request as stored (its kept ranges in it).
+async fn bodies(ctx: &Ctx) -> Result<Vec<Value>> {
+    let s = store(ctx)?;
+    let rows = s.read_async(|r| r.query(KIND, &Query::new())).await.map_err(|e| WireError::internal(e.to_string()))?;
+    Ok(rows.into_iter().filter_map(|mut r| r.remove("body")).collect())
 }
 
 /// The task a request names, from the repo's history or the runtime: (title, what was asked, report, repo).
@@ -148,22 +159,46 @@ fn asker(body: &Value) -> Option<String> {
     by.or_else(|| body.get("task").and_then(Value::as_str)).map(str::to_owned)
 }
 
-/// A request (its body) masked as it leaves (`m` `None`: hidden).
+/// A request's texts an agent wrote, by pointer into its body.
+const TEXTS: [&str; 2] = ["/why", "/title"];
+
+/// A request's texts and the task they are about.
+fn texts_of(body: &Value) -> Vec<(String, String)> {
+    asker(body).map(|t| TEXTS.iter().map(|p| ((*p).to_owned(), t.clone())).collect()).unwrap_or_default()
+}
+
+/// Where a request's text quotes a value its task read, kept in its body (`envHide`) as it is written.
+pub(crate) fn keep_ranges(m: Option<&dyn wisp_runtime_api::env::EnvMask>, body: &mut Value) {
+    let texts = texts_of(body);
+    wisp_runtime_api::env::keep(m, body, "", &texts);
+}
+
+/// A request (its body) masked as it leaves (`m` `None`: hidden), by the ranges kept with it when its task's values
+/// aren't in memory (a restart's first send). The ranges never leave.
 pub(crate) fn mask_body(m: Option<&dyn wisp_runtime_api::env::EnvMask>, body: &mut Value) -> bool {
+    let kept = wisp_runtime_api::env::take_kept(body, "");
     let task = asker(body);
-    ["why", "title"].iter().fold(false, |c, k| {
-        body.get_mut(*k).filter(|x| x.is_string()).is_some_and(|x| wisp_runtime_api::env::mask_or_hide(m, task.as_deref(), x, None)) | c
+    TEXTS.iter().fold(kept.is_some(), |c, p| {
+        let k = wisp_runtime_api::env::kept_of(kept.as_ref(), p);
+        body.pointer_mut(p).filter(|x| x.is_string()).is_some_and(|x| wisp_runtime_api::env::mask_or_hide(m, task.as_deref(), x, k)) | c
     })
 }
 
 fn masked(ctx: &Ctx, rs: Vec<ResumeRequest>) -> Result<Vec<ResumeRequest>> {
+    let closed = |e: serde_json::Error| WireError::internal(format!("couldn't hide .env values: {e}"));
+    masked_bodies(ctx, serde_json::to_value(rs).map_err(closed)?.as_array().cloned().unwrap_or_default())
+}
+
+/// Requests as stored (`bodies`), masked by their kept ranges too, newest first.
+fn masked_bodies(ctx: &Ctx, mut bodies: Vec<Value>) -> Result<Vec<ResumeRequest>> {
     let m = ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok();
     let closed = |e: serde_json::Error| WireError::internal(format!("couldn't hide .env values: {e}"));
-    let mut v = serde_json::to_value(rs).map_err(closed)?;
-    for b in v.as_array_mut().into_iter().flatten() {
+    for b in &mut bodies {
         mask_body(m.as_deref(), b);
     }
-    serde_json::from_value(v).map_err(closed)
+    let mut out = bodies.into_iter().map(serde_json::from_value).collect::<std::result::Result<Vec<ResumeRequest>, _>>().map_err(closed)?;
+    out.sort_by_key(|r| std::cmp::Reverse(r.at));
+    Ok(out)
 }
 
 /// One request as a command answers it: masked as its row is.
@@ -195,7 +230,7 @@ pub fn register(s: &mut Setup) {
     s.contribute(&wisp_kernel::egress::VIEWS, std::sync::Arc::new(View(s.ctx())) as std::sync::Arc<dyn wisp_kernel::egress::RowView>);
     s.command::<ResumeRequestCmd, _, _>(|ctx, call, a| async move { one(&ctx, request(&ctx, &call, a).await?) });
     s.command::<ResumeAnswer, _, _>(|ctx, call, a| async move { one(&ctx, answer(&ctx, &call, a).await?) });
-    s.command::<Requests, _, _>(|ctx, _call, _a| async move { masked(&ctx, all(&ctx).await?) });
+    s.command::<Requests, _, _>(|ctx, _call, _a| async move { masked_bodies(&ctx, bodies(&ctx).await?) });
 }
 
 #[cfg(test)]
@@ -255,5 +290,29 @@ mod egress_tests {
         let mut b = req("task s1", "s1");
         assert!(mask_body(None, &mut b));
         assert_eq!(b["why"], "••••");
+    }
+
+    /// ADR-0055: a request keeps where its why quotes a value as it is written, so the first send after a restart masks
+    /// by it instead of hiding it whole; a rewrite (approved) while the task isn't in memory keeps them; they never leave.
+    #[test]
+    fn a_resume_requests_ranges_kept_at_write_mask_it_after_a_restart_and_never_leave() {
+        use wisp_runtime_api::testing::EnvFake;
+        let (live, restarted) = (EnvFake::default().with("s1", &["sk-live-one"]), EnvFake::default());
+        let mut stored = req("task s1", "old");
+        keep_ranges(Some(&live), &mut stored);
+        assert!(stored["envHide"]["/why"].is_object(), "{stored}");
+        let mut sent = stored.clone();
+        assert!(mask_body(Some(&restarted), &mut sent));
+        assert_eq!(sent["why"], "it left •••• in the config", "by its ranges");
+        assert_eq!(sent["title"], "Rotate the key");
+        assert!(sent.get("envHide").is_none(), "the ranges never leave");
+        let back: ResumeRequest = serde_json::from_value(sent).unwrap();
+        assert_eq!(back.why, "it left •••• in the config", "a command's answer reads as a request");
+        let mut approved = req("task s1", "old");
+        approved["state"] = json!("approved");
+        keep_ranges(Some(&restarted), &mut approved);
+        let texts = texts_of(&approved);
+        wisp_runtime_api::env::carry(&stored, &mut approved, "", &texts);
+        assert_eq!(approved["envHide"], stored["envHide"]);
     }
 }

@@ -72,10 +72,18 @@ fn body<T: serde::de::DeserializeOwned>(mut row: Row) -> Option<T> {
     row.remove("body").and_then(|b| serde_json::from_value(b).ok())
 }
 
-/// The shelf's rows, in the store.
-#[derive(Debug, Clone)]
+/// The shelf's rows, in the store. `ctx`: its kernel handle, for `runtime.envmask@1` (an item's ranges, kept with it
+/// as it is written: ADR-0055).
+#[derive(Clone)]
 pub struct StoreRows {
     pub store: Store,
+    pub ctx: Option<wisp_kernel::Ctx>,
+}
+
+impl std::fmt::Debug for StoreRows {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoreRows").finish_non_exhaustive()
+    }
 }
 
 impl Rows for StoreRows {
@@ -91,12 +99,24 @@ impl Rows for StoreRows {
     }
     fn put_item(&self, it: StuffItem) -> BoxFuture<'static, Result<()>> {
         let store = self.store.clone();
+        let m = self.ctx.as_ref().and_then(|c| c.use_service::<wisp_runtime_api::env::EnvMaskService>().ok());
         Box::pin(async move {
+            let mut body = serde_json::to_value(&it)?;
+            crate::egress::keep_item(m.as_deref(), &mut body);
+            let id = it.id.clone();
             let mut row = Row::new();
             row.insert("id".into(), json!(it.id));
             row.insert("updated_at".into(), json!(it.updated_at.unwrap_or(it.at)));
-            row.insert("body".into(), serde_json::to_value(&it)?);
-            store.write(move |w| w.upsert(ITEM.kind, row).map(|_| ())).await.map_err(err)
+            store
+                .write(move |w| {
+                    if let Some(old) = w.get(ITEM.kind, id.as_str())?.and_then(|mut o| o.remove("body")) {
+                        crate::egress::carry_item(&old, &mut body);
+                    }
+                    row.insert("body".into(), body);
+                    w.upsert(ITEM.kind, row).map(|_| ())
+                })
+                .await
+                .map_err(err)
         })
     }
     fn delete_item(&self, id: &str) -> BoxFuture<'static, Result<bool>> {
@@ -154,7 +174,7 @@ mod tests {
         let h = blobs.put(b"hello".to_vec()).await.unwrap();
         assert_eq!(h, crate::ports::hash(b"hello"), "the shelf's own hash");
         assert_eq!(blobs.get(&h).await.unwrap().as_deref().map(Vec::as_slice), Some(&b"hello"[..]));
-        let rows = StoreRows { store: store.clone() };
+        let rows = StoreRows { store: store.clone(), ctx: None };
         let it = StuffItem { id: "abc".into(), name: "a.txt".into(), ..StuffItem::default() };
         rows.put_item(it.clone()).await.unwrap();
         assert_eq!(rows.items().await.unwrap().first().map(|x| x.id.clone()), Some("abc".into()));

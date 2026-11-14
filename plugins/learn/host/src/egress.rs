@@ -12,45 +12,97 @@ use serde_json::Value;
 use wisp_kernel::Ctx;
 use wisp_kernel::egress::RowView;
 use wisp_learn_api::Retro;
-use wisp_runtime_api::env::{EnvMask, EnvMaskService, mask_or_hide};
+use wisp_runtime_api::env::{EnvMask, EnvMaskService, keep, kept_of, mask_or_hide, take_kept};
 
 use crate::{State, lock, store};
 
 pub(crate) struct View(pub(crate) Ctx, pub(crate) Arc<State>);
 
-/// A retro's body: what its agent wrote, against its task.
-pub(crate) fn mask_retro(m: Option<&dyn EnvMask>, body: &mut Value) -> bool {
-    let task = body.get("sessionId").and_then(Value::as_str).map(str::to_owned);
-    let mut changed = false;
-    for k in ["title", "error"] {
-        if let Some(x) = body.get_mut(k).filter(|x| x.is_string()) {
-            changed |= mask_or_hide(m, task.as_deref(), x, None);
-        }
-    }
+/// A retro's texts its agent wrote (pointers into its body), each with its task.
+fn retro_texts(body: &Value) -> Vec<(String, String)> {
+    let Some(task) = body.get("sessionId").and_then(Value::as_str) else { return Vec::new() };
+    let mut out: Vec<String> =
+        ["/title", "/error"].iter().filter(|p| body.pointer(p).is_some_and(Value::is_string)).map(|p| (*p).to_owned()).collect();
     for k in ["added", "removed"] {
-        for c in body.get_mut(k).and_then(Value::as_array_mut).into_iter().flatten() {
-            if let Some(x) = c.get_mut("text") {
-                changed |= mask_or_hide(m, task.as_deref(), x, None);
+        let n = body.get(k).and_then(Value::as_array).map_or(0, Vec::len);
+        out.extend((0..n).map(|i| format!("/{k}/{i}/text")));
+    }
+    out.into_iter().map(|p| (p, task.to_owned())).collect()
+}
+
+/// A retro's body: what its agent wrote, against its task; by the ranges kept with it as it was written when the task's
+/// values aren't in memory (a restart's first send). The ranges never leave.
+pub(crate) fn mask_retro(m: Option<&dyn EnvMask>, body: &mut Value) -> bool {
+    let kept = take_kept(body, "");
+    let task = body.get("sessionId").and_then(Value::as_str).map(str::to_owned);
+    retro_texts(body).iter().fold(kept.is_some(), |c, (p, _)| {
+        body.pointer_mut(p).is_some_and(|x| mask_or_hide(m, task.as_deref(), x, kept_of(kept.as_ref(), p))) | c
+    })
+}
+
+/// Where a retro's text quotes a value its task read, kept in its body (`envHide`) as it is written (ADR-0055).
+pub(crate) fn keep_retro(m: Option<&dyn EnvMask>, body: &mut Value) {
+    let texts = retro_texts(body);
+    keep(m, body, "", &texts);
+}
+
+/// The items of a list (pointers into its body) a retro in memory added (`retros`, newest last), each with that
+/// retro's task.
+fn list_texts(retros: &[Retro], body: &Value) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for k in ["preferences", "lessons"] {
+        for (i, x) in body.get(k).and_then(Value::as_array).into_iter().flatten().enumerate() {
+            let Some(t) = x.as_str() else { continue };
+            if let Some(r) = retros.iter().rev().find(|r| r.added.iter().any(|c| c.text == t)) {
+                out.push((format!("/{k}/{i}"), r.session_id.clone()));
             }
         }
     }
-    changed
+    out
 }
 
-/// A list's items: by the task of the retro that added each (`retros`, newest last), else their .env-shaped lines.
+/// Where a list's kept ranges say which task each item is about ([`keep_list`]): a list sent before the retro that
+/// added an item is in the history (it is written while that retro runs) still masks the item against its task.
+const BY: &str = "#by";
+
+/// A list's items: by the task of the retro that added each (`retros`, newest last, else the task kept with the list's
+/// ranges), else their .env-shaped lines; by the ranges kept with the list as it was written when that task's values
+/// aren't in memory. The ranges never leave.
 pub(crate) fn mask_list(m: Option<&dyn EnvMask>, retros: &[Retro], body: &mut Value) -> bool {
-    let mut changed = false;
+    let kept = take_kept(body, "");
+    let mut by: std::collections::HashMap<String, String> = kept
+        .as_ref()
+        .and_then(|k| k.get(BY))
+        .and_then(Value::as_object)
+        .map(|o| o.iter().filter_map(|(p, t)| Some((p.clone(), t.as_str()?.to_owned()))).collect())
+        .unwrap_or_default();
+    by.extend(list_texts(retros, body));
+    let mut changed = kept.is_some();
     for k in ["preferences", "lessons"] {
-        for x in body.get_mut(k).and_then(Value::as_array_mut).into_iter().flatten() {
-            let Some(t) = x.as_str() else { continue };
-            let by = retros.iter().rev().find(|r| r.added.iter().any(|c| c.text == t)).map(|r| r.session_id.clone());
-            changed |= match by {
-                Some(task) => mask_or_hide(m, Some(&task), x, None),
+        for (i, x) in body.get_mut(k).and_then(Value::as_array_mut).into_iter().flatten().enumerate() {
+            let p = format!("/{k}/{i}");
+            changed |= match by.get(&p) {
+                Some(task) => mask_or_hide(m, Some(task), x, kept_of(kept.as_ref(), &p)),
                 None => lines(x),
             };
         }
     }
     changed
+}
+
+/// Where a list's items a retro added quote a value its task read, kept in its body as it is written: the texts it
+/// kept them for (an item whose task isn't in memory gets none; the store's write carries what the row had,
+/// `wisp_runtime_api::env::carry`).
+pub(crate) fn keep_list(m: Option<&dyn EnvMask>, retros: &[Retro], body: &mut Value) -> Vec<(String, String)> {
+    let texts = list_texts(retros, body);
+    keep(m, body, "", &texts);
+    if !texts.is_empty()
+        && let Some(o) = body.as_object_mut()
+        && let Value::Object(k) = o.entry(wisp_runtime_api::env::KEPT).or_insert_with(|| Value::Object(serde_json::Map::new()))
+    {
+        k.insert(BY.into(), Value::Object(texts.iter().map(|(p, t)| (p.clone(), Value::String(t.clone()))).collect()));
+    }
+    texts
 }
 
 fn lines(x: &mut Value) -> bool {
@@ -183,5 +235,48 @@ mod tests {
         // nothing to hide: as it is
         let mut clean = json!({ "preferences": ["Use pnpm"], "lessons": [] });
         assert!(!mask_list(Some(&Fake), &[r], &mut clean));
+    }
+
+    /// ADR-0055: a retro and the list items it added keep where they quote a value as they are written, so the first
+    /// snapshot after a restart masks by them instead of hiding them whole; an item the user wrote keeps the .env-line
+    /// rule; a list rewritten while the task isn't in memory keeps an item's ranges where it is as it was; they never
+    /// leave.
+    #[test]
+    fn a_retro_and_the_items_it_added_keep_their_ranges_at_write_and_mask_after_a_restart() {
+        use wisp_runtime_api::testing::EnvFake;
+        let (live, restarted) = (EnvFake::default().with("s1", &["sk-live-one"]), EnvFake::default());
+        let r = retro("s1", "rotate sk-live-one monthly");
+        let mut stored = serde_json::to_value(&r).unwrap();
+        keep_retro(Some(&live), &mut stored);
+        assert!(stored["envHide"]["/error"].is_object() && stored["envHide"]["/added/0/text"].is_object(), "{stored}");
+        let mut sent = stored.clone();
+        assert!(mask_retro(Some(&restarted), &mut sent));
+        assert!(!sent.to_string().contains("sk-live"), "{sent}");
+        assert_eq!(sent["added"][0]["text"], "rotate •••• monthly", "by its ranges, not hidden whole");
+        assert_eq!(sent["title"], "Rotate the key");
+        assert!(sent.get("envHide").is_none(), "the ranges never leave");
+
+        let list = json!({ "preferences": ["API_KEY=abc123"], "lessons": ["rotate sk-live-one monthly"], "updatedAt": 1 });
+        let mut body = list.clone();
+        let texts = keep_list(Some(&live), std::slice::from_ref(&r), &mut body);
+        assert_eq!(texts, vec![("/lessons/0".to_owned(), "s1".to_owned())], "the user's own item is no task's");
+        let mut sent = body.clone();
+        assert!(mask_list(Some(&restarted), std::slice::from_ref(&r), &mut sent));
+        assert_eq!(sent["lessons"][0], "rotate •••• monthly");
+        // sent while its retro still runs (not in the history yet): the task kept with the ranges says whose it is
+        for m in [&live, &restarted] {
+            let mut early = body.clone();
+            assert!(mask_list(Some(m), &[], &mut early));
+            assert_eq!(early["lessons"][0], "rotate •••• monthly", "{early}");
+            assert!(early.get("envHide").is_none());
+        }
+        assert_eq!(sent["preferences"][0], "API_KEY=••••", "the user's item: its .env-shaped lines");
+        assert!(sent.get("envHide").is_none());
+        // rewritten after a restart (nothing in memory): the item where it was keeps its ranges
+        let mut again = list.clone();
+        let texts = keep_list(Some(&restarted), std::slice::from_ref(&r), &mut again);
+        assert!(again["envHide"].get("/lessons/0").is_none());
+        wisp_runtime_api::env::carry(&body, &mut again, "", &texts);
+        assert_eq!(again["envHide"], body["envHide"]);
     }
 }

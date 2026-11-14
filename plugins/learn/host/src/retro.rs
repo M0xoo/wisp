@@ -175,9 +175,10 @@ pub(crate) async fn run(ctx: &Ctx, st: &State, id: &str, forced: bool) -> Result
             if added.is_empty() && removed.is_empty() {
                 continue;
             }
-            st.set(&key, kind, &next, run.at).await;
             run.added.extend(added.into_iter().map(|text| Change { text, kind, scope: scope.into() }));
             run.removed.extend(removed.into_iter().map(|text| Change { text, kind, scope: scope.into() }));
+            // the items it adds keep their ranges against its task (it isn't in the history yet)
+            st.set(ctx, &key, kind, &next, run.at, Some(&run)).await;
         }
     }
     run.status = if run.added.is_empty() && run.removed.is_empty() { "nothing" } else { "learned" }.into();
@@ -209,8 +210,10 @@ async fn record(ctx: &Ctx, st: &State, run: &Retro, upto: u32) {
         let over = d.history.len().saturating_sub(MAX_HISTORY);
         d.history.drain(..over).map(|x| x.id).collect()
     };
+    let mut body = serde_json::to_value(run).unwrap_or_default();
+    crate::egress::keep_retro(ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok().as_deref(), &mut body);
     if let Some(s) = st.store.get()
-        && let Err(e) = store::put_retro(s, run, dropped, upto).await
+        && let Err(e) = store::put_retro(s, run, body, dropped, upto).await
     {
         tracing::warn!(error = %e, "learn: saving a retro");
     }
