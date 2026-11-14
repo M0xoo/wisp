@@ -10,6 +10,7 @@ import { BlockHost, useBlockT } from './context.tsx';
 import { BLOCKS } from './registry.ts';
 import type { AnswerBlock, BlockContext, BlockRenderer } from './types.ts';
 import { UnknownBlock } from './Unknown.tsx';
+import { BlockComment, CommentLayer, commentable, createCommenting } from './answer-comments.tsx';
 
 export interface AnswerProps extends KitProps {
   /** the presentation's blocks, as the agent wrote them */
@@ -44,9 +45,13 @@ function FallbackNote(): JSX.Element {
 export function Answer(props: AnswerProps): JSX.Element {
   const part = (): PartName => props.part ?? 'answer.blocks';
   const reveal = (): boolean => props.ctx?.reveal !== false;
+  // comments on it (v1 comments.js): the host's, read once (the task's context lives as long as the answer)
+  const c = props.ctx?.comment;
+  const cm = c ? createCommenting(c) : undefined;
+  let root: HTMLDivElement | undefined;
   return (
     <BlockHost ctx={props.ctx ?? {}}>
-      <div id={props.id} data-kit="answer" data-part={part()} data-still={flag(!reveal())}>
+      <div ref={(el) => (root = el)} id={props.id} data-kit="answer" data-part={part()} data-still={flag(!reveal())} data-cmt={flag(cm !== undefined)}>
         <Show when={props.fallback}>
           <FallbackNote />
         </Show>
@@ -66,10 +71,12 @@ export function Answer(props: AnswerProps): JSX.Element {
                     {(r) => <Dynamic component={r} block={block()} index={i} />}
                   </Show>
                 </ErrorBoundary>
+                <Show when={cm && commentable(block().type) ? cm : undefined}>{(on) => <BlockComment cm={on()} i={i} block={block()} />}</Show>
               </div>
             );
           }}
         </Index>
+        <Show when={cm}>{(on) => <CommentLayer cm={on()} root={() => root} blocks={props.blocks} />}</Show>
       </div>
     </BlockHost>
   );

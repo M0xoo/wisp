@@ -49,3 +49,24 @@ export function readComments(prompt: string): { notes: SentNote[]; rest: string 
   }
   return { notes, rest: prompt.slice(m[0].length) };
 }
+
+const KIND: Readonly<Record<string, string>> = {
+  hero: 'Summary', markdown: 'Text', steps: 'Steps', stats: 'Numbers', files: 'Files', tree: 'Files', diff: 'Diff', code: 'Code',
+  compare: 'Comparison', flow: 'Flow', chart: 'Chart', terminal: 'Terminal', tests: 'Tests', commits: 'Commits', graph: 'Branches',
+  checklist: 'Checklist', callout: 'Callout', image: 'Image', video: 'Video', preview: 'Preview', map: 'Map', doc: 'Doc', task: 'Task', app: 'App',
+};
+
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+
+/** "Diff · server/auth.js": what kind of block a comment is on and which one (v1 comment-text.js blockLabel): the words
+ * the agent reads, so English as v1 sends them. A picture or video by its caption (wisp keeps its own copy, under a
+ * name the agent never chose); no double quotes (the label sits in them), one line, at most 72 characters. */
+export function blockLabel(b: { readonly type?: unknown; readonly [k: string]: unknown }): string {
+  const type = str(b.type);
+  const kind = KIND[type] ?? (type ? `${type[0]?.toUpperCase() ?? ''}${type.slice(1)}` : 'Answer');
+  const media = (type === 'image' || type === 'video') && (str(b['caption']) || str(b['title']));
+  const path = str(b['path']);
+  const which = media || str(b['file']) || (path && (path.split('/').pop() ?? '')) || str(b['command']) || str(b['url']) || str(b['title']);
+  const out = `${kind}${which ? ` · ${which}` : ''}`.replace(/"/g, "'").replace(/\s+/g, ' ').trim();
+  return out.length > 72 ? `${out.slice(0, 71)}…` : out;
+}

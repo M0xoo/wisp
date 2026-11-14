@@ -5,10 +5,11 @@ import { lazy } from 'solid-js';
 const TaskSide = lazy(() => import('./TaskSide.tsx'));
 import { defineExtension, definePluginUi, defineView } from './define.ts';
 import { TAB_VIEW, TERM_VIEW, WATCH_VIEW } from './open-task.ts';
-import { commentStore, waiting, withComments } from './comments.ts';
+import { added, commentStore, marksOn, waiting, withComments } from './comments.ts';
 import { CATALOGUE } from './i18n/index.ts';
-import { defineCommand } from '@wisp/client';
+import { defineCommand, uuidv7 } from '@wisp/client';
 import { appRunning, runRequest } from './side/run-request.ts';
+import { filesSource } from './side/open-file.ts';
 
 /** Stop app (v1 stopRun): wisp.terminal closes the task's run */
 const stopRun = defineCommand<{ key: string; id: string }, { ok: boolean }>({
@@ -98,7 +99,12 @@ export default definePluginUi({
       where: ['reply'],
       order: 99,
       items: () => [],
-      // what Ship and Merge warn about: comments written in Changes and not sent yet
+      // comments on the task's answers (v1 comments.js): kept with the line ones, numbered with them
+      answer: {
+        add: (c, ctx) => commentStore(ctx.client).set((cur) => added(cur, ctx.task, { ...c, id: uuidv7() }) as never),
+        marks: (turn, ctx) => marksOn(waiting(commentStore(ctx.client).value(), ctx.task), turn),
+      },
+      // what Ship and Merge warn about: comments (on lines of Changes, on answers) not sent yet
       waiting: (ctx) => waiting(commentStore(ctx.client).value(), ctx.task).length,
       pending: (text, ctx) => {
         const store = commentStore(ctx.client);
@@ -118,6 +124,8 @@ export default definePluginUi({
       },
     },
   ],
+  // Changes' Open file…: the palette on the task's files alone, then the words inside them (v1 openFileFinder)
+  palette: [filesSource],
   views: [
     defineView({ kind: WATCH_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.watch'] ?? '', component: TaskSide as never }),
     defineView({ kind: TERM_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.term'] ?? '', component: TaskSide as never }),

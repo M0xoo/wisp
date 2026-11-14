@@ -1,10 +1,10 @@
-// `shell-task.comments`: over the reply box, the comments on lines waiting for the next follow-up (v1 comments.js
+// `shell-task.comments`: over the reply box, the comments (on lines of Changes, on answers) waiting for the next follow-up (v1 comments.js
 // tray): how many, Send comments (they go alone), and a row each with its number, its words, where, and ×.
 import { createMemo, type JSX } from 'solid-js';
 import { entityKey, uuidv7, type EntityKey } from '@wisp/client';
 import type { ExtensionProps } from '@wisp/shell/contract';
 import { CommentTray as Tray, useSignal } from '@wisp/ui';
-import { commentStore, lineLabel, removed, waiting, withComments } from '../comments.ts';
+import { commentStore, isLine, removed, waiting, whereOf, withComments } from '../comments.ts';
 import { keyOf } from '../open-task.ts';
 import { useShell } from '../shell.ts';
 import { followUp } from './send.ts';
@@ -44,7 +44,7 @@ export default function CommentTray(props: ExtensionProps): JSX.Element {
       line={t('shell-task.comment.waiting', { count: list().length })}
       send={{ label: t('shell-task.comment.send'), onClick: send }}
       removeLabel={t('shell-task.comment.remove')}
-      items={list().map((c, i) => ({ key: `${c.file}:${c.side}:${c.line}`, say: c.note, where: lineLabel(c), onRemove: () => key() && store.set((cur) => removed(cur, key() as string, i) as never) }))}
+      items={list().map((c, i) => ({ key: isLine(c) ? `${c.file}:${c.side}:${c.line}` : (c.id ?? `${c.turn}:${c.i}:${i}`), say: c.note, where: whereOf(c), onRemove: () => key() && store.set((cur) => removed(cur, key() as string, i) as never) }))}
     />
   );
 }

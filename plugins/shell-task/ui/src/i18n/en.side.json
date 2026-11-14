@@ -163,5 +163,11 @@
   "shell-task.watch.finished": "Finished",
   "shell-task.watch.openTab": "Open in a new tab",
   "shell-task.watch.runIt": "Run it yourself",
-  "shell-task.watch.copyRun": "Copy the command, with cd into its folder"
+  "shell-task.watch.copyRun": "Copy the command, with cd into its folder",
+  "shell-task.files.placeholder": "Find a file or text in this task’s folder…",
+  "shell-task.files.changed": "Changed by this task",
+  "shell-task.files.all": "Files",
+  "shell-task.files.inFiles": "In files",
+  "shell-task.files.empty": "This task’s folder has no files yet",
+  "shell-task.files.noGit": "Open file… needs a git folder: this task’s isn’t one"
 }

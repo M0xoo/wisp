@@ -333,6 +333,9 @@ export interface PaletteContext {
   nav: Nav;
   /** the task the keyboard is on (or the open one) */
   focused: string | undefined;
+  /** opened on some sources alone (`only`: ⌘P, Changes' Open file…): a source that only serves such a palette
+   *  answers nothing in ⌘K. Additive (2026-11-14). */
+  narrowed?: boolean;
 }
 
 export interface PaletteSourceDef {
@@ -399,6 +402,29 @@ export interface PromptSourceDef {
    * they go (v1 #F-page-11). Read when asked, not watched. Additive (2026-11-12).
    */
   waiting?(ctx: { client: PluginClient; task: string }): number;
+  /**
+   * Comments on the task's answers (v1 comments.js, F-page-10): `add` keeps one for the next follow-up (`pending` then
+   * takes it with the rest), `marks` are those waiting on one turn's answer, numbered as the tray numbers them, read
+   * reactively so the answer marks them. Additive (2026-11-14).
+   */
+  answer?: {
+    add(c: AnswerNote, ctx: { client: PluginClient; task: string }): void;
+    marks(turn: string, ctx: { client: PluginClient; task: string }): readonly { n: number; i: number; quote?: string; note: string }[];
+  };
+}
+
+/** A comment on an answer: its turn, the block (by index) and what it is ("Diff · server/auth.js"), the words picked. */
+export interface AnswerNote {
+  /** set by the source that keeps it (a stable key for its row) */
+  id?: string;
+  turn: string;
+  i: number;
+  label: string;
+  kind: 'text' | 'block';
+  quote?: string;
+  note: string;
+  /** an earlier answer's prompt: the agent is told which answer it was on (v1 `of`) */
+  of?: string;
 }
 
 /** 'e', 'shift+r', 'mod+k' (⌘ on a Mac, Ctrl elsewhere), 'ctrl+`', 'escape', '?' */

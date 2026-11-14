@@ -75,6 +75,7 @@ import {
   setState,
 } from './commands.ts';
 import { answerContext } from './answer-ctx.ts';
+import { answerComments } from './answer-comments.ts';
 import { blockedOf } from './answer-of.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
@@ -759,6 +760,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
                       // a follow-up with comments on lines: the cards over the words typed with them (v1 sentComments)
                       const sent = readComments(turn.prompt);
+                      // comments on this answer (v1 comments.js): words or a whole block, for the next follow-up
+                      const comment = answerComments({ shell, client: (pl) => clients.client(pl), task: key, turn: turn.id, of: () => (turn.id === turns().at(-1)?.id ? undefined : sent.rest) });
                       // what a step printed of a .env file: masked, revealed per task (env-reveal.ts)
                       const env = envReveal(shell, key, `${turn.id}:`);
                       return (
@@ -823,7 +826,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                   </Show>
                                   <Answer
                                     blocks={blocks}
-                                    ctx={answerContext({
+                                    ctx={Object.assign(answerContext({
                                       shell,
                                       key,
                                       turnId: turn.id,
@@ -842,7 +845,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                                       openChanges: () => side('changes'),
                                       apps: () => ((b as { ext?: Record<string, unknown> }).ext?.['wisp.apps'] ?? {}) as Record<string, unknown>,
                                       tour: s().agent === 'wisp',
-                                    })}
+                                    }), { comment })}
                                   />
                                 </>
                               ),

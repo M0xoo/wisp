@@ -97,6 +97,9 @@ export interface EnvReveal {
 export interface BlockContext {
   /** sends a follow-up to the task: `next` items, `actions` replies, `question` answers */
   readonly reply?: (text: string) => void;
+  /** comments on the answer (v1 comments.js): a block's Comment button, the bubble over words selected in one; the
+   *  card takes the note and the host keeps it for the next follow-up. Unset (a share page): none. Added 2026-11-14. */
+  readonly comment?: AnswerComments;
   /** runs a one-click shell command in the task's folder (`actions` items with `command`, `terminal` and `tests`
    *  Run). A result, when the host returns one, shows under the block (exit code, output); a refusal is the host's
    *  toast. */
@@ -149,4 +152,30 @@ export interface BlockContext {
   readonly env?: EnvReveal;
   /** the block's own copy, translated; default English (./strings.ts) */
   readonly t?: (key: BlockString, vars?: Readonly<Record<string, string | number>>) => string;
+}
+
+/** Where a new comment on an answer is: the block (by its index in the answer), and the words when some were picked. */
+export interface AnswerCommentAt {
+  readonly i: number;
+  readonly block: AnswerBlock;
+  readonly quote?: string;
+}
+
+/** A comment waiting on this answer, numbered as the tray over the reply box numbers it. */
+export interface AnswerCommentMark {
+  readonly n: number;
+  readonly i: number;
+  /** a text comment's words: lit in the block, its number after them */
+  readonly quote?: string;
+  readonly note: string;
+}
+
+export interface AnswerComments {
+  /** the ones waiting on this answer (read live) */
+  readonly marks: () => readonly AnswerCommentMark[];
+  /** the number the next one takes */
+  readonly next: () => number;
+  /** what the card says it's on ("Diff · server/auth.js") */
+  readonly label: (at: AnswerCommentAt) => string;
+  readonly add: (at: AnswerCommentAt, note: string) => void;
 }
