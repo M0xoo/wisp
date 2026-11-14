@@ -143,7 +143,9 @@ export function SettingsFrame(props: SettingsFrameProps): JSX.Element {
             <span data-kit="settings-up">
               <IconButton icon="back" label={props.upLabel} onClick={() => props.onUp()} />
             </span>
-            <h2 data-kit="settings-pane-title" data-text="control">
+            {/* opening Settings lands here, not on Back or a nav item: a control focused by a script shows its ring as if
+                tabbed to. Readers hear the pane's name; Tab goes on to its first control, Shift+Tab back to Back. */}
+            <h2 data-kit="settings-pane-title" data-text="control" tabindex="-1" data-autofocus="">
               {props.paneTitle}
             </h2>
             <Show when={props.onClose}>{(close) => <IconButton icon="x" label={props.closeLabel} onClick={() => close()()} />}</Show>

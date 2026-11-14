@@ -21,8 +21,13 @@ function OverlayView(props: { readonly overlay: Overlay }): JSX.Element {
   };
   const title = (): string => (def?.title ? def.title(params()) : shell.t('shell.palette.title'));
   const body = (): JSX.Element => (def ? <Dynamic component={def.component} client={client} params={params()} /> : <EmptyState icon="info" title={shell.t('shell.view.missing')} compact />);
-  // a text field inside takes the focus first (the palette's search), else the kit's default
-  const initialFocus = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-part~="shell.overlay"] input, [data-part~="shell.overlay"] textarea');
+  // what the view marks (`data-autofocus`: Settings' pane title, so opening a pane never lands on Back or in a field
+  // that pops a phone's keyboard), else a text field inside (the palette's search), else the kit's default
+  // Looked for in the newest overlay only (each mounts after those under it), so ⌘K over Settings focuses its own search.
+  const initialFocus = (): HTMLElement | null => {
+    const mine = [...document.querySelectorAll<HTMLElement>('[data-part~="shell.overlay"]')].at(-1);
+    return mine?.querySelector<HTMLElement>('[data-autofocus]') ?? mine?.querySelector<HTMLElement>('input, textarea') ?? null;
+  };
   // v1's modals stay cards on a phone (a 20px inset, scrolled inside); a viewer (Settings) takes the phone's whole
   // screen as before, and what's opened as a sheet comes up from the bottom; never a view placed at the top (⌘K)
   const sheet = (): boolean => def?.place !== 'top' && (props.overlay.kind === 'sheet' || (props.overlay.kind === 'viewer' && nav().layout === 'stack'));

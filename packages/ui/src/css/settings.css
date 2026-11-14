@@ -39,6 +39,7 @@
     min-height: var(--size-settings-head); padding: var(--space-5) var(--space-6) var(--space-5) var(--space-8); border-bottom: var(--size-hairline) solid var(--line);
   }
   [data-kit='settings-up'] { display: none; }
+  [data-kit='settings-pane-title']:focus { outline: 0; } /* where opening Settings puts focus (SettingsFrame): a heading, not a control */
   [data-kit='settings-pane-title'] { flex: 1 1 auto; margin: 0; min-width: 0; font: var(--fw-semibold) var(--fs-title) / 1.3 var(--display); letter-spacing: -0.01em; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   [data-kit='settings-body'] { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   /* v1 .sx-pane: groups 14px apart by their own margin (.sx-group + .sx-group), not a gap */

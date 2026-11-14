@@ -60,6 +60,15 @@ describe('SettingsFrame', () => {
     expect(cur()).toBe('accounts');
   });
 
+  test('opening_a_pane_focuses_its_title_not_back_or_a_nav_item_and_the_title_is_never_a_tab_stop', () => {
+    frame();
+    const title = document.querySelector<HTMLElement>('[data-kit="settings-pane-title"]');
+    expect(title?.hasAttribute('data-autofocus'), 'the dialog around it (Zag) lands here first').toBe(true);
+    expect(title?.getAttribute('tabindex')).toBe('-1');
+    const marked = document.querySelectorAll('[data-autofocus]');
+    expect([...marked].map((e) => e.getAttribute('data-kit'))).toEqual(['settings-pane-title']);
+  });
+
   test('labels are control text: one line', () => {
     frame();
     for (const el of document.querySelectorAll('[data-kit="settings-nav-label"], [data-kit="settings-pane-title"]')) expect(el.getAttribute('data-text')).toBe('control');
