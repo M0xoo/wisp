@@ -6,6 +6,7 @@
 
 import type { EntityOp, PatchOp, Topic } from '@wisp/protocol';
 import { gitChanges, gitCommit, gitRevert, gitStage, type GitCtx } from './mock-git.ts';
+import { READS } from './mock-reads.ts';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh'];
 // crew.stats' limits (F-crew-13): Claude's windows this period, the crew's part of each (each member's `mine` is set
@@ -185,6 +186,7 @@ function copyTask(x: Args, ctx: CommandCtx, kind: 'rerun' | 'fork'): { ops: Enti
 const mockLayout: { value: Record<string, unknown> } = { value: {} };
 
 export const COMMANDS: Record<string, CommandFn> = {
+  ...READS,
   'runtime.rename': (a, ctx) => {
     const x = obj(a);
     const title = str(x, 'title').trim();

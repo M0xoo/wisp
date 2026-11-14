@@ -4,6 +4,7 @@
 // screenshots and tests don't drift. `extra` adds plain sessions for a long list (5k for perf).
 
 import type { PeerInfo, Topic } from '@wisp/protocol';
+import { accountRows } from './mock-reads.ts';
 
 interface Row {
   e: string;
@@ -596,7 +597,8 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
     ...TERMINALS,
     ...(o.computers ? [{ e: 'project', id: COMPUTERS_PROJECT.id, v: COMPUTERS_PROJECT }] : []),
   ]);
-  topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
+  // two accounts on Claude Code, Codex's own one (fromV1 adds none, so qa/parity.mjs's shots don't change)
+  topics.set('plugin:wisp.accounts:harnesses', [...HARNESS_ROWS, ...accountRows(o.now)]);
   topics.set('plugin:wisp.connectors:list', CONNECTOR_ROWS);
   topics.set('plugin:wisp.worktrees:worktrees', WORKTREE_ROWS);
   // usage stats off by the environment, as on v1's QA box (DO_NOT_TRACK)
