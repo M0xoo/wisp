@@ -1,0 +1,21 @@
+//! wisp-machines-core: the pure core of `wisp.machines` (plan §7.2, ADR-0010), sans-IO. Everything a
+//! peer connection decides lives here, so it is tested without a network, an ssh or a clock: the
+//! ssh argv and the remote bootstrap, what a failure means, the peer's sync client (a cursor per (peer, epoch), passive subscriptions, commands kept by idempotency key),
+//! the connection state machine and the card a peer shows.
+
+#![cfg_attr(test, allow(clippy::assert_is_empty))] // `assert!(x.is_empty())` reads better in tests
+
+pub mod bootstrap;
+pub mod conn;
+pub mod hint;
+pub mod hosts;
+pub mod mirror;
+pub mod negotiate;
+pub mod peer_client;
+pub mod reachable;
+pub mod reply;
+pub mod route;
+pub mod shell;
+pub mod sse;
+pub mod ssh;
+pub mod view;

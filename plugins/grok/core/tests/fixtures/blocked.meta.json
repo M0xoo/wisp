@@ -1,0 +1,24 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": "permission required: Edit calc.py was not run, as a headless run cannot ask for approval\n"
+  },
+  "opts": {
+    "prompt": "BLOCKED publish it"
+  },
+  "note": "a headless refusal named on stderr, split over two writes",
+  "argv": [
+    "--prompt-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-grok-EwUIDj/prompt.md",
+    "--output-format",
+    "streaming-messages-json",
+    "--permission-mode",
+    "acceptEdits",
+    "--rules",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--disallowed-tools",
+    "ask_user_question",
+    "--no-auto-update"
+  ]
+}

@@ -1,19 +1,16 @@
 name: tauri windows
 
-# The Tauri window on Windows, on a built installer and a real desktop (windows-latest has one, at
-# 1024×768 until a check sets it). Three jobs on the one build, each on a clean runner:
-#   desktop  qa/desktop-tauri-win.mjs: WebView2's CDP for the page, real mouse, keys and Win32 for the rest
-#   web      qa/web.mjs in Chrome on the same runner, then in the app's own WebView2
-#   migrate  a real v0.57.0, then this installer over it (qa/install.mjs --only migrate)
-# This builds with the `qa` feature, which no release has, and its artifact isn't named desktop-*,
-# which is what release.yml publishes.
+# The v2 desktop app on Windows, from its installer, on a real desktop. Two jobs on the one build, each on a clean
+# runner (qa/desktop-v2.mjs):
+#   desktop  setup.exe /S, then the installed app: its wisp server, v2's page, nothing left after a quit or a crash
+#   migrate  the last release installed first, then this installer over it: the app is this build's
+# Its artifact isn't named desktop-*, which is what release.yml publishes.
 on:
   pull_request:
     paths:
       - 'desktop/**'
-      - 'qa/desktop-tauri-win.mjs'
-      - 'qa/win32.ps1'
-      - 'qa/install.mjs'
+      - 'crates/wisp/src/serve.rs'
+      - 'qa/desktop-v2.mjs'
       - '.github/workflows/tauri-windows.yml'
   workflow_dispatch:
 
@@ -33,7 +30,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0
       - uses: actions/cache@v4
         with:
           path: |
@@ -42,18 +39,21 @@ jobs:
             desktop/src-tauri/target
           key: tauri-windows-qa-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-${{ github.sha }}
           restore-keys: tauri-windows-qa-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-
-      - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc --features qa
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
+      - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc
       - uses: actions/upload-artifact@v4
         with:
           name: tauri-windows-qa
           if-no-files-found: error
           path: dist/tauri/wisp-*
 
+  # the installed app: setup.exe /S, then qa/desktop-v2.mjs on what it installed (the wisp binary and web build in
+  # resources\app, no Node)
   desktop:
     needs: build
     runs-on: windows-latest
     timeout-minutes: 30
-    steps: &qa
+    steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
@@ -62,40 +62,34 @@ jobs:
         with:
           name: tauri-windows-qa
           path: dist/tauri
-      - run: npm i --prefix "$RUNNER_TEMP/pw" playwright-core
-      - run: node qa/desktop-tauri-win.mjs
-        if: github.job == 'desktop'
-        env:
-          PW_DIR: ${{ runner.temp }}/pw
-      - name: qa/web.mjs in Chrome, the baseline on this runner
-        if: github.job == 'web'
-        continue-on-error: true
-        env:
-          PW_DIR: ${{ runner.temp }}/pw
-          QA_OUT: ${{ github.workspace }}/qa/out/chrome
-        run: node qa/web.mjs
-      - name: qa/web.mjs in the app's WebView2
-        if: github.job == 'web'
-        env:
-          PW_DIR: ${{ runner.temp }}/pw
-          QA_OUT: ${{ github.workspace }}/qa/out/webview2
-        run: node qa/desktop-tauri-win.mjs --web
-      - run: node qa/install.mjs --only migrate
-        if: github.job == 'migrate'
+      - run: node qa/desktop-v2.mjs --install dist/tauri/wisp-windows-x64-setup.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tauri-windows-${{ github.job }}
-          path: qa/out
+          name: tauri-windows-desktop
+          path: qa/out/desktop-v2.md
 
-  web:
-    needs: build
-    runs-on: windows-latest
-    timeout-minutes: 45
-    steps: *qa
-
+  # an update: the last release installed first, then this build's installer over it, and the app is this build's
   migrate:
     needs: build
     runs-on: windows-latest
-    timeout-minutes: 20
-    steps: *qa
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: tauri-windows-qa
+          path: dist/tauri
+      - name: The last release's installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo "$GITHUB_REPOSITORY" --pattern 'wisp-windows-x64-setup.exe' --dir dist/old
+      - run: node qa/desktop-v2.mjs --over dist/old/wisp-windows-x64-setup.exe --install dist/tauri/wisp-windows-x64-setup.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tauri-windows-migrate
+          path: qa/out/desktop-v2.md

@@ -1,0 +1,20 @@
+── 80 plain
+Release
+✓ merged
+✓ version bumped
+☐ published
+── 40 plain
+Release
+✓ merged
+✓ version bumped
+☐ published
+── 80 colour
+␛[1mRelease␛[0m
+␛[32m✓␛[0m merged
+␛[32m✓␛[0m version bumped
+␛[2m☐␛[0m ␛[2mpublished␛[0m
+── 40 colour
+␛[1mRelease␛[0m
+␛[32m✓␛[0m merged
+␛[32m✓␛[0m version bumped
+␛[2m☐␛[0m ␛[2mpublished␛[0m

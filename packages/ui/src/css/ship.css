@@ -1,0 +1,52 @@
+/* Ship it's pieces (src/ship/, design/side-panel.md PR): checks in fixed columns, the tone chip and
+   the docked merge bar. Control text stays on one line; narrow boxes reflow by container query. */
+@layer kit {
+  [data-kit='check-list'] { container: checks / inline-size; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  [data-kit='check-row'] {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto var(--size-time-col) auto; align-items: center;
+    column-gap: var(--space-4); min-height: var(--size-row-min); padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-md); font-size: var(--fs-md); color: var(--ink);
+  }
+  [data-kit='check-row']:hover { background: var(--bg-2); }
+  [data-kit='check-row-icon'] { display: flex; color: var(--faint); }
+  [data-kit='check-row'][data-state='fail'] [data-kit='check-row-icon'] { color: var(--bad); }
+  [data-kit='check-row'][data-state='pending'] [data-kit='check-row-icon'] { color: var(--warn); }
+  [data-kit='check-row'][data-state='pass'] [data-kit='check-row-icon'] { color: var(--good); }
+  [data-kit='check-row-name'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='check-row-note'] { white-space: nowrap; font-size: var(--fs-xs); color: var(--faint); }
+  [data-kit='check-row-note']:empty { display: none; }
+  [data-kit='check-row-dur'] { grid-column: 4; text-align: end; white-space: nowrap; font-size: var(--fs-xs); color: var(--faint); font-variant-numeric: tabular-nums; }
+  [data-kit='check-row-actions'] { grid-column: 5; display: flex; align-items: center; gap: var(--space-1); }
+  @container checks (max-width: 520px) {
+    [data-kit='check-row'] { grid-template-columns: auto minmax(0, 1fr) var(--size-time-col); min-height: var(--size-touch); }
+    [data-kit='check-row-note'] { display: none; }
+    [data-kit='check-row-dur'] { grid-column: 3; }
+    [data-kit='check-row-actions'] { grid-column: 2 / -1; grid-row: 2; padding-block-end: var(--space-2); }
+  }
+
+  /* The tone chip: v1's PR pill, as a button. */
+  [data-kit='tone-chip'] {
+    display: inline-flex; align-items: center; gap: var(--space-3); flex: none; height: var(--size-pill);
+    padding: var(--space-0) var(--space-4); border: var(--size-hairline) solid var(--line); border-radius: var(--radius-pill);
+    background: transparent; color: var(--ink-2); font-size: var(--fs-sm); font-weight: var(--fw-medium);
+    white-space: nowrap; cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast);
+  }
+  [data-kit='tone-chip']:hover { background: var(--bg-2); border-color: var(--line-2); }
+  [data-kit='tone-chip'][data-pressed] { background: var(--surface); border-color: var(--line-2); color: var(--ink); box-shadow: var(--shadow-1); }
+  [data-kit='tone-chip-dot'] { flex: none; width: var(--size-dot); height: var(--size-dot); border-radius: var(--radius-pill); background: var(--k-tone); }
+  [data-kit='tone-chip-dot'][data-live] { animation: kit-pulse 1.6s ease-in-out infinite; }
+  [data-kit='tone-chip-label'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+
+  /* The docked bar: the phone's merge bar, where the reply box sits on the task. */
+  [data-kit='dock-bar'] {
+    position: sticky; bottom: 0; z-index: var(--z-sticky); display: flex; align-items: center; gap: var(--space-4);
+    min-height: var(--size-bar); padding: var(--space-3) var(--space-6); background: var(--bg);
+    border-top: var(--size-hairline) solid color-mix(in srgb, var(--k-tone) 40%, var(--line));
+  }
+  [data-kit='dock-bar-icon'] { display: flex; flex: none; color: var(--k-tone); }
+  [data-kit='dock-bar-text'] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); color: var(--ink); }
+  [data-kit='dock-bar-action'] { display: flex; flex: none; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-kit='tone-chip-dot'][data-live] { animation: none; }
+  }
+}

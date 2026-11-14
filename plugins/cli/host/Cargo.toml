@@ -1,0 +1,20 @@
+[package]
+name = "wisp-cli"
+description = "wisp.cli host: the command catalogue a frontend builds its verbs from, filtered by the caller's capability set"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+wisp-cli-api.workspace = true
+wisp-kernel.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+wisp-testkit.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+── 80 plain
+Next step
+  1. Run tests  $ npm test
+  2. Commit and open a PR
+── 40 plain
+Next step
+  1. Run tests  $ npm test
+  2. Commit and open a PR
+── 80 colour
+␛[1mNext step␛[0m
+  ␛[1m1.␛[0m Run tests  ␛[2m$ npm test␛[0m
+  ␛[1m2.␛[0m Commit and open a PR
+── 40 colour
+␛[1mNext step␛[0m
+  ␛[1m1.␛[0m Run tests  ␛[2m$ npm test␛[0m
+  ␛[1m2.␛[0m Commit and open a PR

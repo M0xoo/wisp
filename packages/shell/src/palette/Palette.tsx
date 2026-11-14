@@ -1,0 +1,158 @@
+// The command palette (⌘K, v1 web/js/palette.js): one input over a grouped list of what every
+// plugin offers (palette sources: this task's actions, tasks, projects, the app's commands). It is
+// the `shell.palette` overlay view, so Back and Esc close it and Open on a toast closes it too.
+// Arrows move, Enter runs, an item with `fill` types into the input instead. A source's `deep`
+// answers come after a pause in typing and go under the rest, so nothing above them moves; an
+// answer for words no longer in the box is dropped.
+
+import { createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
+import type { PluginClient } from '@wisp/client';
+import { PaletteSheet, paletteRowId, useSignal, type IconName, type PaletteRow } from '@wisp/ui';
+import type { ProjectColor } from '@wisp/tokens';
+import type { PaletteContext, PaletteItem } from '../contract.ts';
+import { useShell } from '../context.tsx';
+import { useClients } from '../slot.tsx';
+import { marks, rank, type Ranked } from './match.ts';
+
+const DEEP_PAUSE_MS = 160;
+
+// size-ok: one component whose closures (query, deep search, keys, run) share its signals
+/** What opened the palette may narrow it: `only` its sources (the project switcher, ⌘P), its own words in the box. */
+interface PaletteParams {
+  readonly only?: readonly string[];
+  readonly placeholder?: string;
+  readonly title?: string;
+}
+
+export default function Palette(_p: { readonly client: PluginClient; readonly params: unknown }): JSX.Element {
+  const params = (_p.params ?? {}) as PaletteParams;
+  const shell = useShell();
+  const host = useClients();
+  const sources = useSignal(host.palette);
+  const nav = useSignal(shell.nav);
+  const [query, setQuery] = createSignal('');
+  const [sel, setSel] = createSignal(0);
+  const [deep, setDeep] = createSignal<{ q: string; items: readonly PaletteItem[] }>({ q: '', items: [] });
+  // a row's + / − changes what the items say (a check, a −) while the palette stays open: read them again
+  const [changed, setChanged] = createSignal(0);
+  const scope = shell.client.scope.child('palette');
+  onCleanup(() => scope.dispose());
+
+  const ctxFor = (plugin: string): PaletteContext => {
+    const n = nav();
+    const focused = shell.selection.get() ?? (n.main.kind === 'task' ? n.main.id : undefined);
+    return { client: host.client(plugin), nav: n, focused, ...(params.only && { narrowed: true }) };
+  };
+  const items = createMemo(() =>
+    (changed(), sources()).filter((s) => !params.only || params.only.includes(s.id)).flatMap((s) => {
+      try {
+        return s.items(ctxFor(s.plugin));
+      } catch {
+        return [];
+      }
+    }),
+  );
+  const shown = createMemo<Ranked[]>(() => {
+    const q = query();
+    const d = deep();
+    return rank(items(), q, scope.timers.now(), d.q === q.trim() ? d.items : []);
+  });
+
+  let cancelAsk: (() => void) | undefined;
+  let asking: AbortController | undefined;
+  const ask = (q: string): void => {
+    cancelAsk?.();
+    asking?.abort();
+    const words = q.trim();
+    if (words.length < 3 || words.startsWith('#')) return;
+    cancelAsk = scope.timeout(DEEP_PAUSE_MS, () => {
+      const ctl = new AbortController();
+      asking = ctl;
+      scope.add(() => ctl.abort());
+      // narrowed (⌘P, Open file…), only its own sources search deeper too
+      const all = sources()
+        .filter((s) => s.deep && (!params.only || params.only.includes(s.id)))
+        .map((s) => s.deep?.(words, ctxFor(s.plugin), ctl.signal).catch(() => []) ?? Promise.resolve([]));
+      void Promise.all(all).then((lists) => {
+        if (ctl.signal.aborted || query().trim() !== words) return;
+        setDeep({ q: words, items: lists.flat() });
+      });
+    });
+  };
+
+  const run = (r: Ranked | undefined): void => {
+    if (!r) return;
+    if (r.item.fill !== undefined) {
+      setQuery(r.item.fill);
+      setSel(0);
+      return;
+    }
+    shell.navigate({ t: 'closeOverlay', id: 'shell.palette' as never });
+    r.item.run?.();
+  };
+  // the + / − (⌘-Enter): its act, the palette left open on the same row
+  const toggle = (r: Ranked | undefined): boolean => {
+    if (!r?.item.toggle) return false;
+    r.item.toggle.run();
+    setChanged((n) => n + 1);
+    return true;
+  };
+  const onKey = (e: KeyboardEvent): void => {
+    const n = shown().length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (n === 0) return;
+      setSel((s) => (s + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
+      document.getElementById(paletteRowId(sel()))?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      if ((shell.platform.apple ? e.metaKey : e.ctrlKey) && toggle(shown()[sel()])) return;
+      run(shown()[sel()]);
+    }
+  };
+  const headAt = (i: number): string | undefined => {
+    const cur = shown()[i]?.item.group;
+    return i === 0 || shown()[i - 1]?.item.group !== cur ? cur : undefined;
+  };
+
+  const groupName = (g: string): string => (shell.client.i18n.has(g) ? shell.t(g) : g);
+  const rows = createMemo<PaletteRow[]>(() =>
+    shown().map((r, i) => {
+      const head = headAt(i);
+      const it = r.item;
+      return {
+        id: it.id,
+        ...(head !== undefined && { head: groupName(head) }),
+        label: marks(it.label, r.idx),
+        ...(it.sub ? { sub: it.sub } : {}),
+        ...(it.color ? { dot: `pc-${it.color}` as ProjectColor } : { icon: (it.icon ?? 'arrow') as IconName }),
+        // a row's shortcut always shows (as VS Code and Linear do), not only on hover: it's how you learn it
+        ...(it.kbd !== undefined && { kbd: it.kbd.split(' ') }),
+        ...(it.toggle && { toggle: { on: it.toggle.on, label: it.toggle.label } }),
+      };
+    }),
+  );
+
+  return (
+    <PaletteSheet
+      value={query()}
+      placeholder={params.placeholder ?? shell.t('shell.palette.placeholder')}
+      label={params.title ?? shell.t('shell.palette.title')}
+      rows={rows()}
+      selected={sel()}
+      empty={shell.t('shell.palette.empty', { q: query().trim() })}
+      foot={{ navigate: shell.t('shell.palette.navigate'), open: shell.t('shell.palette.open'), close: shell.t('shell.palette.close') }}
+      onInput={(v) => {
+        setQuery(v);
+        setSel(0);
+        ask(v);
+      }}
+      onKeyDown={onKey}
+      onPick={(i) => run(shown()[i])}
+      onToggle={(i) => void toggle(shown()[i])}
+      onHover={setSel}
+      // the palette loads after its dialog opened, so the dialog's first focus missed the input
+      inputRef={(el) => requestAnimationFrame(() => el.focus())}
+    />
+  );
+}

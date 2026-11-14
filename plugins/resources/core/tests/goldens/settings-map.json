@@ -1,0 +1,23 @@
+{
+  "lines": [
+    "~ setting/worktrees.max",
+    "      : 4 → 6"
+  ],
+  "ops": [
+    {
+      "before": 4,
+      "changes": [
+        {
+          "from": 4,
+          "path": "",
+          "to": 6
+        }
+      ],
+      "kind": "setting",
+      "name": "worktrees.max",
+      "op": "update",
+      "spec": 6
+    }
+  ],
+  "unchanged": 1
+}

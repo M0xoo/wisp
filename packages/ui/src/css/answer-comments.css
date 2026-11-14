@@ -1,0 +1,57 @@
+/* Comments on an answer (v1 comments.css): the bubble over selected words, the button on a block, the marks (a
+   number after the words, a ring and a corner number on a whole block), and the card beside what it's about. */
+@layer kit {
+  [data-kit='answer'][data-cmt] > [data-kit='answer-block'] { position: relative; }
+
+  /* selected words, and the ones a comment is about */
+  ::highlight(wisp-comment) { background-color: color-mix(in srgb, var(--accent) 16%, transparent); }
+  ::highlight(wisp-comment-draft) { background-color: color-mix(in srgb, var(--accent) 26%, transparent); }
+
+  /* the bubble over a selection */
+  [data-kit='cmt-bubble'] {
+    position: fixed; z-index: calc(var(--z-menu) + 5); left: var(--cmt-x); top: var(--cmt-y); translate: -50% -100%;
+    display: flex; padding: 3px; border-radius: 10px; background: var(--ink); box-shadow: var(--shadow-2); animation: cmt-in 0.16s var(--ease);
+  }
+  [data-kit='cmt-bubble'][data-under] { translate: -50% 0; animation-name: cmt-in-under; }
+  [data-kit='cmt-bubble'] > button {
+    display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: 7px; white-space: nowrap;
+    color: var(--bg); font-size: 12.5px; font-weight: var(--fw-medium);
+  }
+  [data-kit='cmt-bubble'] > button:hover { background: color-mix(in srgb, var(--bg) 14%, transparent); }
+  @keyframes cmt-in { from { opacity: 0; transform: translateY(3px) scale(0.96); } }
+  @keyframes cmt-in-under { from { opacity: 0; transform: translateY(-3px) scale(0.96); } }
+
+  /* the button on a block under the pointer: top right, half over its edge */
+  [data-kit='cmt-add'] {
+    position: absolute; z-index: 3; top: -10px; right: -10px; display: grid; place-items: center;
+    width: 28px; height: 28px; border-radius: 50%; color: var(--muted);
+    background: var(--surface); border: var(--size-hairline) solid var(--line-2); box-shadow: var(--shadow-2);
+    opacity: 0; transform: scale(0.85); transition: opacity 0.14s, transform 0.14s var(--ease), color 0.14s; pointer-events: none;
+  }
+  [data-kit='cmt-add']:hover { color: var(--accent-ink); }
+  [data-kit='answer-block']:hover > [data-kit='cmt-add'], [data-kit='cmt-add']:focus-visible, [data-kit='cmt-add'][data-on] { opacity: 1; transform: none; pointer-events: auto; }
+  /* a finger needs more room than a pointer; a tap on the block is its hover */
+  @media (hover: none) {
+    [data-kit='cmt-add'] { width: 34px; height: 34px; top: -20px; right: -8px; }
+    [data-kit='cmt-add']::before { content: ''; position: absolute; inset: -5px; }
+  }
+
+  /* marks: a number at the end of the words, a ring and a corner number on a whole block */
+  [data-kit='cmt-mark'] {
+    position: absolute; z-index: 2; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11.5px; font-weight: var(--fw-semibold); line-height: 1;
+    box-shadow: 0 0 0 2px var(--surface); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default;
+  }
+  [data-kit='cmt-mark'][data-at='tag'] { left: var(--cmt-x); top: var(--cmt-y); min-width: 16px; height: 16px; font-size: 10.5px; }
+  [data-kit='cmt-corners'] { position: absolute; z-index: 2; top: -9px; left: -9px; display: flex; gap: 4px; }
+  [data-kit='cmt-corners'] > [data-kit='cmt-mark'] { position: static; }
+  [data-kit='cmt-ring'] { position: absolute; inset: 0; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--accent); pointer-events: none; }
+
+  /* the card beside what it's about; a sheet along the bottom on a phone */
+  [data-kit='cmt-float'] { position: fixed; z-index: calc(var(--z-menu) + 6); left: var(--cmt-x); top: var(--cmt-y); width: min(340px, calc(100vw - 16px)); animation: cmt-in 0.2s var(--ease); }
+  [data-kit='cmt-float'] > [data-kit='cmt-card'] { max-width: none; }
+  @media (max-width: 520px) {
+    [data-kit='cmt-float'] { inset: auto 0 0 0; width: auto; }
+    [data-kit='cmt-float'] > [data-kit='cmt-card'] { border-radius: 16px 16px 0 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  }
+}

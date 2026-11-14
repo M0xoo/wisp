@@ -1,0 +1,44 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.settings",
+  "name": "Settings",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.settings: list, read and change every plugin's settings (the kernel's registry), and v1's /config",
+  "server": {
+    "builtin": "wisp-settings"
+  },
+  "permissions": [
+    "settings:read",
+    "settings:write"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "settings.list",
+        "title": "Every setting",
+        "readOnly": true
+      },
+      {
+        "id": "settings.get",
+        "title": "A setting's value",
+        "readOnly": true
+      },
+      {
+        "id": "settings.set",
+        "title": "Change a setting"
+      }
+    ],
+    "settings": [
+      {
+        "key": "settings.timeZone",
+        "type": "string",
+        "default": "",
+        "scope": "server"
+      }
+    ]
+  }
+}

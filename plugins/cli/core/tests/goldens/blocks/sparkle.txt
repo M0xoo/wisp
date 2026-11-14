@@ -1,0 +1,16 @@
+── 80 plain
+▪ A plugin's block
+  three sparkles
+  (sparkle: update wisp to see this)
+── 40 plain
+▪ A plugin's block
+  three sparkles
+  (sparkle: update wisp to see this)
+── 80 colour
+▪ ␛[1mA plugin's block␛[0m
+  three sparkles
+␛[2m  (sparkle: update wisp to see this)␛[0m
+── 40 colour
+▪ ␛[1mA plugin's block␛[0m
+  three sparkles
+␛[2m  (sparkle: update wisp to see this)␛[0m

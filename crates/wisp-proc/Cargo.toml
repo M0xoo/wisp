@@ -1,0 +1,58 @@
+[package]
+name = "wisp-proc"
+description = "The kernel's proc service: which, spawn on pipes or a PTY, exec, process trees killed with 0 orphans, children tied to a scope"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# `From<ProcError> for WireError`, for plugins. Off, the crate depends on no wisp crate (the kernel may
+# then depend on it without a cycle).
+default = ["wire"]
+wire = ["dep:wisp-kernel"]
+
+[dependencies]
+wisp-kernel = { workspace = true, optional = true }
+portable-pty.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+# Not `workspace = true`: forbid(unsafe_code) can't be lifted for one module, so this crate denies it and
+# only src/sys/ allows it, each unsafe block one call with a SAFETY comment (clippy enforces both).
+# Everything else is the workspace's list (plan §9.2).
+[lints.rust]
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+similar_names = "allow"
+cast_possible_wrap = "allow" # pids are u32 in std and i32 in libc; both fit
+cast_sign_loss = "allow"

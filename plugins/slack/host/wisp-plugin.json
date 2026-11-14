@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.slack",
+  "name": "Slack",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.slack: the Slack transport for wisp.channels (Socket Mode, mentions, threads)",
+  "server": {
+    "builtin": "wisp-slack"
+  },
+  "requires": {
+    "wisp.channels": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

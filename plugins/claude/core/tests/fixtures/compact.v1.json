@@ -1,0 +1,72 @@
+[
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "result",
+  "text": "Compacted from 481k to 10k tokens.",
+  "isError": false,
+  "stats": {
+   "costUsd": 0.0071867,
+   "durationMs": 6509,
+   "turns": 0,
+   "inputTokens": 0,
+   "outputTokens": 0,
+   "cacheReadTokens": 0,
+   "cacheWriteTokens": 0,
+   "totals": {
+    "costUsd": 0.0071867,
+    "models": [
+     {
+      "model": "claude-opus-5-5",
+      "input": 2047,
+      "output": 1795,
+      "cacheRead": 34352,
+      "cacheWrite": 23141
+     }
+    ]
+   },
+   "compact": {
+    "pre": 481020,
+    "post": 9521
+   },
+   "contextTokens": 0,
+   "models": [
+    {
+     "model": "claude-opus-5-5",
+     "input": 2047,
+     "output": 1795,
+     "cacheRead": 34352,
+     "cacheWrite": 23141
+    }
+   ]
+  },
+  "background": 0,
+  "backgroundAgents": 0
+ }
+]

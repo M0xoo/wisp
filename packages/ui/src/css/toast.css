@@ -1,0 +1,40 @@
+/* Toasts (v1's palette.css): light cards bottom centre. Zag's group machine sets --x, --y,
+   --scale, --opacity, --height and --z-index on each card; the newest is in front and the rest
+   peek out behind it until pointed at. The shell sets --toast-bottom to clear a pinned reply box. */
+@layer kit {
+  [data-kit='toasts'] {
+    z-index: var(--z-toast); translate: -50% 0; width: min(var(--size-toast), calc(100vw - var(--space-8)));
+    /* !important: Zag sets inset-inline-start/-end inline (1rem from each edge), which put the centred stack half
+       off the left edge; bottom centre is v1's place. */
+    left: 50% !important; right: auto !important;
+    /* !important: Zag sets bottom inline from its offsets; the kit owns the clearance instead. */
+    bottom: calc(var(--toast-bottom, var(--space-8)) + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  [data-kit='toast'] {
+    left: 0; right: 0; overflow: hidden; border: var(--size-hairline) solid var(--line-2); border-radius: var(--radius-xl);
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); font-size: var(--fs-md); line-height: var(--lh-snug);
+    translate: var(--x) var(--y); scale: var(--scale); z-index: var(--z-index); height: var(--height); opacity: var(--opacity);
+    --k-tint: var(--accent);
+    transition: translate 0.4s var(--ease-spring), scale 0.4s var(--ease-spring), opacity var(--dur-slower) var(--ease), height 0.4s var(--ease-spring);
+  }
+  [data-kit='toast'][data-state='closed'] { transition: translate 0.4s var(--ease), scale 0.4s var(--ease), opacity var(--dur-slow); }
+  [data-kit='toast'][data-type='error'] { --k-tint: var(--bad); }
+  [data-kit='toast'][data-type='success'] { --k-tint: var(--good); }
+  [data-kit='toast-in'] { display: flex; align-items: center; gap: var(--space-5); min-height: var(--size-row-min); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5); }
+  [data-kit='toast-glyph'] {
+    flex: none; display: grid; place-items: center; width: var(--size-control-xs); height: var(--size-control-xs); border-radius: 50%;
+    background: color-mix(in srgb, var(--k-tint) 11%, transparent); color: var(--k-tint);
+  }
+  [data-kit='toast-text'] { flex: 1 1 auto; min-width: 0; padding: var(--space-1) 0; overflow-wrap: anywhere; }
+  [data-kit='toast-description'] { font-size: var(--fs-sm); color: var(--muted); }
+  [data-kit='toast-action'] {
+    flex: none; height: var(--size-control-sm); padding: var(--space-0) var(--space-5); margin-left: var(--space-2); border-radius: var(--radius-control);
+    white-space: nowrap; background: var(--accent-soft); color: var(--accent-ink); font-weight: var(--fw-medium); transition: background var(--dur-base);
+  }
+  [data-kit='toast-action']:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  [data-kit='toast-close'] {
+    flex: none; display: grid; place-items: center; width: var(--size-control-xs); height: var(--size-control-xs); border-radius: 50%;
+    color: var(--muted); transition: color var(--dur-base), background var(--dur-base);
+  }
+  [data-kit='toast-close']:hover { color: var(--ink); background: var(--bg-2); }
+}

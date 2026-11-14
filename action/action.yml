@@ -1,0 +1,73 @@
+# wisp in CI (ADR-0040): run a task (a prompt), a declared task or a formula with wisp, post the report on the pull
+# request, and fail the job when it fails. Published as `wisp-agents/action`; this folder is its source.
+name: wisp
+description: Run a wisp task in CI and post its report on the pull request
+author: WispAgents
+branding:
+  icon: feather
+  color: purple
+inputs:
+  prompt:
+    description: What the agent should do (wisp "<prompt>")
+    required: false
+  task:
+    description: A declared task to run (wisp run <name>), instead of a prompt
+    required: false
+  formula:
+    description: A formula file to run (wisp run -f <file>), instead of a prompt
+    required: false
+  project:
+    description: The folder it runs in
+    default: .
+  agent:
+    description: The harness (claude, codex, opencode, …); the formula's or wisp's default when left out
+    required: false
+  model:
+    description: The model
+    required: false
+  mode:
+    description: plan, edits or auto
+    default: edits
+  version:
+    description: The wisp-agents version to install
+    default: latest
+  comment:
+    description: Post the report on the pull request (true or false)
+    default: "true"
+  fail-on:
+    description: "failed: fail the job when the task fails; never: always pass"
+    default: failed
+  github-token:
+    description: The token gh posts the comment with
+    default: ${{ github.token }}
+outputs:
+  task:
+    description: The task's id
+    value: ${{ steps.run.outputs.task }}
+  state:
+    description: How it ended (review, done, error)
+    value: ${{ steps.run.outputs.state }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - name: Install wisp
+      shell: bash
+      run: npm install -g "wisp-agents@${{ inputs.version }}"
+    - id: run
+      name: Run it
+      shell: bash
+      run: '"$GITHUB_ACTION_PATH/run.sh"'
+      env:
+        WISP_PROMPT: ${{ inputs.prompt }}
+        WISP_TASK_NAME: ${{ inputs.task }}
+        WISP_FORMULA: ${{ inputs.formula }}
+        WISP_PROJECT: ${{ inputs.project }}
+        WISP_AGENT: ${{ inputs.agent }}
+        WISP_MODEL: ${{ inputs.model }}
+        WISP_MODE: ${{ inputs.mode }}
+        WISP_COMMENT: ${{ inputs.comment }}
+        WISP_FAIL_ON: ${{ inputs.fail-on }}
+        GH_TOKEN: ${{ inputs.github-token }}

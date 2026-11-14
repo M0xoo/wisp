@@ -1,0 +1,108 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.ship",
+  "name": "Ship it",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "Ship it: commit what a worktree task left, push its branch, open or update its PR; follow its checks and reviews, fix conflicts with a follow-up, squash-merge the reviewed head and fast-forward the user's checkout.",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp-ship"
+  },
+  "requires": {
+    "git.service": "^1"
+  },
+  "provides": {},
+  "permissions": [
+    "settings:read",
+    "telemetry:track",
+    "runtime:get",
+    "runtime:list",
+    "runtime:turns",
+    "runtime:setExt",
+    "runtime:followUp",
+    "review:maybe",
+    "git:repo",
+    "git:status",
+    "git:read",
+    "git:fetch",
+    "git:commit",
+    "git:push",
+    "git:merge.ff",
+    "git:worktree.add",
+    "git:worktree.remove",
+    "git:branch.delete",
+    "proc:exec{bin:gh}"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "settings": [
+      { "key": "ship.fixConflicts", "type": "bool", "default": false, "title": "Fix merge conflicts by itself: when a task's PR has conflicts, its agent is asked to fix them without waiting for you" }
+    ],
+    "events": [
+      "pr.changed",
+      {
+        "type": "pr.merged",
+        "durable": true
+      },
+      {
+        "type": "pr.opened",
+        "durable": true
+      },
+      "ship.follow_up",
+      "ship.step",
+      "ship.to_ship"
+    ],
+    "commands": [
+      {
+        "id": "ship.fix_conflicts",
+        "title": "Fix a task's PR conflicts: the task merges its base in"
+      },
+      {
+        "id": "ship.check_log",
+        "title": "The end of a failing check's log",
+        "readOnly": true
+      },
+      {
+        "id": "ship.agent.pr",
+        "title": "Attach a PR to a task, or detach one, as its agent (wisp_pr)"
+      },
+      {
+        "id": "ship.track",
+        "title": "Track a task's repos for Ship it"
+      },
+      {
+        "id": "ship.view",
+        "title": "What a task would ship",
+        "readOnly": true
+      },
+      {
+        "id": "ship.ship",
+        "title": "Commit, push and open a pull request"
+      },
+      {
+        "id": "ship.refresh",
+        "title": "Ask GitHub about a task's pull requests"
+      },
+      {
+        "id": "ship.details",
+        "title": "A task's pull requests in full",
+        "readOnly": true
+      },
+      {
+        "id": "ship.merge",
+        "title": "Squash-merge a task's pull request"
+      },
+      {
+        "id": "ship.attach",
+        "title": "Attach a pull request to a task"
+      },
+      {
+        "id": "ship.recheck",
+        "title": "Recheck what a task has to ship"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+[package]
+name = "wisp-issues"
+description = "wisp.issues: issues to start a task from: GitHub through gh, Linear and Jira through their connectors"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+wisp-proc.workspace = true
+wisp-git-api.workspace = true
+wisp-issues-api.workspace = true
+wisp-connectors-api.workspace = true
+wisp-automations-api.workspace = true
+wisp-issues-core.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

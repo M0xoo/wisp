@@ -1,0 +1,124 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.machines",
+  "name": "Machines",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "Peers, your other computers, over the v2 sync protocol: the ssh and loopback transports, the mirrored task lists, commands routed to the owner with the same key, the machines.peers service",
+  "author": "wisp",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp-machines"
+  },
+  "provides": {
+    "machines.peers": {
+      "version": "1.0.0"
+    }
+  },
+  "permissions": [
+    "store:write{owner:machines}",
+    "proc:spawn{bin:ssh}",
+    "proc:exec{bin:ssh}",
+    "proc:exec{bin:ssh-keygen}",
+    "proc:exec{bin:tailscale}",
+    "proc:exec{bin:hostname}",
+    "net:connect{host:127.0.0.1}",
+    "net:connect{host:localhost}",
+    "secrets:read",
+    "secrets:write"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "machines.add",
+        "title": "Add a computer"
+      },
+      {
+        "id": "machines.update",
+        "title": "Rename a computer or change how it is reached"
+      },
+      {
+        "id": "machines.remove",
+        "title": "Remove a computer"
+      },
+      {
+        "id": "machines.connect",
+        "title": "Connect to a computer"
+      },
+      {
+        "id": "machines.disconnect",
+        "title": "Disconnect from a computer"
+      },
+      {
+        "id": "machines.stop",
+        "title": "Stop wisp on a computer (or restart it)"
+      },
+      {
+        "id": "machines.letIn",
+        "title": "Type the password once so this computer's key is let in"
+      },
+      {
+        "id": "machines.follow",
+        "title": "Watch an asleep computer without waking it"
+      },
+      {
+        "id": "machines.recheckAgents",
+        "title": "Detect a computer's coding agents again"
+      },
+      {
+        "id": "machines.list",
+        "title": "Your computers and how each is doing",
+        "readOnly": true
+      },
+      {
+        "id": "machines.get",
+        "title": "One computer and how it is doing",
+        "readOnly": true
+      },
+      {
+        "id": "machines.sessions",
+        "title": "The tasks a computer shows, as last seen",
+        "readOnly": true
+      },
+      {
+        "id": "machines.hosts",
+        "title": "Hosts in ~/.ssh/config",
+        "readOnly": true
+      },
+      {
+        "id": "machines.discover",
+        "title": "Computers this one already knows how to reach",
+        "readOnly": true
+      },
+      {
+        "id": "machines.reachable",
+        "title": "Can other devices reach this computer",
+        "readOnly": true
+      },
+      {
+        "id": "machines.call",
+        "title": "A request to a computer's wisp"
+      },
+      {
+        "id": "machines.route",
+        "title": "Run a command on the computer that owns its row"
+      }
+    ],
+    "events": ["machines.changed", "machines.offline", "machines.remote", "machines.removed", {"type": "machines.online", "durable": true}],
+    "topics": [
+      "machines",
+      "plugin:wisp.machines:remote",
+      "plugin:wisp.machines:links"
+    ],
+    "points": [
+      {
+        "id": "machines.transport",
+        "version": 1,
+        "kind": "list"
+      }
+    ]
+  }
+}

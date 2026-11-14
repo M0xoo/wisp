@@ -1,0 +1,85 @@
+Manifests: the kernel's validator, unique ids, default deny, versioned points, mapped service methods.
+=== packages/kernel/package.json
+{ "name": "@f/kernel", "type": "module", "exports": { ".": "./src/index.ts" } }
+=== packages/kernel/src/index.ts
+export function validateManifest(m: unknown): { ok: true } | { ok: false; errors: string[] } {
+  const r = m as { name?: unknown };
+  return typeof r.name === 'string' ? { ok: true } : { ok: false, errors: ['name: required'] };
+}
+=== packages/kernel/src/capabilities.ts
+const USER = { id: 'user:full', allow: ['*'] };
+const AGENT = { id: 'agent:session', allow: ['git:*', 'wt.list'], deny: [{ permission: 'wt:open{scope:workspace}', why: 'wt.remove is described here, in prose only' }] };
+const CAPPED = { id: 'agent:capped', allow: [`git.status`] };
+export const SETS = [USER, AGENT, CAPPED];
+=== plugins/git/api/package.json
+{ "name": "@f/git-api", "exports": { ".": "./src/index.ts" } }
+=== plugins/git/api/src/index.ts
+import { defineService, type ServiceRef } from '@f/kernel';
+export interface GitService {
+  status(): Promise<string>;
+  push: (branch: string) => Promise<void>;
+  readonly root: string;
+}
+export const gitService = defineService<GitService>({ id: 'git.service', major: 1, permissions: { status: 'git:status' } });
+interface Base { remove(): void }
+export interface WtService extends Base { list(): string[] }
+export const wtService: ServiceRef<WtService> = { id: 'wt.service', major: 1, permissions: { list: 'wt:list', extra: 'wt:extra' } };
+export const okService = { id: 'ok.service', major: 1, permissions: { remove: 'wt:remove' } } satisfies ServiceRef<Base>;
+export const dynamic = defineService<Base>({ id: 'dyn.service', major: 1, permissions: makePerms() });
+export const positional = defineService<WtService>('pos.service', 1, { list: 'wt:list', remove: 'wt:remove' });
+export const positionalBad = defineService<Base>('pos.bad', 1, {});
+=== plugins/git/host/package.json
+{ "name": "@f/git", "exports": { ".": "./src/index.ts" } }
+=== plugins/git/host/wisp-plugin.json
+{
+  "wispPlugin": 1,
+  "id": "wisp.git",
+  "name": "Git",
+  "version": "1.0.0",
+  "api": "^1",
+  "contributes": {
+    "commands": [{ "id": "git.push", "title": "Push" }, { "id": "git.status", "title": "Status" }],
+    "points": [
+      { "id": "git.remotes", "version": 1, "kind": "list" },
+      { "id": "git.hooks", "kind": "interceptor" }
+    ]
+  }
+}
+=== plugins/git/host/src/index.ts
+export default {
+  id: 'wisp.git',
+  setup(ctx: { command(d: unknown): void }) {
+    ctx.command({ id: 'git.push', run: () => 1 });
+    ctx.command({ id: 'git.secret', run: () => 1 });
+  },
+};
+=== plugins/wt/host/package.json
+{ "name": "@f/wt", "exports": { ".": "./src/index.ts" } }
+=== plugins/wt/host/wisp-plugin.json
+{
+  "wispPlugin": 1,
+  "id": "wisp.wt",
+  "version": "1.0.0",
+  "api": "^1",
+  "contributes": {
+    "commands": [
+      { "id": "wt.list", "title": "List" },
+      { "id": "wt.open", "title": "Open" },
+      { "id": "wt.remove", "title": "Remove" }
+    ]
+  }
+}
+=== plugins/dup/host/package.json
+{ "name": "@f/dup" }
+=== plugins/dup/host/wisp-plugin.json
+{ "wispPlugin": 1, "id": "wisp.git", "name": "Again", "version": "1.0.0", "api": "^1" }
+=== plugins/empty/host/package.json
+{ "name": "@f/empty" }
+=== plugins/broken/host/package.json
+{ "name": "@f/broken" }
+=== plugins/broken/host/wisp-plugin.json
+{ "wispPlugin": 1, "id": 
+=== plugins/old/host/package.json
+{ "name": "@f/old" }
+=== plugins/old/host/wisp-plugin.json
+{ "wispPlugin": 2, "id": "", "name": "Old" }

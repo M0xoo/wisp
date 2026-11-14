@@ -1,0 +1,26 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+    "resumeId": "prev-1",
+    "fork": true
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "run",
+    "--format",
+    "json",
+    "--print-logs",
+    "--log-level",
+    "ERROR",
+    "--session",
+    "prev-1",
+    "--fork"
+  ]
+}

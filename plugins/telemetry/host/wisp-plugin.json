@@ -1,0 +1,44 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.telemetry",
+  "name": "Telemetry",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.telemetry: anonymous usage stats (v1's 52 events): the catalogue, opt-out, scrubbing, batching and the distinct id, delivered to every telemetry.sink (ADR-0021)",
+  "server": {
+    "builtin": "wisp-telemetry"
+  },
+  "permissions": [
+    "runtime:agents",
+    "runtime:get",
+    "runtime:turns",
+    "runtime:turn.setExt",
+    "router:signal",
+    "store:write{owner:telemetry}"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "events": ["telemetry.event"],
+    "commands": [
+      {
+        "id": "telemetry.track",
+        "title": "Record a usage event"
+      },
+      {
+        "id": "telemetry.set",
+        "title": "Usage stats on or off"
+      },
+      {
+        "id": "telemetry.flush",
+        "title": "Send what is queued now"
+      },
+      {
+        "id": "telemetry.feedback",
+        "title": "Send feedback to the wisp team",
+        "uiOnly": "the user's own rating and words (thumbs on a turn, the feedback dialog, /feedback); an agent doesn't rate its own work"
+      }
+    ]
+  }
+}

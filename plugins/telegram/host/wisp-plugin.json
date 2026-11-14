@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.telegram",
+  "name": "Telegram",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.telegram: the Telegram transport for wisp.channels (long poll or webhook, buttons, link codes)",
+  "server": {
+    "builtin": "wisp-telegram"
+  },
+  "requires": {
+    "wisp.channels": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

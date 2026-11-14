@@ -1,0 +1,1 @@
+wisp-store public API implemented and tested (README.md). 78 tests, clippy -D warnings clean, monoflow verify --package=wisp-store PASS. 2026-11-08.

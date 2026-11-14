@@ -1,0 +1,25 @@
+── 80 plain
+Where
+◉ Blue Bottle Coffee
+<https://www.google.com/maps/search/?api=1&query=66%20Mint%20St%2C%20San%20Franc
+isco%2C%20CA%2094103>
+  66 Mint St, San Francisco, CA 94103
+  the meetup
+── 40 plain
+Where
+◉ Blue Bottle Coffee
+<https://www.google.com/maps/search/?api
+=1&query=66%20Mint%20St%2C%20San%20Franc
+isco%2C%20CA%2094103>
+  66 Mint St, San Francisco, CA 94103
+  the meetup
+── 80 colour
+␛[1mWhere␛[0m
+␛[31m◉␛[0m ␛]8;;https://www.google.com/maps/search/?api=1&query=66%20Mint%20St%2C%20San%20Francisco%2C%20CA%2094103␛\␛[4m␛[1mBlue Bottle Coffee␛[0m␛[0m␛]8;;␛\
+  66 Mint St, San Francisco, CA 94103
+  ␛[2mthe meetup␛[0m
+── 40 colour
+␛[1mWhere␛[0m
+␛[31m◉␛[0m ␛]8;;https://www.google.com/maps/search/?api=1&query=66%20Mint%20St%2C%20San%20Francisco%2C%20CA%2094103␛\␛[4m␛[1mBlue Bottle Coffee␛[0m␛[0m␛]8;;␛\
+  66 Mint St, San Francisco, CA 94103
+  ␛[2mthe meetup␛[0m

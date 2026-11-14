@@ -1,0 +1,94 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.automations",
+  "name": "automations",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "triggers, watchers, recipes, cron schedules, inbound webhooks",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_automations"
+  },
+  "permissions": [
+    "crew:assign",
+    "events:tail",
+    "runtime:create",
+    "runtime:followUp",
+    "runtime:get",
+    "runtime:spec",
+    "runtime:stop",
+    "store:write{owner:automations}",
+    "workflows:run"
+  ],
+  "requires": {},
+  "provides": {},
+  "contributes": {
+    "settings": [
+      { "key": "automations.webhookTriggers", "type": "bool", "default": false, "title": "Webhook triggers: other services may start this computer's webhook triggers (POST /api/triggers/<name> with its secret)" }
+    ],
+    "events": ["automations.changed", {"type": "trigger.fired", "durable": true}],
+    "commands": [
+      {
+        "id": "automations.tasks",
+        "title": "Declared tasks",
+        "readOnly": true
+      },
+      {
+        "id": "automations.task.set",
+        "title": "Declare a task"
+      },
+      {
+        "id": "automations.task.remove",
+        "title": "Remove a declared task"
+      },
+      {
+        "id": "automations.task.run",
+        "title": "Run a declared task"
+      },
+      {
+        "id": "automations.trigger.ls",
+        "title": "Triggers",
+        "readOnly": true
+      },
+      {
+        "id": "automations.trigger.fire",
+        "title": "Fire a trigger"
+      },
+      {
+        "id": "automations.trigger.test",
+        "title": "Test a trigger (dry run)",
+        "readOnly": true
+      },
+      {
+        "id": "automations.trigger.log",
+        "title": "A trigger's deliveries",
+        "readOnly": true
+      },
+      {
+        "id": "automations.trigger.push",
+        "title": "Send triggers an event"
+      },
+      {
+        "id": "automations.trigger.approve",
+        "title": "Approve a trigger's job"
+      },
+      {
+        "id": "automations.trigger.resume",
+        "title": "Resume a paused trigger"
+      },
+      {
+        "id": "automations.release",
+        "title": "Rows held for a harness's plan stop saying so (its plan reset early)"
+      },
+      {
+        "id": "automations.sources",
+        "title": "Trigger sources",
+        "readOnly": true
+      }
+    ],
+    "triggerSources": ["schedule", "once", "webhook", "manual"]
+  },
+  "activation": [
+    "onStartup"
+  ]
+}

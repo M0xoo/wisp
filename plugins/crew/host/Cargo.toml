@@ -1,0 +1,38 @@
+[package]
+name = "wisp-crew"
+description = "wisp.crew host: wiring to the kernel, store and HTTP routes (crew members: schedules, check-ins, jobs, mentions, notebooks, sharing)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+wisp-kernel.workspace = true
+wisp-automations-api.workspace = true
+wisp-budget-api.workspace = true
+wisp-crew-api.workspace = true
+wisp-resources-api.workspace = true
+wisp-crew-core.workspace = true
+wisp-runtime-api.workspace = true
+wisp-later-api.workspace = true
+wisp-machines-api.workspace = true
+wisp-sandbox-api.workspace = true
+wisp-telemetry-api.workspace = true
+wisp-store.workspace = true
+wisp-share-api.workspace = true
+wisp-grid-client-api.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+wisp-runtime-api = { workspace = true, features = ["testing"] }
+wisp-testkit.workspace = true
+
+[lints]
+workspace = true

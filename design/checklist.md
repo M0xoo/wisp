@@ -49,3 +49,11 @@ or in dark mode don't throw.
 - [ ] `npm test` passes (new test files listed in `package.json`).
 - [ ] For an audit or polish task: only how it looks and feels changed, never what a feature does.
 - [ ] Say honestly what you didn't check (e.g. "not run in the Android app").
+
+
+## Layout (v2, design/layout.md)
+
+- [ ] At 320, 390, 600, 900, 1024 and 1440 px: no control text on two lines, no bar taller than its token, no bar item on a second row, no horizontal overflow.
+- [ ] Bars collapse labels to icons (tooltip + aria-label kept) before anything moves into More; Send/Stop never collapse.
+- [ ] Long title (200 chars), 99+ counts, 100% and the longest i18n label tried.
+- [ ] Rows keep times, pills and counts in fixed columns when selected, opened or updated.

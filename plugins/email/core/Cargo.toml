@@ -1,0 +1,16 @@
+[package]
+name = "wisp-email-core"
+description = "wisp.email's pure logic: the grid's x-wisp-mail headers, DKIM and sender check, quote and signature stripping, reply threading, the mode a mail may ask. Sans-IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+regex.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

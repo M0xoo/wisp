@@ -1,0 +1,236 @@
+# ADR-0033: A repo carries the agent work that built it (`.wisp/`)
+
+- Status: accepted
+- Date: 2026-11-08
+- Source: the owner: "a codebase has a `.wisp` folder with the tasks that produced the codebase itself, where a dev
+  can pick up an old task and start from it: a new way to manage codebases written mostly by agents."
+- Builds on ADR-0026 (formulas), 0027 (task specs, sharing), 0029 (history snapshots).
+
+## Decision
+
+**A project can keep its agent history in the repo, in `.wisp/`, committed with the code.**
+
+```
+.wisp/
+  wisp.yml              the project's formula: its agents, crew, workflows, rules (ADR-0026)
+  tasks/
+    2026/11/01a1bc-fix-flaky-login.task.yml     the task spec (ADR-0027): steps, agent, base, goal, formula@hash
+    2026/11/01a1bc-fix-flaky-login.report.md    the answer, as markdown (optional)
+  formulas/<hash>.yml   the formula snapshots tasks ran with (ADR-0029), shared by hash
+  history/<id>.jsonl.zst  the full transcript of each task, always (scrubbed, compressed)
+  README.md             what this folder is, generated
+```
+
+- **One file per task, named by id:** two branches never conflict on the same file. Specs are small text,
+  reviewable in PRs ("this PR was produced by these 3 tasks"), and scrubbed like any share (ADR-0027).
+- **The transcript is always kept** (owner, 2026-11-09): every tracked task saves its spec, its report **and its
+  full transcript** (`history/<id>.jsonl.zst`): what the agent read, ran, thought out loud and answered. That's
+  the record people and agents need to understand why the code is the way it is.
+  - It's scrubbed like any share (secrets, env values, private paths) before it's written, and the preview shows it.
+  - It's compressed with zstd (a typical task's transcript is a few hundred KB raw, tens of KB compressed). One
+    file per task, so it never conflicts.
+  - A project can move transcripts to git notes or Git LFS (`history: { transcripts: files | notes | lfs }`) if the
+    repo gets heavy. A single task can be lowered after the fact (`wisp untrack <id> --keep report`), but the
+    default is everything.
+- **Linked to commits:** when wisp ships a task (Ship it), each commit gets a trailer, `Wisp-Task: 01a1bc`
+  (and `Co-Authored-By` for the agent). The task file lists its commits and its PR. So both directions work:
+  code → task, task → code.
+- **Picking up old work:**
+  - `wisp blame <file>:<line>`: which task wrote this line, its prompt, its reasoning summary, and the PR.
+  - `wisp log [path]`: the project's history as tasks, not just commits ("who asked for what, which agent
+    did it, did the goal hold").
+  - `wisp resume <task>` continues an old task from where it stopped, on today's code: its spec, the summary
+    of what happened and its report become the context of a new task (a fork, ADR-0027, across time and across
+    developers). `wisp rerun <task>` replays it from its original commit (ADR-0029).
+  - `wisp tasks --touching auth/` finds every task that changed a path, so a new developer or agent can read
+    why the code is the way it is before changing it.
+- **Agents use it too:** wisp's MCP tools give agents read access to `.wisp/` (`wisp_history`: past tasks
+  that touched the files they're editing). A new task on a file starts knowing the decisions made there.
+  That's the agent-native answer to "why is this code like this?".
+- **Created by `wisp init`** in a repo, or on by default for projects added to wisp
+  (`project: { repoHistory: true }`), and switched off per project.
+
+## Consequences
+
+- runtime writes task files on Ship it and on Done (when the project opts in). git and ship add the trailers.
+- The share format and the `.wisp/tasks/*.task.yml` format are the same, so a task file in a repo is
+  already a share.
+- Positioning: this is "agents as code" applied to the codebase itself: provenance for agent-written code.
+  It goes in the launch story (marketing/positioning-v2.md).
+
+## Blame takes any pointer, and every frontend shows it (added 2026-11-09)
+
+`wisp blame` answers "which task made this?" for whatever you point at:
+
+| Input | Answer |
+|---|---|
+| `file:line` or `file:10-40` | the task(s) behind those lines (through git blame → commit → `Wisp-Task` trailer) |
+| a file or folder | every task that shaped it, newest first, with how much of it each wrote |
+| a commit sha or range (`a1b2c3`, `main~10..main`) | the task(s) that made those commits |
+| a PR (`#812`, a PR URL) | the tasks that produced the PR, in order, with their prompts and goals |
+| a task id | its commits, PR and files (the reverse direction) |
+
+Answers come from the commit trailers and `.wisp/tasks`, so they work offline and on any clone. Code with no
+task behind it (written by hand) says so. The SDK has the same (`w.blame(target)`), and agents get it through MCP.
+
+**In the GUI and the TUI** (designed with the UI work, not a CLI port):
+- **A "why" gutter in every diff and file view:** each run of lines shows a thin mark coloured per task. Hover or
+  focus it (TUI: `b` on a line) to get a card with the task's title, its agent, the prompt that asked for it,
+  the one-line reason from its report, the PR, and the actions Open task, Resume, Rerun.
+- **Commits and PRs are clickable everywhere:** a sha or `#812` in a transcript, a report, Ship it or the PR panel
+  opens a popover listing the tasks behind it, and the Changes panel groups a PR's diff by the task that wrote
+  each part.
+- **A project's story:** a timeline view (GUI page, TUI screen) of `wisp log`: tasks as a river along the commit
+  history, filterable by path, agent, crew member or workflow. Pick a folder to see who (which tasks) built it.
+- **Paste anything into the palette:** a sha, a PR link, `file:line` or a task id in ⌘K (TUI: Ctrl-K) jumps
+  straight to its blame card.
+
+## Any harness can read the history, with or without wisp running (added 2026-11-09)
+
+Four ways in, from the most to the least integrated:
+1. **wisp's MCP server.** Tools: `wisp_history` (tasks touching paths), `wisp_blame` (any target above),
+   `wisp_task` (one task's spec and report), `wisp_resume` (ask the user to resume one).
+   - A run wisp starts gets it automatically, with its per-task token (ADR-0008: read-only on history).
+   - A harness the user opened by themselves adds `wisp mcp` once: `wisp skill install --agent claude|codex|cursor|…`
+     writes the MCP entry and wisp's skill for that harness.
+   - When no wisp server is running, `wisp mcp` reads `.wisp/` and git directly, so it works offline on any clone.
+2. **The CLI from the agent's shell:** `wisp blame <target> --json`, `wisp tasks --touching <path> --json`,
+   `wisp task show <id> --json`, for harnesses without MCP.
+3. **Plain files:** `.wisp/tasks/*.task.yml` and `*.report.md` are readable text, so any agent can `cat` them.
+   `wisp init` adds a short section to the repo's AGENTS.md (and CLAUDE.md if present): "Before changing a file,
+   read the tasks that shaped it: `wisp tasks --touching <path>` or `.wisp/tasks/`."
+4. **Context injection:** when wisp starts a task, it can attach the most relevant past tasks for the files in
+   play (title, reason, link) to the prompt, so the agent starts informed without having to ask. This is a
+   project setting (`history: { inject: true }`) and is off by default.
+
+Reading is always allowed to whoever can read the repo. Starting, resuming or rerunning a task goes through
+wisp and its permissions; an outside harness can only *ask* (`wisp_resume` creates a request the user approves).
+
+## The user decides which tasks the repo tracks (added 2026-11-09)
+
+- **Per project, a mode** (`.wisp/wisp.yml` → `history: { track: auto | ask | manual }`, default `ask`):
+  - `auto`: every task that ships or is marked done in that repo is saved;
+  - `ask`: when such a task ends, its report shows **Save to repo** (one click, with a preview of what's written,
+    scrubbed);
+  - `manual`: nothing is saved unless the user adds it.
+- **Add any task, anytime** (always with its transcript), even an old one or one that ran before `.wisp/` existed:
+  - App: **Save to repo** on the task's menu and its report.
+  - TUI: `w` on a task.
+  - CLI: `wisp track <id> [--repo <path>]`.
+  - SDK: `task.track()`.
+  - It writes the task file (and its formula snapshot) into `.wisp/tasks/`. The change is staged in the user's
+    working tree for them to commit, or committed with the task's own changes when it ships.
+- **Several repos:** a task that touched more than one repo (extra folders, a team across projects) asks which
+  repos to save it in. Each one gets the same task id, so the copies stay linked.
+- **Untrack and redact:** `wisp untrack <id>` (or Remove from repo) deletes it from `.wisp/` in the next commit.
+  `--level` can lower what's kept (full → report → spec). Git history keeps old commits; the docs say so plainly.
+- **The task shows where it's tracked:** a small "in repo" mark on the task row and in its head, with the path.
+  `wisp tasks --tracked` lists them.
+
+## A repo's history has its own place in the GUI and the TUI (added 2026-11-09)
+
+When the open project has a `.wisp/` folder, the sidebar gets a second tab beside the task list:
+**Tasks · Repo** (TUI: `Tab` switches, or `g r`). They're different things, so they look different.
+
+- **Tasks** is what it is today: your tasks (running, needs you, done), live.
+- **Repo** is the project's committed agent history, read from `.wisp/tasks` and git, from everyone who
+  worked on it (teammates' tasks appear after a `git pull`):
+  - grouped by time (this week, last month…), or by folder, PR or person, with a filter box (path, agent,
+    person, words in the prompt);
+  - each row shows the task's title, the person who ran it and the agent, the PR or commits it produced, the
+    goal's verdict, and how much of today's code is still from it (`72% still in main`, from blame), so stale
+    work stands out;
+  - rows are history, not live tasks, so they get a different mark (a commit glyph, no status pill and no
+    running animation) and open as a read-only report with Resume, Rerun, Fork, Blame, and Open the PR;
+  - a task of yours that's also in the repo shows the "in repo" mark in Tasks, and opens the same report from
+    Repo.
+- **The repo view's own header:** the project's formula at a glance (agents, crew, workflows: from
+  `.wisp/wisp.yml`), the track mode (auto, ask or manual), and the timeline view of ADR-0033's blame section.
+- **Untracked local tasks** in a wisp-init'ed project show a quiet **Save to repo** on hover (in `ask` mode),
+  so tracking is never more than one click away.
+- Projects without `.wisp/` show no Repo tab. The empty state for a git repo offers **Track this repo's agent
+  work** (`wisp init`).
+
+## The same split in the CLI (added 2026-11-09)
+
+- `wisp ls` stays your tasks, live.
+- `wisp ls --repo` lists the current repo's committed history (the Repo tab), from everyone: one line per task with
+  its date, person, agent, title, PR or commits, verdict and how much of it is still in main. It takes the same
+  filters as the tab: `--path auth/`, `--person ada`, `--agent codex`, `--since 30d`, `--pr 812`, `--grep login`,
+  `--by month|folder|pr|person`, plus `--json` and `--watch`. `--repo <path>` points at another clone.
+- `wisp ls --all` shows both, with the repo rows marked (`⎇`) and your tracked tasks marked "in repo".
+- `wisp show <id>` works on either kind: a repo task opens as its read-only report, with the next commands
+  printed (`wisp resume`, `wisp rerun`, `wisp blame`).
+
+## Open a task in its agent's CLI, from anywhere (added 2026-11-09)
+
+**Name (owner, 2026-11-09):** v1's "Take over" is renamed **Open in <harness>** ("Open in Claude Code", with "Open in
+Codex", "Open in Cursor"… in its menu), and the CLI verb is `wisp open <id> [--in codex]`. `wisp open` also opens
+shared files and links (ADR-0027/0038): "open" always means *bring it in front of me*. The verbs stay distinct:
+Resume (the agent carries on), Rerun (it starts again), Fork (a copy), Open in … (you carry on, in the CLI).
+
+
+v1's Take over (open the task's session in the agent's own CLI, with the note that the user now reads replies in a
+terminal) comes to the CLI and the TUI, and works on tasks from the repo history too:
+
+- `wisp open <id> [--in claude|codex|…]` (TUI: `o` on a task; app: **Open in Claude Code**) runs the harness's
+  interactive CLI in the current terminal, in the task's folder (its worktree, or a fresh worktree at its base
+  commit if the folder is gone), resumed on the task's conversation.
+- **For your own task:** it resumes the harness's own session (`claude --resume <id>`, `codex resume <id>`), as v1
+  does.
+- **For a task from the repo or a share** (someone else's, another computer's): `.wisp/history/` keeps the harness's
+  **native session log** next to wisp's normalised transcript, when the harness has one (Claude Code's `.jsonl`,
+  Codex's rollout file), scrubbed and compressed. Take over restores it into the CLI's own store on this machine and
+  resumes it, so the conversation continues exactly where the original left off.
+- **Without a native log, or with a different harness** (`--in codex` on a Claude task): it starts a new CLI
+  session primed with the task's spec, report and a summary of its transcript ("you are continuing this task: …").
+  It says plainly that it's a continuation, not the same session.
+- **Afterwards:** when the CLI session ends, wisp adopts it back (ADR-0035), so what you did there becomes the task's next
+  turns and is tracked like any other. `--no-adopt` leaves it out.
+- **SDK:** `task.openIn({ agent })` returns the command line to run, for editors and scripts.
+
+## Edge cases: blame and the PR (added 2026-11-09)
+
+Each one is a test named after it.
+- `still_there_counts_the_lines_left`: a task whose commits added 4 lines, one of which a later commit rewrote, is
+  75% still there. A task whose code is all gone is 0%. A task with no known commits shows nothing, not 0%.
+- `track_finds_the_pr_through_gh`: tracking asks GitHub (through `gh`, via wisp-proc) for the PR whose head is
+  the task's branch, or whose head commit is one of its commits, and records its URL.
+- `no_pr_when_nothing_matches`: no gh, no remote, or only unrelated PRs: no PR is recorded (never a guess).
+- `a_folder_without_git_still_tracks` (ADR-0042) covers blame outside a repo.
+
+## Edge cases: offers, the mark, resume requests, injection (added 2026-11-09)
+
+Each one is a test named after it.
+- `ask_mode_offers_then_saves`: in `track: ask`, a task marked done gets `offer: true` on it (the app's **Save
+  to repo**, a `history.offer` notice); `history.save` writes it and clears the offer.
+- `manual_mode_offers_nothing`: in `track: manual`, nothing is offered or saved.
+- `the_in_repo_mark_names_the_repo_and_files`: a tracked task carries `ext["wisp.history"].tracked` (repo, store,
+  files), which the row's "in repo" mark reads.
+- `a_resume_request_waits_for_the_user`: an agent's `wisp_resume` (or `history.resumeRequest`) starts nothing; it's
+  a pending request, and asking again while it waits doesn't make a second one.
+- `a_denied_request_starts_nothing`; `an_approved_request_starts_once`: approving starts the resumed task (its
+  lineage names the old one); answering again is refused.
+- `resume_requests_survive_a_restart`: they're kept in the store.
+- `an_agent_can_ask_but_not_answer`: an agent's token may call `history.resumeRequest`, never
+  `history.resumeAnswer`.
+- `injection_is_off_by_default`; `injection_names_the_tasks_on_files_the_prompt_names`: with
+  `history: { inject: true }`, a run whose prompt names `math.js` gets the earlier tasks on it in its system
+  prompt; a prompt that names no file gets nothing.
+
+## Edge cases: Open in (added 2026-11-09)
+
+Each one is a test named after it.
+- `open_resumes_its_own_session`: `wisp open <id>` on your own task runs its harness's CLI in the task's folder,
+  resumed on its session (`claude --resume <session>`).
+- `open_restores_the_native_log_for_a_repo_task`: a task from `.wisp/` (another computer's) with a native log has
+  it restored into the CLI's store here (`runtime.restoreSession`) and resumed. A log already in the store is the
+  CLI's own and is never overwritten.
+- `open_in_another_harness_primes_a_continuation`: `--in codex` on a Claude task (or a task with no native log)
+  starts a new session primed with its spec and report, and says it's a continuation, not the same session.
+- `open_adopts_back_after`: when the CLI exits, what was done there becomes the task's next turns (ADR-0035).
+  `open_no_adopt_leaves_it` (`--no-adopt`).
+- `open_print_gives_the_command_line`: `--print` (the SDK's `task.openIn`) prints the program, args and folder as
+  JSON and runs nothing.
+- `open_an_unknown_task_says_so`.
+- `a_folder_gone_opens_at_its_base`: a task whose folder is gone opens in a fresh worktree at its base commit.

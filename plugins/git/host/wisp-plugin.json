@@ -1,0 +1,84 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.git",
+  "name": "Git",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "Git for every other plugin: repo handles (git.service@1), status, diffs from the merge-base, worktrees, staging and commits. Every git call runs async through the proc service.",
+  "server": {
+    "builtin": "wisp-git"
+  },
+  "provides": {
+    "git.service": {
+      "version": "1.0.0"
+    }
+  },
+  "permissions": [
+    "settings:read",
+    "proc:exec{bin:git}",
+    "proc:exec{bin:gh}",
+    "runtime:get",
+    "runtime:turns",
+    "git:repo",
+    "git:read",
+    "git:snapshot",
+    "git:restore",
+    "git:watch"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "settings": [
+      { "key": "git.maskEnvFiles", "type": "bool", "default": true, "title": "Hide .env values: what a task shows of a .env file (its output, edits, blocks, Changes) leaves wisp as dots until you reveal one" },
+      { "key": "git.cloneDir", "type": "string", "default": "", "title": "Where a pasted repo URL is cloned ('': the first of ~/code, ~/dev, ~/Developer, ~/projects… that exists, else ~/code)" }
+    ],
+    "commands": [
+      {
+        "id": "git.status",
+        "title": "A folder's git status",
+        "readOnly": true
+      },
+      {
+        "id": "git.changes",
+        "title": "What the work changed since its base",
+        "readOnly": true
+      },
+      {
+        "id": "git.revert",
+        "title": "Put a file or hunk back as the base had it"
+      },
+      {
+        "id": "git.stage",
+        "title": "Stage or unstage a file or hunk"
+      },
+      {
+        "id": "git.commit",
+        "title": "Commit what's staged"
+      },
+      {
+        "id": "git.tools",
+        "title": "Is git installed, and gh signed in",
+        "readOnly": true
+      },
+      {
+        "id": "git.clone",
+        "title": "Clone a repo"
+      },
+      {
+        "id": "git.origin",
+        "title": "A folder's repo (its origin), to run its task on another computer",
+        "readOnly": true
+      },
+      {
+        "id": "git.checkout",
+        "title": "This computer's checkout of a repo: one already here, else a clone"
+      },
+      {
+        "id": "git.restoreTurn",
+        "title": "Put a task's folder back as it was before one of its turns"
+      }
+    ]
+  },
+  "kind": "plugin"
+}

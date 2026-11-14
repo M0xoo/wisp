@@ -1,0 +1,13 @@
+[package]
+name = "wisp-grid-client-core"
+description = "wisp.grid-client's pure core: the tunnel's redial schedule and local headers, the device flow's interval, grid addresses and share links, sans-IO"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

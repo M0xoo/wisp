@@ -1,0 +1,91 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.connectors",
+  "name": "Connectors",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "The MCP servers agents get: the connector resource kind, what each run gets, and Settings → Connectors (add, test, import from the harnesses' configs, OAuth sign-in).",
+  "server": {
+    "builtin": "wisp-connectors"
+  },
+  "permissions": [
+    "runtime:get",
+    "secrets:read",
+    "secrets:write",
+    "net:fetch{host:*}",
+    "proc:spawn{bin:*}",
+    "store:write{owner:connectors}",
+    "fs:read{scope:home}"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "events": [
+      "connectors.agent_added",
+      "connectors.changed",
+      "connectors.works"
+    ],
+    "commands": [
+      {
+        "id": "connectors.list",
+        "title": "Every connector, the servers found in the harnesses' configs, and the reach",
+        "readOnly": true
+      },
+      {
+        "id": "connectors.add",
+        "title": "Add a connector (its secrets go to the secrets file)"
+      },
+      {
+        "id": "connectors.update",
+        "title": "Change a connector, or switch it on or off"
+      },
+      {
+        "id": "connectors.remove",
+        "title": "Remove a connector and its secrets"
+      },
+      {
+        "id": "connectors.test",
+        "title": "Start a connector and list its tools"
+      },
+      {
+        "id": "connectors.import",
+        "title": "Add servers found in the harnesses' own configs, or hide them"
+      },
+      {
+        "id": "connectors.signin",
+        "title": "Sign in to a remote connector (OAuth): the page to open"
+      },
+      {
+        "id": "connectors.oauthFinish",
+        "title": "Finish a connector's sign-in",
+        "uiOnly": "the sign-in page's callback, reached by the browser coming back"
+      },
+      {
+        "id": "connectors.signout",
+        "title": "Sign out of a connector"
+      },
+      {
+        "id": "connectors.agent.list",
+        "title": "The user's connectors, as a task's agent reads them (wisp_connectors)",
+        "readOnly": true
+      },
+      {
+        "id": "connectors.agent.add",
+        "title": "Add a connector from a task, key names only (wisp_connector_add)"
+      },
+      {
+        "id": "connectors.agent.signin",
+        "title": "What a connector needs from the user before it works (wisp_connector_signin)",
+        "readOnly": true
+      },
+      {
+        "id": "connectors.call",
+        "title": "Call one tool of a remote connector, with its own sign-in (the issue picker lists Linear and Jira through them)"
+      }
+    ],
+    "topics": [
+      "plugin:wisp.connectors:list"
+    ]
+  }
+}

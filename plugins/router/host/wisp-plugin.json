@@ -1,0 +1,62 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.router",
+  "name": "router",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Auto: picks a harness, model and effort per task (bandit), classifies limits",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_router"
+  },
+  "permissions": [
+    "telemetry:track",
+    "runtime:agents",
+    "resources:read",
+    "runtime:spec",
+    "runtime:turns",
+    "runtime:get",
+    "runtime:followUp",
+    "runtime:create",
+    "runtime:quick",
+    "runtime:setExt",
+    "store:write{owner:router}"
+  ],
+  "requires": {},
+  "provides": { "router.service": { "version": "1.0.0" } },
+  "contributes": {
+    "events": ["router.added"],
+    "commands": [
+      {
+        "id": "router.view",
+        "title": "Settings \u2192 Auto and what it learned",
+        "readOnly": true
+      },
+      {
+        "id": "router.set",
+        "title": "Change Settings \u2192 Auto"
+      },
+      {
+        "id": "router.preview",
+        "title": "What Auto would run for a prompt",
+        "readOnly": true
+      },
+      {
+        "id": "router.reset",
+        "title": "Forget what Auto learned"
+      },
+      {
+        "id": "router.signal",
+        "title": "Something happened to a routed task"
+      },
+      {
+        "id": "router.record",
+        "title": "A launch went out with a route"
+      }
+    ]
+  },
+  "migrations": "router",
+  "activation": [
+    "onStartup"
+  ]
+}

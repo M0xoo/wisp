@@ -1,0 +1,41 @@
+{
+  "lines": [
+    "~ agent/reviewer",
+    "      model: \"gpt-5\" → \"gpt-5-pro\"",
+    "+ agent/writer  (new)"
+  ],
+  "ops": [
+    {
+      "before": {
+        "effort": "high",
+        "harness": "codex",
+        "model": "gpt-5"
+      },
+      "changes": [
+        {
+          "from": "gpt-5",
+          "path": "model",
+          "to": "gpt-5-pro"
+        }
+      ],
+      "kind": "agent",
+      "name": "reviewer",
+      "op": "update",
+      "spec": {
+        "effort": "high",
+        "harness": "codex",
+        "model": "gpt-5-pro"
+      }
+    },
+    {
+      "kind": "agent",
+      "name": "writer",
+      "op": "create",
+      "spec": {
+        "harness": "claude",
+        "mode": "plan"
+      }
+    }
+  ],
+  "unchanged": 1
+}

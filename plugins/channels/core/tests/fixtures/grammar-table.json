@@ -1,0 +1,1650 @@
+{
+ "ctx": {
+  "projects": [
+   {
+    "id": "p1",
+    "name": "api",
+    "path": "/code/api"
+   },
+   {
+    "id": "p2",
+    "name": "api-gateway",
+    "path": "/code/gateway"
+   },
+   {
+    "id": "p3",
+    "name": "web",
+    "path": "/Applications/web"
+   },
+   {
+    "id": "p4",
+    "name": "mobile app",
+    "path": "/code/mobile"
+   },
+   {
+    "id": "p5",
+    "name": "ops",
+    "path": "/srv/ops",
+    "machine": "m-lap"
+   },
+   {
+    "id": "p6",
+    "name": "dark",
+    "path": "/srv/dark",
+    "machine": "m-off"
+   }
+  ],
+  "machines": [
+   {
+    "id": "m-lap",
+    "name": "laptop",
+    "kind": null,
+    "computer": false,
+    "usable": true,
+    "agents": [
+     {
+      "id": "claude",
+      "name": "Claude Code",
+      "available": true,
+      "signedIn": true,
+      "models": [
+       {
+        "id": "",
+        "label": "Default",
+        "efforts": []
+       },
+       {
+        "id": "opus",
+        "label": "Opus",
+        "efforts": []
+       },
+       {
+        "id": "sonnet",
+        "label": "Sonnet",
+        "efforts": []
+       },
+       {
+        "id": "haiku",
+        "label": "Haiku",
+        "efforts": []
+       }
+      ],
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    ]
+   },
+   {
+    "id": "m-mini",
+    "name": "mac mini",
+    "kind": null,
+    "computer": false,
+    "usable": true,
+    "agents": [
+     {
+      "id": "claude",
+      "name": "Claude Code",
+      "available": true,
+      "signedIn": true,
+      "models": [
+       {
+        "id": "",
+        "label": "Default",
+        "efforts": []
+       },
+       {
+        "id": "opus",
+        "label": "Opus",
+        "efforts": []
+       },
+       {
+        "id": "sonnet",
+        "label": "Sonnet",
+        "efforts": []
+       },
+       {
+        "id": "haiku",
+        "label": "Haiku",
+        "efforts": []
+       }
+      ],
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     },
+     {
+      "id": "codex",
+      "name": "Codex",
+      "available": true,
+      "signedIn": true,
+      "models": [
+       {
+        "id": "",
+        "label": "Default",
+        "efforts": []
+       },
+       {
+        "id": "gpt-5",
+        "label": "GPT-5",
+        "efforts": [
+         "low",
+         "high"
+        ]
+       },
+       {
+        "id": "gpt-5-mini",
+        "label": "GPT-5 mini",
+        "efforts": []
+       }
+      ],
+      "efforts": [
+       "minimal",
+       "low",
+       "medium",
+       "high",
+       "xhigh"
+      ]
+     }
+    ]
+   },
+   {
+    "id": "m-mid",
+    "name": "mid",
+    "kind": null,
+    "computer": false,
+    "usable": true,
+    "agents": [
+     {
+      "id": "claude",
+      "name": "Claude Code",
+      "available": false,
+      "signedIn": true,
+      "models": [
+       {
+        "id": "",
+        "label": "Default",
+        "efforts": []
+       },
+       {
+        "id": "opus",
+        "label": "Opus",
+        "efforts": []
+       },
+       {
+        "id": "sonnet",
+        "label": "Sonnet",
+        "efforts": []
+       },
+       {
+        "id": "haiku",
+        "label": "Haiku",
+        "efforts": []
+       }
+      ],
+      "efforts": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    ]
+   },
+   {
+    "id": "m-off",
+    "name": "desktop",
+    "kind": null,
+    "computer": false,
+    "usable": false,
+    "agents": null
+   },
+   {
+    "id": "m-cloud",
+    "name": "my cloud",
+    "kind": "grid",
+    "computer": false,
+    "usable": true,
+    "agents": null
+   }
+  ],
+  "agents": [
+   {
+    "id": "claude",
+    "name": "Claude Code",
+    "available": true,
+    "signedIn": true,
+    "models": [
+     {
+      "id": "",
+      "label": "Default",
+      "efforts": []
+     },
+     {
+      "id": "opus",
+      "label": "Opus",
+      "efforts": []
+     },
+     {
+      "id": "sonnet",
+      "label": "Sonnet",
+      "efforts": []
+     },
+     {
+      "id": "haiku",
+      "label": "Haiku",
+      "efforts": []
+     }
+    ],
+    "efforts": [
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max"
+    ]
+   },
+   {
+    "id": "cursor-agent",
+    "name": "Cursor",
+    "available": true,
+    "signedIn": true,
+    "models": [
+     {
+      "id": "",
+      "label": "Default",
+      "efforts": []
+     },
+     {
+      "id": "sonnet",
+      "label": "Sonnet",
+      "efforts": []
+     },
+     {
+      "id": "opus-max",
+      "label": "Opus Max",
+      "efforts": []
+     }
+    ],
+    "efforts": []
+   },
+   {
+    "id": "opencode",
+    "name": "OpenCode",
+    "available": false,
+    "signedIn": false,
+    "models": [
+     {
+      "id": "anthropic/claude-sonnet",
+      "label": "Claude Sonnet",
+      "efforts": []
+     }
+    ],
+    "efforts": []
+   }
+  ],
+  "adapters": [
+   {
+    "id": "claude",
+    "name": "Claude Code",
+    "available": true,
+    "signedIn": true,
+    "models": [
+     {
+      "id": "",
+      "label": "Default",
+      "efforts": []
+     },
+     {
+      "id": "opus",
+      "label": "Opus",
+      "efforts": []
+     },
+     {
+      "id": "sonnet",
+      "label": "Sonnet",
+      "efforts": []
+     },
+     {
+      "id": "haiku",
+      "label": "Haiku",
+      "efforts": []
+     }
+    ],
+    "efforts": [
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max"
+    ]
+   },
+   {
+    "id": "codex",
+    "name": "Codex",
+    "available": true,
+    "signedIn": true,
+    "models": [
+     {
+      "id": "",
+      "label": "Default",
+      "efforts": []
+     }
+    ],
+    "efforts": [
+     "minimal",
+     "low",
+     "medium",
+     "high",
+     "xhigh"
+    ]
+   },
+   {
+    "id": "cursor-agent",
+    "name": "Cursor",
+    "available": true,
+    "signedIn": true,
+    "models": [
+     {
+      "id": "",
+      "label": "Default",
+      "efforts": []
+     },
+     {
+      "id": "sonnet",
+      "label": "Sonnet",
+      "efforts": []
+     },
+     {
+      "id": "opus-max",
+      "label": "Opus Max",
+      "efforts": []
+     }
+    ],
+    "efforts": []
+   },
+   {
+    "id": "opencode",
+    "name": "OpenCode",
+    "available": false,
+    "signedIn": false,
+    "models": [
+     {
+      "id": "anthropic/claude-sonnet",
+      "label": "Claude Sonnet",
+      "efforts": []
+     }
+    ],
+    "efforts": []
+   },
+   {
+    "id": "wisp",
+    "name": "wisp",
+    "available": true,
+    "signedIn": true,
+    "models": [],
+    "efforts": []
+   }
+  ],
+  "crew": [
+   {
+    "id": "adaaaa",
+    "name": "Ada",
+    "agent": "claude",
+    "model": "sonnet",
+    "mode": "edits",
+    "cwd": "/code/api",
+    "machine": "",
+    "sandbox": false
+   },
+   {
+    "id": "boooob",
+    "name": "Bo",
+    "agent": "codex",
+    "model": null,
+    "mode": "plan",
+    "cwd": "/code/gateway",
+    "machine": "m-mini",
+    "sandbox": false
+   },
+   {
+    "id": "moooom",
+    "name": "Mo Auto",
+    "agent": "auto",
+    "model": null,
+    "mode": "auto",
+    "cwd": "",
+    "machine": "",
+    "sandbox": false
+   },
+   {
+    "id": "dottie",
+    "name": "Dot",
+    "agent": "claude",
+    "model": null,
+    "mode": "plan",
+    "cwd": "/srv/dark",
+    "machine": "m-off",
+    "sandbox": false
+   },
+   {
+    "id": "sammmm",
+    "name": "Sam",
+    "agent": "claude",
+    "model": null,
+    "mode": "plan",
+    "cwd": "",
+    "machine": "",
+    "sandbox": true
+   }
+  ],
+  "goals": [
+   "cheap",
+   "balanced",
+   "best"
+  ],
+  "defaultProject": {
+   "id": "p1",
+   "name": "api",
+   "path": "/code/api"
+  },
+  "defaultAgent": "claude",
+  "sandbox": true,
+  "tasks": [],
+  "exact": false
+ },
+ "rows": [
+  {
+   "text": "@ada in api on here with opus high plan: fix the flaky login test",
+   "want": {
+    "crew": "Ada",
+    "project": "api",
+    "machine": "",
+    "model": "opus",
+    "effort": "high",
+    "mode": "plan",
+    "prompt": "fix the flaky login test"
+   }
+  },
+  {
+   "text": "in api on laptop with opus high plan: fix the flaky login test",
+   "want": {
+    "project": "api",
+    "machine": "m-lap",
+    "agent": "claude",
+    "model": "opus",
+    "effort": "high",
+    "mode": "plan",
+    "prompt": "fix the flaky login test"
+   }
+  },
+  {
+   "text": "fix the flaky login test",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "#web plan: fix the header",
+   "want": {
+    "project": "web",
+    "mode": "plan",
+    "prompt": "fix the header"
+   }
+  },
+  {
+   "text": "#web fix the header",
+   "want": {
+    "project": "web",
+    "mode": null,
+    "prompt": "fix the header"
+   }
+  },
+  {
+   "text": "in web fix the header",
+   "want": {
+    "project": "web",
+    "prompt": "fix the header"
+   }
+  },
+  {
+   "text": "on laptop fix the header",
+   "want": {
+    "machine": "m-lap",
+    "prompt": "fix the header"
+   }
+  },
+  {
+   "text": "with sonnet fix the header",
+   "want": {
+    "agent": "claude",
+    "model": "sonnet",
+    "prompt": "fix the header"
+   }
+  },
+  {
+   "text": "with claude sonnet high: fix it",
+   "want": {
+    "agent": "claude",
+    "model": "sonnet",
+    "effort": "high",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with opus, fix it",
+   "want": {
+    "model": "opus",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "edits: tidy the readme",
+   "want": {
+    "mode": "edits",
+    "prompt": "tidy the readme"
+   }
+  },
+  {
+   "text": "Plan: tidy the readme",
+   "want": {
+    "mode": "plan",
+    "prompt": "tidy the readme"
+   }
+  },
+  {
+   "text": "PLAN : tidy the readme",
+   "want": {
+    "mode": "plan",
+    "prompt": "tidy the readme"
+   }
+  },
+  {
+   "text": "in api: fix it",
+   "want": {
+    "project": "api",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "on laptop: fix it",
+   "want": {
+    "machine": "m-lap",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "in mobile app fix the menu",
+   "want": {
+    "project": "mobile app",
+    "prompt": "fix the menu"
+   }
+  },
+  {
+   "text": "on mac mini with gpt-5 high fix it",
+   "want": {
+    "machine": "m-mini",
+    "agent": "codex",
+    "model": "gpt-5",
+    "effort": "high",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "/new in api fix it",
+   "want": {
+    "command": "new",
+    "project": "api",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "/new @web fix it",
+   "want": {
+    "command": "new",
+    "project": "web",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "/new fix it",
+   "want": {
+    "command": "new",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "@web fix it",
+   "want": {
+    "project": "web",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "plan the migration to postgres",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "edits to the readme look wrong, fix them",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "#api plan the migration",
+   "want": {
+    "project": "api",
+    "mode": "plan",
+    "prompt": "the migration"
+   }
+  },
+  {
+   "text": "with opus edits the readme",
+   "want": {
+    "model": "opus",
+    "mode": "edits",
+    "prompt": "the readme"
+   }
+  },
+  {
+   "text": "planning the migration is next",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "in app, the button is wrong",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“in app”"
+    }
+   }
+  },
+  {
+   "text": "in applications the icon is off",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“in applications”"
+    }
+   }
+  },
+  {
+   "text": "in gateway fix it",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“in gateway”"
+    }
+   }
+  },
+  {
+   "text": "in mob fix it",
+   "want": {
+    "project": "mobile app",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "in web fix it",
+   "want": {
+    "project": "web",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "#gateway fix it",
+   "want": {
+    "project": "api-gateway",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "#appl fix it",
+   "want": {
+    "project": "web",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "@gateway fix it",
+   "want": {
+    "project": "api-gateway",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "in a minute restart the server",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“in a”"
+    }
+   }
+  },
+  {
+   "text": "on the login page the button is wrong",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“on the”"
+    }
+   }
+  },
+  {
+   "text": "on my phone the header overlaps",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“on my”"
+    }
+   }
+  },
+  {
+   "text": "in ap fix it",
+   "want": {
+    "no": "ambiguous",
+    "choices": [
+     "api",
+     "api-gateway"
+    ]
+   }
+  },
+  {
+   "text": "in api fix it",
+   "want": {
+    "project": "api",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "in api-g fix it",
+   "want": {
+    "project": "api-gateway",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "on nothere: fix it",
+   "want": {
+    "no": "no-match",
+    "choices": [
+     "laptop",
+     "mac mini",
+     "mid",
+     "desktop",
+     "my cloud"
+    ]
+   }
+  },
+  {
+   "text": "in nothere: fix it",
+   "want": {
+    "no": "no-match",
+    "choices": [
+     "api",
+     "api-gateway",
+     "web",
+     "mobile app",
+     "ops",
+     "dark"
+    ]
+   }
+  },
+  {
+   "text": "on nothere with opus: fix it",
+   "want": {
+    "no": "no-match"
+   }
+  },
+  {
+   "text": "on nothere plan: fix it",
+   "want": {
+    "no": "no-match"
+   }
+  },
+  {
+   "text": "on nothere fix it",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“on nothere” isn’t one of your machines"
+    }
+   }
+  },
+  {
+   "text": "in nothere fix it: now",
+   "want": {
+    "same": true,
+    "note": {
+     "re": "“in nothere” isn’t one of your projects"
+    }
+   }
+  },
+  {
+   "text": ": on nothere: fix it",
+   "want": {
+    "crew": null,
+    "project": null,
+    "machine": null,
+    "agent": null,
+    "model": null,
+    "effort": null,
+    "mode": null,
+    "prompt": "on nothere: fix it"
+   }
+  },
+  {
+   "text": ": plan the migration",
+   "want": {
+    "crew": null,
+    "project": null,
+    "machine": null,
+    "agent": null,
+    "model": null,
+    "effort": null,
+    "mode": null,
+    "prompt": "plan the migration"
+   }
+  },
+  {
+   "text": ":in api fix it",
+   "want": {
+    "crew": null,
+    "project": null,
+    "machine": null,
+    "agent": null,
+    "model": null,
+    "effort": null,
+    "mode": null,
+    "prompt": "in api fix it"
+   }
+  },
+  {
+   "text": "：@ada fix it",
+   "want": {
+    "crew": null,
+    "project": null,
+    "machine": null,
+    "agent": null,
+    "model": null,
+    "effort": null,
+    "mode": null,
+    "prompt": "@ada fix it"
+   }
+  },
+  {
+   "text": ": help",
+   "want": {
+    "crew": null,
+    "project": null,
+    "machine": null,
+    "agent": null,
+    "model": null,
+    "effort": null,
+    "mode": null,
+    "command": null,
+    "prompt": "help"
+   }
+  },
+  {
+   "text": "with care fix it",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "with a test for login, fix it",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "with high priority fix the login",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "with gpt-5 fix it",
+   "want": {
+    "no": "not-installed"
+   }
+  },
+  {
+   "text": "with gpt-9 fix it",
+   "want": {
+    "no": "not-installed"
+   }
+  },
+  {
+   "text": "with codex fix it",
+   "want": {
+    "no": "not-installed",
+    "choices": [
+     "Claude Code",
+     "Cursor"
+    ]
+   }
+  },
+  {
+   "text": "with opencode fix it",
+   "want": {
+    "no": "not-installed",
+    "text": {
+     "re": "isn’t signed in"
+    }
+   }
+  },
+  {
+   "text": "on laptop with gpt-5 fix it",
+   "want": {
+    "no": "not-installed"
+   }
+  },
+  {
+   "text": "on laptop with cursor fix it",
+   "want": {
+    "no": "not-installed"
+   }
+  },
+  {
+   "text": "on mid with claude fix it",
+   "want": {
+    "no": "not-installed",
+    "text": {
+     "re": "on mid"
+    }
+   }
+  },
+  {
+   "text": "on mac with codex fix it",
+   "want": {
+    "machine": "m-mini",
+    "agent": "codex",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "on mini with codex fix it",
+   "want": {
+    "note": {
+     "re": "“on mini”"
+    },
+    "prompt": "on mini with codex fix it"
+   }
+  },
+  {
+   "text": "with opus-max fix it",
+   "want": {
+    "agent": "cursor-agent",
+    "model": "opus-max",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with son fix it",
+   "want": {
+    "agent": "claude",
+    "model": "sonnet",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with sonnet fix it",
+   "want": {
+    "agent": "claude",
+    "model": "sonnet",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with cursor sonnet fix it",
+   "want": {
+    "agent": "cursor-agent",
+    "model": "sonnet",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with Opus Max fix it",
+   "want": {
+    "model": "opus",
+    "effort": "max",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with opus ultra fix it",
+   "want": {
+    "model": "opus",
+    "prompt": "ultra fix it"
+   }
+  },
+  {
+   "text": "with cursor sonnet high fix it",
+   "want": {
+    "no": "not-installed",
+    "text": {
+     "re": "thinking level"
+    }
+   }
+  },
+  {
+   "text": "with opus minimal fix it",
+   "want": {
+    "no": "not-installed",
+    "choices": [
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max"
+    ]
+   }
+  },
+  {
+   "text": "with high: fix it",
+   "want": {
+    "effort": "high",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "full auto: fix it",
+   "want": {
+    "mode": "auto",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "#api full auto fix it",
+   "want": {
+    "project": "api",
+    "mode": "auto",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with opus full auto: fix it",
+   "want": {
+    "mode": "auto",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "full auto mode is broken, fix it",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "with auto fix it",
+   "want": {
+    "agent": "auto",
+    "model": null,
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with auto cheap fix it",
+   "want": {
+    "agent": "auto",
+    "model": "cheap",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with auto best: fix it",
+   "want": {
+    "agent": "auto",
+    "model": "best",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "with auto high fix it",
+   "want": {
+    "no": "refused",
+    "choices": [
+     "cheap",
+     "balanced",
+     "best"
+    ]
+   }
+  },
+  {
+   "text": "on laptop with auto cheap fix it",
+   "want": {
+    "machine": "m-lap",
+    "agent": "auto",
+    "model": "cheap",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "help",
+   "want": {
+    "command": "help",
+    "prompt": ""
+   }
+  },
+  {
+   "text": "Help?",
+   "want": {
+    "command": "help",
+    "prompt": ""
+   }
+  },
+  {
+   "text": "/help",
+   "want": {
+    "command": "help"
+   }
+  },
+  {
+   "text": "/start",
+   "want": {
+    "command": "help"
+   }
+  },
+  {
+   "text": "projects",
+   "want": {
+    "command": "projects"
+   }
+  },
+  {
+   "text": "/projects",
+   "want": {
+    "command": "projects"
+   }
+  },
+  {
+   "text": "models",
+   "want": {
+    "command": "models"
+   }
+  },
+  {
+   "text": "models on laptop",
+   "want": {
+    "command": "models",
+    "arg": "laptop"
+   }
+  },
+  {
+   "text": "models laptop",
+   "want": {
+    "command": "models",
+    "arg": "laptop"
+   }
+  },
+  {
+   "text": "/models mac mini",
+   "want": {
+    "command": "models",
+    "arg": "mac mini"
+   }
+  },
+  {
+   "text": "crew",
+   "want": {
+    "command": "crew"
+   }
+  },
+  {
+   "text": "machines",
+   "want": {
+    "command": "machines"
+   }
+  },
+  {
+   "text": "status",
+   "want": {
+    "command": "status"
+   }
+  },
+  {
+   "text": "stop",
+   "want": {
+    "command": "stop"
+   }
+  },
+  {
+   "text": "done",
+   "want": {
+    "command": "done"
+   }
+  },
+  {
+   "text": "/bogus",
+   "want": {
+    "no": "unknown"
+   }
+  },
+  {
+   "text": "help me fix the login",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "models are slow, fix the cache",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "status page is down",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "stop the deploy script from crashing",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "on desktop fix it",
+   "want": {
+    "no": "offline",
+    "choices": [
+     "laptop",
+     "mac mini",
+     "mid",
+     "my cloud"
+    ]
+   }
+  },
+  {
+   "text": "on desktop with opus fix it",
+   "want": {
+    "no": "offline",
+    "text": {
+     "re": "^desktop is offline"
+    }
+   }
+  },
+  {
+   "text": "in dark fix it",
+   "want": {
+    "no": "offline"
+   }
+  },
+  {
+   "text": "on my cloud with opus fix it",
+   "want": {
+    "machine": "m-cloud",
+    "agent": "claude",
+    "model": "opus",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "on cloud fix it",
+   "want": {
+    "machine": "m-cloud",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "on sandbox fix it",
+   "want": {
+    "machine": "sandbox",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "on here fix it",
+   "want": {
+    "machine": "",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "on this computer fix it",
+   "want": {
+    "machine": "",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "in ops with sonnet fix it",
+   "want": {
+    "project": "ops",
+    "model": "sonnet",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "in ops with gpt-5 fix it",
+   "want": {
+    "no": "not-installed",
+    "text": {
+     "re": "on laptop"
+    }
+   }
+  },
+  {
+   "text": "@ada fix it",
+   "want": {
+    "crew": "Ada",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "@Ada: fix it",
+   "want": {
+    "crew": "Ada",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "@mo-auto fix it",
+   "want": {
+    "crew": "Mo Auto",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "@Mo Auto fix it",
+   "want": {
+    "crew": "Mo Auto",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "@ada @bo fix it",
+   "want": {
+    "crew": "Ada",
+    "tagged": [
+     "Bo"
+    ],
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "@ada fix it with @bo",
+   "want": {
+    "crew": "Ada",
+    "tagged": [
+     "Bo"
+    ],
+    "prompt": "fix it with @bo"
+   }
+  },
+  {
+   "text": "fix it with @bo",
+   "want": {
+    "crew": null,
+    "tagged": [
+     "Bo"
+    ],
+    "prompt": "fix it with @bo"
+   }
+  },
+  {
+   "text": "@nobody fix it",
+   "want": {
+    "no": "no-match",
+    "text": {
+     "re": "“nobody”"
+    }
+   }
+  },
+  {
+   "text": "#nowhere fix it",
+   "want": {
+    "no": "no-match",
+    "text": {
+     "re": "“nowhere”"
+    }
+   }
+  },
+  {
+   "text": "@types/node needs upgrading",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "#123 is broken, fix it",
+   "want": {
+    "same": true
+   }
+  },
+  {
+   "text": "@ada plan: look at it",
+   "want": {
+    "crew": "Ada",
+    "mode": "plan",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@ada with opus high: look at it",
+   "want": {
+    "crew": "Ada",
+    "agent": null,
+    "model": "opus",
+    "effort": "high",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@ada with claude opus: look at it",
+   "want": {
+    "crew": "Ada",
+    "agent": null,
+    "model": "opus",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@ada with codex look at it",
+   "want": {
+    "no": "refused",
+    "text": {
+     "re": "can’t change harness"
+    }
+   }
+  },
+  {
+   "text": "@ada with auto look at it",
+   "want": {
+    "no": "refused",
+    "text": {
+     "re": "can’t change harness"
+    }
+   }
+  },
+  {
+   "text": "@ada with gpt-5 look at it",
+   "want": {
+    "no": "not-installed"
+   }
+  },
+  {
+   "text": "@mo-auto with opus look at it",
+   "want": {
+    "no": "refused",
+    "text": {
+     "re": "on Auto"
+    }
+   }
+  },
+  {
+   "text": "@mo-auto plan: look at it",
+   "want": {
+    "crew": "Mo Auto",
+    "mode": "plan",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@ada in web look at it",
+   "want": {
+    "no": "refused",
+    "text": {
+     "re": "can’t move them to web"
+    }
+   }
+  },
+  {
+   "text": "@ada in api look at it",
+   "want": {
+    "crew": "Ada",
+    "project": "api",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@ada on laptop look at it",
+   "want": {
+    "no": "refused",
+    "text": {
+     "re": "can’t move them to laptop"
+    }
+   }
+  },
+  {
+   "text": "@ada on here look at it",
+   "want": {
+    "crew": "Ada",
+    "machine": "",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@bo on mac look at it",
+   "want": {
+    "crew": "Bo",
+    "machine": "m-mini",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@bo with gpt-5 high: look at it",
+   "want": {
+    "crew": "Bo",
+    "model": "gpt-5",
+    "effort": "high",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "@dot with opus look at it",
+   "want": {
+    "no": "offline"
+   }
+  },
+  {
+   "text": "@sam on sandbox with opus: look at it",
+   "want": {
+    "crew": "Sam",
+    "machine": "sandbox",
+    "model": "opus",
+    "prompt": "look at it"
+   }
+  },
+  {
+   "text": "**in api** fix it",
+   "want": {
+    "same": false,
+    "project": "api",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "*plan*: fix it",
+   "want": {
+    "mode": "plan",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "**plan:** fix it",
+   "want": {
+    "mode": "plan",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "`#api` fix it",
+   "want": {
+    "project": "api",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "_@ada_ fix it",
+   "want": {
+    "crew": "Ada",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "#api fix `__init__.py` and **bold**",
+   "want": {
+    "project": "api",
+    "prompt": "fix `__init__.py` and **bold**"
+   }
+  },
+  {
+   "text": "in api：fix it",
+   "want": {
+    "project": "api",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "#api\nfix it\non two lines",
+   "want": {
+    "project": "api",
+    "prompt": "fix it\non two lines"
+   }
+  },
+  {
+   "text": "with opus\nplan: fix it",
+   "want": {
+    "model": "opus",
+    "mode": "plan",
+    "prompt": "fix it"
+   }
+  },
+  {
+   "text": "",
+   "want": {
+    "prompt": "",
+    "crew": null,
+    "project": null,
+    "machine": null,
+    "agent": null,
+    "model": null,
+    "effort": null,
+    "mode": null
+   }
+  },
+  {
+   "text": "   ",
+   "want": {
+    "prompt": ""
+   }
+  }
+ ]
+}

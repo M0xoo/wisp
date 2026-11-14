@@ -1,0 +1,23 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "mode": "auto",
+    "model": "m-1"
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--trust",
+    "--force",
+    "--model",
+    "m-1"
+  ]
+}

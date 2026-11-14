@@ -1,0 +1,12 @@
+── 80 plain
+◫ Login <http://localhost:5173/login>
+  try five wrong passwords
+── 40 plain
+◫ Login <http://localhost:5173/login>
+  try five wrong passwords
+── 80 colour
+␛[34m◫␛[0m ␛]8;;http://localhost:5173/login␛\␛[4m␛[1mLogin␛[0m␛[0m␛]8;;␛\
+  try five wrong passwords
+── 40 colour
+␛[34m◫␛[0m ␛]8;;http://localhost:5173/login␛\␛[4m␛[1mLogin␛[0m␛[0m␛]8;;␛\
+  try five wrong passwords

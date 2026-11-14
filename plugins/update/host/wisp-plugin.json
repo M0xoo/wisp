@@ -1,0 +1,25 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.update",
+  "name": "Updates",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.update: a newer wisp, checked daily (npm dist-tags or GitHub Releases), and installed with npm or Homebrew",
+  "server": {
+    "builtin": "wisp-update"
+  },
+  "permissions": ["telemetry:track", "runtime:list", "net:connect{host:registry.npmjs.org}", "net:connect{host:api.github.com}", "proc:exec{bin:sh}", "proc:exec{bin:cmd}", "proc:exec{bin:powershell}", "store:write{owner:update}", "settings:read"],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      { "id": "update.check", "title": "Check for a newer wisp now" },
+      { "id": "update.install", "title": "Install the newer wisp" },
+      { "id": "update.view", "title": "This wisp's version, and the newest one", "readOnly": true }
+    ],
+    "settings": [
+      { "key": "update.updateChannel", "type": "enum", "values": ["stable", "beta", "nightly"], "default": "stable", "title": "Update channel" }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+[package]
+name = "wisp-learn-core"
+description = "wisp.learn pure logic, sans-IO: no tokio, fs, net or clock (preferences learned from retros)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+wisp-learn-api.workspace = true
+
+[lints]
+workspace = true

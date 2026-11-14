@@ -1,0 +1,54 @@
+wispTask: 1
+id: 01a1bbd876c09aec3cd02ab27a645c30
+title: "all 42 runtime commands (asks, approvals, btw, compact, rerun, fork, delegate, quick, sign-in) (+7 more)"
+createdAt: 1794152888000
+level: spec
+trackedBy: backfill (git history)
+backfilled: true
+spec:
+  prompt: "The v2 rewrite, one coder job (backfilled from git; the lead committed it by concern):\n- feat(v2 runtime): all 42 runtime commands (asks, approvals, btw, compact, rerun, fork, delegate, quick, sign-in)\n- feat(v2 stuff): My Stuff wired, 17 commands, apps' SQLite\n- feat(v2 worktrees): starts on a runtime-backed port\n- feat(v2 mcp, router, crew): MCP server, Auto, crew scheduler\n- feat(v2 kernel): Ctx::run_json\n- test(v2): serve e2e flows (follow-up, queue+stop, ask, My Stuff, MCP, crew)\n- fix(v2 desktop): version source\n- chore(v2): remaining coder changes"
+  agent: claude
+commits:
+  - a1f44024ef410d2ec2077f11625140c7199692ad
+  - bf9de334db8861cebb7a4320ae092b6916b5fe5e
+  - 2e85edf131bfeda7576316a3a56fb23c9595aee1
+  - 142996e3760076a9e7235e8fab09aae14026fec9
+  - 65756917549f8c0bad00124c109db2865825216c
+  - 8a68a211b134cde4455649ecc2d3e8e29b60517c
+  - 9404625bf75e851659555971ccf26ed27dd9c9cf
+  - 405ce1723ee2b5187533aaa6a844f5a9eda6616a
+files:
+  - "Cargo.lock"
+  - "crates/wisp-kernel/capabilities.json"
+  - "crates/wisp-kernel/src/host.rs"
+  - "crates/wisp/tests/serve_task.rs"
+  - "desktop/src-tauri/tauri.conf.json"
+  - "plugins/crew/api/bindings/crew/MemberChanged.ts"
+  - "plugins/crew/api/src/events.rs"
+  - "plugins/crew/host/Cargo.toml"
+  - "plugins/crew/host/src/jobs.rs"
+  - "plugins/crew/host/src/lib.rs"
+  - "plugins/crew/host/wisp-plugin.json"
+  - "plugins/mcp/host/src/lib.rs"
+  - "plugins/mcp/host/src/run.rs"
+  - "plugins/mcp/host/wisp-plugin.json"
+  - "plugins/router/host/src/lib.rs"
+  - "plugins/router/host/wisp-plugin.json"
+  - "plugins/runtime/host/src/lib.rs"
+  - "plugins/runtime/host/src/more.rs"
+  - "plugins/runtime/host/src/plugin.rs"
+  - "plugins/runtime/host/src/run.rs"
+  - "plugins/runtime/host/src/runtime.rs"
+  - "plugins/runtime/host/src/side.rs"
+  - "plugins/runtime/host/wisp-plugin.json"
+  - "plugins/stuff/host/src/agent.rs"
+  - "plugins/stuff/host/src/appdb.rs"
+  - "plugins/stuff/host/src/commands.rs"
+  - "plugins/stuff/host/src/lib.rs"
+  - "plugins/stuff/host/src/ports.rs"
+  - "plugins/stuff/host/src/save.rs"
+  - "plugins/stuff/host/src/shelf.rs"
+  - "plugins/worktrees/host/Cargo.toml"
+  - "plugins/worktrees/host/src/lib.rs"
+  - "plugins/worktrees/host/src/runtime_port.rs"
+  - "plugins/worktrees/host/wisp-plugin.json"

@@ -1,0 +1,123 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.accounts",
+  "name": "Accounts",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.accounts host: accounts, sign-in, harness watch (before:run), harness disk, live limits, usage, allowance",
+  "server": {
+    "builtin": "wisp-accounts"
+  },
+  "permissions": [
+    "runtime:agents",
+    "runtime:release",
+    "runtime:signInDone",
+    "store:write{owner:accounts}",
+    "telemetry:track",
+    "git:read",
+    "machines:recheckAgents",
+    "store:write{owner:accounts_view}"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "accounts.list",
+        "title": "A harness's accounts",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.harnesses",
+        "title": "Every harness that can have several accounts, with its watch",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.add",
+        "title": "Add another account"
+      },
+      {
+        "id": "accounts.update",
+        "title": "Rename, set the kind, or move an account"
+      },
+      {
+        "id": "accounts.remove",
+        "title": "Sign an account out and forget it"
+      },
+      {
+        "id": "accounts.watch",
+        "title": "What wisp pinned of a harness's program",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.watch.trust",
+        "title": "Trust this version of a harness"
+      },
+      {
+        "id": "accounts.watch.ask",
+        "title": "Ask before running a changed harness"
+      },
+      {
+        "id": "accounts.login",
+        "title": "A sign-in as it stands",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.login.start",
+        "title": "Sign in with the CLI's own login"
+      },
+      {
+        "id": "accounts.login.input",
+        "title": "Paste back the sign-in code"
+      },
+      {
+        "id": "accounts.login.cancel",
+        "title": "Stop a sign-in"
+      },
+      {
+        "id": "accounts.login.status",
+        "title": "Signed in, and as whom",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.logout",
+        "title": "Sign out with the CLI's own sign-out"
+      },
+      {
+        "id": "accounts.keys",
+        "title": "Which providers have an API key",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.keys.set",
+        "title": "Save a provider's API key"
+      },
+      {
+        "id": "accounts.keys.remove",
+        "title": "Remove a provider's API key"
+      },
+      {
+        "id": "accounts.keys.test",
+        "title": "Test a provider's API key"
+      },
+      {
+        "id": "accounts.install",
+        "title": "Install a harness wisp can install itself"
+      },
+      {
+        "id": "accounts.recheck",
+        "title": "Detect every harness again"
+      },
+      {
+        "id": "accounts.cool",
+        "title": "Mark an account at its usage limit until its reset (launches you start skip it)"
+      },
+      {
+        "id": "accounts.limits",
+        "title": "Read an account's usage windows",
+        "readOnly": true
+      }
+    ]
+  }
+}

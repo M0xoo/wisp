@@ -1,0 +1,26 @@
+── 80 plain
+✗ 48 passed · 1 failed · 2 skipped · 5.3s
+  $ npm test
+  ✗ auth > rejects expired token
+    expected 401, got 500
+    test/auth.test.ts:42
+── 40 plain
+✗ 48 passed · 1 failed · 2 skipped ·
+5.3s
+  $ npm test
+  ✗ auth > rejects expired token
+    expected 401, got 500
+    test/auth.test.ts:42
+── 80 colour
+␛[31m✗␛[0m ␛[32m48 passed␛[0m · ␛[31m1 failed␛[0m · ␛[2m2 skipped␛[0m · ␛[2m5.3s␛[0m
+␛[2m  $ npm test␛[0m
+  ␛[31m✗␛[0m auth > rejects expired token
+    expected 401, got 500
+␛[2m    test/auth.test.ts:42␛[0m
+── 40 colour
+␛[31m✗␛[0m ␛[32m48 passed␛[0m · ␛[31m1 failed␛[0m · ␛[2m2 skipped␛[0m ·
+␛[2m5.3s␛[0m
+␛[2m  $ npm test␛[0m
+  ␛[31m✗␛[0m auth > rejects expired token
+    expected 401, got 500
+␛[2m    test/auth.test.ts:42␛[0m

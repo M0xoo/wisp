@@ -1,0 +1,17 @@
+[package]
+name = "wisp-events-api"
+description = "the contract of wisp.events: reading the durable event log (tail, why, retry, the catalogue) and the events.sink@1 point"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

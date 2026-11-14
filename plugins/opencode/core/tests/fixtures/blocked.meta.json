@@ -1,0 +1,22 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": "\u001b[93m\u001b[1m! \u001b[0mpermission requested: bash (npm publish); auto-rejecting\n"
+  },
+  "opts": {
+    "prompt": "BLOCKED publish it"
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "note": "run auto-rejects npm publish and says so on stderr",
+  "argv": [
+    "run",
+    "--format",
+    "json",
+    "--print-logs",
+    "--log-level",
+    "ERROR"
+  ]
+}

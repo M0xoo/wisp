@@ -1,0 +1,9 @@
+[
+ {
+  "type": "result",
+  "isError": true,
+  "stopped": false,
+  "text": "Too many active sessions: you are signed in on too many devices.",
+  "stats": {}
+ }
+]

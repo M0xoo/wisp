@@ -1,0 +1,77 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.budget",
+  "name": "budget",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "usage windows, Automations stop at, banked resets, the before:run budget guard, compare metrics",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_budget"
+  },
+  "permissions": [
+    "runtime:release",
+    "runtime:turn.setExt",
+    "runtime:get",
+    "accounts:read",
+    "channels:send",
+    "store:write{owner:budget}"
+  ],
+  "requires": {
+    "wisp.runtime": "^2"
+  },
+  "provides": {},
+  "contributes": {
+    "settings": [
+      { "key": "budget.drainWatch", "type": "bool", "default": false, "title": "Drain watch: tell the phone when a plan moves much faster than usual for the same work" },
+      { "key": "budget.limitHold", "type": "enum", "values": ["off", "80", "90", "95"], "default": "90", "title": "Ask near the limit: before a task would take a usage window past this percent, ask first (automations wait for the reset)" },
+      { "key": "budget.liveLimits", "type": "bool", "default": false, "title": "Check Codex while work waits: read its usage every 10 minutes while work waits for its plan (spends nothing)" },
+      { "key": "budget.spareCard", "type": "bool", "default": true, "title": "Spare allowance: say on home when a weekly window resets within a day with a fifth or more left" },
+      { "key": "budget.windowNotice", "type": "bool", "default": true, "title": "Window notices: say when a usage window changed length or resets early" }
+    ],
+    "events": ["budget.changed", "budget.drain", "budget.plan_free", "budget.reset", "budget.share"],
+    "commands": [
+      {
+        "id": "budget.view",
+        "title": "An account's usage windows",
+        "readOnly": true
+      },
+      {
+        "id": "budget.compare",
+        "title": "Tokens per turn by account, per model",
+        "readOnly": true
+      },
+      {
+        "id": "budget.planWindows",
+        "title": "Each usage window this period and the tasks' parts of it",
+        "readOnly": true
+      },
+      {
+        "id": "budget.hold",
+        "title": "What holds an account's unattended work",
+        "readOnly": true
+      },
+      {
+        "id": "budget.resetAt",
+        "title": "When an account at its usage limit can run again",
+        "readOnly": true
+      },
+      {
+        "id": "budget.record",
+        "title": "Record an account's usage windows"
+      },
+      {
+        "id": "budget.dismissDrain",
+        "title": "Drain watch: hide an account window's card until a later run shows it again"
+      },
+      {
+        "id": "budget.dismissNotice",
+        "title": "Hide a window's notice until that window changes again"
+      },
+      {
+        "id": "budget.setStop",
+        "title": "Automations stop at"
+      }
+    ]
+  }
+}

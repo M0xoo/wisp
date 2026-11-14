@@ -1,0 +1,9 @@
+{"type":"thread.started","thread_id":"prev-1"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"i0","type":"command_execution","command":"/bin/bash -lc 'npm test'","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"i0","type":"command_execution","command":"npm test","exit_code":1,"aggregated_output":"1 failing","status":"failed"}}
+{"type":"item.started","item":{"id":"i3","type":"command_execution","command":"/bin/bash -lc 'git status --short'","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"i3","type":"command_execution","command":"/bin/bash -lc 'git status --short'","exit_code":0,"aggregated_output":" M math.js","status":"completed"}}
+{"type":"item.completed","item":{"id":"i1","type":"file_change","changes":[{"path":"@CWD@/math.js","kind":"update"},{"path":"notes.txt","kind":"add"}],"status":"completed"}}
+{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake codex finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"}}
+{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":5}}

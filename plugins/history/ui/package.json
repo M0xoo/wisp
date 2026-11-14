@@ -1,0 +1,25 @@
+{
+  "name": "@wisp-plugin/history-ui",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wisp/client": "*",
+    "@wisp/protocol": "*",
+    "@wisp/shell": "*",
+    "@wisp/ui": "*",
+    "solid-js": "^1.9.18"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.4",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^4.1.0"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

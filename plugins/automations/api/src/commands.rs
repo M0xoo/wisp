@@ -1,0 +1,342 @@
+//! wisp.automations' commands. Reads are `automations:read` (read-only), writes `automations:write`,
+//! Run now and running a recipe `automations:run`. The crew's calls (`syncMember` and friends) are
+//! `automations:crew`. Bodies are v1's request bodies (routes/automations.js), so the routes stay thin.
+
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use ts_rs::TS;
+use wisp_kernel::Command;
+
+use crate::model::{MemberRef, RecipeView, TriggerView};
+
+pub const PERM_READ: &str = "automations:read";
+pub const PERM_WRITE: &str = "automations:write";
+pub const PERM_RUN: &str = "automations:run";
+pub const PERM_CREW: &str = "automations:crew";
+
+macro_rules! command {
+    ($(#[$m:meta])* $name:ident = $id:literal, $perm:expr, $ro:expr, $args:ty => $out:ty) => {
+        $(#[$m])*
+        #[derive(Debug)]
+        pub struct $name;
+        impl Command for $name {
+            const ID: &'static str = $id;
+            const PERMISSION: Option<&'static str> = Some($perm);
+            const READ_ONLY: bool = $ro;
+            type Args = $args;
+            fn args_ts() -> Option<String> {
+                Some(format!("{}{}", <$args as ::ts_rs::TS>::docs().unwrap_or_default(), <$args as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+            }
+            type Out = $out;
+        }
+    };
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct Empty {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct IdArgs {
+    pub id: String,
+}
+
+/// `{ok: true}` (v1's answer to a delete).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct Done {
+    pub ok: bool,
+}
+
+/// How many rows a crew call changed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct Count {
+    pub n: u32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "automations/")]
+pub struct ListArgs {
+    /// only the triggers that send this crew member work
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub crew: Option<String>,
+}
+
+/// A trigger's body as v1's POST/PATCH took it (`kind`, `cwd`, `cron` in words or cron, `secret`, …).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct UpdateArgs {
+    pub id: String,
+    #[ts(type = "Record<string, unknown>")]
+    pub body: Map<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct RunNowOut {
+    #[ts(type = "Array<Record<string, unknown>>")]
+    pub started: Vec<Value>,
+    pub trigger: TriggerView,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct KeyArgs {
+    /// a recipe's id, or its name (loosely: "Fix Bug" finds fix-bug)
+    pub key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct RecipeUpdateArgs {
+    pub key: String,
+    #[ts(type = "Record<string, unknown>")]
+    pub body: Map<String, Value>,
+}
+
+/// `POST /recipes/:key/run`: `{params | words, cwd, agent, model, effort, mode}`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "automations/")]
+pub struct RecipeRunArgs {
+    pub key: String,
+    #[serde(default)]
+    #[ts(type = "Record<string, unknown>")]
+    pub params: Map<String, Value>,
+    /// positional words (`wisp run release 0.8.0`), filled into the params in order
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub words: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub effort: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mode: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct AgentArgs {
+    pub agent: String,
+    /// the account whose plan freed (`default`: the harness's own login); empty: every account of `agent`. Additive
+    /// (2026-11-14).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(optional, as = "Option<String>")]
+    pub account: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct NextWake {
+    #[ts(type = "number | null")]
+    pub at: Option<i64>,
+}
+
+/// The crew editor's "Also starts when": one trigger of each kind in `on` sends the member work.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "automations/")]
+pub struct SyncMemberArgs {
+    pub member: MemberRef,
+    pub on: Vec<String>,
+    /// the member's folder before this edit: a CI watcher on it follows the member
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub prev_cwd: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "automations/")]
+pub struct CrewArgs {
+    pub crew_id: String,
+    /// the member's name, for "Ada left your crew."
+    #[serde(default)]
+    pub name: String,
+}
+
+command!(Triggers = "automations.triggers", PERM_READ, true, ListArgs => Vec<TriggerView>);
+command!(TriggerCreate = "automations.trigger.create", PERM_WRITE, false, Map<String, Value> => TriggerView);
+command!(TriggerUpdate = "automations.trigger.update", PERM_WRITE, false, UpdateArgs => TriggerView);
+command!(TriggerRemove = "automations.trigger.remove", PERM_WRITE, false, IdArgs => Done);
+command!(
+    /// A schedule fires now; a watcher polls and acts on what it finds. Never held by the plan.
+    RunNow = "automations.runNow", PERM_RUN, false, IdArgs => RunNowOut
+);
+command!(Recipes = "automations.recipes", PERM_READ, true, Empty => Vec<RecipeView>);
+command!(RecipeGet = "automations.recipe", PERM_READ, true, KeyArgs => RecipeView);
+command!(RecipeCreate = "automations.recipe.create", PERM_WRITE, false, Map<String, Value> => RecipeView);
+command!(RecipeUpdate = "automations.recipe.update", PERM_WRITE, false, RecipeUpdateArgs => RecipeView);
+command!(RecipeRemove = "automations.recipe.remove", PERM_WRITE, false, KeyArgs => Done);
+command!(RecipeRun = "automations.recipe.run", PERM_RUN, false, RecipeRunArgs => Value);
+command!(
+    /// A window of this harness reset early (`budget.plan_free` does the same by itself): rows held for its plan stop
+    /// saying so. → how many did.
+    Release = "automations.release", PERM_WRITE, false, AgentArgs => Count
+);
+command!(
+    /// The next scheduled wake (`GET /api/status` nextWakeAt; the grid wakes the box then).
+    NextWakeOf = "automations.nextWake", PERM_READ, true, Empty => NextWake
+);
+command!(SyncMember = "automations.syncMember", PERM_CREW, false, SyncMemberArgs => Empty);
+command!(
+    /// The member's `on`: the kinds of its triggers that are on.
+    MemberKinds = "automations.memberKinds", PERM_CREW, true, CrewArgs => Vec<String>
+);
+command!(
+    /// A member left the crew: its triggers go off, unassigned, and say why.
+    MemberLeft = "automations.memberLeft", PERM_CREW, false, CrewArgs => Count
+);
+command!(
+    /// Gone for good (an import undone): the member's triggers go, as if never made.
+    ForgetMember = "automations.forgetMember", PERM_CREW, false, CrewArgs => Count
+);
+
+// ---- the one trigger engine (ADR-0043): `wisp trigger …`, the MCP tools, the Automations pane ----
+
+/// A trigger, by name (`crew.<member>.<n>` for a member's wake).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct NameArgs {
+    pub name: String,
+}
+
+/// `wisp trigger fire <name> [--payload @file]`: an event by hand (`manual`, or the trigger's own `on`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct FireArgs {
+    pub name: String,
+    /// the event's payload (a GitHub Action step's JSON)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "unknown")]
+    pub payload: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub summary: Option<String>,
+}
+
+/// What a trigger did with an event: started | queued | held | skipped | batched | awaiting | nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct FireOut {
+    pub result: String,
+    #[serde(default)]
+    pub why: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub session: Option<String>,
+}
+
+/// `wisp trigger test <name> [--event @file | --last N]`: the decision and the filled prompt, starting nothing.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct TestArgs {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub event: Option<crate::TriggerEvent>,
+    /// the last N durable events of its `on` (default 5)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub last: Option<u32>,
+}
+
+/// One event's dry run.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct Tried {
+    pub key: String,
+    pub summary: String,
+    /// would start | would queue | would hold | would skip | would batch | would wait for a yes | not for it
+    pub result: String,
+    #[serde(default)]
+    pub why: String,
+    /// the prompt it would send
+    #[serde(default)]
+    pub prompt: String,
+}
+
+/// A trigger in the list: its spec, where it comes from, and its state.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "automations/")]
+pub struct TriggerRow {
+    pub name: String,
+    #[ts(type = "unknown")]
+    pub spec: Value,
+    /// `trigger` (declared) or the plugin that provides it (`wisp.crew`)
+    pub from: String,
+    /// on | off | paused | unavailable | held (a run it started waits for its plan, Automations stop at; additive
+    /// 2026-11-14)
+    pub state: String,
+    #[serde(default)]
+    pub why: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub last_run_at: Option<i64>,
+    pub runs: u32,
+    pub queued: u32,
+    pub awaiting: u32,
+}
+
+/// One delivery in a trigger's log.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct LogLine {
+    #[ts(type = "number")]
+    pub at: i64,
+    pub result: String,
+    pub why: String,
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub session: Option<String>,
+}
+
+/// A yes (or no) to a job waiting for approval.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct ApproveArgs {
+    pub name: String,
+    pub job: String,
+    pub yes: bool,
+}
+
+/// A source the engine knows, and whether its plugin is on.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct SourceRow {
+    pub plugin: String,
+    pub available: bool,
+    #[serde(flatten)]
+    pub on: crate::SourceOn,
+}
+
+command!(TriggerLs = "automations.trigger.ls", PERM_READ, true, Empty => Vec<TriggerRow>);
+command!(TriggerFire = "automations.trigger.fire", PERM_RUN, false, FireArgs => FireOut);
+command!(TriggerTest = "automations.trigger.test", PERM_READ, true, TestArgs => Vec<Tried>);
+command!(TriggerLog = "automations.trigger.log", PERM_READ, true, NameArgs => Vec<LogLine>);
+command!(
+    /// a source's event (a chat message, files changing): every trigger on it decides
+    TriggerPush = "automations.trigger.push", PERM_RUN, false, crate::TriggerEvent => Count
+);
+command!(TriggerApprove = "automations.trigger.approve", PERM_RUN, false, ApproveArgs => FireOut);
+command!(
+    /// a paused trigger (three failures) runs again
+    TriggerResume = "automations.trigger.resume", PERM_WRITE, false, NameArgs => Done
+);
+command!(Sources = "automations.sources", PERM_READ, true, Empty => Vec<SourceRow>);

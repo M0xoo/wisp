@@ -1,0 +1,17 @@
+[package]
+name = "wisp-issues-api"
+description = "wisp.issues's contract: the issue rows (GitHub, Linear, Jira), issues.list, and the points and ports it reads through"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true

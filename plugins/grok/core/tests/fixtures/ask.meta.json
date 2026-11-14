@@ -1,0 +1,37 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "fix the add bug ASK",
+    "mcpServers": {
+      "wisp": {
+        "command": "node",
+        "args": [
+          "/tmp/rsh-g6/mcp.mjs"
+        ],
+        "env": {
+          "WISP_SESSION": "s1"
+        }
+      }
+    }
+  },
+  "note": "use_tool wisp__ask_user: no 'waiting' line, its answer as output",
+  "argv": [
+    "--prompt-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-grok-LUjbyw/prompt.md",
+    "--output-format",
+    "streaming-messages-json",
+    "--permission-mode",
+    "acceptEdits",
+    "--rules",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--disallowed-tools",
+    "ask_user_question",
+    "--no-auto-update",
+    "--agent",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-grok-LUjbyw/wisp.md"
+  ]
+}

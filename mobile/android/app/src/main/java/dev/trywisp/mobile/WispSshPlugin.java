@@ -21,12 +21,30 @@ import org.json.JSONObject;
  * connecting another stops the first; wisp and its agents keep running on both. The tunnel is
  * static so it outlives the page: the WebView leaves this page for wisp's own and comes back.
  * While one is connected, {@link TunnelService} keeps the app running in the background.
+ *
+ * v2 (the bundle in the APK, mobile/web): every saved computer at once. list, saveComputer,
+ * forgetComputer ({@link Computers}); connect({id}) answers how to reach it ({@link Reach}), and
+ * disconnect({id}) lets one go; leave sends the app to the background. Events: `tunnel` {id, state,
+ * line}, `computers` (the list changed), `back` (Android's Back, when the bundle listens) and `open`
+ * {target} (a tapped notification). Called with `host`, connect is still v1's single tunnel.
  */
 @CapacitorPlugin(name = "WispSsh")
 public class WispSshPlugin extends Plugin {
     private static Tunnel tunnel;
     private static String machineId = "";
     private static volatile String cloudOrigin; // the cloud computer the list opened (stayOpen)
+    private static volatile WispSshPlugin self; // the page's plugin: v2's tunnels outlive a reload
+    private static final Reach reach = new Reach((id, state, line) -> {
+        WispSshPlugin p = self;
+        if (p == null) return;
+        JSObject ev = new JSObject();
+        ev.put("id", id);
+        ev.put("state", state);
+        ev.put("line", line);
+        p.notifyListeners("tunnel", ev);
+    });
+    private static volatile boolean serving; // TunnelService started for v2's computers
+    private String template; // assets/wisp/bootstrap.sh
     private Keys keys;
 
     @Override
@@ -34,6 +52,7 @@ public class WispSshPlugin extends Plugin {
         // Android ships a cut-down "BC" provider without Ed25519: put the full one first.
         Security.removeProvider("BC");
         Security.insertProviderAt(new BouncyCastleProvider(), 1);
+        self = this;
     }
 
     // Back from the background: check the tunnel now rather than when keep-alives give up.
@@ -41,6 +60,7 @@ public class WispSshPlugin extends Plugin {
     protected void handleOnResume() {
         Tunnel t = tunnel;
         if (t != null) t.nudge();
+        reach.nudgeAll();
     }
 
     private synchronized Keys keys() {
@@ -140,6 +160,10 @@ public class WispSshPlugin extends Plugin {
 
     @PluginMethod
     public void connect(PluginCall call) {
+        if (!call.getData().has("host") && call.getData().has("id")) {
+            reachConnect(call);
+            return;
+        }
         String host = call.getString("host", "").trim();
         String user = call.getString("user", "").trim();
         String script = call.getString("script", "");
@@ -240,6 +264,13 @@ public class WispSshPlugin extends Plugin {
 
     @PluginMethod
     public void disconnect(PluginCall call) {
+        String id = call.getString("id");
+        if (id != null) {
+            reach.disconnect(id);
+            released();
+            call.resolve();
+            return;
+        }
         stopTunnel();
         cloudOrigin = null;
         TunnelService.stop(getContext());
@@ -252,5 +283,116 @@ public class WispSshPlugin extends Plugin {
             tunnel = null;
             machineId = "";
         }
+        reach.stopAll();
+        serving = false;
+    }
+
+    // ---- v2: the bundle reaches every computer at once ----
+
+    @PluginMethod
+    public void list(PluginCall call) {
+        call.resolve(new JSObject().put("computers", Computers.list(getContext())));
+    }
+
+    @PluginMethod
+    public void saveComputer(PluginCall call) {
+        try {
+            JSObject saved = JSObject.fromJSONObject(Computers.save(getContext(), call.getObject("computer", new JSObject())));
+            notifyListeners("computers", new JSObject());
+            call.resolve(saved);
+        } catch (org.json.JSONException e) {
+            call.reject(e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void forgetComputer(PluginCall call) {
+        String id = call.getString("id", "");
+        reach.disconnect(id);
+        Computers.forget(getContext(), id);
+        released();
+        notifyListeners("computers", new JSObject());
+        call.resolve();
+    }
+
+    // Back with nothing left to close in the bundle: the app goes behind, its tunnels kept.
+    @PluginMethod
+    public void leave(PluginCall call) {
+        getActivity().runOnUiThread(() -> getActivity().moveTaskToBack(true));
+        call.resolve();
+    }
+
+    private void reachConnect(PluginCall call) {
+        String id = call.getString("id", "");
+        org.json.JSONObject c = Computers.get(getContext(), id);
+        if (c == null) {
+            call.reject("No saved computer " + id + "."); // forgotten meanwhile
+            return;
+        }
+        String name = c.optString("name", id);
+        serve();
+        if ("grid".equals(c.optString("kind"))) {
+            JSObject r = new JSObject().put("kind", "grid").put("base", c.optString("url")).put("token", c.optString("token")).put("name", name);
+            if (!c.optString("peer").isEmpty()) r.put("peer", c.optString("peer"));
+            call.resolve(r);
+            return;
+        }
+        try {
+            reach.connect(id, name, sshTunnel(id, name, c, call.getString("password")), call);
+        } catch (Exception e) {
+            call.reject(e.getMessage() != null ? e.getMessage() : e.toString(), e);
+        }
+    }
+
+    private Tunnel sshTunnel(String id, String name, org.json.JSONObject c, String password) throws Exception {
+        Bootstrap.Target t = Bootstrap.target(c.optString("target", ""), c.optInt("sshPort", 22));
+        if (t.user.isEmpty() || t.host.isEmpty()) throw new Exception("Add your user name: you@its-name");
+        int port = c.optInt("port", 4477);
+        String keyId = c.optString("keyId", "");
+        if (keyId.isEmpty()) keyId = keys().listOrCreate().get(0).id; // as v1's keyOf
+        KeyPair kp = keys().load(keyId);
+        String script = Bootstrap.fill(template(), port, c.optString("command", ""));
+        Tunnel[] box = new Tunnel[1];
+        box[0] = Reach.tunnel(t.host, t.sshPort, t.user, password, port, script, kp, this::trust, (text) -> reach.line(id, name, box[0], text));
+        return box[0];
+    }
+
+    private synchronized String template() throws java.io.IOException {
+        if (template == null) {
+            try (java.io.InputStream in = getContext().getAssets().open(Bootstrap.ASSET)) {
+                template = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        return template;
+    }
+
+    // Kept running while any computer is reached, as v1 did for its one (TunnelService).
+    private void serve() {
+        if (serving) return;
+        serving = true;
+        TunnelService.start(getContext(), "your computers");
+    }
+
+    private void released() {
+        if (!serving || reach.count() > 0 || tunnel != null) return;
+        serving = false;
+        TunnelService.stop(getContext());
+    }
+
+    /** Android's Back: true when the bundle listens for it (it closes what's open, or calls leave). */
+    static boolean back() {
+        WispSshPlugin p = self;
+        if (p == null || !p.hasListeners("back")) return false;
+        p.notifyListeners("back", new JSObject());
+        return true;
+    }
+
+    /** A tapped notification (Notifications.schedule): kept until the bundle listens, on a cold start. */
+    static void opened(String target) {
+        WispSshPlugin p = self;
+        if (p == null) return;
+        JSObject ev = new JSObject();
+        ev.put("target", target);
+        p.notifyListeners("open", ev, true);
     }
 }

@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: rustup toolchain install stable --profile minimal && rustup default stable && rustup target add x86_64-apple-darwin
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0 && rustup target add x86_64-apple-darwin
       - uses: actions/cache@v4
         with:
           path: |
@@ -50,6 +50,7 @@ jobs:
       - name: Stamp the nightly version
         if: inputs.version != ''
         run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
       - run: node desktop/scripts/package.mjs --target aarch64-apple-darwin
       - run: node desktop/scripts/package.mjs --target x86_64-apple-darwin
       - uses: actions/upload-artifact@v4
@@ -57,16 +58,15 @@ jobs:
           name: desktop-mac
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      # A real Electron release, for the update people on one make onto this build (INST-18): the one
-      # INST-40 installs on Windows (ELECTRON in qa/install.mjs). macos-latest is Apple silicon.
-      # curl, not gh: this workflow never touches a release.
-      - run: mkdir -p dist/electron && curl -fsSLo dist/electron/wisp-mac-arm64.zip https://github.com/WispAgents/wisp/releases/download/v0.57.0/wisp-mac-arm64.zip
-      - run: node qa/install.mjs --old-electron dist/electron/wisp-mac-arm64.zip
+      # the gate (qa/desktop-v2.mjs): the zip as `install.sh --app` installs it (checksum, no quarantine, signed), then
+      # the installed app runs its own wisp server and leaves nothing behind. macos-latest is Apple silicon.
+      - name: The downloaded app runs v2
+        run: node qa/desktop-v2.mjs --zip dist/tauri/wisp-mac-arm64.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: install-gate-mac
-          path: qa/out/install.*
+          path: qa/out/desktop-v2.md
 
   windows:
     runs-on: windows-latest
@@ -81,7 +81,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: rustup toolchain install stable --profile minimal && rustup default stable && rustup target add aarch64-pc-windows-msvc
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0 && rustup target add aarch64-pc-windows-msvc
       - uses: actions/cache@v4
         with:
           path: |
@@ -92,6 +92,7 @@ jobs:
       - name: Stamp the nightly version
         if: inputs.version != ''
         run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
       - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc
       - run: node desktop/scripts/package.mjs --target aarch64-pc-windows-msvc
       - uses: actions/upload-artifact@v4
@@ -99,12 +100,12 @@ jobs:
           name: desktop-windows
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      - run: node qa/install.mjs
+      - run: node qa/desktop-v2.mjs --install dist/tauri/wisp-windows-x64-setup.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: install-gate-windows
-          path: qa/out/install.*
+          path: qa/out/desktop-v2.md
 
   linux:
     strategy:
@@ -125,7 +126,7 @@ jobs:
       # Build: WebKitGTK and what linuxdeploy wants. The gate: a display, a session bus (the shell's
       # single-instance lock), FUSE for an AppImage, squashfs-tools to make a newer one.
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev file xvfb dbus-x11 libfuse2 squashfs-tools
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0
       - uses: actions/cache@v4
         with:
           path: |
@@ -136,18 +137,22 @@ jobs:
       - name: Stamp the nightly version
         if: inputs.version != ''
         run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+      - run: npm ci # the web build the app carries (desktop/scripts/package.mjs)
       - run: node desktop/scripts/package.mjs --target ${{ matrix.triple }}
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-linux-${{ matrix.arch }}
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      - run: xvfb-run -a dbus-run-session -- node qa/install.mjs --only ${{ matrix.rows }}
+      - name: The AppImage runs v2
+        run: |
+          chmod +x dist/tauri/wisp-linux-${{ matrix.arch }}.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a dbus-run-session -- node qa/desktop-v2.mjs --app dist/tauri/wisp-linux-${{ matrix.arch }}.AppImage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: install-gate-linux-${{ matrix.arch }}
-          path: qa/out/install.*
+          path: qa/out/desktop-v2.md
 
   # A report, never a gate: a failed lookup here mustn't hold a release.
   sizes:

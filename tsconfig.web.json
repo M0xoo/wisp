@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "es2023",
+      "dom",
+      "dom.iterable"
+    ],
+    "types": [],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "packages/ui/src/**/*",
+    "packages/ui/test/**/*",
+    "packages/ui/gallery/**/*",
+    "packages/client/src/**/*.ts",
+    "packages/shell/src/**/*",
+    "packages/shell/test/**/*",
+    "plugins/*/ui/src/**/*",
+    "plugins/*/ui/test/**/*",
+    "plugins/*/ui/dev/**/*",
+    "apps/web/src/**/*"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/dist",
+    "packages/ui/gallery/vite.config.ts",
+    "plugins/*/ui/dev/vite.config.ts"
+  ]
+}

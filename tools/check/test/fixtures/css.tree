@@ -1,0 +1,68 @@
+CSS: only the kit has CSS, and its CSS stays on the token scale with no slow selectors.
+=== packages/tokens/package.json
+{ "name": "@f/tokens" }
+=== packages/tokens/tokens/space.json
+{ "$doc": "8 is the common gap", "1": "2px", "2": "4px", "4": "8px" }
+=== packages/tokens/tokens/size.json
+{ "hairline": { "$value": { "value": 1, "unit": "px" } }, "touch": 44 }
+=== packages/tokens/tokens/breakpoint.json
+{ "phone": "720px" }
+=== packages/ui/package.json
+{ "name": "@f/ui" }
+=== packages/ui/src/kit.css
+@layer kit {
+  .row { gap: 8px; padding: 4px 2px; border: 1px solid; min-height: 44px; }
+  .bad { margin: 13px; }
+  @media (min-width: 720px) { .x { gap: 4px; } }
+  @media (min-width: 721px) { .x { gap: 4px; } }
+  .stage:has(.open) { color: red; }
+  body:has(dialog[open]) { overflow: hidden; }
+  :has(> .x) { color: blue; }
+  .row:has(.chip) { color: green; }
+  .list > :is(.a, .b) { color: red; }
+  .list :is(.a, .b) .c { color: red; }
+  .loud { color: red !important; }
+  .x { --w: 13px; width: calc(var(--w) * 2); }
+  .y { background: url("data:image/svg+xml;utf8,<svg width='13px'/>"); }
+}
+@layer reset {
+  [hidden] { display: none !important; }
+}
+@layer kit {
+  [data-kit='toolbar'] { display: flex; flex-wrap: wrap; }
+  /* !important: the library sets bottom inline */
+  [data-kit='toasts'] { bottom: 0 !important; }
+  [data-kit='wrap'] { display: flex; flex-wrap: wrap; }
+  [data-kit='wrap'] > [data-kit='chip'] { flex-flow: row wrap; }
+  [data-kit='inline'] { flex-flow: row nowrap; }
+  [data-kit='button'] { white-space: normal; }
+  [data-text='control'] { text-wrap: balance; }
+  [data-kit='text'] { white-space: normal; text-wrap: pretty; }
+  [data-kit='list-row-title'] { white-space: nowrap; }
+  @media (max-width: 720px) { [data-kit='list-row-title'] { white-space: pre-line; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-kit] { animation-duration: 0.01s !important; }
+}
+=== packages/ui/src/Button.tsx
+export const Button = () => <button class="kit-button" style={{ color: 'red' }} />;
+=== packages/ui/src/index.ts
+import './kit.css';
+export {};
+=== plugins/git/ui/package.json
+{ "name": "@f/git-ui" }
+=== plugins/git/ui/src/panel.tsx
+import './panel.css';
+const w = 3;
+export const A = () => <div class="x" />;
+export const B = () => <div className="x" />;
+export const C = () => <div style="color: red" />;
+export const D = () => <div style={{ color: 'red', '--w': w }} />;
+export const E = () => <div style={{ '--sb-w': `${w}px`, '--h': w }} />;
+export const F = () => <div style={styles} />;
+const styles = { '--x': 1 };
+=== plugins/git/ui/src/panel.css
+.x { color: red; }
+=== plugins/git/ui/src/theme.ts
+import styles from './theme.module.scss?inline';
+export default styles;

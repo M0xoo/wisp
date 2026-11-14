@@ -1,0 +1,29 @@
+[package]
+name = "wisp-ship"
+description = "wisp.ship: Ship it (commit, push, PR), PR follow-up, conflict fixes and squash merges, over git.service and gh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+wisp-proc.workspace = true
+wisp-git-api.workspace = true
+wisp-runtime-api.workspace = true
+wisp-review-api.workspace = true
+wisp-ship-api.workspace = true
+wisp-ship-core.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

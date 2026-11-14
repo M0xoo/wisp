@@ -1,0 +1,47 @@
+/* The prompt boxes (composer/PromptBox, FileChip, SuggestList): the reply box and New task. They
+   reuse the Composer's frame ([data-kit='composer']) and the Menu's rows; this sheet adds the popup
+   over the box, the drop state, the chips row and the folded form. */
+@layer kit {
+  [data-kit='composer'] { position: relative; }
+  [data-kit='composer'][data-drop] {
+    border-color: var(--accent); background: var(--accent-soft);
+    box-shadow: 0 0 0 var(--space-2) var(--accent-soft);
+  }
+  [data-kit='composer'][data-drop]::after {
+    content: attr(data-drop-label); position: absolute; inset: 0; display: grid; place-items: center;
+    border-radius: inherit; color: var(--accent-ink); font-size: var(--fs-md); font-weight: var(--fw-medium);
+    pointer-events: none;
+  }
+  /* Folded: the text box is one line and the bar waits until the box is focused (v1 .awake). */
+  [data-kit='composer'][data-folded] > [data-kit='toolbar'],
+  [data-kit='composer'][data-folded] > [data-kit='composer-head'] { display: none; }
+
+  [data-kit='prompt-popup'] {
+    position: absolute; left: 0; right: 0; bottom: calc(100% + var(--space-2)); z-index: var(--z-menu);
+    display: flex; flex-direction: column;
+  }
+  [data-kit='prompt-popup'] > [data-kit='menu'] { width: 100%; max-width: none; animation: kit-pop var(--dur-slow) var(--ease); }
+  [data-kit='suggest-detail'] { color: var(--faint); font-weight: var(--fw-regular); }
+  [data-kit='prompt-top'], [data-kit='prompt-bottom'] { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+
+  [data-kit='file-chip'] {
+    display: inline-flex; align-items: center; gap: var(--space-2); flex: none; max-width: min(var(--size-menu-min), 100%);
+    height: var(--size-control-sm); padding: 0 var(--space-1) 0 var(--space-3); border-radius: var(--radius-pill);
+    border: var(--size-hairline) solid var(--line); background: var(--surface); color: var(--ink-2); font-size: var(--fs-sm);
+  }
+  [data-kit='file-chip'] > [data-kit='icon'] { flex: none; color: var(--muted); }
+  [data-kit='file-chip-thumb'] { flex: none; width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: var(--radius-xs); object-fit: cover; }
+  [data-kit='file-chip-name'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='file-chip-size'] { flex: none; white-space: nowrap; color: var(--faint); font-variant-numeric: tabular-nums; }
+  [data-kit='file-chip'][data-status='uploading'] { color: var(--muted); }
+  [data-kit='file-chip'][data-status='uploading'] > [data-kit='icon'] { animation: kit-pulse var(--dur-slower) var(--ease) infinite alternate; }
+  [data-kit='file-chip'][data-status='failed'] { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); color: var(--bad); }
+  /* the @ and / menus of a prompt box: over the reply box, under New task's (v1 .mention-menu) */
+  [data-kit='mn-wrap'], [data-kit='prompt-wrap'] { position: relative; }
+  [data-kit='prompt-suggest'] { position: absolute; left: 0; right: 0; z-index: var(--z-menu); max-width: var(--size-menu-max); }
+  [data-kit='prompt-suggest'][data-place='above'] { bottom: calc(100% + var(--space-3)); }
+  [data-kit='prompt-suggest'][data-place='below'] { top: calc(100% + var(--space-3)); }
+  [data-kit='prompt-suggest'] > [data-kit='menu'] { position: static; max-height: var(--size-sheet-max); overflow-y: auto; }
+  /* files over a prompt box: it says it takes them (v1 .composer.drop) */
+  [data-kit='reply-box'][data-drop], [data-kit='launcher'][data-drop] { outline: var(--size-ring) dashed var(--accent); outline-offset: var(--size-ring); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+}

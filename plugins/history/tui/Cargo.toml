@@ -1,0 +1,16 @@
+[package]
+name = "wisp-history-tui"
+description = "wisp.history in the terminal (ADR-0024, tui.view@1): blame with a why-gutter, which task wrote each line and what it was asked"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+serde_json.workspace = true
+wisp-tui-api.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.issues",
+  "name": "issues",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "issues to start a task from: a project's GitHub issues (gh), the Linear and Jira issues assigned to you",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_issues" },
+  "requires": { "git.service": "^1" },
+  "provides": {},
+  "permissions": ["connectors:call", "runtime:get", "git:repo", "git:read", "proc:exec{bin:gh}", "net:fetch{host:api.linear.app}", "net:fetch{host:*.atlassian.net}"],
+  "activation": ["onCommand:issues.list", "onRoute:GET /api/issues"],
+  "contributes": {
+    "commands": [{ "id": "issues.list", "title": "List issues to start a task from", "readOnly": true }],
+    "triggerSources": ["issue.opened", "issue.labeled"],
+    "points": [
+      { "id": "issues.projects", "version": 1, "kind": "list" },
+      { "id": "issues.connectors", "version": 1, "kind": "list" }
+    ]
+  }
+}

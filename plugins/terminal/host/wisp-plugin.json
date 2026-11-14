@@ -1,0 +1,74 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.terminal",
+  "name": "Terminal",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.terminal: the plugin, wired to the kernel, proc and HTTP routes",
+  "server": {
+    "builtin": "wisp-terminal"
+  },
+  "permissions": [
+    "runtime:get",
+    "runtime:setExt",
+    "telemetry:track"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "events": [
+      "terminal.changed"
+    ],
+    "commands": [
+      {
+        "id": "terminal.open",
+        "title": "Open a terminal"
+      },
+      {
+        "id": "terminal.input",
+        "title": "Type into a terminal"
+      },
+      {
+        "id": "terminal.close",
+        "title": "Hang a terminal up"
+      },
+      {
+        "id": "terminal.shell.start",
+        "title": "Start the task's shell"
+      },
+      {
+        "id": "terminal.get",
+        "title": "A terminal",
+        "readOnly": true
+      },
+      {
+        "id": "terminal.shell.info",
+        "title": "The task's shell, for the panel",
+        "readOnly": true
+      },
+      {
+        "id": "terminal.app.open",
+        "title": "Open a folder (and a command) in the terminal app Settings names",
+        "uiOnly": "the side panel's place menu and Take over in an app; an agent already has a shell"
+      },
+      {
+        "id": "terminal.run.start",
+        "title": "Run the task's app for its Preview",
+        "uiOnly": "the side panel's Preview; an agent runs the app in its own shell"
+      },
+      {
+        "id": "terminal.run.info",
+        "title": "The task's app: running or not, its port, a command to start from",
+        "readOnly": true,
+        "uiOnly": "the side panel's Preview"
+      },
+      {
+        "id": "terminal.apps",
+        "title": "This computer's terminal apps",
+        "readOnly": true,
+        "uiOnly": "Settings → General's Take over in list for this computer; an agent has no use for it"
+      }
+    ]
+  }
+}

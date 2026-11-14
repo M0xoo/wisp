@@ -1,0 +1,22 @@
+{
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM",
+    "stderr": ""
+  },
+  "opts": {},
+  "stopAfter": 2,
+  "argv": [
+    "--prompt-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-grok-uxCwnB/prompt.md",
+    "--output-format",
+    "streaming-messages-json",
+    "--permission-mode",
+    "acceptEdits",
+    "--rules",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--disallowed-tools",
+    "ask_user_question",
+    "--no-auto-update"
+  ]
+}

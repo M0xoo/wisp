@@ -1,0 +1,32 @@
+[package]
+name = "wisp-budget"
+description = "wisp.budget host: wiring to the kernel, store and HTTP routes (usage windows, Automations stop at, banked resets, the before:run budget guard, compare metrics)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+schemars.workspace = true
+wisp-resources-api.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+jiff.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+wisp-kernel.workspace = true
+wisp-budget-api.workspace = true
+wisp-budget-core.workspace = true
+wisp-runtime-api.workspace = true
+wisp-accounts-api.workspace = true
+wisp-channels-api.workspace = true
+wisp-store.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+wisp-testkit.workspace = true
+
+[lints]
+workspace = true

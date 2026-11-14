@@ -1,0 +1,22 @@
+[package]
+name = "wisp-crew-core"
+description = "wisp.crew pure logic, sans-IO: no tokio, fs, net or clock (crew members: schedules, check-ins, jobs, mentions, notebooks, sharing)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+thiserror.workspace = true
+wisp-crew-api.workspace = true
+wisp-automations-api.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+
+[lints]
+workspace = true

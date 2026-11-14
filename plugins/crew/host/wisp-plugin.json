@@ -1,0 +1,159 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.crew",
+  "name": "crew",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "crew members: schedules, check-ins, jobs, mentions, notebooks, sharing",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_crew"
+  },
+  "permissions": [
+    "budget:read",
+    "runtime:create",
+    "runtime:get",
+    "runtime:profiles",
+    "runtime:turns",
+    "sandbox:place",
+    "sandbox:own",
+    "machines:route",
+    "machines:list",
+    "machines:sessions",
+    "runtime:followUp",
+    "runtime:setExt",
+    "runtime:turn.setExt",
+    "resources:read",
+    "store:write{owner:crew}",
+    "telemetry:track",
+    "share:make",
+    "grid-client:fetch",
+    "grid-client:imported"
+  ],
+  "requires": {},
+  "provides": {},
+  "contributes": {
+    "settings": [
+      { "key": "crew.tint", "type": "bool", "default": true, "title": "Crew tint: with the crew rail, the task list takes a very light tint of the colour of the member you pick." }
+    ],
+    "events": ["crew.changed", "crew.imported", {"type": "crew.job_filed", "durable": true}, {"type": "crew.reported", "durable": true}, "crew.job_started", "crew.joined", "crew.left", "crew.shared"],
+    "commands": [
+      {
+        "id": "crew.wake",
+        "title": "Wake a crew member: a job, because something happened"
+      },
+      {
+        "id": "crew.wakeMentions",
+        "title": "Wake the crew members a text mentions"
+      },
+      {
+        "id": "crew.list",
+        "title": "Your crew",
+        "readOnly": true
+      },
+      {
+        "id": "crew.get",
+        "title": "A member and their jobs",
+        "readOnly": true
+      },
+      {
+        "id": "crew.layout",
+        "title": "Where each member sits on the Org page",
+        "readOnly": true
+      },
+      {
+        "id": "crew.set_layout",
+        "title": "Move members on the Org page"
+      },
+      {
+        "id": "crew.create",
+        "title": "Add a member"
+      },
+      {
+        "id": "crew.adopt",
+        "title": "Add a task to the crew"
+      },
+      {
+        "id": "crew.update",
+        "title": "Change a member"
+      },
+      {
+        "id": "crew.remove",
+        "title": "Let a member go"
+      },
+      {
+        "id": "crew.detach",
+        "title": "Make a spell's member yours"
+      },
+      {
+        "id": "crew.ask",
+        "title": "Ask a crew member in a task: their answer lands under your message"
+      },
+      {
+        "id": "crew.reply",
+        "title": "Reply to a crew member's answer in a task: the same job carries on"
+      },
+      {
+        "id": "crew.assign",
+        "title": "Give a member a job"
+      },
+      {
+        "id": "crew.checkin",
+        "title": "Check in now"
+      },
+      {
+        "id": "crew.stats",
+        "title": "Each member's track record",
+        "readOnly": true
+      },
+      {
+        "id": "crew.graph",
+        "title": "Who wakes whom",
+        "readOnly": true
+      },
+      {
+        "id": "crew.export",
+        "title": "Share members as a crew file (refused while it holds a secret)",
+        "readOnly": true
+      },
+      {
+        "id": "crew.import",
+        "title": "Review a crew file, or add its members (paused)"
+      },
+      {
+        "id": "crew.share",
+        "title": "Share members or the whole crew as a link (wisp Cloud; refused while it holds a secret)"
+      },
+      {
+        "id": "crew.kit",
+        "title": "Skills and instructions a member's kit can take",
+        "readOnly": true
+      },
+      {
+        "id": "crew.agent.kit",
+        "title": "Propose skills or instructions for a member's kit (wisp_crew_kit)"
+      },
+      {
+        "id": "crew.agent.add",
+        "title": "Add a member, or the members a shared link or crew file holds, paused (wisp_crew_add)"
+      },
+      {
+        "id": "crew.agent.list",
+        "title": "The crew, or one member in full, as an agent reads it (wisp_crew)",
+        "readOnly": true
+      },
+      {
+        "id": "crew.agent.edit",
+        "title": "Change a member: only the fields given; remember adds notebook lines (wisp_crew_edit)"
+      },
+      {
+        "id": "crew.agent.remove",
+        "title": "Remove a member; a member's own job can't remove itself (wisp_crew_remove)"
+      }
+    ]
+  },
+  "activation": [
+    "onStartup"
+  ],
+  "migrations": "crew"
+}

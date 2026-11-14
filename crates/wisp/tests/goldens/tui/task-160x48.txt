@@ -1,0 +1,48 @@
+ wisp                     3 tasks │ Add dark mode   running
+                                  │ api · wisp/dark · codex gpt-5  ○ goal: judging · round 1
+ RUNNING  1                       │ ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+▌Add dark mode                 2m │
+▌⠋ codex · web                    │
+                                  │  › Make sessions last longer
+ DONE  2                          │
+ Fix the login                12m │
+ ● claude · api                   │   ✓ Edit src/auth.ts  +1 −1  ⋯
+ Old one                       3d │
+ ✓ claude · api                   │ ▌ ✓ Sessions last an hour
+                                  │ ▌ ttl 60 → 3600
+                                  │
+                                  │ The session cookie now lives for an hour instead of a minute, and the refresh path reads the same constant, so the two
+                                  │ can't drift again.
+                                  │
+                                  │
+                                  │  › Add dark mode
+                                  │
+                                  │
+                                  │   ✓ Read src/theme.ts
+                                  │ Reading the theme tokens first.
+                                  │
+                                  │ ◆ Use the system theme by default?
+                                  │   1 Yes
+                                  │   2 No, dark
+                                  │   1-9 choose   i write an answer
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │  1 queued  then add a toggle
+                                  │  Alt-↑↓ reorder  Ctrl-S send the first now
+                                  │ ╭ Follow-up · queued while it runs ───────────────────────────────────────────────────────────────────────────────────────╮
+                                  │ │ i write  ? keys                                                                                                         │
+                                  │ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  auto   codex · gpt-5                                                                                                           ● live   ? keys  ^K go  q quit

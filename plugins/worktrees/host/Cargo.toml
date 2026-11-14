@@ -1,0 +1,36 @@
+[package]
+name = "wisp-worktrees"
+description = "wisp.worktrees plugin: worktree sessions, their setup, cleanup, Done folders and project trust, over git.service@1 and the proc service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+wisp-proc.workspace = true
+wisp-git-api.workspace = true
+wisp-worktrees-api.workspace = true
+wisp-automations-api.workspace = true
+wisp-runtime-api.workspace = true
+wisp-telemetry-api.workspace = true
+wisp-worktrees-core.workspace = true
+wisp-resources-api.workspace = true
+wisp-store.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+wisp-runtime-api = { workspace = true, features = ["testing"] }
+wisp-settings-api.workspace = true
+wisp-testkit.workspace = true
+# real repos in temp folders for the flow tests (dev-dependencies don't count for the layers)
+wisp-git = { path = "../../git/host" }
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

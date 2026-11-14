@@ -1,0 +1,675 @@
+{
+  "captured": "2026-11-08T02:35:46.701Z",
+  "widths": [
+    [
+      1440,
+      900
+    ],
+    [
+      1024,
+      768
+    ],
+    [
+      900,
+      900
+    ],
+    [
+      600,
+      900
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      320,
+      640
+    ]
+  ],
+  "variantWidths": [
+    1440,
+    900,
+    390,
+    320
+  ],
+  "fullWidthViews": [
+    "home",
+    "task",
+    "task.composer",
+    "crew",
+    "stuff",
+    "palette",
+    "me-menu",
+    "projects",
+    "settings.general"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "states": {
+    "home": {
+      "what": "list row",
+      "target": "#feed .item[data-id]:not(.open) .it-head",
+      "selected": "task",
+      "focus": {
+        "target": "#feed .item.focused"
+      }
+    },
+    "task": {
+      "what": "task head",
+      "target": "#splitHead button:visible, .item.open .it-actions button:visible",
+      "selected": "task (rest)"
+    },
+    "task.composer": {
+      "what": "composer toolbar",
+      "target": ".composer .c-mode:visible, .composer button:visible",
+      "selected": "task.composer-goal"
+    }
+  },
+  "file": "<view>/<width>-<theme>-<state>.png; <view>/metrics.json: widths[\"<width>-<theme>\"].states[state].parts[] = {part, i, box:[x,y,w,h], s:{pad, mar, gap, fs, lh, fw, ff, col, bg, bw, bc, rad, …}}",
+  "views": {
+    "automations.trigger-new": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "crew": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "crew.add": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "crew.org": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home": {
+      "shots": 24,
+      "skipped": [
+        "1440-dark-focus: no list row after focus",
+        "1024-dark-focus: no list row after focus",
+        "600-light-hover: same as rest",
+        "600-light-focus: same as rest",
+        "600-dark-hover: same as rest",
+        "600-dark-focus: same as rest",
+        "390-light-hover: same as rest",
+        "390-light-focus: same as rest",
+        "390-dark-hover: same as rest",
+        "390-dark-focus: same as rest",
+        "320-light-hover: same as rest",
+        "320-light-focus: same as rest",
+        "320-dark-hover: same as rest",
+        "320-dark-focus: same as rest"
+      ],
+      "errors": []
+    },
+    "home.auto-preview": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.compare": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.goal-judges": {
+      "shots": 6,
+      "skipped": [],
+      "errors": [
+        "320-light: locator.click: Element is not visible",
+        "320-dark: locator.click: Element is not visible"
+      ]
+    },
+    "home.goal-on": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.issues": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.later": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.mode-menu": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.runner": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.team": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.typed": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.where": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.worktree-off": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "me-menu": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "palette": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "projects": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.agents": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.auto": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.automations": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.cloud": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.connectors": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.general": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.machines": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.memory": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.notifications": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.privacy": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.spells": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.usage": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.worktrees": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "stuff": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "task": {
+      "shots": 36,
+      "skipped": [],
+      "errors": []
+    },
+    "task.changes": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.changes-diff": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.composer": {
+      "shots": 36,
+      "skipped": [],
+      "errors": []
+    },
+    "task.composer-goal": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.editor": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.goal": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.goal-judges": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.goal-menu": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.more": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.preview": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.rerun": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.right-click": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.ship": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.transcript": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    }
+  },
+  "recaptures": [
+    {
+      "started": "2026-11-08T13:48:03.274Z",
+      "finished": "2026-11-08T13:57:01.050Z",
+      "views": [
+        "home",
+        "task",
+        "task.composer"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "verify round 1 #9: the dark shots of home, task and task.composer had state left by earlier views (a task read, Worktree off). Each view now starts from seed.json state restored, with its clock pinned; desktop mode (body.desktop.mac) added."
+    },
+    {
+      "started": "2026-11-12T01:23:00.000Z",
+      "finished": "2026-11-12T01:44:00.000Z",
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "themes": "all",
+      "widths": "all",
+      "views": [
+        "home.auto-preview",
+        "home.goal-judges",
+        "home.issues",
+        "home.mode-menu",
+        "home.team",
+        "home.where"
+      ],
+      "reason": "v1 #771 (3435a2b9) dropped Try it two ways after the capture; re-captured from origin/main a5b1c646 (first run, stopped after these views by hand, so it wrote no entry itself)"
+    },
+    {
+      "started": "2026-11-12T01:46:29.009Z",
+      "finished": "2026-11-12T01:59:28.393Z",
+      "views": [
+        "home",
+        "home.later",
+        "home.compare",
+        "home.typed",
+        "home.goal-on",
+        "home.runner",
+        "home.worktree-off"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 (3435a2b9) dropped Try it two ways after the capture; home and its launcher views re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:19:41.530Z",
+      "finished": "2026-11-12T02:22:14.242Z",
+      "views": [
+        "palette"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; palette re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:29:48.598Z",
+      "finished": "2026-11-12T02:31:33.261Z",
+      "views": [
+        "crew.add"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; crew.add re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:40:50.078Z",
+      "finished": "2026-11-12T02:43:24.359Z",
+      "views": [
+        "crew"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "crew re-captured from origin/main a5b1c646: the reference predated the crew tint (#768)"
+    },
+    {
+      "started": "2026-11-12T02:44:51.275Z",
+      "finished": "2026-11-12T02:47:47.932Z",
+      "views": [
+        "settings.general"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.general re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:49:33.511Z",
+      "finished": "2026-11-12T02:51:33.251Z",
+      "views": [
+        "settings.notifications"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.notifications re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:51:43.707Z",
+      "finished": "2026-11-12T02:53:43.338Z",
+      "views": [
+        "settings.agents"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.agents re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:53:53.788Z",
+      "finished": "2026-11-12T02:55:53.443Z",
+      "views": [
+        "settings.connectors"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.connectors re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:56:18.863Z",
+      "finished": "2026-11-12T02:58:18.492Z",
+      "views": [
+        "settings.auto"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.auto re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T02:58:28.931Z",
+      "finished": "2026-11-12T03:00:28.567Z",
+      "views": [
+        "settings.machines"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.machines re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:00:38.880Z",
+      "finished": "2026-11-12T03:02:38.573Z",
+      "views": [
+        "settings.cloud"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.cloud re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:02:49.109Z",
+      "finished": "2026-11-12T03:04:48.565Z",
+      "views": [
+        "settings.memory"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.memory re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:06:53.659Z",
+      "finished": "2026-11-12T03:08:52.976Z",
+      "views": [
+        "settings.automations"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.automations re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:09:03.302Z",
+      "finished": "2026-11-12T03:11:02.871Z",
+      "views": [
+        "settings.spells"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.spells re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:11:17.224Z",
+      "finished": "2026-11-12T03:13:16.577Z",
+      "views": [
+        "settings.usage"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.usage re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:13:26.911Z",
+      "finished": "2026-11-12T03:15:26.374Z",
+      "views": [
+        "settings.worktrees"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.worktrees re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T03:15:36.603Z",
+      "finished": "2026-11-12T03:17:36.350Z",
+      "views": [
+        "settings.privacy"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 dropped Try it two ways; settings.privacy re-captured from origin/main a5b1c646"
+    },
+    {
+      "started": "2026-11-12T06:37:24.453Z",
+      "finished": "2026-11-12T06:39:35.549Z",
+      "views": [
+        "task.changes"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "task.changes re-captured with the seed restored first: its first row was read by an earlier view's open in the old capture"
+    },
+    {
+      "started": "2026-11-12T06:40:02.389Z",
+      "finished": "2026-11-12T06:42:39.300Z",
+      "views": [
+        "stuff"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "stuff re-captured with the seed restored first: rows read by an earlier view's open in the old capture"
+    },
+    {
+      "started": "2026-11-12T06:42:39.435Z",
+      "finished": "2026-11-12T06:44:24.962Z",
+      "views": [
+        "crew.org"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "crew.org re-captured with the seed restored first"
+    },
+    {
+      "started": "2026-11-12T14:10:44.843Z",
+      "finished": "2026-11-12T14:15:26.629Z",
+      "views": [
+        "automations.trigger-new",
+        "me-menu",
+        "projects",
+        "task.right-click"
+      ],
+      "modes": [
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "v1 #771 (3435a2b9) dropped the launcher Try it two ways button after these four were captured; re-captured from seed.json so launcher.tryTwo is gone (the owner, round 31)"
+    }
+  ]
+}

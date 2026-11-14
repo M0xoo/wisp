@@ -1,0 +1,172 @@
+{
+  "client": [
+    {
+      "build": "b",
+      "client_id": "tab",
+      "cursor": 42,
+      "epoch": "E1",
+      "proto_max": 2,
+      "proto_min": 2,
+      "t": "hello"
+    },
+    {
+      "passive": true,
+      "since": 42,
+      "t": "sub",
+      "topic": "session:a"
+    },
+    {
+      "t": "sub",
+      "topic": "list"
+    },
+    {
+      "t": "unsub",
+      "topic": "machines"
+    },
+    {
+      "before_seq": 900,
+      "limit": 50,
+      "req": "w1",
+      "t": "window",
+      "topic": "session:a"
+    },
+    {
+      "args": {
+        "text": "hi"
+      },
+      "base_seq": 3,
+      "cmd": "session.followUp",
+      "mid": "m1",
+      "t": "mutate"
+    }
+  ],
+  "command": [
+    {
+      "ok": true,
+      "seq": 7
+    },
+    {
+      "ok": true,
+      "result": 1,
+      "seq": 8
+    },
+    {
+      "error": {
+        "code": "invalid",
+        "message": "bad",
+        "retry": false
+      },
+      "ok": false
+    }
+  ],
+  "server": [
+    {
+      "epoch": "E1",
+      "head_seq": 50,
+      "oldest_seq": 0,
+      "peer": {
+        "build": "test",
+        "name": "laptop",
+        "peer": "laptop",
+        "plugins": [],
+        "proto_max": 2,
+        "proto_min": 2,
+        "version": "2.0.0"
+      },
+      "proto": 2,
+      "resume": true,
+      "t": "welcome"
+    },
+    {
+      "more": true,
+      "rows": [
+        {
+          "e": "session",
+          "id": "s1",
+          "v": {
+            "title": "one"
+          }
+        }
+      ],
+      "seq": 50,
+      "t": "snapshot",
+      "topic": "list"
+    },
+    {
+      "ops": [
+        {
+          "e": "session",
+          "id": "s1",
+          "op": "upsert",
+          "topic": "list",
+          "v": {
+            "title": "one"
+          }
+        },
+        {
+          "e": "session",
+          "id": "s1",
+          "op": "patch",
+          "ops": [
+            {
+              "op": "replace",
+              "path": "/title",
+              "value": "two"
+            }
+          ],
+          "topic": "list"
+        },
+        {
+          "e": "session",
+          "id": "s1",
+          "op": "append",
+          "topic": "list",
+          "v": [
+            1,
+            2
+          ]
+        },
+        {
+          "e": "session",
+          "id": "s1",
+          "op": "del",
+          "topic": "list"
+        }
+      ],
+      "seq": 51,
+      "t": "patch"
+    },
+    {
+      "done": true,
+      "req": "w1",
+      "rows": [],
+      "t": "rows"
+    },
+    {
+      "mid": "m1",
+      "result": {
+        "id": "s2"
+      },
+      "seq": 51,
+      "t": "ack"
+    },
+    {
+      "code": "vetoed",
+      "message": "over budget",
+      "mid": "m2",
+      "t": "reject"
+    },
+    {
+      "t": "resync",
+      "topic": "session:a"
+    },
+    {
+      "data": {
+        "code": "forbidden",
+        "topic": "session:x"
+      },
+      "kind": "denied",
+      "t": "notice"
+    }
+  ]
+}

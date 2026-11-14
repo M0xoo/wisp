@@ -90,6 +90,12 @@ public final class Tunnel {
     private Thread thread;
     // Where the phone end listens. Tests use [::1] so a wisp on the same computer keeps 127.0.0.1.
     String bindHost = "127.0.0.1";
+    // v2 (Reach): several computers at once, so the phone end takes another port when `port` is
+    // taken here, and the bundle's requests carry the token instead of relying on Host.
+    boolean anyLocalPort;
+    volatile int localPort;
+    volatile String token = "";
+    volatile String peer = "";
 
     public Tunnel(String host, int sshPort, String user, String password, int port, String script, KeyPair key, HostKeys hostKeys, Lines out) {
         this.host = host;
@@ -245,7 +251,10 @@ public final class Tunnel {
                     state = "failed";
                     return false;
                 }
-                if (line.startsWith("@@wisp ready")) forward(c);
+                if (line.startsWith("@@wisp ready")) {
+                    if (anyLocalPort) readServer(c);
+                    forward(c);
+                }
             }
             if (!everUp) throw new IOException("The machine closed the session before wisp was ready.");
             return true;
@@ -278,11 +287,17 @@ public final class Tunnel {
         try {
             s.bind(new InetSocketAddress(bindHost, port));
         } catch (IOException e) {
+            if (!anyLocalPort) {
+                s.close();
+                throw new IOException("Port " + port + " is already in use on this phone.");
+            }
             s.close();
-            throw new IOException("Port " + port + " is already in use on this phone.");
+            s = new ServerSocket();
+            s.bind(new InetSocketAddress(bindHost, 0)); // another computer holds it: any free port
         }
         server = s;
-        LocalPortForwarder fwd = c.newLocalPortForwarder(new Parameters(bindHost, port, "127.0.0.1", port), s);
+        localPort = s.getLocalPort();
+        LocalPortForwarder fwd = c.newLocalPortForwarder(new Parameters(bindHost, localPort, "127.0.0.1", port), s);
         Thread t = new Thread(() -> {
             try {
                 fwd.listen();
@@ -296,7 +311,7 @@ public final class Tunnel {
         everUp = true;
         tries = 0;
         state = "ready";
-        emit("@@wisp step tunnel done 127.0.0.1:" + port + " → " + port);
+        emit("@@wisp step tunnel done 127.0.0.1:" + localPort + " → " + port);
         emit("@@wisp open " + version);
         watch(c);
     }
@@ -344,6 +359,21 @@ public final class Tunnel {
         if (ssh == c) close();
     }
 
+    // The loopback token and peer id wisp there wrote to server.json: the bundle sends the token as
+    // a Bearer header (any app on the phone can reach the forwarded port, so Host alone is not enough).
+    private void readServer(SSHClient c) {
+        try (Session s = c.startSession()) {
+            Session.Command cmd = s.exec("sh -c 'cat \"${WISP_HOME:-$HOME/.wisp}/server.json\" 2>/dev/null'");
+            String json = new String(readAll(cmd.getInputStream()), StandardCharsets.UTF_8);
+            cmd.join(10, java.util.concurrent.TimeUnit.SECONDS);
+            token = Bootstrap.field(json, "token");
+            peer = Bootstrap.field(json, "peer");
+        } catch (IOException e) {
+            token = ""; // an older wisp without one: the edge's own loopback rules apply
+            peer = "";
+        }
+    }
+
     // wisp's /api/health through the tunnel: the forward is only useful once wisp answers there.
     private String health() throws IOException {
         IOException last = null;
@@ -364,7 +394,9 @@ public final class Tunnel {
 
     // One /api/health through the tunnel: wisp's version.
     private String ping(int timeoutMs) throws IOException {
-        HttpURLConnection h = (HttpURLConnection) new URL("http://" + (bindHost.contains(":") ? "[" + bindHost + "]" : bindHost) + ":" + port + "/api/health").openConnection();
+        int at = localPort > 0 ? localPort : port;
+        HttpURLConnection h = (HttpURLConnection) new URL("http://" + (bindHost.contains(":") ? "[" + bindHost + "]" : bindHost) + ":" + at + "/api/health").openConnection();
+        if (!token.isEmpty()) h.setRequestProperty("Authorization", "Bearer " + token);
         h.setConnectTimeout(timeoutMs);
         h.setReadTimeout(timeoutMs);
         try (InputStream in = h.getInputStream()) {

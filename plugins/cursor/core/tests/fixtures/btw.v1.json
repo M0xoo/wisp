@@ -1,0 +1,12 @@
+[
+ {
+  "type": "session",
+  "id": "cursor-agent-btw"
+ },
+ {
+  "type": "result",
+  "text": "Side answer (digest): what is 2+2?",
+  "isError": false,
+  "stats": {}
+ }
+]

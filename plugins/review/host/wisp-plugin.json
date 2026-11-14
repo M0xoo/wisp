@@ -1,0 +1,84 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.review",
+  "name": "review",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "review by another harness: a task's PR head read by a harness other than the author, the tests run again on it",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_review"
+  },
+  "requires": {
+    "git.service": "^1",
+    "wisp.runtime": "^2"
+  },
+  "provides": {},
+  "permissions": [
+    "git:repo",
+    "git:read",
+    "git:diff",
+    "runtime:get",
+    "runtime:turns",
+    "runtime:agents",
+    "runtime:quick",
+    "runtime:setExt",
+    "runtime:list"
+  ],
+  "activation": [
+    "onCommand:review.maybe",
+    "onCommand:review.view",
+    "onRoute:POST /api/sessions/*/review",
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "review.maybe",
+        "title": "Review the pull request with another harness"
+      },
+      {
+        "id": "review.view",
+        "title": "The task's review",
+        "readOnly": true
+      }
+    ],
+    "events": [{"type": "review.finished", "durable": true}],
+    "points": [
+      {
+        "id": "review.tests",
+        "version": 1,
+        "kind": "list"
+      },
+      {
+        "id": "review.hold",
+        "version": 1,
+        "kind": "list"
+      },
+      {
+        "id": "review.constraints",
+        "version": 1,
+        "kind": "list"
+      }
+    ],
+    "settings": [
+      {
+        "key": "review.harness",
+        "type": "enum",
+        "values": [
+          "off",
+          "other",
+          "claude",
+          "codex",
+          "antigravity",
+          "copilot",
+          "opencode",
+          "cursor",
+          "grok"
+        ],
+        "default": "off",
+        "title": "Review by another harness"
+      }
+    ]
+  }
+}

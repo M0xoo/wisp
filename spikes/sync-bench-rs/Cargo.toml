@@ -1,0 +1,18 @@
+# Gate G3 (plan §9.1) for crates/wisp-sync: its own workspace, so the bench never joins the shared build.
+[package]
+name = "sync-bench-rs"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+serde_json = "1"
+wisp-protocol = { path = "../../crates/wisp-protocol" }
+wisp-sync = { path = "../../crates/wisp-sync" }
+
+[profile.release]
+debug = false
+codegen-units = 1
+lto = "thin"

@@ -1,0 +1,48 @@
+ wisp                     3 tasks │ Blame  src/auth.ts                                                                               A file  r reload  Esc back
+                                  │ ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ RUNNING  1                       │
+▌Add dark mode                 2m │  WHY                         #      LINE
+▌⠋ codex · web                    │ ▌Fix the login               1      import { session } from './session';
+                                  │  │                           2      export const ttl = 3600;
+ DONE  2                          │  by hand                     3      // tuned by hand
+ Fix the login                12m │  Add dark mode               4      export function login() {}
+ ● claude · api                   │
+ Old one                       3d │
+ ✓ claude · api                   │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │ ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                  │ Fix the login  task 01a1bc12ab34  commit a8c8f27e01b2
+                                  │ Asked
+                                  │ Sessions expire too soon; make them last an hour.
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │
+                                  │ ╭ Follow-up · queued while it runs ───────────────────────────────────────────────────────────────────────────────────────╮
+                                  │ │ i write  ? keys                                                                                                         │
+                                  │ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  auto   codex · gpt-5                                                                                                           ● live   ? keys  ^K go  q quit

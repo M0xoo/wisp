@@ -1,0 +1,28 @@
+── 80 plain
+┌─ src/auth/limiter.ts:10 · ts
+│ export function limit(h: Handler) {
+│   return (req) => window.hit(req.ip) ? h(req) : tooMany();
+│ }
+└─
+the new API
+── 40 plain
+┌─ src/auth/limiter.ts:10 · ts
+│ export function limit(h: Handler) {
+│   return (req) => window.hit(req.ip) …
+│ }
+└─
+the new API
+── 80 colour
+␛[2m┌─ src/auth/limiter.ts:10 · ts␛[0m
+␛[2m│␛[0m ␛[35mexport function limit(h: Handler) {␛[0m
+␛[2m│␛[0m ␛[1m  return (req) => window.hit(req.ip) ? h(req) : tooMany();␛[0m
+␛[2m│␛[0m ␛[35m}␛[0m
+␛[2m└─␛[0m
+␛[2mthe new API␛[0m
+── 40 colour
+␛[2m┌─ src/auth/limiter.ts:10 · ts␛[0m
+␛[2m│␛[0m ␛[35mexport function limit(h: Handler) {␛[0m
+␛[2m│␛[0m ␛[1m  return (req) => window.hit(req.ip) …␛[0m
+␛[2m│␛[0m ␛[35m}␛[0m
+␛[2m└─␛[0m
+␛[2mthe new API␛[0m

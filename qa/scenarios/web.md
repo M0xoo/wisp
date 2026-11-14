@@ -203,7 +203,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 
 ### WEB-22c · `/side` side discussion
 - **Steps:** on a finished worktree task, follow up with `/side why that approach?`; again from More, right-click and ⌘K (*Side discussion…* puts `/side ` in the box). Send a bare `/side`. In the side discussion, follow up once more, then follow up on the main task and ask the side discussion about it. Check its / menu, More, right-click and ⌘K. Click its *Side discussion of …* line; on the main task, click *N side discussions*. Repeat at 390px (stacked) and in dark.
-- **Expected:** the box clears at once, a row with the *Side* pill appears and opens; the main task counts it. A bare `/side` shows the hint and sends nothing. The side discussion has no mode, team, computer or goal buttons, no Rerun, Take over or Ship it, and no `/side` or `/goal` in its / menu; its answers know what the main task did since. The line and chip go back and forth; with a long main task title the line still shows the start of it as a link, cut with `…`, and Tab draws its whole ring.
+- **Expected:** the box clears at once, a row with the *Side* pill appears and opens; the main task counts it. A bare `/side` shows the hint and sends nothing. The side discussion has no mode, team, computer or goal buttons, no Rerun, Open in <harness> or Ship it, and no `/side` or `/goal` in its / menu; its answers know what the main task did since. The line and chip go back and forth; with a long main task title the line still shows the start of it as a link, cut with `…`, and Tab draws its whole ring.
 - **Suite** (`test/side.test.js`), **Manual** (the page)
 
 ### WEB-22d · A side discussion changes the work
@@ -264,8 +264,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
   it at once (the pill stays), through a reload; a new task, file or conflict brings it back.
   **Suite** (`test/overlaps.test.js`) · **Manual** in the page
 
-### WEB-29 · Take over in a terminal
-- **Steps:** *Take over* (`T`) on a finished Claude task; open another task, then the first again.
+### WEB-29 · Open in <harness> (a terminal)
+- **Steps:** *Open in Claude Code* (`T`) on a finished Claude task; open another task, then the first again.
 - **Expected:** the in-app terminal resumes `claude --resume <id>` in the worktree. Another task (or home) puts it away; back on the first task it shows again, with the same screen.
 - **Suite** (`test/terminal.test.js`, `test/pty.test.js`) · **Manual** with a real CLI
 - **No wisp block:** the resumed agent is told (`--append-system-prompt`) to answer in plain text, so its replies in the terminal carry no ```` ```wisp ```` JSON.
@@ -408,7 +408,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 
 ### WEB-42 · Open a delegate's task, and back up
 - **Steps:** launch `DELEGATE the review, with @Ada` with two delegates (Codex, Claude Code Haiku) and a crew member Bo whose delegates are Ada and Codex; send `@Bo DELEGATE the check`. While the lead works, click a delegate's live row; once it's done, click the **→** on a report, and **Open @… task** inside an unfolded one. Esc; × ; **Go to the lead**. From Bo's job open Ada's job; open the trail's **…**. Copy the address of a subagent's task and open it in a new tab. At 390px do the same with Back.
-- **Expected:** every delegate (agent or crew member) opens as a task of its own in the main pane; a subagent's row appears under its lead in the list (indented, no Mark done, Save or right-click menu) and leaves once you open an unrelated task. The head names the tasks above it (*Lead › Ada › job*; more than two levels fold into **…**, a menu of the rest), each opens that task. Esc, × and Back go up one level to the task it was opened from, then home. A subagent's task has no follow-up box: the dock says it takes work from its lead, with **Go to the lead**; Rerun, Take over, Ship it, Mark done and More are hidden. A pasted link to a subagent opens it under its lead. Light and dark, split view and 390px.
+- **Expected:** every delegate (agent or crew member) opens as a task of its own in the main pane; a subagent's row appears under its lead in the list (indented, no Mark done, Save or right-click menu) and leaves once you open an unrelated task. The head names the tasks above it (*Lead › Ada › job*; more than two levels fold into **…**, a menu of the rest), each opens that task. Esc, × and Back go up one level to the task it was opened from, then home. A subagent's task has no follow-up box: the dock says it takes work from its lead, with **Go to the lead**; Rerun, Open in <harness>, Ship it, Mark done and More are hidden. A pasted link to a subagent opens it under its lead. Light and dark, split view and 390px.
 - **Manual** (UI), **Suite** (`test/spells.test.js`)
 
 ### WEB-44 · Add a goal to a task that's already going

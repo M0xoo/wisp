@@ -1,0 +1,24 @@
+ Add dark mode   running
+ api · wisp/dark · codex gpt-5  ○ goal: judging · round 1
+ ──────────────────────────────────────────────────────────────────────────────
+
+ path reads the same constant, so the two can't drift again.
+
+
+  › Add dark mode
+
+
+   ✓ Read src/theme.ts
+ Reading the theme tokens first.
+
+ ◆ Use the system theme by default?
+   1 Yes
+   2 No, dark
+   1-9 choose   i write an answer
+
+  1 queued  then add a toggle
+  Alt-↑↓ reorder  Ctrl-S send the first now
+ ╭ Follow-up · queued while it runs ──────────────────────────────────────────╮
+ │ i write  ? keys                                                            │
+ ╰────────────────────────────────────────────────────────────────────────────╯
+  auto   codex · gpt-5                           ● live   ? keys  ^K go  q quit

@@ -1,13 +1,13 @@
 name: tauri
 
-# The desktop app's Rust (desktop/src-tauri): all this checks is that it still compiles on each OS.
-# release.yml builds the downloads. Nothing else in the repo needs Rust, so it's filtered to it.
+# The desktop app (desktop/src-tauri) on each OS: it compiles, and the v2 app works (qa/desktop-v2.mjs: the shell runs
+# the wisp binary's server and never leaves it behind). release.yml builds the downloads.
 on:
   pull_request:
-    paths: ['desktop/**', 'qa/desktop-tauri-linux.mjs', '.github/workflows/tauri.yml']
+    paths: ['desktop/**', 'crates/wisp/src/serve.rs', 'qa/desktop-v2.mjs', 'docs/install.sh', '.github/workflows/tauri.yml']
   push:
     branches: [main]
-    paths: ['desktop/**', 'qa/desktop-tauri-linux.mjs', '.github/workflows/tauri.yml']
+    paths: ['desktop/**', 'crates/wisp/src/serve.rs', 'qa/desktop-v2.mjs', 'docs/install.sh', '.github/workflows/tauri.yml']
 
 permissions:
   contents: read
@@ -27,7 +27,7 @@ jobs:
       - name: WebKitGTK
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0
       - uses: actions/cache@v4
         with:
           path: |
@@ -37,33 +37,56 @@ jobs:
           key: tauri-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: tauri-${{ runner.os }}-
       - run: cargo check --locked
+      # the shell's own unit tests (src/shell_path.rs: the login shell's PATH; Unix only)
+      - run: cargo test --locked
       - name: The QA builds (AppKit's and WebKitGTK's drivers, WebView2's DevTools port)
         run: cargo check --locked --features qa
 
-  # WebKitGTK can't say which frame a navigation is for: the page and its frames, for real, under Xvfb.
-  linux-qa:
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
+  # The v2 desktop on every OS (qa/desktop-v2.mjs): the shell starts the wisp binary's server, the page is v2's, and
+  # the server never outlives the shell (quit, or killed hard). Linux under Xvfb with a session bus.
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: WebKitGTK, a display and a session bus
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev xvfb dbus-x11
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: rustup toolchain install 1.100.0 --profile minimal && rustup default 1.100.0
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            target
             desktop/src-tauri/target
-          key: tauri-qa-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
-          restore-keys: tauri-qa-${{ runner.os }}-
-      - run: cargo build --locked --features qa --manifest-path desktop/src-tauri/Cargo.toml
-      - run: QA_TAURI_NO_BUILD=1 xvfb-run -a dbus-run-session -- node qa/desktop-tauri-linux.mjs
+          key: tauri-smoke-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'desktop/src-tauri/Cargo.lock') }}
+          restore-keys: tauri-smoke-${{ runner.os }}-
+      - run: npm ci
+      - run: npm run build --workspace @wisp/web
+      - run: cargo build --locked -p wisp
+      # macOS: the QA build (src/qa.rs, inert without WISP_QA_PORT), for what needs AppKit's events (DESK2-06..08)
+      - run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml $([ "$RUNNER_OS" = "macOS" ] && echo --features qa)
+      - name: qa/desktop-v2.mjs
+        run: |
+          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          # the wisp binary finds the web build beside or above it: here, the checkout's apps/web/dist
+          export WISP_WEB_DIR="$PWD/apps/web/dist"
+          cmd=(node qa/desktop-v2.mjs --app "desktop/src-tauri/target/debug/wisp$ext" --wisp "target/debug/wisp$ext")
+          [ "$RUNNER_OS" = "macOS" ] && cmd+=(--qa)
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a dbus-run-session -- "${cmd[@]}"; else "${cmd[@]}"; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tauri-linux-qa
-          path: qa/out/desktop-tauri-linux*
+          name: desktop-v2-${{ runner.os }}
+          path: qa/out/desktop-v2.md

@@ -1,0 +1,15 @@
+[package]
+name = "wisp-envmask"
+description = "The .env masking rules (v1 server/env-mask.js, ADR-0050), sans-IO: which files are .env files, a line's value as ••••, an edit, a unified diff, a code or diff answer block, a command that names one"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+regex.workspace = true
+
+[lints]
+workspace = true

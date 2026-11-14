@@ -1,0 +1,32 @@
+Public entry: by package name through `exports`, declared in package.json; no relative escapes.
+=== packages/kernel/package.json
+{ "name": "@f/kernel", "exports": { ".": "./src/index.ts", "./testing": "./src/testing.ts", "./icons/*": "./src/icons/*.ts" } }
+=== packages/kernel/src/index.ts
+import { helper } from './internal/helper.ts';
+export const kernel = helper;
+=== packages/kernel/src/internal/helper.ts
+export const helper = 1;
+=== packages/kernel/src/testing.ts
+export const fake = 1;
+=== packages/kernel/src/icons/check.ts
+export const check = 1;
+=== packages/store/package.json
+{ "name": "@f/store", "exports": { ".": "./src/index.ts" }, "dependencies": { "@f/kernel": "*" } }
+=== packages/store/src/index.ts
+import { kernel } from '@f/kernel';
+import { fake } from '@f/kernel/testing';
+import { check } from '@f/kernel/icons/check';
+import { helper } from '@f/kernel/src/internal/helper.ts';
+import { helper as h2 } from '../../kernel/src/internal/helper.ts';
+import { local } from './local.ts';
+export const store = [kernel, fake, check, helper, h2, local];
+=== packages/store/src/local.ts
+export const local = 1;
+=== packages/sync/package.json
+{ "name": "@f/sync", "exports": { ".": "./src/index.ts" } }
+=== packages/sync/src/index.ts
+import { kernel } from '@f/kernel';
+import { thing } from '../../../shared/thing.ts';
+export const sync = [kernel, thing];
+=== shared/thing.ts
+export const thing = 1;

@@ -1,0 +1,29 @@
+[package]
+name = "wisp-learn"
+description = "wisp.learn host: wiring to the kernel, store and HTTP routes (preferences learned from retros)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+wisp-envmask.workspace = true
+wisp-kernel.workspace = true
+wisp-learn-api.workspace = true
+wisp-learn-core.workspace = true
+wisp-runtime-api.workspace = true
+wisp-store.workspace = true
+wisp-telemetry-api.workspace = true
+
+[dev-dependencies]
+wisp-runtime-api = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

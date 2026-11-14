@@ -1,0 +1,941 @@
+/* List rows, cards, toolbars, the composer, empty states, banners and settings rows. */
+@layer kit {
+  /* ListRow: five fixed columns; empty ones collapse to 0, and each cell is placed by column so a
+     missing one never shifts the rest. The time column is fixed-width when the row has a time. */
+  [data-kit='list-row'] {
+    --k-time-w: auto;
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto var(--k-time-w) auto;
+    align-items: center;
+    min-height: var(--size-row-min);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-md);
+    color: var(--ink);
+    transition: background var(--dur-fast);
+  }
+  [data-kit='list-row'][data-time] {
+    --k-time-w: var(--size-time-col);
+  }
+  /* The feed row: v1 split.css #feed .item / .it-head and feed.css, number for number (qa/parity.mjs). The head is a
+     grid: a 10px dot column, the title, the pills; 10px between columns, 1px between lines, 9px 12px around. The title
+     runs to the row's end less 36px for the time, which sits in the top-right corner (top 9px, right 12px, a 21px
+     line, at least 26px wide); the sub and the pills share the second line; the run line runs across the third. The
+     quick actions float over the title's end (v1 .it-quick top 7px right 40px, .it-later right 68px: 24px, 4px
+     apart), so the dot, the title and the time always share one line. */
+  [data-kit='list-row'][data-layout='feed'] {
+    grid-template-columns: 10px minmax(0, 1fr) auto;
+    grid-template-rows: auto;
+    column-gap: 10px;
+    row-gap: 1px;
+    padding: 9px 12px;
+    min-height: 0;
+    align-items: center;
+    border-radius: var(--radius);
+    cursor: pointer;
+    outline: 0;
+  }
+  [data-kit='list-row'][data-layout='feed']:focus-visible {
+    box-shadow: inset 0 0 0 var(--size-ring) var(--accent);
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='dot'] {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    width: 7px;
+    height: 7px;
+    color: var(--ink);
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon'][data-part~='list.row.mark'] {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-title'] {
+    grid-column: 2 / -1;
+    grid-row: 1;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    padding-right: 36px;
+    font-weight: var(--fw-medium);
+    color: var(--ink-2);
+    border-radius: 5px;
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'] {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    line-height: 1.55;
+    color: var(--faint);
+  } /* v1's 19.375px: the rows below stay on v1's sub-pixel grid */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'][data-tone='accent-ink'] {
+    color: var(--accent-ink);
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'][data-tone='warn'] {
+    color: var(--warn);
+    font-weight: var(--fw-medium);
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-sub'] > [data-kit='icon'] {
+    display: inline-block;
+    margin-right: 4px;
+    vertical-align: -2px;
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] {
+    grid-column: 3;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 2px 6px;
+    min-height: 19px;
+    padding-inline-start: 0;
+  }
+  /* v1 .it-run: harness, model and where, across the third line */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='row-run'] {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    font-size: 11.5px;
+    line-height: 17px;
+    color: var(--faint);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  [data-kit='row-run'] > * {
+    flex: none;
+  }
+  [data-kit='row-run'] > [data-kit='ir-logo'] {
+    margin-right: 5px;
+  }
+  [data-kit='row-run'] > [data-kit='ir-h'] {
+    color: var(--muted);
+  }
+  /* v1 .ir-m: the model ellipsises first, never under 7ch */
+  [data-kit='row-run'] > [data-kit='ir-m'] {
+    flex: 0 1 auto;
+    min-width: 7ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  [data-kit='ir-m']::before {
+    content: '·';
+    padding: 0 5px;
+  }
+  [data-kit='ir-w'] {
+    flex: 0 1 auto;
+    display: inline-flex;
+    align-items: center;
+    min-width: 8ch;
+    overflow: hidden;
+  }
+  [data-kit='ir-w']::before {
+    content: '·';
+    padding: 0 5px;
+  }
+  [data-kit='ir-w'] > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  [data-kit='ir-w'] > [data-kit='icon'] {
+    flex: none;
+    width: 11px;
+    height: 11px;
+    margin-right: 4px;
+  }
+  /* 600 in ink while it wants you (v1 .item.unread / .st-waiting / .open .it-title) */
+  [data-kit='list-row'][data-layout='feed'][data-strong] > [data-kit='list-row-title'] {
+    font-weight: var(--fw-semibold);
+    color: var(--ink);
+  }
+  [data-kit='list-row'][data-layout='feed'][data-quiet] > [data-kit='list-row-title'] {
+    color: var(--muted);
+  }
+  /* while the quick actions show (hover, the open or keyboard's row), the title ends before them (v1: one 64px, two
+     92px). Only with a mouse: a touch screen has no quick actions (below), so the title keeps its own edge. */
+  @media (hover: hover) {
+    [data-kit='list-row'][data-layout='feed'][data-quick='1']:hover > [data-kit='list-row-title'] {
+      padding-right: 64px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='2']:hover > [data-kit='list-row-title'] {
+      padding-right: 92px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-current] > [data-kit='list-row-title'] {
+      padding-right: 64px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-current] > [data-kit='list-row-title'] {
+      padding-right: 92px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-selected] > [data-kit='list-row-title'] {
+      padding-right: 64px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-selected] > [data-kit='list-row-title'] {
+      padding-right: 92px;
+    }
+  }
+  /* the time is the pills' last, pinned in the row's corner (v1 split.css .it-side .q-time) */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-kit='time'],
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-part~='list.row.time'] {
+    position: absolute;
+    top: 9px;
+    right: 12px;
+    display: block;
+    min-width: 26px;
+    font-size: 11.5px;
+    line-height: 21px;
+    text-align: right;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  /* the quick actions float over the title's end: Mark done at 40px, Save for later at 68px before it (v1 .it-quick, .it-later) */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] {
+    position: absolute;
+    top: 7px;
+    right: 40px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    border-width: 0;
+    border-radius: 7px;
+    background: var(--bg-2);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.55;
+    color: var(--faint);
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity 0.15s,
+      background 0.15s,
+      color 0.15s;
+  }
+  [data-kit='list-row'][data-layout='feed'][data-quick='2'] > [data-kit='icon-button'] {
+    right: 68px;
+  }
+  [data-kit='list-row'][data-layout='feed'][data-quick='2'] > [data-kit='icon-button'] ~ [data-kit='icon-button'] {
+    right: 40px;
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] > [data-kit='icon'] {
+    width: 14px;
+    height: 14px;
+  }
+  [data-kit='list-row'][data-layout='feed']:hover > [data-kit='icon-button'],
+  [data-kit='list-row'][data-layout='feed']:focus-visible > [data-kit='icon-button'],
+  [data-kit='list-row'][data-layout='feed'][data-selected] > [data-kit='icon-button'],
+  [data-kit='list-row'][data-layout='feed'][data-current] > [data-kit='icon-button'] {
+    opacity: 1;
+  } /* v1 .item.focused: the row the keys are on */
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'][data-tone='good']:hover {
+    color: var(--good);
+  }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='gap'] {
+    display: none;
+  }
+  /* No hover on touch (v1 feed.css .it-later, split.css #feed.has-quick): Save for later leaves the row (it is in the
+     long-press menu and the swipe); Mark done stays, in a 36px column of its own after the time, never over the title.
+     The column is there only while some row in the list shows Mark done: the list sets --k-feed-done (feedDoneColumn);
+     unset, the empty fallback leaves v1's three columns. */
+  @media (hover: none) {
+    [data-kit='list-row'][data-layout='feed'] {
+      grid-template-columns: 10px minmax(0, 1fr) auto var(--k-feed-done,);
+    }
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-title'] {
+      padding-right: calc(36px + var(--k-feed-done-pad, 0px));
+    }
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-kit='time'],
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-part~='list.row.time'] {
+      right: calc(12px + var(--k-feed-done, 0px));
+    }
+    [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button']:not([data-tone='good']) {
+      display: none;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick] > [data-kit='icon-button'][data-tone='good'] {
+      top: 50%;
+      right: 8px;
+      width: 36px;
+      height: 36px;
+      margin: -18px 0 0;
+      background: none;
+      opacity: 1;
+    }
+  }
+  /* the item round it (v1 #feed .item): a 1px border, transparent at rest; hover and open fill the item, focus (the
+     keyboard's row) outlines it; 2px between items (.f-list gap), the virtual row's own padding so it's measured */
+  [data-kit='feed-item'] {
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+  }
+  [data-kit='feed-item']:hover,
+  [data-kit='feed-item'][data-current] {
+    background: var(--bg-2);
+  }
+  [data-kit='feed-item'][data-selected] {
+    border-color: var(--line);
+  }
+  [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed']:hover,
+  [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-current],
+  [data-kit='feed-item'] > [data-kit='list-row'][data-layout='feed'][data-selected] {
+    background: none;
+  }
+  /* 2px between two task rows, none after a heading (v1 .f-list gap); a virtual row is flow-root, so it's measured */
+  [data-kit='virtual-row'][data-gap] {
+    padding-top: 2px;
+  }
+  /* a section that follows another's rows (v1 .f-group's 14px margin below it) */
+  [data-kit='virtual-row'][data-gap='section'] {
+    padding-top: 14px;
+  }
+  [data-kit='list-row'][data-interactive]:hover {
+    background: var(--bg-2);
+  }
+  [data-kit='list-row'][data-current] {
+    background: var(--bg-2);
+  }
+  [data-kit='list-row'][data-selected] {
+    background: var(--accent-soft);
+  }
+  [data-kit='list-row-lead'] {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    margin-inline-end: var(--space-5);
+    color: var(--muted);
+    pointer-events: none;
+  }
+  [data-kit='list-row-main'] {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  [data-kit='list-row-pills'] {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding-inline-start: var(--space-5);
+    pointer-events: none;
+  }
+  [data-kit='list-row-time'] {
+    grid-column: 4;
+    grid-row: 1;
+    padding-inline-start: var(--space-4);
+    text-align: end;
+    white-space: nowrap;
+    font-size: var(--fs-xs);
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  [data-kit='list-row-actions'] {
+    grid-column: 5;
+    grid-row: 1;
+    position: relative;
+    z-index: var(--z-raised);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding-inline-start: var(--space-2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-fast);
+  }
+  /* a button among the pills (a compare task's vs Compare) takes clicks over the row's hit area */
+  [data-kit='list-row-pills'] > [data-kit='button'] {
+    position: relative;
+    z-index: var(--z-raised);
+    pointer-events: auto;
+  }
+  [data-kit='list-row-lead']:empty,
+  [data-kit='list-row-pills']:empty,
+  [data-kit='list-row-time']:empty,
+  [data-kit='list-row-actions']:empty,
+  [data-kit='list-row-sub']:empty {
+    display: none;
+  }
+  /* v1's quick buttons (.it-quick, .it-later): 24px, pulled in by their margins, so the row's actions take
+     ~60px and the title keeps the rest of a 340px sidebar; a gap holding one's place is the same size */
+  [data-kit='list-row-actions'] > [data-kit='icon-button'],
+  [data-kit='list-row-actions'] > [data-kit='gap'] {
+    width: var(--size-control-xs);
+    height: var(--size-control-xs);
+    margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-1));
+  }
+  [data-kit='list-row']:hover > [data-kit='list-row-actions'],
+  [data-kit='list-row']:focus-within > [data-kit='list-row-actions'] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  [data-kit='list-row-hit'] {
+    display: block;
+    min-width: 0;
+    width: 100%;
+    padding: 0;
+    text-align: start;
+    color: inherit;
+    outline: 0;
+  }
+  /* The one click target covers the whole row; actions sit above it. */
+  [data-kit='list-row-hit']::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  [data-kit='list-row-hit']:focus-visible::after {
+    outline: var(--size-ring) solid var(--accent);
+    outline-offset: calc(-1 * var(--size-ring));
+  }
+  [data-kit='list-row-title'] {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
+    line-height: var(--lh-snug);
+  }
+  [data-kit='list-row'][data-quiet] [data-kit='list-row-title'] {
+    color: var(--ink-2);
+    font-weight: var(--fw-regular);
+  }
+  [data-kit='list-row-sub'] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-sm);
+    color: var(--muted);
+    line-height: var(--lh-snug);
+  }
+  @media (hover: none) {
+    [data-kit='list-row-actions'] {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    [data-kit='list-row'][data-interactive]:hover {
+      background: transparent;
+    }
+    [data-kit='list-row'][data-interactive]:active {
+      background: var(--bg-2);
+    }
+  }
+  /* A row title is control text (design/layout.md): one line and an ellipsis at every width, the
+     full title in its tooltip and wherever it opens. */
+
+  [data-kit='card'] {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    text-align: start;
+    color: inherit;
+    font: inherit;
+    background: var(--surface);
+    border: var(--size-hairline) solid var(--line);
+    border-radius: var(--radius);
+    transition:
+      border-color var(--dur-base),
+      box-shadow var(--dur-base);
+  }
+  [data-kit='card'][data-tone] {
+    border-color: color-mix(in srgb, var(--k-tone) 30%, var(--line));
+  }
+  [data-kit='card'][data-interactive] {
+    cursor: pointer;
+  }
+  [data-kit='card'][data-interactive]:hover {
+    border-color: var(--line-2);
+    box-shadow: var(--shadow-1);
+  }
+  [data-kit='card-header'],
+  [data-kit='card-body'],
+  [data-kit='card-footer'] {
+    padding: var(--k-card-pad);
+    min-width: 0;
+  }
+  [data-kit='card-header'] {
+    border-bottom: var(--size-hairline) solid var(--line);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  [data-kit='card-footer'] {
+    border-top: var(--size-hairline) solid var(--line);
+    font-size: var(--fs-sm);
+    color: var(--muted);
+  }
+
+  /* Bars (design/layout.md §2): one line at a token height, never wrapping. Items fold to icons and
+     into More instead (Toolbar measures); the row clips rather than grow, with room for focus rings. */
+  [data-kit='toolbar'] {
+    position: relative;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--k-gap);
+    flex: 0 1 auto;
+    width: 100%;
+    min-width: 0;
+    height: var(--bar-h);
+    overflow: clip;
+    overflow-clip-margin: var(--space-2);
+  }
+  [data-kit='toolbar'][data-compact] {
+    height: var(--bar-h-compact);
+  }
+  [data-kit='toolbar'][data-justify='end'] {
+    justify-content: flex-end;
+  }
+  [data-kit='toolbar-item'] {
+    display: flex;
+    flex: none;
+    align-items: center;
+  }
+  [data-kit='toolbar-item'][data-pinned] {
+    margin-inline-start: auto;
+  }
+  [data-kit='toolbar-item'][data-pinned] ~ [data-kit='toolbar-item'][data-pinned] {
+    margin-inline-start: 0;
+  }
+  /* The hidden copy every item is measured from, in both forms; never seen, never clicked. */
+  [data-kit='toolbar-measure'] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    gap: var(--k-gap);
+    width: max-content;
+    visibility: hidden;
+    pointer-events: none;
+    contain: layout style;
+  }
+  [data-kit='toolbar-measure'] > span {
+    display: inline-flex;
+    flex: none;
+  }
+
+  /* Composer: the reply box, docked at the bottom of its scroll parent. */
+  [data-kit='composer'] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    min-width: 0;
+    padding: var(--space-3) var(--space-4) var(--space-4) var(--space-6);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    border: var(--size-hairline) solid var(--line);
+    transition:
+      background var(--dur-base),
+      border-color var(--dur-base),
+      box-shadow var(--dur-base);
+  }
+  [data-kit='composer'][data-pinned] {
+    position: sticky;
+    bottom: 0;
+    z-index: var(--z-sticky);
+  }
+  [data-kit='composer']:focus-within {
+    background: var(--surface);
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2));
+    box-shadow: 0 0 0 var(--space-2) var(--accent-soft);
+  }
+  [data-kit='composer'][data-disabled] {
+    opacity: 0.6;
+  }
+  [data-kit='composer-head'] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-sm);
+    color: var(--muted);
+  }
+  [data-kit='composer-input'] {
+    display: block;
+    width: 100%;
+    min-height: var(--size-control-xs);
+    padding: var(--space-3) var(--space-1);
+    margin: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    resize: none;
+    color: var(--ink);
+    font-size: var(--fs-lg);
+    line-height: var(--lh-base);
+  }
+  [data-kit='composer-input']::placeholder {
+    color: var(--faint);
+  }
+  /* A long placeholder stays one line and fades out, instead of doubling an empty box that shrinks on the first key. */
+  [data-kit='composer-input']:placeholder-shown {
+    white-space: nowrap;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, var(--ink) calc(100% - var(--space-9)), transparent);
+    mask-image: linear-gradient(90deg, var(--ink) calc(100% - var(--space-9)), transparent);
+  }
+  [data-kit='composer-input']:disabled {
+    cursor: not-allowed;
+  }
+  [data-kit='composer-bar'] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+  [data-kit='composer-left'] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  [data-kit='composer-right'] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: none;
+  }
+
+  [data-kit='empty-state'] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-9) var(--space-7);
+    text-align: center;
+    color: var(--muted);
+    font-size: var(--fs-md);
+  }
+  [data-kit='empty-state'][data-compact] {
+    padding: var(--space-7);
+    gap: var(--space-3);
+  }
+  [data-kit='empty-state-icon'] {
+    display: grid;
+    place-items: center;
+    width: var(--size-touch);
+    height: var(--size-touch);
+    border-radius: var(--radius-pill);
+    background: var(--bg-2);
+    color: var(--muted);
+  }
+  [data-kit='empty-state'][data-compact] [data-kit='empty-state-icon'] {
+    width: var(--size-control-md);
+    height: var(--size-control-md);
+  }
+  [data-kit='empty-state-title'] {
+    margin: 0;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-medium);
+    color: var(--ink);
+  }
+  [data-kit='empty-state-body'] {
+    max-width: var(--size-dialog-sm);
+    text-wrap: pretty;
+  }
+  [data-kit='empty-state-action'] {
+    margin-top: var(--space-2);
+  }
+
+  /* Banner and Callout: the tone tints the fill and the whole hairline border, never one side. */
+  [data-kit='banner'],
+  [data-kit='callout'] {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-5);
+    min-width: 0;
+    padding: var(--space-6);
+    border-radius: var(--radius);
+    font-size: var(--fs-md);
+    color: var(--ink-2);
+    background: color-mix(in srgb, var(--k-tone) 5%, var(--surface));
+    border: var(--size-hairline) solid color-mix(in srgb, var(--k-tone) 20%, var(--line));
+  }
+  [data-kit='banner'] {
+    align-items: center;
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
+    border-radius: var(--radius-md);
+  }
+  [data-kit='banner'] [data-kit='notice-icon'] {
+    margin-top: 0;
+  }
+  [data-kit='notice-icon'] {
+    display: flex;
+    flex: none;
+    margin-top: var(--space-1);
+    color: var(--k-tone);
+  }
+  [data-kit='notice-text'] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: var(--lh-snug);
+  }
+  [data-kit='notice-title'] {
+    margin: 0;
+    font-weight: var(--fw-semibold);
+    color: var(--ink);
+  }
+  [data-kit='notice-action'] {
+    display: flex;
+    flex: none;
+    gap: var(--space-2);
+  }
+
+  [data-kit='section'] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+  }
+  [data-kit='section-head'] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-6);
+  }
+  [data-kit='section-titles'] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  [data-kit='section-description'] {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--muted);
+  }
+  [data-kit='section-actions'] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: none;
+  }
+  [data-kit='section-body'] {
+    min-width: 0;
+  }
+
+  [data-kit='settings-row'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-7);
+    min-height: var(--size-action-tile);
+    padding: 9px 14px;
+  }
+  /* v1 .sx-row + .sx-row: the line sits on top of the next row */
+  /* a grid on a wide pane (its Wrap layout only takes over in a narrow one, below) */
+  [data-kit='settings-row'][data-layout='wrap'] {
+    display: grid;
+  }
+  /* v1 .sx-row in a narrow pane: a control that doesn't fit beside its text (the text would get under 200px) goes
+     underneath it, start-aligned; the text keeps its line */
+  @container settings (max-width: 520px) {
+    [data-kit='settings-row'][data-layout='wrap'] {
+      display: flex;
+      gap: 8px 16px;
+      padding: 11px 14px;
+    }
+    [data-kit='settings-row'][data-layout='wrap'] > [data-kit='settings-row-text'] {
+      flex: 1 1 12.5rem;
+    }
+    [data-kit='settings-row'][data-layout='wrap'] > [data-kit='settings-row-control'] {
+      max-width: 100%;
+    }
+    [data-kit='settings-row'][data-layout='wrap'][data-keep-right] > [data-kit='settings-row-control'] {
+      flex: 1 0 100%;
+      justify-content: flex-end;
+    }
+    [data-kit='settings-row'][data-layout='wrap'][data-choices] > [data-kit='settings-row-control'] > [data-kit='wrap'] {
+      max-width: none;
+      justify-content: flex-start;
+    }
+    [data-kit='settings-row'][data-layout='wrap'][data-tile] > [data-kit='settings-row-tile'] {
+      flex: none;
+    }
+  }
+  [data-kit='settings-row'] + [data-kit='settings-row'] {
+    border-top: var(--size-hairline) solid var(--line);
+  }
+  [data-kit='settings-row'][data-bare] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-kit='settings-row'][data-tile] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  [data-kit='settings-row-tile'] {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    color: var(--ink-2);
+  }
+  [data-kit='settings-row-tile'] > [data-kit='icon'] {
+    width: 14px;
+    height: 14px;
+  }
+  [data-kit='settings-row-text'] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  /* a row straight in a pane (not in a group's box) keeps the pane's edge */
+  [data-kit='settings-pane'] > [data-kit='settings-row'] {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  [data-kit='settings-row-title'] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  [data-kit='settings-row-title'] > [data-kit='icon'] {
+    flex: none;
+    width: 13px;
+    height: 13px;
+    color: var(--ink-2);
+  }
+  [data-kit='settings-row-logo'] {
+    width: var(--size-icon-md);
+    height: var(--size-icon-md);
+    flex: none;
+    object-fit: contain;
+  }
+  [data-kit='settings-row-description'] {
+    font-size: var(--fs-sm);
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  [data-kit='settings-row-control'] {
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+  /* a row's choices that wrap (v1 .ro-allowed: Auto's harnesses): at most 360px, from the right */
+  [data-kit='settings-row'][data-choices] > [data-kit='settings-row-control'] > [data-kit='wrap'] {
+    max-width: 22.5rem;
+    justify-content: flex-end;
+  }
+  @media (max-width: 520px) {
+    [data-kit='settings-row'][data-wide] {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-4) var(--space-7);
+    }
+    [data-kit='settings-row'][data-wide] [data-kit='settings-row-control'] {
+      justify-content: stretch;
+    }
+    [data-kit='settings-row'][data-wide] [data-kit='settings-row-control'] > * {
+      flex: 1 1 auto;
+      width: 100%;
+    }
+    [data-kit='settings-row'][data-wide] [data-kit='select-trigger'] {
+      flex: 1 1 auto;
+      justify-content: space-between;
+    }
+  }
+
+  /* v1 .us-chart / .us-bar / .us-axis */
+  [data-kit='day-bars-plot'] {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 7.5rem;
+    padding-bottom: 1px;
+    border-bottom: var(--size-hairline) solid var(--line-2);
+  }
+  [data-kit='day-bar'] {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    cursor: default;
+  }
+  [data-kit='day-bar'] > i {
+    display: block;
+    width: 100%;
+    height: var(--k-v);
+    border-radius: 4px 4px 0 0;
+    background: var(--accent);
+    opacity: 0.85;
+  }
+  [data-kit='day-bar']:hover > i {
+    opacity: 1;
+  }
+  [data-kit='day-bars-tip'] {
+    position: absolute;
+    left: var(--k-x);
+    top: 0;
+    z-index: 5;
+    transform: translate(-50%, -100%);
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 11.5px;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  [data-kit='day-bars-axis'] {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--faint);
+  }
+  /* v1 .us-table */
+  [data-kit='data-table'] {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  [data-kit='data-table'] th {
+    text-align: right;
+    font-weight: var(--fw-medium);
+    font-size: 11.5px;
+    color: var(--faint);
+    padding: 4px 6px;
+    border-bottom: var(--size-hairline) solid var(--line);
+  }
+  [data-kit='data-table'] td {
+    text-align: right;
+    padding: 6px;
+    border-bottom: var(--size-hairline) solid var(--line);
+    color: var(--ink-2);
+  }
+  [data-kit='data-table'] th:first-child,
+  [data-kit='data-table'] td:first-child {
+    text-align: left;
+    color: var(--ink);
+  }
+  [data-kit='data-table-empty'] {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  [data-kit='stat-note'] {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--faint);
+  }
+}

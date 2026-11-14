@@ -1,0 +1,25 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.learn",
+  "name": "learn",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "What wisp learns about how you work: preferences and lessons, globally and per project, from a retro of each quiet task; later tasks' prompts carry them (v1 preferences.js)",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_learn" },
+  "permissions": ["runtime:get", "runtime:turns", "runtime:activity", "runtime:quick", "telemetry:track", "settings:read", "store:write{owner:learn}"],
+  "requires": {},
+  "provides": {},
+  "activation": ["onStartup"],
+  "contributes": {
+    "events": [],
+    "commands": [
+      { "id": "learn.view", "title": "What wisp has learned: preferences and lessons, and the recent retros", "readOnly": true },
+      { "id": "learn.set", "title": "Replace one list of what wisp has learned (global or a project's)" },
+      { "id": "learn.retro", "title": "Learn from a task now: a retro of it, without waiting for it to go quiet" }
+    ],
+    "settings": [
+      { "key": "learn.enabled", "type": "bool", "default": true, "title": "Learn from your tasks: a short retro after each quiet task, kept as preferences and lessons later tasks follow" }
+    ]
+  }
+}

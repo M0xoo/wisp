@@ -1,0 +1,15 @@
+/* Entrances: a small rise, fade or pop, once per mount. The kit never re-inserts a node that is
+   in place, so these never replay on a refresh (v1 #57). */
+@layer kit {
+  @keyframes kit-rise { from { opacity: 0; transform: translateY(var(--space-3)); } }
+  @keyframes kit-fade { from { opacity: 0; } }
+  @keyframes kit-pop { from { opacity: 0; transform: scale(0.97) translateY(calc(-1 * var(--space-2))); } }
+  @keyframes kit-sheet { from { transform: translateY(100%); } }
+  @keyframes kit-spin { to { transform: rotate(360deg); } }
+  @keyframes kit-shimmer { 50% { opacity: 0.45; } }
+  @keyframes kit-pulse { 50% { opacity: 0.35; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-kit] { animation-duration: 0.01s !important; animation-iteration-count: 1 !important; transition-duration: 0.01s !important; }
+  }
+}

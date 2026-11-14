@@ -1,0 +1,7 @@
+[
+ { "name": "turn", "note": "view_file, an edit announced ACTIVE then DONE, a refused run_command, text deltas per step, the result" },
+ { "name": "resume", "prompt": "and add a test", "opts": { "resumeId": "prev-1" } },
+ { "name": "auto", "opts": { "mode": "auto" } },
+ { "name": "stop", "env": { "FAKE_HANG": "1" }, "stopAfter": 2 },
+ { "name": "fail", "env": { "FAKE_FAIL": "1" } }
+]

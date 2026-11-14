@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-1","claude_code_version":"9.9.9","apiKeySource":"none"}
+{"type":"assistant","session_id":"claude-session-1","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"@CWD@/math.js"}}]}}

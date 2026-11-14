@@ -1,0 +1,4 @@
+# AGENTS.md (plan §9.2): no unwrap/expect/panic outside tests. Tests may use them.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

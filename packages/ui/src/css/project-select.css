@@ -1,0 +1,53 @@
+@layer kit {
+  /* The project selector (owner, 2026-11-12): one control where the row of chips was. It reads like the chip that's on
+     (surface, a line, ink): the project's dot, its name, how many need you, and a ▾ that says it opens a switcher. */
+  [data-kit='p-select'] {
+    display: inline-flex; align-items: center; gap: var(--space-3); min-width: 0; max-width: 100%; height: 26px;
+    padding: 0 var(--space-3) 0 var(--space-5); border: 1px solid var(--line-2); border-radius: var(--radius-pill);
+    background: var(--surface); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap;
+    transition: background var(--dur-fast), border-color var(--dur-fast);
+  }
+  [data-kit='p-select']:hover { background: var(--bg-2); }
+  [data-kit='p-select']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--size-ring); }
+  [data-kit='p-select'] > [data-kit='p-name'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='p-select'] > [data-kit='icon'] { flex: none; width: var(--size-icon-xs); height: var(--size-icon-xs); color: var(--muted); }
+  [data-kit='p-select'] > [data-kit='icon']:first-child { color: var(--ink-2); }
+  /* several projects picked (2026-11-14): their dots overlap, each ringed in the button's surface so they read apart;
+     the name truncates in the middle of the line the button keeps */
+  [data-kit='p-dots'] { display: inline-flex; flex: none; align-items: center; }
+  [data-kit='p-dots'] > [data-kit='p-dot'] { width: 9px; height: 9px; box-shadow: 0 0 0 1.5px var(--surface); }
+  [data-kit='p-dots'] > [data-kit='p-dot'] + [data-kit='p-dot'] { margin-left: -3px; }
+  /* the kit's chevron points right: turned down, it reads "opens a list" */
+  [data-kit='p-select'] > [data-kit='icon']:last-child { transform: rotate(90deg); }
+
+  /* The pick strip (several projects, 2026-11-14): one slim line over the list. The chips scroll sideways rather than
+     wrap; Only … and All projects keep their place at the end. */
+  [data-kit='pick-strip'] { display: flex; align-items: center; gap: var(--space-3); min-width: 0; height: 30px; margin: 0 0 var(--space-2); font-size: var(--fs-sm); }
+  [data-kit='pick-chips'] { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--space-2); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+  [data-kit='pick-chips']::-webkit-scrollbar { display: none; }
+  [data-kit='pick-chip'] {
+    flex: none; display: inline-flex; align-items: center; gap: var(--space-2); height: 22px; padding: 0 var(--space-1) 0 var(--space-4);
+    border: 1px solid var(--line-2); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); white-space: nowrap;
+  }
+  [data-kit='pick-x'] {
+    display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted);
+    cursor: pointer; opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+  }
+  [data-kit='pick-x'] > [data-kit='icon'] { width: 10px; height: 10px; }
+  [data-kit='pick-chip']:hover > [data-kit='pick-x'], [data-kit='pick-x']:focus-visible { opacity: 1; }
+  [data-kit='pick-x']:hover { background: var(--bg-2); color: var(--ink); }
+  [data-kit='pick-x']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: 0; }
+  [data-kit='pick-link'] {
+    flex: none; padding: 0 var(--space-2); height: 22px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted);
+    font-size: var(--fs-sm); white-space: nowrap; cursor: pointer;
+  }
+  [data-kit='pick-link']:first-of-type { margin-left: auto; }
+  [data-kit='pick-link']:hover { color: var(--ink); background: var(--bg-2); }
+  [data-kit='pick-link']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: 0; }
+  @media (hover: none) {
+    [data-kit='pick-x'] { opacity: 1; width: 22px; height: 22px; }
+    [data-kit='pick-chip'] { height: 28px; }
+    [data-kit='pick-link'] { height: 28px; }
+    [data-kit='pick-strip'] { height: 36px; }
+  }
+}

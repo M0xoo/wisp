@@ -1,0 +1,33 @@
+{
+  "$doc": "Type. One scale, at most five sizes on a screen (design/ui.md): xs times/counts/keys, sm secondary, md UI rows/buttons/menus, lg reading, display one per screen. xl and title are the palette input and dialog headings.",
+  "family": {
+    "sans": "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', system-ui, sans-serif",
+    "display": "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif",
+    "mono": "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace"
+  },
+  "size": {
+    "xs": "11.5px",
+    "sm": "12.5px",
+    "md": "13px",
+    "lg": "14px",
+    "xl": "16px",
+    "title": "18px",
+    "display": "26px"
+  },
+  "weight": {
+    "regular": "400",
+    "medium": "500",
+    "semibold": "600"
+  },
+  "line-height": {
+    "tight": "1.2",
+    "snug": "1.4",
+    "base": "1.55",
+    "loose": "1.65"
+  },
+  "tracking": {
+    "body": "-0.003em",
+    "title": "-0.015em",
+    "display": "-0.025em"
+  }
+}

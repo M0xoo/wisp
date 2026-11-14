@@ -1,0 +1,39 @@
+{
+  "$comment": "What each wisp-plugin.json key means for a plugin a user installs, in plain words: the agents' reference (wisp_plugin_schema) shows one line per key the kernel's checker knows (wisp_kernel::manifest::KEYS, CONTRIBUTES). A test fails when the kernel knows a key this file doesn't explain, or this file explains one it doesn't know.",
+  "keys": {
+    "wispPlugin": "1. Required.",
+    "id": "Required. \"user.<name>\" (lowercase, dots or dashes): a plugin you install is always user.*; wisp's own ids are reserved.",
+    "name": "What the user sees it called.",
+    "version": "Required. \"1.0.0\": bump it when you change a plugin the user already has.",
+    "api": "Required. The plugin API range it's written for: \"^1\".",
+    "description": "One sentence: what it does for the user.",
+    "author": "Who wrote it.",
+    "kind": "Leave it out (\"module\" is for wisp's own built-ins).",
+    "extends": "Another plugin's id this one adds to (rare).",
+    "requires": "{ \"<plugin id>\": \"<version range>\" }: plugins it needs on.",
+    "provides": "{ \"<contract>\": { \"version\": \"1.0.0\" } }: a contract it implements (rare).",
+    "permissions": "What it may do, as permissions (\"plugins:read\", \"runtime:list\"). Its UI's wisp.call runs as the plugin and is checked against these, never the user's. Each command's permission is in the list of commands below. Switching it on is the user's consent to them.",
+    "server": "{ \"exec\": [\"<program>\", …args] }: a process of its own, started in its folder with an emptied environment, speaking JSON-RPC. Leave it out for a plugin that is only UI and settings. (\"builtin\" is wisp's own crates only.)",
+    "activation": "When it starts: \"onStartup\", \"onCommand:<id>\", \"onView:<id>\", … (kinds below). Lazy is better: the first event that needs it.",
+    "disable": "Built-in plugin ids it switches off while it's on (an override; rare).",
+    "contributes": "What it adds to wisp: the sections below.",
+    "migrations": "A folder of forward-only SQL migrations for its own tables (a server plugin; rare).",
+    "trust": "Ignored on install: anything installed is untrusted until the user trusts it in Settings → Plugins.",
+    "qa": "wisp's own QA hook; leave it out."
+  },
+  "contributes": {
+    "commands": "[{ \"id\": \"user.<name>.<verb>\", \"title\": \"…\", \"readOnly\": true }]: commands its server answers (ids start with the plugin's id).",
+    "events": "Events its server emits, by name and version.",
+    "topics": "Topics its server publishes for clients to watch.",
+    "points": "Extension points it offers other plugins (rare).",
+    "settings": "[{ \"key\": \"user.<name>.<key>\", \"type\": \"bool\", \"default\": false, \"title\": \"…\" }]: settings of its own (types below), shown in Settings.",
+    "setSettings": "{ \"<setting key>\": value }: values it sets for other plugins' settings while it's on (a theme, a preset).",
+    "ui": "[{ \"id\": \"user.<name>.pane\", \"attachTo\": { \"id\": \"shell.settings\", \"input\": \"pane\" }, \"component\": \"./ui.js#default\", \"title\": \"…\" }]: what it shows. component is a .js module in its folder, run in a sandboxed Worker; where it may show is below.",
+    "parts": "Part names it adds for themes to style (an untrusted UI draws only kit components; it can't style anything).",
+    "partStyles": "Styles for parts (a trusted theme; never applied to an untrusted plugin's UI).",
+    "icons": "Icons it adds by name (a trusted plugin; an untrusted UI's descriptors take no icons).",
+    "blocks": "Answer block types it renders (its UI at shell.block).",
+    "recipes": "Automation recipes it brings, read-only to the user.",
+    "triggerSources": "Event names automations can start on (\"on\" names), known even while it's off."
+  }
+}

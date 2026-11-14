@@ -1,0 +1,81 @@
+/* The command palette's sheet (v1 web/css/palette.css, value for value). */
+@layer kit {
+  /* v1 .overlay:has(.palette): near the top, a light scrim; the sheet is the whole box */
+  [data-kit='backdrop'][data-place='top'] { background: var(--shadow-scrim-light); }
+  [data-kit='dialog-positioner'][data-place='top'] { place-items: start center; padding-top: min(14vh, 7.5rem); }
+  /* v1 .palette is the dialog: its edge, corners and shadow; the sheet inside fills it */
+  [data-kit='dialog'][data-place='top'] {
+    --dialog-w: 40rem; max-height: min(35rem, 72vh); overflow: hidden; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-palette);
+  }
+  [data-kit='dialog'][data-place='top'] > [data-kit='dialog-body'] { display: flex; flex-direction: column; overflow: hidden; }
+  [data-kit='pal'] { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  [data-kit='pal-input'] { flex: none; display: flex; align-items: center; gap: 10px; height: 3.375rem; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  [data-kit='pal-input'] > [data-kit='icon'] { width: 18px; height: 18px; color: var(--faint); }
+  [data-kit='pal-input'] > input { flex: 1; min-width: 0; border: 0; border-radius: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; color: var(--ink); }
+  [data-kit='pal-input'] > input::placeholder { color: var(--faint); }
+  [data-kit='pal-list'] { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; scroll-padding: 28px 0 6px; overscroll-behavior: contain; }
+  [data-kit='pal-group'] { padding: 10px 10px 5px; font-size: 11.5px; font-weight: 500; color: var(--faint); letter-spacing: 0.01em; }
+  [data-kit='pal-group']:first-child { padding-top: 6px; }
+  [data-kit='pal-row'] { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border-radius: 8px; cursor: pointer; color: var(--ink-2); font-size: 13px; }
+  [data-kit='pal-row'][data-on] { background: var(--bg-2); color: var(--ink); }
+  [data-kit='pal-lead'] { display: grid; place-items: center; width: 18px; flex: none; color: var(--muted); }
+  [data-kit='pal-row'][data-on] > [data-kit='pal-lead'] { color: var(--ink); }
+  [data-kit='pal-lead'] > [data-kit='icon'] { width: 15px; height: 15px; }
+  [data-kit='pal-label'] { flex: none; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='pal-label'] > mark { background: none; color: var(--accent-ink); font-weight: 600; }
+  [data-kit='pal-sub'] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--faint); }
+  [data-kit='pal-kbd'] { margin-left: auto; display: flex; gap: 3px; flex: none; }
+  /* a project's + / − (pick several, 2026-11-14): at the row's end, shown on hover and on the keyboard's row (always on
+     touch); a project in the pick shows a check before the shortcut */
+  [data-kit='pal-check'] { display: grid; place-items: center; flex: none; margin-left: auto; color: var(--accent-ink); }
+  [data-kit='pal-check'] > [data-kit='icon'] { width: 14px; height: 14px; }
+  [data-kit='pal-check'] + [data-kit='pal-kbd'] { margin-left: 0; }
+  [data-kit='pal-add'] {
+    display: grid; place-items: center; flex: none; width: 24px; height: 24px; margin: 0 -4px 0 0; padding: 0; border: 1px solid var(--line-2);
+    border-radius: 6px; background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+  }
+  [data-kit='pal-add'] > [data-kit='icon'] { width: 12px; height: 12px; }
+  [data-kit='pal-row']:hover > [data-kit='pal-add'], [data-kit='pal-row'][data-on] > [data-kit='pal-add'] { opacity: 1; }
+  /* a tap leaves :hover on the last button touched: the colours only where there is a pointer that hovers */
+  @media (hover: hover) {
+    [data-kit='pal-add']:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    [data-kit='pal-add'][data-on]:hover { background: var(--bad); border-color: var(--bad); }
+  }
+  @media (hover: none) { [data-kit='pal-add'] { opacity: 1; width: 32px; height: 32px; } }
+  [data-kit='pal-empty'] { padding: 34px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+  [data-kit='pal-foot'] { flex: none; display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--surface-2); font-size: 11.5px; color: var(--faint); }
+  [data-kit='pal-foot'] [data-kit='kbd'] { display: inline; margin-right: 3px; } /* v1 kbd is inline: the line keeps the foot's height */
+  /* v1 responsive.css: on a phone it drops from the top, 8px in from every edge, its list as tall as there's room */
+  @media (max-width: 720px) {
+    [data-kit='dialog-positioner'][data-place='top'] { padding: max(8px, env(safe-area-inset-top)) 8px 8px; }
+    [data-kit='dialog'][data-place='top'] { max-height: calc(100dvh - 16px - env(safe-area-inset-top)); }
+  }
+  @media (pointer: coarse) {
+    [data-kit='pal-row'] { height: 44px; }
+  }
+  @media (hover: none) and (pointer: coarse) {
+    [data-kit='pal-foot'] { display: none; }
+  }
+  /* v1 .pal-note: why there's nothing to list, on the ground colour, with its fix */
+  [data-kit='pal-note'] { flex: none; display: flex; align-items: center; gap: 10px; margin: 6px 6px 2px; padding: 10px 10px 10px 12px; border-radius: 10px; background: var(--bg-2); color: var(--ink-2); font-size: 13px; line-height: 1.45; }
+  [data-kit='pal-note'] > [data-kit='icon'] { flex: none; width: 0.9375rem; height: 0.9375rem; color: var(--muted); }
+  [data-kit='pal-note'] > p { flex: 1; min-width: 0; margin: 0; }
+  [data-kit='pal-note'] > button { flex: none; }
+  /* v1 .pal-sk: placeholders in the rows' shape */
+  [data-kit='pal-sk-wrap'] { padding: 2px 0; }
+  [data-kit='pal-sk-group'] { display: block; width: 7rem; height: 0.5625rem; margin: 8px 10px 10px; }
+  [data-kit='pal-sk'] { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; }
+  [data-kit='pal-sk'] > [data-kit='skeleton'] { width: 1rem; height: 1rem; flex: none; }
+  [data-kit='pal-sk-lines'] { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.4375rem; }
+  [data-kit='pal-sk-lines'] > [data-kit='skeleton'] { height: 0.625rem; min-height: 0; }
+  [data-kit='pal-sk-sub'] { display: none; width: 30%; height: 0.5rem; }
+  [data-kit='pal-sk-group'] > [data-kit='skeleton'], [data-kit='pal-sk-sub'] > [data-kit='skeleton'] { display: block; height: 100%; }
+  /* v1 .palette.issues: two lines a row (the title, then its labels and who has it), the list one height */
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-list'] { flex: none; height: min(27.5rem, calc(100vh - 13.75rem)); }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-row'] { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; row-gap: 1px; align-content: center; height: auto; min-height: 52px; padding: 6px 10px; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-label'] { max-width: none; min-width: 0; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-sub'] { grid-column: 2; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-sk'] { height: 52px; }
+  [data-kit='pal'][data-variant='issues'] [data-kit='pal-sk-sub'] { display: block; }
+}

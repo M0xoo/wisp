@@ -1,0 +1,45 @@
+/* The page's base, from v1's base.css: native type, hairlines, a focus ring on every control. */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--fs-lg);
+    line-height: var(--lh-base);
+    letter-spacing: var(--tracking-body);
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, ul, ol, pre, fieldset { margin: 0; }
+  ul, ol, fieldset { padding: 0; }
+  fieldset { border: 0; min-width: 0; }
+  /* v1 tokens.css: no letter-spacing here, so controls keep the browser's normal, not the body's -0.003em */
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; background: none; border: 0; padding: 0; }
+  button:disabled { cursor: not-allowed; }
+  a { color: inherit; text-decoration: none; }
+  code, kbd, pre, samp { font-family: var(--mono); }
+  small { font-size: var(--fs-xs); }
+  img, svg, video { display: block; max-width: 100%; }
+  [hidden] { display: none !important; }
+  /* Keyboard focus shows on every control that doesn't draw its own; a click doesn't show it. */
+  :where(button, a, summary, [tabindex], input, textarea, select):focus-visible {
+    outline: var(--size-ring) solid var(--accent);
+    outline-offset: var(--size-ring);
+    border-radius: var(--radius-sm);
+  }
+  ::selection { background: var(--accent-soft); }
+  /* A hairline pill on a clear track: faint at rest, firmer when grabbed, gone when idle. */
+  ::-webkit-scrollbar { width: var(--space-5); height: var(--space-5); }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    border-radius: var(--radius-pill);
+    border: var(--space-1) solid transparent;
+    min-height: var(--size-row-min);
+    background: color-mix(in srgb, var(--ink) 16%, transparent) padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { border-width: var(--size-hairline); background-color: color-mix(in srgb, var(--ink) 32%, transparent); }
+  ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+}

@@ -1,0 +1,17 @@
+[package]
+name = "wisp-stuff-core"
+description = "pure, sans-IO logic of wisp.stuff: kinds, names, records, grants, app hashes, app serving and app-db rules"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+wisp-stuff-api.workspace = true
+
+[lints]
+workspace = true

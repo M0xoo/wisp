@@ -1,0 +1,29 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.lsp",
+  "name": "Language servers",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.lsp: language servers for the editor (definition, references, hover, diagnostics, rename, completion)",
+  "server": {
+    "builtin": "wisp-lsp"
+  },
+  "permissions": [
+    "runtime:get"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "lsp.ask",
+        "title": "Ask the task's language server"
+      },
+      {
+        "id": "lsp.install",
+        "title": "Install a language server"
+      }
+    ]
+  }
+}

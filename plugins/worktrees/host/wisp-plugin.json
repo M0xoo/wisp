@@ -1,0 +1,129 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.worktrees",
+  "name": "Worktrees",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "A checkout per session: made from the fresh base, prepared (.worktreeinclude, setup steps), brought back, removed only when nothing would be lost; Settings → Worktrees and the hourly sweep; Done's folders; project trust, a before:run guard that holds a turn until the repo's own programs are trusted.",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp-worktrees"
+  },
+  "requires": {
+    "git.service": "^1"
+  },
+  "provides": {},
+  "permissions": [
+    "telemetry:track",
+    "git:repo",
+    "git:read",
+    "git:status",
+    "git:fetch",
+    "git:worktree.add",
+    "git:worktree.remove",
+    "git:branch.delete",
+    "proc:exec{bin:cp}",
+    "proc:exec{bin:git}",
+    "proc:exec{bin:du}",
+    "proc:exec{bin:df}",
+    "proc:exec{bin:sh}",
+    "runtime:list",
+    "runtime:get",
+    "runtime:setExt",
+    "runtime:sessions",
+    "runtime:adopt",
+    "runtime:adoptSession",
+    "resources:read"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "events": ["worktree.added", "worktree.removed", "worktrees.cleaned"],
+    "triggerSources": ["files.changed"],
+    "settings": [
+      { "key": "worktrees.cleanup", "type": "enum", "values": ["off", "3", "7", "14", "30"], "title": "Idle worktrees go after this many days (unset: 7, counted from when wisp got it)" },
+      { "key": "worktrees.max", "type": "enum", "values": ["off", "20", "40", "80"], "default": "40", "title": "Worktree folders kept before the oldest idle ones go" },
+      { "key": "worktrees.onDone", "type": "enum", "values": ["ask", "remove", "keep"], "default": "ask", "title": "When a task is done, its worktree folders" },
+      { "key": "worktrees.projectAsk", "type": "enum", "values": ["on", "off"], "default": "on", "title": "Ask before trusting a new project's setup scripts" }
+    ],
+    "commands": [
+      { "id": "worktrees.source", "title": "Open a file of a task's folder (the file view)", "readOnly": true },
+      { "id": "worktrees.save", "title": "Save a file of a task's folder (refused while it runs, or if it changed)" },
+      { "id": "worktrees.files", "title": "A task folder's (or a project's) files, as git lists them", "readOnly": true },
+      { "id": "worktrees.warm", "title": "Fetch a project's remote now, while its task is typed (New task)", "readOnly": true },
+      { "id": "worktrees.grep", "title": "Where a name is declared in a task's folder (Go to definition)", "readOnly": true },
+      {
+        "id": "worktrees.create",
+        "title": "Make a session's worktree"
+      },
+      {
+        "id": "worktrees.ensure",
+        "title": "Bring a removed worktree back from its branch"
+      },
+      {
+        "id": "worktrees.remove",
+        "title": "Remove a worktree when nothing would be lost"
+      },
+      {
+        "id": "worktrees.status",
+        "title": "A worktree's changes, commits and pushes",
+        "readOnly": true
+      },
+      {
+        "id": "worktrees.view",
+        "title": "Worktrees on disk",
+        "readOnly": true
+      },
+      {
+        "id": "worktrees.clean",
+        "title": "Remove worktrees by hand"
+      },
+      {
+        "id": "worktrees.keep",
+        "title": "Keep a task's worktree, or stop keeping it"
+      },
+      {
+        "id": "worktrees.bringIn",
+        "title": "Bring in worktrees another tool left in a project, as tasks"
+      },
+      {
+        "id": "worktrees.dismiss",
+        "title": "Stop offering a project's other worktrees (Not now)"
+      },
+      {
+        "id": "worktrees.sweep",
+        "title": "Tidy idle worktrees now"
+      },
+      {
+        "id": "worktrees.done.list",
+        "title": "Done's folders",
+        "readOnly": true
+      },
+      {
+        "id": "worktrees.done.apply",
+        "title": "Remove or keep Done's folders"
+      },
+      {
+        "id": "worktrees.done.tidy",
+        "title": "Remove what's clean and on its branch"
+      },
+      {
+        "id": "worktrees.trust",
+        "title": "Trust a repo's setup and start"
+      },
+      {
+        "id": "worktrees.trust.pending",
+        "title": "What a repo would run before it is trusted",
+        "readOnly": true
+      }
+    ],
+    "points": [
+      {
+        "id": "worktrees.setup",
+        "version": 1,
+        "kind": "list"
+      }
+    ]
+  }
+}

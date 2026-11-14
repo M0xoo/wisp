@@ -1,0 +1,17 @@
+[package]
+name = "wisp-budget-api"
+description = "wisp.budget contract: commands, events, hooks, services and row types (usage windows, Automations stop at, banked resets, the before:run budget guard, compare metrics)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

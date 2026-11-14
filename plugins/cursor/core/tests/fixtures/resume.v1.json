@@ -1,0 +1,58 @@
+[
+ {
+  "type": "session",
+  "id": "prev-1"
+ },
+ {
+  "type": "tool",
+  "id": "r",
+  "kind": "read",
+  "label": "Reading math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "tool",
+  "id": "e",
+  "kind": "edit",
+  "label": "Editing math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "change",
+  "file": "math.js",
+  "op": "write",
+  "edits": [
+   {
+    "before": "export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n",
+    "after": "export function add(a, b) {\n  return a + b;\n}\n// uncommitted\n"
+   }
+  ]
+ },
+ {
+  "type": "tool",
+  "id": "s",
+  "kind": "run",
+  "label": "Running tests",
+  "detail": "npm test"
+ },
+ {
+  "type": "tool_error",
+  "name": "shell",
+  "text": "needs --force"
+ },
+ {
+  "type": "blocked",
+  "tool": "shell",
+  "detail": "npm test"
+ },
+ {
+  "type": "text",
+  "text": "Fixed it."
+ },
+ {
+  "type": "result",
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake cursor-agent finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```",
+  "isError": false,
+  "stats": {}
+ }
+]

@@ -1,0 +1,16 @@
+── 80 plain
+tests passing      48  +6
+p99 latency     95 ms  −325
+bundle         121 KB  +1
+── 40 plain
+tests passing      48  +6
+p99 latency     95 ms  −325
+bundle         121 KB  +1
+── 80 colour
+tests passing  ␛[1m    48␛[0m  ␛[32m+6␛[0m
+p99 latency    ␛[1m 95 ms␛[0m  ␛[32m−325␛[0m
+bundle         ␛[1m121 KB␛[0m  ␛[31m+1␛[0m
+── 40 colour
+tests passing  ␛[1m    48␛[0m  ␛[32m+6␛[0m
+p99 latency    ␛[1m 95 ms␛[0m  ␛[32m−325␛[0m
+bundle         ␛[1m121 KB␛[0m  ␛[31m+1␛[0m

@@ -1,0 +1,17 @@
+[package]
+name = "wisp-share-core"
+description = "wisp.share, sans-IO: redaction (secret scan, env masking, private paths, names not chosen), the bundle's canonical bytes and its slug"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wisp-share-api.workspace = true
+
+[lints]
+workspace = true

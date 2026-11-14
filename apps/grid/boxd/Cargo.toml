@@ -1,0 +1,18 @@
+[package]
+name = "wisp-grid-boxd"
+description = "wisp Grid's root helper: runs each user's box container for hostd, std only (plan §7.2.5)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# No dependencies, on purpose: boxd runs as root, so every line it pulls in is attack surface (ADR-0014).
+[dependencies]
+
+[[bin]]
+name = "wisp-grid-boxd"
+path = "src/main.rs"
+
+[lints]
+workspace = true

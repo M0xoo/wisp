@@ -1,0 +1,27 @@
+[package]
+name = "wisp-channels-core"
+description = "wisp.channels' pure logic: who may speak, what may leave, the grammar, the lists, the conversation flow, link codes, signatures, box rules, routed retries. Sans-IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+base64.workspace = true
+hmac.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+wisp-channels-api.workspace = true
+wisp-kernel.workspace = true
+
+[dev-dependencies]
+regex.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

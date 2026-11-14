@@ -1,0 +1,35 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "fix the add bug ASK",
+    "mcpServers": {
+      "wisp": {
+        "command": "node",
+        "args": [
+          "/tmp/rsh-g6/mcp.mjs"
+        ],
+        "env": {
+          "WISP_SESSION": "s1"
+        }
+      }
+    }
+  },
+  "note": "wisp's ask_user over MCP (wisp-ask_user)",
+  "argv": [
+    "--output-format",
+    "json",
+    "--allow-tool=write",
+    "--session-id",
+    "11111111-2222-4333-8444-555555555555",
+    "--no-ask-user",
+    "--usage-output-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-copilot-Igs9v0/usage.json",
+    "--additional-mcp-config",
+    "{\"mcpServers\":{\"wisp\":{\"type\":\"local\",\"command\":\"node\",\"args\":[\"/tmp/rsh-g6/mcp.mjs\"],\"env\":{\"WISP_SESSION\":\"s1\"},\"tools\":[\"*\"],\"timeout\":604800000}}}",
+    "--allow-tool=wisp"
+  ]
+}

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wisp"
+version = "2.0.0"
+description = "wisp's Python SDK: run and watch coding agents from scripts, as the app does (commands and live topics)."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/WispAgents/wisp"
+
+[tool.setuptools]
+packages = ["wisp"]

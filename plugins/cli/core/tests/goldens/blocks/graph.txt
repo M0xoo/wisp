@@ -1,0 +1,32 @@
+── 80 plain
+Refresh sessions in auth #128  [open · conflict]
+● d29f50a Add refresh tests  [feat/refresh]
+  ✗ 5be27dc Rotate keys  [main]
+⚠ src/auth.ts:42 — Both sides rewrote getSession()
+    → Rotate first, then refresh
+✓ Tests  42 passed
+── 40 plain
+Refresh sessions in auth #128  [open ·
+conflict]
+● d29f50a Add refresh tests  [feat/refr…
+  ✗ 5be27dc Rotate keys  [main]
+⚠ src/auth.ts:42 — Both sides rewrote
+  getSession()
+    → Rotate first, then refresh
+✓ Tests  42 passed
+── 80 colour
+␛[1mRefresh sessions in auth␛[0m #128  ␛[2m[open · conflict]␛[0m
+␛[32m●␛[0m ␛[33md29f50a␛[0m Add refresh tests␛[2m  [feat/refresh]␛[0m
+  ␛[31m✗␛[0m ␛[33m5be27dc␛[0m Rotate keys␛[2m  [main]␛[0m
+␛[31m⚠␛[0m src/auth.ts:42 — Both sides rewrote getSession()
+    → Rotate first, then refresh
+␛[32m✓␛[0m Tests  ␛[2m42 passed␛[0m
+── 40 colour
+␛[1mRefresh sessions in auth␛[0m #128  ␛[2m[open ·
+conflict]␛[0m
+␛[32m●␛[0m ␛[33md29f50a␛[0m Add refresh tests␛[2m  [feat/refr…␛[0m
+  ␛[31m✗␛[0m ␛[33m5be27dc␛[0m Rotate keys␛[2m  [main]␛[0m
+␛[31m⚠␛[0m src/auth.ts:42 — Both sides rewrote
+  getSession()
+    → Rotate first, then refresh
+␛[32m✓␛[0m Tests  ␛[2m42 passed␛[0m

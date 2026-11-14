@@ -1,0 +1,29 @@
+[package]
+name = "wisp-kernel"
+description = "wisp's plugin host: manifests, scopes, commands, events, interceptors, points, services, capability sets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
+
+# The exec tier's test child (tests/exec.rs): not shipped, never published.
+[[bin]]
+name = "wisp-kernel-exec-echo"
+path = "tests/fixtures/exec_echo.rs"
+test = false
+doc = false
+bench = false

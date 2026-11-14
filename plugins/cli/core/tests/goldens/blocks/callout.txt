@@ -1,0 +1,14 @@
+── 80 plain
+▌ Assumption
+▌ Behind a proxy, so I read the IP from X-Forwarded-For.
+── 40 plain
+▌ Assumption
+▌ Behind a proxy, so I read the IP from
+▌ X-Forwarded-For.
+── 80 colour
+␛[33m▌␛[0m ␛[1mAssumption␛[0m
+␛[33m▌␛[0m Behind a proxy, so I read the IP from ␛[36mX-Forwarded-For␛[0m.
+── 40 colour
+␛[33m▌␛[0m ␛[1mAssumption␛[0m
+␛[33m▌␛[0m Behind a proxy, so I read the IP from
+␛[33m▌␛[0m ␛[36mX-Forwarded-For␛[0m.

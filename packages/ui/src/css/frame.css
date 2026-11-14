@@ -1,0 +1,38 @@
+/* AppFrame and Thumb (src/frame). A frame keeps its box while it loads: the placeholder sits in its
+   place, and a new version loads hidden on top of the one showing. A page shown at a fixed size is
+   scaled into its box (--k-af-scale), its box sized to the result. */
+@layer kit {
+  [data-kit='app-frame'] { position: relative; display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); contain: content; }
+  [data-kit='app-frame'][data-page] {
+    flex: none; width: calc(var(--k-af-w) * var(--k-af-scale) * 1px); height: calc(var(--k-af-h) * var(--k-af-scale) * 1px);
+  }
+  [data-kit='app-frame-stage'] { position: absolute; inset: 0; }
+  [data-kit='app-frame-stage'] > iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); color-scheme: normal; }
+  [data-kit='app-frame'][data-page] [data-kit='app-frame-stage'] > iframe {
+    width: calc(var(--k-af-w) * 1px); height: calc(var(--k-af-h) * 1px); transform: scale(var(--k-af-scale)); transform-origin: 0 0;
+  }
+  [data-kit='app-frame-stage'] > iframe[data-pending] { position: absolute; top: 0; left: 0; visibility: hidden; }
+  [data-kit='app-frame-wait'] {
+    position: absolute; inset: 0; display: flex; flex-direction: column; gap: var(--space-5);
+    padding: var(--space-8); background: var(--bg); pointer-events: none;
+  }
+  [data-kit='app-frame-wait'] > [data-kit='skeleton'][data-shape='block'] { flex: 1 1 0; height: auto; }
+
+  [data-kit='thumb'] {
+    position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; overflow: hidden;
+    background: var(--bg-2); border-radius: inherit; isolation: isolate;
+  }
+  [data-kit='thumb'][data-ratio='square'] { aspect-ratio: 1; }
+  [data-kit='thumb'][data-ratio='fill'] { aspect-ratio: auto; height: 100%; }
+  [data-kit='thumb-media'] { display: block; width: 100%; height: 100%; object-fit: cover; }
+  [data-kit='thumb'][data-fit='contain'] [data-kit='thumb-media'] { object-fit: contain; }
+  [data-kit='thumb-body'] { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+  [data-kit='thumb-corner'] { position: absolute; z-index: 1; display: flex; gap: var(--space-2); }
+  [data-kit='thumb-corner'][data-at='top-start'] { top: var(--space-4); left: var(--space-4); }
+  [data-kit='thumb-corner'][data-at='top-end'] { top: var(--space-4); right: var(--space-4); }
+  [data-kit='thumb-corner'][data-at='bottom-start'] { bottom: var(--space-4); left: var(--space-4); }
+  [data-kit='thumb-corner'][data-at='bottom-end'] { bottom: var(--space-4); right: var(--space-4); }
+  [data-kit='thumb'][data-busy]::after {
+    content: ''; position: absolute; inset: 0; background: var(--bg-2); opacity: 0.6; animation: kit-shimmer 1.4s ease-in-out infinite;
+  }
+}

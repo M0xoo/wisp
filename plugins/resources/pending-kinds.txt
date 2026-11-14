@@ -1,0 +1,3 @@
+# Plugins that keep tables but have no resource kind yet (tools/check rust-resource-kinds, ADR-0028).
+# One per line: the plugin folder, then why. Take a plugin off when its kind lands; the check says when.
+# A plugin whose tables are only data says so in its host instead: `//! resources: data-only (why)`.

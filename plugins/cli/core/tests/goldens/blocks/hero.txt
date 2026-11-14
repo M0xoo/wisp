@@ -1,0 +1,14 @@
+── 80 plain
+✓ Login now rate-limited
+  Added a sliding-window limiter to /login: 5 attempts per minute per IP.
+── 40 plain
+✓ Login now rate-limited
+  Added a sliding-window limiter to
+  /login: 5 attempts per minute per IP.
+── 80 colour
+␛[32m✓␛[0m ␛[1mLogin now rate-limited␛[0m
+  Added a sliding-window limiter to ␛[36m/login␛[0m: 5 attempts per minute per IP.
+── 40 colour
+␛[32m✓␛[0m ␛[1mLogin now rate-limited␛[0m
+  Added a sliding-window limiter to
+  ␛[36m/login␛[0m: 5 attempts per minute per IP.

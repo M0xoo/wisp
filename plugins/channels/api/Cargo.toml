@@ -1,0 +1,18 @@
+[package]
+name = "wisp-channels-api"
+description = "wisp.channels' contract: the channels.transport@1 point, the hub and phone a transport talks to, commands, events and the views of a task a channel reads"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

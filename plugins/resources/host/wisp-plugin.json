@@ -1,0 +1,62 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.resources",
+  "name": "Resources",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp as code: plan, apply and export every plugin's resource kinds (wisp.yml)",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_resources"
+  },
+  "provides": {
+    "resource.kind": {
+      "version": "1.0.0"
+    }
+  },
+  "permissions": [
+    "kernel:caps"
+  ],
+  "requires": {},
+  "contributes": {
+    "commands": [
+      {
+        "id": "resources.kinds",
+        "title": "What this wisp can declare",
+        "readOnly": true
+      },
+      {
+        "id": "resources.plan",
+        "title": "What applying a formula would change",
+        "readOnly": true
+      },
+      {
+        "id": "resources.apply",
+        "title": "Apply a formula"
+      },
+      {
+        "id": "resources.export",
+        "title": "Everything set up here, as a formula",
+        "readOnly": true
+      },
+      {
+        "id": "resources.read",
+        "title": "Read a pasted formula: the resources it declares and the secrets it needs",
+        "readOnly": true
+      },
+      {
+        "id": "resources.write",
+        "title": "The setup as a formula's text (Share setup)",
+        "readOnly": true
+      },
+      {
+        "id": "resources.rename",
+        "title": "Rename a resource in place (wisp mv)"
+      },
+      {
+        "id": "resources.refresh",
+        "title": "Take what wisp has as the baseline (--refresh-only)"
+      }
+    ]
+  }
+}

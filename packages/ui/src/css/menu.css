@@ -1,0 +1,43 @@
+/* Menus (v1's .menu): a floating card of rows, 44px rows on touch screens. */
+@layer kit {
+  /* over any overlay too: a Select or a Menu in Settings or a dialog opens above it (--z-overlay-menu) */
+  [data-kit='positioner'] { z-index: var(--z-overlay-menu); }
+  [data-kit='menu'] {
+    min-width: min(var(--size-menu-min), calc(100vw - var(--space-7))); max-width: min(var(--size-menu-max), calc(100vw - var(--space-7)));
+    max-height: calc(100vh - 1rem); overflow-y: auto; padding: var(--space-2); /* v1 .menu: as tall as it is, placed to fit */
+    border-radius: var(--radius-xl); background: var(--surface); border: var(--size-hairline) solid var(--line);
+    box-shadow: var(--shadow-2); outline: 0;
+  }
+  [data-kit='menu'][data-state='open'] { animation: kit-pop var(--dur-slow) var(--ease); }
+  /* a right-click's menu (v1 .menu.task): as tall as it is, up to the window, slid to fit rather than scrolled */
+  [data-kit='menu'][data-at='pointer'] { max-height: calc(100vh - 1rem); }
+  [data-kit='menu-item'] {
+    display: flex; align-items: center; gap: var(--space-5); width: 100%; min-height: var(--size-control-md);
+    padding: var(--space-3) var(--space-5); border-radius: var(--radius-md); font-size: var(--fs-md);
+    color: var(--ink-2); cursor: pointer; user-select: none; outline: 0;
+  }
+  [data-kit='menu-item'] > [data-kit='icon'] { color: var(--muted); }
+  [data-kit='menu-item'][data-highlighted] { background: var(--bg-2); color: var(--ink); }
+  [data-kit='menu-item'][data-highlighted] > [data-kit='icon'] { color: var(--ink); }
+  [data-kit='menu-item'][data-danger][data-highlighted] { color: var(--bad); background: var(--del-bg); }
+  [data-kit='menu-item'][data-danger][data-highlighted] > [data-kit='icon'] { color: var(--bad); }
+  [data-kit='menu-item'][data-disabled] { opacity: 0.5; cursor: not-allowed; }
+  [data-kit='menu-item-text'] { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  [data-kit='menu-item-label'] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='menu-item-hint'] { font-size: var(--fs-sm); color: var(--muted); line-height: var(--lh-snug); }
+  [data-kit='menu-item'] > [data-kit='kbd'] { margin-left: auto; }
+  [data-kit='menu-separator'] { height: var(--size-hairline); margin: var(--space-2) var(--space-3); background: var(--line); }
+  [data-kit='menu-group-label'] { padding: var(--space-5) var(--space-5) var(--space-2); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--faint); }
+  /* a submenu (v1 #786 .mi-sub, .mi-back): a chevron at the row's end; drilled in, its items under a Back row
+     that names them, the menu as wide as it was */
+  [data-kit='menu'][data-drilled] { min-width: var(--menu-w); }
+  [data-kit='menu-item'][data-sub] > [data-kit='icon']:last-child { margin-left: auto; color: var(--faint); }
+  [data-kit='menu-item'][data-back] {
+    margin-bottom: var(--space-2); padding-bottom: var(--space-4); border-bottom: var(--size-hairline) solid var(--line);
+    border-radius: var(--radius-md) var(--radius-md) 0 0; font-weight: var(--fw-medium); color: var(--ink);
+  }
+  [data-kit='context-area'] { display: contents; }
+  @media (pointer: coarse) {
+    [data-kit='menu-item'] { min-height: var(--size-touch); }
+  }
+}

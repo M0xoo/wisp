@@ -1,0 +1,426 @@
+[
+ {
+  "name": "wisp_launch",
+  "description": "Hand a coding task to a background agent in wisp. The agent works autonomously in the given folder and ends with a presentation (summary, diffs, test results). Returns the session id at once; pass wait=true to block until it finishes or asks a question. Use for independent, well-scoped tasks that can run in parallel with your own work.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "prompt": {
+     "type": "string",
+     "description": "The task, written as you would brief a colleague: goal, constraints, how to verify."
+    },
+    "cwd": {
+     "type": "string",
+     "description": "Absolute path of the project folder. Default: this MCP server’s working directory."
+    },
+    "also": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Absolute paths of more folders the same agent works in (e.g. the API next to its web app). Git repos each get a worktree, and Ship it opens a PR in each."
+    },
+    "agent": {
+     "type": "string",
+     "enum": [
+      "auto",
+      "claude",
+      "codex",
+      "opencode",
+      "cursor",
+      "antigravity",
+      "grok",
+      "copilot"
+     ],
+     "description": "Harness to run; auto lets wisp pick harness and model from what worked before. Default: the user’s last pick in wisp."
+    },
+    "mode": {
+     "type": "string",
+     "enum": [
+      "plan",
+      "edits",
+      "auto"
+     ],
+     "description": "plan = read-only, edits = auto-accept file edits, auto = no permission prompts. Default: the user’s pick."
+    },
+    "model": {
+     "type": "string",
+     "description": "Model id for that harness. Default: the user’s pick."
+    },
+    "effort": {
+     "type": "string",
+     "description": "Thinking level, e.g. low | medium | high."
+    },
+    "subagents": {
+     "type": "array",
+     "description": "A team the agent can delegate to, each on its own harness: [{ agent, model?, effort?, name?, use?, count? }]. use = when to pick it (\"research\", \"image work\"); count = parallel copies (1–5).",
+     "items": {
+      "type": "object",
+      "properties": {
+       "agent": {
+        "type": "string",
+        "enum": [
+         "auto",
+         "claude",
+         "codex",
+         "opencode",
+         "cursor",
+         "antigravity",
+         "grok",
+         "copilot"
+        ]
+       },
+       "model": {
+        "type": "string"
+       },
+       "effort": {
+        "type": "string"
+       },
+       "name": {
+        "type": "string"
+       },
+       "use": {
+        "type": "string"
+       },
+       "count": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+       },
+       "machine": {
+        "type": "string",
+        "description": "Run this subagent on a machine (id from wisp_agents)."
+       }
+      },
+      "required": [
+       "agent"
+      ]
+     }
+    },
+    "preset": {
+     "type": "string",
+     "description": "Id of a saved subagent preset, instead of subagents."
+    },
+    "machine": {
+     "type": "string",
+     "description": "Run it on one of the user’s machines (id from wisp_agents). cwd is then the folder there, or a project folder here that wisp finds or clones there. Default: this computer."
+    },
+    "wait": {
+     "type": "boolean",
+     "description": "Block until the agent finishes or asks (up to timeout_seconds)."
+    },
+    "timeout_seconds": {
+     "type": "number",
+     "description": "Max wait when wait=true. Default 240."
+    }
+   },
+   "required": [
+    "prompt"
+   ]
+  }
+ },
+ {
+  "name": "wisp_list",
+  "description": "List wisp sessions, newest first, with state (running | waiting | review | done) and a one-line summary.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "state": {
+     "type": "string",
+     "description": "Comma-separated filter, e.g. \"running,waiting\"."
+    },
+    "cwd": {
+     "type": "string",
+     "description": "Only sessions in this folder (or below)."
+    },
+    "limit": {
+     "type": "number",
+     "description": "Default 20."
+    }
+   }
+  }
+ },
+ {
+  "name": "wisp_get",
+  "description": "Read a session: its state and the latest presentation as markdown (diffs, tests, next steps), plus any question the agent is waiting on.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  }
+ },
+ {
+  "name": "wisp_wait",
+  "description": "Block until a session finishes or asks a question, then return it like wisp_get. Returns early with timed_out if it is still running.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "timeout_seconds": {
+     "type": "number",
+     "description": "Default 240."
+    }
+   },
+   "required": [
+    "id"
+   ]
+  }
+ },
+ {
+  "name": "wisp_reply",
+  "description": "Send a follow-up to a session; it resumes the same agent conversation. If the agent is waiting on a question, this answers it. A follow-up sent while it runs interrupts it (queue=true waits for the run to finish instead). mode switches the session’s mode from this follow-up on. agent / model / effort switch the harness, model or thinking level from this follow-up on (see wisp_agents); a new harness is handed the conversation so far.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "text": {
+     "type": "string"
+    },
+    "queue": {
+     "type": "boolean"
+    },
+    "mode": {
+     "type": "string",
+     "enum": [
+      "plan",
+      "edits",
+      "auto"
+     ]
+    },
+    "agent": {
+     "type": "string",
+     "description": "Harness id, e.g. claude, codex, opencode"
+    },
+    "model": {
+     "type": "string",
+     "description": "Model id for that harness; empty for its default"
+    },
+    "effort": {
+     "type": "string",
+     "description": "Thinking level; empty for the default"
+    }
+   },
+   "required": [
+    "id",
+    "text"
+   ]
+  }
+ },
+ {
+  "name": "wisp_stop",
+  "description": "Stop a running session.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  }
+ },
+ {
+  "name": "wisp_agents",
+  "description": "Which harnesses are installed, with their models and thinking levels, and the user’s machines (other computers, cloud computers) with theirs.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {}
+  }
+ },
+ {
+  "name": "wisp_crew",
+  "description": "List the user's crew in wisp: their long-lived agents, each with a name, role, brief, folder, harness, schedule and jobs. Read-only. Use it before changing a member, or when the user asks who is on their crew. With `member`: that one in full, their whole brief, notebook and kit (skills and instructions files, with their text), to read before you change their notebook or propose kit files.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "member": {
+     "type": "string",
+     "description": "Their name, @handle or id: read that member in full."
+    }
+   }
+  }
+ },
+ {
+  "name": "wisp_crew_add",
+  "description": "Add a member to the user's crew in wisp, when the user asks for one (\"add a crew member who watches CI\"), or when you need help for a job and the user's brief lets you hire it. They work as tasks: on their schedule (cron), when the user tags @Name in a prompt, or when another task delegates to them. Write the brief to them, from what the user asked. Pick a short, friendly name if the user gave none. Returns the new member. When the user gives a shared crew file or link (\"add the member from gist:abc123\"), pass it as `from` instead.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Up to 24 letters, digits, spaces, dots, dashes or underscores; unique. The user tags them as @Name."
+    },
+    "role": {
+     "type": "string",
+     "description": "A few words, e.g. \"CI watcher\", \"Docs writer\"."
+    },
+    "brief": {
+     "type": "string",
+     "description": "Their standing job and how the user likes it done, written to them (\"Watch CI on main; when a run fails, find why and…\"). Every job they run reads it."
+    },
+    "cwd": {
+     "type": "string",
+     "description": "Absolute path of the folder they work in. Default when adding: the current project. \"\" = no folder."
+    },
+    "agent": {
+     "type": "string",
+     "description": "Harness: auto, claude, codex, opencode, cursor, antigravity, grok or copilot. Default auto."
+    },
+    "model": {
+     "type": "string",
+     "description": "Model id for that harness; \"\" for its default."
+    },
+    "effort": {
+     "type": "string",
+     "description": "Thinking level, e.g. low | medium | high; \"\" for the default."
+    },
+    "mode": {
+     "type": "string",
+     "enum": [
+      "plan",
+      "edits",
+      "auto"
+     ],
+     "description": "plan = read-only, edits = auto-accept edits, auto = no permission prompts. Default auto."
+    },
+    "cron": {
+     "type": "string",
+     "description": "When they check in on their own, in words (\"every monday\", \"8am every weekday\", \"every 30 min\") or a 5-field cron, local time. \"\" = only when given work."
+    },
+    "parallel": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5,
+     "description": "Jobs at once; more wait in their queue. Default 2."
+    },
+    "paused": {
+     "type": "boolean",
+     "description": "Paused members skip check-ins; work for them waits."
+    },
+    "avatar": {
+     "type": "string",
+     "description": "An emoji. Default: one rolled from the name."
+    },
+    "checkin": {
+     "type": "boolean",
+     "description": "Start their first check-in right away. Default false."
+    },
+    "from": {
+     "type": "string",
+     "description": "Instead of the fields above: members someone shared, as a link to a .crew.json file (https, or gist:<id>) or its JSON. They join paused, in cwd (default: the current project), until the user resumes them."
+    }
+   }
+  }
+ },
+ {
+  "name": "wisp_crew_edit",
+  "description": "Change a member of the user's crew in wisp (rename, new brief, schedule, folder, harness, pause, notebook…) when the user asks. Only the fields given change. Their skills and instructions files aren't set here: propose those with wisp_crew_kit.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "member": {
+     "type": "string",
+     "description": "Their name, @handle or id."
+    },
+    "name": {
+     "type": "string",
+     "description": "Up to 24 letters, digits, spaces, dots, dashes or underscores; unique. The user tags them as @Name."
+    },
+    "role": {
+     "type": "string",
+     "description": "A few words, e.g. \"CI watcher\", \"Docs writer\"."
+    },
+    "brief": {
+     "type": "string",
+     "description": "Their standing job and how the user likes it done, written to them (\"Watch CI on main; when a run fails, find why and…\"). Every job they run reads it."
+    },
+    "cwd": {
+     "type": "string",
+     "description": "Absolute path of the folder they work in. Default when adding: the current project. \"\" = no folder."
+    },
+    "agent": {
+     "type": "string",
+     "description": "Harness: auto, claude, codex, opencode, cursor, antigravity, grok or copilot. Default auto."
+    },
+    "model": {
+     "type": "string",
+     "description": "Model id for that harness; \"\" for its default."
+    },
+    "effort": {
+     "type": "string",
+     "description": "Thinking level, e.g. low | medium | high; \"\" for the default."
+    },
+    "mode": {
+     "type": "string",
+     "enum": [
+      "plan",
+      "edits",
+      "auto"
+     ],
+     "description": "plan = read-only, edits = auto-accept edits, auto = no permission prompts. Default auto."
+    },
+    "cron": {
+     "type": "string",
+     "description": "When they check in on their own, in words (\"every monday\", \"8am every weekday\", \"every 30 min\") or a 5-field cron, local time. \"\" = only when given work."
+    },
+    "parallel": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5,
+     "description": "Jobs at once; more wait in their queue. Default 2."
+    },
+    "paused": {
+     "type": "boolean",
+     "description": "Paused members skip check-ins; work for them waits."
+    },
+    "avatar": {
+     "type": "string",
+     "description": "An emoji. Default: one rolled from the name."
+    },
+    "notebook": {
+     "type": "string",
+     "description": "Their whole notebook rewritten (markdown): lasting facts and the state they compare against next time. \"\" empties it. To add a few lines, use remember."
+    },
+    "remember": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 12,
+     "description": "Lines to add to the end of their notebook, e.g. a preference of the user's for this job."
+    }
+   },
+   "required": [
+    "member"
+   ]
+  }
+ },
+ {
+  "name": "wisp_crew_remove",
+  "description": "Remove a member from the user's crew in wisp. Their brief, notebook and schedule are deleted; their jobs stay as ordinary tasks. Only when the user asked to remove that member, or a member you added for a job is done; if unsure who they meant, ask the user first. A crew member's job can't remove that member itself.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "member": {
+     "type": "string",
+     "description": "Their name, @handle or id."
+    }
+   },
+   "required": [
+    "member"
+   ]
+  }
+ }
+]

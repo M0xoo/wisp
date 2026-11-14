@@ -1,0 +1,38 @@
+Cycles: a ↔ b between packages (one edge declared, one imported), a.ts → b.ts → c.ts → a.ts inside one,
+a type-only loop that is fine, a dynamic import that is fine, and a self-import.
+=== packages/a/package.json
+{ "name": "@f/a", "exports": { ".": "./src/index.ts" }, "dependencies": { "@f/b": "*" } }
+=== packages/a/src/index.ts
+export const a = 1;
+=== packages/b/package.json
+{ "name": "@f/b", "exports": { ".": "./src/index.ts" } }
+=== packages/b/src/index.ts
+import { a } from '@f/a';
+export const b = a;
+=== packages/c/package.json
+{ "name": "@f/c", "exports": { ".": "./src/a.ts" } }
+=== packages/c/src/a.ts
+import { b } from './b.ts';
+export const a = () => b();
+=== packages/c/src/b.ts
+import { c } from './c.ts';
+export const b = () => c();
+=== packages/c/src/c.ts
+import { a } from './a.ts';
+export const c = () => a();
+=== packages/c/src/t1.ts
+import type { T2 } from './t2.ts';
+export interface T1 { next?: T2 }
+=== packages/c/src/t2.ts
+import type { T1 } from './t1.ts';
+export interface T2 { prev?: T1 }
+=== packages/c/src/lazy1.ts
+import { two } from './lazy2.ts';
+export const one = () => two;
+=== packages/c/src/lazy2.ts
+export const two = () => import('./lazy1.ts');
+=== packages/d/package.json
+{ "name": "@f/d", "exports": { ".": "./src/index.ts" } }
+=== packages/d/src/index.ts
+import { self } from './index.ts';
+export const self = 1 + self;

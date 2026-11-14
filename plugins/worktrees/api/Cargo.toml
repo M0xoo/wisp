@@ -1,0 +1,17 @@
+[package]
+name = "wisp-worktrees-api"
+description = "wisp.worktrees's contract: the session worktree record, its commands and events, cleanup and Done views, project trust, the setup-source point"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true

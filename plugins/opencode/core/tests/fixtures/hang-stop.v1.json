@@ -1,0 +1,29 @@
+[
+ {
+  "type": "session",
+  "id": "opencode-session-1"
+ },
+ {
+  "type": "tool",
+  "id": "c-read",
+  "kind": "read",
+  "label": "Reading math.js",
+  "file": "math.js",
+  "output": "export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n"
+ },
+ {
+  "type": "tool_output",
+  "id": "c-read",
+  "text": ""
+ },
+ {
+  "type": "result",
+  "isError": true,
+  "stopped": true,
+  "text": "opencode exited with SIGTERM",
+  "stats": {
+   "inputTokens": 0,
+   "outputTokens": 0
+  }
+ }
+]

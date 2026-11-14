@@ -1,0 +1,46 @@
+[package]
+name = "wisp-runtime"
+description = "wisp.runtime's host: tasks, turns and their event log in the store, the follow-up queue, the harness lifecycle (spawned through wisp-proc), v1's session routes and the v1 importer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+base64.workspace = true
+sha2.workspace = true
+wisp-store.workspace = true
+wisp-proc.workspace = true
+wisp-runtime-api.workspace = true
+wisp-terminal-api.workspace = true
+wisp-accounts-api.workspace = true
+wisp-budget-api.workspace = true
+wisp-later-api.workspace = true
+wisp-stuff-api.workspace = true
+wisp-machines-api.workspace = true
+wisp-sandbox-api.workspace = true
+wisp-crew-api.workspace = true
+wisp-telemetry-api.workspace = true
+wisp-worktrees-api.workspace = true
+wisp-runtime-core.workspace = true
+wisp-envmask.workspace = true
+wisp-router-api.workspace = true
+wisp-issues-api.workspace = true
+serde.workspace = true
+blake3.workspace = true
+futures.workspace = true
+schemars.workspace = true
+wisp-resources-api.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
+wisp-testkit.workspace = true
+
+[lints]
+workspace = true

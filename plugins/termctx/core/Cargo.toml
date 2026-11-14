@@ -1,0 +1,15 @@
+[package]
+name = "wisp-termctx-core"
+description = "wisp.termctx core, sans-IO: terminal sources, the shell hook and its log, history files, the context block (ADR-0023)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

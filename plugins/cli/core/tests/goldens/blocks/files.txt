@@ -1,0 +1,20 @@
+── 80 plain
+A src/auth/limiter.ts  +64 −0
+  the sliding window
+M src/auth/login.ts  +5 −2
+D src/old.ts
+── 40 plain
+A src/auth/limiter.ts  +64 −0
+  the sliding window
+M src/auth/login.ts  +5 −2
+D src/old.ts
+── 80 colour
+␛[32mA␛[0m ␛[1msrc/auth/limiter.ts␛[0m  ␛[32m+64␛[0m ␛[31m−0␛[0m
+  ␛[2mthe sliding window␛[0m
+␛[33mM␛[0m ␛[1msrc/auth/login.ts␛[0m  ␛[32m+5␛[0m ␛[31m−2␛[0m
+␛[31mD␛[0m ␛[1msrc/old.ts␛[0m
+── 40 colour
+␛[32mA␛[0m ␛[1msrc/auth/limiter.ts␛[0m  ␛[32m+64␛[0m ␛[31m−0␛[0m
+  ␛[2mthe sliding window␛[0m
+␛[33mM␛[0m ␛[1msrc/auth/login.ts␛[0m  ␛[32m+5␛[0m ␛[31m−2␛[0m
+␛[31mD␛[0m ␛[1msrc/old.ts␛[0m

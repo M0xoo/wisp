@@ -1,0 +1,250 @@
+{
+ "source": "v1 server/, web/ and grid/ track() calls (extracted, runProps/routeProps spreads expanded from server/services/telemetry.js)",
+ "events": {
+  "account": [
+   "agent",
+   "count",
+   "step"
+  ],
+  "agent_launch": [
+   "agent",
+   "harness",
+   "machine",
+   "team"
+  ],
+  "agent_login": [
+   "agent",
+   "step"
+  ],
+  "agent_task": [
+   "action",
+   "agent"
+  ],
+  "app_started": [
+   "*Version",
+   "agentsInstalled"
+  ],
+  "approval": [
+   "agent"
+  ],
+  "ask_user": [
+   "agent"
+  ],
+  "auto_override": [
+   "from",
+   "sameHarness",
+   "to",
+   "type"
+  ],
+  "auto_settled": [
+   "escalated",
+   "escalation",
+   "routeType",
+   "strategy"
+  ],
+  "btw": [
+   "agent",
+   "forked",
+   "running"
+  ],
+  "channel_event": [
+   "kind"
+  ],
+  "compact": [
+   "agent"
+  ],
+  "connector_tool": [
+   "agent",
+   "op",
+   "transport"
+  ],
+  "crew_imported": [
+   "by",
+   "members",
+   "source"
+  ],
+  "crew_shared": [
+   "gist",
+   "members",
+   "notebook"
+  ],
+  "crew_tool": [
+   "agent",
+   "by",
+   "op"
+  ],
+  "delegate": [
+   "agent",
+   "harnesses",
+   "tasks"
+  ],
+  "exec_action": [
+   "agent",
+   "exitCode"
+  ],
+  "fork_task": [
+   "agent",
+   "latest",
+   "switched"
+  ],
+  "getapp_clicked": [],
+  "getapp_hidden": [],
+  "getapp_opened": [
+   "from"
+  ],
+  "harness_install": [
+   "agent",
+   "ms",
+   "ok"
+  ],
+  "merge": [
+   "agent"
+  ],
+  "move_task": [
+   "agent",
+   "from",
+   "to"
+  ],
+  "resume_later": [
+   "agent",
+   "minutes"
+  ],
+  "retro": [
+   "added",
+   "agent",
+   "ok",
+   "removed"
+  ],
+  "run_app": [
+   "agent",
+   "source"
+  ],
+  "shell": [
+   "agent"
+  ],
+  "ship": [
+   "agent",
+   "draft"
+  ],
+  "side_task": [
+   "agent",
+   "running"
+  ],
+  "spell_hook": [
+   "action",
+   "on"
+  ],
+  "spell_installed": [
+   "enabled",
+   "kind",
+   "source"
+  ],
+  "stuff_add": [
+   "files"
+  ],
+  "stuff_launch": [],
+  "stuff_publish": [
+   "by",
+   "files",
+   "update"
+  ],
+  "stuff_save": [
+   "by",
+   "kind",
+   "update"
+  ],
+  "takeover": [
+   "agent",
+   "machine",
+   "terminal"
+  ],
+  "task_import": [
+   "connectors",
+   "crew",
+   "model",
+   "prompt",
+   "runs",
+   "skills",
+   "switched",
+   "turns",
+   "work"
+  ],
+  "task_share": [
+   "again",
+   "locked",
+   "turns",
+   "work"
+  ],
+  "try_two_ways": [],
+  "turn_ended": [
+   "agent",
+   "blockCount",
+   "blockTypes",
+   "changedFiles",
+   "costUsd",
+   "durationMs",
+   "effort",
+   "followUp",
+   "heroStatus",
+   "inputTokens",
+   "mode",
+   "model",
+   "outputTokens",
+   "presentationFallback",
+   "routeEffort",
+   "routeExplored",
+   "routeGoal",
+   "routePinned",
+   "routePropensity",
+   "routeSize",
+   "routeSuggested",
+   "routeTaste",
+   "routeTier",
+   "routeTrying",
+   "routeType",
+   "routed",
+   "status"
+  ],
+  "turn_started": [
+   "agent",
+   "attachments",
+   "effort",
+   "followUp",
+   "mode",
+   "model"
+  ],
+  "update": [
+   "from",
+   "method",
+   "to"
+  ],
+  "wisp_available": [
+   "agent"
+  ],
+  "wisp_pr": [
+   "agent",
+   "remove"
+  ],
+  "wisp_session": [
+   "agent"
+  ],
+  "wisp_sessions": [
+   "agent"
+  ],
+  "wisp_stats": [
+   "agent"
+  ],
+  "wisp_tag": [
+   "agent",
+   "tags"
+  ],
+  "wisp_watch": [
+   "agent",
+   "html"
+  ],
+  "worktrees_brought_in": [
+   "n",
+   "resumed"
+  ]
+ }
+}

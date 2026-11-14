@@ -1,0 +1,46 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.sandbox",
+  "name": "Sandboxes",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Sandboxes on your wisp Grid: a task's (/sandbox), a delegate's, a crew job's or member's, a goal's judges'; seeded with the project, deleted with their owner (ADR-0047)",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_sandbox" },
+  "permissions": [
+    "grid-client:sandbox",
+    "grid-client:sandboxes",
+    "grid-client:sandboxRemove",
+    "grid-client:sandboxInfo",
+    "grid-client:sandboxLogin",
+    "grid-client:sandboxLogout",
+    "grid-client:sandboxEnv",
+    "machines:list",
+    "machines:get",
+    "machines:update",
+    "machines:route",
+    "machines:call",
+    "machines:connect",
+    "proc:exec{bin:git}",
+    "proc:exec{bin:sh}",
+    "proc:exec{bin:claude}"
+  ],
+  "activation": ["onStartup"],
+  "contributes": {
+    "commands": [
+      { "id": "sandbox.launch", "title": "Start a task in a sandbox of its own (/sandbox)" },
+      { "id": "sandbox.place", "title": "A seeded sandbox for a delegate, a crew job or member, or a goal's judges" },
+      { "id": "sandbox.seed", "title": "Take a project in (inside a sandbox only)" },
+      { "id": "sandbox.patch", "title": "A project's changes since it came in (inside a sandbox only)", "readOnly": true },
+      { "id": "sandbox.bring", "title": "A delegate's changes in its sandbox, into the lead's folder here" },
+      { "id": "sandbox.own", "title": "Name a sandbox's owner once it exists (a crew job's task)" },
+      { "id": "sandbox.drop", "title": "Delete the sandboxes of a task, a crew member, or one by its machine" },
+      { "id": "sandbox.info", "title": "Your sandboxes, their owners, and what they start with", "readOnly": true },
+      { "id": "sandbox.claude.begin", "title": "Sign in to Claude for every sandbox (claude setup-token)" },
+      { "id": "sandbox.claude.code", "title": "The code Claude's sign-in page showed" },
+      { "id": "sandbox.claude.state", "title": "How the Claude sign-in for sandboxes is going", "readOnly": true },
+      { "id": "sandbox.logout", "title": "Take a sandbox sign-in off the grid" },
+      { "id": "sandbox.env", "title": "An env var every sandbox gets (empty: taken out)" }
+    ]
+  }
+}

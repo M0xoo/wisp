@@ -17,6 +17,8 @@ final class Alerts {
     static final String TASKS = "tasks";
     static final String CONNECTION = "connection";
     static final String EXTRA_TASK = "dev.trywisp.mobile.task";
+    // v2: where a tapped notification goes in the bundle (a navigation Target, as JSON)
+    static final String EXTRA_TARGET = "dev.trywisp.mobile.target";
 
     private Alerts() {}
 
@@ -41,6 +43,18 @@ final class Alerts {
 
     /** One per task (tagged with its id), so a later state replaces the earlier note. */
     static void task(Context ctx, String id, String title, String body) {
+        post(ctx, id, title, body, open(ctx, id));
+    }
+
+    /** v2 (Notifications.schedule): tapping it hands `target` to the bundle (WispSshPlugin.opened). */
+    static void target(Context ctx, String tag, String title, String body, String target) {
+        Intent i = new Intent(ctx, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (target != null) i.putExtra(EXTRA_TARGET, target);
+        PendingIntent pi = PendingIntent.getActivity(ctx, tag.hashCode(), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        post(ctx, tag, title, body, pi);
+    }
+
+    private static void post(Context ctx, String id, String title, String body, PendingIntent tap) {
         NotificationManagerCompat nm = NotificationManagerCompat.from(ctx);
         if (!nm.areNotificationsEnabled()) return;
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, TASKS)
@@ -51,7 +65,7 @@ final class Alerts {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
-            .setContentIntent(open(ctx, id));
+            .setContentIntent(tap);
         try {
             nm.notify(id, 1, b.build());
         } catch (SecurityException e) {

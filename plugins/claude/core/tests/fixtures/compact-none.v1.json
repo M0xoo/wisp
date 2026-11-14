@@ -1,0 +1,40 @@
+[
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "result",
+  "text": "Not enough messages to compact.",
+  "isError": false,
+  "stats": {
+   "costUsd": 0,
+   "durationMs": 6509,
+   "turns": 0,
+   "inputTokens": 0,
+   "outputTokens": 0,
+   "cacheReadTokens": 0,
+   "cacheWriteTokens": 0,
+   "totals": {
+    "costUsd": 0
+   },
+   "compact": {
+    "none": true
+   }
+  },
+  "background": 0,
+  "backgroundAgents": 0
+ }
+]

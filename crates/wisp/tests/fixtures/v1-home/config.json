@@ -1,0 +1,14 @@
+{
+  "projects": [{ "id": "p1", "name": "api", "path": "__PROJ__", "color": "teal", "addedAt": 1700000000000 }],
+  "defaults": { "agent": "codex", "mode": "edits", "model": "", "effort": "high", "timeZone": "Europe/Zurich" },
+  "recipes": [{ "id": "r1", "name": "Fix issue", "prompt": "Fix issue {n} and add a test", "cwd": "__PROJ__", "agent": "claude", "model": "", "effort": "", "mode": "edits", "createdAt": 1, "updatedAt": 1, "runs": 3 }],
+  "triggers": [
+    { "id": "t1", "name": "nightly", "kind": "schedule", "enabled": true, "cwd": "__PROJ__", "prompt": "Update dependencies and run the tests", "cron": "0 2 * * *", "agent": "claude", "runs": 12 },
+    { "id": "t2", "name": "ci", "kind": "ci", "enabled": true, "cwd": "__PROJ__", "prompt": "CI failed on {branch}: fix it", "branch": "main", "every": 5 }
+  ],
+  "teams": [{ "id": "rp-1a2b", "name": "review pair", "members": [{ "name": "critic", "agent": "codex", "count": 1 }, { "name": "fixer", "agent": "claude" }] }],
+  "crew": [{ "id": "c1", "name": "Ada", "role": "reviewer", "cwd": "__PROJ__", "agent": "codex", "cron": "0 9 * * 1-5", "parallel": 2, "log": [{ "at": 1, "text": "history stays history" }] }],
+  "remote": { "secret": "abc", "telegram": { "enabled": true, "chatId": 4242 } },
+  "machines": [{ "id": "a1b2c3", "name": "studio", "host": "studio.local" }],
+  "connectors": [{ "id": "k1", "name": "linear", "transport": "remote", "url": "https://mcp.linear.app/sse", "env": ["LINEAR_KEY"], "enabled": true }]
+}

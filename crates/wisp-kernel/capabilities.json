@@ -1,0 +1,84 @@
+{
+  "$comment": "Capability sets (plan §6.5, §7.2.4, ADR-0008): who may do what, as data. Default deny; a deny always beats an allow. agent:capped is v1's server/capped.js and the refusals in routes/control.js, internal.js and connectors.js, in v1's words. plugin:<id> sets come from each plugin's manifest permissions, crew:<name> and pane:<id> are made on demand.",
+  "modes": ["plan", "edits", "auto"],
+  "modeLabels": { "plan": "Plan", "edits": "Edits", "auto": "Full auto" },
+  "cappedRefusal": "Refused: this task was started from a channel with a mode cap, so it can't {what}. Say so in your report; the user can do it in wisp.",
+  "sets": [
+    { "id": "user:full", "allow": ["*"] },
+    { "id": "kernel", "allow": ["*"] },
+    {
+      "id": "agent:session",
+      "allow": [
+        "runtime:*", "session:*", "stuff:*", "crew:*", "git:*", "fs:*", "topic:read", "ask:*", "later:*", "goal:*",
+        "connectors:*", "machines:*", "sandbox:*", "prs:*", "ship:agent.*", "notice:send", "plugins:read", "plugins:agent.*", "blob:*", "budget:read", "mcp:call",
+        "history:blame", "history:requests", "events:tail", "events:why", "history:resumeRequest", "automations:read"
+      ],
+      "deny": [
+        { "permission": "plugins:install", "why": "install a plugin: the user installs plugins" },
+        { "permission": "secrets:*", "why": "read the user’s secrets" },
+        { "permission": "settings:write{scope:server}", "why": "change wisp’s settings" }
+      ]
+    },
+    {
+      "id": "box",
+      "allow": ["*"],
+      "deny": [
+        { "permission": "machines:*", "why": "reach other machines from a grid box" },
+        { "permission": "grid-client:computer", "why": "be one of your computers: a box never gets a laptop token" },
+        { "permission": "update:*", "why": "update wisp on a grid box: the grid does" },
+        { "permission": "notify:native", "why": "show a desktop notification on a grid box" },
+        { "permission": "proc:spawn{sandbox:none}", "why": "run a process outside the box sandbox" }
+      ]
+    },
+    {
+      "id": "apikey",
+      "allow": ["runtime:*", "session:*", "stuff:read", "stuff:save", "topic:read", "crew:read", "budget:read"],
+      "deny": [
+        { "permission": "apikeys:*", "why": "make or revoke API keys" },
+        { "permission": "plugins:*", "why": "change plugins" },
+        { "permission": "secrets:*", "why": "read secrets" }
+      ]
+    },
+    { "id": "preview", "allow": ["topic:read", "session:read", "stuff:read", "blob:read"] },
+    { "id": "grid:inbox", "allow": ["channels:inbound"] },
+    { "id": "grid:route", "allow": ["channels:routed"] }
+  ],
+  "aboveMode": [
+    { "permission": "runtime:start{mode:{mode}}", "why": "start a task at {label}, above this task’s {cap}" },
+    { "permission": "session:mode{to:{mode}}", "why": "switch a task to {label}, above this task’s {cap}" }
+  ],
+  "capped": [
+    { "permission": "machines:*", "what": "run anything on another machine or in a sandbox" },
+    { "permission": "sandbox:*", "what": "start a sandbox" },
+    { "permission": "runtime:delegate{to:machine}", "what": "send work to another machine" },
+    { "permission": "runtime:start{project:other}", "what": "start a task in another project" },
+    { "permission": "session:read{project:other}", "what": "read a task of another project" },
+    { "permission": "session:act{started:other}", "what": "act on a task it didn’t start" },
+    { "permission": "session:mode{task:other}", "what": "change another task’s mode" },
+    { "permission": "connectors:*", "what": "read or change the user's connectors" },
+    { "permission": "stuff:publish", "what": "put anything on a public link, or take one down" },
+    { "permission": "stuff:save{project:other}", "what": "change an item of another project" },
+    { "permission": "stuff:save{from:outside}", "what": "save a file from outside its folder" },
+    { "permission": "stuff:read{project:other}", "what": "read an item of another project" },
+    { "permission": "fs:read{scope:outside}", "what": "show a file from outside its folders" },
+    { "permission": "prs:read{by:url}", "what": "read a PR by URL: give its number in this task’s repo" },
+    { "permission": "crew:write", "what": "change the user’s crew" },
+    { "permission": "crew:share", "what": "put the user’s crew on a link" },
+    { "permission": "crew:read{project:other}", "what": "read a member of another project" },
+    { "permission": "session:list{project:other}", "what": "read a task of another project" },
+    { "permission": "runtime:unmasked", "what": "reveal a .env value the user hid" }
+  ],
+  "crew": { "deny": [{ "permission": "crew:write", "why": "change the crew it belongs to" }, { "permission": "crew:share", "why": "share the crew it belongs to" }] },
+  "pane": {
+    "$comment": "A pane holding tasks:write only proposes (v1 pane-card.js): wisp's page shows its prompt on a card and you send it as yourself. Whatever it was allowed, it never starts or sends a task, nor widens its own grant (F-stuff-8).",
+    "deny": [
+      { "permission": "runtime:create", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task (wisp.tasks.launch)." },
+      { "permission": "runtime:followUp", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you send the follow-up (wisp.tasks.followUp)." },
+      { "permission": "runtime:queue.*", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you send it." },
+      { "permission": "runtime:fork", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
+      { "permission": "runtime:trial", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
+      { "permission": "runtime:card", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
+      { "permission": "stuff:allow", "why": "Refused: a pane can't widen its own grant. You allow what it asks for from its bar." }
+    ]
+  }
+}

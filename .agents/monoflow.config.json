@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "packages": [],
+  "verify_exclude": [
+    "wisp"
+  ]
+}

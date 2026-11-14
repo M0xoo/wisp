@@ -1,0 +1,17 @@
+{
+  "exit": {
+    "code": 1,
+    "signal": null,
+    "stderr": "fake: not logged in (401)\n"
+  },
+  "opts": {},
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--trust"
+  ]
+}

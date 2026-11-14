@@ -1,0 +1,200 @@
+{
+  "$comment": "What an untrusted plugin's UI may describe (ADR-0048 §3): the kit components by name and the props each takes. descriptor.ts draws exactly this (test/remote-kit.test.ts fails if they differ); plugins/plugins/core makes the agents' reference (wisp_plugin_schema) and check (wisp_plugin_check) from this file. A prop is \"string\", \"bool\", \"number\", \"items\" ([{value,label}]), \"node\" (one descriptor) or a list of the values it takes.",
+  "components": {
+    "Stack": {
+      "gap": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9"
+      ],
+      "align": [
+        "start",
+        "center",
+        "end",
+        "stretch",
+        "baseline"
+      ],
+      "justify": [
+        "start",
+        "center",
+        "end",
+        "between"
+      ]
+    },
+    "Inline": {
+      "gap": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9"
+      ],
+      "align": [
+        "start",
+        "center",
+        "end",
+        "stretch",
+        "baseline"
+      ],
+      "justify": [
+        "start",
+        "center",
+        "end",
+        "between"
+      ]
+    },
+    "Text": {
+      "size": [
+        "xs",
+        "sm",
+        "md",
+        "lg"
+      ],
+      "weight": [
+        "regular",
+        "medium",
+        "semibold"
+      ],
+      "tone": [
+        "ink",
+        "ink-2",
+        "muted",
+        "faint",
+        "neutral",
+        "accent",
+        "good",
+        "warn",
+        "bad",
+        "info"
+      ],
+      "mono": "bool",
+      "truncate": "bool"
+    },
+    "Button": {
+      "variant": [
+        "primary",
+        "secondary",
+        "ghost",
+        "danger"
+      ],
+      "size": [
+        "xs",
+        "sm",
+        "md",
+        "lg"
+      ],
+      "disabled": "bool",
+      "label": "string"
+    },
+    "Input": {
+      "value": "string",
+      "placeholder": "string",
+      "type": [
+        "text",
+        "password",
+        "number",
+        "search"
+      ],
+      "size": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "label": "string"
+    },
+    "Switch": {
+      "checked": "bool",
+      "label": "string",
+      "disabled": "bool"
+    },
+    "Select": {
+      "value": "string",
+      "items": "items",
+      "placeholder": "string",
+      "label": "string"
+    },
+    "SettingsRow": {
+      "title": "string",
+      "description": "string",
+      "control": "node"
+    },
+    "ListRow": {
+      "title": "string",
+      "sub": "string"
+    },
+    "Callout": {
+      "tone": [
+        "neutral",
+        "accent",
+        "good",
+        "warn",
+        "bad",
+        "info"
+      ],
+      "title": "string"
+    },
+    "Code": {
+      "text": "string",
+      "block": "bool",
+      "lang": "string"
+    },
+    "Markdown": {
+      "source": "string"
+    }
+  },
+  "parents": [
+    "Stack",
+    "Inline",
+    "Text",
+    "Callout"
+  ],
+  "events": {
+    "Button": "a click (no value)",
+    "Input": "each edit (its text)",
+    "Switch": "a flip (true or false)",
+    "Select": "a pick (the item's value)"
+  },
+  "limits": {
+    "text": 10000,
+    "nodes": 2000,
+    "depth": 32,
+    "items": 200,
+    "event": "^[\\w.:-]{1,64}$",
+    "module": 262144
+  },
+  "api": [
+    "render",
+    "call",
+    "on"
+  ],
+  "places": {
+    "shell.settings": {
+      "words": "a pane in Settings → Advanced",
+      "drawn": true
+    },
+    "shell.side": {
+      "words": "a side view",
+      "drawn": false
+    },
+    "shell.block": {
+      "words": "a block renderer",
+      "drawn": false
+    },
+    "shell.toolbar": {
+      "words": "a toolbar button",
+      "drawn": false
+    }
+  }
+}

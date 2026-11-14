@@ -1,0 +1,30 @@
+[package]
+name = "wisp-testkit"
+description = "Tests for wisp plugins: a fake clock, a test app, the free tests (leaks, permissions), fake harness and gh, goldens"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
+
+# Stand-ins for the harness CLIs and gh (ports of v1 test/fixtures/fake-agent.mjs and fake-gh.mjs).
+# A test copies or links the binary under the CLI's name (claude, codex, gh): the name picks the role.
+[[bin]]
+name = "wisp-fake-agent"
+path = "fixtures/fake_agent.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "wisp-fake-gh"
+path = "fixtures/fake_gh.rs"
+test = false
+doc = false

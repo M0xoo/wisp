@@ -1,0 +1,2 @@
+# dist/tokens.css is generated but committed (test/fresh.test.ts keeps it in step with tokens/*.json).
+!/dist/

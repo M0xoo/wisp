@@ -1,0 +1,16 @@
+── 80 plain
+? Ship it now?
+  1. Ship
+  2. Wait
+── 40 plain
+? Ship it now?
+  1. Ship
+  2. Wait
+── 80 colour
+␛[33m?␛[0m ␛[1mShip it now?␛[0m
+  ␛[1m1.␛[0m Ship
+  ␛[1m2.␛[0m Wait
+── 40 colour
+␛[33m?␛[0m ␛[1mShip it now?␛[0m
+  ␛[1m1.␛[0m Ship
+  ␛[1m2.␛[0m Wait

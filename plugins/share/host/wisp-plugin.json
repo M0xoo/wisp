@@ -1,0 +1,79 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.share",
+  "name": "Share",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "share a task as a signed .wisp-task bundle (spec, report or full), previewed with its redactions; open one someone sent; send any share to a destination (wisp Cloud) through share.destination@1",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_share"
+  },
+  "permissions": [
+    "telemetry:track",
+    "runtime:get",
+    "runtime:spec",
+    "runtime:snapshot",
+    "runtime:turns",
+    "runtime:activity",
+    "runtime:list",
+    "runtime:agents",
+    "runtime:adopt",
+    "crew:read",
+    "runtime:setExt",
+    "share:make",
+    "share:open",
+    "grid-client:revoke",
+    "grid-client:fetch"
+  ],
+  "requires": {},
+  "provides": {
+    "share.destination": {
+      "version": "1.0.0"
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "id": "share.preview",
+        "title": "What a share of this task would send",
+        "readOnly": true
+      },
+      {
+        "id": "share.bundle",
+        "title": "Share a task (a signed bundle)"
+      },
+      {
+        "id": "share.open",
+        "title": "Open a shared task",
+        "readOnly": true
+      },
+      {
+        "id": "share.import",
+        "title": "Import a shared task, read-only"
+      },
+      {
+        "id": "share.send",
+        "title": "Share a task, a setup or a doc to a destination (wisp Cloud)"
+      },
+      {
+        "id": "share.destinations",
+        "title": "Where shares can go, and whether each is ready",
+        "readOnly": true
+      },
+      {
+        "id": "share.create",
+        "title": "Share a task as a link (a passkey locks it)"
+      },
+      {
+        "id": "share.stop",
+        "title": "Stop sharing a task's link"
+      },
+      {
+        "id": "share.peek",
+        "title": "What a pasted share link is, before it's taken in",
+        "readOnly": true
+      }
+    ]
+  }
+}

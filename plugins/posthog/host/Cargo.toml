@@ -1,0 +1,18 @@
+[package]
+name = "wisp-posthog"
+description = "wisp.posthog host: a telemetry.sink@1 that delivers wisp.telemetry's batches to PostHog (ADR-0021)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+reqwest.workspace = true
+serde_json.workspace = true
+wisp-kernel.workspace = true
+wisp-posthog-core.workspace = true
+wisp-telemetry-api.workspace = true
+
+[lints]
+workspace = true

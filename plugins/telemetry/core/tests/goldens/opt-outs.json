@@ -1,0 +1,27 @@
+[
+  {
+    "env": "none",
+    "feedback": true,
+    "stats": true
+  },
+  {
+    "env": "DO_NOT_TRACK=1",
+    "feedback": true,
+    "stats": false
+  },
+  {
+    "env": "WISP_TELEMETRY=0",
+    "feedback": true,
+    "stats": false
+  },
+  {
+    "env": "CI=true",
+    "feedback": true,
+    "stats": false
+  },
+  {
+    "env": "WISP_FEEDBACK=0",
+    "feedback": false,
+    "stats": true
+  }
+]

@@ -1,9 +1,9 @@
 name: suite
 
-# The test suite on a matrix, called by pr.yml (fast), main.yml (every OS) and nightly.yml
-# (every OS and Node, several times over). Adapters, process launching, terminals and the full
-# ask_user loop, against fake CLIs that speak each harness's real output format. No network,
-# no accounts, and no install step: wisp has no runtime dependencies.
+# The v2 suite on a matrix, called by pr.yml (Linux, Node 22 + 24), main.yml (every OS) and
+# nightly.yml (every OS, Node latest too, three times over). Structure rules, types, the tools' own
+# tests, then every workspace package through monoflow (ADR-0001). No network beyond the installs, no
+# accounts: tests use fakes. Each job uploads monoflow's JSON result for gate G14 (tools/g14.ts).
 on:
   workflow_call:
     inputs:
@@ -14,19 +14,23 @@ on:
       node:
         description: JSON list of Node versions
         type: string
-        default: '["22"]'
+        default: '["22", "24"]'
       repeat:
-        description: Runs of the whole suite per job; more than one surfaces flaky tests
+        description: Runs of monoflow verify --all per job; more than one surfaces flaky tests
         type: number
         default: 1
+      artifact:
+        description: Prefix of the uploaded verify-all artifacts (unique per caller in one workflow run)
+        type: string
+        default: verify-all
       timeout:
-        description: Minutes a job may take; a repeat needs a run's worth each (~11 min on Windows and macOS)
+        description: Minutes a job may take; v2's whole Rust suite runs to the end (no fail-fast) and takes ~35 min cold, a repeat needs a run's worth each
         type: number
-        default: 30
+        default: 60
 
 jobs:
-  test:
-    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+  suite:
+    name: suite (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ inputs.timeout }}
     strategy:
@@ -39,15 +43,81 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      # Every run, even after a failing one, so a nightly says how flaky a test is (2 of 3).
-      - name: npm test (${{ inputs.repeat }}×)
+          cache: npm
+
+      # monoflow: built once per OS and pin (the pin lives in tools/setup-monoflow.ts, so editing it
+      # busts the cache), never `monoflow init` (no hooks, no git shim: plan §9.4.3).
+      - id: monoflow-cache
+        uses: actions/cache@v4
+        with:
+          path: .agents/bin
+          key: monoflow-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/setup-monoflow.ts') }}
+      - if: steps.monoflow-cache.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - run: node tools/setup-monoflow.ts --build
+
+      # The Rust workspace (ADR-0013): rustfmt (rustfmt.toml), clippy pedantic with -D warnings, every
+      # crate's tests, and cargo deny (licences, advisories, bans, sources: deny.toml). Builds share one cached target dir.
+      # the version pinned in rust-toolchain.toml (bump both together)
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.100.0
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - run: npm run typecheck
+      - name: cargo fmt
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: cargo test
+        # every failing test in one run, not just the first failing binary's
+        run: cargo test --workspace --locked --no-fail-fast
+      # a container action: Linux runners only (licences and advisories don't vary by OS)
+      - name: cargo deny
+        if: runner.os == 'Linux'
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+      - name: tools tests
+        run: node --test --test-reporter=dot "tools/**/*.test.ts"
+
+      # The Python SDK (sdk/python) is a monoflow package whose tests run under pytest: a pinned one, on a
+      # setup-python interpreter (the runner's system python is externally managed, PEP 668).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: pytest for sdk/python
+        run: python -m pip install --disable-pip-version-check pytest==8.3.5
+
+      # Every run, even after a failing one, so a nightly says how flaky a package is (2 of 3).
+      # --no-cache: a repeat must really run again.
+      - name: monoflow verify --all (${{ inputs.repeat }}×)
         shell: bash
         run: |
           failed=0
           for i in $(seq 1 ${{ inputs.repeat }}); do
             echo "::group::run $i of ${{ inputs.repeat }}"
-            npm test || { failed=$((failed + 1)); echo "::error::run $i of ${{ inputs.repeat }} failed"; }
+            .agents/bin/monoflow verify --all --no-cache --json > "verify-all-$i.json" || { failed=$((failed + 1)); echo "::error::monoflow verify --all: run $i of ${{ inputs.repeat }} failed"; }
+            node tools/monoflow-report.ts "verify-all-$i.json" --title="verify --all, run $i (${{ matrix.os }}, node ${{ matrix.node }})"
             echo "::endgroup::"
           done
+          cp verify-all-1.json verify-all.json
           [ "$failed" = 0 ]
-      - run: npm run prepublishOnly
+
+      # The published bundle still builds (v1 ran prepublishOnly here), once tools/bundle.ts exists.
+      - if: hashFiles('tools/bundle.ts') != ''
+        run: npm run build
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}-${{ matrix.os }}-node${{ matrix.node }}
+          path: verify-all*.json
+          if-no-files-found: ignore
+          retention-days: 90

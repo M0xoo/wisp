@@ -1,0 +1,6 @@
+# One Rust for every machine and CI job, so rustfmt and clippy agree everywhere. Bump it on purpose, in its own PR
+# (CI's toolchain steps in .github/workflows install this same version).
+[toolchain]
+channel = "1.100.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

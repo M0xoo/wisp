@@ -1,0 +1,24 @@
+ wisp                                                                   3 tasks
+
+ RUNNING  1
+▌Add dark mode                                                               2m
+▌⠋ codex · web
+
+ DONE  2
+ Fix the login                                                              12m
+ ● claude · api
+ Old one                                                                     3d
+ ✓ claude · api
+
+
+
+
+
+
+
+
+
+
+
+
+  auto   codex · gpt-5                           ● live   ? keys  ^K go  q quit

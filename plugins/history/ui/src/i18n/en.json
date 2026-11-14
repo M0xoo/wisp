@@ -1,0 +1,22 @@
+{
+  "history.tab.tasks": "Tasks",
+  "history.tab.repo": "Repo",
+  "history.tab.label": "Your tasks, or this repo's history",
+  "history.repo.title": "Repo history",
+  "history.repo.lede": "What agents did in this repo, from everyone who worked on it: committed in .wisp/ and read from git.",
+  "history.repo.project": "Project",
+  "history.repo.pick": "Pick a project",
+  "history.repo.filter": "Filter: words, path/, or an agent",
+  "history.repo.none": "No tracked tasks here yet. Track a task from its ⋯ menu, or set history: { track: auto } in .wisp/wisp.yml.",
+  "history.repo.untracked": "This repo has no .wisp/ yet. Run wisp init in it to track its agent work.",
+  "history.repo.loading": "Reading the repo's history…",
+  "history.commits.one": "1 commit",
+  "history.commits.other": "{count} commits",
+  "history.report.asked": "What was asked",
+  "history.report.report": "What happened",
+  "history.report.none": "No report was saved with it.",
+  "history.report.resume": "Resume",
+  "history.report.resumeTitle": "A new task that carries on from here, on today's code",
+  "history.report.back": "Repo history",
+  "history.report.resumed": "{title} (resumed)"
+}

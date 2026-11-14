@@ -1,0 +1,28 @@
+── 80 plain
+What I did
+✓ Read the handler
+  src/auth/login.ts
+✗ Ran the e2e suite
+  needs a browser
+– Load test
+── 40 plain
+What I did
+✓ Read the handler
+  src/auth/login.ts
+✗ Ran the e2e suite
+  needs a browser
+– Load test
+── 80 colour
+␛[1mWhat I did␛[0m
+␛[32m✓␛[0m Read the handler
+  ␛[2msrc/auth/login.ts␛[0m
+␛[31m✗␛[0m Ran the e2e suite
+  ␛[2mneeds a browser␛[0m
+␛[2m–␛[0m Load test
+── 40 colour
+␛[1mWhat I did␛[0m
+␛[32m✓␛[0m Read the handler
+  ␛[2msrc/auth/login.ts␛[0m
+␛[31m✗␛[0m Ran the e2e suite
+  ␛[2mneeds a browser␛[0m
+␛[2m–␛[0m Load test

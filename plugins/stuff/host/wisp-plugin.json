@@ -1,0 +1,173 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.stuff",
+  "name": "My Stuff",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "My Stuff: what you and your agents kept from tasks (pictures, videos, docs, code, files, links and apps), the apps' launches and databases, the panes wisp ships, and uploads",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_stuff"
+  },
+  "permissions": [
+    "telemetry:track",
+    "runtime:get",
+    "blob:read",
+    "blob:write",
+    "fs:read{scope:home}",
+    "fs:write{scope:stuff}",
+    "net:listen{host:127.0.0.1}",
+    "store:write{owner:stuff}",
+    "topic:write{topic:stuff}",
+    "topic:write{topic:uploads}",
+    "proc:exec{bin:open}",
+    "proc:exec{bin:xdg-open}",
+    "proc:exec{bin:explorer}"
+  ],
+  "requires": {},
+  "provides": {},
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "stuff.list",
+        "title": "List My Stuff",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.get",
+        "title": "Read one item",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.find",
+        "title": "Find in My Stuff (wisp_stuff)",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.describe",
+        "title": "One item in full, for an agent",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.grant",
+        "title": "What a pane may use now",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.save",
+        "title": "Save to My Stuff"
+      },
+      {
+        "id": "stuff.update",
+        "title": "Edit an item"
+      },
+      {
+        "id": "stuff.restore",
+        "title": "Back to the version before"
+      },
+      {
+        "id": "stuff.remove",
+        "title": "Remove from My Stuff"
+      },
+      {
+        "id": "stuff.allow",
+        "title": "Allow a pane what it asks for"
+      },
+      {
+        "id": "stuff.setPublished",
+        "title": "Record where an app is published"
+      },
+      {
+        "id": "stuff.bundle",
+        "title": "An app's files packed for publishing (its secrets left out)",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.launch",
+        "title": "Launch an app"
+      },
+      {
+        "id": "stuff.stop",
+        "title": "Stop an app"
+      },
+      {
+        "id": "stuff.resetData",
+        "title": "Reset an app's data"
+      },
+      {
+        "id": "stuff.upload",
+        "title": "Read an attachment",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.receive",
+        "title": "Keep a file that came another way (an email's attachment) as an upload"
+      },
+      {
+        "id": "stuff.uploads",
+        "title": "Read attachments",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.removeUpload",
+        "title": "Remove an attachment"
+      },
+      {
+        "id": "stuff.starters",
+        "title": "The panes wisp ships",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.addStarter",
+        "title": "Add a starter pane to My Stuff"
+      },
+      {
+        "id": "stuff.reveal",
+        "title": "Show an item in its folder"
+      },
+      {
+        "id": "stuff.targets",
+        "title": "Where an app can be published",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.publish",
+        "title": "Publish an app: a link anyone can open"
+      },
+      {
+        "id": "stuff.unpublish",
+        "title": "Take an app's public link down"
+      },
+      {
+        "id": "stuff.agent.save",
+        "title": "Save to My Stuff, as a task's agent (wisp_save)"
+      },
+      {
+        "id": "stuff.agent.list",
+        "title": "My Stuff as a task's agent reads it (wisp_stuff)",
+        "readOnly": true
+      }
+    ],
+    "events": [
+      "stuff.launched",
+      "stuff.removed",
+      "stuff.saved"
+    ],
+    "topics": [
+      "stuff",
+      "uploads"
+    ],
+    "settings": [
+      {
+        "key": "stuff.panes",
+        "type": "string",
+        "default": "",
+        "title": "Panes: <app>@task or <app>@home, comma separated"
+      }
+    ]
+  },
+  "migrations": "stuff"
+}

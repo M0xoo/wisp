@@ -1,0 +1,26 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "and add a test",
+    "resumeId": "prev-1"
+  },
+  "argv": [
+    "--prompt-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-grok-7wojT7/prompt.md",
+    "--output-format",
+    "streaming-messages-json",
+    "--permission-mode",
+    "acceptEdits",
+    "--rules",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--disallowed-tools",
+    "ask_user_question",
+    "--no-auto-update",
+    "--resume",
+    "prev-1"
+  ]
+}

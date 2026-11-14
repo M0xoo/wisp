@@ -1,0 +1,80 @@
+[
+ {
+  "name": "turn",
+  "note": "its shell call is rejected (no --force): a tool_error and a blocked event",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "plan",
+  "opts": {
+   "mode": "plan",
+   "model": "m-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "auto",
+  "opts": {
+   "mode": "auto",
+   "model": "m-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "resume",
+  "prompt": "and add a test",
+  "opts": {
+   "resumeId": "prev-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "attachments",
+  "opts": {
+   "attachments": [
+    {
+     "path": "/tmp/wisp-g6-att/notes.pdf",
+     "mime": "application/pdf",
+     "size": 2048
+    }
+   ]
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "btw",
+  "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "hang-stop",
+  "env": {
+   "FAKE_HANG": "1"
+  },
+  "stopAfter": 2,
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "fail",
+  "env": {
+   "FAKE_FAIL": "1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ }
+]

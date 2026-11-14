@@ -1,0 +1,25 @@
+{
+  "info": {
+    "id": "01a1bf68-b252-7d61-a4f7-6ef81ccd32f5",
+    "cwd": "/private/tmp/wisp-samples/run"
+  },
+  "agent_id": "ag1.50056fb305ac47ca8c595eb21b799092",
+  "attempt_id": "at1.975159673e1c491588964b3b7c2d8e41",
+  "session_summary": "Simple OK Reply Request",
+  "created_at": "2026-11-09T08:24:32.103342Z",
+  "updated_at": "2026-11-09T08:24:36.531941Z",
+  "num_messages": 4,
+  "num_chat_messages": 7,
+  "current_model_id": "grok-4.7",
+  "next_trace_turn": 1,
+  "chat_format_version": 1,
+  "session_kind": "headless",
+  "git_root_dir": "/private/tmp/wisp-samples/run/",
+  "request_id": "0c5dbd31-fc79-4f22-a542-d6d31651bfe0",
+  "grok_home": "~/.grok",
+  "last_active_at": "2026-11-09T08:24:36.531941Z",
+  "generated_title": "Simple OK Reply Request",
+  "agent_name": "grok-build-plan",
+  "sandbox_profile": "off",
+  "reasoning_effort": "high"
+}

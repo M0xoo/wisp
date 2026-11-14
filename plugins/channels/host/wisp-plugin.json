@@ -1,0 +1,97 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.channels",
+  "name": "Channels",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.channels: the hub every way of reaching wisp from outside goes through (plan \u00a76.11.3): the channel and notification kinds",
+  "server": {
+    "builtin": "wisp-channels"
+  },
+  "permissions": [
+    "runtime:get",
+    "runtime:turns",
+    "runtime:list",
+    "runtime:create",
+    "runtime:stop",
+    "runtime:followUp",
+    "runtime:btw",
+    "stuff:receive",
+    "runtime:setState",
+    "runtime:answer",
+    "resources:read",
+    "runtime:agents",
+    "crew:read",
+    "telemetry:track",
+    "automations:run",
+    "resources:apply"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "triggerSources": ["chat.message"],
+    "settings": [
+      { "key": "channels.acceptChannels", "type": "bool", "default": false, "title": "Accept tasks from channels: messages routed here through wisp Cloud (“on this computer …”) may start tasks. Switch it on at this computer." },
+      { "key": "channels.project", "type": "string", "default": "", "title": "Default project: where a task from a channel (Slack, Discord, Telegram, email) runs when its message names none ('': the last used)" }
+    ],
+    "events": ["channels.changed", "channels.started"],
+    "commands": [
+      {
+        "id": "channels.view",
+        "title": "Which channels are on",
+        "readOnly": true
+      },
+      {
+        "id": "channels.update",
+        "title": "Change a channel's settings"
+      },
+      {
+        "id": "channels.test",
+        "title": "Send a test to a channel, or to every channel that's on"
+      },
+      {
+        "id": "channels.status",
+        "title": "How each channel is set up (Settings → Phone): on or off, connected, what it still needs; secrets only as saved or not",
+        "readOnly": true
+      },
+      {
+        "id": "channels.setup",
+        "title": "Set up a channel (ntfy, Telegram, Slack, Discord, GitHub, email): switch it on or off, save its tokens (kept in secrets.json) and settings"
+      },
+      {
+        "id": "channels.send",
+        "title": "Send a notice"
+      },
+      {
+        "id": "channels.notify",
+        "title": "Notify about a task"
+      },
+      {
+        "id": "channels.act",
+        "title": "Act on a task from a channel"
+      },
+      {
+        "id": "channels.inbound",
+        "title": "A message the grid held"
+      },
+      {
+        "id": "channels.routed",
+        "title": "A message the grid routed"
+      },
+      {
+        "id": "channels.rotate",
+        "title": "Replace a channel's private URL"
+      },
+      {
+        "id": "channels.extra",
+        "title": "A channel's extra view",
+        "readOnly": true
+      },
+      {
+        "id": "channels.refresh",
+        "title": "Read the channels again"
+      }
+    ]
+  }
+}

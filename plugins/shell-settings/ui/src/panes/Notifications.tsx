@@ -1,0 +1,104 @@
+// Settings → Notifications (v1 'notifications'). The switch is wisp's own on/off preference; the
+// browser's permission can only be granted from here, never revoked, so when it blocks the switch
+// it shows as the row's hint (v1 notify.js). Turning it on asks for the permission first.
+
+import { createMemo, createSignal, type JSX } from 'solid-js';
+import type { PluginClient } from '@wisp/client';
+import { projectList } from '@wisp/shell';
+import { Button, Code, SelectSetting, SettingsGroup, SettingsRow, Switch, SwitchSetting, useSignal } from '@wisp/ui';
+import { lastUsed, projectItems } from '../channel-project.ts';
+import { t } from '../i18n.ts';
+import { fromRow, onOff, text } from '../source.ts';
+import { KEYS, VIEW_ID } from '../types.ts';
+
+export type Permission = 'granted' | 'denied' | 'default' | 'unsupported';
+
+/** The page's notification permission, without touching the API when there is none. */
+export function permission(g: { Notification?: { permission: string } } = globalThis as never): Permission {
+  const p = g.Notification?.permission;
+  return p === 'granted' || p === 'denied' || p === 'default' ? p : 'unsupported';
+}
+
+/** v1 paint(): the hint under the switch. */
+export function notifyHint(perm: Permission, on: boolean): string {
+  if (perm === 'denied') return t('shell-settings.notify.blocked');
+  if (perm === 'unsupported') return t('shell-settings.notify.unsupported');
+  return t(on ? 'shell-settings.notify.on' : 'shell-settings.notify.off');
+}
+
+function Desktop(props: { readonly client: PluginClient }): JSX.Element {
+  const src = onOff(fromRow(props.client, KEYS.notify), false);
+  const on = useSignal(src.value);
+  const [perm, setPerm] = createSignal(permission());
+  const toggle = async (want: boolean): Promise<void> => {
+    if (want && perm() !== 'granted') {
+      const asked = await globalThis.Notification?.requestPermission?.().catch(() => 'denied' as const);
+      setPerm(permission());
+      if (asked !== 'granted') return;
+    }
+    src.set(want);
+  };
+  return (
+    <SettingsRow
+      part="settings.notify"
+      title={t('shell-settings.notify')}
+      description={notifyHint(perm(), on() && perm() === 'granted')}
+      control={<Switch checked={on() && perm() === 'granted'} disabled={perm() === 'denied' || perm() === 'unsupported'} onChange={(v) => void toggle(v)} aria-label={t('shell-settings.notify')} />}
+    />
+  );
+}
+
+/** v1 Phone → Telegram's Default project, for every channel: Last used (named), or one project. */
+function ChannelProject(props: { readonly client: PluginClient }): JSX.Element {
+  const projectRows = useSignal(props.client.entities.list<unknown>('project'));
+  const sessionRows = useSignal(props.client.entities.list<unknown>('session'));
+  const projects = createMemo(() => projectList(projectRows(), undefined));
+  const items = createMemo(() => projectItems(projects(), lastUsed(projects(), sessionRows()), (name) => (name ? t('shell-settings.channelProject.lastOf', { name }) : t('shell-settings.channelProject.last'))));
+  return (
+    <SelectSetting
+      part="settings.channelProject"
+      title={t('shell-settings.channelProject')}
+      description={t('shell-settings.channelProject.hint')}
+      source={text(fromRow(props.client, KEYS.channelProject), '')}
+      locked={(by) => t('shell-settings.locked', { by })}
+      items={items()}
+    />
+  );
+}
+
+export default function Notifications(props: { readonly client: PluginClient }): JSX.Element {
+  // v1's Set up opened the Phone dialog: wisp.channels' Settings → Phone pane
+  const openPhone = (): void => props.client.navigate({ t: 'openOverlay', overlay: { kind: 'sheet', id: VIEW_ID, params: { pane: 'phone' } } });
+  return (
+    <>
+      <SettingsGroup part="settings.notifications.here">
+        <Desktop client={props.client} />
+      </SettingsGroup>
+      <SettingsGroup part="settings.notifications.away">
+        <SettingsRow
+          title={t('shell-settings.phone')}
+          description={t('shell-settings.phone.hint')}
+          control={
+            <Button size="sm" variant="ghost" onClick={openPhone}>
+              {t('shell-settings.phone.setup')}
+            </Button>
+          }
+        />
+        <SwitchSetting
+          part="settings.acceptChannels"
+          title={t('shell-settings.channels')}
+          description={
+            <>
+              {t('shell-settings.channels.hint.pre')}
+              <Code>{t('shell-settings.channels.hint.code')}</Code>
+              {t('shell-settings.channels.hint.post')}
+            </>
+          }
+          source={onOff(fromRow(props.client, KEYS.acceptChannels), false, KEYS.acceptChannels)}
+          locked={(by) => t('shell-settings.locked', { by })}
+        />
+        <ChannelProject client={props.client} />
+      </SettingsGroup>
+    </>
+  );
+}

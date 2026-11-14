@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.discord",
+  "name": "Discord",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.discord: the Discord transport for wisp.channels (gateway, slash commands, interactions on a grid box)",
+  "server": {
+    "builtin": "wisp-discord"
+  },
+  "requires": {
+    "wisp.channels": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

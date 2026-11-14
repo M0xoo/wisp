@@ -1,0 +1,8 @@
+[
+ {
+  "type": "result",
+  "isError": true,
+  "stopped": false,
+  "text": "fake: not logged in (401)"
+ }
+]

@@ -1,0 +1,40 @@
+── 80 plain
+± src/auth/login.ts
+the limiter goes first
+--- a/src/auth/login.ts
++++ b/src/auth/login.ts
+@@ -1,3 +1,4 @@
+ import { handler } from './h';
+-export default handler;
++import { limit } from './limiter';
++export default limit(handler);
+── 40 plain
+± src/auth/login.ts
+the limiter goes first
+--- a/src/auth/login.ts
++++ b/src/auth/login.ts
+@@ -1,3 +1,4 @@
+ import { handler } from './h';
+-export default handler;
++import { limit } from './limiter';
++export default limit(handler);
+── 80 colour
+␛[2m±␛[0m ␛[1msrc/auth/login.ts␛[0m
+␛[2mthe limiter goes first␛[0m
+␛[1m--- a/src/auth/login.ts␛[0m
+␛[1m+++ b/src/auth/login.ts␛[0m
+␛[36m@@ -1,3 +1,4 @@␛[0m
+ import { handler } from './h';
+␛[31m-export default handler;␛[0m
+␛[32m+import { limit } from './limiter';␛[0m
+␛[32m+export default limit(handler);␛[0m
+── 40 colour
+␛[2m±␛[0m ␛[1msrc/auth/login.ts␛[0m
+␛[2mthe limiter goes first␛[0m
+␛[1m--- a/src/auth/login.ts␛[0m
+␛[1m+++ b/src/auth/login.ts␛[0m
+␛[36m@@ -1,3 +1,4 @@␛[0m
+ import { handler } from './h';
+␛[31m-export default handler;␛[0m
+␛[32m+import { limit } from './limiter';␛[0m
+␛[32m+export default limit(handler);␛[0m

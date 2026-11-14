@@ -1,0 +1,53 @@
+Test imports: a UI *.test.ts reaches no .tsx at runtime (directly, through a module, through a package root).
+=== packages/ui/package.json
+{ "name": "@wisp/ui", "exports": { ".": "./src/index.ts", "./pure": "./src/pure.ts" } }
+=== packages/ui/src/index.ts
+export { Button } from './Button.tsx';
+export { plain } from './plain.ts';
+=== packages/ui/src/Button.tsx
+export const Button = (): null => null;
+=== packages/ui/src/plain.ts
+export const plain = 1;
+export type Shape = { a: number };
+=== packages/ui/src/pure.ts
+export { plain, type Shape } from './plain.ts';
+=== packages/ui/test/direct.test.ts
+import { Button } from '../src/Button.tsx';
+export const x = Button;
+=== packages/ui/test/render.test.tsx
+import { Button } from '../src/Button.tsx';
+export const x = Button;
+=== packages/shell/package.json
+{ "name": "@wisp/shell", "exports": { ".": "./src/index.ts" }, "dependencies": { "@wisp/ui": "*" } }
+=== packages/shell/src/index.ts
+export { menu } from './menu.ts';
+=== packages/shell/src/menu.ts
+import { plain } from '@wisp/ui';
+export const menu = plain;
+=== packages/shell/src/menu-pure.ts
+import { plain } from '@wisp/ui/pure';
+import type { Button } from '@wisp/ui';
+export const menu = plain;
+export type B = typeof Button;
+=== packages/shell/test/barrel.test.ts
+import { expect } from 'vitest';
+import { plain } from '@wisp/ui';
+export const x = [expect, plain];
+=== packages/shell/test/through.test.ts
+import { menu } from '../src/menu.ts';
+export const x = menu;
+=== packages/shell/test/pure.test.ts
+import { plain, type Shape } from '@wisp/ui/pure';
+import type { Button } from '@wisp/ui';
+import { menu } from '../src/menu-pure.ts';
+export const x = [plain, menu];
+export type S = [Shape, typeof Button];
+=== packages/shell/test/lazy.test.ts
+export const load = (): Promise<unknown> => import('@wisp/ui');
+=== plugins/claude/ui/package.json
+{ "name": "@wisp-plugin/claude-ui", "exports": { ".": "./src/index.tsx" }, "dependencies": { "@wisp/ui": "*" } }
+=== plugins/claude/ui/src/index.tsx
+export default (): null => null;
+=== plugins/claude/ui/test/harness.test.ts
+import def from '../src/index.tsx';
+export const x = def;

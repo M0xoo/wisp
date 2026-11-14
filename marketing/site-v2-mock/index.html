@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wisp — Your coding agents, as code. Declare them. Run them anywhere. Track every line they write.</title>
+<link rel="icon" href="/docs/assets/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/docs/style.css" />
+<!-- Mockup of the v2 home page (marketing/positioning-v2.md). Reuses the live site's style.css; the few
+     rules below are mockup-only and will move into style.css when the real page is built. -->
+<style>
+  .m-kicker { display: inline-flex; gap: 8px; align-items: center; font: 600 13px var(--sans); color: var(--accent); letter-spacing: .02em; text-transform: uppercase; }
+  .m-hero { padding: 88px 0 40px; text-align: center; }
+  .m-hero h1 { font-size: clamp(36px, 5.2vw, 64px); line-height: 1.05; letter-spacing: -0.035em; margin: 16px auto 0; max-width: 17ch; }
+  .m-hero .lede { margin-inline: auto; }
+  .m-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+  .m-btn { display: inline-flex; align-items: center; height: 50px; padding: 0 20px; border-radius: 11px; border: 1px solid var(--line-2); font: 550 15px var(--sans); color: var(--ink); text-decoration: none; }
+  .m-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 48px; text-align: left; }
+  .m-code, .m-term { border-radius: 12px; border: 1px solid #262626; background: #0f0f0f; overflow: hidden; }
+  .m-bar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-bottom: 1px solid #222; color: #8a8a86; font: 12.5px var(--mono); }
+  .m-bar i { width: 10px; height: 10px; border-radius: 50%; background: #333; display: inline-block; }
+  pre.m-pre { margin: 0; padding: 18px 20px; font: 13px/1.65 var(--mono); color: #d6d6d2; white-space: pre; overflow-x: auto; }
+  .k { color: #7aa2ff; } .s { color: #a5d6a7; } .c { color: #6b6b66; } .g { color: #4cc38a; } .y { color: #f2c14e; } .b { color: #fff; font-weight: 600; }
+  .m-sec { padding: 96px 0 0; }
+  .m-sec h2 { font-size: clamp(30px, 3.6vw, 44px); letter-spacing: -0.025em; line-height: 1.08; max-width: 20ch; }
+  .m-sec > .wrap > p.sub { margin-top: 14px; font-size: 18px; color: var(--ink-2); max-width: 60ch; line-height: 1.55; }
+  .m-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 34px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .m-grid > div { background: var(--bg); padding: 22px 22px 24px; }
+  .m-grid b { display: block; font-size: 16px; letter-spacing: -0.01em; }
+  .m-grid span { display: block; margin-top: 6px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+  .m-grid code { font-size: 13px; }
+  .m-faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 34px; }
+  .m-face { border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .m-face h3 { font-size: 17px; margin: 0; } .m-face p { color: var(--muted); font-size: 14.5px; margin: 6px 0 14px; line-height: 1.5; }
+  .m-nums { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 34px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .m-nums div { padding: 20px 18px; } .m-nums div + div { border-left: 1px solid var(--line); }
+  .m-nums b { display: block; font-size: 34px; letter-spacing: -0.03em; } .m-nums span { color: var(--muted); font-size: 14px; }
+  .m-end { text-align: center; padding: 110px 0 120px; }
+  .m-end h2, .m-end .lede { margin-inline: auto; }
+  .m-ways { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; font: 13px var(--sans); color: var(--muted); }
+  .m-ways b { color: var(--ink-2); font-weight: 600; margin-right: 6px; }
+  .m-ways code { font-size: 12.5px; }
+  .m-three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; text-align: left; }
+  .m-pill { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; }
+  .m-pill h3 { margin: 0; padding: 16px 18px 4px; font-size: 20px; letter-spacing: -0.02em; }
+  .m-pill p { margin: 0; padding: 0 18px 14px; color: var(--muted); font-size: 14.5px; line-height: 1.5; min-height: calc(2 * 1.5em + 14px); }
+  .m-pill .m-code, .m-pill .m-term { border-radius: 0; border: 0; border-top: 1px solid #262626; flex: 1; }
+  .m-pill pre.m-pre { font-size: 12px; padding: 14px 16px; }
+  .m-num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; font: 600 12px var(--sans); background: var(--accent); color: #fff; margin-right: 8px; vertical-align: 3px; }
+  .m-pillar-h { display: flex; align-items: center; gap: 10px; }
+  @media (max-width: 900px) { .m-three { grid-template-columns: 1fr; } }
+  .m-new { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin-left: 8px; border-radius: 999px; font: 600 11px var(--sans); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); vertical-align: 4px; }
+  .m-sub2 { margin: 18px auto 0; font-size: clamp(20px, 2.2vw, 28px); line-height: 1.25; letter-spacing: -0.02em; font-weight: 600; color: var(--ink-2); max-width: 44ch; }
+  .m-note { position: fixed; right: 14px; bottom: 14px; font: 12px var(--sans); background: var(--ink); color: var(--bg); padding: 6px 10px; border-radius: 8px; opacity: .85; }
+  @media (max-width: 900px) {
+    .m-two, .m-faces { grid-template-columns: 1fr; }
+    .m-grid { grid-template-columns: 1fr; }
+    .m-nums { grid-template-columns: 1fr 1fr; } .m-nums div:nth-child(3) { border-left: 0; } .m-nums div:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .m-hero { padding-top: 56px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="m-hero">
+    <div class="wrap">
+      <span class="m-kicker">Engineering as code · open source</span>
+      <h1>Your coding agents, as code.</h1>
+      <p class="m-sub2">Declare them. Run them anywhere. Track every line they write.</p>
+      <p class="lede">Put your agent team in your repo, run Claude Code, Codex and every other harness on any machine, and see which task wrote every line, and why.</p>
+      <div class="m-ctas">
+        <button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
+        <a class="m-btn" href="#declare">How it works</a>
+      </div>
+
+      <div class="m-three">
+        <div class="m-pill">
+          <h3><span class="m-num">1</span>Declare<span class="m-new">New</span></h3>
+          <p>Your agents, crew, machines and workflows, as code in your repo.</p>
+          <div class="m-code"><pre class="m-pre"><span class="k">agents</span>:
+  <span class="k">reviewer</span>: { harness: codex }
+  <span class="k">fixer</span>: { harness: claude }
+<span class="k">crew</span>:
+  - { name: <span class="s">Ada</span>, agent: <span class="s">${agent.reviewer}</span>,
+      schedule: <span class="s">weekdays at 7</span> }</pre></div>
+        </div>
+        <div class="m-pill">
+          <h3><span class="m-num">2</span>Run</h3>
+          <p>Every harness, any machine, from anywhere.</p>
+          <div class="m-term"><pre class="m-pre"><span class="c">$</span> <span class="b">wisp "the login test is flaky"</span>
+  ▸ Running npm test -- session
+  ▸ Editing auth/session.ts
+<span class="g">✓ Fixed the race in session expiry</span>
+  3 tests <span class="g">passed</span> · +12 <span class="y">−4</span> · $0.21</pre></div>
+        </div>
+        <div class="m-pill">
+          <h3><span class="m-num">3</span>Track<span class="m-new">New</span></h3>
+          <p>Every task lives next to the code it wrote. See why a line is there.</p>
+          <div class="m-term"><pre class="m-pre"><span class="c">$</span> <span class="b">wisp blame auth/session.ts:42</span>
+  01a1bc  <span class="b">Fix the flaky login test</span>
+  reviewer · 3 Nov · PR #812
+  <span class="c">"refresh now holds the lock"</span></pre></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── 1 Declare ───── -->
+  <section class="m-sec" id="declare">
+    <div class="wrap">
+      <span class="m-kicker"><span class="m-num">1</span>Declare<span class="m-new">New</span></span>
+      <h2>Your agent team, as code in your repo.</h2>
+      <p class="sub">Agents, crew, machines, tools, rules and workflows live in <code>.wisp/</code>: files that reference each other, with variables and reusable modules, like infrastructure as code. Review it in a PR, apply it anywhere. Clicking in the app and editing the file change the same thing.</p>
+      <div class="m-grid">
+        <div><b>Agents</b><span>Named profiles: harness, model, effort, mode, tools. "reviewer" means the same thing everywhere.</span></div>
+        <div><b>Crew</b><span>Long-lived teammates with a role, a schedule, a notebook and a team they delegate to.</span></div>
+        <div><b>Machines</b><span>Your laptop, a dev box over SSH, a cloud computer. Say where each task runs.</span></div>
+        <div><b>Workflows</b><span>Tasks with <code>needs</code>, conditions, fan-out across agents, goals, retries and one budget.</span></div>
+        <div><b>Tools</b><span>MCP servers and wisp's own tools, per agent. Secrets stay out of the file.</span></div>
+        <div><b>Rules</b><span>Who may start what from Slack or Telegram, spend limits, what happens when a run fails.</span></div>
+      </div>
+      <div class="m-ways"><span><b>App</b>Settings, Import a formula</span><span><b>TUI</b>Settings tab</span><span><b>CLI</b><code>wisp plan · wisp apply</code></span><span><b>SDK</b><code>await w.apply(formula)</code></span></div>
+    </div>
+  </section>
+
+  <!-- ───── 2 Run ───── -->
+  <section class="m-sec" id="run">
+    <div class="wrap">
+      <span class="m-kicker"><span class="m-num">2</span>Run</span>
+      <h2>Every harness, any machine, from anywhere.</h2>
+      <p class="sub">Claude Code, Codex, Cursor, opencode, Copilot, Grok and Antigravity, side by side. On this computer, your servers or wisp Cloud. From the app, your phone, the terminal or your own code.</p>
+      <div class="m-faces">
+        <div class="m-face"><h3>App</h3><p>Mac, Windows, Linux and your phone. One list across all your computers.</p><span class="m-kicker">Desktop · Android</span></div>
+        <div class="m-face"><h3>Terminal</h3><p><code>wisp tui</code> for the whole app in your terminal, <code>wisp "task"</code> to run one and answer it inline.</p><span class="m-kicker">TUI · CLI</span></div>
+        <div class="m-face"><h3>Code</h3><p>TypeScript and Python SDKs: start tasks, stream them, run workflows from your own scripts.</p><span class="m-kicker">SDK</span></div>
+      </div>
+      <div class="m-nums">
+        <div><b>5 ms</b><span>cold start</span></div>
+        <div><b>11 MB</b><span>memory when idle</span></div>
+        <div><b>7</b><span>coding agents</span></div>
+        <div><b>$0</b><span>on top of your plans</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── 3 Track ───── -->
+  <section class="m-sec" id="track">
+    <div class="wrap">
+      <span class="m-kicker"><span class="m-num">3</span>Track<span class="m-new">New</span></span>
+      <h2>Code that remembers how it was made.</h2>
+      <p class="sub">Every task is a file: what was asked, by which agent, from which commit, and what it changed. Your repo keeps them in <code>.wisp/</code>, so anyone can see why a line is there, share the task, rerun it, or pick it up again.</p>
+      <div class="m-two" style="margin-top:28px">
+        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; why is this here</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp blame auth/session.ts:42</span>
+  01a1bc  <span class="b">Fix the flaky login test</span>
+  reviewer (codex) · 3 Nov · PR #812
+  <span class="c">"expiry raced the refresh; refresh now holds the lock"</span>
+
+<span class="c">$</span> <span class="b">wisp resume 01a1bc "also handle offline"</span>
+<span class="g">  ✓ resumed on today's main</span></pre></div>
+        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; share and rerun</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp share 01a1bc --to file</span>
+<span class="g">  ✓ fix-login.wisp-task</span>  (signed, secrets removed)
+
+<span class="c">$</span> <span class="b">wisp rerun --last 20 --formula new-team.yml</span>
+                  <span class="b">current   new-team</span>
+  goals met        14/20      <span class="g">18/20</span>
+  spend            $9.80      <span class="g">$7.10</span></pre></div>
+      </div>
+      <div class="m-ways"><span><b>App</b>Repo tab, Share, Rerun</span><span><b>TUI</b>Repo tab, b, s, r</span><span><b>CLI</b><code>wisp blame · wisp share · wisp rerun</code></span><span><b>SDK</b><code>w.blame() · task.share() · task.rerun()</code></span></div>
+    </div>
+  </section>
+
+  <section class="m-end">
+    <div class="wrap">
+      <h2>Declare. Run. Track.</h2>
+      <p class="lede">Open source, MIT. Runs on your machines, or on wisp Cloud.</p>
+      <div class="m-ctas"><button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button><a class="m-btn" href="#">Read the docs</a></div>
+    </div>
+  </section>
+</main>
+<div class="m-note">Mockup · v2 positioning</div>
+</body>
+</html>

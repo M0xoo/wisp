@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.claude",
+  "name": "Claude Code",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Claude Code as a harness of wisp.runtime: detect, the launch (claude -p --output-format stream-json) and its stream-json parser",
+  "server": {
+    "builtin": "wisp-claude"
+  },
+  "requires": {
+    "wisp.runtime": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

@@ -1,0 +1,44 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.grid-client",
+  "name": "wisp Grid",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Sign in to a wisp Grid (RFC 8628), the grid and grid-tunnel transports, this computer's tunnel, and wisp Cloud as a share destination (ADR-0010, 0038, 0041)",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_grid_client" },
+  "permissions": [
+    "machines:list", "machines:add", "machines:update", "machines:remove", "machines:follow",
+    "secrets:read", "secrets:write", "net:connect{host:*}", "stuff:publish", "channels:routed"
+  ],
+  "provides": { "stuff.publish": { "version": "1.0.0" } },
+  "activation": ["onStartup"],
+  "contributes": {
+    "commands": [
+      { "id": "grid-client.signin", "title": "Sign in to wisp Cloud (or another grid)" },
+      { "id": "grid-client.sandbox", "title": "Make a sandbox on the grid, as a machine" },
+      { "id": "grid-client.sandboxes", "title": "Your sandboxes on the grid", "readOnly": true },
+      { "id": "grid-client.sandboxRemove", "title": "Delete a sandbox (its box and home)" },
+      { "id": "grid-client.sandboxInfo", "title": "Sandboxes on the grid: whether it makes them, their sign-ins and env names", "readOnly": true },
+      { "id": "grid-client.sandboxLogin", "title": "A sign-in every sandbox starts with, sealed on the grid" },
+      { "id": "grid-client.sandboxLogout", "title": "Take a sandbox sign-in off the grid" },
+      { "id": "grid-client.sandboxEnv", "title": "An env var every sandbox gets (empty: taken out)" },
+      { "id": "grid-client.teams", "title": "Team spaces on the grid: list, make, show, add or remove a member" },
+      { "id": "grid-client.signinStatus", "title": "How a sign-in is going", "readOnly": true },
+      { "id": "grid-client.signinCancel", "title": "Stop a sign-in" },
+      { "id": "grid-client.status", "title": "Signed in where, and this computer on the grid", "readOnly": true },
+      { "id": "grid-client.signout", "title": "Sign out of the grid" },
+      { "id": "grid-client.computer", "title": "Turn this computer on or off on the grid" },
+      { "id": "grid-client.shares", "title": "What I've shared through wisp Cloud", "readOnly": true },
+      { "id": "grid-client.access", "title": "Change who may open a share, its expiry, or its place in the gallery" },
+      { "id": "grid-client.revoke", "title": "Stop sharing" },
+      { "id": "grid-client.fetch", "title": "Open a share link", "readOnly": true },
+      { "id": "grid-client.imported", "title": "Record a share taken in (for update available)" },
+      { "id": "grid-client.updates", "title": "Imported shares with an update", "readOnly": true },
+      { "id": "grid-client.reply", "title": "Report a routed task back to the chat it came from", "uiOnly": "wisp.channels reports a routed task's end through it; an agent has no thread to name" }
+    ],
+    "settings": [
+      { "key": "grid-client.previews", "type": "bool", "default": false, "title": "Show local pages in previews" }
+    ]
+  }
+}

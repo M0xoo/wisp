@@ -1,0 +1,48 @@
+{
+  "name": "wisp-agents",
+  "version": "2.0.0",
+  "description": "wisp: run and watch coding agents (Claude Code, Codex, and more) from one place, in the browser or the terminal.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WispAgents/wisp.git",
+    "directory": "npm/wisp-agents"
+  },
+  "homepage": "https://github.com/WispAgents/wisp#readme",
+  "bugs": "https://github.com/WispAgents/wisp/issues",
+  "type": "module",
+  "bin": {
+    "wisp": "bin/wisp.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./client.d.ts",
+      "default": "./client.js"
+    },
+    "./client": {
+      "types": "./client.d.ts",
+      "default": "./client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./client.d.ts",
+  "files": [
+    "bin",
+    "lib",
+    "web",
+    "client.js",
+    "client.d.ts"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@wisp/core-darwin-arm64": "2.0.0",
+    "@wisp/core-darwin-x64": "2.0.0",
+    "@wisp/core-linux-x64": "2.0.0",
+    "@wisp/core-linux-arm64": "2.0.0",
+    "@wisp/core-linux-arm": "2.0.0",
+    "@wisp/core-win32-x64": "2.0.0",
+    "@wisp/core-win32-arm64": "2.0.0"
+  }
+}

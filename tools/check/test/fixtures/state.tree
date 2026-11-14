@@ -1,0 +1,44 @@
+State: ui packages keep no module-level state, don't fetch, don't touch history/location, and time
+through a scope.
+=== packages/client/package.json
+{ "name": "@f/client" }
+=== packages/client/src/http.ts
+let calls = 0;
+export const get = (u: string) => (calls++, fetch(u));
+=== packages/client/src/nav.ts
+export const go = (p: string) => history.pushState(null, '', p);
+=== plugins/git/ui/package.json
+{ "name": "@f/git-ui" }
+=== plugins/git/ui/src/panel.tsx
+let open = false;
+var count = 0;
+const fixed = 1;
+export function Panel() {
+  let local = 0;
+  fetch('/api/x');
+  window.fetch('/api/y');
+  history.back();
+  location.reload();
+  window.location.assign('/');
+  const href = document.location.href;
+  setTimeout(() => (local += fixed), 10);
+  globalThis.setInterval(() => {}, 10);
+  return [open, count, href];
+}
+=== plugins/git/ui/src/shadow.ts
+import { location } from './route.ts';
+export const where = location.path;
+export const later = (setTimeout: (f: () => void) => void) => setTimeout(() => {});
+export function f(history: string[]) { return history.length; }
+=== plugins/git/ui/src/route.ts
+export const location = { path: '/' };
+=== plugins/git/ui/src/scope.ts
+export const timeout = (ms: number, fn: () => void) => setTimeout(fn, ms);
+=== plugins/git/ui/test/panel.test.ts
+let n = 0;
+setTimeout(() => n++, 1);
+=== plugins/git/host/package.json
+{ "name": "@f/git" }
+=== plugins/git/host/src/index.ts
+let cache = 0;
+export const poll = () => setInterval(() => fetch('/x').then(() => cache++), 1000);

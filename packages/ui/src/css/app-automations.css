@@ -1,0 +1,424 @@
+/* Automations (v1 automations.css, modals.css .mem-lede/.mem-tabs/.mem-add/.mem-ico/.mem-empty): value for value. */
+@layer kit {
+  /* .auto-modal: 720 wide */
+  [data-kit='dialog'][data-part~='automations.modal'] {
+    --dialog-w: 45rem;
+    padding: 18px 20px 20px;
+  }
+  [data-kit='dialog'][data-part~='automations.modal'] > [data-kit='dialog-head'] {
+    min-height: 32px;
+    margin-bottom: 14px;
+  }
+  [data-kit='dialog'][data-part~='automations.modal'] [data-kit='dialog-title'] {
+    font: 600 18px/1.2 var(--display);
+    letter-spacing: -0.015em;
+  }
+  [data-kit='dialog'][data-part~='automations.modal'] > [data-kit='dialog-head'] > [data-kit='icon-button'] {
+    width: 32px;
+    height: 32px;
+    margin-right: 0;
+    border-width: 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+  [data-kit='au-body'] {
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+  :where([data-kit='au-body']) button {
+    font: inherit;
+    color: inherit;
+  }
+  [data-kit='au-lede'] {
+    margin: -6px 0 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  [data-kit='au-lede'] code,
+  [data-kit='au-hint'] code,
+  [data-kit='au-main'] code {
+    font-size: 11.5px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--bg-2);
+  }
+  /* .mem-tabs */
+  [data-kit='au-tabs'] {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 10px;
+    padding: 3px;
+    overflow-x: auto;
+    border-radius: 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+  }
+  [data-kit='au-tabs'] > button {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--muted);
+    white-space: nowrap;
+    transition:
+      background 0.12s,
+      color 0.12s;
+  }
+  [data-kit='au-tabs'] > button:hover {
+    color: var(--ink);
+  }
+  [data-kit='au-tabs'] > button[data-on] {
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 500;
+    box-shadow: var(--shadow-1);
+  }
+  [data-kit='au-tabs'] > button > span {
+    min-width: 16px;
+    padding: 0 4px;
+    border-radius: 5px;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    background: var(--line);
+    color: var(--muted);
+  }
+  [data-kit='au-tabs'] > button[data-on] > span {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  /* .au-list */
+  [data-kit='au-list'] {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  [data-kit='au-item'] {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 8px;
+    border-radius: 10px;
+  }
+  [data-kit='au-item']:hover {
+    background: var(--surface-2);
+  }
+  [data-kit='au-item'][data-off] [data-kit='au-main'] {
+    opacity: 0.55;
+  }
+  [data-kit='au-ico'] {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border-radius: 7px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  [data-kit='au-ico'] > [data-kit='icon'] {
+    width: 13px;
+    height: 13px;
+  }
+  [data-kit='au-main'] {
+    flex: 1;
+    min-width: 0;
+  }
+  [data-kit='au-main'] > b {
+    font-size: 13px;
+  }
+  [data-kit='au-main'] > p {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  [data-kit='au-tags'] {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  [data-kit='au-tags'] > i {
+    flex: none;
+    font-style: normal;
+    font-size: 11.5px;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: var(--bg-2);
+    color: var(--ink-2);
+  }
+  [data-kit='au-acts'] {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+  }
+  [data-kit='au-empty'] {
+    margin: 2px 0 4px;
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+  [data-kit='au-add'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 0;
+    padding: 4px 8px 4px 6px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  [data-kit='au-add']:hover {
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+  }
+  [data-kit='au-add'] > [data-kit='icon'] {
+    width: 13px;
+    height: 13px;
+  }
+  [data-kit='au-hint'] {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  /* .au-kinds */
+  [data-kit='au-kinds'] {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  [data-kit='au-kinds'] > button {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    column-gap: 8px;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+  }
+  [data-kit='au-kinds'] > button > [data-kit='icon'] {
+    grid-row: span 2;
+    margin-top: 2px;
+    color: var(--muted);
+  }
+  [data-kit='au-kinds'] > button > b {
+    font-size: 13px;
+  }
+  [data-kit='au-kinds'] > button > small {
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  [data-kit='au-kinds'] > button[data-on] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  [data-kit='au-kinds'] > button[data-on] > [data-kit='icon'] {
+    color: var(--accent);
+  }
+  @media (max-width: 32.5rem) {
+    [data-kit='au-kinds'] {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  /* .au-form rows: the label 92px, its control, a line under */
+  [data-kit='au-row'] {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  [data-kit='au-row'] > [data-kit='au-label'] {
+    width: 92px;
+    flex: none;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  [data-kit='au-row'][data-stack] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  [data-kit='au-row'][data-stack] > [data-kit='au-label'] {
+    width: auto;
+  }
+  [data-kit='au-row'] > :not([data-kit='au-label']) {
+    flex: 1;
+    min-width: 0;
+  }
+  /* v1 .textarea: 7px 10px, 1.5 */
+  [data-kit='au-row'] > [data-kit='textarea'] {
+    padding: 7px 10px;
+    line-height: 1.5;
+  }
+  [data-kit='au-presets'] {
+    --k-gap: 6px;
+    align-items: center;
+    margin: 6px 0 4px 6.625rem;
+  }
+  [data-kit='au-presets'] > [data-kit='lp-chip'] {
+    flex: none;
+    padding: 0 10px;
+    border-color: var(--line);
+    font-size: 12.5px;
+  }
+  [data-kit='au-read'] {
+    flex: none;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  [data-kit='au-read'][data-bad] {
+    color: var(--bad);
+  }
+  [data-kit='au-warn'] {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    border-radius: 9px;
+    font-size: 12.5px;
+    color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 8%, transparent);
+  }
+  [data-kit='au-warn'] > [data-kit='icon'] {
+    flex: none;
+    margin-top: 1px;
+  }
+  [data-kit='au-note'] {
+    margin: 8px 0 0;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  [data-kit='au-foot'] {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  [data-kit='au-cancel'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 9px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  [data-kit='au-cancel']:hover {
+    background: var(--bg-2);
+    color: var(--ink);
+  }
+  [data-kit='au-ok'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--ink);
+    color: var(--bg);
+    transition: opacity 0.15s;
+  }
+  [data-kit='au-ok']:hover {
+    opacity: 0.86;
+  }
+  [data-kit='au-ok'][aria-busy='true'] {
+    opacity: 0.5;
+  }
+  /* .au-runner, .runner-btn (v1 runners.css): a 30px button with the harness's logo, name, model */
+  [data-kit='au-runner'] {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  [data-kit='au-runner-btn'] {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 8px 0 4px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    white-space: nowrap;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  [data-kit='au-runner-btn']:hover {
+    background: var(--bg-2);
+  }
+  [data-kit='au-runner-btn']:focus-visible {
+    outline: 0;
+    box-shadow:
+      0 0 0 2px var(--accent-soft),
+      0 0 0 1px var(--accent);
+  }
+  [data-kit='au-runner-btn'] > [data-kit='rb-logo'] {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    margin-right: 6px;
+    border-radius: 6px;
+    background: var(--bg-2);
+    color: var(--ink);
+  }
+  [data-kit='au-runner-btn']:hover > [data-kit='rb-logo'] {
+    background: var(--surface);
+  }
+  [data-kit='au-runner-btn'] > [data-kit='rb-logo'] > img,
+  [data-kit='au-runner-btn'] > [data-kit='rb-logo'] > [data-kit='icon'] {
+    display: block;
+    width: 13px;
+    height: 13px;
+  }
+  [data-kit='au-runner-btn'] > [data-kit='rb-h'] {
+    font-weight: 500;
+    color: var(--ink);
+  }
+  [data-kit='au-runner-btn'] > [data-kit='rb-m'] {
+    position: relative;
+    margin-left: 13px;
+    max-width: 11.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--muted);
+  }
+  [data-kit='au-runner-btn'] > [data-kit='rb-m']::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 50%;
+    width: 1px;
+    height: 12px;
+    margin-top: -6px;
+    background: var(--line-2);
+  }
+  [data-kit='au-runner-btn'] > [data-kit='icon'] {
+    width: 12px;
+    height: 12px;
+    margin-left: 6px;
+    color: var(--faint);
+    transform: rotate(90deg);
+  }
+  [data-kit='au-link'] {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--accent-ink);
+  }
+}

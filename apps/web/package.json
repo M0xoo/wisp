@@ -1,0 +1,30 @@
+{
+  "name": "@wisp/web",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The one web bundle (plan §7.3): served by wisp, shipped inside the desktop and Android apps.",
+  "dependencies": {
+    "@wisp/client": "*",
+    "@wisp/protocol": "*",
+    "@wisp/shell": "*",
+    "@wisp/sync": "*",
+    "@wisp/ui": "*",
+    "@wisp-plugin/shell-settings-ui": "*",
+    "@wisp-plugin/shell-home-ui": "*",
+    "solid-js": "^1.9.18"
+  },
+  "devDependencies": {
+    "vite": "^7.0.2",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^4.1.0",
+    "happy-dom": "^21.0.4"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.dev.json"
+  }
+}

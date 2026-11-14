@@ -1,0 +1,46 @@
+/* The task list's pieces (src/shell-list/): section headings, dots, the phone's row swipe. */
+@layer kit {
+  /* v1 split.css .f-group h4.sec-toggle: 28px, its chevron on the rows' dot column (10.5px in), 4px under it */
+  [data-kit='fold-head'] {
+    display: flex; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; min-height: 28px; margin: 0 0 var(--space-2);
+    padding: 0 var(--space-3) 0 10.5px; border-radius: var(--radius-sm); font-size: var(--fs-xs); font-weight: var(--fw-medium); letter-spacing: 0.02em;
+    color: var(--muted); text-align: start; transition: background var(--dur-fast), color var(--dur-fast);
+  }
+  [data-kit='fold-head']:hover { color: var(--ink); background: var(--bg-2); }
+  [data-kit='fold-head'] > [data-kit='icon'] { flex: none; margin-right: -1px; /* v1 .sec-toggle .i */ transition: transform var(--dur-fast) var(--ease); }
+  [data-kit='fold-head'][data-open] > [data-kit='icon'] { transform: rotate(90deg); }
+  [data-kit='fold-head-title'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='fold-head-count'] { flex: none; font-size: var(--fs-xs); font-weight: inherit; /* v1 h4 .n: the heading's 500 */ color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  [data-kit='fold-head-badge'] { flex: none; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--accent-ink); white-space: nowrap; }
+
+  [data-kit='dot'] { flex: none; display: inline-block; width: var(--size-dot); height: var(--size-dot); border-radius: 50%; background: var(--k-tone); }
+  [data-kit='dot'][data-size='project'] { width: 7px; height: 7px; } /* v1 .p-dot: a project's dot in ⌘K and menus */
+  [data-kit='dot'][data-size='md'] { width: var(--size-dot-lg); height: var(--size-dot-lg); }
+  [data-kit='dot'][data-live] { animation: kit-pulse 1.6s ease-in-out infinite; }
+
+  [data-kit='gap'] { flex: none; display: inline-block; width: var(--size-control-sm); height: var(--size-control-sm); visibility: hidden; }
+  [data-kit='gap'][data-size='xs'] { width: var(--size-control-xs); height: var(--size-control-xs); }
+  [data-kit='gap'][data-size='md'] { width: var(--size-control-md); height: var(--size-control-md); }
+
+  [data-kit='swipe'] { position: relative; overflow: hidden; touch-action: pan-y; }
+  [data-kit='swipe'][data-phase='gone'], [data-kit='swipe'][data-phase='closing'] { height: var(--k-sw-h); }
+  [data-kit='swipe'][data-phase='closing'] { transition: height var(--dur-base) var(--ease); }
+  [data-kit='swipe-row'] { position: relative; transform: translateX(var(--k-sw-x)); transition: transform var(--dur-slow) var(--ease); }
+  [data-kit='swipe'][data-phase='drag'] > [data-kit='swipe-row'] { transition: none; }
+  [data-kit='swipe'][data-phase='drag'] > [data-kit='swipe-row'], [data-kit='swipe'][data-phase='gone'] > [data-kit='swipe-row'] { background: var(--bg); }
+  [data-kit='swipe-band'] {
+    position: absolute; inset: var(--space-0); display: flex; align-items: center; gap: var(--space-3); padding: var(--space-0) var(--space-7);
+    font-size: var(--fs-sm); font-weight: var(--fw-medium); color: color-mix(in srgb, var(--k-tone) 85%, var(--ink));
+    background: color-mix(in srgb, var(--k-tone) 12%, transparent); transition: background var(--dur-fast), color var(--dur-fast);
+  }
+  [data-kit='swipe'][data-dir='left'] > [data-kit='swipe-band'] { justify-content: flex-end; }
+  [data-kit='swipe'][data-armed] > [data-kit='swipe-band'] { background: var(--k-tone); color: var(--on-accent); }
+  [data-kit='swipe-label'] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* several projects picked: a project's line over its rows inside a section (2026-11-14) */
+  [data-kit='proj-head'] {
+    display: flex; align-items: center; gap: var(--space-3); min-width: 0; height: 24px; padding: var(--space-2) var(--space-4) 0;
+    font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); white-space: nowrap;
+  }
+  [data-kit='proj-head'] > [data-text] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}

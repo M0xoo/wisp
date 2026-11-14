@@ -1,0 +1,17 @@
+[package]
+name = "wisp-connectors-api"
+description = "contract of wisp.connectors: commands, events, the turn service and the rows the UI reads"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,62 @@
+[
+ {
+  "type": "session",
+  "id": "codex-session-1"
+ },
+ {
+  "type": "tool",
+  "id": "i0",
+  "kind": "run",
+  "label": "Running tests",
+  "detail": "/bin/bash -lc 'npm test'"
+ },
+ {
+  "type": "tool_error",
+  "name": "npm test",
+  "text": "1 failing"
+ },
+ {
+  "type": "tool",
+  "id": "i3",
+  "kind": "run",
+  "label": "Checking git status",
+  "detail": "/bin/bash -lc 'git status --short'"
+ },
+ {
+  "type": "tool_output",
+  "id": "i3",
+  "text": " M math.js"
+ },
+ {
+  "type": "tool",
+  "kind": "edit",
+  "label": "Editing math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "tool",
+  "kind": "edit",
+  "label": "Writing notes.txt",
+  "file": "notes.txt"
+ },
+ {
+  "type": "text",
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake codex finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+ },
+ {
+  "type": "result",
+  "isError": false,
+  "stopped": false,
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake codex finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```",
+  "stats": {
+   "inputTokens": 10,
+   "outputTokens": 5,
+   "totals": {
+    "inputTokens": 10,
+    "cachedInputTokens": 0,
+    "outputTokens": 5,
+    "thread": "codex-session-1"
+   }
+  }
+ }
+]

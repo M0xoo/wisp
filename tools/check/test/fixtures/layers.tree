@@ -1,0 +1,67 @@
+Layers: packages ← plugin api ← plugin host/ui ← apps, node: kept out of page and api code.
+=== packages/base/package.json
+{ "name": "@f/base", "exports": { ".": "./src/index.ts" } }
+=== packages/base/src/index.ts
+import { gitCommands } from '@f/git-api';
+export const base = gitCommands;
+=== packages/ui/package.json
+{ "name": "@f/ui", "exports": { ".": "./src/index.ts" } }
+=== packages/ui/src/index.ts
+import { base } from '@f/base';
+export const kit = base;
+=== packages/ui/test/kit.test.ts
+import test from 'node:test';
+test('ok', () => {});
+=== packages/ui/vite.config.ts
+import { fileURLToPath } from 'node:url';
+export default { root: fileURLToPath(new URL('.', import.meta.url)) };
+=== plugins/git/api/package.json
+{ "name": "@f/git-api", "exports": { ".": "./src/index.ts" } }
+=== plugins/git/api/src/index.ts
+import { join } from 'node:path';
+import { z } from 'zod';
+import type { ZodType } from 'zod';
+import type { Wt } from '@f/wt-api';
+let counter = 0;
+console.log('loaded');
+export const gitCommands = { push: 'git.push' } as const;
+export type Schema = ZodType | Wt | typeof join | typeof z | typeof counter;
+=== plugins/git/host/package.json
+{ "name": "@f/git", "exports": { ".": "./src/index.ts" } }
+=== plugins/git/host/src/index.ts
+import { readFileSync } from 'node:fs';
+import { gitCommands } from '@f/git-api';
+export default { id: gitCommands.push, readFileSync };
+=== plugins/wt/api/package.json
+{ "name": "@f/wt-api", "exports": { ".": "./src/index.ts" } }
+=== plugins/wt/api/src/index.ts
+export interface Wt { path: string }
+=== plugins/wt/host/package.json
+{ "name": "@f/wt", "exports": { ".": "./src/index.ts" } }
+=== plugins/wt/host/src/index.ts
+import { gitCommands } from '@f/git-api';
+import git from '@f/git';
+import { kit } from '@f/ui';
+import { panel } from '@f/wt-ui';
+export default { gitCommands, git, kit, panel };
+=== plugins/wt/ui/package.json
+{ "name": "@f/wt-ui", "exports": { ".": "./src/index.tsx" } }
+=== plugins/wt/ui/src/index.tsx
+import { kit } from '@f/ui';
+import host from '@f/wt';
+import { readFileSync } from 'node:fs';
+import type { Wt } from '@f/wt-api';
+export const panel = { kit, host, readFileSync } as { wt?: Wt };
+=== apps/server/package.json
+{ "name": "@f/server", "exports": { ".": "./src/main.ts" } }
+=== apps/server/src/main.ts
+import git from '@f/git';
+import { readFileSync } from 'node:fs';
+export default { git, readFileSync };
+=== apps/web/package.json
+{ "name": "@f/web", "exports": { ".": "./src/main.ts" } }
+=== apps/web/src/main.ts
+import { panel } from '@f/wt-ui';
+import git from '@f/git';
+import server from '@f/server';
+export default { panel, git, server };

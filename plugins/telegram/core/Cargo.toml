@@ -1,0 +1,19 @@
+[package]
+name = "wisp-telegram-core"
+description = "wisp.telegram's pure logic: Bot API update parsing, signed button taps, the long-poll offset, the webhook secret, message splitting, the link-code flow. Sans-IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+subtle.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+wisp-channels-api.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "wisp-connectors-core"
+description = "pure, sans-IO logic of wisp.connectors: model, validation, selection, harness configs, OAuth/PKCE, the proxy's wire rules, masking"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+url.workspace = true
+wisp-connectors-api.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

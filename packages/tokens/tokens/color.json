@@ -1,0 +1,76 @@
+{
+  "$doc": "Colours, from v1's web/css/tokens.css. Every leaf has a light and a dark value, so a token can't exist in one theme only. Groups become TS unions (SurfaceColor, InkColor, ...). Names stay v1's, so v1 spells that read var(--accent) keep working.",
+  "surface": {
+    "bg": { "light": "#ffffff", "dark": "#111111", "$doc": "the page" },
+    "bg-2": { "light": "#f3f3f2", "dark": "#1e1e1e", "$doc": "hover fills, wells" },
+    "rail": { "light": "#f7f7f6", "dark": "#151515", "$doc": "side rails" },
+    "sunk": { "light": "#ffffff", "dark": "#111111", "$doc": "around the task panel; equals bg so rail and main are one surface" },
+    "panel": { "light": "#f7f7f6", "dark": "#171717", "$doc": "the task panel beside the rail" },
+    "surface": { "light": "#ffffff", "dark": "#171717", "$doc": "cards and panels" },
+    "surface-2": { "light": "#f9f9f8", "dark": "#1a1a1a", "$doc": "tinted panels, form fields" }
+  },
+  "ink": {
+    "ink": { "light": "#171717", "dark": "#ededed", "$doc": "main text" },
+    "ink-2": { "light": "#3d3d3d", "dark": "#c7c7c7", "$doc": "secondary text that must still read" },
+    "muted": { "light": "#575757", "dark": "#a3a3a3", "$doc": "labels, inactive icons" },
+    "faint": { "light": "#6e6e6e", "dark": "#858585", "$doc": "times, counts, hints; 4.5:1 on bg-2 in both themes, don't go lighter" }
+  },
+  "line": {
+    "line": { "light": "#ebebea", "dark": "#262626", "$doc": "separators" },
+    "line-2": { "light": "#dcdcda", "dark": "#333333", "$doc": "control borders" }
+  },
+  "accent": {
+    "accent": { "light": "#2f5bea", "dark": "#6d8dff" },
+    "accent-ink": { "light": "#2149cc", "dark": "#94adff", "$doc": "accent text: links" },
+    "accent-soft": { "light": "rgba(47, 91, 234, 0.08)", "dark": "rgba(109, 141, 255, 0.12)", "$doc": "selection, soft fills" },
+    "on-accent": { "light": "#ffffff", "dark": "#111111", "$doc": "text on a solid accent fill" }
+  },
+  "state": {
+    "good": { "light": "#18794e", "dark": "#4cc38a", "$doc": "done, added" },
+    "warn": { "light": "#a35c00", "dark": "#f0a33a", "$doc": "waiting on you" },
+    "bad": { "light": "#cd2b31", "dark": "#ff6369", "$doc": "error, destructive" },
+    "info": { "light": "#2f5bea", "dark": "#6d8dff" }
+  },
+  "diff": {
+    "add": { "light": "#18794e", "dark": "#4cc38a" },
+    "del": { "light": "#cd2b31", "dark": "#ff6369" },
+    "add-bg": { "light": "rgba(24, 121, 78, 0.07)", "dark": "rgba(76, 195, 138, 0.08)" },
+    "del-bg": { "light": "rgba(205, 43, 49, 0.06)", "dark": "rgba(255, 99, 105, 0.08)" },
+    "add-strong": { "light": "rgba(24, 121, 78, 0.14)", "dark": "rgba(76, 195, 138, 0.16)" }
+  },
+  "term": {
+    "term-bg": { "light": "#141414", "dark": "#0c0c0c", "$doc": "the terminal is dark in both themes" },
+    "term-ink": { "light": "#e8e8e6", "dark": "#e8e8e6" },
+    "term-soft": { "light": "#b4b4b0", "dark": "#b4b4b0" },
+    "term-dim": { "light": "#8a8a8a", "dark": "#8a8a8a" },
+    "term-line": { "light": "rgba(255, 255, 255, 0.07)", "dark": "rgba(255, 255, 255, 0.07)" },
+    "term-good": { "light": "#4cc38a", "dark": "#4cc38a" },
+    "term-bad": { "light": "#ff6369", "dark": "#ff6369" }
+  },
+  "syntax": {
+    "tk-k": { "light": "#cf222e", "dark": "#ff7b72", "$doc": "keyword" },
+    "tk-s": { "light": "#0a3069", "dark": "#a5d6ff", "$doc": "string" },
+    "tk-c": { "light": "#8c8c8c", "dark": "#6e7681", "$doc": "comment" },
+    "tk-n": { "light": "#0550ae", "dark": "#79c0ff", "$doc": "number" },
+    "tk-t": { "light": "#8250df", "dark": "#d2a8ff", "$doc": "type" }
+  },
+  "spirit": {
+    "spirit-eye": { "light": "#1d1a26", "dark": "#15131c" },
+    "spirit-trim": { "light": "#2a2633", "dark": "#d8d4e4" },
+    "spirit-shine": { "light": "#ffffff", "dark": "#ffffff" },
+    "spirit-gold": { "light": "#f2c14e", "dark": "#f5c95c" },
+    "spirit-leaf": { "light": "#6cc070", "dark": "#7fd183" },
+    "spirit-blush": { "light": "#ff8fa3", "dark": "#ff9fb1" }
+  },
+  "project": {
+    "pc-violet": { "light": "#7c6bd6", "dark": "#7c6bd6", "$doc": "project colours: muted, never neon, only on the project's own dot or chip" },
+    "pc-teal": { "light": "#2b9a8a", "dark": "#2b9a8a" },
+    "pc-amber": { "light": "#c9932a", "dark": "#c9932a" },
+    "pc-rose": { "light": "#c9586f", "dark": "#c9586f" },
+    "pc-sky": { "light": "#3f8fd2", "dark": "#3f8fd2" },
+    "pc-lime": { "light": "#5f9a3a", "dark": "#5f9a3a" },
+    "pc-orange": { "light": "#d27637", "dark": "#d27637" },
+    "pc-indigo": { "light": "#5262c9", "dark": "#5262c9" },
+    "pc-slate": { "light": "#8a8a8a", "dark": "#8a8a8a" }
+  }
+}

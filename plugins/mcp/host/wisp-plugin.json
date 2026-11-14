@@ -1,0 +1,46 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.mcp",
+  "name": "MCP server",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.mcp host: the MCP server for agents and editors over POST /api/mcp and stdio, each tool a kernel command",
+  "server": {
+    "builtin": "wisp-mcp"
+  },
+  "permissions": [
+    "connectors:*",
+    "crew:*",
+    "events:tail",
+    "events:why",
+    "later:*",
+    "machines:*",
+    "plugins:*",
+    "runtime:*",
+    "ship:*",
+    "stuff:*",
+    "telemetry:track",
+    "watch:*"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "events": ["mcp.ask.closed", "mcp.ask.shown"],
+    "commands": [
+      {
+        "id": "mcp.rpc",
+        "title": "One MCP JSON-RPC message"
+      },
+      {
+        "id": "mcp.tools",
+        "title": "The MCP tools this caller is offered",
+        "readOnly": true
+      },
+      {
+        "id": "mcp.session.set",
+        "title": "What a session's run is, for its tools"
+      }
+    ]
+  }
+}

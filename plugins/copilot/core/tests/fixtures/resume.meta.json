@@ -1,0 +1,21 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "and add a test",
+    "resumeId": "prev-1"
+  },
+  "note": "a follow-up: no protocol, the session it resumes",
+  "argv": [
+    "--output-format",
+    "json",
+    "--allow-tool=write",
+    "--resume=prev-1",
+    "--no-ask-user",
+    "--usage-output-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-copilot-AspujQ/usage.json"
+  ]
+}

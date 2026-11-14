@@ -1,0 +1,1 @@
+{ "number": 1, "url": "https://github.com/acme/repo/pull/1", "title": "fix(math): add adds", "state": "MERGED", "isDraft": false, "reviewDecision": "APPROVED", "mergeStateStatus": "CLEAN", "headRefName": "wisp/fix-add-so-it-adds-0193ab", "baseRefName": "main", "headRefOid": "1111111111111111111111111111111111111111", "statusCheckRollup": [], "mergedAt": "2026-10-28T12:00:00Z" }

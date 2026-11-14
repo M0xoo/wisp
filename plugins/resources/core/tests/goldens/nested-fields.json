@@ -1,0 +1,55 @@
+{
+  "lines": [
+    "~ workflow/release",
+    "      tasks/report: — → {\"needs\":[\"tests\"],\"prompt\":\"write it\"}",
+    "      tasks/tests/agent: \"fast\" → \"fixer\""
+  ],
+  "ops": [
+    {
+      "before": {
+        "concurrency": 2,
+        "tasks": {
+          "tests": {
+            "agent": "fast",
+            "prompt": "run"
+          }
+        }
+      },
+      "changes": [
+        {
+          "path": "tasks/report",
+          "to": {
+            "needs": [
+              "tests"
+            ],
+            "prompt": "write it"
+          }
+        },
+        {
+          "from": "fast",
+          "path": "tasks/tests/agent",
+          "to": "fixer"
+        }
+      ],
+      "kind": "workflow",
+      "name": "release",
+      "op": "update",
+      "spec": {
+        "concurrency": 2,
+        "tasks": {
+          "report": {
+            "needs": [
+              "tests"
+            ],
+            "prompt": "write it"
+          },
+          "tests": {
+            "agent": "fixer",
+            "prompt": "run"
+          }
+        }
+      }
+    }
+  ],
+  "unchanged": 0
+}

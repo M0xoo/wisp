@@ -1,0 +1,132 @@
+/* The form kit (v1's base.css): one look for inputs, textareas, selects, combos, switches,
+   checkboxes and radios. A panel already tinted --surface-2 sets --field-bg: var(--surface). */
+@layer kit {
+  [data-kit='input'], [data-kit='field-box'], [data-kit='textarea'], [data-kit='select-trigger'] {
+    width: 100%; min-width: 0; height: var(--size-control-md); padding: var(--space-0) var(--space-5);
+    border-radius: var(--radius-control); border: var(--size-hairline) solid var(--line-2);
+    background-color: var(--field-bg, var(--surface-2)); color: var(--ink);
+    font-family: var(--sans); font-size: var(--fs-md); line-height: var(--lh-snug); outline: 0;
+    transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
+  }
+  [data-kit='input']:hover, [data-kit='field-box']:hover, [data-kit='textarea']:hover, [data-kit='select-trigger']:hover {
+    border-color: color-mix(in srgb, var(--ink) 14%, var(--line-2));
+  }
+  [data-kit='input']:focus, [data-kit='textarea']:focus, [data-kit='field-box']:focus-within,
+  [data-kit='select-trigger']:focus-visible, [data-kit='select-trigger'][aria-expanded='true'] {
+    border-color: var(--accent); background-color: var(--surface); box-shadow: 0 0 0 calc(var(--size-ring) + var(--size-hairline)) var(--accent-soft); outline: 0;
+  }
+  [data-kit='input']::placeholder, [data-kit='textarea']::placeholder, [data-kit='field-input']::placeholder { color: var(--faint); }
+  [data-kit='input']:disabled, [data-kit='textarea']:disabled, [data-kit='field-input']:disabled, [data-kit='select-trigger']:disabled { opacity: 0.55; cursor: not-allowed; }
+  [data-kit='input'][aria-invalid='true'], [data-kit='textarea'][aria-invalid='true'], [data-kit='field-box'][data-invalid],
+  [data-kit='select-trigger'][data-invalid] { border-color: var(--bad); }
+  [data-kit='input'][aria-invalid='true']:focus, [data-kit='textarea'][aria-invalid='true']:focus { box-shadow: 0 0 0 calc(var(--size-ring) + var(--size-hairline)) var(--del-bg); }
+  [data-kit='input'][data-mono], [data-kit='field-box'][data-mono], [data-kit='textarea'][data-mono], [data-kit='select-trigger'][data-mono] {
+    font-family: var(--mono); font-size: var(--fs-sm);
+  }
+  [data-kit='input'][data-size='sm'], [data-kit='field-box'][data-size='sm'], [data-kit='select-trigger'][data-size='sm'] { height: var(--size-control-sm); padding: var(--space-0) var(--space-4); }
+  [data-kit='input'][data-size='lg'], [data-kit='field-box'][data-size='lg'], [data-kit='select-trigger'][data-size='lg'] { height: var(--size-control-lg); padding: var(--space-0) var(--space-6); border-radius: var(--radius-lg); }
+
+  /* A box holding an icon or a prefix and a bare input (v1's .field). */
+  [data-kit='field-box'] { display: flex; align-items: center; gap: var(--space-4); color: var(--muted); cursor: text; }
+  [data-kit='field-box'][data-disabled] { opacity: 0.55; cursor: not-allowed; }
+  [data-kit='field-input'] { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--ink); }
+  [data-kit='field-input']:focus-visible { outline: 0; }
+  [data-kit='field-prefix'] { flex: none; color: var(--faint); }
+
+  [data-kit='textarea'] { display: block; height: auto; min-height: var(--size-control-md); padding: var(--space-3) var(--space-5); line-height: var(--lh-base); resize: vertical; }
+  [data-kit='textarea'][data-autosize] { resize: none; overflow-y: hidden; }
+
+  /* Select: a button the same box as an input. */
+  [data-kit='select'] { display: inline-flex; min-width: 0; max-width: 100%; }
+  [data-kit='select'] select { display: none; }
+  [data-kit='select-trigger'] { display: inline-flex; align-items: center; gap: var(--space-4); width: auto; max-width: 100%; text-align: left; cursor: pointer; }
+  [data-kit='select-value'] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='select-trigger'][data-placeholder] [data-kit='select-value'] { color: var(--faint); }
+  [data-kit='select-trigger'] > [data-kit='icon'], [data-kit='combobox-trigger'] > [data-kit='icon'] { flex: none; color: var(--muted); transform: rotate(90deg); }
+  [data-kit='combobox'] { display: block; min-width: 0; }
+  [data-kit='combobox-trigger'] { flex: none; display: grid; place-items: center; width: var(--size-control-xs); height: var(--size-control-xs); margin-right: calc(-1 * var(--space-3)); border-radius: var(--radius-md); }
+  [data-kit='combobox-trigger']:hover { background: var(--bg-2); }
+
+  /* The list a select or combobox opens: the menu's card. */
+  [data-kit='listbox'] {
+    margin: 0; list-style: none; min-width: var(--size-menu-min); max-height: min(var(--size-popover), 60vh); overflow-y: auto;
+    padding: var(--space-2); border-radius: var(--radius-xl); background: var(--surface); border: var(--size-hairline) solid var(--line);
+    box-shadow: var(--shadow-2); outline: 0;
+  }
+  [data-kit='listbox'][data-state='open'] { animation: kit-pop var(--dur-slow) var(--ease); }
+  [data-kit='listbox'][hidden] { display: none; }
+  [data-kit='option'] {
+    display: flex; align-items: center; gap: var(--space-5); min-height: var(--size-control-md); padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-md); font-size: var(--fs-md); color: var(--ink-2); cursor: pointer; user-select: none;
+  }
+  [data-kit='option'][data-highlighted] { background: var(--bg-2); color: var(--ink); }
+  [data-kit='option'][data-disabled] { opacity: 0.5; cursor: not-allowed; }
+  [data-kit='option-label'] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* a group's heading over its first option (the menu's group label) */
+  [data-kit='option-group'] { padding: var(--space-5) var(--space-5) var(--space-2); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--faint); list-style: none; }
+  [data-kit='listbox-empty'] { padding: var(--space-6) var(--space-5); font-size: var(--fs-md); color: var(--muted); text-align: center; }
+  @media (pointer: coarse) {
+    [data-kit='option'] { min-height: var(--size-touch); }
+  }
+
+  /* Switch (v1's .switch): 34 × 20, the knob slides 14. */
+  [data-kit='checkbox'], [data-kit='radio'] {
+    display: inline-flex; align-items: center; gap: var(--space-4); font-size: var(--fs-md); color: var(--ink-2); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  [data-kit='switch'][data-disabled], [data-kit='checkbox'][data-disabled], [data-kit='radio'][data-disabled] { opacity: 0.5; cursor: not-allowed; }
+  [data-kit='switch'] input, [data-kit='checkbox'] input {
+    position: absolute; width: var(--size-hairline); height: var(--size-hairline); margin: calc(-1 * var(--size-hairline)); overflow: hidden; clip-path: inset(50%); border: 0; padding: 0;
+  }
+  /* the button is the track (v1 .switch: 34 × 20, radius 10, the knob a 16px circle sliding 14) */
+  [data-kit='switch'] {
+    position: relative; flex: none; display: inline-block; gap: 0; width: var(--size-switch-w); height: var(--size-switch-h); border-radius: 10px;
+    background: var(--line-2); color: var(--ink); font-size: inherit; line-height: inherit; transition: background var(--dur-base);
+  }
+  [data-kit='switch'][data-state='checked'] { background: var(--accent); }
+  [data-kit='switch-control'] { display: contents; }
+  [data-kit='switch-thumb'] {
+    position: absolute; top: var(--space-1); left: var(--space-1); width: var(--size-switch-knob); height: var(--size-switch-knob); border-radius: 50%;
+    background: var(--surface); box-shadow: var(--shadow-1); transition: transform var(--dur-base) var(--ease);
+  }
+  [data-kit='switch-thumb'][data-state='checked'] { transform: translateX(calc(var(--size-switch-w) - var(--size-switch-knob) - var(--space-2))); }
+  [data-kit='switch']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--size-ring); }
+  [data-kit='switch-field'] { display: inline-flex; align-items: center; gap: var(--space-4); font-size: var(--fs-md); color: var(--ink-2); cursor: pointer; }
+  [data-kit='checkbox-control'][data-focus-visible] { outline: var(--size-ring) solid var(--accent); outline-offset: var(--size-ring); }
+
+  [data-kit='checkbox-control'] {
+    flex: none; display: grid; place-items: center; width: var(--size-check); height: var(--size-check); border-radius: var(--radius-xs);
+    border: var(--size-hairline) solid var(--line-2); background: var(--field-bg, var(--surface)); color: var(--on-accent);
+    transition: background var(--dur-base), border-color var(--dur-base);
+  }
+  [data-kit='checkbox-control'][data-state='checked'], [data-kit='checkbox-control'][data-state='indeterminate'] { background: var(--accent); border-color: var(--accent); }
+  [data-kit='checkbox-control'][data-invalid] { border-color: var(--bad); }
+  [data-kit='toggle-label'] { min-width: 0; }
+
+  /* Radio group: native radios drawn as rings. */
+  [data-kit='radio-group'] { display: flex; flex-direction: column; gap: var(--space-4); }
+  /* Side by side the options are a Wrap: they may run onto a second line (design/layout.md §5). */
+  [data-kit='radio-group'][data-orientation='horizontal'] { flex-direction: row; column-gap: var(--space-7); row-gap: var(--space-4); --k-gap: var(--space-7); --k-row-gap: var(--space-4); }
+  [data-kit='radio-legend'] { padding: 0; margin-bottom: var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); }
+  [data-kit='radio-legend'][data-hidden] {
+    position: absolute; width: var(--size-hairline); height: var(--size-hairline); overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  [data-kit='radio'] { align-items: flex-start; }
+  [data-kit='radio-input'] {
+    appearance: none; flex: none; width: var(--size-check); height: var(--size-check); margin: var(--space-1) 0 0; border-radius: 50%;
+    border: var(--size-hairline) solid var(--line-2); background: var(--field-bg, var(--surface)); cursor: inherit;
+    transition: border-color var(--dur-base), box-shadow var(--dur-base);
+  }
+  [data-kit='radio-input']:checked { border-color: var(--accent); box-shadow: inset 0 0 0 var(--space-2) var(--accent); }
+  [data-kit='radio-text'] { display: flex; flex-direction: column; min-width: 0; }
+  /* a logo before the label (the harness · model picker's harnesses, v1 runner-picker.js .rp-logo) */
+  [data-kit='radio-logo'] { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--bg-2); }
+  [data-kit='radio-logo'] > img { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+  [data-kit='radio-hint'] { font-size: var(--fs-sm); color: var(--muted); }
+
+  /* Field: label over the control, error then hint under it. */
+  [data-kit='field'] { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  [data-kit='field-label'] { font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--ink); }
+  [data-kit='field-required'] { margin-left: var(--space-1); color: var(--faint); }
+  [data-kit='field-hint'] { font-size: var(--fs-sm); color: var(--muted); }
+  [data-kit='field-error'] { font-size: var(--fs-sm); color: var(--bad); }
+}

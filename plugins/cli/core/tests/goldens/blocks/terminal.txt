@@ -1,0 +1,20 @@
+── 80 plain
+$ npm test
+│ 48 passing
+│ 1 failing
+exit 1
+── 40 plain
+$ npm test
+│ 48 passing
+│ 1 failing
+exit 1
+── 80 colour
+␛[2m$␛[0m ␛[1mnpm test␛[0m
+␛[2m│␛[0m 48 passing
+␛[2m│␛[0m 1 failing
+␛[31mexit 1␛[0m
+── 40 colour
+␛[2m$␛[0m ␛[1mnpm test␛[0m
+␛[2m│␛[0m 48 passing
+␛[2m│␛[0m 1 failing
+␛[31mexit 1␛[0m

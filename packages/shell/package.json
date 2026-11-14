@@ -1,0 +1,29 @@
+{
+  "name": "@wisp/shell",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The extension host and the app frame (plan §4.6, §6.6, §7): plugins' UI plugs in here.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract.ts",
+    "./platform": "./src/platform/index.ts",
+    "./pure": "./src/pure.ts"
+  },
+  "dependencies": {
+    "@wisp/client": "*",
+    "@wisp/protocol": "*",
+    "@wisp/tokens": "*",
+    "@wisp/ui": "*",
+    "solid-js": "^1.9.18"
+  },
+  "devDependencies": {
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^4.1.0",
+    "happy-dom": "^21.0.4"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

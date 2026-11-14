@@ -1,0 +1,60 @@
+[package]
+name = "wisp-grid"
+description = "wisp Grid: the edge, hostd, control-plane SQLite and the `wisp grid` CLI (plan §4.7, §7.2.5, ADR-0014)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+# The edge (and the control plane and CLI): `wisp-grid serve|init|doctor|…`.
+[[bin]]
+name = "wisp-grid"
+path = "src/bin/wisp-grid.rs"
+
+# hostd on its own: starts and stops each user's box, answers the edge on a unix socket.
+[[bin]]
+name = "wisp-grid-hostd"
+path = "src/bin/wisp-grid-hostd.rs"
+
+[dependencies]
+wisp-channels-api.workspace = true
+wisp-channels-core.workspace = true
+aes-gcm.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+bytes.workspace = true
+ed25519-dalek.workspace = true
+futures.workspace = true
+hkdf.workspace = true
+hmac.workspace = true
+hickory-resolver.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+p256.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+rsa.workspace = true
+rusqlite.workspace = true
+scrypt.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+url.workspace = true
+x509-cert.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

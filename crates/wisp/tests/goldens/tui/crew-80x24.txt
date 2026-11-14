@@ -1,0 +1,24 @@
+ Crew  2                                             w wake  r reload  Esc back
+ ──────────────────────────────────────────────────────────────────────────────
+
+  NAME                ROLE                    RUNNING   JOBS    MACHINE
+ ▌Ada                 reviewer                1         4
+  Lin                 docs                    0         2       box
+
+
+
+
+
+
+
+ ──────────────────────────────────────────────────────────────────────────────
+ id: m1
+ jobs: 4
+ name: Ada
+ role: reviewer
+ running: 1
+
+ ╭ Follow-up · queued while it runs ──────────────────────────────────────────╮
+ │ i write  ? keys                                                            │
+ ╰────────────────────────────────────────────────────────────────────────────╯
+  auto   codex · gpt-5                           ● live   ? keys  ^K go  q quit

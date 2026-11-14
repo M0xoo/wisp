@@ -1,0 +1,13 @@
+{
+  "$doc": "The spacing scale for gap, padding and margin. v1 had 157 distinct px values; its gaps and paddings were mostly 8 (576 uses), 6 (538), 10 (440), 12 (361), 4 (315), 2 (278), 14 (224), 16 (85), 24 (42). 14 rounds to 12 or 16, 5/7/9 to their neighbours, 18/20/22 to 16 or 24.",
+  "0": "0px",
+  "1": "2px",
+  "2": "4px",
+  "3": "6px",
+  "4": "8px",
+  "5": "10px",
+  "6": "12px",
+  "7": "16px",
+  "8": "24px",
+  "9": "32px"
+}

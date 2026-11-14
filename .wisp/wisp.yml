@@ -1,0 +1,3 @@
+wisp: 1
+# what the repo keeps of the agent work that built it (ADR-0033): auto | ask | manual
+history: { track: ask }

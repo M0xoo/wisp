@@ -1,0 +1,23 @@
+[package]
+name = "wisp-update"
+description = "wisp.update plugin: wiring to the kernel, store and HTTP routes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["fs"] }
+wisp-kernel.workspace = true
+wisp-runtime-api.workspace = true
+wisp-telemetry-api.workspace = true
+tracing.workspace = true
+wisp-proc.workspace = true
+wisp-store.workspace = true
+wisp-update-core.workspace = true
+
+[lints]
+workspace = true

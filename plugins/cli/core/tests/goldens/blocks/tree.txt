@@ -1,0 +1,32 @@
+── 80 plain
+New module
+├── src/
+│   └── auth/
+│       ├── limiter.ts A  the window
+│       └── login.ts M
+└── test/
+    └── limiter.test.ts A
+── 40 plain
+New module
+├── src/
+│   └── auth/
+│       ├── limiter.ts A  the window
+│       └── login.ts M
+└── test/
+    └── limiter.test.ts A
+── 80 colour
+␛[1mNew module␛[0m
+␛[2m├── ␛[0m␛[34msrc/␛[0m
+␛[2m│   └── ␛[0m␛[34mauth/␛[0m
+␛[2m│       ├── ␛[0mlimiter.ts ␛[32mA␛[0m␛[2m  the window␛[0m
+␛[2m│       └── ␛[0mlogin.ts ␛[33mM␛[0m
+␛[2m└── ␛[0m␛[34mtest/␛[0m
+␛[2m    └── ␛[0mlimiter.test.ts ␛[32mA␛[0m
+── 40 colour
+␛[1mNew module␛[0m
+␛[2m├── ␛[0m␛[34msrc/␛[0m
+␛[2m│   └── ␛[0m␛[34mauth/␛[0m
+␛[2m│       ├── ␛[0mlimiter.ts ␛[32mA␛[0m␛[2m  the window␛[0m
+␛[2m│       └── ␛[0mlogin.ts ␛[33mM␛[0m
+␛[2m└── ␛[0m␛[34mtest/␛[0m
+␛[2m    └── ␛[0mlimiter.test.ts ␛[32mA␛[0m

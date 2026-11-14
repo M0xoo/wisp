@@ -1,0 +1,34 @@
+OpenAPI: routes in apps/server, in the three registry shapes, against apps/server/openapi.json.
+=== apps/server/package.json
+{ "name": "@f/server" }
+=== apps/server/openapi.json
+{
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/events": { "get": {} },
+    "/api/cmd": { "post": {} },
+    "/api/sessions/{id}": { "get": {}, "delete": {} },
+    "/blob/{hash}": { "get": {} }
+  }
+}
+=== apps/server/src/routes.ts
+export const routes = [
+  { method: 'GET', path: '/api/events', handler: 1 },
+  { method: 'POST', path: '/api/cmd', handler: 1 },
+  { method: 'GET', path: '/api/sessions/:sid', handler: 1 },
+  { method: 'PUT', path: '/api/sessions/:id', handler: 1 },
+];
+=== apps/server/src/extra.ts
+declare const router: { get(p: string, h: unknown): void; delete(p: string, h: unknown): void };
+declare function route(m: string, p: string, h: unknown): void;
+router.get('/blob/:hash', 1);
+router.delete('/api/sessions/:id', 1);
+route('POST', '/api/upload', 1);
+const routes = { add: (...a: unknown[]) => a };
+routes.add('wisp.server', 'GET', '/api/health', 1, { permission: 'x', summary: 'Liveness' });
+routes.add('wisp.server', 'GET', '/api/fs', 1, { permission: 'fs:read', doc: false });
+route('POST', '/api/inline', 1, { description: 'documented where it is registered' });
+const cache = new Map<string, number>();
+cache.get('/not/a/route');
+=== apps/server/test/routes.test.ts
+export const fake = { method: 'GET', path: '/test/only' };

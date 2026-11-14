@@ -1,0 +1,69 @@
+/* This Mac's gauges and resource rows (src/machine/, design/machine-page.md). Numbers are tabular in
+   fixed columns; narrow boxes stack by container query, never by viewport. */
+@layer kit {
+  [data-kit='gauges'] { container: gauges / inline-size; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+  [data-kit='gauge'] {
+    display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'name' 'value' 'sub' 'spark' 'foot';
+    gap: var(--space-2); min-width: 0; padding: var(--space-6) var(--space-7);
+    background: var(--surface); border: var(--size-hairline) solid var(--line); border-radius: var(--radius-lg);
+  }
+  [data-kit='gauge-name'] { grid-area: name; font-size: var(--fs-sm); color: var(--muted); }
+  [data-kit='gauge-value'] { grid-area: value; font-family: var(--display); font-size: var(--fs-display); font-weight: var(--fw-semibold); letter-spacing: var(--tracking-display); font-variant-numeric: tabular-nums; color: var(--ink); line-height: var(--lh-tight); }
+  [data-kit='gauge'][data-tone='warn'] [data-kit='gauge-value'] { color: var(--warn); }
+  [data-kit='gauge'][data-tone='bad'] [data-kit='gauge-value'] { color: var(--bad); }
+  [data-kit='gauge-sub'] { grid-area: sub; font-size: var(--fs-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; min-height: var(--lh-snug); }
+  [data-kit='gauge-foot'] { grid-area: foot; font-size: var(--fs-xs); color: var(--muted); }
+  [data-kit='gauge'] [data-kit='sparkline'] { grid-area: spark; }
+  [data-kit='sparkline'] { display: block; width: 100%; height: var(--size-avatar-lg); overflow: visible; }
+  [data-kit='sparkline-line'] { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  [data-kit='gauge'][data-tone='warn'] [data-kit='sparkline-line'] { stroke: var(--warn); }
+  [data-kit='gauge'][data-tone='bad'] [data-kit='sparkline-line'] { stroke: var(--bad); }
+  [data-kit='sparkline-mark'] { stroke: var(--line-2); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+
+  /* stacked: one line each, the sparkline beside the value */
+  @container gauges (max-width: 640px) {
+    [data-kit='gauges'] { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+    [data-kit='gauge'] {
+      grid-template-columns: minmax(0, 1fr) minmax(var(--size-control-lg), 40%);
+      grid-template-areas: 'name spark' 'value spark' 'sub foot';
+      padding: var(--space-5) var(--space-6); row-gap: var(--space-1); column-gap: var(--space-6);
+    }
+    [data-kit='gauge-value'] { font-size: var(--fs-title); }
+    [data-kit='gauge-foot'] { text-align: end; }
+    [data-kit='gauge'] [data-kit='sparkline'] { align-self: center; }
+  }
+
+  /* resource rows: who | n columns of numbers | actions */
+  [data-kit='usage-row'] {
+    --k-col: var(--size-time-col);
+    display: grid; align-items: center; column-gap: var(--space-6); min-height: var(--size-row-min);
+    grid-template-columns: minmax(0, 1fr) repeat(var(--k-cols, 0), var(--k-col)) auto;
+    padding: var(--space-4) var(--space-6); border-top: var(--size-hairline) solid var(--line);
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+  [data-kit='usage-row'][data-cols='1'] { --k-cols: 1; }
+  [data-kit='usage-row'][data-cols='2'] { --k-cols: 2; }
+  [data-kit='usage-row'][data-cols='3'] { --k-cols: 3; }
+  [data-kit='usage-row'][data-head] { min-height: 0; padding-block: var(--space-2); border-top: 0; font-size: var(--fs-xs); color: var(--muted); }
+  [data-kit='usage-row'][data-busy] { opacity: 0.55; }
+  [data-kit='usage-who'] { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+  [data-kit='usage-title'] { font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--ink); }
+  [data-kit='usage-title'][data-mono] { font-family: var(--mono); font-size: var(--fs-sm); font-weight: var(--fw-regular); }
+  [data-kit='usage-open'] { display: block; min-width: 0; max-width: 100%; padding: 0; text-align: start; color: inherit; border-radius: var(--radius-xs); }
+  [data-kit='usage-open']:hover [data-kit='usage-title'] { color: var(--accent-ink); text-decoration: underline; }
+  [data-kit='usage-open']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--space-1); }
+  [data-kit='usage-sub'] { font-size: var(--fs-xs); color: var(--muted); }
+  [data-kit='usage-cell'] { text-align: end; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='usage-actions'] { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: var(--space-3); }
+
+  [data-kit='usage-list'] { container: usage / inline-size; }
+  @container usage (max-width: 520px) {
+    /* the numbers go on a second line, each with its label; who and the actions keep the first */
+    [data-kit='usage-row'] { grid-template-columns: repeat(var(--k-cols, 0), minmax(0, 1fr)) auto; row-gap: var(--space-2); }
+    [data-kit='usage-row'][data-head] { display: none; }
+    [data-kit='usage-who'] { grid-column: 1 / -2; grid-row: 1; }
+    [data-kit='usage-actions'] { grid-column: -2 / -1; grid-row: 1; }
+    [data-kit='usage-cell'] { grid-row: 2; display: flex; gap: var(--space-3); text-align: start; }
+    [data-kit='usage-cell']::before { content: attr(data-label); color: var(--muted); font-size: var(--fs-xs); }
+  }
+}
