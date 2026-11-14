@@ -110,6 +110,10 @@ pub fn summarize(s: &Session, f: &RowFacts<'_>, fields: BTreeMap<String, Value>)
     if let Some(l) = s.ext.get("wisp.runtime").and_then(|r| r.get("forLater")).filter(|l| !l.is_null()) {
         out.insert("forLater".into(), l.clone());
     }
+    // a mode cap (a channel's, F-chan-10): the row and the task page show it, and a restart reloads it from here
+    if let Some(c) = crate::cap::of(s.ext.get("wisp.runtime")) {
+        out.insert("capped".into(), json!(crate::agent_task::mode_id(c)));
+    }
     out.extend(halt(f.last).map(|h| ("halt".to_owned(), json!(h))));
     if let Some(h) = f.last.filter(|t| t.status == TurnStatus::Held).and_then(|t| t.held.as_ref()) {
         out.insert("held".into(), json!({ "kind": h.kind, "by": h.by, "until": h.until, "data": h.data, "turnId": t_id(f.last) }));

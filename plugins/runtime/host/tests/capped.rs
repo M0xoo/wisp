@@ -92,3 +92,43 @@ async fn a_fork_of_a_capped_task_keeps_its_cap() {
     assert_eq!(r.rt.repo.session(&fork).await.unwrap().ext["wisp.runtime"]["capped"], json!({ "mode": "edits" }));
     assert_eq!(r.rt.agent_set(&fork).as_deref(), Some("agent:capped"));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_restart_reloads_every_capped_tasks_cap_from_its_list_row() {
+    let r = rig().await;
+    let id = r.rt.create(capped("fix it", Some(Mode::Edits), Mode::Edits)).await.unwrap().id.0;
+    let plan = r.rt.create(capped("look", Some(Mode::Plan), Mode::Plan)).await.unwrap().id.0;
+    let free = r.rt.create(capped("anything", None, Mode::Auto)).await.unwrap().id.0;
+    for t in [&id, &plan, &free] {
+        until("the first turn", || async {
+            r.rt.turns(t, None, Some(1)).await.unwrap().pop().is_some_and(|t| t.status == TurnStatus::Done)
+        })
+        .await;
+    }
+    let row = r.rt.list(&wisp_runtime_api::commands::ListArgs::default()).into_iter().find(|s| s.id.0 == id).unwrap();
+    assert_eq!(row.fields.get("capped"), Some(&json!("edits")), "the list row says the cap: {:?}", row.fields);
+
+    // a second runtime over the same store, as after a restart: none of these is waiting on an ask
+    let rt2 = wisp_runtime::Runtime::new(
+        wisp_runtime::repo::Repo::new(r.store.clone()),
+        r.host.clone(),
+        std::sync::Arc::new(wisp_proc::sim::SimProc::new()),
+        std::sync::Arc::new(wisp_store::SystemClock),
+    );
+    rt2.start().await.unwrap();
+    assert_eq!(rt2.agent_set(&id).as_deref(), Some("agent:capped"), "not agent:session until its row is written again");
+    assert_eq!(rt2.agent_set(&plan).as_deref(), Some("agent:capped:plan"));
+    assert_eq!(rt2.agent_set(&free), None);
+
+    // lifted, then restarted: it stays lifted
+    rt2.mode_asked(&id, Mode::Auto, "user:full").await.unwrap();
+    let rt3 = wisp_runtime::Runtime::new(
+        wisp_runtime::repo::Repo::new(r.store.clone()),
+        r.host.clone(),
+        std::sync::Arc::new(wisp_proc::sim::SimProc::new()),
+        std::sync::Arc::new(wisp_store::SystemClock),
+    );
+    rt3.start().await.unwrap();
+    assert_eq!(rt3.agent_set(&id), None);
+    assert_eq!(rt3.agent_set(&plan).as_deref(), Some("agent:capped:plan"));
+}

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use wisp_kernel::WireError;
 use wisp_runtime_api::model::{Mode, Session};
-use wisp_runtime_core::agent_task::mode_id;
+use wisp_runtime_core::agent_task::{mode_id, mode_of};
 use wisp_runtime_core::cap::{self, Asked};
 
 use crate::error::{Result, RuntimeError};
@@ -27,6 +27,14 @@ impl Runtime {
             Some(c) => caps.insert(s.id.0.clone(), c),
             None => caps.remove(s.id.as_str()),
         };
+    }
+
+    /// Fills the in-memory caps from the list rows (`capped`, `wisp_runtime_core::summary`) at startup.
+    pub(crate) fn load_caps(&self) {
+        let found: Vec<(String, Mode)> =
+            self.lock_list().values().filter_map(|r| Some((r.id.0.clone(), r.fields.get("capped")?.as_str().and_then(mode_of)?))).collect();
+        let mut caps = self.caps.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        caps.extend(found);
     }
 
     /// The set a task's agent speaks with at the edge: `agent:capped` for an Edits cap, `agent:capped:<mode>`

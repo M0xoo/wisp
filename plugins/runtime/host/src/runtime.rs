@@ -86,6 +86,8 @@ impl Runtime {
                 list.insert(s.id.0.clone(), Arc::new(s));
             }
         }
+        // every capped task's cap, from its list row: its agent speaks as agent:capped before the row is written again
+        self.load_caps();
         // questions open when wisp stopped stay answerable: the ask is on the task (v1 `session.ask`)
         let waiting: Vec<String> = self.lock_list().values().filter(|s| s.state == SessionState::Waiting).map(|s| s.id.0.clone()).collect();
         for t in self.repo.running_turns().await? {
@@ -94,8 +96,6 @@ impl Runtime {
         }
         for id in waiting {
             let mut s = self.repo.session(&id).await?;
-            // its agent may answer the ask after a restart: the edge knows its cap before the row is written again
-            self.note_cap(&s);
             let Some(ask) = crate::more::ask_id(&s) else { continue };
             self.asks().insert(ask, id);
             if s.state != SessionState::Waiting {
