@@ -14,6 +14,9 @@
     "runtime.summary": {
       "version": "1.0.0"
     },
+    "stuff.task-files": {
+      "version": "1.0.0"
+    },
     "runtime.prompt": {
       "version": "1.0.0"
     },

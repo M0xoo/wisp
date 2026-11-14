@@ -366,7 +366,7 @@ pub struct TaskInfo {
 #[derive(Debug)]
 pub struct TaskFilesService;
 impl Service for TaskFilesService {
-    const ID: &'static str = "stuff.taskFiles";
+    const ID: &'static str = "stuff.task-files";
     const MAJOR: u32 = 1;
     type Api = dyn TaskFiles;
 }

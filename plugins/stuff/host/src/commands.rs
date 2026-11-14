@@ -3,7 +3,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use wisp_kernel::{Result as WireResult, Setup, WireError};
+use wisp_kernel::{Call, Ctx, Result as WireResult, Setup, WireError};
+use wisp_stuff_api::StuffFrom;
 use wisp_stuff_api::commands as c;
 use wisp_stuff_core::record::{Fields, current_grant};
 
@@ -59,10 +60,28 @@ fn save_opts(a: &c::SaveArgs) -> SaveOpts {
     }
 }
 
-async fn save(s: &Stuff, a: c::SaveArgs) -> WireResult<(wisp_stuff_api::StuffItem, bool)> {
+/// A reply's file (`file` with `from.session`, v1 `{ session, path }`): the task says which file that is (its
+/// picture, its doc, one in its folder) and its title as it is now; nothing else of the task's computer goes through
+/// a task (a `file` without one is a path on this computer, for the owner's own callers).
+async fn task_file(ctx: &Ctx, call: &Call, a: &mut c::SaveArgs) -> WireResult<()> {
+    let Some(id) = a.from.as_ref().and_then(|f| f.session.clone()) else { return Ok(()) };
+    let Some(asked) = a.file.take() else { return Ok(()) };
+    let files = ctx.use_service::<c::TaskFilesService>().map_err(|_| WireError::unavailable("wisp.runtime is starting"))?;
+    let Some(t) = files.task(call, &id).await? else { return Err(WireError::not_found("That task isn’t on this computer.")) };
+    let Some(path) = files.file(call, &id, &asked).await? else {
+        return Err(WireError::not_found("That file is gone, so there’s nothing to save."));
+    };
+    let f = a.from.get_or_insert_with(StuffFrom::default);
+    f.title = Some(t.title);
+    a.file = Some(path);
+    Ok(())
+}
+
+async fn save(s: &Stuff, ctx: &Ctx, call: &Call, mut a: c::SaveArgs) -> WireResult<(wisp_stuff_api::StuffItem, bool)> {
     if let Some(same) = s.shelf.find_key(a.from.as_ref().and_then(|f| f.key.as_deref())) {
         return Ok((same, false));
     }
+    task_file(ctx, call, &mut a).await?;
     let o = save_opts(&a);
     let it = if let Some(url) = &a.url {
         s.shelf.save_link(url, o).await
@@ -88,7 +107,7 @@ pub fn register(s: &mut Setup, cell: &Cell) {
     on!(s, cell, c::GrantOf, |st, ctx, call, a| Ok(current_grant(&st.shelf.get(&a.id).ok_or_else(|| w(gone()))?)));
     on!(s, cell, c::Save, |st, ctx, call, a| {
         let update = a.replace.is_some();
-        let (it, fresh) = save(&st, a).await?;
+        let (it, fresh) = save(&st, &ctx, &call, a).await?;
         if fresh {
             saved(&ctx, &call, &it, update);
         }

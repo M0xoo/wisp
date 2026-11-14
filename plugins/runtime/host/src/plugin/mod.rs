@@ -49,6 +49,7 @@ mod reads;
 mod retention;
 mod sessions;
 mod specs;
+mod task_files;
 
 use ctx_host::{CtxHost, Tree};
 
@@ -95,6 +96,8 @@ impl Plugin for RuntimePlugin {
         let slot: Slot = Arc::default();
         commands(s, &slot);
         s.route(crate::media::route(&slot));
+        // My Stuff asks a task its title, its Full auto and the file Save to My Stuff copies
+        task_files::provide(s, &slot);
         // who is under whom, for the kernel's agent-token scope (v1 edge case HTTP #3)
         s.contribute(&wisp_kernel::scope::TASKS, Arc::new(Tree(slot.clone())) as Arc<dyn wisp_kernel::scope::TaskTree>);
         s.on_start(move |ctx| async move {

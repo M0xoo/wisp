@@ -413,3 +413,67 @@ async fn a_computer_and_a_box_through_the_grid() {
     }
     drop((sa, sb, g));
 }
+
+/// F-stuff-6 against a grid: an app in My Stuff published from wisp is at a link anyone opens, its page and script
+/// served; its `.env`, a secrets file and its source map never reach the link; Update keeps the link; Unpublish takes
+/// it down.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_published_app_is_at_its_grid_link_without_its_secrets_or_source_maps() {
+    let root = temp("serve-grid-publish");
+    let g = grid(&root).await;
+    let d = root.join("a");
+    let app = d.join("proj/board");
+    std::fs::create_dir_all(app.join("config")).unwrap();
+    std::fs::write(app.join("index.html"), "<!doctype html><title>Board</title><script src=\"app.js\"></script>").unwrap();
+    std::fs::write(app.join("app.js"), "console.log('board')\n//# sourceMappingURL=app.js.map").unwrap();
+    std::fs::write(app.join("app.js.map"), r#"{"version":3,"sources":["src/secret-logic.ts"]}"#).unwrap();
+    std::fs::write(app.join(".env"), "API_KEY=sk-live-123").unwrap();
+    std::fs::write(app.join("config/secrets.json"), r#"{"token":"t0p"}"#).unwrap();
+    let (s, p) = start_with(&d, &[]);
+    let a = api(p);
+
+    // not signed in: it says how
+    let it = a.cmd("stuff.save", json!({ "app": app })).await;
+    let id = it["id"].as_str().unwrap().to_owned();
+    let no = a.try_cmd("stuff.publish", json!({ "id": id })).await;
+    assert_eq!(no["ok"], false, "{no}");
+    assert_eq!(a.cmd("stuff.targets", json!({})).await, json!([]), "nowhere to publish yet");
+
+    sign_in(&a, &g, "ada").await;
+    let t = a.cmd("stuff.targets", json!({})).await;
+    assert_eq!(t[0]["handle"], "ada", "{t}");
+    let done = a.cmd("stuff.publish", json!({ "id": id })).await;
+    let link = done["published"]["url"].as_str().unwrap_or_else(|| panic!("{done}")).to_owned();
+    let host = link.split("//").nth(1).unwrap().split([':', '/']).next().unwrap().to_owned();
+    let web = browser(g.port, &[host.as_str()]);
+    let get = |path: &str| {
+        let (web, url) = (web.clone(), format!("{}{path}", link.trim_end_matches('/')));
+        async move {
+            let r = web.get(url).send().await.unwrap();
+            (r.status().as_u16(), r.text().await.unwrap())
+        }
+    };
+    let (code, html) = get("/").await;
+    assert_eq!(code, 200, "{html}");
+    assert!(html.contains("<title>Board</title>"), "{html}");
+    assert_eq!(get("/app.js").await.0, 200);
+    for private in ["/.env", "/app.js.map", "/config/secrets.json"] {
+        let (code, body) = get(private).await;
+        assert_ne!(code, 200, "{private} reached the public link: {body}");
+        assert!(!body.contains("sk-live-123") && !body.contains("t0p") && !body.contains("secret-logic"), "{private}: {body}");
+    }
+
+    // Update the public link: the same link, the new page
+    std::fs::write(app.join("index.html"), "<!doctype html><title>Board 2</title>").unwrap();
+    a.cmd("stuff.save", json!({ "app": app, "replace": id })).await;
+    let again = a.cmd("stuff.publish", json!({ "id": id })).await;
+    assert_eq!(again["published"]["url"], link.as_str(), "an update keeps its link");
+    assert!(get("/").await.1.contains("Board 2"));
+
+    // Unpublish: the link is gone, the app stays in My Stuff
+    let off = a.cmd("stuff.unpublish", json!({ "id": id })).await;
+    assert!(off["published"].is_null(), "{off}");
+    assert_ne!(get("/").await.0, 200);
+    assert_eq!(a.cmd("stuff.get", json!({ "id": id })).await["id"], id.as_str());
+    drop(s);
+}

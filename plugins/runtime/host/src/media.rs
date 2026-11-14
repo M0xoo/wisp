@@ -13,6 +13,9 @@ use crate::error::{Result, RuntimeError};
 use crate::plugin::{Slot, rt};
 use crate::runtime::Runtime;
 
+/// What a doc block may name outside the task's folder for Save to My Stuff to copy.
+const DOC_EXTS: [&str; 5] = ["md", "markdown", "mdx", "txt", "rst"];
+
 /// A picture goes out unable to run anything (an SVG's scripts), and never sniffed into a page.
 const MEDIA_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
 
@@ -138,6 +141,39 @@ impl Runtime {
             return Ok(None);
         }
         Ok(Some(f))
+    }
+
+    /// What Save to My Stuff copies (v1 routes/stuff.js `taskFile`): a picture or video the answer showed (wisp's
+    /// copy once kept), a doc block's file, or any file inside the task's folder (a link out of it stays out). None:
+    /// gone, or not the task's to give.
+    ///
+    /// # Errors
+    /// No such task, or the store failed.
+    pub async fn task_file(&self, id: &str, asked: &str) -> Result<Option<PathBuf>> {
+        if asked.is_empty() {
+            return Ok(None);
+        }
+        if let Some(f) = self.media(id, asked).await? {
+            return Ok(Some(f.path));
+        }
+        let s = self.repo.session(id).await?;
+        let dir = PathBuf::from(&s.cwd);
+        let at = resolve(&dir, asked);
+        // relative only when the task has no folder: the server's own folder is never the task's
+        if !at.is_absolute() || !tokio::fs::metadata(&at).await.is_ok_and(|m| m.is_file()) {
+            return Ok(None);
+        }
+        let blocks: Vec<Value> =
+            self.repo.turns(id, None, None).await?.into_iter().filter_map(|t| t.presentation).flat_map(|p| p.blocks).collect();
+        // a doc block named it outside the folder: only a document (an agent told to name `~/.ssh/id_rsa` in a doc
+        // block gets nothing copied); one inside is checked as any file there is, links followed
+        let document =
+            |p: &PathBuf| p.extension().and_then(|e| e.to_str()).is_some_and(|e| DOC_EXTS.contains(&e.to_ascii_lowercase().as_str()));
+        if let Some(doc) = doc_file(&dir, asked, &blocks, &|_| true).filter(|p| !p.starts_with(&dir) && document(p)) {
+            return Ok(Some(doc));
+        }
+        let (real, root) = (tokio::fs::canonicalize(&at).await, tokio::fs::canonicalize(&dir).await);
+        Ok(matches!((real, root), (Ok(real), Ok(root)) if real.starts_with(&root)).then_some(at))
     }
 
     /// Show in folder (v1 POST /sessions/:id/reveal): a picture's or video's (where the agent saved it, else the

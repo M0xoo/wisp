@@ -118,3 +118,33 @@ async fn a_file_a_block_names_outside_the_folder_is_served_only_when_its_bytes_a
     assert_eq!(served(&own).await, Some(work.join("own.png")));
     std::fs::remove_dir_all(&tmp).ok();
 }
+
+/// Save to My Stuff (`Runtime::task_file`, v1 routes/stuff.js `taskFile`): a file in the task's folder or a picture
+/// its answer showed goes; a file outside it, a link in the folder pointing out, or a doc block naming a key outside
+/// the folder does not; a markdown doc it named outside does.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn save_to_my_stuff_copies_only_the_tasks_own_files_v1_task_file() {
+    let tmp = std::env::temp_dir().join(format!("wisp-task-file-{}", std::process::id()));
+    let (work, out) = (tmp.join("work"), tmp.join("out"));
+    std::fs::create_dir_all(&work).unwrap();
+    std::fs::create_dir_all(&out).unwrap();
+    std::fs::write(work.join("math.js"), b"x").unwrap();
+    std::fs::write(out.join("id_rsa"), b"-----BEGIN OPENSSH PRIVATE KEY-----").unwrap();
+    std::fs::write(out.join("plan.md"), b"# plan").unwrap();
+    std::os::unix::fs::symlink(out.join("id_rsa"), work.join("key.txt")).unwrap();
+    let r = rig().await;
+    let id =
+        r.rt.create(StartArgs { prompt: "work".into(), cwd: Some(work.display().to_string()), hold: true, ..StartArgs::default() })
+            .await
+            .unwrap()
+            .id
+            .0;
+    assert_eq!(r.rt.task_file(&id, "math.js").await.unwrap(), Some(work.join("math.js")));
+    assert_eq!(r.rt.task_file(&id, "../out/id_rsa").await.unwrap(), None, "outside the folder");
+    assert_eq!(r.rt.task_file(&id, "key.txt").await.unwrap(), None, "a link in the folder pointing out");
+    assert_eq!(r.rt.task_file(&id, "gone.js").await.unwrap(), None);
+    assert_eq!(r.rt.task_file(&id, "").await.unwrap(), None);
+    assert!(r.rt.task_file("nope", "math.js").await.is_err(), "no such task");
+    std::fs::remove_dir_all(&tmp).ok();
+}
