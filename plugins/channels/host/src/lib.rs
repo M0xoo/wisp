@@ -409,6 +409,14 @@ mod tests {
     }
 
     #[test]
+    fn every_channel_task_is_capped_at_edits_or_its_chats_lower_cap() {
+        use wisp_channels_api::views::Mode::{Auto, Edits, Plan};
+        assert_eq!(hub::channel_cap(None), Edits, "no cap named: Edits");
+        assert_eq!(hub::channel_cap(Some(Auto)), Edits, "a private chat's Full auto still starts capped (F-chan-10)");
+        assert_eq!(hub::channel_cap(Some(Plan)), Plan, "a lower cap stays");
+    }
+
+    #[test]
     fn a_notification_for_projects_only_covers_them() {
         assert!(in_projects(&[], "/any"));
         assert!(in_projects(&["/w/api/".into()], "/w/api/src"));

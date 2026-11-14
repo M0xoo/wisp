@@ -370,6 +370,13 @@ pub(crate) fn follow_up_mode(
     asked.map(|m| cap.map_or(m, |c| m.min(c)))
 }
 
+/// The cap a channel's task carries: Edits, or the channel's own when it is lower (v1 phone.js `cappedAt`; a channel
+/// never starts Full auto).
+pub(crate) fn channel_cap(cap: Option<wisp_channels_api::views::Mode>) -> wisp_channels_api::views::Mode {
+    let edits = wisp_channels_api::views::Mode::Edits;
+    cap.map_or(edits, |c| c.min(edits))
+}
+
 fn mode_str(m: Option<wisp_channels_api::views::Mode>) -> Option<&'static str> {
     m.map(|m| match m {
         wisp_channels_api::views::Mode::Plan => "plan",
@@ -460,7 +467,10 @@ impl Phone for KPhone {
         // a channel never starts more than its cap, and never Full auto (v1 policy)
         let asked = p.mode.or(o.fallback).unwrap_or(wisp_channels_api::views::Mode::Plan);
         let mode = o.cap.map_or(asked, |c| asked.min(c)).min(wisp_channels_api::views::Mode::Edits);
-        let mut a = json!({ "prompt": p.prompt, "mode": mode_str(Some(mode)), "by": format!("channel:{}", o.channel) });
+        // and the task stays there: every turn of it, whatever a later message or agent asks (F-chan-10)
+        let cap = channel_cap(o.cap);
+        let mut a =
+            json!({ "prompt": p.prompt, "mode": mode_str(Some(mode)), "cap": mode_str(Some(cap)), "by": format!("channel:{}", o.channel) });
         // a message that names no project runs in the default one (v1 phone.js `p.project || ctx.defaultProject`)
         let project = match &p.project {
             Some(pr) => Some(pr.clone()),
@@ -524,7 +534,8 @@ impl Phone for KPhone {
         Ok(json!({ "id": u.get("id"), "name": u.get("name"), "mime": u.get("mime"), "size": u.get("size") }))
     }
     async fn launch(&self, project: &ProjectView, prompt: &str) -> Result<Option<SessionView>> {
-        let made = self.cmd_json::<rt::Create>(json!({ "prompt": prompt, "cwd": project.path, "mode": "plan" })).await?;
+        let cap = mode_str(Some(channel_cap(None)));
+        let made = self.cmd_json::<rt::Create>(json!({ "prompt": prompt, "cwd": project.path, "mode": "plan", "cap": cap })).await?;
         self.session(made.get("id").and_then(Value::as_str).unwrap_or_default()).await
     }
     async fn act(&self, a: &ActArgs) -> Result<String> {

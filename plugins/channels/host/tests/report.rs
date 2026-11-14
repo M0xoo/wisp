@@ -40,7 +40,7 @@ impl Transport for Fake {
         Ok(())
     }
     fn reports(&self, s: Option<&SessionView>) -> bool {
-        s.is_some_and(|s| s.id == "s1")
+        s.is_some_and(|s| s.id == "s1" || s.id == "s4")
     }
 }
 struct Def(Published);
@@ -67,6 +67,10 @@ impl Plugin for Runtime {
                 json!({ "title": "Run tests", "cwd": "/w/api", "parentId": "s1", "ext": { "wisp.runtime": { "ask": { "id": "a1", "question": "OK?", "permission": { "action": "edit src/a.ts" } } } } }),
             ),
             ("s3", json!({ "title": "Elsewhere", "cwd": "/w/api" })),
+            (
+                "s4",
+                json!({ "title": "Deploy", "cwd": "/w/api", "mode": "edits", "ext": { "wisp.runtime": { "capped": { "mode": "edits" }, "ask": { "id": "a4", "question": "Allow Bash?", "permission": { "action": "Run npm publish" } } } } }),
+            ),
         ]);
         s.command::<r::Get, _, _>(move |_, _, a: r::IdArgs| {
             let mut t = tasks.get(a.id.0.as_str()).cloned().unwrap_or_default();
@@ -201,4 +205,25 @@ async fn a_subagents_approval_is_said_once_in_its_parents_thread() {
     assert!(got[0].1.actions.is_empty(), "nothing to tap: it's approved in wisp");
     ctx.emit(&ctx.root_call(), &asked("OK? (still)"));
     assert_eq!(settle(&out, 2).await.len(), 1, "the same ask isn't said twice");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_capped_channel_task_that_stalls_on_a_permission_says_in_its_thread_it_waits_on_you() {
+    let out = Published::default();
+    let k = kernel(&out).await;
+    let ctx = k.ctx("wisp.runtime").unwrap();
+    // its Edits cap can't run `npm publish` without an OK, and this channel can't give one: it says it waits in wisp
+    let asked = TaskAsked(TaskFact {
+        session_id: SessionId::from("s4"),
+        title: "Deploy".into(),
+        cwd: "/w/api".into(),
+        status: "asked".into(),
+        text: "Allow Bash?".into(),
+        ..TaskFact::default()
+    });
+    ctx.emit(&ctx.root_call(), &asked);
+    let got = settle(&out, 1).await;
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!((got[0].0.as_str(), got[0].1.title.as_str()), ("s4", "Waiting for your OK in wisp: Run npm publish"));
+    assert!(got[0].1.actions.is_empty(), "no button: the cap's OK is only given in wisp");
 }
