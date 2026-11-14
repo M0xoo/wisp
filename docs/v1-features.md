@@ -203,10 +203,10 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 | F-goal-1 | 0.42.0 | Given *Done when …*, when a round ends unmet, then wisp sends the task back until the check passes | built | `goal.set`, `goal.check`, goal host; Home and reply box goal line |
 | F-goal-2 | 0.51.0 | Given a running task, when I add a goal from the reply box, then it's checked from the next round | built | `setGoal` in `TaskView.tsx` |
 | F-goal-3 | 0.51.0 | Given a goal, when I add up to five judges (harness, model, thinking), then each votes and the band shows votes | built | `plugins/goal/ui/src/Judges.tsx`, `Band.tsx` |
-| F-goal-4 | Unrel. | Given a judge's vote, when I click it, then its check opens like a task with everything it said | partial | `RunView.tsx`, `Checks.tsx`; full transcript of the judge not verified |
+| F-goal-4 | Unrel. | Given a judge's vote, when I click it, then its check opens like a task with everything it said | built | round 128; the judge page shows the answer, steps once runtime.quick returns them |
 | F-goal-5 | 0.42.0 | Given a goal, when I pause, resume or drop it, then the band follows and the reason stays after quit | built | `goal.pause`/`resume`/`drop` now in the manifest; band controls |
-| F-goal-6 | 0.49.0 | Given Goal in the prompt box, when I send, then the Goal button lights while on and starts off next time | partial | Home goal toggle; reset-after-send not verified |
-| F-goal-7 | 0.43.0 | Given `/goal …` right after a task lands, when sent, then the goal is checked | partial | `goal.set`; `/goal` slash not mounted |
+| F-goal-6 | 0.49.0 | Given Goal in the prompt box, when I send, then the Goal button lights while on and starts off next time | built | round 128 |
+| F-goal-7 | 0.43.0 | Given `/goal …` right after a task lands, when sent, then the goal is checked | built | round 128 |
 | F-goal-8 | v2 | Given a goal, when it asks for judges in a sandbox (or the task runs in one), then its judges run in that sandbox | built | `goal: {…, sandbox: true}` → `sandbox.place {judges}` (one, reused every round) and `runtime.quick` there; a sandboxed task's own goal plugin judges inside it; test `a_goal_may_ask_for_its_judges_in_a_sandbox`; round 18 (2026-11-11). Not seen in Chrome (no UI to ask for it yet: the goal's own setting) |
 
 ## 5. Crew (`CREW`)
@@ -356,15 +356,15 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 
 | ID | v1 | Scenario | v2 | Evidence or gap |
 |---|---|---|---|---|
-| F-conn-1 | 0.42.0 | Given Settings → Connectors, when I add an MCP server once, then every harness's tasks get it | partial | connectors core/host injects servers; manifest lists **0 commands**, UI sends `connectors.add/update/remove/test/signin/signout/import` that no manifest lists |
-| F-conn-2 | 0.42.0 | Given a remote connector (PostHog, Linear), when I click Sign in, then OAuth replaces pasting a token | partial | `wisp_connector_signin` tool; no command |
+| F-conn-1 | 0.42.0 | Given Settings → Connectors, when I add an MCP server once, then every harness's tasks get it | built | round 128 |
+| F-conn-2 | 0.42.0 | Given a remote connector (PostHog, Linear), when I click Sign in, then OAuth replaces pasting a token | built | round 128 |
 | F-conn-3 | 0.42.0 | Given a task, when I ask *add PostHog*, then the agent adds the connector | built | `wisp_connector_add` tool |
 | F-conn-4 | 0.6.0 | Given Claude Code or Codex, when I run `wisp mcp`, then wisp's MCP tools (launch, wait, get, reply, list, stop, agents…) work | built | `plugins/mcp` (`mcp.rpc`, `mcp.tools`), CLI `wisp mcp` |
 | F-conn-5 | 0.6.0 | Given an agent, when I run `wisp skill install --agent claude`, then the wisp skill is installed | built | CLI `skill` in `args.rs` |
 | F-conn-6 | 0.17.0 | Given a task, when I ask *which tools do my tasks use?*, then `wisp_stats` answers | built | `wisp_stats` in mcp core |
 | F-conn-7 | 0.50.0 | Given a task, when I ask *have codex review this*, then the agent drives wisp (launch, delegate) | built | `wisp_launch`, `wisp_delegate` tools |
-| F-conn-8 | Unrel. | Given Plan mode in Claude Code, when the agent asks or tags, then wisp's tools still work | partial | not verified |
-| F-conn-9 | 0.25.0 | Given Codex in Edits or Plan, when it calls wisp's tools, then they aren't refused | partial | codex host flags; not verified |
+| F-conn-8 | Unrel. | Given Plan mode in Claude Code, when the agent asks or tags, then wisp's tools still work | built | round 128 |
+| F-conn-9 | 0.25.0 | Given Codex in Edits or Plan, when it calls wisp's tools, then they aren't refused | built | round 128 |
 
 ## 14. Agents, accounts, usage (`ACCT`)
 
