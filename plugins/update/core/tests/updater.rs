@@ -155,7 +155,7 @@ fn relaunch_keeps_the_port_wisp_is_serving_on() {
 #[test]
 fn homebrew_upgrades_through_brew_and_relaunches_from_opt() {
     let u = Updater::new(detect(KEG_BIN, &mac(), None, false, None), mac(), CURRENT, 5123, Env::default());
-    assert_eq!(u.command().as_deref(), Some("\"/opt/homebrew/bin/brew\" upgrade m0xoo/tap/wisp-agents"));
+    assert_eq!(u.command().as_deref(), Some("\"/opt/homebrew/bin/brew\" upgrade wisp-agents"));
     assert!(
         u.relaunch_command(false).ends_with(
             "\"/opt/homebrew/opt/wisp-agents/libexec/lib/node_modules/wisp-agents/bin/wisp.js\" --browser --no-open --port 5123"
@@ -171,7 +171,7 @@ fn install_runs_the_command_and_refuses_to_relaunch_the_same_version() {
     assert_eq!(
         step,
         Ok(InstallStep::Run {
-            cmd: "\"/opt/homebrew/bin/brew\" upgrade m0xoo/tap/wisp-agents".into(),
+            cmd: "\"/opt/homebrew/bin/brew\" upgrade wisp-agents".into(),
             env: vec![("HOMEBREW_NO_INSTALL_CLEANUP".into(), "1".into())]
         })
     );
@@ -310,10 +310,42 @@ fn an_installed_update_relaunches_wisp_through_a_detached_waiter() {
     let _ = check(&mut u, "stable", &json!({ "latest": "9.0.0" }));
     assert_eq!(u.hand_off(4242), None, "nothing installed yet: no relaunch");
     u.install_done();
-    let argv = u.hand_off(4242).expect("a relaunch");
-    assert_eq!(argv[0], "-c");
-    let script = &argv[1];
+    let h = u.hand_off(4242).expect("a relaunch");
+    assert_eq!((h.bin, h.args[0].as_str()), ("sh", "-c"));
+    let script = &h.args[1];
     assert!(script.contains("kill -TERM 4242"), "{script}");
     assert!(script.contains("kill -0 4242"), "it waits for this wisp to be gone: {script}");
     assert!(script.ends_with(&u.relaunch_command(false)), "then starts the new one, keeping the tab: {script}");
+}
+
+/// v1 relaunched on Windows too (its node waiter); v2 said "restart wisp yourself" there. Now a detached PowerShell
+/// waiter ends this wisp, waits until it's gone and starts the new one on the same port through `cmd /S /C`, the
+/// script passed encoded so no quote in a path (`C:\Users\O'Brien`) breaks it.
+#[test]
+fn an_installed_update_relaunches_wisp_on_windows_through_powershell() {
+    let win = Platform::new("win32", "x64");
+    let root = "C:\\Users\\O'Brien\\AppData\\Roaming\\npm\\node_modules\\wisp-agents";
+    let exe = format!("{root}\\node_modules\\@wisp\\core-win32-x64\\bin\\wisp.exe");
+    let mut u = Updater::new(detect(&exe, &win, None, false, None), win, CURRENT, 4477, Env::default());
+    assert_eq!(u.method(), Method::Global);
+    let _ = check(&mut u, "stable", &json!({ "latest": "9.0.0" }));
+    assert_eq!(u.hand_off(7), None, "nothing installed yet: no relaunch");
+    u.install_done();
+    let h = u.hand_off(7).expect("a relaunch on Windows");
+    assert_eq!(h.bin, "powershell");
+    assert_eq!(h.args[..5], ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"]);
+    assert_eq!(h.args[5], wisp_update_core::encode_ps(&h.script), "the script travels encoded");
+    assert!(h.script.contains("Stop-Process -Id 7"), "{}", h.script);
+    assert!(h.script.contains("Wait-Process -Id 7 -Timeout 30"), "it waits for this wisp to be gone: {}", h.script);
+    let cmd = u.relaunch_command(false);
+    assert!(cmd.ends_with("--browser --no-open --port 4477"), "same port, the tab kept: {cmd}");
+    let quoted = format!("/S /C \"{cmd}\"").replace('\'', "''");
+    assert!(h.script.ends_with(&format!("-ArgumentList '{quoted}' -WindowStyle Hidden")), "{}", h.script);
+    assert!(h.script.contains("O''Brien"), "a quote in the path is doubled in PowerShell's string: {}", h.script);
+}
+
+#[test]
+fn powershell_encoded_command_is_utf16le_base64() {
+    // what `[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes('dir'))` prints
+    assert_eq!(wisp_update_core::encode_ps("dir"), "ZABpAHIA");
 }

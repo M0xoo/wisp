@@ -8,7 +8,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::channel::Channel;
-use crate::install::{DOWNLOADS, Install, Method, PKG, Platform, REGISTRY, RELEASES, TAP, asset_name};
+use crate::install::{DOWNLOADS, FORMULA, Install, Method, PKG, Platform, REGISTRY, RELEASES, asset_name};
 use crate::version::{find_version, newer, newest};
 
 pub const DAY_MS: i64 = 24 * 3600 * 1000;
@@ -192,7 +192,7 @@ impl Updater {
     /// What installs the latest version; shown to copy if it fails. A clone has none.
     pub fn command(&self) -> Option<String> {
         match self.method() {
-            Method::Brew => Some(format!("{} upgrade {TAP}", json_quote(&self.platform.join(self.brew(), &["bin", "brew"])))),
+            Method::Brew => Some(format!("{} upgrade {FORMULA}", json_quote(&self.platform.join(self.brew(), &["bin", "brew"])))),
             Method::App => Some(self.release.clone().unwrap_or_else(|| DOWNLOADS.to_owned())),
             Method::Global => Some(format!("npm install -g {PKG}@{}", self.tag)),
             Method::Npx => Some(format!("npx -y {PKG}@{}", self.tag)),
@@ -327,20 +327,32 @@ impl Updater {
         self.status = Status::Restarting;
     }
 
-    /// The detached waiter that relaunches wisp (v1 update.js `handOff`): it stops this wisp (`pid`) with
-    /// SIGTERM, so it lets go cleanly, waits until it's gone (≤ 30 s), then runs [`Self::relaunch_command`].
-    /// The desktop app is reopened, a browser tab kept. `None` on Windows (no `sh`; the user restarts it) or when
-    /// there's nothing to relaunch.
-    pub fn hand_off(&self, pid: u32) -> Option<Vec<String>> {
+    /// The detached waiter that relaunches wisp (v1 update.js `handOff`): it stops this wisp (`pid`), waits until
+    /// it's gone (≤ 30 s), then runs [`Self::relaunch_command`]. The desktop app is reopened, a browser tab kept.
+    /// Unix: `sh` sends SIGTERM, wisp's clean stop. Windows (v1 relaunched there too; v2 left it to the user until
+    /// 2026-11-14): `PowerShell` ends the process (Windows has no SIGTERM for a console-less server; its children go
+    /// with their Job Objects) and starts the command through `cmd /S /C`. `None` when there's nothing to relaunch.
+    pub fn hand_off(&self, pid: u32) -> Option<HandOff> {
         let cmd = self.relaunch_command(self.env.desktop.is_some());
-        if self.platform.windows() || cmd.is_empty() || self.status != Status::Restarting {
+        if cmd.is_empty() || self.status != Status::Restarting {
             return None;
+        }
+        if self.platform.windows() {
+            // -EncodedCommand: no quoting of the script through cmd.exe or PowerShell's own command line
+            let quoted = format!("/S /C \"{cmd}\"").replace('\'', "''");
+            let script = format!(
+                "Start-Sleep -Seconds 1; Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue; \
+                 Wait-Process -Id {pid} -Timeout 30 -ErrorAction SilentlyContinue; \
+                 Start-Process -FilePath cmd.exe -ArgumentList '{quoted}' -WindowStyle Hidden"
+            );
+            let args = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"].map(str::to_owned);
+            return Some(HandOff { bin: "powershell", args: args.into_iter().chain([encode_ps(&script)]).collect(), script });
         }
         // let the answer reach the page first, then stop and wait for the port to be free
         let script = format!(
             "sleep 1; kill -TERM {pid} 2>/dev/null; for i in $(seq 300); do kill -0 {pid} 2>/dev/null || break; sleep 0.1; done; {cmd}"
         );
-        Some(vec!["-c".to_owned(), script])
+        Some(HandOff { bin: "sh", args: vec!["-c".to_owned(), script.clone()], script })
     }
 
     /// "Download it from …": the tail of every app update failure.
@@ -381,6 +393,22 @@ impl Updater {
     fn shell_gone(&self) -> String {
         format!("for i in $(seq 100); do kill -0 {} 2>/dev/null || break; sleep 0.1; done; ", self.env.ppid)
     }
+}
+
+/// How [`Updater::hand_off`] starts its waiter: `bin` with `args`, detached. `script` is what it runs, readable
+/// (`args` carries it encoded on Windows).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HandOff {
+    pub bin: &'static str,
+    pub args: Vec<String>,
+    pub script: String,
+}
+
+/// `PowerShell`'s `-EncodedCommand`: the script as UTF-16LE, in base64.
+pub fn encode_ps(script: &str) -> String {
+    use base64::Engine as _;
+    let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
 /// The rolling nightly release is tagged `nightly`; its title carries the version ("wisp 0.38.0-nightly.…").

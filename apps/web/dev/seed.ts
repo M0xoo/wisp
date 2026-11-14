@@ -587,6 +587,9 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
   topics.set('plugin:wisp.machine:load', LOAD_ROWS);
   topics.set('plugin:wisp.router:view', ROUTER_ROWS);
   topics.set('plugin:wisp.telemetry:state', [{ e: 'telemetry.state', id: 'this', v: { on: false, setting: true, blocked: true } }]);
+  // MOCK_UPDATE=2.1.0: a newer wisp is out (the top bar's Update pill, Settings → Updates); no release feed is read
+  const latest = typeof process === 'undefined' ? undefined : process.env['MOCK_UPDATE'];
+  if (latest) topics.set('plugin:wisp.update:state', [{ e: 'update.state', id: 'update', v: { current: '2.0.0', latest, available: true, method: 'global', channel: 'stable', status: 'idle', error: null, enabled: true, command: 'npm install -g wisp-agents@latest', checked_at: o.now, checking: false, running: 1 } }]);
   topics.set(
     'crew',
     CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c.id === 'crew:ada' ? { ...c, ...ADA_KIT, offers: ADA_KIT.offers.map((x) => ({ ...x, job: `${o.peer}:s0000`, at: o.now - 2 * MIN })) } : c })),

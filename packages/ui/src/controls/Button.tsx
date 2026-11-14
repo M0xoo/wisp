@@ -7,8 +7,9 @@ import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 
 /** chip: v1's .chip-tog, a small bordered choice (Settings → Connectors' examples). link: v1's `button.link`, an
- * action in running text (Settings → Plugins' Turn every plugin off) */
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'chip' | 'link';
+ * action in running text (Settings → Plugins' Turn every plugin off). accent: v1's .update-btn, the accent's tint
+ * that fills on hover, for the one thing in a bar that asks to be done (Update to …). Additive (2026-11-14). */
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'chip' | 'link' | 'accent';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 interface ButtonBase extends KitProps, Labelled {

@@ -48,6 +48,7 @@ export {
   type ReplyBoxProps,
   type TaskAction,
   type TaskDetailsProps,
+  type TaskPlaceChip,
   type TaskHeadProps,
   type TrailItem,
   type TurnViewProps,

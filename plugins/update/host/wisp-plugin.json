@@ -8,7 +8,7 @@
   "server": {
     "builtin": "wisp-update"
   },
-  "permissions": ["telemetry:track", "runtime:list", "net:connect{host:registry.npmjs.org}", "net:connect{host:api.github.com}", "proc:exec{bin:sh}", "proc:exec{bin:cmd}", "store:write{owner:update}", "settings:read"],
+  "permissions": ["telemetry:track", "runtime:list", "net:connect{host:registry.npmjs.org}", "net:connect{host:api.github.com}", "proc:exec{bin:sh}", "proc:exec{bin:cmd}", "proc:exec{bin:powershell}", "store:write{owner:update}", "settings:read"],
   "activation": [
     "onStartup"
   ],

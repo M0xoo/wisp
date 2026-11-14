@@ -36,5 +36,10 @@
   "update.confirm.body.other": "{count} running tasks will be stopped.",
   "update.confirm.ok": "Update and restart",
   "update.cancel": "Cancel",
-  "update.locked": "Set by the plugin {by}"
+  "update.locked": "Set by the plugin {by}",
+  "update.pill": "Update to {latest}",
+  "update.pill.title": "wisp {current} → {latest}: install and restart",
+  "update.pill.bar": "Update wisp",
+  "update.notBack": "wisp didn’t come back. Start it again from your terminal.",
+  "update.notBack.app": "wisp didn’t come back. Open it again."
 }

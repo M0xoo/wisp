@@ -109,7 +109,7 @@ function Failed(props: { readonly client: PluginClient; readonly row: Row }): JS
   );
 }
 
-function Confirm(props: { readonly open: boolean; readonly row: Row; readonly onClose: () => void; readonly onConfirm: () => void }): JSX.Element {
+export function Confirm(props: { readonly open: boolean; readonly row: Row; readonly onClose: () => void; readonly onConfirm: () => void }): JSX.Element {
   return (
     <Dialog
       part="settings.update.confirm"

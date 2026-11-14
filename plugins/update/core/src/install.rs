@@ -5,12 +5,14 @@
 //! there.
 //!   global  npm install -g wisp-agents@<tag> (also what install.sh does)
 //!   npx     nothing to install: relaunch through `npx -y wisp-agents@<tag>`
-//!   brew    brew upgrade m0xoo/tap/wisp-agents, then rerun it from the keg's opt/ link
+//!   brew    brew upgrade wisp-agents (from whichever tap it came from), then rerun it from the keg's opt/ link
 //!   app     the desktop app from GitHub Releases (`wisp.app`, the Windows installer, the `AppImage`)
 //!   git     a build of a clone (working on wisp itself): never offers an update
 
 pub const PKG: &str = "wisp-agents";
-pub const TAP: &str = "m0xoo/tap/wisp-agents";
+/// The formula, by its bare name: brew upgrades it from the tap it came from (`m0xoo/tap` before the repo moved,
+/// `wispagents/tap` since), as v1 did. v2 named `m0xoo/tap`, which an install from `wispagents/tap` lacks.
+pub const FORMULA: &str = "wisp-agents";
 pub const RELEASES: &str = "https://api.github.com/repos/WispAgents/wisp/releases";
 pub const DOWNLOADS: &str = "https://github.com/WispAgents/wisp/releases/latest";
 pub const REGISTRY: &str = "https://registry.npmjs.org/-/package/wisp-agents/dist-tags";

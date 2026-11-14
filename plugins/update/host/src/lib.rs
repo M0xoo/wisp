@@ -205,13 +205,13 @@ async fn shell(ctx: &Ctx, cmd: &str, env: &[(String, String)]) -> std::result::R
     Ok(())
 }
 
-/// Hands off to the detached waiter that stops this wisp and starts the new one (`Updater::hand_off`), through
-/// the proc service. False: it can't here (Windows, the desktop app's own swap), and the user restarts it.
+/// Hands off to the detached waiter that stops this wisp and starts the new one (`Updater::hand_off`: `sh` on Unix,
+/// `PowerShell` on Windows), through the proc service. False: it couldn't start, and the user restarts it.
 fn relaunch(ctx: &Ctx, st: &St) -> bool {
-    let Some(args) = lock(&st.up).hand_off(std::process::id()) else { return false };
+    let Some(h) = lock(&st.up).hand_off(std::process::id()) else { return false };
     let Ok(proc) = ctx.service::<wisp_proc::Proc>() else { return false };
     // Err: the user restarts it by hand, as `next` says
-    proc.spawn_detached("sh", &args, wisp_proc::SpawnOpts { no_stdin: true, ..wisp_proc::SpawnOpts::default() }).is_ok()
+    proc.spawn_detached(h.bin, &h.args, wisp_proc::SpawnOpts { no_stdin: true, ..wisp_proc::SpawnOpts::default() }).is_ok()
 }
 
 async fn install(ctx: &Ctx, st: &St) -> Result<Value> {
@@ -297,6 +297,9 @@ impl Plugin for UpdatePlugin {
             let clock = ctx.clock()?;
             let c2 = ctx.clone();
             ctx.spawn(async move {
+                // the stored row is the last run's (after an update: `restarting`, the old version): this one's now,
+                // so an open page sees the new version at once and reloads onto it
+                publish(&c2, &st).await;
                 clock.sleep(up::FIRST_CHECK_MS).await;
                 loop {
                     if lock(&st.up).due(clock.now_ms()) {

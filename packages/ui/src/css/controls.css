@@ -242,6 +242,25 @@
       background: transparent;
     }
   }
+  /* v1 .update-btn: 30px, 0 10px, 6px gap, the accent's tint and ink; filled with the accent on hover */
+  [data-kit='button'][data-variant='accent'] {
+    gap: var(--space-3);
+    border-width: 0;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  [data-kit='button'][data-variant='accent'][data-size] {
+    padding: var(--space-0) var(--space-5);
+  }
+  [data-kit='button'][data-variant='accent']:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  /* v1 .update-btn.busy: no fill on hover while it works (the ring shows it) */
+  [data-kit='button'][data-variant='accent'][data-loading]:hover {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
   /* v1 .chip-tog: a small bordered choice, muted until hovered */
   [data-kit='button'][data-variant='chip'] {
     height: auto;
