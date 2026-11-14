@@ -51,6 +51,15 @@ pub struct BeforeRunCtx {
     /// you said yes to going past Ask near the limit's line (the follow-up's `confirmLimit`). Additive (2026-11-11).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub confirm_limit: bool,
+    /// runs of one launch starting at once on this account, this one included (Try it two ways' run A: 2), so Ask
+    /// near the limit sums them as v1's `together` did; 0 or 1: this run alone. Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "is_alone")]
+    pub together: u32,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if takes a reference
+fn is_alone(n: &u32) -> bool {
+    *n <= 1
 }
 
 #[derive(Debug)]

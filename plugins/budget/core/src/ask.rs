@@ -92,6 +92,13 @@ pub fn units(runs: &[Run], kind: Kind, mine: &[f64]) -> Option<[f64; 3]> {
     Some(base.map_or([m, m, m], |b| [b[0], b[1].max(m), b[2].max(m)]))
 }
 
+/// A launch's runs starting at once on one account are asked about as one (v1 guard.js `together`): the estimate
+/// for `n` of them (Try it two ways' pair: 2). 0 or 1 is this run alone; runs already going are added apart.
+pub fn together(units: Option<[f64; 3]>, n: u32) -> Option<[f64; 3]> {
+    let n = f64::from(n.max(1));
+    units.map(|u| u.map(|x| x * n))
+}
+
 /// Share of the window per unit: the learned rate, never more than the window's whole use over the units wisp ran
 /// in it (that puts all of the window on wisp).
 pub fn rate(learned: Option<f64>, w: &WindowNow, runs: &[Run], account: &str) -> Option<f64> {
@@ -212,6 +219,19 @@ pub fn windows(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// v1 guard.js `together`: a trial's two runs on one account cross a line one run alone stays under.
+    #[test]
+    fn runs_starting_together_on_one_account_are_summed_so_a_trial_asks_where_one_run_would_not_v1_together() {
+        let list = [WindowNow { id: "5h".into(), label: "5-hour".into(), used: 0.75, resets_at: None, ms: None }];
+        let one = Some([0.1, 0.1, 0.1]);
+        let wins = |u| windows(&list, Some(0.9), u, 0.0, &|_| Some(1.0), &|_| 0.0);
+        assert!(hold_for(&wins(together(one, 1))).is_none(), "one run: 85%, under the line");
+        assert!(hold_for(&wins(together(one, 0))).is_none(), "0 is one run");
+        let h = hold_for(&wins(together(one, 2))).unwrap();
+        assert!((h.to[0] - 0.95).abs() < 1e-9, "both runs: 95%, past 90%: {h:?}");
+        assert_eq!(together(None, 2), None, "nothing learned yet: nothing to sum");
+    }
 
     fn run(units: f64, first: bool) -> Run {
         Run { at: 0, account: "default".into(), session: "t".into(), units, first, inner: false }

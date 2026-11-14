@@ -119,6 +119,8 @@ pub struct Recorder {
     pub asked: Mutex<Vec<(String, serde_json::Value)>>,
     /// where an answer's pictures are kept (`~/.wisp/shots`); none: not copied
     pub shots: Option<std::path::PathBuf>,
+    /// every `before:run` it was asked, in order
+    pub ran: Mutex<Vec<BeforeRunCtx>>,
 }
 
 impl std::fmt::Debug for Recorder {
@@ -155,6 +157,7 @@ impl Host for Recorder {
         self.events.lock().unwrap_or_else(PoisonError::into_inner).push(e);
     }
     fn before_run(&self, mut c: BeforeRunCtx) -> BoxFuture<'static, Result<BeforeRunCtx, WireError>> {
+        self.ran.lock().unwrap_or_else(PoisonError::into_inner).push(c.clone());
         if let Some(m) = &self.veto {
             let e = WireError::new(wisp_kernel::Code::Vetoed, m.clone());
             return Box::pin(async move { Err(e) });

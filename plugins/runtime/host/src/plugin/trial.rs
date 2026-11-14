@@ -31,21 +31,43 @@ async fn pair(ctx: &Ctx, call: &Call, slot: &Slot, a: TrialArgs) -> WireResult<T
         let link = TrialLink { group: group.clone(), run: u8::from(i > 0), differs: p.differs.clone(), ..TrialLink::default() };
         crate::trial::link(&mut start, &link);
         match ctx.run::<c::Create>(call, start).await {
-            Ok(m) => made.push(m),
+            Ok(m) => {
+                let id = m.id.clone();
+                made.push(m);
+                // a run that didn't start (Ask near the limit asked for both on A, a hook refused it, the budget held
+                // it): the pair is refused as one, as v1's 409, never one run alone; the words are the refusal's own
+                // (Ask near the limit's say how to go ahead: confirmLimit, the CLI's --yes)
+                if let Some(why) = rt.first_turn_not_started(id.as_str()).await.map_err(WireError::from)? {
+                    drop_runs(&rt, &made).await;
+                    return Err(WireError::conflict(why));
+                }
+            }
             Err(err) => {
                 // run B refused (a hook, a cap) once run A started: A stops and is archived, so no lone run of a
                 // pair goes on billing as if it were one
-                for m in &made {
-                    let _ = rt.stop(m.id.as_str(), true).await;
-                    let _ = rt.archive(m.id.as_str(), true).await;
-                }
+                drop_runs(&rt, &made).await;
                 return Err(err);
             }
         }
     }
     let ids: Vec<_> = made.iter().map(|m| m.id.clone()).collect();
     rt.trial_runs(&ids).await.map_err(WireError::from)?;
+    // a count with nothing in it (v1 `try_two_ways`): only a pair that started, never a refusal; telemetry's own
+    // switch and environment (DO_NOT_TRACK, CI) decide whether it leaves
+    super::track(ctx, "try_two_ways", serde_json::json!({})).await;
     Ok(TrialStarted { group, runs: made, differs: p.differs })
+}
+
+/// The runs of a pair that won't go: stopped and archived (a failure is logged; the refusal stands either way).
+async fn drop_runs(rt: &std::sync::Arc<crate::Runtime>, made: &[c::Created]) {
+    for m in made {
+        if let Err(err) = rt.stop(m.id.as_str(), true).await {
+            tracing::warn!(error = %err, id = m.id.as_str(), "runtime.trial: stop");
+        }
+        if let Err(err) = rt.archive(m.id.as_str(), true).await {
+            tracing::warn!(error = %err, id = m.id.as_str(), "runtime.trial: archive");
+        }
+    }
 }
 
 /// The folder is in a git checkout (a `.git` in it or above it).

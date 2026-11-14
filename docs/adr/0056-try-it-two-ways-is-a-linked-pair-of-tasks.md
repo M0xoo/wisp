@@ -41,7 +41,18 @@ and nothing linked two runs as one trial. Claude Code is today's only harness th
 6. **Reach (ADR-0040).** Both commands are MCP tools (generated from the catalogue) and reachable by `user:full`,
    agents and API keys through `runtime:*`; a pane is refused `runtime:trial` like `runtime:create`. In wisp: the run
    added with **+** on the lead's harness offers *Subagents* and *Skills* in its menu; Compare shows what differed under
-   the ask and each run's change in its column; each row's run line leads with its change.
+   the ask and each run's change in its column; each row's run line leads with its change. From the CLI (v1 `--try`):
+   `wisp "<task>" --agent claude --try subagents=haiku|sonnet|task --try skills=off` is a typed `runtime.trial` call,
+   its flag problems (no `--agent`, `--compare`, Plan, `--no-worktree`) said before anything starts.
+7. **Ask near the limit asks for both runs (v1 `together`).** `BeforeRunCtx.together` (additive, omitted when 1) is
+   2 on run A's first turn; budget multiplies the run's estimate by it (`ask::together`). Run B then finds A running
+   (counted at half, as any run going on the account), and follow-ups are one run. If either run's first turn didn't
+   start (refused by a hook, the ask's veto included, or held by wisp.budget), the trial is refused as one (409 with
+   the refusal's words; the ask's say: send it again with `confirmLimit`, the CLI's `--yes`): the runs made are stopped
+   and archived and no other starts. A hold another plugin puts on a run (a failed project setup) stays, with its
+   row's Start now.
+8. **Telemetry (v1 `try_two_ways`).** A trial that started sends one catalogue `try_two_ways` with no properties through
+   `telemetry.track`; a refused one sends none, and the telemetry plugin's switch and environment decide as for any event.
 
 ## Edge cases (each with its test)
 
@@ -57,6 +68,12 @@ and nothing linked two runs as one trial. Claude Code is today's only harness th
 | Keep stops the other run still working | `tests/trial.rs` `keep_stops_the_other_run_still_working_so_it_stops_billing_out_of_sight` |
 | Both rows carry the link and B its variant | `group::tests::both_runs_of_a_trial_carry_the_link_and_their_variant_on_the_row_v1_try_two_ways` |
 | End to end: two worktrees, `--disable-slash-commands`, subagent env, list rows, Keep, refusals (folder outside git included) | `crates/wisp/tests/serve_trial.rs` |
+| `--try` parses v1's forms; its flag problems are said before anything starts; the call is the launch plus `vary` | `crates/wisp/src/trial_cli.rs` `try_names_what_run_b_changes_…_v1_try_runs`, `try_is_refused_before_anything_starts_…_v1_try_problem`, `the_trial_call_is_the_launch_as_run_a_…` |
+| Two runs together cross a line one run stays under | `wisp-budget-core` `ask::tests::runs_starting_together_on_one_account_are_summed_…_v1_together` |
+| Run A's start asks for 2; B, follow-ups and plain tasks for 1 | `tests/trial.rs` `a_trials_run_a_asks_near_the_limit_for_both_runs_and_b_and_follow_ups_for_one_v1_together` |
+| A run refused or budget-held reads back as not started (no lone run of a pair); another plugin's hold doesn't | `tests/trial.rs` `a_run_refused_or_budget_held_before_it_ran_is_read_back_as_not_started_…_v1_together` |
+| End to end: one run at 75% goes, the pair is refused (nothing ran, A archived), the yes runs both | `crates/wisp/tests/serve_budget.rs` `a_trial_asks_near_the_limit_for_both_runs_where_one_run_alone_would_go_v1_together` |
+| One empty `try_two_ways` per started trial, none on a refusal or with stats off | `crates/wisp/tests/serve_telemetry.rs` `a_trial_counts_one_try_two_ways_with_nothing_in_it_…` |
 | The UI: the menu, the trial the launch sends, words, run order, optimistic rows and Keep | `packages/shell/test/trial.test.ts`, `plugins/shell-list/ui/test/run-line.test.ts` `a_trial_runs_line_…` |
 
 ## Consequences
@@ -65,5 +82,5 @@ and nothing linked two runs as one trial. Claude Code is today's only harness th
   `HarnessRun.subagent_model` / `skills`; nothing else changes.
 - The two runs are written by two `runtime.create` transactions plus one link edit each, not one transaction: a crash
   between them leaves run A with a link whose `runs` is empty (Keep still works on it alone).
-- Not ported: v1's CLI `--try`, the Ask-near-the-limit sum of a launch's runs (`together`), and the `try_two_ways`
-  telemetry count; each is its own job.
+- `together` is set only for a trial's pair; a `--compare` launch's runs are separate `runtime.create` calls and are
+  still asked about one at a time.

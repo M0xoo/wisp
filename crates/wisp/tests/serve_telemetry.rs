@@ -109,3 +109,67 @@ async fn a_run_reaches_posthog_and_opting_out_sends_nothing() {
     assert_eq!(events(&got).len(), before, "nothing after opting out");
     drop(serve);
 }
+
+fn git(dir: &std::path::Path, args: &[&str]) {
+    let o = std::process::Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
+}
+
+/// v1's `try_two_ways` count (services/launch.js, test/try-two-ways.test.js "telemetry"): one event with no
+/// properties of its own per trial that started (no prompt, path or agent leaves), none for a refused trial, and
+/// nothing once stats are off.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_trial_counts_one_try_two_ways_with_nothing_in_it_never_on_a_refusal_or_with_stats_off() {
+    let (ph, got) = fake_posthog();
+    let dir = temp("serve-telemetry-trial");
+    let repo = std::fs::canonicalize(dir.join("proj")).unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-qm", "init"]);
+    let host = format!("http://127.0.0.1:{ph}");
+    let (serve, port) = start_with(
+        &dir,
+        &[
+            ("WISP_POSTHOG_HOST", host.as_str()),
+            ("WISP_POSTHOG_KEY", "phc_test"),
+            ("CI", ""),
+            ("DO_NOT_TRACK", ""),
+            ("WISP_TELEMETRY", "1"),
+        ],
+    );
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let counts = |got: &Mutex<Vec<(String, Value)>>| events(got).into_iter().filter(|e| e["event"] == "try_two_ways").collect::<Vec<_>>();
+    let flushed = || async {
+        api.cmd("telemetry.flush", Value::Null).await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    };
+    let task = json!({ "prompt": "fix the secret thing", "cwd": repo, "agent": "claude", "mode": "auto" });
+    // refused before anything runs: no count
+    let no = api.try_cmd("runtime.trial", json!({ "task": task, "vary": { "skills": "on" } })).await;
+    assert!(no["error"].is_object(), "{no}");
+    let made = api.cmd("runtime.trial", json!({ "task": task, "vary": { "skills": "off" } })).await;
+    assert_eq!(made["runs"].as_array().map(Vec::len), Some(2), "{made}");
+    let at = Instant::now();
+    while counts(&got).is_empty() && at.elapsed() < Duration::from_secs(10) {
+        flushed().await;
+    }
+    let seen = counts(&got);
+    assert_eq!(seen.len(), 1, "one count per trial: {seen:?}");
+    let text = seen[0].to_string();
+    assert!(!text.contains("secret") && !text.contains(repo.to_str().unwrap()) && seen[0]["properties"].get("agent").is_none(), "{text}");
+    // stats off: a trial sends nothing more
+    api.cmd("telemetry.set", json!({ "on": false })).await;
+    let again = api.cmd("runtime.trial", json!({ "task": task, "vary": { "skills": "off" } })).await;
+    assert_eq!(again["runs"].as_array().map(Vec::len), Some(2), "{again}");
+    flushed().await;
+    assert_eq!(counts(&got).len(), 1, "nothing after opting out");
+    drop(serve);
+}

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde_json::{Map, Value, json};
 use wisp_runtime_api::SessionId;
 use wisp_runtime_api::commands::{SKILLS, SUBAGENT_MODEL, SUBAGENT_MODELS, StartArgs, TrialArgs, TrialDiff, TrialLink, Variant};
-use wisp_runtime_api::model::{Mode, Session};
+use wisp_runtime_api::model::{Mode, Session, Turn, TurnStatus};
 
 use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
@@ -50,6 +50,16 @@ pub fn variant_of(s: &Session) -> Variant {
 /// The trial link a run carries (`ext["wisp.runtime"].trial`), if it is one.
 pub fn trial_of(s: &Session) -> Option<TrialLink> {
     s.ext.get(OWN).and_then(|o| o.get("trial")).and_then(|t| serde_json::from_value(t.clone()).ok())
+}
+
+/// How many runs Ask near the limit counts this turn's start as (`BeforeRunCtx::together`): a trial's run A
+/// starts its pair, so its first turn asks for both at once (v1 `together`); run B then finds A already running
+/// (counted at half, as any run going on the account), and a follow-up is its run alone.
+pub fn together(s: &Session, idx: u32) -> u32 {
+    match trial_of(s) {
+        Some(t) if idx == 0 && t.run == 0 => 2,
+        _ => 1,
+    }
 }
 
 /// What a run's subagents really run on: its own pick ('' is the task's model), else the setting.
@@ -134,7 +144,34 @@ fn put_trial(s: &mut Session, t: &TrialLink) {
     }
 }
 
+/// Why a run's first turn didn't start, or None when it runs, ran, or waits for something its own row offers (a
+/// failed project setup: Start now). Not started: refused before it ran (a hook's veto, Ask near the limit's
+/// included) or held by the budget (Ask near the limit or a stop line). A trial whose run didn't start keeps no
+/// lone other run: one run of a pair would bill as if it were one.
+pub fn not_started(t: &Turn) -> Option<String> {
+    let hero = || t.presentation.as_ref().and_then(|p| p.blocks.first());
+    match t.status {
+        TurnStatus::Held => t
+            .held
+            .as_ref()
+            .filter(|h| h.by == BUDGET)
+            .map(|h| h.data.get("why").and_then(Value::as_str).unwrap_or("It waits for its account's usage window.").to_owned()),
+        TurnStatus::Error if hero().and_then(|h| h.get("title")).and_then(Value::as_str) == Some(crate::run::NOT_STARTED) => {
+            Some(hero().and_then(|h| h.get("summary")).and_then(Value::as_str).unwrap_or("It was refused.").to_owned())
+        }
+        _ => None,
+    }
+}
+
+/// The plugin whose holds keep a trial's run from starting (Ask near the limit, the stop lines).
+const BUDGET: &str = "wisp.budget";
+
 impl Runtime {
+    /// Why the task's first turn didn't start (`not_started`), read back after its `runtime.create`.
+    pub async fn first_turn_not_started(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.turns(id, None, Some(1)).await?.first().filter(|t| t.idx == 0).and_then(not_started))
+    }
+
     /// A start's variant for `ext["wisp.runtime"].variant`, or why it can't run: a terminal task (its own CLI wouldn't
     /// apply it, a `/terminal …` prompt included) or a harness without it (`HarnessInfo::variants`).
     pub(crate) fn variant_slot(self: &Arc<Self>, a: &StartArgs, agent: &str) -> Result<Option<Value>> {

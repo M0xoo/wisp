@@ -66,7 +66,8 @@ impl State {
         let list = b.windows_now(agent, &account, at);
         let rate = |w: &wisp_budget_api::WindowNow| ask::rate(b.rate(agent, &account, &w.id), w, &runs, &account);
         let acked = |w: &wisp_budget_api::WindowNow| b.acked(agent, &account, &w.id, w.resets_at, at);
-        let wins = ask::windows(&list, Some(line), units, running, &rate, &acked);
+        // a launch's runs starting at once (Try it two ways' pair) are asked about as one: v1 `together`
+        let wins = ask::windows(&list, Some(line), ask::together(units, c.together), running, &rate, &acked);
         drop(b);
         if let Some(u) = units {
             lock(&self.running).insert(c.turn_id.0.clone(), (agent.to_owned(), account.clone(), u[1]));

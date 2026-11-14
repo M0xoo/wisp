@@ -126,3 +126,60 @@ async fn keep_stops_the_other_run_still_working_so_it_stops_billing_out_of_sight
     .await;
     assert!(r.rt.get(ids[0].as_str()).await.unwrap().archived);
 }
+
+/// v1 guard.js `together`: a trial's two runs go at once on one account, so Ask near the limit (`before:run`) hears
+/// run A's start as both; run B finds A already running (counted apart, at half), and a follow-up is one run.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_trials_run_a_asks_near_the_limit_for_both_runs_and_b_and_follow_ups_for_one_v1_together() {
+    let r = rig_on(Recorder::default(), vec![Fake::varies("cc", "Claude-ish")]).await;
+    let t = TrialArgs { task: start("fix it", "cc"), vary: Variant { skills: Some("off".into()), ..Variant::default() } };
+    let p = r.rt.trial_plan(&t).unwrap();
+    let mut ids: Vec<SessionId> = Vec::new();
+    for (i, mut a) in [p.a, p.b].into_iter().enumerate() {
+        a.worktree = None; // no worktrees service in this rig
+        link(&mut a, &TrialLink { group: "g-3".into(), run: u8::from(i > 0), differs: p.differs.clone(), ..TrialLink::default() });
+        ids.push(r.rt.create(a).await.unwrap().id);
+    }
+    for id in &ids {
+        until("it ends", || async { ended(&r, id.as_str()).await }).await;
+    }
+    let plain = r.rt.create(start("other", "cc")).await.unwrap().id;
+    until("it ends", || async { ended(&r, plain.as_str()).await }).await;
+    r.rt.follow_up(FollowUpArgs { id: ids[0].clone(), text: "and the tests".into(), ..FollowUpArgs::default() }).await.unwrap();
+    until("the follow-up", || async { r.host.ran.lock().unwrap().len() == 4 }).await;
+    let ran = r.host.ran.lock().unwrap().clone();
+    let of = |id: &SessionId| ran.iter().filter(|c| &c.session_id == id).map(|c| c.together).collect::<Vec<_>>();
+    assert_eq!(of(&ids[0]), vec![2, 1], "run A's start asks for both; its follow-up for one");
+    assert_eq!(of(&ids[1]), vec![1], "run B: A is already running");
+    assert_eq!(of(&plain), vec![1], "a plain task: itself");
+    assert!(serde_json::to_value(&ran[1]).unwrap().get("together").is_none(), "1 stays off the wire (additive)");
+    until("it ends", || async { ended(&r, ids[0].as_str()).await }).await;
+}
+
+/// A start `before:run` refused (Ask near the limit's veto) or the budget held is read back as not started, so
+/// `runtime.trial` refuses the pair as one instead of keeping one run alone (run A or run B); a hold its own row
+/// offers Start now on (another plugin's), and a run that ran, are not.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_refused_or_budget_held_before_it_ran_is_read_back_as_not_started_so_no_run_of_a_pair_goes_alone_v1_together() {
+    let no = Recorder { veto: Some("5-hour usage window is at 85%: past your 90% line".into()), ..Recorder::default() };
+    let r = rig_on(no, vec![Fake::varies("cc", "Claude-ish")]).await;
+    let id = r.rt.create(start("fix it", "cc")).await.unwrap().id;
+    let why = r.rt.first_turn_not_started(id.as_str()).await.unwrap();
+    assert!(why.as_deref().is_some_and(|w| w.contains("past your 90% line")), "{why:?}");
+    assert!(r.sim.spawned().is_empty(), "nothing ran");
+    let held = rig_on(Recorder { hold: Some("setup".into()), ..Recorder::default() }, vec![Fake::varies("cc", "Claude-ish")]).await;
+    let id = held.rt.create(start("fix it", "cc")).await.unwrap().id;
+    assert_eq!(held.rt.first_turn_not_started(id.as_str()).await.unwrap(), None, "another plugin's hold: its row's Start now");
+    let mut t = wisp_runtime_api::model::Turn { status: TurnStatus::Held, ..Default::default() };
+    t.held = Some(wisp_runtime_api::model::Held {
+        by: "wisp.budget".into(),
+        kind: "ask".into(),
+        until: None,
+        data: json!({ "why": "5-hour usage window is at 85%" }),
+    });
+    assert_eq!(wisp_runtime::trial::not_started(&t).as_deref(), Some("5-hour usage window is at 85%"), "the budget's hold");
+    let ok = rig_on(Recorder::default(), vec![Fake::varies("cc", "Claude-ish")]).await;
+    let id = ok.rt.create(start("fix it", "cc")).await.unwrap().id;
+    until("it ends", || async { ended(&ok, id.as_str()).await }).await;
+    assert_eq!(ok.rt.first_turn_not_started(id.as_str()).await.unwrap(), None, "it ran");
+}

@@ -75,6 +75,9 @@ fn apply_opts(s: &mut Session, item: &QueueItem) {
     }
 }
 
+/// The hero title of a turn `before:run` (or its folder) refused: it never started.
+pub(crate) const NOT_STARTED: &str = "Not started";
+
 fn shown(title: &str, summary: &str, status: &str) -> Presentation {
     let hero = serde_json::json!({ "type": "hero", "title": title, "summary": summary, "status": status });
     Presentation { blocks: vec![hero], v: wisp_runtime_core::blocks::PARSER_VERSION, ..Presentation::default() }
@@ -117,6 +120,7 @@ impl Runtime {
             kind: if idx == 0 { RunKind::First } else { RunKind::FollowUp },
             parent_id: s.parent_id.clone(),
             confirm_limit: item.opts.as_ref().and_then(|o| o.get("confirmLimit")).and_then(serde_json::Value::as_bool).unwrap_or(false),
+            together: crate::trial::together(&s, idx),
         };
         // its folder first (a worktree archiving removed comes back on its branch), before anything reads it
         if let Err(why) = self.folder_ready(&s, Some(&turn.id)).await {
@@ -275,7 +279,7 @@ impl Runtime {
         turn.status = TurnStatus::Error;
         turn.is_error = true;
         turn.ended_at = Some(self.now());
-        turn.presentation = Some(shown("Not started", why, "blocked"));
+        turn.presentation = Some(shown(NOT_STARTED, why, "blocked"));
         s.state = SessionState::Review;
         s.unread = true;
         s.archived = false;

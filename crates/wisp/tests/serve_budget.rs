@@ -10,6 +10,19 @@ use std::sync::Arc;
 use common::*;
 use serde_json::json;
 
+fn git(dir: &std::path::Path, args: &[&str]) {
+    let o = std::process::Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
+}
+
 fn now_ms() -> i64 {
     i64::try_from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()).unwrap()
 }
@@ -138,5 +151,56 @@ async fn where_the_plan_went_and_tokens_per_turn_by_account_come_from_real_runs(
     assert_eq!(accounts.len(), 2, "{c}");
     assert!(accounts.contains(&"default") && accounts.contains(&"w1"), "{c}");
     assert!(c[0]["accounts"].as_array().unwrap().iter().all(|x| x["turns"].as_u64() >= Some(5) && x["output"].as_u64() > Some(0)), "{c}");
+    drop(serve);
+}
+
+/// Ask near the limit for Try it two ways (v1 guard.js `together`, F-comp-31): the two runs go at once on one
+/// account, so they are asked about as one. Three runs teach that a run takes ~10% of the five-hour window; at 75%
+/// one run (→ 85%) goes without asking, but the pair (→ 95%) is past the 90% line: the trial is refused as a whole
+/// (409, nothing ran, run A archived, never run B alone), and the same trial with `confirmLimit` runs both.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_trial_asks_near_the_limit_for_both_runs_where_one_run_alone_would_go_v1_together() {
+    let dir = temp("serve-budget-trial");
+    let repo = std::fs::canonicalize(dir.join("proj")).unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-qm", "init"]);
+    let rec = dir.join("rec");
+    let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap())]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let resets = now_ms() + 3 * 3_600_000;
+    let at = |used: f64| json!({ "agent": "claude", "account": "default", "report": { "windows": [{ "id": "five_hour", "used": used, "resetsAt": resets, "ms": 18_000_000 }], "complete": true } });
+    api.cmd("budget.record", at(0.4)).await;
+    for used in [0.5, 0.6, 0.7] {
+        let (turn, _) = run_task(&api, &dir, "claude").await;
+        assert_eq!(turn["status"], "done", "{turn}");
+        api.cmd("budget.record", at(used)).await;
+    }
+    api.cmd("budget.record", at(0.75)).await;
+    // one run alone: ~85%, under the line, no ask
+    let (turn, _) = run_task(&api, &dir, "claude").await;
+    assert_eq!(turn["status"], "done", "one run goes: {turn}");
+    api.cmd("budget.record", at(0.75)).await;
+    let ran = records(&rec.join("claude.jsonl")).len();
+    let open = |v: serde_json::Value| v.as_array().map_or(0, Vec::len);
+    let (shown, all) = (open(api.cmd("runtime.list", json!({ "archived": false })).await), open(api.cmd("runtime.list", json!({})).await));
+    let task = json!({ "prompt": "fix it", "cwd": repo, "agent": "claude", "mode": "auto" });
+    let no = api.try_cmd("runtime.trial", json!({ "task": task, "vary": { "skills": "off" } })).await;
+    let said = no["error"]["message"].as_str().map_or_else(|| no.to_string(), str::to_owned);
+    assert!(said.contains("past your 90% line") && said.contains("confirmLimit"), "{no}");
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert_eq!(records(&rec.join("claude.jsonl")).len(), ran, "neither run ran");
+    assert_eq!(open(api.cmd("runtime.list", json!({ "archived": false })).await), shown, "run A is archived");
+    assert_eq!(open(api.cmd("runtime.list", json!({})).await), all + 1, "run A was made, run B never was");
+    // you said yes: both go
+    let mut yes = task.clone();
+    yes["confirmLimit"] = json!(true);
+    let made = api.cmd("runtime.trial", json!({ "task": yes, "vary": { "skills": "off" } })).await;
+    let runs: Vec<String> = made["runs"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap().to_owned()).collect();
+    assert_eq!(runs.len(), 2, "{made}");
+    for id in &runs {
+        let t = api.until(id, "its run ends", |t| t.last().is_some_and(ended)).await;
+        assert_eq!(t.last().unwrap()["status"], "done", "{t:?}");
+    }
     drop(serve);
 }
