@@ -1,6 +1,6 @@
 // Bridges @wisp/client's signals (alien-signals) into Solid. The client store stays framework
 // independent; a component reads it through `useSignal(selector)` and re-renders when it changes.
-import { effect } from 'alien-signals';
+import { effect, setActiveSub } from 'alien-signals';
 import { createComputed, createSignal, getOwner, onCleanup, type Accessor } from 'solid-js';
 
 /** Something with a current value that says when it changes. */
@@ -26,12 +26,21 @@ export function useSignal<T>(readable: Readable<T>): Accessor<T> {
   // `() => v`: a function value must not be taken for an updater.
   const [value, setValue] = createSignal<T>(first as T, { equals: Object.is });
   // alien's effect runs once at once, so the accessor holds the current value before first paint.
-  const stop = isSubscribable(readable)
-    ? readable.subscribe((v) => setValue(() => v))
-    : effect(() => {
-        const v = readable();
-        setValue(() => v);
-      });
+  // a component may be made while an alien effect runs (Solid renders at once from another useSignal's setValue):
+  // made inside it, this effect would be that one's child and die on its next run, leaving the accessor stuck. The
+  // Solid owner frees it instead, so it's made on its own.
+  const outer = getOwner() ? setActiveSub(undefined) : undefined;
+  let stop: () => void;
+  try {
+    stop = isSubscribable(readable)
+      ? readable.subscribe((v) => setValue(() => v))
+      : effect(() => {
+          const v = readable();
+          setValue(() => v);
+        });
+  } finally {
+    if (getOwner()) setActiveSub(outer);
+  }
   if (getOwner()) onCleanup(stop);
   // a getter may read Solid signals too (a setting source a form builds over its own draft): follow those as well,
   // or such a value is read once and the control never shows the change
