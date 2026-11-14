@@ -10,6 +10,7 @@
     "builtin": "wisp_crew"
   },
   "permissions": [
+    "budget:read",
     "runtime:create",
     "runtime:get",
     "runtime:profiles",
@@ -17,6 +18,7 @@
     "sandbox:place",
     "sandbox:own",
     "machines:route",
+    "machines:list",
     "machines:sessions",
     "runtime:followUp",
     "runtime:setExt",

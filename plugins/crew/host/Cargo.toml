@@ -16,6 +16,7 @@ tokio.workspace = true
 tracing.workspace = true
 wisp-kernel.workspace = true
 wisp-automations-api.workspace = true
+wisp-budget-api.workspace = true
 wisp-crew-api.workspace = true
 wisp-resources-api.workspace = true
 wisp-crew-core.workspace = true

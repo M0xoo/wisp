@@ -4473,6 +4473,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-automations-api",
+ "wisp-budget-api",
  "wisp-crew-api",
  "wisp-crew-core",
  "wisp-grid-client-api",

@@ -360,6 +360,33 @@ pub struct MemberStats {
     /// the range's length in days, for per-day rates
     #[serde(default)]
     pub days: u32,
+    /// *what ate my limits*: each plan window this period its jobs took a part of, the fullest first; additive
+    /// (2026-11-14)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<MemberLimit>>", optional)]
+    pub limits: Vec<MemberLimit>,
+}
+
+/// A plan window this period (v1 usage.js `crewStats` windows), and the parts of it a member's jobs, the whole crew's
+/// jobs and every task wisp traced took (0..=1 of the window each; a limit doesn't count tokens one for one).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "crew/")]
+pub struct MemberLimit {
+    pub agent: String,
+    pub account: String,
+    pub window: String,
+    pub label: String,
+    /// how much of the window is gone now
+    pub used: f64,
+    #[ts(type = "number")]
+    pub resets_at: i64,
+    /// when this period started
+    #[ts(type = "number | null")]
+    pub since: Option<i64>,
+    pub mine: f64,
+    pub crew: f64,
+    pub traced: f64,
 }
 
 /// One kind of job's runs and tokens over the range.

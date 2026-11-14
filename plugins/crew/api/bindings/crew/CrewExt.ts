@@ -15,4 +15,10 @@ sent?: Array<TaskRef>,
  * what it was asked (a job you or a task gave it; a check-in's own prompt is left out), up to 2000
  * characters: its page shows it over the answer (v1 `session.crew.prompt`). Additive (2026-11-11).
  */
-prompt?: string, };
+prompt?: string, 
+/**
+ * a job away from here (a member on a machine, or in a sandbox): the member's note (identity, brief, notebook,
+ * kit), written here and carried with the job, since the wisp it runs on has no such member (v1 `crewJob.note`).
+ * Additive (2026-11-14).
+ */
+note?: string, };

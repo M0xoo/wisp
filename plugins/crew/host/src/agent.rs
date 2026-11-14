@@ -32,7 +32,13 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
                 };
             }
             let body = c::MemberBody { cwd: Some(project), ..a.member.clone() };
-            let m = match st.normalize(&body, None, now(&ctx), &calls::profile_names(&ctx, &call).await) {
+            let m = match st.normalize(
+                &body,
+                None,
+                now(&ctx),
+                &calls::profile_names(&ctx, &call).await,
+                &calls::machine_ids(&ctx, &call).await,
+            ) {
                 Ok(m) => m,
                 Err(e) => return refuse(e),
             };
@@ -124,7 +130,13 @@ pub(crate) fn register_changes(s: &mut Setup, st: &Arc<State>) {
             if let Some(n) = remembered(body.notebook.as_deref().unwrap_or(&prev.notebook), a.remember.as_deref().unwrap_or_default()) {
                 body.notebook = Some(n);
             }
-            let m = match st.normalize(&body, Some(&prev), now(&ctx), &calls::profile_names(&ctx, &call).await) {
+            let m = match st.normalize(
+                &body,
+                Some(&prev),
+                now(&ctx),
+                &calls::profile_names(&ctx, &call).await,
+                &calls::machine_ids(&ctx, &call).await,
+            ) {
                 Ok(m) => m,
                 Err(e) => return Ok(refused(e.message)),
             };

@@ -8,6 +8,13 @@ import type { EntityOp, PatchOp, Topic } from '@wisp/protocol';
 import { gitChanges, gitCommit, gitRevert, gitStage, type GitCtx } from './mock-git.ts';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh'];
+// crew.stats' limits (F-crew-13): Claude's windows this period, the crew's part of each (each member's `mine` is set
+// where it's used)
+const H = 3_600_000;
+const LIMITS = [
+  { agent: 'claude', account: 'default', window: 'seven_day', label: 'Weekly', used: 0.64, resetsAt: Date.now() + 50 * H, since: Date.now() - 118 * H, crew: 0.3, traced: 0.52 },
+  { agent: 'claude', account: 'default', window: 'five_hour', label: '5-hour', used: 0.92, resetsAt: Date.now() + 2 * H, since: Date.now() - 3 * H, crew: 0.12, traced: 0.6 },
+];
 const MOCK_AGENTS = [
   {
     id: 'claude',
@@ -525,8 +532,8 @@ export const COMMANDS: Record<string, CommandFn> = {
   'crew.stats': (a) => ({
     ops: [],
     result: [
-      { id: 'crew:ada', jobs: 14, done: 12, failed: 1, quiet: 3, before: 9, cost: 4.2, tokens: 84_000, days: Number(obj(a)['days'] ?? 30), byKind: { checkin: { runs: 60, tokens: 60_000, quiet: 3 }, delegated: { runs: 4, tokens: 24_000, quiet: 0 } }, top: [{ id: 's0000', title: 'Review the reconnect fix against the sync spec', job: 'delegated', tokens: 21_000 }] },
-      { id: 'crew:linus', jobs: 31, done: 30, failed: 0, quiet: 0, tokens: 120_000 },
+      { id: 'crew:ada', jobs: 14, done: 12, failed: 1, quiet: 3, before: 9, cost: 4.2, tokens: 84_000, days: Number(obj(a)['days'] ?? 30), byKind: { checkin: { runs: 60, tokens: 60_000, quiet: 3 }, delegated: { runs: 4, tokens: 24_000, quiet: 0 } }, top: [{ id: 's0000', title: 'Review the reconnect fix against the sync spec', job: 'delegated', tokens: 21_000 }], limits: LIMITS.map((l) => ({ ...l, mine: l.window === 'seven_day' ? 0.18 : 0.12 })) },
+      { id: 'crew:linus', jobs: 31, done: 30, failed: 0, quiet: 0, tokens: 120_000, limits: LIMITS.slice(0, 1).map((l) => ({ ...l, mine: 0.12 })) },
       { id: 'crew:grace', jobs: 4, done: 4, failed: 0, quiet: 2 },
     ],
   }),

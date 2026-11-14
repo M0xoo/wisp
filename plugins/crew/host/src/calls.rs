@@ -81,6 +81,15 @@ pub(crate) async fn profile_names(ctx: &Ctx, call: &Call) -> Vec<String> {
     ctx.run::<rt::Profiles>(call, Value::Object(Map::new())).await.map(|v| v.into_iter().map(|p| p.name).collect()).unwrap_or_default()
 }
 
+/// `machines.list`: the machines this wisp knows, by their handle (a member's `machine`). None known, or machines off:
+/// none, and a member can't be put on one.
+pub(crate) async fn machine_ids(ctx: &Ctx, call: &Call) -> Vec<String> {
+    ctx.run::<wisp_machines_api::List>(call, wisp_machines_api::NoArgs {})
+        .await
+        .map(|v| v.into_iter().map(|p| p.id).collect())
+        .unwrap_or_default()
+}
+
 /// `resources.export`: wisp's resources of these kinds.
 pub(crate) async fn export(ctx: &Ctx, call: &Call, kinds: &[&str]) -> R<Vec<wisp_resources_api::Resource>> {
     let a = wisp_resources_api::ExportArgs { kinds: kinds.iter().map(|k| (*k).to_owned()).collect(), include: Vec::new() };

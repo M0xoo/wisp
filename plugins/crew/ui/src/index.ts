@@ -9,6 +9,7 @@ import { parseEditor } from './editor.ts';
 import { t } from './i18n.ts';
 import { VIEW } from './views.ts';
 import { crewData } from './data.ts';
+import { hasTeam } from './team.ts';
 
 /** Share Ada, or Share your crew (the dialog's title; the member's name from its params). */
 const shareTitle = (p: unknown): string => {
@@ -28,6 +29,14 @@ import { catalogue } from './i18n.ts';
 
 export default definePluginUi({
   id: 'wisp.crew',
+  // the lead's team beside a task that handed crew jobs out (v1 team.js, F-crew-11): a tab only while it has some
+  sideTabs: [
+    {
+      id: 'wisp.crew.team',
+      tabs: ({ client, task }) => (hasTeam(crewData(client).jobs(), task) ? [{ value: 'team', label: t('wisp.crew.team.tab'), title: t('wisp.crew.team.tip') }] : []),
+      component: lazy(() => import('./TeamPane.tsx')),
+    },
+  ],
   // a member's page: the main pane when a face on the rail is picked (v1 crew.js buildView)
   extensions: [
     // a task's row menu (v1 actions.js crewItem): a member's job opens them; a task of yours can become a member's

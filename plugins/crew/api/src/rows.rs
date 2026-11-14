@@ -501,6 +501,12 @@ pub struct CrewExt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub prompt: Option<String>,
+    /// a job away from here (a member on a machine, or in a sandbox): the member's note (identity, brief, notebook,
+    /// kit), written here and carried with the job, since the wisp it runs on has no such member (v1 `crewJob.note`).
+    /// Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub note: Option<String>,
 }
 
 /// One job of a member as the scheduler sees it: which member, what kind, whether it is live.

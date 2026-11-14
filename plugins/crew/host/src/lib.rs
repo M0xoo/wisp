@@ -242,13 +242,16 @@ impl State {
         prev: Option<&Member>,
         now: i64,
         profiles: &[String],
+        machines: &[String],
     ) -> std::result::Result<Member, WireError> {
         let taken = lock(&self.saved).crew.clone();
         if prev.is_none() && taken.len() >= wisp_crew_api::MAX_CREW {
             return Err(WireError::conflict(format!("A crew has at most {} members.", wisp_crew_api::MAX_CREW)));
         }
         let exists = |p: &str| std::path::Path::new(p).is_dir();
-        let machine_ok = |_: &str| false;
+        // a machine this wisp knows (v1 `remote.ok(id)`), or the one the member is already on: a machine gone or a
+        // list that failed just now mustn't lock every edit (pausing them above all)
+        let machine_ok = |m: &str| machines.iter().any(|x| x == m) || prev.is_some_and(|p| p.machine == m);
         let agent_ok = |a: &str| profiles.iter().any(|p| p == a);
         let checks = Checks { taken: &taken, exists: &exists, machine_ok: &machine_ok, words: &CronOnly, agent_ok: &agent_ok };
         normalize_member(body, prev, &checks, &mut NewIds, now).map_err(wire)
@@ -266,7 +269,8 @@ impl PromptPart for Note {
         let Some(job) = s.ext.get(wisp_crew_api::PLUGIN_ID).and_then(|v| serde_json::from_value::<CrewExt>(v.clone()).ok()) else {
             return String::new();
         };
-        let Ok(m) = self.0.member(&job.id) else { return String::new() };
+        // a job from another wisp (this one runs it for a member over there) carries its note
+        let Ok(m) = self.0.member(&job.id) else { return job.note.unwrap_or_default() };
         wisp_crew_core::note::crew_note(&m, &job, None, &Utc)
     }
 }
@@ -434,11 +438,42 @@ mod tests {
             cron: Some("*/30 * * * *".into()),
             ..c::MemberBody::default()
         };
-        let m = st.normalize(&body, None, 1_000, &[]).unwrap();
+        let m = st.normalize(&body, None, 1_000, &[], &[]).unwrap();
         assert_eq!((m.name.as_str(), m.cron.as_str(), m.agent.as_str()), ("Ada Lovelace", "*/30 * * * *", "auto"));
         st.put(m.clone());
         assert_eq!(st.member("@ada-lovelace").unwrap().id, m.id);
-        let dup = st.normalize(&c::MemberBody { name: Some("ada lovelace".into()), ..c::MemberBody::default() }, None, 2_000, &[]);
+        let dup = st.normalize(&c::MemberBody { name: Some("ada lovelace".into()), ..c::MemberBody::default() }, None, 2_000, &[], &[]);
         assert!(dup.is_err(), "the same name twice");
+    }
+
+    #[test]
+    fn a_member_on_a_machine_gone_from_the_list_can_still_be_edited_but_not_moved_to_an_unknown_one() {
+        let st = State::new();
+        let on = |m: &str| c::MemberBody { name: Some("Scout".into()), machine: Some(m.into()), ..c::MemberBody::default() };
+        assert!(st.normalize(&on("studio"), None, 1_000, &[], &[]).is_err(), "a machine this wisp doesn't know");
+        let m = st.normalize(&on("studio"), None, 1_000, &[], &["studio".into()]).unwrap();
+        assert_eq!(m.machine, "studio");
+        // the machine is gone from machines.list (removed, or the list failed just now): pausing them still works
+        let pause = c::MemberBody { paused: Some(true), ..c::MemberBody::default() };
+        assert!(st.normalize(&pause, Some(&m), 2_000, &[], &[]).unwrap().paused);
+        assert!(st.normalize(&on("elsewhere"), Some(&m), 3_000, &[], &[]).is_err(), "nor moved to one it doesn't know");
+    }
+
+    #[test]
+    fn a_job_from_another_wisp_runs_with_the_note_it_carries() {
+        let st = Arc::new(State::new());
+        let note = Note(st.clone());
+        let job = CrewExt { id: "m-elsewhere".into(), note: Some("You are Scout.".into()), ..CrewExt::default() };
+        let mut s = Session::default();
+        s.ext.insert(wisp_crew_api::PLUGIN_ID.into(), serde_json::to_value(&job).unwrap());
+        // no such member on this wisp: the job's own note
+        assert_eq!(note.part(&s), "You are Scout.");
+        // a member here: the note is written here, as always
+        let m = st.normalize(&c::MemberBody { name: Some("Ada".into()), ..c::MemberBody::default() }, None, 1_000, &[], &[]).unwrap();
+        st.put(m.clone());
+        let mine = CrewExt { id: m.id.clone(), note: Some("QQ-carried-QQ".into()), ..CrewExt::default() };
+        s.ext.insert(wisp_crew_api::PLUGIN_ID.into(), serde_json::to_value(&mine).unwrap());
+        let part = note.part(&s);
+        assert!(part.contains("Ada") && !part.contains("QQ-carried-QQ"), "{part}");
     }
 }

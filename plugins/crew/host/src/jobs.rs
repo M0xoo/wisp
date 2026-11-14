@@ -64,8 +64,12 @@ fn grid_full(message: &str) -> bool {
     m.contains("is full") || m.contains("sandboxes of yours")
 }
 
-/// Where a member's job runs when it isn't here (ADR-0047): a sandbox per job, or their own. `(machine, cwd)`.
+/// Where a member's job runs when it isn't here: on their machine (v1 crew.js `{ machine: m.machine }`, its folder
+/// one there), a sandbox per job, or their own (ADR-0047). `(machine, cwd)`.
 async fn sandbox_for(ctx: &Ctx, call: &Call, m: &Member) -> Result<Option<(String, String)>, WireError> {
+    if !m.machine.is_empty() && m.sandbox.is_empty() {
+        return Ok(Some((m.machine.clone(), m.cwd.clone())));
+    }
     let owner = match m.sandbox.as_str() {
         "own" => json!({ "crew": m.id }),
         "job" => json!({ "crew": m.id, "job": "" }),
@@ -99,7 +103,13 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
     let (prompt, job, attachments) = (&w.prompt, w.job, &w.attachments);
     // what it was asked, for its page (a check-in's prompt is the crew's own)
     let asked = (job != JobKind::Checkin && !prompt.trim().is_empty()).then(|| prompt.chars().take(2000).collect::<String>());
-    let ext = CrewExt { id: m.id.clone(), job, prompt: asked, from: w.from.clone(), reply: w.reply.clone(), ..CrewExt::default() };
+    // on the member's machine, or in a sandbox (a fresh one per job, or the member's own): the job's task runs there
+    let place = sandbox_for(ctx, call, m).await?;
+    let mut ext = CrewExt { id: m.id.clone(), job, prompt: asked, from: w.from.clone(), reply: w.reply.clone(), ..CrewExt::default() };
+    if place.is_some() {
+        // no such member over there: the note goes with the job (`Note::part` reads it)
+        ext.note = Some(wisp_crew_core::note::crew_note(m, &ext, None, &Utc));
+    }
     let (agent, model, effort, mode) = job_body(m, w.run.as_ref());
     let agent = (!agent.is_empty() && agent != "auto").then_some(agent);
     let args = json!({
@@ -108,11 +118,10 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
         "ext": { PLUGIN_ID: ext },
     });
     let mut args = args;
-    // in a sandbox (a fresh one per job, or the member's own): the job's task runs there
-    let place = sandbox_for(ctx, call, m).await?;
     let made = match &place {
         Some((machine, cwd)) => {
-            args["cwd"] = json!(cwd);
+            // no folder: the machine's own default (a member's there may have none)
+            args["cwd"] = if cwd.is_empty() { Value::Null } else { json!(cwd) };
             let made = calls::routed::<rt::Create>(ctx, call, machine, args).await?;
             let id = format!("{machine}|{}", made.get("id").and_then(Value::as_str).unwrap_or_default());
             if m.sandbox == "job" {
@@ -198,7 +207,8 @@ fn adopt(s: &mut Setup, st: &Arc<State>) {
         if calls::crew_of(&task).get("id").and_then(Value::as_str).is_some() {
             return Err(WireError::invalid("That task is already a crew member's job."));
         }
-        let m = st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await)?;
+        let m =
+            st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await, &crate::calls::machine_ids(&ctx, &call).await)?;
         st.put(m.clone());
         st.save().await;
         let ext = CrewExt { id: m.id.clone(), job: JobKind::Task, ..CrewExt::default() };
@@ -264,7 +274,8 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         Ok(out)
     });
     on!(s, st, c::Create, |st, ctx, call, a| {
-        let m = st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await)?;
+        let m =
+            st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await, &crate::calls::machine_ids(&ctx, &call).await)?;
         st.put(m.clone());
         st.save().await;
         ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "create".into() });
@@ -277,7 +288,13 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         if let Some(keep) = &a.queue {
             prev.queue.retain(|w| keep.contains(&w.id)); // drop waiting jobs
         }
-        let mut m = st.normalize(&a.member, Some(&prev), now(&ctx), &profile_names(&ctx, &call).await)?;
+        let mut m = st.normalize(
+            &a.member,
+            Some(&prev),
+            now(&ctx),
+            &profile_names(&ctx, &call).await,
+            &crate::calls::machine_ids(&ctx, &call).await,
+        )?;
         crate::offers::settle_all(&mut m, a.offers.as_ref(), now(&ctx));
         st.put(m.clone());
         st.save().await;

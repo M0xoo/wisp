@@ -2,10 +2,10 @@
 //! the tokens they used, by where they came from, its biggest jobs, and how many jobs the range before had. The
 //! host reads each job's task and turns; time comes in as `now`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use wisp_crew_api::JobKind;
-use wisp_crew_api::commands::{KindUse, MemberStats, TopJob};
+use wisp_crew_api::commands::{KindUse, MemberLimit, MemberStats, TopJob};
 
 const DAY_MS: i64 = 86_400_000;
 const TOP: usize = 5;
@@ -60,7 +60,32 @@ pub fn member_stats(id: &str, jobs: &[JobUse], days: u32, now: i64) -> MemberSta
         by_kind,
         top: top.into_iter().take(TOP).map(|j| TopJob { id: j.id.clone(), title: j.title.clone(), job: j.job, tokens: j.tokens }).collect(),
         days,
+        limits: Vec::new(),
     }
+}
+
+/// A plan window as wisp.budget traced it this period: the window (its `mine` and `crew` left at 0) and each task's
+/// part of it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WindowParts {
+    pub window: MemberLimit,
+    pub tasks: BTreeMap<String, f64>,
+}
+
+/// *What ate my limits* for one member (v1 crew-record.js `limitsHtml`): each window its jobs (`mine`) took a part
+/// of, beside the whole crew's (`crew`: every member's jobs), the fullest window first. A window it took nothing of
+/// is left out.
+pub fn member_limits(windows: &[WindowParts], mine: &[String], crew: &BTreeSet<String>) -> Vec<MemberLimit> {
+    let part = |w: &WindowParts, f: &dyn Fn(&str) -> bool| w.tasks.iter().filter(|(id, _)| f(id)).map(|(_, u)| *u).sum::<f64>().min(1.0);
+    let mut out: Vec<MemberLimit> = windows
+        .iter()
+        .filter_map(|w| {
+            let m = part(w, &|id| mine.iter().any(|x| x == id));
+            (m > 0.0).then(|| MemberLimit { mine: m, crew: part(w, &|id| crew.contains(id)).max(m), ..w.window.clone() })
+        })
+        .collect();
+    out.sort_by(|a, b| b.used.total_cmp(&a.used).then_with(|| b.mine.total_cmp(&a.mine)));
+    out
 }
 
 fn kind_key(k: JobKind) -> &'static str {
@@ -75,7 +100,7 @@ fn kind_key(k: JobKind) -> &'static str {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::cast_possible_truncation)]
 mod tests {
     use super::*;
 
@@ -122,5 +147,37 @@ mod tests {
         let s = member_stats("m1", &[], 7, NOW);
         assert_eq!((s.jobs, s.tokens, s.cost, s.by_kind.len()), (0, 0, None, 0));
         assert_eq!((range_days(None), range_days(Some(0)), range_days(Some(9_999))), (30, 1, 365));
+    }
+
+    fn window(id: &str, used: f64, tasks: &[(&str, f64)]) -> WindowParts {
+        WindowParts {
+            window: MemberLimit {
+                agent: "claude".into(),
+                account: "default".into(),
+                window: id.into(),
+                label: id.into(),
+                used,
+                ..MemberLimit::default()
+            },
+            tasks: tasks.iter().map(|(k, v)| ((*k).to_owned(), *v)).collect(),
+        }
+    }
+
+    #[test]
+    fn what_ate_my_limits_shows_each_window_a_members_jobs_took_part_of_beside_the_crews_fullest_first() {
+        let crew: BTreeSet<String> = ["a1", "a2", "b1"].iter().map(|s| (*s).to_owned()).collect();
+        let windows = [
+            window("five_hour", 0.3, &[("a1", 0.05), ("b1", 0.1), ("you", 0.15)]),
+            window("seven_day", 0.8, &[("a1", 0.2), ("a2", 0.1), ("b1", 0.3)]),
+            window("seven_day_opus", 0.9, &[("b1", 0.4)]), // a took none of it: not a's
+        ];
+        let a = member_limits(&windows, &["a1".into(), "a2".into(), "gone".into()], &crew);
+        let got: Vec<(&str, i64, i64)> =
+            a.iter().map(|l| (l.window.as_str(), (l.mine * 100.0).round() as i64, (l.crew * 100.0).round() as i64)).collect();
+        assert_eq!(got, [("seven_day", 30, 60), ("five_hour", 5, 15)]);
+        assert!(member_limits(&windows, &[], &crew).is_empty(), "a member with no jobs ate nothing");
+        // shares never pass the whole window, even when a period's traced parts overlap
+        let full = [window("five_hour", 1.0, &[("a1", 0.7), ("a2", 0.6)])];
+        assert!((member_limits(&full, &["a1".into(), "a2".into()], &crew)[0].mine - 1.0).abs() < 1e-9);
     }
 }

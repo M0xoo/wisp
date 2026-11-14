@@ -4,11 +4,12 @@
 // used, then where they went by kind of job, its biggest jobs (each opens), and how its jobs went in one line.
 import { createMemo, createResource, createSignal, For, Show, type JSX } from 'solid-js';
 import { defineCommand, type PeerId, type PluginClient } from '@wisp/client';
-import { DataTable, Inline, ListRow, Select, Stack, Tabs, Text, useSignal } from '@wisp/ui';
+import { useShell } from '@wisp/shell';
+import { DataTable, Inline, ListRow, PlanAccount, Select, Stack, Tabs, Text, useSignal } from '@wisp/ui';
 import { crewData } from './data.ts';
 import { t } from './i18n.ts';
 import { toks } from './more/record-logic.ts';
-import { memberRecord, type MemberStats, type Say } from './record-view.ts';
+import { crewLimits, memberLimits, memberRecord, type LimitRow, type MemberStats, type Say } from './record-view.ts';
 
 const stats = defineCommand<{ peer: PeerId; days: number }, MemberStats[]>({
   id: 'crew.stats',
@@ -39,6 +40,42 @@ export function recordRows(list: readonly MemberStats[], nameOf: (id: string) =>
 
 const CREW = '';
 
+// v1 whenAt: "Tue 14:05"
+const whenFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const when = (at: number): string => whenFmt.format(at);
+
+/** *What ate your limits*: the plan windows these jobs took part of, a block per harness and account; nothing when
+ * none did (or budget is off). */
+function Limits(props: { readonly rows: readonly LimitRow[] }): JSX.Element {
+  const harnesses = useSignal(useShell().harnesses());
+  const nameOf = (id: string): string => harnesses().find((h) => h.id === id)?.name ?? id;
+  const groups = createMemo(() => {
+    const by = new Map<string, LimitRow[]>();
+    for (const r of props.rows) by.set(`${r.agent}@${r.account}`, [...(by.get(`${r.agent}@${r.account}`) ?? []), r]);
+    return [...by.values()];
+  });
+  return (
+    <Show when={props.rows.length}>
+      <Stack gap="2" part="crew.record.limits">
+        <Text size="sm" tone="muted" title={t('wisp.crew.record.limitsTip')}>
+          {t('wisp.crew.record.limits')}
+        </Text>
+        <For each={groups()}>
+          {(g) => (
+            <PlanAccount
+              part="crew.record.limit"
+              name={nameOf(g[0]?.agent ?? '')}
+              logo={harnesses().find((h) => h.id === g[0]?.agent)?.logo}
+              account={g[0]?.account || undefined}
+              windows={g}
+            />
+          )}
+        </For>
+      </Stack>
+    </Show>
+  );
+}
+
 export default function Record(props: { readonly client: PluginClient; readonly params?: unknown }): JSX.Element {
   const c = props.client;
   const say = t as unknown as Say;
@@ -50,6 +87,8 @@ export default function Record(props: { readonly client: PluginClient; readonly 
   const [list] = createResource(days, (d) => c.run(stats, { peer: c.home, days: d }).catch(() => undefined));
   const rows = createMemo(() => recordRows(list() ?? [], nameOf));
   const mine = createMemo(() => memberRecord(list()?.find((s) => s.id === who()), days(), say));
+  const myLimits = createMemo(() => memberLimits(list()?.find((s) => s.id === who()), nameOf(who()), say, when));
+  const allLimits = createMemo(() => crewLimits(list() ?? [], nameOf, say, when));
   const open = (id: string): void => {
     const key = data.sessionKey(id);
     if (key) c.navigate({ t: 'openTask', id: key as never });
@@ -78,59 +117,65 @@ export default function Record(props: { readonly client: PluginClient; readonly 
         <Show
           when={who() !== CREW}
           fallback={
-            <DataTable
-              part="crew.compare"
-              columns={[
-                t('wisp.crew.record.member'),
-                t('wisp.crew.record.jobs'),
-                t('wisp.crew.record.finished'),
-                t('wisp.crew.record.failed'),
-                t('wisp.crew.record.quiet'),
-                t('wisp.crew.record.tokens'),
-                t('wisp.crew.record.spend'),
-                t('wisp.crew.record.before'),
-              ]}
-              empty={t('wisp.crew.record.none')}
-              rows={rows()}
-            />
+            <Stack gap="4">
+              <Limits rows={allLimits()} />
+              <DataTable
+                part="crew.compare"
+                columns={[
+                  t('wisp.crew.record.member'),
+                  t('wisp.crew.record.jobs'),
+                  t('wisp.crew.record.finished'),
+                  t('wisp.crew.record.failed'),
+                  t('wisp.crew.record.quiet'),
+                  t('wisp.crew.record.tokens'),
+                  t('wisp.crew.record.spend'),
+                  t('wisp.crew.record.before'),
+                ]}
+                empty={t('wisp.crew.record.none')}
+                rows={rows()}
+              />
+            </Stack>
           }
         >
-          <Show when={!mine().empty} fallback={<Text tone="muted">{say('wisp.crew.record.noneFor', { name: nameOf(who()) })}</Text>}>
-            <Stack gap="4" part="crew.record.member">
-              <Text weight="semibold">{mine().head}</Text>
-              <Stack gap="1">
-                <Text size="sm" tone="muted">{t('wisp.crew.record.where')}</Text>
-                <For each={mine().kinds}>
-                  {(k) => (
-                    <Text size="sm">
-                      {`${k.label} · ${k.pct}% · ${k.line}`}
-                    </Text>
-                  )}
-                </For>
-              </Stack>
-              <Show when={mine().top.length}>
+          <Stack gap="4">
+            <Limits rows={myLimits()} />
+            <Show when={!mine().empty} fallback={<Text tone="muted">{say('wisp.crew.record.noneFor', { name: nameOf(who()) })}</Text>}>
+              <Stack gap="4" part="crew.record.member">
+                <Text weight="semibold">{mine().head}</Text>
                 <Stack gap="1">
-                  <Text size="sm" tone="muted">{t('wisp.crew.record.biggest')}</Text>
-                  <For each={mine().top}>
-                    {(j) => (
-                      <ListRow
-                        part="crew.record.job"
-                        title={j.title}
-                        quiet
-                        time={
-                          <Text size="sm" tone="muted" numeric nowrap>
-                            {`${j.tokens} · ${j.pct}%`}
-                          </Text>
-                        }
-                        onOpen={() => open(j.id)}
-                      />
+                  <Text size="sm" tone="muted">{t('wisp.crew.record.where')}</Text>
+                  <For each={mine().kinds}>
+                    {(k) => (
+                      <Text size="sm">
+                        {`${k.label} · ${k.pct}% · ${k.line}`}
+                      </Text>
                     )}
                   </For>
                 </Stack>
-              </Show>
-              <Text size="sm" tone="muted">{mine().outcome}</Text>
-            </Stack>
-          </Show>
+                <Show when={mine().top.length}>
+                  <Stack gap="1">
+                    <Text size="sm" tone="muted">{t('wisp.crew.record.biggest')}</Text>
+                    <For each={mine().top}>
+                      {(j) => (
+                        <ListRow
+                          part="crew.record.job"
+                          title={j.title}
+                          quiet
+                          time={
+                            <Text size="sm" tone="muted" numeric nowrap>
+                              {`${j.tokens} · ${j.pct}%`}
+                            </Text>
+                          }
+                          onOpen={() => open(j.id)}
+                        />
+                      )}
+                    </For>
+                  </Stack>
+                </Show>
+                <Text size="sm" tone="muted">{mine().outcome}</Text>
+              </Stack>
+            </Show>
+          </Stack>
         </Show>
       </Show>
     </Stack>

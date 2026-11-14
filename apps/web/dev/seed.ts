@@ -92,7 +92,7 @@ interface Task {
   branch?: string;
   cost?: number;
   /** a crew member's job (body.ext["wisp.crew"]): a delegated one sits under its member in the phone's Crew section */
-  crew?: { id: string; job: string };
+  crew?: { id: string; job: string; from?: { id: string; title: string } };
 }
 
 const TASKS: Task[] = [
@@ -105,7 +105,8 @@ const TASKS: Task[] = [
     prompt: 'Ada, check the reconnect fix against docs/sync.md and say what it misses.',
     answer: 'Reading the spec next to the diff.',
     live: 'Reading docs/sync.md',
-    crew: { id: 'crew:ada', job: 'delegated' },
+    // handed out by the flaky-test task (s0001): its Team tab lists it (F-crew-11)
+    crew: { id: 'crew:ada', job: 'delegated', from: { id: 's0001', title: 'Fix the flaky reconnect test in sync' } },
   },
   {
     title: 'Fix the flaky reconnect test in sync',
