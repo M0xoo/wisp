@@ -212,7 +212,10 @@ function cliEnv(extra) {
   return { env, opened: () => (fs.existsSync(opened) ? fs.readFileSync(opened, 'utf8') : '') };
 }
 
-const FAKE_SHELL = '#!/bin/sh\nenv > "$WISP_HOME/shell-env"\nexec "$WISP_NODE" "$WISP_ROOT/bin/wisp.js" --no-open --port "$WISP_PORT" >/dev/null 2>&1\n';
+// Like the app, it holds the server it starts; a line in shell-exits each time that server ends. A
+// shell started on a running wisp ends once its wisp sees the other one. FAKE_SHELL_DELAY: a slow start.
+const FAKE_SHELL = '#!/bin/sh\nenv > "$WISP_HOME/shell-env"\nsleep "${FAKE_SHELL_DELAY:-0}"\n"$WISP_NODE" "$WISP_ROOT/bin/wisp.js" --no-open --port "$WISP_PORT" >/dev/null 2>&1\necho "$?" >> "$WISP_HOME/shell-exits"\n';
+const shellExits = (home) => (fs.existsSync(path.join(home, 'shell-exits')) ? fs.readFileSync(path.join(home, 'shell-exits'), 'utf8').split('\n').filter(Boolean).length : 0);
 
 test('`wisp` gets the shell, runs it detached on this Node and package, and opens no tab', { skip: cliSkip }, async () => {
   const name = shellAsset();
@@ -232,12 +235,19 @@ test('`wisp` gets the shell, runs it detached on this Node and package, and open
     assert.equal((await health(port)).version, VERSION);
     assert.equal(opened(), '', 'a tab as well');
     assert.equal(asked.length, 2);
-    // A second `wisp` on the running one: the same shell, from disk.
-    await promisify(execFile)(process.execPath, [BIN, '--port', String(port)], { env, timeout: 60_000 });
+    // A second `wisp` on the running one: the same shell, from disk. It's detached and slow to start
+    // here: stopping the first server before its wisp has seen it would leave that wisp serving.
+    const { pid } = await health(port);
+    await promisify(execFile)(process.execPath, [BIN, '--port', String(port)], { env: { ...env, FAKE_SHELL_DELAY: '1' }, timeout: 60_000 });
     assert.equal(asked.length, 2, 'downloaded again');
+    await until(() => shellExits(env.WISP_HOME) === 1, { timeout: 30_000, what: 'the second shell to find wisp running' });
+    assert.equal((await health(port)).pid, pid, 'the second shell started its own server');
   } finally {
+    await until(() => shellExits(env.WISP_HOME) >= 1, { timeout: 30_000, what: 'the second shell' }).catch(() => {});
     await killServer(port);
   }
+  await until(() => shellExits(env.WISP_HOME) === 2, { timeout: 30_000, what: 'the first shell to end with its server' });
+  await assert.rejects(health(port), 'a wisp left serving after the test');
 });
 
 test('a shell that doesn’t check out: one line, and the browser tab as today', { skip: cliSkip }, async () => {
