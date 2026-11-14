@@ -3,18 +3,7 @@
 // again, or under reduced motion, it is simply the value. A value that changes later jumps.
 import { createEffect, createSignal, on, type Accessor } from 'solid-js';
 import { createTimer, reducedMotion } from './content-scope.ts';
-
-/** How long a count to `n` runs, in ms (v1: 900 + up to 700 by magnitude). */
-export const countDuration = (n: number): number => 900 + Math.min(700, Math.log10(Math.abs(n) + 1) * 220);
-
-/** v1's ease: fast, then settling (1 − (1 − p)⁴). */
-export const easeOut = (p: number): number => 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), 4);
-
-/** The value at `elapsed` ms into a count to `to`. */
-export function countAt(to: number, elapsed: number): number {
-  const dur = countDuration(to);
-  return elapsed >= dur ? to : to * easeOut(elapsed / dur);
-}
+import { countAt, countsUp } from './count-math.ts';
 
 export interface CountUpOptions {
   /** count up at all: the answer's first show (BlockContext.reveal !== false) */
@@ -27,7 +16,7 @@ export interface CountUpOptions {
 export function useCountUp(target: Accessor<number | undefined>, opts: CountUpOptions): Accessor<number | undefined> {
   const timer = createTimer();
   const to = target();
-  const run = opts.animate && to !== undefined && to !== 0 && !reducedMotion();
+  const run = countsUp(to, opts.animate, reducedMotion());
   const [shown, setShown] = createSignal<number | undefined>(run ? 0 : to);
   let settled = !run;
   if (run) {
