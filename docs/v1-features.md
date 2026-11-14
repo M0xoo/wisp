@@ -286,14 +286,14 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 
 | ID | v1 | Scenario | v2 | Evidence or gap |
 |---|---|---|---|---|
-| F-stuff-1 | 0.49.0 | Given an agent's picture, doc or file, when I click Save to My Stuff, then it's on the My Stuff page | partial | `stuff.save`, `wisp_save`; My Stuff UI not mounted (ADR-0036) |
+| F-stuff-1 | 0.49.0 | Given an agent's picture, doc or file, when I click Save to My Stuff, then it's on the My Stuff page | built | round 127 |
 | F-stuff-2 | 0.49.0 | Given an agent saves with `wisp_save`, when it does, then a `stuff` card shows in the answer | built | `packages/ui/src/blocks/Stuff.tsx` (kind, title, Launch/Open via BlockContext.openStuff), `wisp_save`; round 12 (2026-11-11); until then the renderer was a stub drawing "Unknown block" |
 | F-stuff-3 | 0.49.0 | Given a kept item, when an agent saves with its id, then a v2 appears in place | built | `stuff.update`, `stuff.restore` |
 | F-stuff-4 | 0.49.0 | Given an app folder, when it's saved, then Launch opens it in wisp | built | My Stuff's Open on an app launches it (`stuff.launch`) and opens its address; Stop (`stuff.stop`); a pinned app launches in its pane (Home, beside tasks) |
 | F-stuff-5 | 0.50.0 | Given `"db": true`, when the app runs, then it keeps data (seed.sql once, no 5 s cut on a slow disk) | built | per-app SQLite (ADR-0020), `stuff.resetData` |
-| F-stuff-6 | 0.50.0 | Given an app, when I click Publish, then it's at a grid link; secrets and source maps stay off | partial | My Stuff's menu: Publish to <grid> (`stuff.targets`), Copy / Open public link, Update the public link, Unpublish, v1's toasts (`StuffPage.tsx`); not seen against a grid; round 14 (2026-11-11) |
+| F-stuff-6 | 0.50.0 | Given an app, when I click Publish, then it's at a grid link; secrets and source maps stay off | built | round 127 (local grid: .env, secrets.json, .map never published) |
 | F-stuff-7 | Unrel. | Given *make me a pane that…*, when I send it, then an agent builds a pane and it pins beside tasks or on Home | built | Make a pane (`MakePane.tsx`); a pinned app shows on Home (round 26: `plugins/stuff/ui/src/HomePanes.tsx` on `shell.home:cards`: tiles side by side, a row that opens it as a page stacked; its frame behind the CSP wrapper, its calls through `panes/host.ts` with the Allow card and a card per write). Beside tasks (round 28): Pin beside tasks in My Stuff; each app pinned `@task` is a tab in the panel beside the open task (`SideTabDef` on the plugin UI contract, `plugins/stuff/ui/src/TaskPane.tsx`), hearing the task as `wisp.context`; `pins.test.ts`, `term.test.ts` |
-| F-stuff-8 | Unrel. | Given a pane, when it asks for `tasks:write`, then it can only propose a prompt, loses access when code changes, and can't grow during Full auto | partial | `stuff.grant`, `stuff.allow`; enforcement not verified |
+| F-stuff-8 | Unrel. | Given a pane, when it asks for `tasks:write`, then it can only propose a prompt, loses access when code changes, and can't grow during Full auto | partial | Full-auto refusal fixed (runtime provides stuff.taskFiles); propose-only and revoke-on-code-change not yet checked end to end |
 | F-stuff-9 | Unrel. | Given Agent board and Allowance board starters, when I add one, then it shows tasks and periods | built | Make a pane's starters: Add keeps it and pins it on Home (the Allow card first), Pin again after a No (round 26) |
 | F-stuff-10 | 0.50.0 | Given the phone app via wisp Cloud, when I open My Stuff, then I can launch apps | missing | no phone frontend |
 
@@ -470,11 +470,11 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 
 | ID | v1 | Scenario | v2 | Evidence or gap |
 |---|---|---|---|---|
-| F-look-1 | 0.43.0 | Given any screen at 320–1440 px, light and dark, when I compare with v1, then it looks the same | partial | kit reproduces v1 values; `qa/parity.mjs` 0/96 views pass |
+| F-look-1 | 0.43.0 | Given any screen at 320–1440 px, light and dark, when I compare with v1, then it looks the same | partial | needs the outer-loop parity run |
 | F-look-2 | 0.42.0 | Given toasts, when several come, then they stack as light cards with a glyph | built | kit toaster |
 | F-look-3 | 0.41.0 | Given a working task, when I look, then the dot-grid ripple shows | built | kit `core` working indicator (parity pending) |
-| F-look-4 | 0.33.0 | Given the app, when I look at the logo, then it's the handwritten w with the orb | partial | not verified in v2 assets |
-| F-look-5 | 0.39.0 | Given control text (buttons, pills, tabs), when the window narrows, then nothing wraps and bars collapse to icons then More | partial | ADR-0012 kit; `qa/layout.mjs` not passing on all views |
+| F-look-4 | 0.33.0 | Given the app, when I look at the logo, then it's the handwritten w with the orb | built | round 127 |
+| F-look-5 | 0.39.0 | Given control text (buttons, pills, tabs), when the window narrows, then nothing wraps and bars collapse to icons then More | partial | needs the outer-loop layout run |
 
 ---
 
