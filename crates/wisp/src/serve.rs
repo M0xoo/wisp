@@ -132,7 +132,7 @@ fn snapshot_readers() -> Vec<wisp_api::v2_store::TopicReader> {
     {
         use wisp_runtime::turn_window as w;
         let live = wisp_api::v2_store::Live { kinds: w::LIVE_KINDS, change: w::live, delta: w::delta };
-        vec![wisp_api::v2_store::TopicReader { matches: w::matches, read: w::read, live: Some(live) }]
+        vec![wisp_api::v2_store::TopicReader { matches: w::matches, read: w::read, kinds: w::READ_KINDS, live: Some(live) }]
     }
     #[cfg(not(feature = "runtime"))]
     {

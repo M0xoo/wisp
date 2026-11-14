@@ -91,6 +91,9 @@ fn window(r: &Reader<'_>, session: &str, stubbed: bool, out: &mut Rows) -> Resul
 /// The kinds whose committed changes [`live`] may send another way.
 pub const LIVE_KINDS: &[&str] = &["turn"];
 
+/// The kinds [`read`] answers for on a task's topic.
+pub const READ_KINDS: &[&str] = &["session", "turn", "event"];
+
 /// The idx a task's turn needs to be sent whole on its window: the [`WHOLE_TURNS`]-th latest's (`None`: every
 /// turn goes whole). Reads one indexed row.
 fn whole_idx(r: &Reader<'_>, session: &str) -> Result<Option<i64>> {

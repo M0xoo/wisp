@@ -79,6 +79,7 @@ async fn a_topic_reader_answers_the_first_look_and_a_resume_reads_the_feed() {
     let snaps = StoreSnapshots::new(s.clone(), sources(), Vec::new()).with_readers(vec![TopicReader {
         matches: |t| t == "config",
         read: |_, _| Ok(vec![("setting".into(), "windowed".into(), serde_json::Map::new())]),
+        kinds: &["setting"],
         live: None,
     }]);
     let config = Topic::parse("config").unwrap();
@@ -89,6 +90,23 @@ async fn a_topic_reader_answers_the_first_look_and_a_resume_reads_the_feed() {
     let delta = snaps.snapshot(&config, Some(full.seq)).await;
     assert!(!delta.full);
     assert_eq!(delta.rows.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["volume"]);
+}
+
+/// Another plugin's kind on a reader's topic (wisp.goal's checks on `session:<id>`) comes in full beside the reader's
+/// rows on a first look; a kind the reader answers for never comes twice.
+#[tokio::test]
+async fn a_first_look_brings_other_kinds_on_a_readers_topic_once() {
+    let s = store();
+    set(&s, "theme", "dark").await;
+    let snaps = StoreSnapshots::new(s.clone(), sources(), Vec::new()).with_readers(vec![TopicReader {
+        matches: |t| t == "config",
+        read: |_, _| Ok(vec![("turn".into(), "t1".into(), serde_json::Map::new())]),
+        kinds: &["turn"],
+        live: None,
+    }]);
+    let full = snaps.snapshot(&Topic::parse("config").unwrap(), None).await;
+    let ids: Vec<(&str, &str)> = full.rows.iter().map(|r| (r.e.as_str(), r.id.as_str())).collect();
+    assert_eq!(ids, [("turn", "t1"), ("setting", "theme")]);
 }
 
 #[tokio::test]
@@ -152,6 +170,7 @@ fn stubbing() -> TopicReader {
     TopicReader {
         matches: |t| t == "config",
         read: |_, _| Ok(Vec::new()),
+        kinds: &["setting"],
         live: Some(Live {
             kinds: &["setting"],
             change: |r, topic, _, id| {
