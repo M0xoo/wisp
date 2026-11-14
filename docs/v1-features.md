@@ -398,8 +398,8 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 | F-set-3 | 0.32.0 | Given General → Terminal, when I pick in-wisp, Auto-detect or an app, then Take over uses it | built | `General.tsx` Take over in: wisp.terminal's `terminal.apps` list (it was hidden: no `terminal.app` rows were ever published); round 13 (2026-11-11) |
 | F-set-4 | 0.8.0 | Given General → Editor, when I pick one, then Open in editor uses it | built | `General.tsx` editor setting |
 | F-set-5 | 0.8.0 | Given General → Worktree per task, when I turn it off, then tasks run in the repo | built | `General.tsx` Worktree per task switch (`KEYS.worktree`), seen in Settings → General; round 13 (2026-11-11) |
-| F-set-6 | 0.28.0 | Given the Android app, when I look for shortcuts, then the shortcuts sheet is hidden | partial | platform detection exists; no Android frontend |
-| F-set-7 | 0.30.0 | Given Windows, when settings save while a file is held, then it retries instead of failing | partial | settings store in `crates/wisp/src/settings_store.rs`; retry not verified |
+| F-set-6 | 0.28.0 | Given the Android app, when I look for shortcuts, then the shortcuts sheet is hidden | partial | needs the Android frontend |
+| F-set-7 | 0.30.0 | Given Windows, when settings save while a file is held, then it retries instead of failing | built | round 137 |
 | F-set-8 | — | Given Settings → Keys, when I open it, then shortcuts are listed | built | `plugins/shell-settings/ui/src/panes/Keys.tsx` |
 
 ## 16. Keyboard (`KEY`, from `web/js/features/keys.js`)
@@ -437,12 +437,12 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 
 | ID | v1 | Scenario | v2 | Evidence or gap |
 |---|---|---|---|---|
-| F-desk-1 | 0.2.0 | Given a Mac, Windows or Linux, when I open wisp.app, then wisp opens in its own window (Tauri, a third of Electron's size) | partial | the Tauri shell runs the v2 `wisp` binary (`wisp serve`, web/ beside it; `WISP_EXIT_WITH_STDIN` keeps it from outliving the app) and `desktop/scripts/package.mjs` stages it on every OS (round 29); the Windows build is checked by `tauri windows` CI, not run locally; qa/desktop-tauri-win.mjs still drives v1's entry.mjs |
-| F-desk-2 | 0.37.0 | Given a release, when I download, then there's a .dmg, Windows installer and Linux package | missing | waits on F-desk-1 |
-| F-desk-3 | 0.38.0 | Given `curl … install.sh \| bash -s -- --app`, when I run it, then the Mac app installs without the warning | partial | `docs/install.sh` is v1's; v2 app missing |
-| F-desk-4 | 0.2.1 | Given the app, when I right-click text, then spelling, copy link, cut/copy/paste show | missing | waits on F-desk-1 |
-| F-desk-5 | Unrel. | Given a slow `~/.zshrc`, when the app first opens, then the window shows within 5 s | missing | waits on F-desk-1 |
-| F-desk-6 | 0.35.0 | Given the app with no task open, when I drag the top, then the window moves | missing | waits on F-desk-1 |
+| F-desk-1 | 0.2.0 | Given a Mac, Windows or Linux, when I open wisp.app, then wisp opens in its own window (Tauri, a third of Electron's size) | partial | window checks are macOS only; Windows/Linux CI check the server and quitting |
+| F-desk-2 | 0.37.0 | Given a release, when I download, then there's a .dmg, Windows installer and Linux package | built | round 134 (mac dmg/zip built and passed DESK2-02..05) |
+| F-desk-3 | 0.38.0 | Given `curl … install.sh \| built | round 134 (DESK2-10) | `docs/install.sh` is v1's; v2 app missing |
+| F-desk-4 | 0.2.1 | Given the app, when I right-click text, then spelling, copy link, cut/copy/paste show | built | round 134 (DESK2-07) |
+| F-desk-5 | Unrel. | Given a slow `~/.zshrc`, when the app first opens, then the window shows within 5 s | built | round 134 (DESK2-08); a CLI installed after the app starts is found on the next start |
+| F-desk-6 | 0.35.0 | Given the app with no task open, when I drag the top, then the window moves | built | round 134 (DESK2-06) |
 
 ## 19. Phone app and phone web (`PHONE`)
 
@@ -461,10 +461,10 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 
 | ID | v1 | Scenario | v2 | Evidence or gap |
 |---|---|---|---|---|
-| F-upd-1 | 0.7.0 | Given a newer wisp, when I open wisp, then an Update button shows and Update now updates however I installed it, on the same port | partial | `update.check`/`install`/`view`, Updates pane; relaunch is a known gap |
+| F-upd-1 | 0.7.0 | Given a newer wisp, when I open wisp, then an Update button shows and Update now updates however I installed it, on the same port | built | round 137 |
 | F-upd-2 | 0.38.0 | Given the update channel, when I pick beta or nightly, then I follow it (semver prerelease order) | built | `plugins/update/core` |
-| F-upd-3 | 0.16.0 | Given Homebrew or the curl line, when I install, then wisp installs | partial | npm launcher in `npm/`; brew tap and install.sh still v1 |
-| F-upd-4 | 0.5.0 | Given telemetry on, when I use wisp, then anonymous stats and errors go to PostHog (off switch) | partial | `telemetry.track/set/flush`; some events missing (queue) |
+| F-upd-3 | 0.16.0 | Given Homebrew or the curl line, when I install, then wisp installs | partial | install.sh and the brew formula need a published v2 release to verify |
+| F-upd-4 | 0.5.0 | Given telemetry on, when I use wisp, then anonymous stats and errors go to PostHog (off switch) | partial | missing events live in plugins/telemetry |
 
 ## 21. Look and feel (`LOOK`)
 

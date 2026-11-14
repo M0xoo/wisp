@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: desktop app and updates.** Opened from Finder or the Dock, wisp finds your agent CLIs on your login shell's PATH, and a slow ~/.zshrc no longer holds the first window back. An update shows as a pill in the top bar; installing it reloads onto the new version (Windows included). A briefly locked secrets file no longer fails a save.
 - **v2: worktree safety.** A path can no longer reach outside a worktree with `..` or a symlink, and a folder that comes back for a queued turn can't be released by an earlier turn that failed.
 - **v2: tasks in several folders.** A task that works in several folders shows each one on its page, its own first; click one to open that project. In New task, making another chip the start keeps the old start as an extra folder.
 - **v2: pick several projects.** Clicking a project shows only that project; + beside another adds it (− removes it). The top bar names the pick, a strip over the list goes back to one or all, the list groups by project, and New task works in all the picked folders.

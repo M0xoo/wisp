@@ -518,7 +518,8 @@ alone.
    - README and CHANGELOG;
    - `WispAgents/wisp` → `WispAgents/wisp` references.
 10. [ ] **Docs and site:** docs.trywisp.dev (ADR-0039, Starlight) and the site rework (`marketing/positioning-v2.md`).
-11. [ ] **One batched verification pass:** CI green on every OS, parity/layout/feedback gates, perf budgets, verifier.
+11. [ ] **One batched verification pass:**
+   - **Windows by hand once:** the update relaunch (PowerShell waiter, Stop-Process) and the desktop window checks (CI only checks the server and quitting there). CI green on every OS, parity/layout/feedback gates, perf budgets, verifier.
    - **wisp from other harnesses, in a wisp-init'ed repo (owner, 2026-11-09; ADR-0033, 0035, 0040).**
      - Setup: a scratch repo with `wisp init` and `.wisp/` committed, holding a few tracked tasks (a transcript, a
        report and Wisp-Task trailers). `wisp skill install --agent claude` and `--agent codex`, plus wisp's MCP server
