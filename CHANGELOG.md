@@ -200,6 +200,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **v2: concurrent writes.** Writes to a task's plugin data no longer lose one another: Stop sharing no longer forgets a fresh link, two *Add to crew* on one task make one member, pausing a goal keeps a round that just finished, and a superseded review no longer overwrites the newer one.
 - **v2: History offers.** Saving a task to its repo no longer brings back the *Save it to the repo?* offer, and an offer computed before a save never overwrites it.
 - **v2: goal checks of a deleted task.** A goal check that started or ended while its task was being deleted no longer leaves a check record behind, and dropping or changing a goal while a check is still judging (or its follow-up is starting) can no longer bring the old goal back. A judge already running stops when its goal is dropped or replaced or its task deleted, and the check is recorded as cancelled.
 - **v2: counting numbers.** Tests counts and stats in answers show whole numbers while they count up, keep a decimal value's own decimals, and land exactly on the value.
