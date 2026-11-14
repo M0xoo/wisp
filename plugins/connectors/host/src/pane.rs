@@ -178,7 +178,9 @@ pub fn plan_of(id: &str, b: &ConnectorBody, prev: Option<&ConnectorSpec>) -> std
         Some("remote") => true,
         Some("local") => false,
         Some(t) => return Err(WireError::invalid(format!("transport: local or remote, not {t}"))),
-        None => !was.url.is_empty(),
+        // v1 connectors.js: an edit keeps its kind; a new one is remote when it has a URL
+        None if prev.is_some() => !was.url.is_empty(),
+        None => b.url.as_deref().is_some_and(|u| !u.trim().is_empty()),
     };
     let mut spec = ConnectorSpec {
         enabled: b.enabled.or(was.enabled),
@@ -822,6 +824,18 @@ mod tests {
 
     /// A form becomes a spec whose secrets are references: a typed value is written, an empty one keeps the
     /// saved one, a key left out goes; the command line splits; remote needs a URL, local a command.
+    /// v1 connectors.js `c.transport ||= b.url ? 'remote' : 'local'`: a new connector with a URL and no
+    /// transport is remote; an edit that names neither keeps what it was.
+    #[test]
+    fn a_new_connector_with_a_url_is_remote_without_saying_so() {
+        let b = ConnectorBody { url: Some("https://mcp.linear.app/mcp".into()), ..ConnectorBody::default() };
+        assert_eq!(plan_of("linear", &b, None).unwrap().spec.url, "https://mcp.linear.app/mcp");
+        let local = ConnectorSpec { command: "docs-mcp".into(), ..ConnectorSpec::default() };
+        let rename = ConnectorBody { enabled: Some(false), ..ConnectorBody::default() };
+        assert_eq!(plan_of("docs", &rename, Some(&local)).unwrap().spec.command, "docs-mcp", "an edit keeps its kind");
+        assert!(plan_of("x", &ConnectorBody::default(), None).is_err(), "neither: a local one without its command");
+    }
+
     #[test]
     fn a_connector_form_keeps_secrets_out_of_its_spec() {
         let b = ConnectorBody {
