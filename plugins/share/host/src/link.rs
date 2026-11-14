@@ -158,11 +158,14 @@ fn gone(r: Result<()>) -> Result<()> {
 /// (compare-and-set), so no live link is left that the task doesn't list:
 /// - the grid answered the same link (the same task shared again is a new version of it): nothing is taken back;
 /// - the old link can't be taken back: the new one is (best effort) and the slot keeps the old one, still live;
-/// - the slot can't be written: the new link is taken back and the old one (already taken back) forgotten;
+/// - the slot can't be written: the new link is taken back (unless it is the same link, still listed) and the old
+///   one (already taken back) forgotten;
 /// - another Share wrote the slot meanwhile: its link, replaced here, is taken back too.
 pub(crate) async fn replace(ctx: &Ctx, call: &Call, session: &str, before: &Value, keep: &Value) -> Result<()> {
     let new = link_id(keep);
     let old = link_id(before).filter(|o| new.as_ref() != Some(o));
+    // the link this Share made: the same link answered again was made before it and is still listed, never taken back
+    let made = new.clone().filter(|n| link_id(before).as_ref() != Some(n));
     if let Some(o) = &old
         && let Err(e) = gone(calls::revoke(ctx, call, o.clone()).await)
     {
@@ -178,7 +181,7 @@ pub(crate) async fn replace(ctx: &Ctx, call: &Call, session: &str, before: &Valu
     })
     .await;
     if let Err(e) = wrote {
-        if let Some(n) = &new {
+        if let Some(n) = &made {
             calls::warn("the new link not taken back", calls::revoke(ctx, call, n.clone()).await);
         }
         if let Some(o) = &old {
@@ -347,6 +350,49 @@ mod tests {
         let (slot, asked, r) = replaced(s1.clone(), &s2, FakeGrid::default(), Some(s3)).await;
         assert!(r.is_ok());
         assert_eq!((slot, asked), (s2, vec!["s1".to_owned(), "s3".to_owned()]), "the link kept meanwhile goes too");
+    }
+
+    /// wisp.runtime whose task t1 holds `held` and whose `runtime.setExt` is always refused (the store is down).
+    #[derive(Debug, Clone)]
+    struct Unwritable(Value);
+
+    impl wisp_kernel::Plugin for Unwritable {
+        fn manifest(&self) -> wisp_kernel::Manifest {
+            wisp_kernel::Manifest::from_value(
+                json!({ "wispPlugin": 1, "id": "wisp.runtime", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] }),
+            )
+            .unwrap()
+        }
+        fn setup(&self, s: &mut Setup) -> Result<()> {
+            let held = self.0.clone();
+            s.command::<wisp_runtime_api::commands::Get, _, _>(move |_c, _call, _a: wisp_runtime_api::commands::IdArgs| {
+                let mut t = Session { id: "t1".into(), ..Session::default() };
+                t.ext.insert(PLUGIN_ID.to_owned(), held.clone());
+                async move { Ok(t) }
+            });
+            s.command::<wisp_runtime_api::commands::SetExt, _, _>(|_c, _call, _a: wisp_runtime_api::commands::SetExtArgs| async {
+                Err::<wisp_runtime_api::commands::Ack, _>(WireError::unavailable("the store is down"))
+            });
+            Ok(())
+        }
+    }
+
+    /// Share again where the grid answers the same link s1 (a new version) and the slot can't be written: s1 is still
+    /// the task's listed link, so it is never taken back (it was, leaving the task listing a dead link). A new link s2
+    /// in the same spot is taken back (it was never listed).
+    #[tokio::test]
+    async fn a_failed_write_never_takes_back_the_link_still_listed() {
+        for (keep, revoked) in [(link("s1"), vec![]), (link("s2"), vec!["s1".to_owned(), "s2".to_owned()])] {
+            let grid = FakeGrid::default();
+            let me = wisp_kernel::Declarative(
+                wisp_kernel::Manifest::from_value(json!({ "wispPlugin": 1, "id": PLUGIN_ID, "version": "2.0.0", "api": "^1", "activation": ["onStartup"], "permissions": ["runtime:get", "runtime:setExt", "grid-client:revoke"] })).unwrap(),
+            );
+            let k = wisp_testkit::TestApp::new().with(Unwritable(link("s1"))).with(grid.clone()).with(me).start().await;
+            let ctx = k.ctx(PLUGIN_ID).unwrap();
+            let r = replace(&ctx, &ctx.root_call(), "t1", &link("s1"), &keep).await;
+            assert_eq!(r.unwrap_err().code, Code::Unavailable);
+            assert_eq!(grid.asked.lock().unwrap().clone(), revoked, "kept {}", keep["id"]);
+        }
     }
 
     /// Stop sharing takes link s1 back while Share again keeps s2 on the task: s2 stays (it's live, not revoked),
