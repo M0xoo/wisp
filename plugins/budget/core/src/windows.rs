@@ -198,6 +198,18 @@ pub fn drain_title(d: &Drain, name: &str) -> String {
     format!("⚠️ {name} is using your plan {:.1}× faster", d.ratio)
 }
 
+/// The phone's note when a plan reset early and the runs held for it start (v1 index.js `app.resetEarly`), for when
+/// wisp.later is off and can't send it (with later on, later sends it, counting its follow-ups too; the same words as
+/// `wisp_later_core::rules::early_note`). `label`: the account's when not the default. None when nothing started.
+pub fn early_note(name: &str, label: &str, n: u32) -> Option<(String, String)> {
+    if n == 0 {
+        return None;
+    }
+    let label = if label.is_empty() { String::new() } else { format!(" ({label})") };
+    let (s, verb) = if n == 1 { ("", "starts") } else { ("s", "start") };
+    Some((format!("\u{21bb} {name}{label} reset early"), format!("Its plan reset before its time. {n} task{s} waiting on it {verb} now.")))
+}
+
 /// Nobody started it by hand: Automations stop at may hold it.
 pub fn unattended(by: Option<&str>) -> bool {
     by.is_some_and(|b| UNATTENDED_BY.contains(&b))

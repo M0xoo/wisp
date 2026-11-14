@@ -1,6 +1,7 @@
 //! A banked (early) reset (v1 index.js `app.resetEarly`, F-auto-12): a reading shows a window reset before its time, so
 //! what waits on that account goes now, not at the old reset: the runs held here start, and `budget.plan_free` tells
-//! wisp.later to bring due the follow-ups it holds (it sends the phone's one note, with the count). Starting a held
+//! wisp.later to bring due the follow-ups it holds (it sends the phone's one note, with the count; with later off,
+//! budget sends it for the runs it started). Starting a held
 //! turn is tried again on the next looks when the runtime refuses it.
 
 use wisp_budget_api::PlanFree;
@@ -10,6 +11,29 @@ use wisp_runtime_api::commands as rt;
 use wisp_runtime_api::{SessionId, TurnId};
 
 use crate::{State, account_of, lock, now};
+
+/// The plugin that sends the early-reset note when it's on (it counts its follow-ups in it).
+const LATER: &str = "wisp.later";
+
+/// wisp.later is there to hear `budget.plan_free` (on, or waiting to wake on an event).
+fn later_on(ctx: &Ctx) -> bool {
+    ctx.plugin_status().iter().any(|p| p.id == LATER && (p.state == "active" || p.state == "resolved"))
+}
+
+/// The phone hears that the runs held for `agent@account` start now (v1 `app.resetEarly`), when later can't say it.
+async fn early_note(ctx: &Ctx, agent: &str, account: &str, n: u32) {
+    let name = ctx
+        .contributions(&wisp_runtime_api::harness::HARNESS)
+        .iter()
+        .find(|h| h.info().id == agent)
+        .map_or_else(|| agent.to_owned(), |h| h.info().name.clone());
+    let label = if account == "default" { "" } else { account };
+    let Some((title, text)) = wisp_budget_core::windows::early_note(&name, label, n) else { return };
+    let msg = wisp_channels_api::Msg { title, text, actions: Vec::new() };
+    if let Err(err) = ctx.run::<wisp_channels_api::SendNotice>(&ctx.root_call(), wisp_channels_api::SendArgs { msg }).await {
+        tracing::debug!(error = %err.message, "budget: an early reset, no phone to tell");
+    }
+}
 
 /// A held turn to start: ((agent, account), (task, turn)).
 pub(crate) type Due = ((String, String), (String, String));
@@ -83,7 +107,11 @@ impl State {
         let mut due: Vec<Due> = lock(&self.held).remove(&key).unwrap_or_default().into_iter().map(|t| (key.clone(), t)).collect();
         due.extend(self.ask_freed(agent, &account));
         let started = self.start(ctx, due).await;
-        ctx.emit(&ctx.root_call(), &PlanFree { agent: agent.to_owned(), account, started });
+        ctx.emit(&ctx.root_call(), &PlanFree { agent: agent.to_owned(), account: account.clone(), started });
+        // wisp.later sends the one note (it adds the follow-ups it brings due); with later off, nobody would
+        if !later_on(ctx) {
+            early_note(ctx, agent, &account, started).await;
+        }
     }
 
     /// Codex accounts work waits on (v1 `waitingOn`): runs held here, and accounts a run found at their limit.
