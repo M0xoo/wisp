@@ -9,6 +9,7 @@ mod kept;
 mod kinds;
 mod report;
 mod routed;
+mod setup;
 mod ws;
 
 use std::collections::HashMap;
@@ -17,8 +18,8 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use serde_json::{Value, json};
 use wisp_channels_api::views::{Action, ActionKind, Msg, SessionView};
 use wisp_channels_api::{
-    Act, Extra, HttpOut, Inbound, InboundOpts, Line, Notify, Refresh, Rotate, Routed, SendNotice, Sent, TRANSPORTS, Test, Transport,
-    Update, View,
+    Act, Extra, HttpOut, Inbound, InboundOpts, Line, Notify, PhoneView, Refresh, Rotate, Routed, SendNotice, Sent, SetupChannel,
+    TRANSPORTS, Test, Transport, Update, View,
 };
 use wisp_kernel::{CancellationToken, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_runtime_api::events::{SessionDeleted, TaskAsked, TurnEnded, TurnFinished};
@@ -43,6 +44,8 @@ struct Live {
     kinds: OnceLock<Arc<Kinds>>,
     /// asks a channel already said it waits on
     said: report::Said,
+    /// one `channels.setup` at a time (setup.rs)
+    setup_turn: tokio::sync::Mutex<()>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -50,7 +53,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 /// A channel's config as its transport reads it: the declared fields, its token read from secrets, and
-/// its `routing` object's own settings (ntfy's `server` and `topic`).
+/// its `routing` object's own settings (ntfy's `server` and `topic`; Slack's tokens as `${secret:}`, read too).
 async fn config_of(ctx: &Ctx, c: &kinds::ChannelSpec) -> Value {
     let mut cfg = json!({ "enabled": c.enabled == Some(true), "allow": c.allow, "cap": c.cap });
     if !c.token.is_empty() {
@@ -58,7 +61,10 @@ async fn config_of(ctx: &Ctx, c: &kinds::ChannelSpec) -> Value {
     }
     if let Some(Value::Object(r)) = &c.routing {
         for (k, v) in r {
-            cfg[k] = v.clone();
+            cfg[k] = match v.as_str() {
+                Some(s) if s.contains("${secret:") => json!(kinds::reveal_or_empty(ctx, s).await),
+                _ => v.clone(),
+            };
         }
     }
     cfg
@@ -256,16 +262,19 @@ fn commands(s: &mut Setup, live: &Arc<Live>) {
         }
     });
     let l = live.clone();
-    s.command::<Test, _, _>(move |_ctx, _call, _a| {
+    s.command::<Test, _, _>(move |_ctx, _call, a| {
         let live = l.clone();
-        async move {
-            let msg = Msg { title: "wisp".into(), text: "A test from wisp: this channel works.".into(), actions: Vec::new() };
-            let mut out = serde_json::Map::new();
-            for t in running(&live) {
-                out.insert(t.name().to_owned(), json!(t.publish(&msg, None).await.map_err(|e| e.message).err()));
-            }
-            Ok(Value::Object(out))
-        }
+        async move { setup::test(&live, &a).await }
+    });
+    let l = live.clone();
+    s.command::<PhoneView, _, _>(move |ctx, _call, _a| {
+        let live = l.clone();
+        async move { Ok(setup::phone_status(&ctx, &live).await) }
+    });
+    let l = live.clone();
+    s.command::<SetupChannel, _, _>(move |ctx, call, a| {
+        let live = l.clone();
+        async move { setup::setup(&ctx, &call, &live, a).await }
     });
     let l = live.clone();
     s.command::<Notify, _, _>(move |ctx, _call, a| {

@@ -23,7 +23,8 @@
     "runtime:agents",
     "crew:read",
     "telemetry:track",
-    "automations:run"
+    "automations:run",
+    "resources:apply"
   ],
   "activation": [
     "onStartup"
@@ -47,7 +48,16 @@
       },
       {
         "id": "channels.test",
-        "title": "Send a test to every channel that's on"
+        "title": "Send a test to a channel, or to every channel that's on"
+      },
+      {
+        "id": "channels.status",
+        "title": "How each channel is set up (Settings → Phone): on or off, connected, what it still needs; secrets only as saved or not",
+        "readOnly": true
+      },
+      {
+        "id": "channels.setup",
+        "title": "Set up a channel (ntfy, Telegram, Slack, Discord, GitHub, email): switch it on or off, save its tokens (kept in secrets.json) and settings"
       },
       {
         "id": "channels.send",

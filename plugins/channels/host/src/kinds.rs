@@ -65,6 +65,13 @@ pub async fn reveal(ctx: &Ctx, text: &str) -> String {
     out
 }
 
+/// A `${secret:NAME}` value read from secrets; one that isn't there reads as nothing (never the reference itself,
+/// which a transport would take for the token).
+pub async fn reveal_or_empty(ctx: &Ctx, text: &str) -> String {
+    let out = reveal(ctx, text).await;
+    if out.contains("${secret:") { String::new() } else { out }
+}
+
 /// Re-reads the declared channels and notifications, then has the hub act on them.
 pub type OnChange = Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>;
 

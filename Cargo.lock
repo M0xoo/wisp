@@ -4273,6 +4273,7 @@ dependencies = [
  "wisp-crew-api",
  "wisp-grid-client-api",
  "wisp-kernel",
+ "wisp-ntfy",
  "wisp-proc",
  "wisp-resources",
  "wisp-resources-api",

@@ -75,7 +75,7 @@ impl TransportDef for Def {
         })
     }
     fn secrets(&self) -> &'static [&'static str] {
-        &["token", "publicKey"]
+        &["token", "publicKey", "linkCode"]
     }
 }
 

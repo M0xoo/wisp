@@ -12,6 +12,7 @@ pub mod markup;
 pub mod policy;
 pub mod scrub;
 pub mod secrets;
+pub mod setup;
 pub mod testing;
 pub mod transport;
 pub mod views;
@@ -24,6 +25,7 @@ pub use hub::{
     AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Ws, WsConn,
     WsFrame,
 };
+pub use setup::{ChannelSetup, PHONE_ORDER, PhoneStatus, SetupArgs, SetupState, TestArgs, TestOutcome, Tested};
 pub use transport::{Headers, InboundOpts, InboundResult, Status, TRANSPORTS, Transport, TransportDef, TransportKind, enabled_key, header};
 pub use views::*;
 
@@ -41,6 +43,23 @@ macro_rules! command {
             const ID: &'static str = $id;
             $(const READ_ONLY: bool = $ro;)?
             type Args = $args;
+            type Out = $out;
+        }
+    };
+}
+
+/// A command whose args are typed for the generated CLI and MCP tools (ts-rs `decl`, ADR-0022, ADR-0040).
+macro_rules! typed_command {
+    ($ty:ident, $id:literal, $args:ty, $out:ty $(, read_only = $ro:literal)?) => {
+        #[derive(Debug)]
+        pub struct $ty;
+        impl Command for $ty {
+            const ID: &'static str = $id;
+            $(const READ_ONLY: bool = $ro;)?
+            type Args = $args;
+            fn args_ts() -> Option<String> {
+                Some(format!("{}{}", <$args as ::ts_rs::TS>::docs().unwrap_or_default(), <$args as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+            }
             type Out = $out;
         }
     };
@@ -110,7 +129,7 @@ pub struct ExtraArgs {
 
 command!(View, "channels.view", Empty, Value, read_only = true);
 command!(Update, "channels.update", Value, Value);
-command!(Test, "channels.test", Empty, Value);
+typed_command!(Test, "channels.test", TestArgs, Vec<Tested>);
 command!(SendNotice, "channels.send", SendArgs, Sent);
 command!(Notify, "channels.notify", NotifyArgs, Empty);
 command!(Act, "channels.act", ActArgs, Line);
@@ -119,6 +138,8 @@ command!(Routed, "channels.routed", Value, HttpOut);
 command!(Rotate, "channels.rotate", ChannelArg, HttpOut);
 command!(Extra, "channels.extra", ExtraArgs, Value, read_only = true);
 command!(Refresh, "channels.refresh", Empty, Empty);
+command!(PhoneView, "channels.status", Empty, PhoneStatus, read_only = true);
+typed_command!(SetupChannel, "channels.setup", SetupArgs, ChannelSetup);
 
 /// Settings should look again.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -141,5 +162,18 @@ impl Event for StartedFrom {
 }
 
 /// Every command id this plugin answers, for the manifest test and the capability sets.
-pub const COMMANDS: &[&str] =
-    &[View::ID, Update::ID, Test::ID, SendNotice::ID, Notify::ID, Act::ID, Inbound::ID, Routed::ID, Rotate::ID, Extra::ID, Refresh::ID];
+pub const COMMANDS: &[&str] = &[
+    View::ID,
+    Update::ID,
+    Test::ID,
+    SendNotice::ID,
+    Notify::ID,
+    Act::ID,
+    Inbound::ID,
+    Routed::ID,
+    Rotate::ID,
+    Extra::ID,
+    Refresh::ID,
+    PhoneView::ID,
+    SetupChannel::ID,
+];

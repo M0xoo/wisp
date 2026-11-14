@@ -44,7 +44,7 @@ impl TransportDef for Def {
     }
     fn secrets(&self) -> &'static [&'static str] {
         // the webhook's secret is kept across a restart (the hub's `chan_kept`) in secrets.json, not the store
-        &["token", "hook.secret"]
+        &["token", "hook.secret", "linkCode"]
     }
 }
 
@@ -84,7 +84,11 @@ impl Telegram {
             .net()
             .fetch(HttpRequest::post_json(url, &body).timeout(timeout_ms))
             .await
-            .map_err(|e| WireError::unavailable(format!("Telegram: {e}")))?;
+            // the token is in the URL, and a net error names its URL: it never goes into what Settings shows
+            .map_err(|e| {
+                let (e, token) = (e.to_string(), s(&cfg, "token"));
+                WireError::unavailable(format!("Telegram: {}", if token.is_empty() { e } else { e.replace(token, "…") }))
+            })?;
         let j = r.json();
         if j.get("ok") != Some(&Value::Bool(true)) {
             return Err(WireError::unavailable(format!(

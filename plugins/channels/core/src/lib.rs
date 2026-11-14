@@ -10,6 +10,7 @@ pub mod link;
 pub mod lists;
 pub mod mentions;
 pub mod report;
+pub mod setup;
 pub use wisp_channels_api::{policy, scrub, secrets};
 pub mod sign;
 pub mod ws;
