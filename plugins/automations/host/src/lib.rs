@@ -8,6 +8,7 @@
 //! `trigger.rs`).
 
 pub mod engine;
+mod plan;
 mod trigger;
 
 use std::collections::BTreeMap;

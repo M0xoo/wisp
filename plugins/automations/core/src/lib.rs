@@ -2,4 +2,5 @@
 //! schedule is due ([`schedule`]). The host feeds it events and the time and runs what it decides.
 
 pub mod engine;
+pub mod plan;
 pub mod schedule;

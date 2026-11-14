@@ -9,6 +9,7 @@ export type TriggerRow = { name: string, spec: unknown,
  */
 from: string, 
 /**
- * on | off | paused | unavailable
+ * on | off | paused | unavailable | held (a run it started waits for its plan, Automations stop at; additive
+ * 2026-11-14)
  */
 state: string, why: string, lastRunAt?: number, runs: number, queued: number, awaiting: number, };

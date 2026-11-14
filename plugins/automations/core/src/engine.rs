@@ -104,6 +104,9 @@ pub struct State {
     /// the runs it started, by task id, and how many causes deep each is (a loop of triggers is cut at 3)
     #[serde(default)]
     pub depths: std::collections::BTreeMap<String, u32>,
+    /// a run it started waits for its plan (Automations stop at): the row says so until the plan frees
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<crate::plan::PlanWait>,
 }
 
 /// What the world says, for a decision.
@@ -517,6 +520,7 @@ pub fn ended(spec: &TriggerSpec, st: &mut State, session: &str, o: Outcome, now:
         return None;
     }
     st.running.retain(|s| s != session);
+    crate::plan::ended(st, session);
     let day = now.div_euclid(86_400_000);
     st.spent = if st.spent.0 == day { (day, st.spent.1 + o.cost) } else { (day, o.cost) };
     if o.quiet {

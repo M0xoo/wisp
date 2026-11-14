@@ -55,7 +55,7 @@ pub struct Engine {
     store: std::sync::OnceLock<Store>,
     pub declared: Mutex<Vec<(String, TriggerSpec)>>,
     /// one decision at a time: a state row is read, decided on and written back whole
-    gate: tokio::sync::Mutex<()>,
+    pub(crate) gate: tokio::sync::Mutex<()>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -341,6 +341,8 @@ impl Engine {
                 ("unavailable", w.clone())
             } else if let Some(w) = &st.paused {
                 ("paused", w.clone())
+            } else if let Some(w) = &st.plan {
+                ("held", w.why.clone())
             } else {
                 ("on", String::new())
             };

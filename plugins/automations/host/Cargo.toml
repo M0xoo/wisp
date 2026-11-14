@@ -25,6 +25,7 @@ wisp-crew-api.workspace = true
 wisp-workflows-api.workspace = true
 wisp-automations-api.workspace = true
 wisp-automations-core.workspace = true
+wisp-budget-api.workspace = true
 wisp-resources-api.workspace = true
 wisp-store.workspace = true
 

@@ -132,6 +132,11 @@ pub struct RecipeRunArgs {
 #[ts(export, export_to = "automations/")]
 pub struct AgentArgs {
     pub agent: String,
+    /// the account whose plan freed (`default`: the harness's own login); empty: every account of `agent`. Additive
+    /// (2026-11-14).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(optional, as = "Option<String>")]
+    pub account: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -179,7 +184,8 @@ command!(RecipeUpdate = "automations.recipe.update", PERM_WRITE, false, RecipeUp
 command!(RecipeRemove = "automations.recipe.remove", PERM_WRITE, false, KeyArgs => Done);
 command!(RecipeRun = "automations.recipe.run", PERM_RUN, false, RecipeRunArgs => Value);
 command!(
-    /// A window of this harness reset early: rows held for its plan stop saying so.
+    /// A window of this harness reset early (`budget.plan_free` does the same by itself): rows held for its plan stop
+    /// saying so. → how many did.
     Release = "automations.release", PERM_WRITE, false, AgentArgs => Count
 );
 command!(
@@ -274,7 +280,8 @@ pub struct TriggerRow {
     pub spec: Value,
     /// `trigger` (declared) or the plugin that provides it (`wisp.crew`)
     pub from: String,
-    /// on | off | paused | unavailable
+    /// on | off | paused | unavailable | held (a run it started waits for its plan, Automations stop at; additive
+    /// 2026-11-14)
     pub state: String,
     #[serde(default)]
     pub why: String,

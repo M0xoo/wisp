@@ -193,6 +193,12 @@ async fn on_event(ctx: Ctx, engine: Shared, env: Arc<wisp_kernel::EventEnvelope>
                 engine.ended(&ctx, id, outcome_of(&env.ty, &data), false, now).await;
             }
         }
+        "turn.held" => {
+            if let Some(id) = &env.subject {
+                let s = |k: &str| data.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+                engine.plan_held(&ctx, id, &s("by"), &s("kind"), now).await;
+            }
+        }
         "crew.reported" => {
             if let Some(id) = data.get("sessionId").and_then(Value::as_str) {
                 engine.ended(&ctx, id, outcome_of(&env.ty, &data), true, now).await;
@@ -283,6 +289,19 @@ fn commands(s: &mut Setup, engine: &Shared) {
         }
     });
     s.command::<c::Sources, _, _>(|ctx, _, _| async move { Ok(crate::engine::sources(&ctx)) });
+    let e = engine.clone();
+    s.command::<c::Release, _, _>(move |_, _, a| {
+        let e = e.clone();
+        async move { Ok(c::Count { n: e.release(&a.agent, &a.account).await }) }
+    });
+    // an early reset freed the plan (wisp.budget, v1 app.resetEarly): rows skipped for it stop saying so
+    let e = engine.clone();
+    s.on::<wisp_budget_api::PlanFree, _, _>(move |_, p| {
+        let e = e.clone();
+        async move {
+            e.release(&p.agent, &p.account).await;
+        }
+    });
 }
 
 /// `@member` in a pushed message wakes that member (ADR-0043 §5). A chat message only from someone the channel

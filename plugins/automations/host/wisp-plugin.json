@@ -77,6 +77,10 @@
         "title": "Resume a paused trigger"
       },
       {
+        "id": "automations.release",
+        "title": "Rows held for a harness's plan stop saying so (its plan reset early)"
+      },
+      {
         "id": "automations.sources",
         "title": "Trigger sources",
         "readOnly": true
