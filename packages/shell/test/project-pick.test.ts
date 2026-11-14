@@ -1,7 +1,7 @@
 // Pick several projects (docs/v2-queue.md GUI item 7): click = only, + / ⌘-Enter = add or remove, ⌘1–⌘9 = only,
 // All clears, the pick saved in the one device setting and restored, New task's folders (`dirs`, F-comp-47).
 import { expect, test } from 'vitest';
-import { alsoToggle, dirsOf, launchOf, middle, parsePick, pickHas, pickLabel, pickOnly, pickRemove, pickToggle, pickValue } from '../src/frame/project-pick.ts';
+import { alsoToggle, dirsOf, launchOf, middle, parsePick, pickHas, pickLabel, pickOnly, pickRemove, pickToggle, pickValue, startAt, taskPlaces } from '../src/frame/project-pick.ts';
 import { projectItems, projectShortcuts, togglePick } from '../src/frame/project-switch.ts';
 import type { PaletteItem, ShellContext } from '../src/contract.ts';
 import type { ProjectView } from '../src/frame/rows-view.ts';
@@ -120,4 +120,36 @@ test('new_task_dirs_start_in_the_first_pick_and_work_in_the_others', () => {
   expect(dirsOf(start, ['b', 'a', 'a'], projects)).toEqual(['/code/api']);
   expect(launchOf(['a'], projects)).toEqual({ start: 'a', also: [] });
   expect(launchOf([], projects)).toEqual({ start: undefined, also: [] });
+});
+
+test('making_another_chip_the_start_keeps_the_old_start_as_an_extra_folder', () => {
+  // an added one made the start: the two swap, in place (round 133 dropped `a`)
+  expect(startAt('a', ['b', 'c'], 'b')).toEqual(['a', 'c']);
+  expect(startAt('a', ['b', 'c'], 'c')).toEqual(['b', 'a']);
+  // one not added, in a task that works in several: the old start stays, first
+  expect(startAt('a', ['b'], 'd')).toEqual(['a', 'b']);
+  // a one-folder task switching folder: still one folder
+  expect(startAt('a', [], 'b')).toEqual([]);
+  // the one it starts in, or no folder before: nothing else changes
+  expect(startAt('a', ['b'], 'a')).toEqual(['b']);
+  expect(startAt(undefined, ['b'], 'c')).toEqual(['b']);
+  // and what goes on the wire: the new start's folder, then the old one as a dir
+  const next = startAt('a', ['b'], 'b');
+  expect(dirsOf(projects[1], next, projects)).toEqual(['/code/api']);
+});
+
+test('a_task_page_shows_every_folder_it_works_in_its_own_first', () => {
+  const own = { name: 'api', color: 'teal', cwd: '/code/api', projectId: 'a' };
+  // own first, then each dir as its project, once each; a folder in no project by its last part, nothing to open
+  const places = taskPlaces(own, ['/code/web/src', '/code/web', '/code/api', '/tmp/scratch/', 7], projects);
+  expect(places.map((p) => [p.id, p.name, p.own])).toEqual([
+    ['a', 'api', true],
+    ['b', 'web', undefined],
+    [undefined, 'scratch', undefined],
+  ]);
+  // a worktree checkout of its own project: found by projectId; no dirs: just its own
+  expect(taskPlaces({ ...own, cwd: '/wt/api-1a2b3c' }, undefined, projects).map((p) => p.id)).toEqual(['a']);
+  // no project named and none holds it: nothing to show; its dirs still show, none of them as where it started
+  expect(taskPlaces({ name: '', color: '', cwd: '/elsewhere' }, [], projects)).toEqual([]);
+  expect(taskPlaces({ name: '', color: '', cwd: '/elsewhere' }, ['/code/web'], projects).map((p) => [p.id, p.own])).toEqual([['b', undefined]]);
 });

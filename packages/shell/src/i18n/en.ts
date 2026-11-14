@@ -362,6 +362,8 @@ export const SHELL_STRINGS = {
   'shell.task.panel': 'Show side panel (])',
   'shell.task.close': 'Close: back to New task (Esc)',
   'shell.task.harness': '{name} · Default model',
+  'shell.task.placeOwn': '{path}\nThe agent started here',
+  'shell.task.placeAlso': '{path}\nAlso works in this folder',
   'shell.task.checkpoint': 'Git checkpoint before this turn on {branch} ({sha})',
   'shell.task.activity': 'Show activity',
   'shell.task.read': '{n} read',
