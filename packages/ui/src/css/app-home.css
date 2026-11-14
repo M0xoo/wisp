@@ -944,11 +944,10 @@
     margin-bottom: -8px;
     display: flex;
   }
-  /* a Wrap group: its accounts wrap as wholes (each nowrap) */
-  [data-kit='hu-row'][data-part='home.usage.wrap'] {
-    flex-wrap: wrap;
-  }
+  /* a Wrap group (data-layout='wrap'): its accounts wrap as wholes (each nowrap) */
   [data-kit='hu-row'] {
+    --k-gap: 20px;
+    --k-row-gap: 6px;
     display: flex;
     align-items: center;
     column-gap: 20px;

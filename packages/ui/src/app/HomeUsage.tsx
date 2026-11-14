@@ -45,7 +45,7 @@ export function HomeUsage(props: HomeUsageProps): JSX.Element {
   return (
     <Show when={props.groups.length > 0}>
       <div id={props.id} data-kit="home-usage" data-part={props.part ?? 'home.usage.row'}>
-        <button type="button" data-kit="hu-row" data-part="home.usage.wrap" title={props.title} onClick={() => props.onOpen()}>
+        <button type="button" data-kit="hu-row" data-layout="wrap" data-part="home.usage.wrap" title={props.title} onClick={() => props.onOpen()}>
           <For each={props.groups}>
             {(g) => (
               <span data-kit="hu-acct">
