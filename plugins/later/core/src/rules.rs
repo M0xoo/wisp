@@ -382,6 +382,17 @@ pub fn park_of(for_later: Option<&serde_json::Value>, now: i64) -> (bool, Option
     }
 }
 
+/// The phone's note when a plan reset early and what waited on it starts (v1 index.js `app.resetEarly`): `name` the
+/// harness's, `label` the account's when there are several (else empty). None when nothing waited.
+pub fn early_note(name: &str, label: &str, n: u32) -> Option<(String, String)> {
+    if n == 0 {
+        return None;
+    }
+    let label = if label.is_empty() { String::new() } else { format!(" ({label})") };
+    let (s, verb) = if n == 1 { ("", "starts") } else { ("s", "start") };
+    Some((format!("\u{21bb} {name}{label} reset early"), format!("Its plan reset before its time. {n} task{s} waiting on it {verb} now.")))
+}
+
 #[cfg(test)]
 mod park_tests {
     use super::park_of;

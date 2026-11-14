@@ -11,6 +11,7 @@
   },
   "permissions": [
     "budget:read",
+    "channels:send",
     "runtime:create",
     "runtime:followUp",
     "runtime:get",

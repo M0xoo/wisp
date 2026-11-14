@@ -4963,6 +4963,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-budget-api",
+ "wisp-channels-api",
  "wisp-kernel",
  "wisp-later-api",
  "wisp-later-core",

@@ -14,6 +14,7 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 wisp-budget-api.workspace = true
+wisp-channels-api.workspace = true
 wisp-kernel.workspace = true
 wisp-later-api.workspace = true
 wisp-later-core.workspace = true

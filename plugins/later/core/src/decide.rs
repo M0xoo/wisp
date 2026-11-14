@@ -216,11 +216,13 @@ pub fn due_plans(plans: &[Plan], tasks: &BTreeMap<String, Task>, now: i64, room:
 
 /// A window of `agent`'s `account` reset early (v1 pullForward): a follow-up moved by Automations stop at
 /// (on a task that runs on that plan) or one waiting at that limit comes due now, `held` cleared.
-/// → the entries it moved. The caller checks first that nothing holds the account any more.
+/// → the entries it moved. The caller checks first that nothing holds the account any more. A limit with no
+/// account (`later.waitAtLimit` names only the harness) is the task's own account's.
 pub fn pull_forward(entries: &[LaterEntry], tasks: &BTreeMap<String, Task>, agent: &str, account: &str, now: i64) -> Vec<LaterEntry> {
     let acct = |a: &str| {
         if a.is_empty() { "default".to_owned() } else { a.to_owned() }
     };
+    let account = acct(account);
     entries
         .iter()
         .filter(|l| l.at > now)
@@ -229,7 +231,11 @@ pub fn pull_forward(entries: &[LaterEntry], tasks: &BTreeMap<String, Task>, agen
                 return false;
             };
             let mine = t.agent == agent && acct(&t.account) == account;
-            (l.held.is_some() && mine) || l.limit.as_ref().is_some_and(|x| x.agent == agent && acct(&x.account) == account)
+            let limit = l.limit.as_ref().is_some_and(|x| {
+                let on = if x.account.is_empty() { &t.account } else { &x.account };
+                x.agent == agent && acct(on) == account
+            });
+            (l.held.is_some() && mine) || limit
         })
         .map(|l| LaterEntry { at: now, held: None, ..l.clone() })
         .collect()

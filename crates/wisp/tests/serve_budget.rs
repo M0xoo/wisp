@@ -58,6 +58,51 @@ async fn unattended_work_past_the_stop_line_is_held_until_the_window_resets() {
     drop(serve);
 }
 
+/// F-auto-12, a banked Codex reset lands early (v1 live-limits.js + app.resetEarly): with Check Codex while work waits
+/// on, a crew job held past the stop line makes wisp read Codex's usage (the fake app-server); the read shows the
+/// five-hour window reset hours before its time, so the held job and a task waiting at its limit (Wait for the reset)
+/// both go now, not at the old reset, and the window says *Reset early*.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_banked_codex_reset_that_lands_early_starts_the_waiting_work_at_once() {
+    let dir = temp("serve-budget-early");
+    let usage = dir.join("codex-usage.json");
+    let (serve, port) = start_with(&dir, &[("FAKE_CODEX_USAGE", usage.to_str().unwrap()), ("WISP_BUDGET_TICK_MS", "300")]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let old = (now_ms() / 1000 + 3 * 3600) * 1000;
+    api.cmd("settings.set", json!({ "key": "budget.liveLimits", "value": true })).await;
+    api.cmd("budget.setStop", json!({ "key": "autoStopCodex", "value": "75" })).await;
+    // a run reported 80% of the five-hour window, resetting in three hours: past the 75% line
+    let report = json!({ "agent": "codex", "account": "default", "report": { "windows": [{ "id": "five_hour", "used": 0.8, "resetsAt": old, "ms": 18_000_000 }], "complete": true } });
+    api.cmd("budget.record", report).await;
+    assert_eq!(api.cmd("budget.hold", json!({ "agent": "codex", "account": "" })).await["window"], "five_hour");
+    // a task of yours hit its limit and waits for that reset (Wait for the reset: later.waitAtLimit, as runtime asks)
+    let (mine, task) = run_task(&api, &dir, "codex").await;
+    assert_eq!(mine["status"], "done", "{mine}");
+    let id = task["id"].as_str().unwrap().to_owned();
+    let wait = api.cmd("later.waitAtLimit", json!({ "sessionId": id, "at": old, "agent": "codex" })).await;
+    assert_eq!(wait["at"], old, "{wait}");
+    // OpenAI banked a reset: Codex now says 2% used, the next reset five hours away
+    let fresh = now_ms() / 1000 + 5 * 3600;
+    std::fs::write(&usage, json!({ "primary": { "usedPercent": 2, "windowDurationMins": 300, "resetsAt": fresh } }).to_string()).unwrap();
+    // a crew job is held on the plan; wisp reads Codex while it waits, sees the early reset, and both go
+    let crew =
+        api.cmd("runtime.create", json!({ "prompt": "nightly tidy", "cwd": dir.join("proj"), "agent": "codex", "by": "crew" })).await["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    let job = api.until(&crew, "the held job runs", |t| t.last().is_some_and(|x| x["status"] == "done")).await;
+    let t = api.until(&id, "the waiting task carries on", |t| t.len() == 2 && ended(&t[1])).await;
+    assert!(t[1]["prompt"].as_str().unwrap_or_default().contains("Carry on from where the last run stopped"), "{:?}", t[1]);
+    assert_eq!(t[1]["status"], "done", "{:?}", t[1]);
+    // the read happened (only waiting work makes it), saw the early reset, and the held job started after it
+    let v = api.cmd("budget.view", json!({ "agent": "codex" })).await;
+    let w = &v[0]["windows"][0];
+    assert!((w["used"].as_f64().unwrap() - 0.02).abs() < 1e-9, "the read's numbers: {v}");
+    let early = w["earlyAt"].as_i64().unwrap_or_else(|| panic!("Reset early: {v}"));
+    assert!(job[0]["startedAt"].as_i64().unwrap() >= early, "held until the reset was seen: {:?} {v}", job[0]);
+    drop(serve);
+}
+
 /// Ask near the limit end to end (v1 test/limit-hold.test.js): three claude runs teach what a run takes of the
 /// five-hour window (each reported $0.01 while the window rose 10%); at 85% the next run would take it to ~95%, past
 /// the 90% line. Your own run is refused with wisp's words, the same run with `confirmLimit` (the CLI's --yes) goes,

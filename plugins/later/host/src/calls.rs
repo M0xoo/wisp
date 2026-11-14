@@ -129,6 +129,22 @@ pub(crate) async fn create(ctx: &Ctx, call: &Call, body: Option<&Value>) -> Resu
     ctx.run::<r::Create>(call, a).await.map(|c| c.id.0)
 }
 
+/// The phone hears that `agent@account` reset early and `n` tasks waiting on it start (v1 `app.resetEarly`); nothing
+/// when none did, and nothing but a debug line when no phone is set up.
+pub(crate) async fn early_note(ctx: &Ctx, agent: &str, account: &str, n: u32) {
+    let name = ctx
+        .contributions(&wisp_runtime_api::harness::HARNESS)
+        .iter()
+        .find(|h| h.info().id == agent)
+        .map_or_else(|| agent.to_owned(), |h| h.info().name.clone());
+    let label = if account.is_empty() || account == "default" { "" } else { account };
+    let Some((title, text)) = wisp_later_core::rules::early_note(&name, label, n) else { return };
+    let msg = wisp_channels_api::Msg { title, text, actions: Vec::new() };
+    if let Err(err) = ctx.run::<wisp_channels_api::SendNotice>(&ctx.root_call(), wisp_channels_api::SendArgs { msg }).await {
+        tracing::debug!(error = %err.message, "later: an early reset, no phone to tell");
+    }
+}
+
 /// `telemetry.track` (logged when refused).
 pub(crate) async fn track(ctx: &Ctx, event: &str, props: Map<String, Value>) {
     if let Err(err) = ctx.run::<tel::Track>(&ctx.root_call(), tel::TrackArgs { event: event.into(), props }).await {

@@ -19,7 +19,7 @@ use serde_json::{Map, Value, json};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_later_api::commands as c;
 use wisp_later_api::{BY_AGENT, LaterEntry, LaterHeld, PER_TICK, Plan, PlanKind, SentMeta, TICK_MS};
-use wisp_later_core::{Action, PlanAction, Task, TaskMeta, TaskState, due, due_plans, next_at, rules};
+use wisp_later_core::{Action, PlanAction, Task, TaskMeta, TaskState, due, due_plans, next_at, pull_forward, rules};
 use wisp_store::Store;
 
 /// A zone's offset from UTC at `at`, in minutes: the zone named, else the server's, else UTC.
@@ -178,6 +178,47 @@ impl State {
             .await?;
         calls::note(ctx, call, &l.session_id, l.text.clone()).await;
         Ok(())
+    }
+
+    /// `agent@account`'s plan reset early and nothing holds it (`budget.plan_free`): follow-ups held for it, or waiting
+    /// at its limit, come due and go now; the phone hears how many tasks start, with the runs wisp.budget started.
+    async fn plan_free(&self, ctx: &Ctx, e: &wisp_budget_api::PlanFree) -> u32 {
+        let call = ctx.root_call();
+        let mut ids: Vec<String> =
+            lock(&self.entries).iter().filter(|l| l.held.is_some() || l.limit.is_some()).map(|l| l.session_id.clone()).collect();
+        ids.sort();
+        ids.dedup();
+        let mut tasks = BTreeMap::new();
+        for id in ids {
+            match calls::task(ctx, &call, &id).await {
+                Ok(Some(t)) => {
+                    tasks.insert(id, t);
+                }
+                Ok(None) => {}
+                Err(err) => tracing::warn!(error = %err.message, task = %id, "later: runtime.get"),
+            }
+        }
+        let moved = {
+            let mut all = lock(&self.entries);
+            let moved = pull_forward(&all, &tasks, &e.agent, &e.account, now(ctx));
+            for m in &moved {
+                if let Some(l) = all.iter_mut().find(|l| l.id == m.id) {
+                    *l = m.clone();
+                }
+            }
+            moved
+        };
+        let n = u32::try_from(moved.len()).unwrap_or(u32::MAX);
+        if !moved.is_empty() {
+            let touched: BTreeSet<String> = moved.iter().map(|l| l.session_id.clone()).collect();
+            logged(self.write(store::Ops { entries: moved, ..store::Ops::default() }).await, "an early reset");
+            for id in &touched {
+                self.mirror(ctx, &call, id).await;
+            }
+            self.tick(ctx, &call).await;
+        }
+        calls::early_note(ctx, &e.agent, &e.account, e.started.saturating_add(n)).await;
+        n
     }
 
     /// One look (v1 later.js tick): what came due goes, at most `PER_TICK` at once.
@@ -503,6 +544,16 @@ impl Plugin for LaterPlugin {
         let slot: Slot = Arc::new(OnceLock::new());
         commands(s, &slot);
         s.contribute(&wisp_kernel::egress::VIEWS, Arc::new(egress::View(s.ctx())) as Arc<dyn wisp_kernel::egress::RowView>);
+        // an early (banked) reset freed a plan: what waits on it comes due now (v1 app.resetEarly)
+        let freed = slot.clone();
+        s.on::<wisp_budget_api::PlanFree, _, _>(move |ctx, e| {
+            let slot = freed.clone();
+            async move {
+                if let Ok(st) = state(&slot) {
+                    st.plan_free(&ctx, &e).await;
+                }
+            }
+        });
         let start = slot;
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();
