@@ -28,6 +28,7 @@ async fn a_handed_over_path_finds_and_starts_a_cli_the_inherited_one_misses() {
     let path = format!("{}:/usr/bin:/bin", dir.display());
     wisp_proc::set_path(&path);
     assert_eq!(proc.which("wisp-handed-tool", None).await, Some(tool.clone()));
+    assert_eq!(wisp_proc::search_path(), Some(path.clone().into()), "what code that looks a program up itself searches");
     let r = proc.exec("wisp-handed-tool", &[], ExecOpts::default()).await.unwrap();
     assert_eq!(String::from_utf8(r.stdout).unwrap().trim(), format!("tool on {path}"));
     // what any child sees, not only the one found on it

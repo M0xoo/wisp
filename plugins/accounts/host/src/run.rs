@@ -15,12 +15,13 @@ use wisp_runtime_api::model::Held;
 
 use crate::{State, folders, harness, lock, now, store};
 
-/// Where `bin` resolves: the path itself when it names a folder, else the first match on PATH.
+/// Where `bin` resolves: the path itself when it names a folder, else the first match on the PATH runs start with
+/// (`wisp_proc::search_path`: the login shell's, once the desktop app handed it over; ADR-0057).
 async fn resolve(bin: &str) -> Option<(PathBuf, PathBuf)> {
     let candidates: Vec<PathBuf> = if bin.contains(['/', '\\']) {
         vec![PathBuf::from(bin)]
     } else {
-        std::env::var_os("PATH").map(|p| std::env::split_paths(&p).map(|d| d.join(bin)).collect()).unwrap_or_default()
+        wisp_proc::search_path().map(|p| std::env::split_paths(&p).map(|d| d.join(bin)).collect()).unwrap_or_default()
     };
     for p in candidates {
         if let Ok(real) = tokio::fs::canonicalize(&p).await
@@ -133,4 +134,25 @@ pub(crate) async fn before_run(ctx: &Ctx, _call: &Call, st: &std::sync::Arc<Stat
         }
     }
     if changed { Verdict::Modify { ctx: c } } else { Verdict::Continue }
+}
+
+#[cfg(all(test, unix))]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    // ADR-0057: the desktop app hands its server the login shell's PATH after start; the harness watch must look at the
+    // program `wisp-proc` starts on it, not at whatever the inherited PATH (launchd's) has. The handed PATH is the
+    // inherited one with a folder in front, so the other tests in this binary find what they found before.
+    #[tokio::test]
+    async fn the_harness_watch_finds_the_program_on_the_path_the_desktop_app_handed_over() {
+        let dir = std::env::temp_dir().join(format!("wisp-accounts-handed-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let bin = dir.join("wisp-accounts-handed-cli");
+        std::fs::write(&bin, "#!/bin/sh\n").unwrap();
+        assert_eq!(super::resolve("wisp-accounts-handed-cli").await, None, "not on the inherited PATH");
+        wisp_proc::set_path(&format!("{}:{}", dir.display(), std::env::var("PATH").unwrap_or_default()));
+        let (path, _) = super::resolve("wisp-accounts-handed-cli").await.unwrap();
+        assert_eq!(path, bin);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -58,6 +58,13 @@ fn handed_path() -> Option<String> {
     HANDED_PATH.read().unwrap_or_else(PoisonError::into_inner).clone()
 }
 
+/// The PATH programs are found on: the handed-over one, else the inherited one. For code that looks a program up
+/// itself (a harness's fingerprint, a language server) so it finds the one `spawn` starts.
+#[must_use]
+pub fn search_path() -> Option<std::ffi::OsString> {
+    handed_path().map(Into::into).or_else(|| std::env::var_os("PATH"))
+}
+
 /// This process's variables, with the handed-over PATH in place of the inherited one.
 fn parent_env() -> Vec<(String, String)> {
     let mut vars: Vec<(String, String)> = std::env::vars().collect();

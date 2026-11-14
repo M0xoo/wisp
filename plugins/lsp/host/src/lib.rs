@@ -80,7 +80,8 @@ impl State {
         }
         let search = Search {
             override_cmd: std::env::var(Search::override_var(lang)).ok(),
-            path: std::env::var("PATH").ok(),
+            // the PATH servers start on: the login shell's once the desktop app handed it over (ADR-0057)
+            path: wisp_proc::search_path().and_then(|p| p.into_string().ok()),
             windows: cfg!(windows),
         };
         let Some(cmd) = find_server(lang, root, self.home.as_deref(), &search, Path::is_file) else { return Ok(None) };
