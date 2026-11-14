@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test, { after } from 'node:test';
 import { discover } from '../check/core/workspace.ts';
 import { affectedSet, parseImpact, scorePr, verdict, type PrScore } from '../g14.ts';
-import { markdown, readVerify } from '../monoflow-report.ts';
+import { clippedHint, markdown, readVerify } from '../monoflow-report.ts';
 import { MONOFLOW_COMMIT, WRAPPER, WRAPPER_SCRIPT, strays, writeWrapper } from '../setup-monoflow.ts';
 import { dependencyOrder, plan } from '../test.ts';
 
@@ -62,6 +62,20 @@ test('monoflow-report: both versions of verify --json read the same', () => {
   const md = markdown('PR', pin, { affected_packages: ['a'], unmapped_files: ['README.md'] });
   assert.match(md, /Failed: `b`/);
   assert.match(md, /1 changed files outside every package/);
+});
+
+test('monoflow-report: a clipped execution_failure says the test is cut out and how to see it, or names it', () => {
+  // the message PR CI got for wisp-grid (1fecc6c5): the binaries before the failing one, nothing after
+  const ci = '…work/wisp/wisp/target/debug/build/wisp-grid/16/out/wisp_grid-16)\nrunning 0 tests\ntest result: ok. 0 passed; 0 failed\n     Running unittests src/bin/wisp-grid-hostd.rs (…)\nrunning 0 tests\ntest result: ok…';
+  const r = readVerify({ status: 'failed', failed: { 'wisp-grid': 1 }, errors: [{ file: 'apps/grid', code: 'execution_failure', targets: ['wisp-grid'], message: ci }] });
+  assert.equal(r.details.length, 2);
+  assert.match(r.details[1] ?? '', /^apps\/grid: monoflow cut the failing test out .*to see it: cargo test -p wisp-grid --no-fail-fast$/);
+  assert.match(markdown('PR', r), /What failed[\s\S]*cargo test -p wisp-grid/);
+  const panic = "thread 'hostd_runs_a_box_through_boxd' panicked at apps/grid/tests/boxd_driver.rs:105:5:\ntest hostd_runs_a_box_through_boxd ... FAILED";
+  assert.equal(
+    clippedHint(panic, ['x'], 'packages/x', () => false),
+    "failing: thread 'hostd_runs_a_box_through_boxd' panicked at apps/grid/tests/boxd_driver.rs:105:5: | test hostd_runs_a_box_through_boxd ... FAILED; to see it: the test script in packages/x",
+  );
 });
 
 test('g14: impact in either shape; affected set is owners plus dependents; unmapped files listed', () => {

@@ -5,6 +5,7 @@
 //   node tools/monoflow-report.ts <verify.json> [--title=<heading>] [--affected=<affected.json>]
 
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 export interface VerifyReport {
   status: string;
@@ -24,6 +25,25 @@ const clip = (s: string): string => (s.length > 4000 ? `${s.slice(0, 4000)}…` 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/** Lines that name what failed: a Rust panic or FAILED test, a node:test/vitest failure, an error line. */
+const FAILURE_LINE = /panicked at|^test .* FAILED$|^---- .* ----$|^failures:|^not ok |✖|FAIL |^error(\[|:)/;
+
+/**
+ * A command that failed with no file:line diagnostics comes back as `execution_failure`, and monoflow keeps very
+ * little of its output: the last 1500 characters, then the first 400 of those (2a86d14, CompactFailure and
+ * DedupeErrors), so a `cargo test` that stops at its failing binary shows the binaries before it, not the test.
+ * Neither the JSON nor any log keeps the rest; say so, name any failure lines that survived, and give the command
+ * that shows the whole output (monoflow's own `cargo test -p <crate>` for a crate, with every binary run).
+ */
+export function clippedHint(message: string, targets: string[], dir: string, isCrate = (d: string): boolean => existsSync(join(d, 'Cargo.toml'))): string {
+  const named = message.split('\n').map((l) => l.trim()).filter((l) => FAILURE_LINE.test(l));
+  const rerun = isCrate(dir) ? targets.map((t) => `cargo test -p ${t} --no-fail-fast`).join('; ') : `the test script in ${dir}`;
+  return [
+    named.length ? `failing: ${named.join(' | ')}` : 'monoflow cut the failing test out of its message (it keeps ~400 characters near the end of the output)',
+    `to see it: ${rerun}`,
+  ].join('; ');
+}
 
 export function readVerify(raw: unknown): VerifyReport {
   const j = isObj(raw) ? raw : {};
@@ -45,8 +65,11 @@ export function readVerify(raw: unknown): VerifyReport {
   if (isObj(j['failed'])) for (const k of Object.keys(j['failed'])) failed.add(k);
   for (const e of Array.isArray(j['errors']) ? j['errors'] : []) {
     if (!isObj(e)) continue;
-    for (const t of strings(e['targets'])) failed.add(t);
-    detail(typeof e['file'] === 'string' ? e['file'] : strings(e['targets']).join(', '), e);
+    const targets = strings(e['targets']);
+    for (const t of targets) failed.add(t);
+    const who = typeof e['file'] === 'string' ? e['file'] : targets.join(', ');
+    detail(who, e);
+    if (e['code'] === 'execution_failure') details.push(`${who}: ${clippedHint(typeof e['message'] === 'string' ? e['message'] : '', targets, who)}`);
   }
   return {
     status: typeof j['status'] === 'string' ? j['status'] : 'unknown',
@@ -69,6 +92,8 @@ export function readJsonFile(path: string): unknown {
 export function markdown(title: string, r: VerifyReport, affected?: { affected_packages?: string[]; unmapped_files?: string[] }): string {
   const lines = [`### ${title}`, '', `**${r.status}** · ${r.total} targets · ${(r.durationMs / 1000).toFixed(1)} s`, ''];
   if (r.failed.length) lines.push(`Failed: ${r.failed.map((f) => `\`${f}\``).join(', ')}`, '');
+  // what each failure said, so the job summary shows it without opening the log
+  if (r.details.length) lines.push('<details><summary>What failed</summary>', '', '```', ...r.details, '```', '', '</details>', '');
   if (affected) {
     const a = affected.affected_packages ?? [];
     lines.push(`Affected set (report-only, gate G14): ${a.length ? a.map((p) => `\`${p}\``).join(', ') : '_none_'}`, '');
