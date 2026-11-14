@@ -191,6 +191,13 @@ pub fn cool(list: &mut [Stored], id: &str, until: i64, why: &str) -> bool {
     true
 }
 
+/// The account's plan is free again before the time `cool` gave (an early reset, `budget.plan_free`): hand-started
+/// launches may pick it at once. Whether it was cooled.
+pub fn uncool(list: &mut [Stored], id: &str) -> bool {
+    let id = if id.is_empty() { DEFAULT } else { id };
+    list.iter_mut().find(|a| a.id == id).is_some_and(|a| a.limit.take().is_some())
+}
+
 /// What the CLI says about a login, kept for the page.
 pub fn identify(list: &mut [Stored], id: &str, email: Option<&str>, plan: Option<&str>, signed_in: Option<bool>) -> bool {
     let id = if id.is_empty() { DEFAULT } else { id };

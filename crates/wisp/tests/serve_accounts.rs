@@ -180,3 +180,37 @@ async fn a_run_moved_to_the_second_account_records_that_account_on_its_turn() {
     assert_eq!(turn["account"], "w1", "the turn ran on w1 and says so: {turn}");
     drop(serve);
 }
+
+/// Round 176: with two accounts, the CLI's own login hit its limit and is cooled until its reset three hours away
+/// (`accounts.cool`); then a reading shows that plan reset early (`budget.plan_free`): the account is ready at once,
+/// not at the old reset. Another account's cool is left as it was.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_early_reset_ends_the_accounts_cool_at_once() {
+    let dir = temp("serve-accounts-early");
+    std::fs::create_dir_all(dir.join("codex-home")).unwrap();
+    let (serve, port) = start(&dir);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    api.cmd("accounts.add", json!({ "agent": "codex", "id": "w1", "label": "Work", "kind": "work" })).await;
+    let now = i64::try_from(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()).unwrap();
+    let old = now + 3 * 3_600_000;
+    for account in ["default", "w1"] {
+        api.cmd("accounts.cool", json!({ "agent": "codex", "account": account, "until": old, "why": "5-hour limit" })).await;
+    }
+    let until_of = async |id: &str| {
+        let v = api.cmd("accounts.list", json!({ "agent": "codex" })).await;
+        v["accounts"].as_array().and_then(|l| l.iter().find(|a| a["id"] == id)).map(|a| a["until"].clone()).unwrap_or_default()
+    };
+    assert_eq!(until_of("default").await, old, "cooled until the old reset");
+    // the CLI's own login: 80% of the five-hour window, resetting in three hours; then OpenAI banks a reset
+    let read = |used: f64, at: i64| json!({ "agent": "codex", "account": "", "report": { "windows": [{ "id": "five_hour", "used": used, "resetsAt": at, "ms": 18_000_000 }], "complete": true } });
+    api.cmd("budget.record", read(0.8, old)).await;
+    api.cmd("budget.record", read(0.02, now + 5 * 3_600_000)).await;
+    until("the early reset ends the cool", async || {
+        let v = api.cmd("accounts.list", json!({ "agent": "codex" })).await;
+        let d = v["accounts"].as_array()?.iter().find(|a| a["id"] == "default")?.clone();
+        (d["state"] == "ready" && d["until"].is_null()).then_some(d)
+    })
+    .await;
+    assert_eq!(until_of("w1").await, old, "another account's plan didn't reset");
+    drop(serve);
+}

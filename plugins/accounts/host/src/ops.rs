@@ -106,6 +106,20 @@ pub(crate) fn register(s: &mut Setup, slot: &Slot) {
         }
         Ok(out(&ctx, &st, &a.agent))
     });
+    // an early reset freed the account's plan (wisp.budget): it isn't at its limit until the old reset any more
+    let freed = slot.clone();
+    s.on::<wisp_budget_api::PlanFree, _, _>(move |_ctx, e| {
+        let slot = freed.clone();
+        async move {
+            let Ok(st) = state(&slot) else { return };
+            let mut list = lock(&st.accounts).get(&e.agent).cloned().unwrap_or_default();
+            if accounts::uncool(&mut list, &e.account)
+                && let Err(err) = save(&st, &e.agent, list).await
+            {
+                tracing::warn!(error = %err.message, agent = %e.agent, "accounts: an early reset, not saved");
+            }
+        }
+    });
     on!(s, slot, c::Remove, |st, ctx, a| {
         let h = many(&ctx, &a.agent)?;
         let list = lock(&st.accounts).get(&a.agent).cloned().unwrap_or_default();

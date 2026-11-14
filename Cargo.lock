@@ -4074,6 +4074,7 @@ dependencies = [
  "tracing",
  "wisp-accounts-api",
  "wisp-accounts-core",
+ "wisp-budget-api",
  "wisp-git-api",
  "wisp-harness-kit",
  "wisp-kernel",
@@ -4176,6 +4177,7 @@ dependencies = [
  "tracing",
  "wisp-automations-api",
  "wisp-automations-core",
+ "wisp-budget-api",
  "wisp-crew-api",
  "wisp-events-api",
  "wisp-kernel",
@@ -4230,6 +4232,7 @@ dependencies = [
  "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-store",
+ "wisp-testkit",
 ]
 
 [[package]]
