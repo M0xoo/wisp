@@ -64,3 +64,29 @@ pub struct ModelCompare {
 pub const COMPARE_MIN: usize = 5;
 /// v1 receipt.js: over this many days.
 pub const COMPARE_DAYS: i64 = 7;
+
+/// One plan window this period and each task's traced part of it, for *what ate my limits* (crew's Track record, v1
+/// usage.js `crewStats` windows). Additive (2026-11-14).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "budget/")]
+pub struct PlanWindow {
+    pub agent: String,
+    pub account: String,
+    pub window: String,
+    pub label: String,
+    /// how much of the window is gone now, 0..=1
+    pub used: f64,
+    #[ts(type = "number")]
+    pub resets_at: i64,
+    /// when this period started (`resets_at` minus the window's length), when its length is known
+    #[ts(type = "number | null")]
+    pub since: Option<i64>,
+    /// at this pace, when it runs out (before the reset)
+    #[ts(type = "number | null")]
+    pub hit_at: Option<i64>,
+    /// the part of the window wisp traced to any task this period (0..=1 of the window)
+    pub traced: f64,
+    /// the asked-for tasks' parts of the window (0..=1 each): only the ones with a share
+    pub tasks: std::collections::BTreeMap<String, f64>,
+}

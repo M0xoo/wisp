@@ -146,9 +146,21 @@ pub struct ViewArgs {
     pub named: bool,
 }
 
+/// `budget.planWindows`' arguments: the tasks whose parts to return (None: every traced task). Additive (2026-11-14).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "budget/")]
+pub struct PlanWindowsArgs {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tasks: Option<Vec<String>>,
+}
+
 command!(View = "budget.view", PERM_READ, true, ViewArgs => Vec<AccountView>);
 // Tokens per turn by account (v1 `compareAccounts`): numbers only, it never says which account to use.
 command!(Compare = "budget.compare", PERM_READ, true, AgentArgs => Vec<crate::usage::ModelCompare>);
+// Every account's windows this period with each task's traced part (crew's *what ate my limits*).
+command!(PlanWindows = "budget.planWindows", PERM_READ, true, PlanWindowsArgs => Vec<crate::usage::PlanWindow>);
 command!(Hold = "budget.hold", PERM_READ, true, AccountArgs => Option<PlanHold>);
 command!(ResetAt = "budget.resetAt", PERM_READ, true, AccountArgs => Option<i64>);
 command!(Shares = "budget.shares", PERM_READ, true, SessionArgs => Vec<TurnPlan>);

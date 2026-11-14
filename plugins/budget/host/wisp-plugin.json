@@ -41,6 +41,11 @@
         "readOnly": true
       },
       {
+        "id": "budget.planWindows",
+        "title": "Each usage window this period and the tasks' parts of it",
+        "readOnly": true
+      },
+      {
         "id": "budget.hold",
         "title": "What holds an account's unattended work",
         "readOnly": true

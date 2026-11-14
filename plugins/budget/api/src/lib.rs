@@ -21,7 +21,7 @@ pub use model::{
     AccountView, Banked, BankedCredit, BankedDue, Drain, DrainFailed, LimitWindow, LimitsReport, NoticeKind, OverageKind, OverageView,
     Past, Period, RunSubject, Share, WindowNotice, WindowNow, WindowView,
 };
-pub use usage::{AccountTurns, COMPARE_DAYS, COMPARE_MIN, ModelCompare, TaskUse, WhereView};
+pub use usage::{AccountTurns, COMPARE_DAYS, COMPARE_MIN, ModelCompare, PlanWindow, TaskUse, WhereView};
 
 // ---------- shared contract (crew, later, goal, automations depend on it) ----------
 

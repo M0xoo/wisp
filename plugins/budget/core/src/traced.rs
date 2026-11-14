@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use wisp_budget_api::{AccountTurns, COMPARE_DAYS, COMPARE_MIN, ModelCompare, WhereView, WindowView};
+use wisp_budget_api::{AccountTurns, COMPARE_DAYS, COMPARE_MIN, ModelCompare, PlanWindow, WhereView, WindowView};
 
 use crate::model::Budget;
 use crate::receipt::StatsLike;
@@ -88,6 +88,36 @@ pub fn top(mut v: WhereView, limit: usize) -> WhereView {
 }
 
 impl Budget {
+    /// Every account's windows this period that wisp traced a share of, with the asked-for tasks' parts (`only`:
+    /// None for every task): crew's *what ate my limits*. A fresh window (its reset passed) or one with no traced
+    /// task this period is left out; agents, accounts and windows in a stable order.
+    pub fn plan_windows(&self, only: Option<&std::collections::BTreeSet<String>>, now: i64) -> Vec<PlanWindow> {
+        let mut out = Vec::new();
+        for (agent, account, acc) in self.all() {
+            for w in Self::view_windows(acc, now) {
+                let Some(resets_at) = w.resets_at.filter(|r| *r > now) else { continue };
+                let Some(t) = acc.traced.get(&w.id).filter(|t| same_period(t.resets_at, w.resets_at)) else { continue };
+                if t.tasks.is_empty() {
+                    continue;
+                }
+                let tasks = t.tasks.iter().filter(|(id, _)| only.is_none_or(|o| o.contains(*id))).map(|(id, u)| (id.clone(), *u)).collect();
+                out.push(PlanWindow {
+                    agent: agent.to_owned(),
+                    account: account.to_owned(),
+                    window: w.id.clone(),
+                    label: w.label.clone(),
+                    used: w.used,
+                    resets_at,
+                    since: w.ms.filter(|m| *m > 0).map(|m| resets_at - m),
+                    hit_at: w.hit_at,
+                    traced: t.tasks.values().sum::<f64>().min(1.0),
+                    tasks,
+                });
+            }
+        }
+        out
+    }
+
     /// A finished turn on `account` (only finished ones with output count, as v1's `status === 'done'`).
     pub fn note_turn(&mut self, agent: &str, account: &str, sample: TurnSample, now: i64) {
         if agent.is_empty() || sample.output == 0 {

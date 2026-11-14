@@ -85,7 +85,7 @@ impl Budget {
         out
     }
 
-    fn view_windows(acc: &Acc, now: i64) -> Vec<WindowView> {
+    pub(crate) fn view_windows(acc: &Acc, now: i64) -> Vec<WindowView> {
         let mut out: Vec<WindowView> = acc
             .windows
             .iter()

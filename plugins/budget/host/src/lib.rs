@@ -253,6 +253,10 @@ fn commands(s: &mut Setup, slot: &Slot) {
         Ok(v)
     });
     on!(s, slot, c::Compare, |st, ctx, a| Ok(lock(&st.budget).compare_accounts(&a.agent, now(&ctx))));
+    on!(s, slot, c::PlanWindows, |st, ctx, a| {
+        let only: Option<std::collections::BTreeSet<String>> = a.tasks.map(|t| t.into_iter().collect());
+        Ok(lock(&st.budget).plan_windows(only.as_ref(), now(&ctx)))
+    });
     on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));
     // when the account can run again after a limit (v1 budget.resetAt): the runtime's limit card
     on!(s, slot, c::ResetAt, |st, ctx, a| Ok(lock(&st.budget).reset_at(&a.agent, &account_of(&a.account), now(&ctx))));

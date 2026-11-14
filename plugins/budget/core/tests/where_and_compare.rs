@@ -83,3 +83,32 @@ fn two_accounts_show_tokens_per_model_per_account() {
     assert!((c[0].accounts[1].cache.unwrap() - 0.9).abs() < 1e-9);
     assert_eq!(b.compare_accounts("codex", now).len(), 0);
 }
+
+#[test]
+fn plan_windows_give_each_asked_task_its_part_of_every_window_this_period() {
+    let mut b = Budget::new();
+    let week = 100 * H;
+    b.record("claude", "default", &report(0.0, 0.10, week), 1_000);
+    b.begin("claude", "default", "job-a", "a1", 1_000);
+    b.begin("claude", "default", "mine", "m1", 1_000);
+    b.record("claude", "default", &report(0.2, 0.30, week), 61_000);
+    let only: std::collections::BTreeSet<String> = ["job-a".to_owned(), "gone".to_owned()].into();
+    let w = b.plan_windows(Some(&only), 70_000);
+    // both windows moved while the two ran: each shows only job-a's half, and the traced total of both
+    let got: Vec<(&str, i64, i64, Vec<&str>)> = w
+        .iter()
+        .map(|x| {
+            (
+                x.window.as_str(),
+                (x.traced * 100.0).round() as i64,
+                (x.tasks["job-a"] * 100.0).round() as i64,
+                x.tasks.keys().map(String::as_str).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(got, [("five_hour", 20, 10, vec!["job-a"]), ("seven_day", 20, 10, vec!["job-a"])]);
+    assert_eq!(w[1].since, Some(week - 7 * 24 * H), "the period starts a window's length before its reset");
+    assert_eq!(b.plan_windows(None, 70_000)[0].tasks.len(), 2, "None: every task");
+    // past its reset the five-hour window is fresh: nothing to say about it
+    assert_eq!(b.plan_windows(None, 5 * H + 1).iter().map(|x| x.window.as_str()).collect::<Vec<_>>(), ["seven_day"]);
+}
