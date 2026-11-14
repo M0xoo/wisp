@@ -23,7 +23,7 @@ import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { longTime, sectionOf, shortAgo, statusOf } from './rows-view.ts';
 import { autoBlocked, autoPreview, autoRules, create, setSetting, type Attachment } from './commands.ts';
-import { goalGate, goalOf, goalSent, isBareGoal, type HomeGoal } from './goal-gate.ts';
+import { goalGate, goalOf, goalSent, isBareGoal, typedInFull, type HomeGoal } from './goal-gate.ts';
 import { feedbackCommand, isFeedback, openFeedback } from './feedback.ts';
 import { autoPick, neverRule, overrideOf, popOf, pct, PREVIEW_DEBOUNCE, shortLabel, usd, type AutoPreview } from './auto.ts';
 import { defaultHarness, harnessOf } from './harness.ts';
@@ -214,6 +214,11 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const sent = sentStore(shell.client);
   const sentList = useSignal(sent.value);
   const onKey = promptKeys({ sent: () => sentList() as readonly string[], value: text, set: (v) => (setText(v), menu.typed(v)), mode: { get: mode, set: setMode } });
+  // a command typed in full (`/goal`, `/feedback`): the menu's Enter sends it rather than picking what's there
+  const suggest = createMemo(() => {
+    const s = menu.suggest();
+    return s && { ...s, onPick: (v: string) => (typedInFull(v, text()) ? (s.onClose(), send()) : s.onPick(v)) };
+  });
   const send = (): void => {
     // /feedback … or /bug …: to the wisp team, never a task (v1 launcher.js)
     if (isFeedback(text())) {
@@ -430,7 +435,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         onKey={onKey}
         firstRun={firstRun()}
         setup={target() === home ? setup() : undefined}
-        suggest={menu.suggest()}
+        suggest={suggest()}
         onPaste={(e) => menu.paste(e) || att.paste(e)}
         onFiles={att.add}
         inputRef={(el) => (input = el)}

@@ -25,3 +25,7 @@ export const goalSent = (g: HomeGoal): { readonly next: HomeGoal; readonly back:
 
 /** A bare `/goal` sent from New task: Done when opens (v1 box.goalOpen), nothing starts. */
 export const isBareGoal = (text: string): boolean => /^\/goal$/i.test(text.trim());
+
+/** The `/` menu's pick is the command already typed in full (`/goal`, `/feedback`): Enter sends it as it is, as v1
+ *  did, instead of putting back the same text and waiting for a second Enter. */
+export const typedInFull = (picked: string, text: string): boolean => picked.startsWith('/') && picked.toLowerCase() === text.trim().toLowerCase();
