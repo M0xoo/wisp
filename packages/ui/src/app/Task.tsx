@@ -114,11 +114,28 @@ export interface TaskAction {
   readonly on?: boolean;
 }
 
+/** One folder the task works in, on its page (TaskDetails `places`). */
+export interface TaskPlaceChip {
+  readonly name: string;
+  readonly color: string;
+  /** its path, and whether the task starts there or also works in it */
+  readonly title?: string;
+  /** a folder it also works in (not the one it started in) */
+  readonly also?: boolean;
+  /** opens that project; none for a folder in no project */
+  readonly onOpen?: () => void;
+}
+
 export interface TaskDetailsProps {
   readonly harness: string;
   readonly logo?: string;
   readonly project: string;
   readonly color: string;
+  /**
+   * every folder the task works in (v1 places.js), its own first: one chip each, a click opens that project. When set it
+   * replaces `project`/`color`. Additive (F-task-27).
+   */
+  readonly places?: readonly TaskPlaceChip[];
   /** the state, shown on a phone (the list says it beside the task on a desktop) */
   readonly status?: { readonly label: string; readonly tone: string };
   /** a plan's when (v1 plan-view .pv-when): Starts in 2h, At 3pm, Draft, After “x”; first in the column */
@@ -155,9 +172,35 @@ export function TaskDetails(props: TaskDetailsProps): JSX.Element {
           <Show when={props.logo}>{(src) => <img src={src()} alt="" />}</Show>
           <span data-kit="ml-name">{props.harness}</span>
         </span>
-        <span data-kit="q-proj" data-color={props.color}>
-          {props.project}
-        </span>
+        <Show
+          when={props.places}
+          fallback={
+            <span data-kit="q-proj" data-color={props.color}>
+              {props.project}
+            </span>
+          }
+        >
+          {(places) => (
+            <For each={places()}>
+              {(p) => (
+                <Show
+                  when={p.onOpen}
+                  fallback={
+                    <span data-kit="q-proj" data-part="split.place" data-color={p.color} data-also={flag(p.also)} title={p.title}>
+                      {p.name}
+                    </span>
+                  }
+                >
+                  {(open) => (
+                    <button type="button" data-kit="q-proj" data-part="split.place" data-color={p.color} data-also={flag(p.also)} title={p.title} onClick={() => open()()}>
+                      {p.name}
+                    </button>
+                  )}
+                </Show>
+              )}
+            </For>
+          )}
+        </Show>
       </div>
       <Show when={props.branch}>
         {(b) => (

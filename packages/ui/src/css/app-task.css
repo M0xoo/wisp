@@ -123,6 +123,23 @@
     color: color-mix(in srgb, var(--pc) 65%, var(--ink));
     background: color-mix(in srgb, var(--pc) 10%, transparent);
   }
+  /* a task's places (F-task-27): each folder it works in, a click opens that project; a pill truncates last */
+  button[data-kit='q-proj'] {
+    border: 0;
+    font-family: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  button[data-kit='q-proj']:hover {
+    background: color-mix(in srgb, var(--pc) 18%, transparent);
+  }
+  button[data-kit='q-proj']:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+  [data-kit='q-proj'][data-also] {
+    flex: 0 1 auto;
+  }
   [data-kit='it-meta'] {
     display: flex;
     align-items: center;

@@ -437,7 +437,8 @@ export const COMMANDS: Record<string, CommandFn> = {
         ...(typeof x['goal'] === 'string' && x['goal'] !== '' && { goal: { text: x['goal'], status: 'running', round: 0, checks: [] } }),
         ...(typeof x['at'] === 'number' && { startsAt: x['at'] }),
       },
-      body: {},
+      // runtime's Session.dirs: the other folders it works in, on the row's body as the peer keeps them
+      body: Array.isArray(x['dirs']) ? { dirs: x['dirs'].filter((d): d is string => typeof d === 'string') } : {},
     };
     ctx.later(10, () => {
       ctx.stream(id);

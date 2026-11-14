@@ -4,6 +4,8 @@
 export { editorUrl } from './editor.ts';
 export { clock24, cronWords, midSentence, toCron, type ClockFormat } from './schedule.ts';
 export { PROJECT_ORDER, movedOrder, projectList, projectOf, type ProjectView } from './frame/rows-view.ts';
-export { parsePick, pickValue } from './frame/project-pick.ts';
+export { dirsOf, launchOf, parsePick, pickValue, startAt, taskPlaces, type TaskPlace } from './frame/project-pick.ts';
+// New task's command (its optimistic row, its wire): the dev mock's tests send it as New task does
+export { create, startingRow, type CreateArgs } from './frame/commands.ts';
 export { menuEntryOf, taskMenu, type TaskMenuEntry, type TaskMenuInput } from './task-menu.ts';
 export { modelWords } from './frame/task-usage.ts';

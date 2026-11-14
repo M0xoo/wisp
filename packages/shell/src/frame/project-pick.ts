@@ -5,7 +5,7 @@
 // like the one choice was. A reader that wants one project takes `parsePick(value)[0]` (where New task starts).
 // Pure: no store, no DOM.
 
-import type { ProjectView } from './rows-view.ts';
+import { projectOf, type ProjectView } from './rows-view.ts';
 
 /** Every project: the empty pick. */
 export const ALL = 'all';
@@ -76,6 +76,51 @@ export function dirsOf(start: ProjectView | undefined, also: readonly string[], 
     const p = projects.find((x) => x.id === id);
     if (!p || p.id === start?.id || !p.path || p.path === start?.path || out.includes(p.path)) continue;
     out.push(p.path);
+  }
+  return out;
+}
+
+/**
+ * New task: make `id` the start (a chip's click). The old start stays a folder the task also works in (round 133
+ * dropped it): where `id` was when it was an added one (the two swap), else first, while the task works in several.
+ * Picking the one it starts in, or switching a one-folder task, changes nothing else.
+ */
+export function startAt(start: string | undefined, also: readonly string[], id: string): string[] {
+  const rest = also.filter((x) => x !== id);
+  if (!start || start === id) return rest;
+  const i = also.indexOf(id);
+  if (i >= 0) return also.map((x) => (x === id ? start : x)).filter((x, j, a) => a.indexOf(x) === j);
+  return also.length > 0 ? [start, ...rest.filter((x) => x !== start)] : [];
+}
+
+/** One folder a task works in, as its page's place chip: the project it is in (`id`), or the folder's own name. */
+export interface TaskPlace {
+  /** the folder it started in, not one it also works in */
+  readonly own?: true;
+  readonly id?: string;
+  readonly name: string;
+  readonly color: string;
+  readonly path: string;
+}
+
+/**
+ * A task's places (v1 places.js: "a task's projects: its own, then those of the other folders it works in"): its own
+ * first (the row's project, its name and colour as the row says them), then each extra folder (`body.dirs`) as the
+ * project that holds it, once each; a folder in no project shows its last path part.
+ */
+export function taskPlaces(
+  own: { readonly name: string; readonly color: string; readonly cwd: string; readonly projectId?: string },
+  dirs: unknown,
+  projects: readonly ProjectView[],
+): TaskPlace[] {
+  const mine = (own.projectId ? projects.find((p) => p.id === own.projectId) : undefined) ?? projectOf(own.cwd, projects);
+  const out: TaskPlace[] = [];
+  if (own.name || mine) out.push({ own: true, ...(mine && { id: mine.id }), name: own.name || (mine?.name ?? ''), color: own.color || mine?.color || 'slate', path: mine?.path ?? own.cwd });
+  for (const d of Array.isArray(dirs) ? dirs : []) {
+    if (typeof d !== 'string' || !d) continue;
+    const p = projectOf(d, projects);
+    if (p ? out.some((x) => x.id === p.id) : out.some((x) => x.path === d)) continue;
+    out.push(p ? { id: p.id, name: p.name, color: p.color || 'slate', path: p.path } : { name: d.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? d, color: 'slate', path: d });
   }
   return out;
 }

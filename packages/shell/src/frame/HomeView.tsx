@@ -31,7 +31,7 @@ import { MAX_RUNNERS, newGroup, nextRun } from './compare.ts';
 import { firstRunOf, firstRunTools, launcherFull } from './first-run.ts';
 import { whereItems } from './where.ts';
 import { placeOn } from './run-on.ts';
-import { alsoToggle, dirsOf, launchOf, parsePick } from './project-pick.ts';
+import { alsoToggle, dirsOf, launchOf, parsePick, startAt } from './project-pick.ts';
 import { promptKeys, remember, sentStore } from './prompt-keys.ts';
 import { draftValue, launcherDraft } from './drafts.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
@@ -194,9 +194,12 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   createEffect(on(listPick, () => setOwnAlso(undefined), { defer: true }));
   const project = createMemo(() => (where() === 'none' ? undefined : (projects().find((p) => p.id === (where() ?? listPick().start)) ?? projects()[0])));
   const also = createMemo(() => (project() ? (ownAlso() ?? listPick().also).filter((id) => id !== project()?.id) : []));
+  // another chip as the start: the old start stays a folder it also works in (startAt)
   const pickWhere = (id: string): void => {
+    // from No folder: the added ones are still there (also() is empty while there's no start)
+    const next = startAt(project()?.id, project() ? also() : (ownAlso() ?? listPick().also), id);
     setWhere(id);
-    if (also().includes(id)) setOwnAlso(also().filter((x) => x !== id));
+    setOwnAlso(next);
   };
   const worktree = createMemo(() => settings().find((r) => r.key === 'defaults.worktree')?.value !== false);
   const needs = createMemo(() =>

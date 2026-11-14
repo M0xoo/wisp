@@ -26,11 +26,15 @@ import {
   type IconName,
   type MenuEntry,
   type TaskAction,
+  type TaskPlaceChip,
 } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot, useClients, usePluginClient } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
+import { useProjects } from './projects.ts';
+import { taskPlaces } from './project-pick.ts';
+import { switchTo } from './project-switch.ts';
 import { changeFigures, duration, foldedFrom, longTime, nextNeedsYou, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { coldHint, compactItem } from './cold.ts';
 import { replyPlaceholderKey } from './reply-hint.ts';
@@ -331,6 +335,25 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const working = (): boolean => row()?.state === 'running' || row()?.state === 'waiting';
   const queues = (): boolean => working() && queueOn();
   const shellHome = usePluginClient('shell').home;
+  // every folder it works in, its own first (F-task-27): a chip opens that project, the list showing only it
+  const projects = useProjects(shell, shellHome).list;
+  const placeChips = (s: SessionRow): TaskPlaceChip[] =>
+    taskPlaces(
+      {
+        name: String(s.summary['project'] ?? ''),
+        color: String(s.summary['color'] ?? ''),
+        cwd: String(s.summary['cwd'] ?? ''),
+        ...(typeof s.summary['projectId'] === 'string' && { projectId: s.summary['projectId'] }),
+      },
+      s.body?.['dirs'],
+      projects(),
+    ).map((p) => {
+      const id = p.id;
+      const title = t(p.own ? 'shell.task.placeOwn' : 'shell.task.placeAlso', { path: p.path });
+      const chip = { name: p.name, color: p.color, title, ...(!p.own && { also: true as const }) };
+      if (id === undefined) return chip;
+      return { ...chip, onOpen: () => (switchTo(shell, id), shell.nav().layout === 'stack' && shell.navigate({ t: 'home' })) };
+    });
   const send = (): void => {
     // /feedback … or /bug …: to the wisp team about this task's run, never a follow-up (v1 composer.js)
     if (isFeedback(text())) {
@@ -684,6 +707,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                   {...(h().logo && { logo: h().logo })}
                   project={String(s().summary['project'] ?? '')}
                   color={color()}
+                  places={placeChips(s())}
                   status={statusOf(s(), t)}
                   {...(branch() && { branch: { head: branch().replace(/-[0-9a-f]{6}$/, ''), tail: branch().match(/-[0-9a-f]{6}$/)?.[0] ?? '', title: branch() } })}
                   {...((u) => (u ? { usage: u } : {}))(usage())}

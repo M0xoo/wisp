@@ -16,7 +16,7 @@ type Ops = ReturnType<Exclude<Parameters<typeof defineCommand>[0]['optimistic'],
 const patch = (id: string, path: string, value: unknown): Ops => [{ e: SESSION, id: id as EntityKey, op: 'patch', ops: [{ op: 'replace', path, value }] }];
 
 /** A new task's row as the list shows it, before the peer has answered: running, Starting… */
-export function startingRow(o: { id: string; title: string; agent: string; at: number; cwd?: string; projectId?: string; color?: string; mode: string; group?: string }): SessionRow {
+export function startingRow(o: { id: string; title: string; agent: string; at: number; cwd?: string; projectId?: string; color?: string; mode: string; group?: string; dirs?: readonly string[] }): SessionRow {
   return {
     id: o.id,
     parent_id: null,
@@ -40,6 +40,8 @@ export function startingRow(o: { id: string; title: string; agent: string; at: n
       ...(o.color && { color: o.color }),
       ...(o.group && { groupId: o.group }),
     },
+    // the other folders it works in: its page's place chips show them at once (F-task-27)
+    ...(o.dirs && o.dirs.length > 0 && { body: { dirs: [...o.dirs] } }),
   };
 }
 
