@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: tasks in several folders.** A task that works in several folders shows each one on its page, its own first; click one to open that project. In New task, making another chip the start keeps the old start as an extra folder.
 - **v2: pick several projects.** Clicking a project shows only that project; + beside another adds it (− removes it). The top bar names the pick, a strip over the list goes back to one or all, the list groups by project, and New task works in all the picked folders.
 - **v2: goal and connectors as in v1.** Each goal check is kept with what wisp asked the judge and everything it answered; /goal in a new prompt or the reply box sets or drops a goal; an idle task is checked as soon as a goal is set; a new connector with only a URL counts as remote.
 - **v2: archived worktrees come back.** A follow-up, rerun or wake on an archived task brings its worktree back on its branch first (or says why it can't, and runs nothing); archiving no longer removes a worktree you kept.
