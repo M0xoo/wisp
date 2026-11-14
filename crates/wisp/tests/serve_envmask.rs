@@ -582,3 +582,51 @@ async fn a_turns_own_prose_quoting_a_env_value_reaches_no_topic_read_share_or_ag
     assert!(json!(api.turns(&id).await).to_string().contains("sk-live-one"), "off shows it");
     check("a share with masking off", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
 }
+
+/// Another plugin's data about a task (ADR-0054): a goal's judge reads the task's .env and votes `NOT MET`, quoting a
+/// value the task read. Its check record (`goal_run`: why, everything it answered and did) on the task's topic, live
+/// and from a snapshot, and the task's goal slot never carry the value, and neither does a share or `runtime.get`.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_goal_judges_verdict_quoting_a_value_the_task_read_reaches_no_topic_read_or_share() {
+    let dir = temp("envgoal");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = dir.join("goal-run.jsonl");
+    let s = "sess-goal";
+    // the task and its judge run the same replay: both read .env; the answer is the judge's vote, quoting the value
+    let answer = "NOT MET: the key sk-live-one is still the live one";
+    let lines = [
+        json!({ "type": "system", "subtype": "init", "session_id": s }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c1", "name": "Bash", "input": { "command": "cat .env" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c1", "content": [{ "type": "text", "text": "API_KEY=sk-live-one\nPORT=3000" }] }] } }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "text", "text": answer }] } }),
+        json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01 }),
+    ];
+    std::fs::write(&f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
+    let (_serve, port) = start_with(&dir, &[("FAKE_REPLAY", f.to_str().unwrap())]);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id =
+        api.cmd("runtime.create", json!({ "prompt": "rotate the key", "cwd": proj, "agent": "claude", "worktree": false })).await["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    api.until(&id, "the turn to end", |t| t.last().is_some_and(ended)).await;
+    let topic = format!("session:{id}");
+    let live = tokio::spawn({
+        let (http, topic) = (http.clone(), topic.clone());
+        async move { stream(&http, port, &topic, "\"verdict\":\"not_yet\"", 60).await }
+    });
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    api.cmd("goal.set", json!({ "id": id, "text": "a new key is live", "kick": true })).await;
+    let seen = live.await.unwrap();
+    assert!(seen.contains("\"verdict\":\"not_yet\""), "the judge voted: {}", &seen[seen.len().saturating_sub(800)..]);
+    no_value("the live sync stream (goal_run)", &seen);
+    let snap = stream(&http, port, &topic, "\"verdict\":\"not_yet\"", 10).await;
+    assert!(snap.contains("\"verdict\":\"not_yet\""), "the check is in the snapshot");
+    no_value("the sync snapshot (goal_run)", &snap);
+    assert!(snap.contains(&format!("the key {DOTS} is still")), "masked, not dropped: {}", &snap[..snap.len().min(1200)]);
+    no_value("runtime.get", &api.cmd("runtime.get", json!({ "id": id })).await.to_string());
+    no_value("runtime.turns", &json!(api.turns(&id).await).to_string());
+    no_value("a share", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+}
