@@ -100,7 +100,28 @@ fn snapshot_sources() -> Vec<wisp_api::v2_store::TopicSource> {
             matches: config,
             query: |_| wisp_store::Query::new(),
         }))
+        .chain(goal_sources())
         .collect()
+}
+
+/// wisp.goal's check records on their task's topic (`session:<id>`), read beside runtime's task window, so a check
+/// opened after it ran (Goal checks…) has its record on the first look.
+fn goal_sources() -> Vec<wisp_api::v2_store::TopicSource> {
+    #[cfg(feature = "goal")]
+    {
+        vec![wisp_api::v2_store::TopicSource {
+            kind: wisp_goal::runs::KIND,
+            key: "id",
+            matches: |t| t.starts_with("session:"),
+            query: |t| {
+                wisp_store::Query::new().eq("task", t.trim_start_matches("session:")).desc("started_at").limit(wisp_goal::runs::KEEP as u64)
+            },
+        }]
+    }
+    #[cfg(not(feature = "goal"))]
+    {
+        Vec::new()
+    }
 }
 
 /// The topics a plugin reads itself for a first look: wisp.runtime's task window (v1 #788: the latest turns

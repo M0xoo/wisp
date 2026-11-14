@@ -219,7 +219,10 @@ fn read_topic(
     // a first look, or a cursor retention already dropped: the whole topic
     let head = r.head_seq()?;
     if let Some(reader) = readers.iter().find(|x| (x.matches)(topic)) {
-        let rows = (reader.read)(r, topic)?.into_iter().map(|(e, id, v)| Row { e, id, v: Value::Object(v) }).collect();
+        let mut rows: Vec<Row> = (reader.read)(r, topic)?.into_iter().map(|(e, id, v)| Row { e, id, v: Value::Object(v) }).collect();
+        // other plugins' kinds on the same topic (wisp.goal's check records on `session:<id>`), read in full beside it.
+        // Additive (2026-11-14).
+        rows.extend(full_rows(r, sources, topic)?.unwrap_or_default());
         return Ok(Read { seq: seq(head), rows, full: true, deleted: Vec::new() });
     }
     if let Some(rows) = full_rows(r, sources, topic)? {
