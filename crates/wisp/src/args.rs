@@ -57,6 +57,8 @@ pub const HELP: &str = "usage:
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok|copilot  --model ID  --effort LEVEL
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…: one task per harness
+                --try subagents=haiku|sonnet|task  --try skills=off  run it twice on --agent, the second with
+                that changed (repeatable or comma separated); Compare says what differed
                 --yes  go ahead although it takes a usage window past your Ask near the limit line
 options:        --port N  --browser  --no-open  --json  --version";
 

@@ -67,10 +67,11 @@ pub async fn run(p: &Parsed, cmd: &str, args: &[String], cwd: &str, port: u16) -
 /// `--compare a[:model],b`: one task per harness, the same ask (ADR-0027: compare is reruns side by side).
 async fn launch(c: &Client, p: &Parsed, args: &[String], cwd: &str) -> Result<()> {
     let f = &p.flags;
-    if !f.tries.is_empty() {
-        return Err(CliError::said("--try was v1's trial run: run it twice with --compare, or wisp rerun <id> --formula f.yml"));
-    }
     let prompt = args.join(" ");
+    if !f.tries.is_empty() {
+        // Try it two ways: one harness, run B with what --try names changed (ADR-0056)
+        return crate::trial_cli::launch(c, f, &prompt, cwd).await;
+    }
     let mut made = Vec::new();
     if let Some(runs) = &f.compare {
         // one group for the runs: the task's More then offers Compare runs (v1 compare.js, F-comp-30)

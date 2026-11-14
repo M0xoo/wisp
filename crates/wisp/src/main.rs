@@ -28,6 +28,7 @@ mod settings_store;
 mod share_cli;
 mod tasks_cli;
 mod termctx_cli;
+mod trial_cli;
 mod trigger_cli;
 mod tui;
 mod v1_formula;
