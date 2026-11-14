@@ -17,21 +17,24 @@ pub(crate) async fn turns_of(ctx: &Ctx, call: &Call, id: &str) -> Result<Vec<Tur
     ctx.run::<rt::Turns>(call, rt::TurnsArgs { id: id.into(), before: None, limit: None, masked: None }).await
 }
 
-/// `runtime.setExt`: the task's goal state written.
+/// `runtime.setExt`: the task's goal state written whole (`goal.set`: the user's new goal, or none).
 pub(crate) async fn put(ctx: &Ctx, call: &Call, id: &str, st: &GoalState) -> Result<()> {
-    write(ctx, call, id, st, None).await
+    let value = to_value(st)?;
+    // set-ext: whole the user's new goal (or none) replaces the slot: a round that read the old one loses at its `put_if`
+    let a = rt::SetExtArgs { id: id.into(), plugin: PLUGIN.into(), value, expect: None };
+    ctx.run::<rt::SetExt>(call, a).await.map(|_| ())
 }
 
 /// `runtime.setExt` only if the task's goal slot still holds `was` (its raw value as read; `Null`: none), checked in
 /// the write's own transaction: a drop, a new goal or another round that landed since wins (refused: `conflict`).
 pub(crate) async fn put_if(ctx: &Ctx, call: &Call, id: &str, st: &GoalState, was: &Value) -> Result<()> {
-    write(ctx, call, id, st, Some(was.clone())).await
+    let value = to_value(st)?;
+    let a = rt::SetExtArgs { id: id.into(), plugin: PLUGIN.into(), value, expect: Some(rt::ExtExpect { value: was.clone() }) };
+    ctx.run::<rt::SetExt>(call, a).await.map(|_| ())
 }
 
-async fn write(ctx: &Ctx, call: &Call, id: &str, st: &GoalState, was: Option<Value>) -> Result<()> {
-    let value = serde_json::to_value(st).map_err(|e| WireError::internal(e.to_string()))?;
-    let expect = was.map(|value| rt::ExtExpect { value });
-    ctx.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: PLUGIN.into(), value, expect }).await.map(|_| ())
+fn to_value(st: &GoalState) -> Result<Value> {
+    serde_json::to_value(st).map_err(|e| WireError::internal(e.to_string()))
 }
 
 /// The goal slot as the task holds it (`Null`: none): what a conditional write expects.

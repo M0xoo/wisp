@@ -3,7 +3,9 @@
 // read-then-write like that (wisp.goal's judging round, wisp.history's offer vs save). A read-then-write goes
 // through `wisp_runtime_api::ext::update_ext` (a compare-and-set that decides again on conflict); a write that is
 // provably whole (one writer, nothing read back) says why in a `// set-ext: whole <why>` comment on the literal's
-// first line, the line above it, or any line inside it. Tests and the api crates (the type's home) are exempt.
+// first line, the line above it, or any line inside it. An `expect` passed from a variable (`expect`, `expect: e`)
+// hides which it is, so it counts as whole too: spell `expect: Some(ExtExpect { … })` or `expect: None` at the
+// literal. Tests and the api crates (the type's home) are exempt.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,6 +31,10 @@ function closing(lines: readonly string[], line: number, col: number): [number, 
   return [lines.length - 1, (lines.at(-1) ?? '').length];
 }
 
+/** `expect` from a variable: the shorthand field, or a value that is neither `None` nor `Some(…)`. */
+const SHORT = /[{,]\s*expect\s*(?=[,}])/;
+const VAR = /\bexpect\s*:\s*(?!None\b|Some\s*\()[^\s,}]/;
+
 /** `..rest` struct update syntax (after `{` or `,`): the fields it fills leave `expect` at None too. */
 const UPDATE = /[{,]\s*\.\.(?!=)/;
 
@@ -45,7 +51,7 @@ export function wholeWrites(file: string, text: string): Finding[] {
       const lines = code.slice(i, last + 1);
       const first = lines[0] ?? '';
       const body = last === i ? first.slice(col, at + 1) : [first.slice(col), ...lines.slice(1, -1), (lines.at(-1) ?? '').slice(0, at + 1)].join('\n');
-      if (!NONE.test(body) && !UPDATE.test(body)) continue;
+      if (![NONE, UPDATE, SHORT, VAR].some((r) => r.test(body))) continue;
       // the line above counts only when it holds nothing but the comment (not another literal's trailing reason)
       const above = i > 0 && (code[i - 1] ?? '').trim() === '' ? [raw[i - 1] ?? ''] : [];
       if ([...above, ...raw.slice(i, last + 1)].some((l) => WHOLE.test(l))) continue;
@@ -54,7 +60,7 @@ export function wholeWrites(file: string, text: string): Finding[] {
           file,
           i + 1,
           'rust-set-ext',
-          'SetExtArgs with `expect: None` (or `..rest`) writes the slot whole over any write since: read-then-write through wisp_runtime_api::ext::update_ext (compare-and-set), or say why it is whole in a `// set-ext: whole <why>` comment',
+          'SetExtArgs with `expect: None` (or `..rest`, or `expect` from a variable) writes the slot whole over any write since: spell `expect: Some(ExtExpect { … })` at the literal, or read-then-write through wisp_runtime_api::ext::update_ext (compare-and-set), or say why it is whole in a `// set-ext: whole <why>` comment',
           'error',
         ),
       );

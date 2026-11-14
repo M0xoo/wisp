@@ -198,11 +198,17 @@ impl Env for KernelEnv {
         Box::pin(async move { f.await.ok().and_then(|r| r.json) })
     }
     fn save(&self, call: &Call, id: &str, review: Option<&Review>, unread: bool, over: Option<&Review>) -> Fut<Result<()>> {
-        let (value, expect) = match (review.map(serde_json::to_value).transpose(), over.map(serde_json::to_value).transpose()) {
-            (Ok(v), Ok(o)) => (v.unwrap_or(Value::Null), o.map(|value| rt::ExtExpect { value })),
+        let (value, over) = match (review.map(serde_json::to_value).transpose(), over.map(serde_json::to_value).transpose()) {
+            (Ok(v), Ok(o)) => (v.unwrap_or(Value::Null), o),
             (Err(e), _) | (_, Err(e)) => return Box::pin(async move { Err(WireError::internal(e.to_string())) }),
         };
-        let set = self.0.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: EXT.into(), value, expect });
+        let a = match over {
+            // a run's result: only over the running record it wrote (a newer one wins: `conflict`)
+            Some(was) => rt::SetExtArgs { id: id.into(), plugin: EXT.into(), value, expect: Some(rt::ExtExpect { value: was }) },
+            // set-ext: whole a start or stop under this head's claim, or the boot clear before any run (flow.rs says which)
+            None => rt::SetExtArgs { id: id.into(), plugin: EXT.into(), value, expect: None },
+        };
+        let set = self.0.run::<rt::SetExt>(call, a);
         let read = unread.then(|| self.0.run::<rt::MarkRead>(call, rt::MarkReadArgs { id: id.into(), unread: true }));
         Box::pin(async move {
             set.await?;

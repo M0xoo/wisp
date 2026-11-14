@@ -200,7 +200,7 @@ test('rust-typed-commands: a string-name call to another plugin\'s typed command
   assert.ok(m?.includes('wisp_shop_api::Buy'), m);
 });
 
-test('rust-set-ext: a SetExtArgs with `expect: None` fails unless a `// set-ext: whole <why>` says why; expect set, the api crate and tests do not', async () => {
+test('rust-set-ext: a SetExtArgs with `expect: None` (or from a variable) fails unless a `// set-ext: whole <why>` says why; expect set, the api crate and tests do not', async () => {
   const root = writeTree(
     new Map([
       ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host"]\n'],
@@ -213,7 +213,7 @@ test('rust-set-ext: a SetExtArgs with `expect: None` fails unless a `// set-ext:
           'async fn a(ctx: &Ctx) {',
           '    let _ = SetExtArgs { id: id.into(), plugin: P.into(), value, expect: None };', // 2: the finding
           '    let _ = SetExtArgs { id: id.into(), plugin: P.into(), value, expect: Some(ExtExpect { value: v }) };', // expect set: none
-          '    let _ = SetExtArgs { id, plugin, value, expect };', // a variable: none
+          '    let _ = SetExtArgs { id, plugin, value, expect };', // 4: a variable hides which: the finding
           '    // set-ext: whole one writer, nothing read back',
           '    let _ = SetExtArgs { id, plugin, value, expect: None };', // a reason on the line above: none
           '    let _ = SetExtArgs {', // 7: spans lines, no reason: the finding
@@ -232,7 +232,8 @@ test('rust-set-ext: a SetExtArgs with `expect: None` fails unless a `// set-ext:
           '    let _ = r::SetExtArgs { id, plugin, value, expect: None }; // set-ext: whole on its line',
           '    let _ = SetExtArgs { id, plugin, value, expect: None };', // 21: the reason above is the last literal's: the finding
           '    let _ = SetExtArgs { id, plugin, value, ..base };', // 22: `..rest` leaves expect None: the finding
-          '    let _ = SetExtArgs { id, plugin, value, expect }; let o = Other { expect: None };', // another literal after it: none
+          '    let _ = SetExtArgs { id, plugin, value, expect: Some(e) }; let o = Other { expect: None };', // another literal after it: none
+          '    let _ = SetExtArgs { id, plugin, value, expect: was }; // set-ext: whole the caller passes None only at boot',
           '}',
           '#[cfg(test)]',
           'mod tests { fn t() { SetExtArgs { id, plugin, value, expect: None }; } }', // tests: none
@@ -246,6 +247,7 @@ test('rust-set-ext: a SetExtArgs with `expect: None` fails unless a `// set-ext:
     'plugins/till/host/src/lib.rs:2 rust-set-ext',
     'plugins/till/host/src/lib.rs:21 rust-set-ext',
     'plugins/till/host/src/lib.rs:22 rust-set-ext',
+    'plugins/till/host/src/lib.rs:4 rust-set-ext',
     'plugins/till/host/src/lib.rs:7 rust-set-ext',
   ]);
   const [m] = await messages(rustSetExt, root);
