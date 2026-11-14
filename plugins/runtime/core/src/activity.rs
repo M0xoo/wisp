@@ -229,7 +229,7 @@ pub fn step_of(ev: &HarnessEvent) -> Option<Activity> {
             output: output.as_deref().filter(|_| shows_output(*kind)).map(clip_output),
             hide: std::collections::BTreeMap::new(),
         },
-        HarnessEvent::Text { text } => Activity::Text { text: head16(text, MAX_TEXT).to_owned() },
+        HarnessEvent::Text { text } => Activity::Text { text: head16(text, MAX_TEXT).to_owned(), hide: Vec::new() },
         HarnessEvent::ToolError { name, text, .. } => {
             Activity::ToolError { name: if name.is_empty() { "Tool".into() } else { name.clone() }, text: text.clone(), hide: Vec::new() }
         }
@@ -319,7 +319,13 @@ pub fn apply(head: &mut Head, ev: &HarnessEvent, plain: bool, is_fallback: &dyn 
         HarnessEvent::Session { id } => head.resume_id = Some(id.clone()),
         HarnessEvent::Text { text } => {
             head.text = Some(text.clone());
-            return step_of(ev).map_or(Effect::None, Effect::Append);
+            // the answer's prose: where it quotes a value the task read, or reads like a .env line (ADR-0050)
+            return step_of(ev).map_or(Effect::None, |mut a| {
+                if let Activity::Text { text, hide } = &mut a {
+                    *hide = wisp_envmask::raw_prose_spans(text, &head.env_values.0);
+                }
+                Effect::Append(a)
+            });
         }
         HarnessEvent::Tool { .. } | HarnessEvent::ToolError { .. } | HarnessEvent::Thinking { .. } => {
             note_env_call(head, ev);

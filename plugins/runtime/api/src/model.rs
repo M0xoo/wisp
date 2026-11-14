@@ -120,6 +120,11 @@ pub enum Tone {
 pub enum Activity {
     Text {
         text: String,
+        /// byte ranges of `text` that quote a .env value or read like a .env line (ADR-0050): they leave the server as
+        /// `••••`. Always written (`[]`: nothing), so a step stored before them is told apart. Additive (2026-11-14).
+        #[serde(default)]
+        #[ts(optional, as = "Option<Vec<[u32; 2]>>")]
+        hide: Vec<[u32; 2]>,
     },
     Thinking {
         #[serde(default, skip_serializing_if = "Option::is_none")]

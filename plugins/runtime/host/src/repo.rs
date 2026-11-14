@@ -45,8 +45,9 @@ pub fn save_queue(w: &mut Writer<'_>, s: &Session) -> Result<()> {
     Ok(())
 }
 
-pub fn save_turn(w: &mut Writer<'_>, t: &Turn) -> Result<()> {
-    w.upsert("turn", rows::turn_row(t)?)?;
+/// A turn's row, written with where its prose quotes a value its task read (`known`; `None`: unread, ADR-0050).
+pub fn save_turn(w: &mut Writer<'_>, t: &Turn, known: Option<&[String]>) -> Result<()> {
+    w.upsert("turn", rows::turn_row(t, known)?)?;
     Ok(())
 }
 

@@ -8,7 +8,8 @@ use wisp_runtime_api::harness::HarnessEvent;
 use wisp_runtime_api::model::{Activity, ToolKind};
 use wisp_runtime_core::activity::{Effect, EnvValues, Head, apply};
 use wisp_runtime_core::env_mask::{
-    Item, mask_answer_text, mask_event_rows, mask_patch, mask_row, mask_step, mask_steps, mask_turn, unmasked_of_turn, unmasked_step,
+    Item, mask_answer_text, mask_event_rows, mask_patch, mask_row, mask_step, mask_steps, mask_steps_known, mask_turn, unmasked_of_turn,
+    unmasked_step,
 };
 
 fn turn() -> Value {
@@ -586,7 +587,7 @@ fn a_hand_off_note_and_a_btw_digest_never_quote_a_value_the_task_read() {
             hide: std::collections::BTreeMap::new(),
         },
         Activity::Notice { text: "retrying with sk-live-one".into(), tone: None },
-        Activity::Text { text: "the key sk-live-one is fine".into() },
+        Activity::Text { text: "the key sk-live-one is fine".into(), hide: Vec::new() },
     ];
     let next = Turn { idx: 2, agent: "b".into(), prompt: "go on".into(), ..Turn::default() };
     let past = [
@@ -603,4 +604,35 @@ fn a_hand_off_note_and_a_btw_digest_never_quote_a_value_the_task_read() {
         assert!(!text.contains("sk-live") && !text.contains("PEMLINE"), "{what} quoted a .env value: {text}");
         assert!(text.contains(DOTS), "{what}: masked, not dropped");
     }
+}
+
+#[test]
+fn an_answer_text_step_is_flagged_where_it_quotes_a_value_the_task_read_and_masked_by_it_after_a_restart() {
+    let mut head = Head::seeded(EnvValues(vec!["sk-live-one".into()]));
+    let answer = format!(
+        "The key sk-live-one works.\n```wisp\n{}\n```",
+        json!({ "blocks": [{ "type": "markdown", "text": "fine\nOTHER_TOKEN=tok-unread-654321" }] })
+    );
+    let Effect::Append(a) = apply(&mut head, &HarnessEvent::Text { text: answer }, false, &|_| false) else { panic!("a step") };
+    let Activity::Text { hide, .. } = &a else { panic!("a text step: {a:?}") };
+    assert_eq!(hide.len(), 2, "the value and the .env line inside the block's JSON: {hide:?}");
+    // as it leaves, alone in its batch (no read beside it): its ranges mask it
+    let mut step = serde_json::to_value(&a).unwrap();
+    assert!(mask_steps([&mut step]));
+    let text = step["text"].as_str().unwrap();
+    assert!(!text.contains("sk-live") && !text.contains("tok-unread"), "{text}");
+    assert!(text.starts_with(&format!("The key {DOTS} works.")), "masked, not dropped: {text}");
+    assert!(step.get("hide").is_none(), "where it was masked stays on the server");
+    assert!(serde_json::to_value(Activity::Text { text: "ok".into(), hide: Vec::new() }).unwrap().get("hide").is_some(), "always written");
+    // one stored before ranges: its task's values and its .env lines, or hidden whole while those are unknown
+    let old = || json!({ "kind": "text", "text": "sk-live-one, then\nAPI_KEY=abcdefgh\nall good" });
+    let mut a = old();
+    assert!(mask_steps_known([&mut a], Some(&["sk-live-one".to_owned()])));
+    assert_eq!(a["text"], format!("{DOTS}, then\nAPI_KEY={DOTS}\nall good"));
+    let mut b = old();
+    assert!(mask_steps([&mut b]));
+    assert_eq!(b["text"], DOTS, "fail closed");
+    let mut v1 = json!({ "kind": "text", "label": "the key sk-live-one" });
+    assert!(mask_steps_known([&mut v1], Some(&["sk-live-one".to_owned()])));
+    assert_eq!(v1["label"], format!("the key {DOTS}"), "an imported v1 step's label");
 }

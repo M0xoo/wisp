@@ -15,6 +15,8 @@
 
 use serde_json::{Map, Value};
 
+use crate::env_session::HIDE;
+
 /// The latest turns a window sends whole (v1 `VISIBLE_TURNS`).
 pub const WHOLE_TURNS: usize = 8;
 
@@ -121,7 +123,10 @@ fn stub_body(body: Option<&Map<String, Value>>) -> Map<String, Value> {
     }
     let blocks = b.get("presentation").and_then(|p| p.get("blocks")).and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
     let mut kept = Vec::new();
-    if let Some(hero) = blocks.iter().find(|x| x.get("type").and_then(Value::as_str) == Some("hero")) {
+    // where each kept block was: its .env ranges (ADR-0050) follow it to its place in the stub
+    let mut moved: Vec<(usize, usize, &[&str])> = Vec::new();
+    if let Some((i, hero)) = blocks.iter().enumerate().find(|(_, x)| x.get("type").and_then(Value::as_str) == Some("hero")) {
+        moved.push((i, kept.len(), &["title", "summary"]));
         let mut h = Map::new();
         h.insert("type".into(), "hero".into());
         for k in ["title", "summary", "status"] {
@@ -132,13 +137,39 @@ fn stub_body(body: Option<&Map<String, Value>>) -> Map<String, Value> {
         kept.push(Value::Object(h));
     }
     let compact = b.get("by").and_then(Value::as_str) == Some("compact");
-    if let Some(said) = blocks.iter().find(|x| compact && x.get("type").and_then(Value::as_str) == Some("markdown")) {
+    if let Some((i, said)) = blocks.iter().enumerate().find(|(_, x)| compact && x.get("type").and_then(Value::as_str) == Some("markdown")) {
+        moved.push((i, kept.len(), &["text"]));
         kept.push(serde_json::json!({ "type": "markdown", "text": said.get("text").cloned().unwrap_or(Value::Null) }));
     }
     if !kept.is_empty() {
         out.insert("presentation".into(), serde_json::json!({ "blocks": kept }));
     }
+    if let Some(h) = b.get(HIDE) {
+        out.insert(HIDE.into(), stub_hide(h, &moved));
+    }
     out
+}
+
+/// A turn's kept ranges for its stub: each kept block's at its new index, the refusal's line, what they say of
+/// themselves (`#lines`, `#known`, `#clean`: the stub is a part of the turn); the answer's text and the rest go
+/// with what they were about. Unreadable ranges stay so (all of its prose hidden).
+fn stub_hide(h: &Value, moved: &[(usize, usize, &[&str])]) -> Value {
+    let Some(m) = h.as_object() else { return h.clone() };
+    let mut out = Map::new();
+    for (k, v) in m {
+        let to = if k.starts_with('#') || k == "/refusal/line" {
+            Some(k.clone())
+        } else {
+            moved.iter().find_map(|(from, at, keys)| {
+                let rest = k.strip_prefix(&format!("/presentation/blocks/{from}/"))?;
+                keys.contains(&rest).then(|| format!("/presentation/blocks/{at}/{rest}"))
+            })
+        };
+        if let Some(to) = to {
+            out.insert(to, v.clone());
+        }
+    }
+    Value::Object(out)
 }
 
 fn light_ext(ext: &Map<String, Value>) -> Map<String, Value> {
@@ -215,6 +246,27 @@ mod tests {
             json!({ "id": "t", "body": { "by": "compact", "presentation": { "blocks": [{ "type": "markdown", "text": "Compacted 80k to 12k" }, { "type": "code", "code": "x" }] } } }),
         );
         assert_eq!(stub_row(&r)["body"]["presentation"], json!({ "blocks": [{ "type": "markdown", "text": "Compacted 80k to 12k" }] }));
+    }
+
+    #[test]
+    fn a_stubs_env_ranges_follow_its_kept_blocks_so_it_masks_after_a_restart() {
+        let blocks = json!([{ "type": "code", "code": "x" }, { "type": "hero", "title": "Key sk-live-one", "summary": "ok" }]);
+        let mut body =
+            json!({ "id": "t1", "presentation": { "blocks": blocks }, "text": "sk-live-one", "refusal": { "line": "sk-live-one" } });
+        body[HIDE] = crate::env_turn::hide_of(&body, Some(&["sk-live-one".to_owned()]));
+        let r = row(json!({ "id": "t1", "session_id": "s", "answer": "sk-live-one", "body": body }));
+        let mut s = Value::Object(stub_row(&r));
+        let h = &s["body"][HIDE];
+        assert!(h.get("/presentation/blocks/0/title").is_some() && h.get("/presentation/blocks/1/title").is_none(), "renumbered: {h}");
+        assert!(h.get("/text").is_none(), "the text it was about isn't in the stub");
+        assert!(h.get("#lines").is_some() && h.get("#known").is_some(), "{h}");
+        crate::env_turn::mask_row(&mut s, None);
+        assert!(!s.to_string().contains("sk-live"), "{s}");
+        assert_eq!(s["body"]["presentation"]["blocks"][0]["title"], "Key ••••", "masked, not hidden whole");
+        assert_eq!(s["body"]["presentation"]["blocks"][0]["summary"], "ok");
+        let mut u = r.clone();
+        u["body"][HIDE] = json!("unread");
+        assert_eq!(stub_row(&u)["body"][HIDE], "unread", "unreadable stays so");
     }
 
     #[test]

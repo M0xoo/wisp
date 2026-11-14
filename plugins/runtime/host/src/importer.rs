@@ -58,7 +58,7 @@ fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), S
     crate::env_row::summary_hide(&mut summary, Some(&known));
     repo::save_session(w, &i.session, &summary, Some(&hide)).map_err(internal)?;
     for (t, events) in i.turns.iter().zip(events) {
-        repo::save_turn(w, &t.turn).map_err(internal)?;
+        repo::save_turn(w, &t.turn, Some(&known)).map_err(internal)?;
         if !events.is_empty() {
             w.append("event", events)?;
         }

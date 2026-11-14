@@ -35,6 +35,8 @@ struct Calls {
     env: std::collections::HashSet<String>,
     seen: std::collections::HashSet<String>,
     values: Vec<String>,
+    /// what the batch's task read (`None`: unknown), for an answer text step stored before its ranges existed
+    known: Option<Vec<String>>,
 }
 
 impl Calls {
@@ -98,8 +100,15 @@ fn looks_like_env(text: &str) -> bool {
 /// A batch of steps (a page, a snapshot's event rows' bodies), each masked; a `tool_output` from before ADR-0050
 /// finds its call in the batch.
 pub fn mask_steps<'a>(steps: impl IntoIterator<Item = &'a mut Value>) -> bool {
+    mask_steps_known(steps, None)
+}
+
+/// [`mask_steps`], `known` what the steps' task read (`None`: unknown): an answer text step stored before its ranges
+/// existed is masked against it, or hidden whole while it is unknown (fail closed).
+pub fn mask_steps_known<'a>(steps: impl IntoIterator<Item = &'a mut Value>, known: Known<'_>) -> bool {
     let mut all: Vec<&'a mut Value> = steps.into_iter().collect();
-    let calls = Calls::of(all.iter().map(|v| &**v));
+    let mut calls = Calls::of(all.iter().map(|v| &**v));
+    calls.known = known.map(<[String]>::to_vec);
     all.iter_mut().fold(false, |c, st| mask_step_in(st, &calls) | c)
 }
 
@@ -118,9 +127,7 @@ fn mask_step_in(step: &mut Value, calls: &Calls) -> bool {
         return mask_quotes(step, &["text", "label"], &calls.values, quote_spans);
     }
     if kind == "text" {
-        let Some(m) = s(step, "text").and_then(mask_answer_text) else { return false };
-        step["text"] = Value::String(m);
-        return true;
+        return mask_text_step(step, calls);
     }
     // a v2 tool step, or a v1 activity item (`run`, `read`… with `output`) the importer kept as it was
     let mut changed = reads_env_file(s(step, "file"), s(step, "detail"), s(step, "label")) && mask_field(step, &["output"]);
@@ -143,6 +150,40 @@ fn mask_tool_quotes(step: &mut Value, values: &[String]) -> bool {
         let Some(t) = s(step, k) else { continue };
         let first = hide.get(k).map_or_else(|| t.to_owned(), |h| mask_spans(t, h));
         let m = mask_spans(&first, &value_spans(&first, values));
+        if m != t {
+            step[k] = Value::String(m);
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// An answer text step masked: the ranges the turn machine flagged (`hide`, dropped as it leaves; unreadable: all of
+/// it), its wisp blocks' .env code and diff blocks, then the batch's values, the task's (`known`) and any line shaped
+/// like a .env line. One stored before ranges (no `hide`; v1's `label`) with the task's values unknown is hidden
+/// whole (fail closed).
+fn mask_text_step(step: &mut Value, calls: &Calls) -> bool {
+    let hide: Option<Vec<[u32; 2]>> =
+        step.as_object_mut().and_then(|o| o.remove("hide")).map(|h| serde_json::from_value(h).unwrap_or_else(|_| vec![[0, u32::MAX]]));
+    let old = hide.is_none();
+    let mut changed = hide.as_ref().is_some_and(|h| !h.is_empty());
+    let mut values = calls.values.clone();
+    values.extend(calls.known.iter().flatten().filter(|v| !calls.values.contains(v)).cloned());
+    for k in ["text", "label"] {
+        let Some(t) = s(step, k) else { continue };
+        let m = if old && calls.known.is_none() {
+            if t.is_empty() { t.to_owned() } else { wisp_envmask::DOTS.to_owned() }
+        } else {
+            let mut m = match hide.as_ref().filter(|h| k == "text" && !h.is_empty()) {
+                Some(h) => mask_spans(t, h),
+                None => t.to_owned(),
+            };
+            if let Some(x) = mask_answer_text(&m) {
+                m = x;
+            }
+            let spans = wisp_envmask::raw_prose_spans(&m, &values);
+            if spans.is_empty() { m } else { mask_spans(&m, &spans) }
+        };
         if m != t {
             step[k] = Value::String(m);
             changed = true;
@@ -488,7 +529,18 @@ pub fn unmasked_step(steps: &[Value], seq: u64) -> Option<Value> {
 
 /// Event rows (the store's columns, `body` the step) masked as one batch, so an output finds its call.
 pub fn mask_event_rows<'a>(rows: impl IntoIterator<Item = &'a mut Value>) -> bool {
-    mask_steps(rows.into_iter().filter_map(|r| r.get_mut("body")))
+    mask_event_rows_known(rows, None)
+}
+
+/// [`mask_event_rows`], `known` what their task read ([`mask_steps_known`]).
+pub fn mask_event_rows_known<'a>(rows: impl IntoIterator<Item = &'a mut Value>, known: Known<'_>) -> bool {
+    mask_steps_known(rows.into_iter().filter_map(|r| r.get_mut("body")), known)
+}
+
+/// Whether an event row is an answer text step stored before its ranges existed (no `hide`): its task's values are
+/// needed to mask it.
+pub fn is_old_text(row: &Value) -> bool {
+    row.get("body").is_some_and(|b| s(b, "kind") == Some("text") && b.get("hide").is_none())
 }
 
 /// An object with only these keys of `v` (a reply that says no more than it must).

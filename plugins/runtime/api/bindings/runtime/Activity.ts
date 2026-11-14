@@ -5,7 +5,12 @@ import type { ToolKind } from "./ToolKind";
 /**
  * One step of a turn's activity: a row of the append-only event log (`kind` is the event kind).
  */
-export type Activity = { "kind": "text", text: string, } | { "kind": "thinking", text?: string, 
+export type Activity = { "kind": "text", text: string, 
+/**
+ * byte ranges of `text` that quote a .env value or read like a .env line (ADR-0050): they leave the server as
+ * `••••`. Always written (`[]`: nothing), so a step stored before them is told apart. Additive (2026-11-14).
+ */
+hide?: Array<[number, number]>, } | { "kind": "thinking", text?: string, 
 /**
  * byte ranges of `text` that quote a .env value (ADR-0050): they leave the server as `••••`. Additive (2026-11-14).
  */

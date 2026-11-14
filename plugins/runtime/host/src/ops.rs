@@ -516,9 +516,13 @@ impl Runtime {
         if let (true, Some(text)) = (stale, t.text.clone()) {
             t.presentation = Some(presentation(&text, &self.host.blocks()));
             let row = t.clone();
+            let known = self.env_known(id).await.ok().map(|v| v.0);
+            self.env.note_turn(t.id.as_str(), id);
             self.repo
                 .store
-                .write(move |w| crate::repo::save_turn(w, &row).map_err(|e| wisp_store::StoreError::Internal(e.to_string())))
+                .write(move |w| {
+                    crate::repo::save_turn(w, &row, known.as_deref()).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))
+                })
                 .await?;
         }
         Ok(t.presentation)

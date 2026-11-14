@@ -311,6 +311,69 @@ pub fn value_spans(text: &str, values: &[String]) -> Vec<[u32; 2]> {
     merged(spans)
 }
 
+/// Byte ranges of prose an agent wrote (an answer's text, its blocks, a task's row) to hide: every place it quotes one
+/// of `values`, cut or whole ([`value_spans`]), and the value of each line shaped like a .env line ([`quote_spans`]).
+/// Sorted, merged. A text with no `=` and no value in it costs a scan per value.
+pub fn prose_spans(text: &str, values: &[String]) -> Vec<[u32; 2]> {
+    merged(prose_hits(text, values, false))
+}
+
+/// [`prose_spans`] of an answer's raw text, whose wisp block is JSON on one line: a .env-shaped line inside one of its
+/// strings (between `\n` escapes and quotes) counts as a line too.
+pub fn raw_prose_spans(text: &str, values: &[String]) -> Vec<[u32; 2]> {
+    merged(prose_hits(text, values, true))
+}
+
+fn prose_hits(text: &str, values: &[String], raw: bool) -> Vec<(usize, usize)> {
+    let mut spans = value_hits(text, values);
+    spans.extend(cut_hits(text, values));
+    if !text.contains('=') {
+        return spans;
+    }
+    let mut shape = |at: usize, l: &str| {
+        if let Some(m) = SHAPE.captures(l).and_then(|c| c.get(1)) {
+            spans.push((at + m.start(), at + m.end()));
+        }
+    };
+    let mut at = 0;
+    for l in text.split('\n') {
+        shape(at, l);
+        if raw && l.contains('=') {
+            for (from, seg) in json_segments(l) {
+                shape(at + from, seg);
+            }
+        }
+        at += l.len() + 1;
+    }
+    spans
+}
+
+/// The pieces of a line of JSON between its quotes and `\n` escapes (another escape is kept in its piece).
+fn json_segments(line: &str) -> Vec<(usize, &str)> {
+    let b = line.as_bytes();
+    let (mut out, mut start, mut i) = (Vec::new(), 0, 0);
+    while i < b.len() {
+        match b[i] {
+            b'"' => {
+                out.push((start, &line[start..i]));
+                start = i + 1;
+                i += 1;
+            }
+            b'\\' if b.get(i + 1) == Some(&b'n') => {
+                out.push((start, &line[start..i]));
+                start = i + 2;
+                i += 2;
+            }
+            b'\\' => i += 2,
+            _ => i += 1,
+        }
+    }
+    if start <= b.len() && line.is_char_boundary(start) {
+        out.push((start, &line[start..]));
+    }
+    out
+}
+
 /// Where a value was cut (a label clipped to its first characters, an output to its head and tail): the part of it
 /// that ends the text or meets a `…`, and the part that starts the text or follows one, `MIN_VALUE` characters or more.
 fn cut_hits(text: &str, values: &[String]) -> Vec<(usize, usize)> {

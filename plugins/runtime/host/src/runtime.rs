@@ -222,14 +222,17 @@ impl Runtime {
         self.usage_into(s, &turns, &mut summary).await?;
         crate::env_row::summary_hide(&mut summary, known.as_deref());
         let summary = Arc::new(summary);
-        let (row, sum, ts) = (s.clone(), summary.clone(), turns);
+        for t in &turns {
+            self.env.note_turn(t.id.as_str(), s.id.as_str()); // its patches on the stream find its task's values
+        }
+        let (row, sum, ts, k) = (s.clone(), summary.clone(), turns, known);
         self.repo
             .store
             .write(move |w| {
                 // the session first: a new task's turns point at it (a fork's, an adopted share's)
                 repo::save_session(w, &row, &sum, Some(&hide)).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 for t in &ts {
-                    repo::save_turn(w, t).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
+                    repo::save_turn(w, t, k.as_deref()).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 }
                 extra(w)
             })

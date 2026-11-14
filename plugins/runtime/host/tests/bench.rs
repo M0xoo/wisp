@@ -163,3 +163,95 @@ async fn list_on_5k_sessions() {
     println!("list of 5,000 tasks: start (load the list) {cold:?}; list p50 {p50:?} p95 {p95:?}; list + JSON body p50 {j50:?} p95 {j95:?}");
     assert!(p95 <= Duration::from_millis(5), "list p95 {p95:?} > 5 ms");
 }
+
+/// A task's sync row (`session`: `title`, `body`, `summary` columns) as the store keeps it, its kept ranges written
+/// as the writer writes them.
+fn session_row(i: usize, known: &[String], quote: bool) -> serde_json::Value {
+    use wisp_runtime_core::env_session as es;
+    let said = if quote { format!("the key is {}", known.first().map_or("x", String::as_str)) } else { "all green".into() };
+    let mut body = json!({
+        "id": format!("s{i:05}"), "title": format!("Task {i}: {said}"), "cwd": "/repo", "agent": "claude", "state": "idle",
+        "tags": ["backend", "auth"],
+        "ext": { "wisp.runtime": { "btw": [{ "id": "b1", "question": "why?", "answer": format!("Because {said}. ").repeat(8) }] },
+                 "wisp.goal": { "verdict": { "reason": format!("it says {said}") } } }
+    });
+    let hide = es::hide_of(&body, &es::SESSION, known);
+    body[es::HIDE] = serde_json::Value::Object(hide);
+    let title = body.as_object_mut().unwrap().remove("title").unwrap();
+    json!({ "id": format!("s{i:05}"), "title": title, "rev": 3, "body": body,
+            "summary": { "id": format!("s{i:05}"), "title": format!("Task {i}"), "preview": format!("Done: {said}. ").repeat(6), "live": "" } })
+}
+
+/// A finished turn's sync row: a 4-block answer (hero, markdown, steps, code) and its raw text, its kept ranges written
+/// as `repo::save_turn` writes them.
+fn turn_row(i: usize, known: &[String], quote: bool) -> serde_json::Value {
+    let said = if quote { format!("the key is {}", known.first().map_or("x", String::as_str)) } else { "all green".into() };
+    let blocks = json!([
+        { "type": "hero", "title": format!("Fixed {i}"), "summary": format!("Tests pass; {said}."), "status": "done" },
+        { "type": "markdown", "text": format!("Changed the handler so {said}.\n\n- one\n- two\n").repeat(6) },
+        { "type": "steps", "items": [{ "title": "Read", "detail": said, "status": "done" }, { "title": "Edit", "status": "done" }] },
+        { "type": "code", "language": "rs", "file": "src/a.rs", "code": "fn main() {\n    let x = 1;\n}\n".repeat(10) }
+    ]);
+    let text = format!("Done.\n```wisp\n{}\n```", json!({ "blocks": blocks }));
+    let mut body = json!({ "id": format!("t{i:05}"), "sessionId": format!("s{i:05}"), "idx": 0, "prompt": "fix it", "status": "done",
+                       "presentation": { "blocks": blocks, "v": 3 }, "text": text, "ext": {} });
+    body[wisp_runtime_core::env_session::HIDE] = wisp_runtime_core::env_turn::hide_of(&body, Some(known));
+    json!({ "id": format!("t{i:05}"), "session_id": format!("s{i:05}"), "idx": 0, "status": "done", "prompt": "fix it",
+            "answer": text, "body": body })
+}
+
+/// ADR-0050's egress view over a 5k-row snapshot: session rows and turn rows, masked as the sync stream sends them.
+/// The common case (no task read a .env value: nothing known) must cost next to nothing against the 5 ms list budget.
+#[test]
+#[ignore = "bench: run in release"]
+fn env_egress_on_5k_rows() {
+    use wisp_runtime_core::{env_session, env_turn};
+    let values: Vec<String> = vec!["sk-live-one-abcdef".into(), "postgres://u:pw@db/x".into(), "tok-123456789".into()];
+    let cases: [(&str, &[String], bool); 3] =
+        [("nothing known", &[], false), ("values known, none quoted", &values, false), ("values known, all quoted", &values, true)];
+    let p50 = |mut v: Vec<Duration>| {
+        v.sort();
+        v[v.len() / 2]
+    };
+    for (name, known, quote) in cases {
+        let sessions: Vec<serde_json::Value> = (0..5000).map(|i| session_row(i, known, quote)).collect();
+        let turns: Vec<serde_json::Value> = (0..5000).map(|i| turn_row(i, known, quote)).collect();
+        // the view's `known`: in memory for a task that read some, unknown (`None`) for the rest after a start
+        let k = if known.is_empty() { None } else { Some(known) };
+        let s: Vec<Duration> = (0..20)
+            .map(|_| {
+                let mut rows = sessions.clone();
+                let t = Instant::now();
+                for r in &mut rows {
+                    env_session::mask_row(r, k);
+                }
+                t.elapsed()
+            })
+            .collect();
+        let tt: Vec<Duration> = (0..20)
+            .map(|_| {
+                let mut rows = turns.clone();
+                let t = Instant::now();
+                for r in &mut rows {
+                    env_turn::mask_row(r, k);
+                }
+                t.elapsed()
+            })
+            .collect();
+        // the floor: one field read per row
+        let floor: Vec<Duration> = (0..20)
+            .map(|_| {
+                let t = Instant::now();
+                let n = sessions.iter().filter(|r| r.pointer("/body/envHide").is_some()).count();
+                assert_eq!(n, 5000);
+                t.elapsed()
+            })
+            .collect();
+        println!(
+            "egress, 5,000 rows, {name}: session rows p50 {:?}; turn rows p50 {:?} (one field read per row: {:?})",
+            p50(s),
+            p50(tt),
+            p50(floor)
+        );
+    }
+}

@@ -505,3 +505,80 @@ async fn a_title_and_list_preview_from_an_answer_quoting_a_value_reach_no_list_r
     let api = Api { http: http.clone(), port, n: 0.into() };
     reads(&api).await;
 }
+
+/// A run that reads .env and answers in prose that quotes the value: the hero's title and summary, a markdown and a
+/// callout block, the text ahead of its wisp block, and a `KEY=value` line of a value it never read.
+fn prose_replay(f: &std::path::Path, s: &str) {
+    let answer = format!(
+        "Marker prose-landed: the key sk-live-one works.\nSECRET_TOKEN=tok-unread-123456\n```wisp\n{}\n```",
+        json!({ "blocks": [
+            { "type": "hero", "title": "Key sk-live-one is live", "summary": "Checked sk-live-one against the API.", "status": "done" },
+            { "type": "markdown", "text": "The `.env` has `API_KEY=sk-live-one`, and sk-live-one is accepted.\nOTHER_TOKEN=tok-unread-654321" },
+            { "type": "callout", "tone": "warn", "title": "Rotate sk-live-one", "text": "It was printed: sk-live-one." }
+        ] })
+    );
+    let lines = [
+        json!({ "type": "system", "subtype": "init", "session_id": s }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c1", "name": "Bash", "input": { "command": "cat .env" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c1", "content": [{ "type": "text", "text": "API_KEY=sk-live-one\nPORT=3000" }] }] } }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "text", "text": answer }] } }),
+        json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01 }),
+    ];
+    std::fs::write(f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_turns_own_prose_quoting_a_env_value_reaches_no_topic_read_share_or_agent_before_or_after_a_restart() {
+    let dir = temp("envprose");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = dir.join("prose-run.jsonl");
+    prose_replay(&f, "sess-prose");
+    let env = [("FAKE_REPLAY", f.to_str().unwrap()), ("FAKE_DELAY", "1500")];
+    let (serve, port) = start_with(&dir, &env);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id = api.cmd("runtime.create", json!({ "prompt": "check the key", "cwd": proj, "agent": "claude" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let topic = format!("session:{id}");
+    let live = tokio::spawn({
+        let (http, topic) = (http.clone(), topic.clone());
+        async move { stream(&http, port, &topic, "prose-landed", 60).await }
+    });
+    let turns = api.until(&id, "the turn to end", |t| t.last().is_some_and(ended)).await;
+    let seen = live.await.unwrap();
+    let check = |what: &str, text: &str| {
+        no_value(what, text);
+        if let Some(i) = text.find("tok-unread") {
+            panic!("{what} carried a KEY=value line's value: …{}…", &text[i.saturating_sub(300)..(i + 40).min(text.len())]);
+        }
+    };
+    assert!(seen.contains("prose-landed"), "the stream saw the answer");
+    check("the live sync stream", &seen);
+    check("the sync snapshot", &stream(&http, port, &topic, "prose-landed", 10).await);
+    let t = turns.last().unwrap();
+    check("runtime.turns", &t.to_string());
+    let blocks = t["presentation"]["blocks"].as_array().unwrap_or_else(|| panic!("{t}"));
+    assert_eq!(blocks[0]["title"], format!("Key {DOTS} is live"), "masked, not dropped: {t}");
+    assert_eq!(blocks[0]["type"], "hero", "structure stays");
+    assert!(t.get("envHide").is_none(), "where it was masked stays on the server: {t}");
+    check("runtime.presentation", &api.cmd("runtime.presentation", json!({ "id": id })).await.to_string());
+    check("wisp_session", &api.cmd("runtime.agent.session", json!({ "session": id, "of": id })).await.to_string());
+    check("a share", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+
+    // after a restart: nothing in memory, the turn row's own ranges mask it
+    serve.stop();
+    let (_serve, port) = start_with(&dir, &env);
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let snap = stream(&http, port, &topic, "prose-landed", 10).await;
+    assert!(snap.contains("prose-landed"), "the snapshot after a restart has the answer, masked: {}", &snap[..snap.len().min(600)]);
+    check("the sync snapshot after a restart", &snap);
+    check("runtime.turns after a restart", &json!(api.turns(&id).await).to_string());
+    check("a share after a restart", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+    // Hide .env values off: as the store has it, never in a share
+    api.cmd("settings.set", json!({ "key": "git.maskEnvFiles", "value": false })).await;
+    assert!(json!(api.turns(&id).await).to_string().contains("sk-live-one"), "off shows it");
+    check("a share with masking off", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+}

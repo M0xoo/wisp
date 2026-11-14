@@ -18,18 +18,37 @@ const CALL_KINDS: &[&str] =
     &["tool", "tool_output", "read", "edit", "run", "search", "web", "agent", "plan", "wait", "ask", "answer", "background"];
 
 #[derive(Debug, Default)]
-pub(crate) struct EnvKnown(Mutex<HashMap<String, EnvValues>>);
+pub(crate) struct EnvKnown {
+    values: Mutex<HashMap<String, EnvValues>>,
+    /// turn → task, for each turn written since the start: a patch on the stream names only its row
+    turns: Mutex<HashMap<String, String>>,
+}
 
 impl EnvKnown {
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, EnvValues>> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+        self.values.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+    fn turns(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
+        self.turns.lock().unwrap_or_else(PoisonError::into_inner)
     }
     pub(crate) fn forget(&self, id: &str) {
         self.lock().remove(id);
+        self.turns().retain(|_, sid| sid != id);
     }
     /// What task `id`'s turns read, when it is in memory (no store read: the sync stream's view asks).
     pub(crate) fn get(&self, id: &str) -> Option<EnvValues> {
         self.lock().get(id).cloned()
+    }
+    /// Turn `tid` is task `sid`'s: noted as it is written, before its patches leave.
+    pub(crate) fn note_turn(&self, tid: &str, sid: &str) {
+        let mut t = self.turns();
+        if t.get(tid).is_none_or(|s| s != sid) {
+            t.insert(tid.to_owned(), sid.to_owned());
+        }
+    }
+    /// The task of a turn written since the start.
+    pub(crate) fn task_of(&self, tid: &str) -> Option<String> {
+        self.turns().get(tid).cloned()
     }
 }
 

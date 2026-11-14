@@ -68,7 +68,7 @@ fn running_text(t: &PastTurn<'_>, n: usize, now_ms: i64) -> String {
     let labels: Vec<String> = t.activity.iter().filter_map(|a| act_label(a, t.env)).collect();
     let acts = &labels[labels.len().saturating_sub(LIVE_ACTS)..];
     let said = t.activity.iter().rev().find_map(|a| match a {
-        Activity::Text { text } => Some(text.as_str()),
+        Activity::Text { text, .. } => Some(text.as_str()),
         _ => None,
     });
     let files: Vec<String> = t.files.iter().map(|f| format!("`{f}`")).collect();

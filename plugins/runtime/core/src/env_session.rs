@@ -9,16 +9,57 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use serde_json::{Map, Value};
-use wisp_envmask::{DOTS, mask_spans, quote_spans, value_spans};
+use wisp_envmask::{DOTS, is_env_file, mask_spans, prose_spans, quote_spans, value_spans};
 
 use crate::env_mask::Known;
 
 /// Where a part keeps its ranges (offsets only), and the key the walk never masks.
 pub const HIDE: &str = "envHide";
 
+/// A key of the ranges that says they hold the .env-shaped lines of its agent text too, not only the values its task
+/// read: a part kept with it whose task has no values known is masked by them alone, its text never scanned.
+pub const LINES: &str = "#lines";
+
+/// A key of the ranges: `[[count, sum]]` of the values they were found with ([`fingerprint`]). A part whose task knows
+/// the same values as it leaves is masked by its ranges alone; one that knows more is scanned for them.
+pub const KNOWN: &str = "#known";
+
+/// What a set of values was, in two numbers: how many, and the sum of each one's FNV-1a hash (so their order doesn't
+/// count). Never the values: the ranges leave the server with the row.
+#[must_use]
+pub fn fingerprint(known: &[String]) -> [u32; 2] {
+    let fnv = |v: &str| v.bytes().fold(0x811c_9dc5_u32, |h, b| (h ^ u32::from(b)).wrapping_mul(0x0100_0193));
+    [u32::try_from(known.len()).unwrap_or(u32::MAX), known.iter().fold(0_u32, |s, v| s.wrapping_add(fnv(v)))]
+}
+
+/// Whether ranges found with `at` (a [`KNOWN`] entry, absent: none) still cover what the task knows (`known`;
+/// `None`: not in memory, so nothing more to look for).
+fn fresh(at: Option<[u32; 2]>, known: Known<'_>) -> bool {
+    match known {
+        None | Some([]) => true,
+        Some(k) => at == Some(fingerprint(k)),
+    }
+}
+
+/// [`fresh`] of a part's kept ranges as JSON (its `envHide`).
+#[must_use]
+pub fn fresh_hide(hide: Option<&Value>, known: Known<'_>) -> bool {
+    let Some(k) = known.filter(|k| !k.is_empty()) else { return true };
+    let at = hide.and_then(|h| h.pointer("/#known/0")).and_then(Value::as_array);
+    let n = |i: usize| at.and_then(|a| a.get(i)).and_then(Value::as_u64).and_then(|x| u32::try_from(x).ok());
+    matches!((n(0), n(1)), (Some(a), Some(b)) if [a, b] == fingerprint(k))
+}
+
 /// Fields that hold no agent text (ids, folders, states): never masked.
 const STRUCT: &[&str] =
     &["id", "parentId", "turnId", "sessionId", "cwd", "agent", "model", "effort", "mode", "state", "status", "account", "kind", "by", HIDE];
+
+/// An answer block's fields that hold no agent text in a prose part (its kind, tone, file: the .env rules read it).
+const BLOCK: &[&str] = &["type", "tone", "language", "change", "device", "masked", "v", "file", "path"];
+
+/// The fields of a `code` or `diff` answer block about a .env file: masked whole by its own rules
+/// (`env_mask::mask_one_block`, which flags it for Reveal), never by a part's.
+const ENV_BLOCK: &[&str] = &["code", "before", "after", "diff"];
 
 /// Fields an agent writes as prose: a .env-shaped line in them is masked even with no value known, and they are
 /// hidden whole when what the task read can't be told (fail closed).
@@ -34,15 +75,21 @@ pub struct Part {
     pub roots: &'static [&'static str],
     /// a subtree hidden whole when the part has no ranges and nothing is known: entries stored before ranges existed
     pub legacy: Option<&'static str>,
+    /// every string of it is an agent's text (a turn's answer): its .env-shaped lines are masked whatever the key
+    pub prose: bool,
 }
 
 /// A task (`Session` JSON). In a sync row its `title` is a column and the rest is `body`.
-pub const SESSION: Part = Part { hide: "/envHide", roots: &["/title", "/ext", "/tags"], legacy: Some("/ext/wisp.runtime/btw") };
+pub const SESSION: Part =
+    Part { hide: "/envHide", roots: &["/title", "/ext", "/tags"], legacy: Some("/ext/wisp.runtime/btw"), prose: false };
 /// A task as another plugin reads it: the title and runtime's own slot (a plugin's slot is its own, read back as it
 /// wrote it).
 pub const SESSION_OWN: Part = Part { roots: &["/title", "/ext/wisp.runtime"], ..SESSION };
 /// A list row (`Summary` JSON).
-pub const SUMMARY: Part = Part { hide: "/envHide", roots: &[""], legacy: None };
+pub const SUMMARY: Part = Part { hide: "/envHide", roots: &[""], legacy: None, prose: false };
+/// A turn (`Turn` JSON, a turn row's `body`): its rendered blocks (hero, markdown, callouts…), the line a refusal card
+/// quotes. Its raw answer text (`/text`, JSON inside) is `env_turn`'s.
+pub const TURN: Part = Part { hide: "/envHide", roots: &["/presentation", "/refusal/line"], legacy: None, prose: true };
 
 fn within(p: &str, root: &str) -> bool {
     root.is_empty() || p == root || (p.starts_with(root) && p[root.len()..].starts_with('/'))
@@ -66,26 +113,43 @@ fn is_agent(key: Option<&str>) -> bool {
     key.is_some_and(|k| AGENT.contains(&k))
 }
 
-fn walk(v: &Value, ptr: &mut String, f: &mut impl FnMut(&str, &str)) {
+/// Whether a string under `key` of `part` gets its .env-shaped lines masked.
+fn lines(part: &Part, key: Option<&str>) -> bool {
+    part.prose || is_agent(key)
+}
+
+/// An answer block about a .env file (`code` or `diff`): its text is its own rules'.
+fn env_block(o: &Map<String, Value>) -> bool {
+    matches!(o.get("type").and_then(Value::as_str), Some("code" | "diff"))
+        && o.get("file").or_else(|| o.get("path")).and_then(Value::as_str).is_some_and(is_env_file)
+}
+
+/// Whether the walk skips `k` of an object of `part` (`env`: an answer block about a .env file, in a prose part).
+fn skipped(k: &str, part: &Part, env: bool) -> bool {
+    STRUCT.contains(&k) || (part.prose && BLOCK.contains(&k)) || (env && ENV_BLOCK.contains(&k))
+}
+
+fn walk(v: &Value, ptr: &mut String, key: Option<&str>, part: &Part, f: &mut impl FnMut(&str, Option<&str>, &str)) {
     match v {
-        Value::String(t) => f(ptr, t),
+        Value::String(t) => f(ptr, key, t),
         Value::Array(a) => {
             for (i, x) in a.iter().enumerate() {
                 let n = ptr.len();
                 let _ = write!(ptr, "/{i}");
-                walk(x, ptr, f);
+                walk(x, ptr, key, part, f);
                 ptr.truncate(n);
             }
         }
         Value::Object(o) => {
+            let env = part.prose && env_block(o);
             for (k, x) in o {
-                if STRUCT.contains(&k.as_str()) {
+                if skipped(k, part, env) {
                     continue;
                 }
                 let n = ptr.len();
                 ptr.push('/');
                 ptr.push_str(&esc(k));
-                walk(x, ptr, f);
+                walk(x, ptr, Some(k), part, f);
                 ptr.truncate(n);
             }
         }
@@ -93,29 +157,39 @@ fn walk(v: &Value, ptr: &mut String, f: &mut impl FnMut(&str, &str)) {
     }
 }
 
-fn walk_mut(v: &mut Value, key: Option<&str>, f: &mut impl FnMut(Option<&str>, &mut String) -> bool) -> bool {
+fn walk_mut(v: &mut Value, key: Option<&str>, part: &Part, f: &mut impl FnMut(Option<&str>, &mut String) -> bool) -> bool {
     match v {
         Value::String(t) => f(key, t),
-        Value::Array(a) => a.iter_mut().fold(false, |c, x| walk_mut(x, key, f) | c),
+        Value::Array(a) => a.iter_mut().fold(false, |c, x| walk_mut(x, key, part, f) | c),
         Value::Object(o) => {
-            o.iter_mut().filter(|(k, _)| !STRUCT.contains(&k.as_str())).fold(false, |c, (k, x)| walk_mut(x, Some(k), f) | c)
+            let env = part.prose && env_block(o);
+            o.iter_mut().filter(|(k, _)| !skipped(k, part, env)).fold(false, |c, (k, x)| walk_mut(x, Some(k), part, f) | c)
         }
         _ => false,
     }
 }
 
-/// Where `part`'s text in `v` quotes one of `known`: pointer → byte ranges, to keep with it. Empty when nothing does.
+/// Where `part`'s text in `v` quotes one of `known` or reads like a .env line in agent text: pointer → byte ranges,
+/// to keep with it, and [`LINES`]. [`quotes`] says whether any text does.
 #[must_use]
 pub fn hide_of(v: &Value, part: &Part, known: &[String]) -> Map<String, Value> {
     let mut out = Map::new();
-    if known.is_empty() {
-        return out;
+    out.insert(LINES.into(), Value::Array(Vec::new()));
+    if !known.is_empty() {
+        out.insert(KNOWN.into(), serde_json::json!([fingerprint(known)]));
     }
     for root in part.roots {
         let Some(x) = v.pointer(root) else { continue };
         let mut ptr = (*root).to_owned();
-        walk(x, &mut ptr, &mut |p, t| {
-            let spans = value_spans(t, known);
+        let key = last_key(root);
+        walk(x, &mut ptr, key.as_deref(), part, &mut |p, k, t| {
+            let spans = if lines(part, k) {
+                prose_spans(t, known)
+            } else if known.is_empty() {
+                return;
+            } else {
+                value_spans(t, known)
+            };
             if !spans.is_empty() {
                 out.insert(p.to_owned(), serde_json::json!(spans));
             }
@@ -124,9 +198,15 @@ pub fn hide_of(v: &Value, part: &Part, known: &[String]) -> Map<String, Value> {
     out
 }
 
+/// Whether ranges from [`hide_of`] hide anything (a pointer's; the rest say how they were found).
+#[must_use]
+pub fn quotes(hide: &Map<String, Value>) -> bool {
+    hide.keys().any(|k| k.starts_with('/'))
+}
+
 /// One string as it leaves: the values known, then a .env-shaped line when it is agent text; whole when `whole`
 /// (nothing can be told about it). No copy when nothing in it is masked (a list snapshot walks thousands).
-fn mask_str(key: Option<&str>, t: &mut String, values: &[String], whole: bool) -> bool {
+fn mask_str(lines: bool, t: &mut String, values: &[String], whole: bool) -> bool {
     if whole {
         if t.is_empty() || t == DOTS {
             return false;
@@ -142,7 +222,7 @@ fn mask_str(key: Option<&str>, t: &mut String, values: &[String], whole: bool) -
             changed = true;
         }
     }
-    if is_agent(key) && t.contains('=') {
+    if lines && t.contains('=') {
         let spans = quote_spans(t, &[]);
         if !spans.is_empty() {
             *t = mask_spans(t, &spans);
@@ -171,12 +251,14 @@ fn mask_with(v: &mut Value, part: &Part, at: &str, known: Known<'_>, force: bool
     let hide_at = rel(part.hide, at);
     let mut kept = false;
     let mut whole = force;
+    let mut complete = false;
     if let Some(h) = hide_at.and_then(|r| v.pointer(r)).cloned() {
         kept = true;
         match serde_json::from_value::<BTreeMap<String, Vec<[u32; 2]>>>(h) {
             Ok(m) => {
+                complete = m.contains_key(LINES) && fresh(m.get(KNOWN).and_then(|k| k.first().copied()), known);
                 for (p, spans) in m {
-                    if !part.roots.iter().any(|root| within(&p, root)) {
+                    if !p.starts_with('/') || !part.roots.iter().any(|root| within(&p, root)) {
                         continue;
                     }
                     if let Some(Value::String(t)) = rel(&p, at).and_then(|r| v.pointer_mut(r))
@@ -190,7 +272,12 @@ fn mask_with(v: &mut Value, part: &Part, at: &str, known: Known<'_>, force: bool
             Err(_) => whole = true,
         }
     }
-    if known.is_none() && hide_at.is_none() {
+    // kept with its .env-shaped lines, found with all the task knows: its ranges are all there is to hide (no scan)
+    if complete && !whole {
+        return changed;
+    }
+    // nothing known and no ranges to go by: a patch deep in the part, or a prose part stored before ranges existed
+    if known.is_none() && (hide_at.is_none() || (part.prose && !kept)) {
         whole = true;
     }
     let values = known.unwrap_or_default();
@@ -203,7 +290,7 @@ fn mask_with(v: &mut Value, part: &Part, at: &str, known: Known<'_>, force: bool
             continue;
         };
         if let Some(x) = v.pointer_mut(sub) {
-            changed |= walk_mut(x, key.as_deref(), &mut |k, t| mask_str(k, t, values, whole));
+            changed |= walk_mut(x, key.as_deref(), part, &mut |k, t| mask_str(lines(part, k), t, values, whole));
         }
     }
     if known.is_none()
@@ -211,7 +298,7 @@ fn mask_with(v: &mut Value, part: &Part, at: &str, known: Known<'_>, force: bool
         && let Some(l) = part.legacy.and_then(|l| rel(l, at))
         && let Some(x) = v.pointer_mut(l)
     {
-        changed |= walk_mut(x, None, &mut |k, t| {
+        changed |= walk_mut(x, None, part, &mut |k, t| {
             if matches!(k, Some("answer" | "error")) && !t.is_empty() && t != DOTS {
                 DOTS.clone_into(t);
                 true
@@ -232,6 +319,13 @@ pub fn has_hide(v: &Value, part: &Part) -> bool {
 /// A `session` sync row (`title`, `body`, `summary` columns) masked as it leaves.
 pub fn mask_row(row: &mut Value, known: Known<'_>) -> bool {
     let Some(o) = row.as_object_mut() else { return false };
+    let hide = o.get("body").and_then(|b| b.get(HIDE));
+    // ranges complete and found with all the task knows: they say everything (its list row's too)
+    let complete = complete(hide) && fresh_hide(hide, known);
+    // and they hide nothing, its list row has none of its own: as it is
+    if complete && hide.and_then(Value::as_object).is_some_and(|m| !quotes(m)) && o.get("summary").is_none_or(|s| s.get(HIDE).is_none()) {
+        return false;
+    }
     let mut title = o.remove("title");
     let mut changed = false;
     if let Some(b) = o.get_mut("body").and_then(Value::as_object_mut) {
@@ -251,7 +345,18 @@ pub fn mask_row(row: &mut Value, known: Known<'_>) -> bool {
     if let Some(t) = title {
         o.insert("title".into(), t);
     }
+    // a list row written with its task's (complete) ranges keeps its own only when it quotes one: none, nothing to hide
+    let bare = complete && o.get("summary").is_some_and(|s| s.get(HIDE).is_none());
+    if bare {
+        return changed;
+    }
     o.get_mut("summary").is_some_and(|s| mask(s, &SUMMARY, "", known)) | changed
+}
+
+/// Whether a part's kept ranges (at `hide`) hold its .env-shaped lines too.
+#[must_use]
+pub fn complete(hide: Option<&Value>) -> bool {
+    hide.and_then(Value::as_object).is_some_and(|m| m.contains_key(LINES))
 }
 
 /// One patch op's value on a `session` row, landing at `path`.
@@ -296,7 +401,7 @@ mod tests {
     fn a_rows_kept_ranges_mask_it_with_nothing_known_and_leave_with_it() {
         let s = session();
         let hide = hide_of(&s, &SESSION, &known());
-        assert_eq!(hide.len(), 4, "title, tag, answer, a plugin's reason: {hide:?}");
+        assert_eq!(hide.len(), 6, "title, tag, answer, a plugin's reason, that its lines are in and what it was found with: {hide:?}");
         let mut body = s.clone();
         body.as_object_mut().unwrap().insert(HIDE.into(), Value::Object(hide.clone()));
         let mut title = body.as_object_mut().unwrap().remove("title").unwrap();

@@ -13,7 +13,7 @@ use wisp_kernel::egress::{RowView, VIEWS};
 use wisp_kernel::{Ctx, Setup, WireError};
 use wisp_runtime_api::commands as c;
 use wisp_runtime_core::env_mask::{self, Item};
-use wisp_runtime_core::env_session;
+use wisp_runtime_core::{env_session, env_turn};
 
 use crate::plugin::{Slot, rt};
 
@@ -67,6 +67,21 @@ fn session_known(slot: &Slot, loading: &Arc<Loading>, row: &Value) -> Option<Vec
     if old && btw { known_of(slot, loading, id) } else { None }
 }
 
+impl View {
+    /// What the task of a batch of event rows read, when they are one task's: in memory, or read back for the next
+    /// send when an answer text step stored before its ranges needs it (this one hides it whole: fail closed).
+    fn events_known(&self, rows: &[&mut Value]) -> Option<Vec<String>> {
+        let sid = rows.first()?.get("session_id").and_then(Value::as_str)?;
+        if rows.iter().any(|r| r.get("session_id").and_then(Value::as_str) != Some(sid)) {
+            return None;
+        }
+        if let Some(v) = rt(&self.1).ok()?.env.get(sid) {
+            return Some(v.0);
+        }
+        if rows.iter().any(|r| env_mask::is_old_text(r)) { known_of(&self.1, &self.2, sid) } else { None }
+    }
+}
+
 impl RowView for View {
     fn kinds(&self) -> &'static [&'static str] {
         &["turn", "event", "session"]
@@ -78,9 +93,17 @@ impl RowView for View {
         if kind == "session" {
             let known = session_known(&self.1, &self.2, v);
             env_session::mask_row(v, known.as_deref());
+        } else if kind == "turn" {
+            // a row written with its ranges needs no read: what its task read in memory, if it is, masks the rest
+            let known = if v.pointer("/body/envHide").is_some() {
+                let sid = v.get("session_id").and_then(Value::as_str);
+                sid.and_then(|sid| rt(&self.1).ok()?.env.get(sid)).map(|x| x.0)
+            } else {
+                turn_known(&self.1, &self.2, v)
+            };
+            env_turn::mask_row(v, known.as_deref());
         } else {
-            let known = if kind == "turn" { turn_known(&self.1, &self.2, v) } else { None };
-            env_mask::mask_row_known(kind, v, known.as_deref());
+            env_mask::mask_row_known(kind, v, None);
         }
     }
     fn rows(&self, kind: &str, rows: &mut [&mut Value]) {
@@ -88,7 +111,8 @@ impl RowView for View {
             return;
         }
         if kind == "event" {
-            env_mask::mask_event_rows(rows.iter_mut().map(|v| &mut **v));
+            let known = self.events_known(rows);
+            env_mask::mask_event_rows_known(rows.iter_mut().map(|v| &mut **v), known.as_deref());
         } else {
             for v in rows.iter_mut() {
                 self.row(kind, v);
@@ -96,11 +120,25 @@ impl RowView for View {
         }
     }
     fn patch(&self, kind: &str, path: &str, v: &mut Value) {
-        if on(&self.0) {
+        if !on(&self.0) {
+            return;
+        }
+        if kind == "turn" {
+            env_turn::mask_patch(path, v, None);
+        } else {
             env_mask::mask_patch(kind, path, v);
         }
     }
     fn patch_row(&self, kind: &str, id: &str, path: &str, v: &mut Value) {
+        if kind == "turn" {
+            if on(&self.0) {
+                // the turn was written by this server (`note_turn`), its task's values read first: in memory
+                let r = rt(&self.1).ok();
+                let known = r.and_then(|r| r.env.task_of(id).and_then(|sid| r.env.get(&sid))).map(|v| v.0);
+                env_turn::mask_patch(path, v, known.as_deref());
+            }
+            return;
+        }
         if kind != "session" {
             return self.patch(kind, path, v);
         }
@@ -131,20 +169,35 @@ type Masked<T> = Result<T, WireError>;
 
 /// Turns of one task, `known` what its turns read (`Runtime::env_known`; `None` when that couldn't be read).
 pub(crate) fn mask_turns(t: Vec<wisp_runtime_api::model::Turn>, known: Option<&[String]>) -> Masked<Vec<wisp_runtime_api::model::Turn>> {
-    masked(t, |v| v.as_array_mut().into_iter().flatten().fold(false, |c, x| env_mask::mask_turn_known(x, known) | c))
+    masked(t, |v| v.as_array_mut().into_iter().flatten().fold(false, |c, x| env_turn::mask_turn(x, known) | c))
 }
 
 /// Steps as one batch: an output finds its call.
 pub(crate) fn mask_items(items: Vec<wisp_runtime_api::model::Step>) -> Masked<Vec<wisp_runtime_api::model::Step>> {
-    masked(items, |v| env_mask::mask_steps(v.as_array_mut().into_iter().flatten()))
+    mask_items_known(items, None)
 }
 
-fn mask_page(p: c::ActivityPage) -> Masked<c::ActivityPage> {
-    Ok(c::ActivityPage { seq: p.seq, items: mask_items(p.items)? })
+/// [`mask_items`], `known` what their task read (an answer text masked against it too).
+fn mask_items_known(items: Vec<wisp_runtime_api::model::Step>, known: Option<&[String]>) -> Masked<Vec<wisp_runtime_api::model::Step>> {
+    masked(items, |v| env_mask::mask_steps_known(v.as_array_mut().into_iter().flatten(), known))
 }
 
-fn mask_presentation(p: Option<wisp_runtime_api::model::Presentation>) -> Masked<Option<wisp_runtime_api::model::Presentation>> {
-    masked(p, |v| v.get_mut("blocks").is_some_and(|b| each(b, env_mask::mask_one_block)))
+fn mask_page(p: c::ActivityPage, known: Option<&[String]>) -> Masked<c::ActivityPage> {
+    Ok(c::ActivityPage { seq: p.seq, items: mask_items_known(p.items, known)? })
+}
+
+/// A turn's presentation: its prose against what its task read (`known`; `None`: hidden), then its .env blocks.
+fn mask_presentation(
+    p: Option<wisp_runtime_api::model::Presentation>,
+    known: Option<&[String]>,
+) -> Masked<Option<wisp_runtime_api::model::Presentation>> {
+    masked(p, |v| {
+        if v.is_null() {
+            return false;
+        }
+        let prose = env_session::mask(v, &env_session::TURN, "/presentation", known);
+        v.get_mut("blocks").is_some_and(|b| each(b, env_mask::mask_one_block)) | prose
+    })
 }
 
 pub(crate) fn register(s: &mut Setup, slot: &Slot) {
@@ -167,16 +220,27 @@ pub(crate) fn register(s: &mut Setup, slot: &Slot) {
     s.command::<c::ActivityOf, _, _>(move |ctx, _call, a| {
         let slot = sl.clone();
         async move {
-            let p = rt(&slot)?.activity(a.turn_id.as_str(), a.since_seq).await.map_err(WireError::from)?;
-            if a.masked == Some(true) || on(&ctx) { mask_page(p) } else { Ok(p) }
+            let r = rt(&slot)?;
+            let p = r.activity(a.turn_id.as_str(), a.since_seq).await.map_err(WireError::from)?;
+            if a.masked == Some(true) || on(&ctx) {
+                let known = r.env_known(a.id.as_str()).await.ok().map(|v| v.0);
+                mask_page(p, known.as_deref())
+            } else {
+                Ok(p)
+            }
         }
     });
     let sl = slot.clone();
     s.command::<c::PresentationOf, _, _>(move |ctx, _call, a| {
         let slot = sl.clone();
         async move {
-            let p = rt(&slot)?.presentation(a.id.as_str(), a.turn).await.map_err(WireError::from)?;
-            if on(&ctx) { mask_presentation(p) } else { Ok(p) }
+            let r = rt(&slot)?;
+            let p = r.presentation(a.id.as_str(), a.turn).await.map_err(WireError::from)?;
+            if !on(&ctx) {
+                return Ok(p);
+            }
+            let known = r.env_known(a.id.as_str()).await.ok().map(|v| v.0);
+            mask_presentation(p, known.as_deref())
         }
     });
     reads(s, slot);
@@ -237,7 +301,7 @@ pub(crate) fn mask_agent_text(ctx: &Ctx, mut t: c::AgentText, known: Option<&[St
             *text = m;
         }
         match known {
-            Some(k) => *text = wisp_envmask::mask_spans(text, &wisp_envmask::value_spans(text, k)),
+            Some(k) => *text = wisp_envmask::mask_spans(text, &wisp_envmask::raw_prose_spans(text, k)),
             None => "Couldn't hide this task's .env values, so it isn't shown. Open it in wisp.".clone_into(text),
         }
     }

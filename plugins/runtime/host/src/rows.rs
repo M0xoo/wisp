@@ -62,7 +62,9 @@ pub fn summary_of(row: &Row) -> Option<Summary> {
     row.get("summary").and_then(|v| serde_json::from_value(v.clone()).ok())
 }
 
-pub fn turn_row(t: &Turn) -> Result<Row> {
+/// A turn's row; `known`: what its task read (`None`: that couldn't be read), so its body keeps where its prose quotes
+/// one (`envHide`, ADR-0050). Only the row carries them: a `Turn` read back drops them.
+pub fn turn_row(t: &Turn, known: Option<&[String]>) -> Result<Row> {
     let mut row = Map::new();
     row.insert("id".into(), json!(t.id));
     row.insert("session_id".into(), json!(t.session_id));
@@ -72,7 +74,12 @@ pub fn turn_row(t: &Turn) -> Result<Row> {
     row.insert("ended_at".into(), json!(t.ended_at));
     row.insert("prompt".into(), json!(t.prompt));
     row.insert("answer".into(), json!(t.text));
-    row.insert("body".into(), serde_json::to_value(t)?);
+    let mut body = serde_json::to_value(t)?;
+    let hide = wisp_runtime_core::env_turn::hide_of(&body, known);
+    if let Some(b) = body.as_object_mut() {
+        b.insert(wisp_runtime_core::env_session::HIDE.into(), hide);
+    }
+    row.insert("body".into(), body);
     Ok(row)
 }
 

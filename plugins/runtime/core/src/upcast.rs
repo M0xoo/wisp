@@ -24,7 +24,7 @@ pub fn from_v0(item: &Value) -> Option<Activity> {
     let kind = item.get("kind").and_then(Value::as_str)?;
     let label = s(item, "label").unwrap_or_default();
     Some(match kind {
-        "text" => Activity::Text { text: label },
+        "text" => Activity::Text { text: label, hide: Vec::new() },
         "error" => {
             // v1 wrote `<name> failed: <text>`
             let (name, text) =
@@ -66,7 +66,7 @@ pub fn to_v0(a: &Activity) -> Value {
         }
     };
     match a {
-        Activity::Text { text } => {
+        Activity::Text { text, .. } => {
             put("kind", Some("text"));
             put("label", Some(text));
         }

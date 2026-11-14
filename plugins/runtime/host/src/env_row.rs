@@ -15,26 +15,26 @@ use crate::runtime::Runtime;
 /// What `known` couldn't be read leaves in a row: unreadable ranges, so every agent text of it is hidden (fail closed).
 const UNREAD: &str = "unread";
 
-/// The ranges a task's row keeps (`body.envHide`): always written, `{}` when nothing quotes a value, so a row
-/// written since ranges existed is told from one stored before.
+/// The ranges a task's row keeps (`body.envHide`): always written (with `#lines`: they hold its .env-shaped lines
+/// too, so a row whose task read nothing is never scanned as it leaves), and a row written since ranges existed is
+/// told from one stored before.
 pub(crate) fn session_hide(s: &Session, known: Option<&[String]>) -> Value {
     match known {
         None => json!(UNREAD),
-        Some([]) => json!({}),
         Some(k) => serde_json::to_value(s).map_or_else(|_| json!(UNREAD), |v| Value::Object(es::hide_of(&v, &es::SESSION, k))),
     }
 }
 
-/// The list row's own ranges (`summary.envHide`), only when it quotes one (or `known` couldn't be read).
+/// The list row's own ranges (`summary.envHide`), only when it quotes one or has a .env-shaped line (or `known`
+/// couldn't be read): a row with none, its task's row's ranges complete, leaves without a scan.
 pub(crate) fn summary_hide(summary: &mut Summary, known: Option<&[String]>) {
     summary.fields.remove(HIDE);
     let h = match known {
         None => json!(UNREAD),
-        Some([]) => return,
         Some(k) => match serde_json::to_value(&*summary) {
             Ok(v) => {
                 let m = es::hide_of(&v, &SUMMARY, k);
-                if m.is_empty() {
+                if !es::quotes(&m) {
                     return;
                 }
                 Value::Object(m)

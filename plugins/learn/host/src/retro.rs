@@ -256,7 +256,7 @@ mod tests {
         let steps = [
             step(tool(ToolKind::Run, "Run", Some("npm test"))),
             step(Activity::ToolError { name: "bash".into(), text: "3 failed".into(), hide: Vec::new() }),
-            step(Activity::Text { text: "thinking aloud".into() }),
+            step(Activity::Text { text: "thinking aloud".into(), hide: Vec::new() }),
             step(tool(ToolKind::Ask, "Which branch?", None)),
             step(tool(ToolKind::Read, "src/a.rs", None)),
         ];
