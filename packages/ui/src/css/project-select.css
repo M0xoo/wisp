@@ -19,9 +19,7 @@
   [data-kit='p-dots'] > [data-kit='p-dot'] + [data-kit='p-dot'] { margin-left: -3px; }
   /* the kit's chevron points right: turned down, it reads "opens a list" */
   [data-kit='p-select'] > [data-kit='icon']:last-child { transform: rotate(90deg); }
-}
 
-@layer kit {
   /* The pick strip (several projects, 2026-11-14): one slim line over the list. The chips scroll sideways rather than
      wrap; Only … and All projects keep their place at the end. */
   [data-kit='pick-strip'] { display: flex; align-items: center; gap: var(--space-3); min-width: 0; height: 30px; margin: 0 0 var(--space-2); font-size: var(--fs-sm); }
