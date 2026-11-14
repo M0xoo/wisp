@@ -58,10 +58,17 @@ struct Net {
     posts: Mutex<Vec<(String, Value)>>,
     /// Telegram can't be reached: the error names the URL, as a real client's does
     tg_down: std::sync::atomic::AtomicBool,
+    /// ntfy can't be reached: the error names the URL (its poll's holds the topic), as `ReqwestNet`'s does
+    ntfy_down: std::sync::atomic::AtomicBool,
 }
 impl Default for Net {
     fn default() -> Self {
-        Self { ntfy_status: AtomicU16::new(200), posts: Mutex::default(), tg_down: std::sync::atomic::AtomicBool::new(false) }
+        Self {
+            ntfy_status: AtomicU16::new(200),
+            posts: Mutex::default(),
+            tg_down: std::sync::atomic::AtomicBool::new(false),
+            ntfy_down: std::sync::atomic::AtomicBool::new(false),
+        }
     }
 }
 impl wisp_kernel::services::Net for Net {
@@ -71,6 +78,12 @@ impl wisp_kernel::services::Net for Net {
         if req.url.contains("telegram") && self.tg_down.load(Ordering::SeqCst) {
             let url = req.url.clone();
             return Box::pin(async move { Err(wisp_kernel::WireError::unavailable(format!("{url}: connection refused"))) });
+        }
+        if req.url.contains("ntfy") && self.ntfy_down.load(Ordering::SeqCst) {
+            let url = req.url.clone();
+            return Box::pin(
+                async move { Err(wisp_kernel::WireError::unavailable(format!("{url}: error sending request for url ({url})"))) },
+            );
         }
         if req.url.contains("getUpdates") || (req.method == "GET" && req.url.contains("ntfy")) {
             return Box::pin(std::future::pending());
@@ -478,6 +491,20 @@ async fn the_phone_rows_follow_where_each_channel_stands_without_anyone_asking()
     // Discord's transport says it's working on its own (mark): the row turns from Checking… without a read
     a.call("channels.setup", json!({ "transport": "discord", "enabled": true, "secrets": { "token": dc_token() } })).await;
     eventually("Working, by itself", async || a.phone_row("discord").await.is_some_and(|r| r["state"] == "connected")).await;
+}
+
+// ntfy offline: its poll's error quotes the URL, which holds the topic; neither the row nor the status may carry it
+#[tokio::test(flavor = "multi_thread")]
+async fn an_ntfy_error_that_quotes_its_url_never_puts_the_topic_on_the_phone_row() {
+    let a = app("ntfy-down").await;
+    a.net.ntfy_down.store(true, Ordering::SeqCst);
+    let out = a.call("channels.setup", json!({ "transport": "ntfy", "enabled": true })).await;
+    let topic = out["settings"]["topic"].as_str().unwrap().to_owned();
+    eventually("Not working, on the row", async || a.phone_row("ntfy").await.is_some_and(|r| r["state"] == "failing")).await;
+    let row = a.phone_row("ntfy").await.unwrap();
+    let e = row["error"].as_str().unwrap();
+    assert!(e.contains("error sending request") && !e.contains(&topic), "{e}");
+    assert!(!row.to_string().contains(&topic), "{row}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

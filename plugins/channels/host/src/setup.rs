@@ -364,11 +364,13 @@ fn link_code(ctx: &Ctx, live: &Live, t: &str, relink: bool) {
 }
 
 /// `text` with every secret the channel's config holds taken out: a service's error can quote its request (Telegram's
-/// URL has the token in it), and what Settings shows never holds one.
+/// URL has the token in it), and what Settings shows never holds one. ntfy's topic too: its poll URL holds it, and
+/// whoever knows it reads along (`ChannelSetup::public` keeps it off the Phone row).
 pub(crate) fn scrub(live: &Live, t: &str, text: String) -> String {
     let cfg = lock(&live.st.cfg).get(t).cloned().unwrap_or(Value::Null);
     let mut out = text;
-    for f in rules::secret_fields(t).iter().chain(&["linkCode"]) {
+    let topic: &[&str] = if t == "ntfy" { &["topic"] } else { &[] };
+    for f in rules::secret_fields(t).iter().chain(&["linkCode"]).chain(topic) {
         if let Some(v) = cfg.get(*f).and_then(Value::as_str).filter(|v| v.len() >= 4) {
             out = out.replace(v, "…");
         }
