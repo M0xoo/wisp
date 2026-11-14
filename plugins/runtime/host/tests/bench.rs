@@ -129,7 +129,7 @@ async fn list_on_5k_sessions() {
                     &wisp_runtime_core::summary::RowFacts::default(),
                     std::collections::BTreeMap::new(),
                 );
-                wisp_runtime::repo::save_session(w, &s, &sum).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
+                wisp_runtime::repo::save_session(w, &s, &sum, None).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
             }
             Ok(())
         })

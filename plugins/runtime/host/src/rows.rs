@@ -29,9 +29,14 @@ fn object(v: Value) -> Map<String, Value> {
     }
 }
 
-pub fn session_row(s: &Session, summary: &Summary) -> Result<Row> {
+/// `hide`: where the task's text quotes a .env value it read (`env_session::hide_of`), kept in `body` so a row sent
+/// before those values are in memory again still masks (ADR-0050); never read back into the `Session`.
+pub fn session_row(s: &Session, summary: &Summary, hide: Option<&Value>) -> Result<Row> {
     let mut body = object(serde_json::to_value(s)?);
     body.remove("queue");
+    if let Some(h) = hide {
+        body.insert(wisp_runtime_core::env_session::HIDE.into(), h.clone());
+    }
     let mut row = Map::new();
     for (col, key) in SESSION_COLS {
         row.insert((*col).to_owned(), body.remove(*key).unwrap_or(Value::Null));

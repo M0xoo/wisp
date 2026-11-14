@@ -244,6 +244,8 @@ impl Runtime {
             return;
         }
         d.published = Instant::now();
+        // what the turn read so far, known to the task now: a /btw or a row written mid-turn masks it too (ADR-0050)
+        self.env_remember(&d.sid, &d.head.env_values);
         let items = std::mem::take(&mut d.pending);
         self.host.emit(Emitted::Activity(TurnActivity { session_id: d.sid.as_str().into(), turn_id: d.tid.as_str().into(), items }));
     }

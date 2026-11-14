@@ -8,6 +8,7 @@ mod calls;
 mod capped;
 mod drive;
 mod env_known;
+mod env_row;
 mod env_view;
 pub mod error;
 mod finish;

@@ -21,6 +21,12 @@ pub trait RowView: Send + Sync + 'static {
     }
     /// one RFC 6902 op's value, landing at `path` (a JSON pointer into the row)
     fn patch(&self, kind: &str, path: &str, v: &mut Value);
+    /// [`patch`](Self::patch), knowing the key of the row it lands on (`id`): a view that reads what it knows of that
+    /// row's owner (wisp.runtime: a task's .env values) does it here. By default `patch`. Additive (2026-11-14).
+    fn patch_row(&self, kind: &str, id: &str, path: &str, v: &mut Value) {
+        let _ = id;
+        self.patch(kind, path, v);
+    }
 }
 
 pub const VIEWS: crate::Point<dyn RowView> = crate::Point::new("kernel.egress", 1);

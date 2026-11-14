@@ -2,6 +2,8 @@
 //! `/internal/session/:id`, `sessionLine`, `sessionText`): plain text it can quote. A capped agent
 //! reads only its own task and the ones under it (the kernel's scope lets an `agent:session` read any).
 
+use std::sync::Arc;
+
 use wisp_runtime_api::commands::{AgentSessionArgs, AgentSessionsArgs, AgentText, ListArgs};
 use wisp_runtime_api::model::{Summary, TurnStatus};
 
@@ -65,7 +67,8 @@ impl Runtime {
     }
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-    pub async fn agent_sessions(&self, a: &AgentSessionsArgs, capped: bool) -> Result<AgentText> {
+    /// `mask`: each row as `runtime.list` answers it, .env values masked (ADR-0050).
+    pub async fn agent_sessions(&self, a: &AgentSessionsArgs, capped: bool, mask: bool) -> Result<AgentText> {
         let me = self.get(&a.session).await?;
         let now = self.now();
         let states: Option<Vec<String>> = a.state.as_ref().map(|s| s.split(',').map(|x| x.trim().to_owned()).collect());
@@ -73,6 +76,7 @@ impl Runtime {
             a.query.as_deref().unwrap_or("").to_lowercase().split_whitespace().map(|w| w.trim_start_matches('#').to_owned()).collect();
         let mut all = Vec::new();
         for x in self.list(&ListArgs::default()) {
+            let x = if mask { Arc::new(crate::env_row::summary_out(self, &x, true)) } else { x };
             let parent = me.parent_id.as_ref().map(|p| p.0.as_str());
             if x.id.0 == a.session || x.parent_id.is_some() || x.agent == "wisp" || Some(x.id.0.as_str()) == parent {
                 continue;

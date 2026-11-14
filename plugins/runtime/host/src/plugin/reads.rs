@@ -7,10 +7,9 @@ use wisp_runtime_api::commands as c;
 use super::{Slot, rt, track};
 
 pub(super) fn reads(s: &mut Setup, slot: &Slot) {
-    cmd!(s, slot, c::Get, |r, call, a| r.get(a.id.as_str()).await);
     cmd!(s, slot, c::ResumeCommand, |r, call, a| r.resume_line(a.id.as_str()).await.map(|command| c::ResumeLine { command }));
-    cmd!(s, slot, c::List, |r, call, a| Ok(r.list(&a).iter().map(|x| (**x).clone()).collect()));
-    // runtime.turns, runtime.activity and runtime.presentation answer with .env values masked (ADR-0050)
+    // runtime.get, runtime.list, runtime.search, runtime.turns, runtime.activity and runtime.presentation answer with .env values
+    // masked (ADR-0050)
     crate::env_view::register(s, slot);
     cmd!(s, slot, c::Cold, |r, call, a| r.cold(a.id.as_str()).await);
     cmd!(s, slot, c::SetExt, |r, call, a| {
@@ -36,7 +35,6 @@ pub(super) fn reads(s: &mut Setup, slot: &Slot) {
         .await
         .map(|()| c::Ack {}));
     cmd!(s, slot, c::Settle, |r, call, a| r.settle(a.id.as_str(), a.quiet).await.map(|()| c::Ack {}));
-    cmd!(s, slot, c::Search, |r, call, a| r.search(&a.q, a.limit.unwrap_or(30).clamp(1, 100)).await);
     cmd!(s, slot, c::Card, |r, call, a| r.card(a).await);
     cmd!(s, slot, c::Import, |r, call, a| r.import_v1(a.dir.map(Into::into)).await);
 }
@@ -71,7 +69,7 @@ pub(super) fn for_agents(s: &mut Setup, slot: &Slot) {
         async move {
             let r = rt(&slot)?;
             let capped = call.caller().set.starts_with("agent:capped");
-            let out = r.agent_sessions(&a, capped).await.map_err(WireError::from)?;
+            let out = r.agent_sessions(&a, capped, crate::env_view::on(&ctx)).await.map_err(WireError::from)?;
             let agent = r.get(&a.session).await.map(|x| x.agent).unwrap_or_default();
             track(&ctx, "wisp_sessions", serde_json::json!({ "agent": agent })).await;
             Ok(out)
@@ -83,7 +81,12 @@ pub(super) fn for_agents(s: &mut Setup, slot: &Slot) {
         async move {
             let r = rt(&slot)?;
             let capped = call.caller().set.starts_with("agent:capped");
-            let out = crate::env_view::mask_agent_text(&ctx, r.agent_session(&a, capped).await.map_err(WireError::from)?);
+            let text = r.agent_session(&a, capped).await.map_err(WireError::from)?;
+            let of = a.of.trim().trim_start_matches("wisp:");
+            // a task that isn't there says so (no values); only a real one's are read (and kept in memory)
+            let there = r.lock_list().contains_key(of);
+            let known = if there { r.env_known(of).await.ok().map(|v| v.0) } else { Some(Vec::new()) };
+            let out = crate::env_view::mask_agent_text(&ctx, text, known.as_deref());
             let agent = r.get(&a.session).await.map(|x| x.agent).unwrap_or_default();
             track(&ctx, "wisp_session", serde_json::json!({ "agent": agent })).await;
             Ok(out)

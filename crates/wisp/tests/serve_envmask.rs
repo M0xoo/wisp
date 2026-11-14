@@ -367,3 +367,141 @@ async fn a_refused_command_quoting_a_value_an_earlier_turn_read_reaches_no_topic
     let prompt = turns[2]["prompt"].as_str().unwrap();
     assert!(prompt.contains(&format!("Bearer {DOTS}")) && !prompt.contains("sk-live"), "{prompt}");
 }
+
+/// The task's /btw entries, once the one asked has landed.
+async fn btw_landed(api: &Api, id: &str) -> serde_json::Value {
+    let at = Instant::now();
+    loop {
+        let s = api.cmd("runtime.get", json!({ "id": id })).await;
+        let b = &s["ext"]["wisp.runtime"]["btw"][0];
+        if b.is_object() && b["pending"] != true {
+            return s;
+        }
+        assert!(at.elapsed() < Duration::from_secs(30), "the /btw to land: {s}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_forked_btw_answer_quoting_a_value_the_task_read_reaches_no_topic_read_or_share_before_or_after_a_restart() {
+    let dir = temp("envbtw");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = dir.join("btw-run.jsonl");
+    let s = "sess-btw";
+    let read = vec![
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c1", "name": "Bash", "input": { "command": "cat .env" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c1", "content": [{ "type": "text", "text": "API_KEY=sk-live-one\nPORT=3000" }] }] } }),
+    ];
+    write_replay(&f, s, &read, "Read it");
+    let env = [("FAKE_REPLAY", f.to_str().unwrap()), ("FAKE_DELAY", "300")];
+    let (serve, port) = start_with(&dir, &env);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id = api.cmd("runtime.create", json!({ "prompt": "read the env", "cwd": proj, "agent": "claude" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    api.until(&id, "turn 1 to end", |t| t.len() == 1 && ended(&t[0])).await;
+
+    // the /btw runs on a fork of the conversation; its answer quotes the key in prose and as a .env line
+    let answer = "Marker btw-landed: the key is sk-live-one.\nAPI_KEY=sk-live-one";
+    let lines = [
+        json!({ "type": "system", "subtype": "init", "session_id": s }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "text", "text": answer }] } }),
+        json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01 }),
+    ];
+    std::fs::write(&f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
+    let topic = format!("session:{id}");
+    let live = tokio::spawn({
+        let (http, topic) = (http.clone(), topic.clone());
+        async move { stream(&http, port, &topic, "btw-landed", 30).await }
+    });
+    tokio::time::sleep(Duration::from_millis(200)).await; // the stream is open before it lands
+    let asked = api.cmd("runtime.btw", json!({ "id": id, "question": "why that key?" })).await;
+    assert_eq!(asked["pending"], true, "{asked}");
+    let got = btw_landed(&api, &id).await;
+    let seen = live.await.unwrap();
+    assert!(seen.contains("btw-landed"), "the task's stream saw the /btw");
+    no_value("the task's live sync stream", &seen);
+    let b = &got["ext"]["wisp.runtime"]["btw"][0];
+    assert!(b["error"].is_null(), "the /btw answered: {b}");
+    assert_eq!(b["answer"], format!("Marker btw-landed: the key is {DOTS}.\nAPI_KEY={DOTS}"), "masked, not dropped");
+    assert!(b.get("hide").is_none(), "where it was masked stays on the server: {b}");
+    no_value("runtime.get", &got.to_string());
+    no_value("the task's snapshot", &stream(&http, port, &topic, "btw-landed", 10).await);
+    let list = stream(&http, port, "list", "btw-landed", 10).await;
+    assert!(list.contains(&id), "the list's snapshot has the task");
+    no_value("the list's snapshot", &list);
+    no_value("runtime.list", &api.cmd("runtime.list", json!({})).await.to_string());
+    no_value("wisp_session", &api.cmd("runtime.agent.session", json!({ "session": id, "of": id })).await.to_string());
+    no_value("a share", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+
+    // after a restart: nothing in memory, the row's own flags still mask it
+    serve.stop();
+    let (_serve, port) = start_with(&dir, &env);
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let list = stream(&http, port, "list", "btw-landed", 10).await;
+    assert!(list.contains("btw-landed"), "the list's snapshot after a restart has the /btw, masked");
+    no_value("the list's snapshot after a restart", &list);
+    no_value("the task's snapshot after a restart", &stream(&http, port, &topic, "btw-landed", 10).await);
+    no_value("runtime.get after a restart", &api.cmd("runtime.get", json!({ "id": id })).await.to_string());
+    no_value("a share after a restart", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+    // Hide .env values off: as the store has it
+    api.cmd("settings.set", json!({ "key": "git.maskEnvFiles", "value": false })).await;
+    let shown = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert!(shown["ext"]["wisp.runtime"]["btw"][0]["answer"].as_str().unwrap().contains("sk-live-one"), "off shows it: {shown}");
+    no_value("a share with masking off", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_title_and_list_preview_from_an_answer_quoting_a_value_reach_no_list_row_or_task_read_before_or_after_a_restart() {
+    let dir = temp("envtitle");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = dir.join("title-run.jsonl");
+    let s = "sess-title";
+    let answer = format!(
+        "Read.\n```wisp\n{}\n```",
+        json!({ "blocks": [{ "type": "hero", "topic": "Key sk-live-one", "title": "Read", "summary": "Marker title-landed: sk-live-one is live", "status": "done" }] })
+    );
+    let lines = [
+        json!({ "type": "system", "subtype": "init", "session_id": s }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c1", "name": "Bash", "input": { "command": "cat .env" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c1", "content": [{ "type": "text", "text": "API_KEY=sk-live-one\nPORT=3000" }] }] } }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "text", "text": answer }] } }),
+        json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01 }),
+    ];
+    std::fs::write(&f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
+    let env = [("FAKE_REPLAY", f.to_str().unwrap()), ("FAKE_DELAY", "300")];
+    let (serve, port) = start_with(&dir, &env);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id = api.cmd("runtime.create", json!({ "prompt": "read the env", "cwd": proj, "agent": "claude" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    api.until(&id, "turn 1 to end", |t| t.len() == 1 && ended(&t[0])).await;
+    let reads = |api: &Api| {
+        let (api, id) = (Api { http: api.http.clone(), port: api.port, n: 0.into() }, id.clone());
+        async move {
+            let got = api.cmd("runtime.get", json!({ "id": id })).await;
+            assert_eq!(got["title"], format!("Key {DOTS}"), "masked, not dropped: {got}");
+            no_value("runtime.get", &got.to_string());
+            let list = api.cmd("runtime.list", json!({})).await;
+            let row = list.as_array().unwrap().iter().find(|x| x["id"] == id.as_str()).cloned().unwrap();
+            assert_eq!(row["preview"], format!("Marker title-landed: {DOTS} is live"), "{row}");
+            assert!(row.get("envHide").is_none(), "the ranges stay on the server: {row}");
+            no_value("runtime.list", &list.to_string());
+            let list = stream(&api.http, api.port, "list", "title-landed", 10).await;
+            assert!(list.contains("title-landed"), "the list's snapshot has the task");
+            no_value("the list's snapshot", &list);
+        }
+    };
+    reads(&api).await;
+    // after a restart: the rows' kept ranges, nothing in memory
+    serve.stop();
+    let (_serve, port) = start_with(&dir, &env);
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    reads(&api).await;
+}

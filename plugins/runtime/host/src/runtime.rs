@@ -204,16 +204,30 @@ impl Runtime {
         turns: Vec<Turn>,
         extra: impl FnOnce(&mut wisp_store::Writer<'_>) -> wisp_store::Result<()> + Send + 'static,
     ) -> Result<Arc<Summary>> {
+        // boxed: every write of a task goes through here, so its callers' futures stay small
+        Box::pin(self.write_session(s, turns, extra)).await
+    }
+
+    async fn write_session(
+        self: &Arc<Self>,
+        s: &mut Session,
+        turns: Vec<Turn>,
+        extra: impl FnOnce(&mut wisp_store::Writer<'_>) -> wisp_store::Result<()> + Send + 'static,
+    ) -> Result<Arc<Summary>> {
         s.rev += 1;
+        // what the task read, in memory from here on: its row keeps where its text quotes it (ADR-0050)
+        let known = self.env_known(s.id.as_str()).await.ok().map(|v| v.0);
+        let hide = crate::env_row::session_hide(s, known.as_deref());
         let mut summary = self.summary_of(s, turns.last()).await?;
         self.usage_into(s, &turns, &mut summary).await?;
+        crate::env_row::summary_hide(&mut summary, known.as_deref());
         let summary = Arc::new(summary);
         let (row, sum, ts) = (s.clone(), summary.clone(), turns);
         self.repo
             .store
             .write(move |w| {
                 // the session first: a new task's turns point at it (a fork's, an adopted share's)
-                repo::save_session(w, &row, &sum).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
+                repo::save_session(w, &row, &sum, Some(&hide)).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 for t in &ts {
                     repo::save_turn(w, t).map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 }

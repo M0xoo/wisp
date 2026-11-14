@@ -35,20 +35,30 @@ fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), S
     let mut fields = std::collections::BTreeMap::new();
     let parts: Vec<_> = i.turns.iter().map(|t| wisp_runtime_core::task_usage::turn_usage(&t.turn)).collect();
     crate::usage_row::put(&mut fields, &wisp_runtime_core::task_usage::own_of(&parts), &[]);
-    let summary = summarize(&i.session, &facts, fields);
-    repo::save_session(w, &i.session, &summary).map_err(internal)?;
+    let mut summary = summarize(&i.session, &facts, fields);
     let mut seq = 1u64;
-    for t in &i.turns {
+    let events: Vec<Vec<_>> = i
+        .turns
+        .iter()
+        .map(|t| {
+            t.steps
+                .iter()
+                .map(|(at, item)| {
+                    let row = rows::v0_event_row(i.session.id.as_str(), t.turn.id.as_str(), seq, *at, item);
+                    seq += 1;
+                    row
+                })
+                .collect()
+        })
+        .collect();
+    // what its steps show it read: its row keeps where its text quotes it from the start (ADR-0050)
+    let steps: Vec<_> = events.iter().flatten().filter_map(rows::step_of).map(|s| s.activity).collect();
+    let known = wisp_runtime_core::activity::EnvValues::of_steps(&steps).0;
+    let hide = crate::env_row::session_hide(&i.session, Some(&known));
+    crate::env_row::summary_hide(&mut summary, Some(&known));
+    repo::save_session(w, &i.session, &summary, Some(&hide)).map_err(internal)?;
+    for (t, events) in i.turns.iter().zip(events) {
         repo::save_turn(w, &t.turn).map_err(internal)?;
-        let events: Vec<_> = t
-            .steps
-            .iter()
-            .map(|(at, item)| {
-                let row = rows::v0_event_row(i.session.id.as_str(), t.turn.id.as_str(), seq, *at, item);
-                seq += 1;
-                row
-            })
-            .collect();
         if !events.is_empty() {
             w.append("event", events)?;
         }

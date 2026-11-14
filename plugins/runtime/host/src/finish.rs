@@ -22,6 +22,8 @@ impl Runtime {
     pub(crate) async fn finish(self: &Arc<Self>, d: &mut Drive, e: Effect) {
         d.finished = true;
         d.coal.flush().await;
+        // what the turn read, known before its row is written: a title or preview from its answer masks it (ADR-0050)
+        self.env_remember(&d.sid, &d.head.env_values);
         if let Some(l) = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(&d.sid) {
             l.finished = true;
         }

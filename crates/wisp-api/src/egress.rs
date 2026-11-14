@@ -59,7 +59,7 @@ pub fn change(views: &[Arc<dyn RowView>], c: &mut ChangeRow) {
         Change::Patch { ops } => {
             for op in ops {
                 if let PatchOp::Add { path, value } | PatchOp::Replace { path, value } | PatchOp::Test { path, value } = op {
-                    view.patch(kind, path, value);
+                    view.patch_row(kind, &c.id, path, value);
                 }
             }
         }

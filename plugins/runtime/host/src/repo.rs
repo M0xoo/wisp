@@ -19,8 +19,8 @@ pub fn load_session(r: &wisp_store::Reader<'_>, id: &str) -> wisp_store::Result<
 }
 
 /// Writes a task's row (with its list row) and its queue, in the writer's transaction.
-pub fn save_session(w: &mut Writer<'_>, s: &Session, summary: &Summary) -> Result<()> {
-    w.upsert("session", rows::session_row(s, summary)?)?;
+pub fn save_session(w: &mut Writer<'_>, s: &Session, summary: &Summary, hide: Option<&serde_json::Value>) -> Result<()> {
+    w.upsert("session", rows::session_row(s, summary, hide)?)?;
     save_queue(w, s)
 }
 
