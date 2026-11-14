@@ -1,5 +1,5 @@
 //! A crew member on another machine (F-crew-9, v1 crew.js `{ machine: m.machine }`): two `wisp serve` on this
-//! computer, the second added to the first as a `loopback` machine (as serve_machines.rs does). A member whose
+//! computer, the second added to the first as a `loopback` machine (as `serve_machines.rs` does). A member whose
 //! `machine` is that peer runs each job there, in a folder there, kept here as `<machine>|<id>`; its memory, schedule
 //! and answers stay here. Asked in a task here, its job's turn ends on the other wisp, where no member is, and this
 //! wisp reports it from the peer's mirrored row: the answer lands under the question.
