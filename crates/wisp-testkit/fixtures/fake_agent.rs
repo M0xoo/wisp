@@ -8,6 +8,7 @@
 //!   `FAKE_LIMIT_ONCE`  a file: the first run with a prompt hits a usage limit (stderr, exit 1); later runs work
 //!   `FAKE_DELAY` / `FAKE_LINGER`  ms to wait before answering / after the result
 //!   `FAKE_REPLAY`      claude: print this .jsonl as its stream and exit (a recorded run)
+//!   `FAKE_CODEX_USAGE` a file: codex app-server's `account/rateLimits/read` answers its JSON as `rateLimits`
 //!   `FAKE_CLI_VERSION` what --version says (9.9.9); `FAKE_AUTH_PROFILE`, `FAKE_AUTH_FAIL` for `auth status --text`
 //!   TOPIC[…] in the prompt: the hero names it
 #![allow(clippy::print_stdout, clippy::unwrap_used, clippy::expect_used)]
@@ -92,9 +93,16 @@ fn meta(name: &str, argv: &[String]) -> Option<i32> {
             let Ok(m) = serde_json::from_str::<Value>(line) else { continue };
             match m["id"].as_i64() {
                 Some(1) => out(&json!({ "id": 1, "result": {} })),
-                Some(2) => out(
-                    &json!({ "id": 2, "result": { "rateLimits": { "primary": { "usedPercent": 42, "windowDurationMins": 300, "resetsAt": 1_900_000_000 } } } }),
-                ),
+                // FAKE_CODEX_USAGE: a file whose JSON is the answer's `rateLimits` (a test moves the windows)
+                Some(2) => {
+                    let read = env("FAKE_CODEX_USAGE")
+                        .and_then(|f| std::fs::read_to_string(f).ok())
+                        .and_then(|t| serde_json::from_str::<Value>(&t).ok());
+                    let limits = read.unwrap_or_else(
+                        || json!({ "primary": { "usedPercent": 42, "windowDurationMins": 300, "resetsAt": 1_900_000_000 } }),
+                    );
+                    out(&json!({ "id": 2, "result": { "rateLimits": limits } }));
+                }
                 _ => {}
             }
         }

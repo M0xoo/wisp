@@ -94,7 +94,13 @@ impl State {
         lock(&self.running).remove(&c.turn_id.0);
         if wisp_budget_core::windows::unattended(c.by.as_deref()) {
             let until = ask::until(&h, now(ctx));
-            lock(&self.asked).push((c.session_id.0.clone(), c.turn_id.0.clone(), until));
+            lock(&self.asked).push(Asked {
+                task: c.session_id.0.clone(),
+                turn: c.turn_id.0.clone(),
+                until,
+                agent: c.agent.clone(),
+                account: account.clone(),
+            });
             let why = ask::message(&h);
             c.hold = Some(Held {
                 by: PLUGIN_ID.into(),
@@ -108,12 +114,31 @@ impl State {
     }
 
     /// Held automations whose window has reset start now.
-    pub(crate) fn ask_due(&self, at: i64) -> Vec<(String, String)> {
-        let mut asked = lock(&self.asked);
-        let (due, keep): (Vec<_>, Vec<_>) = asked.drain(..).partition(|(_, _, until)| *until <= at);
-        *asked = keep;
-        due.into_iter().map(|(s, t, _)| (s, t)).collect()
+    pub(crate) fn ask_due(&self, at: i64) -> Vec<crate::early::Due> {
+        take(&mut lock(&self.asked), |a| a.until <= at)
     }
+
+    /// Held automations on `agent@account`, whose plan reset early: they start now, before their old reset.
+    pub(crate) fn ask_freed(&self, agent: &str, account: &str) -> Vec<crate::early::Due> {
+        take(&mut lock(&self.asked), |a| a.agent == agent && a.account == account)
+    }
+}
+
+/// An automation Ask near the limit holds: its task and turn, until when, and the account it waits on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Asked {
+    pub task: String,
+    pub turn: String,
+    pub until: i64,
+    pub agent: String,
+    pub account: String,
+}
+
+/// The held runs `go` picks, out of the list: ((agent, account), (task, turn)).
+pub fn take(asked: &mut Vec<Asked>, go: impl Fn(&Asked) -> bool) -> Vec<crate::early::Due> {
+    let (due, keep): (Vec<Asked>, Vec<Asked>) = asked.drain(..).partition(|a| go(a));
+    *asked = keep;
+    due.into_iter().map(|a| ((a.agent, a.account), (a.task, a.turn))).collect()
 }
 
 #[cfg(test)]
@@ -140,6 +165,24 @@ mod tests {
             first,
             inner: false,
         }
+    }
+
+    /// F-auto-12: an early reset of one account frees the automations Ask near the limit held on it, and only them;
+    /// the others wait for their own reset.
+    #[test]
+    fn an_early_reset_frees_only_the_runs_held_on_that_account() {
+        let a = |task: &str, agent: &str, account: &str| Asked {
+            task: task.into(),
+            turn: format!("{task}-1"),
+            until: 99,
+            agent: agent.into(),
+            account: account.into(),
+        };
+        let mut asked = vec![a("t1", "codex", "default"), a("t2", "codex", "work"), a("t3", "claude", "default")];
+        let freed = take(&mut asked, |x| x.agent == "codex" && x.account == "default");
+        assert_eq!(freed, vec![(("codex".to_owned(), "default".to_owned()), ("t1".to_owned(), "t1-1".to_owned()))]);
+        assert_eq!(asked.iter().map(|x| x.task.as_str()).collect::<Vec<_>>(), ["t2", "t3"]);
+        assert!(take(&mut asked, |x| x.until <= 98).is_empty(), "the old reset hasn't come");
     }
 
     #[test]

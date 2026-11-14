@@ -136,6 +136,10 @@ pub const PERM_WRITE: &str = "budget:write";
 pub struct PlanFree {
     pub agent: String,
     pub account: String,
+    /// the held runs wisp.budget itself started for it just now (Automations stop at, Ask near the limit), so the
+    /// one phone note counts them with the follow-ups later brings due. Additive (2026-11-14).
+    #[serde(default)]
+    pub started: u32,
 }
 
 impl Event for PlanFree {

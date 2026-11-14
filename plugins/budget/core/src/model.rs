@@ -155,7 +155,9 @@ impl Budget {
             if was.is_none_or(|was| pct100(was.used) != pct100(next.used) || was.resets_at != next.resets_at) {
                 out.moved = true;
             }
-            if reset_early(was.map(|x| (x.used, x.resets_at)), (next.used, next.resets_at), now) {
+            // once per period: a run's late report of the old period, then a fresh one again, isn't a second reset
+            let seen = acc.early.get(&w.id).is_some_and(|e| same_period(e.resets_at, next.resets_at));
+            if !seen && reset_early(was.map(|x| (x.used, x.resets_at)), (next.used, next.resets_at), now) {
                 acc.early.insert(w.id.clone(), Early { at: now, resets_at: next.resets_at });
                 out.early.push(w.id.clone());
             }

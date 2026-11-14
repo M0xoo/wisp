@@ -9,9 +9,16 @@ use std::collections::BTreeMap;
 use wisp_budget_core::limits::{codex_banked, codex_live};
 use wisp_kernel::Ctx;
 
-use crate::{State, lock, now};
+use crate::{State, now};
 
 pub const SETTING: &str = "budget.liveLimits";
+/// How often held work looks whether its account is free, and reads when due (v1 tick).
+const TICK_MS: u64 = 60_000;
+
+/// The look's interval; tests look sooner (`WISP_BUDGET_TICK_MS`, at least 200 ms).
+pub fn tick_ms() -> u64 {
+    std::env::var("WISP_BUDGET_TICK_MS").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(TICK_MS).max(200)
+}
 pub const EVERY_MS: i64 = 10 * 60_000;
 pub const MAX_BACKOFF_MS: i64 = 60 * 60_000;
 
@@ -37,9 +44,8 @@ impl State {
         if ctx.setting(SETTING).and_then(|v| v.as_bool()) != Some(true) {
             return 0;
         }
-        let waiting: Vec<String> = lock(&self.held).keys().filter(|(g, _)| g == "codex").map(|(_, a)| a.clone()).collect();
         let mut n = 0;
-        for account in waiting {
+        for account in self.waiting(now(ctx)) {
             let t = now(ctx);
             if due.get(&account).is_some_and(|d| d.at > t) {
                 continue;

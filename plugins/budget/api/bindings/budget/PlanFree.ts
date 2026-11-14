@@ -5,4 +5,9 @@
  * (v1 `app.resetEarly`, index.js ~504). Crew members and triggers skipped for it are released;
  * follow-ups held on it come due now.
  */
-export type PlanFree = { agent: string, account: string, };
+export type PlanFree = { agent: string, account: string, 
+/**
+ * the held runs wisp.budget itself started for it just now (Automations stop at, Ask near the limit), so the
+ * one phone note counts them with the follow-ups later brings due. Additive (2026-11-14).
+ */
+started: number, };

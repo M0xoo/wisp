@@ -5,6 +5,7 @@
 
 mod ask;
 mod drain;
+mod early;
 mod kinds;
 mod live;
 mod store;
@@ -30,8 +31,6 @@ use wisp_store::Store;
 pub const PLUGIN_ID: &str = "wisp.budget";
 /// The `held.kind` of a turn the plan holds.
 pub const HOLD_KIND: &str = "plan";
-/// How often held work looks whether its account is free (v1 tick).
-const TICK_MS: u64 = 60_000;
 const STOP_AT: [&str; 4] = ["off", "50", "75", "90"];
 
 /// Each turn's plan shares so far: turn → (last touched, task, shares).
@@ -45,14 +44,19 @@ struct State {
     budget: Mutex<Budget>,
     settings: Mutex<Value>,
     held: Mutex<HeldTurns>,
+    /// held turns the runtime refused to start: how often, and those to try at the next look
+    retry: Mutex<early::Retry>,
     /// Drain watch's notes sent, per window
     notes: Mutex<wisp_budget_core::drain::DrainNotes>,
     /// Ask near the limit: the runs it learns from, per harness
     runs: Mutex<ask::Runs>,
     /// runs going now: turn → (agent, account, their likely units)
     running: Mutex<BTreeMap<String, (String, String, f64)>>,
-    /// automations Ask near the limit holds: (task, turn, until)
-    asked: Mutex<Vec<(String, String, i64)>>,
+    /// automations Ask near the limit holds
+    asked: Mutex<Vec<ask::Asked>>,
+    /// accounts a run found at their usage limit (`budget.resetAt` said when): a task may wait for them (Wait for the
+    /// reset), so Check Codex reads them too, until they're free
+    limited: Mutex<std::collections::BTreeSet<(String, String)>>,
     /// the account each turn is about to run on (`before:run`), until it starts: the ledger begins it then
     starting: Mutex<BTreeMap<String, (String, String)>>,
     /// each turn's plan shares so far (v1 turn.plan), the newest `MAX_PLANS` turns: written to its `wisp.budget` slot
@@ -116,19 +120,15 @@ impl State {
     /// Held work whose account is free starts now.
     async fn release(&self, ctx: &Ctx) {
         let at = now(ctx);
-        let due: Vec<(String, String)> = {
+        let due: Vec<early::Due> = {
             let mut held = lock(&self.held);
             let keys: Vec<(String, String)> = held.keys().filter(|(g, a)| self.free(g, a, at)).cloned().collect();
-            let mut due: Vec<(String, String)> = keys.iter().filter_map(|k| held.remove(k)).flatten().collect();
+            let mut due: Vec<early::Due> =
+                keys.iter().filter_map(|k| held.remove(k).map(|v| v.into_iter().map(|t| (k.clone(), t)))).flatten().collect();
             due.extend(self.ask_due(at));
             due
         };
-        for (id, turn) in due {
-            let a = rt::ReleaseArgs { id: SessionId(id.clone()), turn_id: TurnId(turn.clone()), action: rt::ReleaseAction::Start };
-            if let Err(err) = ctx.run::<rt::Release>(&ctx.root_call(), a).await {
-                tracing::warn!(error = %err.message, task = %id, turn = %turn, "budget: runtime.release");
-            }
-        }
+        self.start(ctx, due).await;
     }
 
     /// Where a window's move went (v1 budget.js addShare → turn.plan): each turn's shares, added to what it has, on
@@ -167,6 +167,9 @@ impl State {
         let r = lock(&self.budget).record(agent, &account_of(account), report, now(ctx));
         self.save().await;
         self.keep_shares(ctx, &r.shares).await;
+        if !r.early.is_empty() {
+            self.reset_early(ctx, agent, account, r.early).await;
+        }
         self.release(ctx).await;
         c::RecordOut { past: r.past }
     }
@@ -259,7 +262,14 @@ fn commands(s: &mut Setup, slot: &Slot) {
     });
     on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));
     // when the account can run again after a limit (v1 budget.resetAt): the runtime's limit card
-    on!(s, slot, c::ResetAt, |st, ctx, a| Ok(lock(&st.budget).reset_at(&a.agent, &account_of(&a.account), now(&ctx))));
+    on!(s, slot, c::ResetAt, |st, ctx, a| {
+        let account = account_of(&a.account);
+        let at = lock(&st.budget).reset_at(&a.agent, &account, now(&ctx));
+        if at.is_some() {
+            lock(&st.limited).insert((a.agent.clone(), account));
+        }
+        Ok(at)
+    });
     on!(s, slot, c::Record, |st, ctx, a| Ok(st.record(&ctx, &a.agent, &a.account, &a.report).await));
     on!(s, slot, c::DismissDrain, |st, ctx, a| {
         let ok = lock(&st.budget).dismiss_drain(&a.agent, &account_of(&a.account), &a.window, now(&ctx));
@@ -336,10 +346,12 @@ impl Plugin for BudgetPlugin {
                 budget: Mutex::new(Budget::load(accs)),
                 settings: Mutex::new(settings),
                 held: Mutex::new(BTreeMap::new()),
+                retry: Mutex::default(),
                 notes: Mutex::default(),
                 runs: Mutex::new(runs),
                 running: Mutex::default(),
                 asked: Mutex::default(),
+                limited: Mutex::default(),
                 starting: Mutex::default(),
                 plans: Mutex::default(),
                 plan_seq: std::sync::atomic::AtomicU64::new(0),
@@ -347,13 +359,14 @@ impl Plugin for BudgetPlugin {
             let _ = start.set(st.clone());
             // held work starts when its windows reset on their own, or a live read says they reset early
             if let Ok(clock) = ctx.clock() {
-                let (scope, c2) = (ctx.scope().clone(), ctx.clone());
+                let (scope, c2, every) = (ctx.scope().clone(), ctx.clone(), live::tick_ms());
                 ctx.spawn(async move {
                     let mut due = BTreeMap::new();
                     loop {
                         tokio::select! {
                             () = scope.cancelled() => return,
-                            () = clock.sleep(TICK_MS) => {
+                            () = clock.sleep(every) => {
+                                st.requeue();
                                 st.live(&c2, &mut due).await;
                                 st.release(&c2).await;
                             }
