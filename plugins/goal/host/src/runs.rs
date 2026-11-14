@@ -122,12 +122,18 @@ pub fn past_keep(newest_first: &[Row]) -> Vec<String> {
     newest_first.iter().skip(KEEP).filter_map(|r| r.get("id").and_then(Value::as_str).map(str::to_owned)).collect()
 }
 
-/// Writes one record (and drops the task's oldest past [`KEEP`]). A refused write is logged: the goal goes on.
+/// Writes one record (and drops the task's oldest past [`KEEP`]). A check's end finds its record gone when its task
+/// was deleted meanwhile ([`forget`]): it isn't written back. A refused write is logged: the goal goes on.
 pub async fn put(ctx: &Ctx, r: Row) {
     let Ok(store) = ctx.service::<Store>() else { return };
     let task = r.get("task").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let id = r.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let ends = r.get("status").and_then(Value::as_str) != Some("running");
     let out = store
         .write(move |w| {
+            if ends && w.get(KIND, id)?.is_none() {
+                return Ok(());
+            }
             w.upsert(KIND, r)?;
             let all = w.query(KIND, &Query::new().select(&["id"]).eq("task", task.clone()).desc("started_at").desc("id"))?;
             for id in past_keep(&all) {
@@ -139,6 +145,27 @@ pub async fn put(ctx: &Ctx, r: Row) {
     if let Err(e) = out {
         tracing::warn!(error = %e, "goal: writing a check's record");
     }
+}
+
+/// A deleted task's check records go with it (runtime's `session.deleted`). How many went.
+pub async fn forget(ctx: &Ctx, task: &str) -> usize {
+    let Ok(store) = ctx.service::<Store>() else { return 0 };
+    let task = task.to_owned();
+    let out = store
+        .write(move |w| {
+            let mut n = 0;
+            for r in w.query(KIND, &Query::new().select(&["id"]).eq("task", task.clone()))? {
+                if let Some(id) = r.get("id").and_then(Value::as_str) {
+                    n += usize::from(w.del(KIND, id.to_owned())?);
+                }
+            }
+            Ok(n)
+        })
+        .await;
+    out.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "goal: dropping a deleted task's checks");
+        0
+    })
 }
 
 /// After a restart: every record still `running` ends `interrupted` (it never voted). The tasks they were for.

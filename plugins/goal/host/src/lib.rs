@@ -290,6 +290,14 @@ impl Plugin for GoalPlugin {
             ctx.spawn(async move { after(&c, &d, &e).await });
             async {}
         });
+        // a deleted task's goal checks go with it
+        s.on::<wisp_runtime_api::events::SessionDeleted, _, _>(move |ctx, e| {
+            let (id, c) = (e.id.as_str().to_owned(), ctx.clone());
+            ctx.spawn(async move {
+                runs::forget(&c, &id).await;
+            });
+            async {}
+        });
         let dw = Arc::clone(&defaults);
         s.on::<wisp_later_api::Dropped, _, _>(move |ctx, e| {
             let (d, e, c) = (dw.clone(), e.clone(), ctx.clone());

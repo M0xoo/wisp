@@ -128,3 +128,36 @@ async fn a_goal_set_on_an_idle_task_is_checked_at_once() {
     let frames = stream(port, "g2", &format!("session:{id}"), |s| !runs_in(s).is_empty()).await;
     assert!(runs_in(&frames).iter().any(|r| r.to_string().contains("Goal: add adds")), "judged now, not after another turn: {frames}");
 }
+
+/// A deleted task's goal checks go with it (`session.deleted`): no `goal_run` row of it is left in the store.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_deleted_tasks_goal_checks_are_deleted_with_it() {
+    let dir = temp("serve-goal-deleted");
+    let (_serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let made = api
+        .cmd("runtime.create", json!({ "prompt": "/goal a.txt says hello", "cwd": dir.join("proj"), "agent": "claude", "worktree": false }))
+        .await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    let runs = |id: &str| -> i64 {
+        let db = wisp_store::rusqlite::Connection::open(dir.join("home/wisp.db")).unwrap();
+        db.query_row("SELECT count(*) FROM goal_run WHERE task = ?1 AND status != 'running'", [id], |r| r.get(0)).unwrap()
+    };
+    let at = Instant::now();
+    while runs(&id) == 0 {
+        assert!(at.elapsed() < Duration::from_secs(30), "a check ran to its end");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    api.cmd("goal.drop", json!({ "id": id })).await;
+    api.cmd("runtime.delete", json!({ "id": id })).await;
+    let at = Instant::now();
+    loop {
+        let db = wisp_store::rusqlite::Connection::open(dir.join("home/wisp.db")).unwrap();
+        let left: i64 = db.query_row("SELECT count(*) FROM goal_run WHERE task = ?1", [&id], |r| r.get(0)).unwrap();
+        if left == 0 {
+            break;
+        }
+        assert!(at.elapsed() < Duration::from_secs(10), "{left} check records outlived their task");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
