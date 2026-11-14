@@ -97,7 +97,7 @@ impl QaDrag {
     }
 }
 
-// What's in the menu AppKit last began tracking.
+// What's in the first menu other than the menu bar AppKit began tracking since the last `right-click`.
 static MENU: Mutex<Option<Vec<String>>> = Mutex::new(None);
 
 unsafe fn watch_menus() {
@@ -105,9 +105,16 @@ unsafe fn watch_menus() {
     ONCE.call_once(|| {
         let block = block2::RcBlock::new(|note: *mut AnyObject| {
             let menu: *mut AnyObject = msg_send![note, object];
+            // A context menu's tracking session takes in the menu bar: AppKit posts the notification for NSApp.mainMenu
+            // too, so the bar is skipped and the first other menu (the context menu, not a submenu) is kept.
+            let app: *mut AnyObject = msg_send![objc2::class!(NSApplication), sharedApplication];
+            let bar: *mut AnyObject = msg_send![app, mainMenu];
+            let mut seen = MENU.lock().unwrap();
+            if menu.is_null() || menu == bar || seen.is_some() {
+                return;
+            }
             let items: Retained<NSArray<NSMenuItem>> = msg_send![menu, itemArray];
-            *MENU.lock().unwrap() =
-                Some(items.iter().filter(|i| !i.isHidden() && !i.isSeparatorItem()).map(|i| i.title().to_string()).collect());
+            *seen = Some(items.iter().filter(|i| !i.isHidden() && !i.isSeparatorItem()).map(|i| i.title().to_string()).collect());
         });
         let centre: *mut AnyObject = msg_send![objc2::class!(NSNotificationCenter), defaultCenter];
         let name = NSString::from_str("NSMenuDidBeginTrackingNotification");
