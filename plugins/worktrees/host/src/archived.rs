@@ -12,7 +12,7 @@ use wisp_runtime_api::commands::{Get, IdArgs};
 use wisp_runtime_api::model::{Session, SessionState};
 use wisp_worktrees_api::{EXT, RemoveOpts, Removed, Worktree, WorktreeRemoved};
 
-use crate::engine::Engine;
+use crate::engine::{Claimant, Engine};
 use crate::fsx;
 use crate::ports::Port;
 
@@ -75,7 +75,8 @@ pub async fn tidy_unless(e: &Engine, call: &Call, wt: &Worktree, mark: u64, used
     if used || e.foreign(wt) || !fsx::exists(&wt.path).await {
         return None;
     }
-    let still = || !e.claimed_since(&wt.path, mark);
+    let real = fsx::norm(&wt.path).await;
+    let still = || !e.claimed_since(&real, mark);
     match e.remove(call, wt, RemoveOpts { strict: true, ..RemoveOpts::default() }, Some(&still)).await {
         Ok(r) => Some(r),
         Err(err) => {
@@ -106,8 +107,8 @@ pub async fn on_changed(ctx: &Ctx, e: &Engine, port: &dyn Port, id: &str) -> boo
 /// Before a turn runs in a task with a worktree: claims the folder (a removal decided earlier stands down) and
 /// brings it back on its branch if archiving removed it. Err: why the turn can't run (a brought-in folder
 /// that's gone, a branch that's gone, git refusing), said on the refused turn.
-pub async fn bring_back(e: &Engine, call: &Call, task: &str, wt: &Worktree) -> Result<(), String> {
-    e.claim(&wt.path, task);
+pub async fn bring_back(e: &Engine, call: &Call, who: Claimant<'_>, wt: &Worktree) -> Result<(), String> {
+    e.claim(&wt.path, who).await;
     match e.ensure(call, wt).await {
         Ok(()) if fsx::exists(&wt.cwd).await || wt.cwd.is_empty() => Ok(()),
         Ok(()) => Err(format!("This task's worktree came back without its folder {}. Nothing was started.", wt.cwd)),
@@ -120,37 +121,48 @@ pub async fn bring_back(e: &Engine, call: &Call, task: &str, wt: &Worktree) -> R
 
 /// The worktree (of any task) that holds `dir`, an extra folder of another task: the folder itself or one of
 /// its subfolders. The innermost when several do.
-pub fn tree_holding<'a>(trees: impl IntoIterator<Item = &'a Worktree>, dir: &str) -> Option<&'a Worktree> {
-    trees.into_iter().filter(|w| !w.path.is_empty() && fsx::within(dir, &w.path)).max_by_key(|w| w.path.len())
+/// By path as the disk sees both (`fsx::norm`): `..` or a symlink can't make a folder outside a worktree read as
+/// in it.
+pub async fn tree_holding<'a>(trees: impl IntoIterator<Item = &'a Worktree> + Send, dir: &str) -> Option<&'a Worktree> {
+    let dir = fsx::norm(dir).await;
+    let mut best: Option<(usize, &Worktree)> = None;
+    let trees: Vec<&Worktree> = trees.into_iter().filter(|w| !w.path.is_empty()).collect();
+    for w in trees {
+        let path = fsx::norm(&w.path).await;
+        if fsx::within(&dir, &path) && best.is_none_or(|(n, _)| path.len() > n) {
+            best = Some((path.len(), w));
+        }
+    }
+    best.map(|(_, w)| w)
 }
 
-/// Before a turn runs with extra folders (`dirs`): each is claimed for `task` while the turn starts (then the task
+/// Before a turn runs with extra folders (`dirs`): each is claimed for `who` while the turn starts (then the task
 /// working with it in its `dirs` guards it: `Port::extra_in_use`), and one that's gone comes back when it was (in) a
 /// worktree of wisp's, found among the tasks' (`Port::tasks`, read only then). One still gone is left to runtime,
 /// which refuses the turn with its name.
-pub async fn extras_ready(e: &Engine, port: &dyn Port, call: &Call, task: &str, dirs: &[String]) -> Result<(), String> {
+pub async fn extras_ready(e: &Engine, port: &dyn Port, call: &Call, who: Claimant<'_>, dirs: &[String]) -> Result<(), String> {
     let mut tasks = None;
     for dir in dirs {
-        e.claim(dir, task);
+        e.claim(dir, who).await;
         if fsx::exists(dir).await {
             continue;
         }
         if tasks.is_none() {
             tasks = Some(port.tasks().await);
         }
-        let trees = tasks.iter().flatten().flat_map(|t| t.trees.iter().map(|x| &x.worktree));
-        if let Some(wt) = tree_holding(trees, dir).filter(|w| !e.foreign(w)) {
-            bring_back_extra(e, call, task, wt, dir).await?;
+        let trees: Vec<&Worktree> = tasks.iter().flatten().flat_map(|t| t.trees.iter()).map(|x| &x.worktree).collect();
+        if let Some(wt) = tree_holding(trees, dir).await.filter(|w| !e.foreign(w)) {
+            bring_back_extra(e, call, who, wt, dir).await?;
         }
     }
     Ok(())
 }
 
 /// Before a turn runs with `dir` as one of its extra folders, and archiving removed the worktree that held it (as
-/// `tree_holding` finds it): it comes back on its branch, claimed for `task`. Err: why the turn
+/// `tree_holding` finds it): it comes back on its branch, claimed for `who`. Err: why the turn
 /// can't run, with the folder's name.
-pub async fn bring_back_extra(e: &Engine, call: &Call, task: &str, wt: &Worktree, dir: &str) -> Result<(), String> {
-    e.claim(&wt.path, task);
+pub async fn bring_back_extra(e: &Engine, call: &Call, who: Claimant<'_>, wt: &Worktree, dir: &str) -> Result<(), String> {
+    e.claim(&wt.path, who).await;
     match e.ensure(call, wt).await {
         Ok(()) if fsx::exists(dir).await => Ok(()),
         Ok(()) => Err(format!("This task's extra folder {dir} isn't in its worktree any more. Nothing was started.")),
@@ -212,14 +224,20 @@ mod tests {
         assert!(to_remove(&s, 5 + SIDE_MS).is_some(), "one cut off long ago doesn't");
     }
 
-    #[test]
-    fn an_extra_folder_is_held_by_the_innermost_worktree_it_sits_in() {
+    #[tokio::test]
+    async fn an_extra_folder_is_held_by_the_innermost_worktree_it_sits_in() {
         let wt = |p: &str| Worktree { path: p.into(), ..Worktree::default() };
         let trees = [wt("/h/worktrees/app-1"), wt("/h/worktrees/app-10"), wt("/h/worktrees/app-1/nested")];
-        assert_eq!(tree_holding(&trees, "/h/worktrees/app-1").map(|w| w.path.as_str()), Some("/h/worktrees/app-1"));
-        assert_eq!(tree_holding(&trees, "/h/worktrees/app-1/web").map(|w| w.path.as_str()), Some("/h/worktrees/app-1"));
-        assert_eq!(tree_holding(&trees, "/h/worktrees/app-1/nested/x").map(|w| w.path.as_str()), Some("/h/worktrees/app-1/nested"));
-        assert!(tree_holding(&trees, "/elsewhere").is_none());
+        let at = |d: &'static str| {
+            let trees = &trees;
+            async move { tree_holding(trees, d).await.map(|w| w.path.clone()) }
+        };
+        assert_eq!(at("/h/worktrees/app-1").await.as_deref(), Some("/h/worktrees/app-1"));
+        assert_eq!(at("/h/worktrees/app-1/web").await.as_deref(), Some("/h/worktrees/app-1"));
+        assert_eq!(at("/h/worktrees/app-1/nested/x").await.as_deref(), Some("/h/worktrees/app-1/nested"));
+        assert_eq!(at("/h/worktrees/app-10/x").await.as_deref(), Some("/h/worktrees/app-10"), "not app-1's");
+        assert!(at("/elsewhere").await.is_none());
+        assert!(at("/h/worktrees/app-1/../app-2").await.is_none(), "`..` out of it");
     }
 
     #[test]

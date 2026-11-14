@@ -399,7 +399,7 @@ impl Cleanup {
                     let busy = self.port.tasks().await.iter().any(|x| x.id == id && x.busy)
                         // a working task has it as one of its extra folders (`dirs`)
                         || self.port.extra_in_use(wt.path.clone()).await;
-                    let (e, path) = (&self.engine, wt.path.clone());
+                    let (e, path) = (&self.engine, fsx::norm(&wt.path).await);
                     let still = move || !busy && !e.claimed_since(&path, mark);
                     let opts = RemoveOpts { force, strict: !force, ..RemoveOpts::default() };
                     if self.engine.remove(&self.call, wt, opts, Some(&still)).await.is_ok_and(|r| r.removed) {

@@ -11,6 +11,7 @@ use std::sync::Arc;
 use common::{rig_with, until};
 use wisp_kernel::BoxFuture;
 use wisp_runtime::Recorder;
+use wisp_runtime_api::TurnId;
 use wisp_runtime_api::commands::{BtwArgs, FollowUpArgs, QuickArgs, StartArgs};
 use wisp_runtime_api::model::{Session, TurnStatus};
 use wisp_runtime_api::points::RunPart;
@@ -25,7 +26,7 @@ impl RunPart for BringBack {
     fn id(&self) -> &'static str {
         "wisp.worktrees"
     }
-    fn ready(&self, s: &Session) -> BoxFuture<'static, Result<(), String>> {
+    fn ready(&self, s: &Session, _turn: Option<&TurnId>) -> BoxFuture<'static, Result<(), String>> {
         let cwd = s.cwd.clone();
         Box::pin(async move { tokio::fs::create_dir_all(&cwd).await.map_err(|e| e.to_string()) })
     }
@@ -37,7 +38,7 @@ impl RunPart for Refuse {
     fn id(&self) -> &'static str {
         "wisp.worktrees"
     }
-    fn ready(&self, _s: &Session) -> BoxFuture<'static, Result<(), String>> {
+    fn ready(&self, _s: &Session, _turn: Option<&TurnId>) -> BoxFuture<'static, Result<(), String>> {
         Box::pin(async { Err("This task's worktree couldn't come back on its branch wisp/x.".to_owned()) })
     }
 }
@@ -193,7 +194,7 @@ async fn an_extra_folder_ready_brings_back_runs_with_it() {
         fn id(&self) -> &'static str {
             "wisp.worktrees"
         }
-        fn ready(&self, s: &Session) -> BoxFuture<'static, Result<(), String>> {
+        fn ready(&self, s: &Session, _turn: Option<&TurnId>) -> BoxFuture<'static, Result<(), String>> {
             let dirs = s.dirs.clone();
             Box::pin(async move {
                 for d in dirs {
@@ -222,4 +223,35 @@ async fn an_extra_folder_ready_brings_back_runs_with_it() {
     assert!(extra.is_dir());
     std::fs::remove_dir_all(&dir).ok();
     std::fs::remove_dir_all(&extra).ok();
+}
+
+/// ADR-0053: `ready` is told which turn it readies (the id its `turn.started` / `turn.held` carries), so a
+/// contributor's claims can be that turn's alone; a /btw, which has no turn and no such event, is told None.
+#[tokio::test(flavor = "multi_thread")]
+async fn ready_is_told_the_turn_it_readies_and_a_btw_none() {
+    struct Seen(Arc<std::sync::Mutex<Vec<Option<String>>>>);
+    impl RunPart for Seen {
+        fn id(&self) -> &'static str {
+            "wisp.worktrees"
+        }
+        fn ready(&self, _s: &Session, turn: Option<&TurnId>) -> BoxFuture<'static, Result<(), String>> {
+            self.0.lock().unwrap().push(turn.map(|t| t.0.clone()));
+            Box::pin(async { Ok(()) })
+        }
+    }
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let dir = folder("turn-id");
+    std::fs::create_dir_all(&dir).unwrap();
+    let r = rig_with(Recorder { parts: vec![Arc::new(Seen(seen.clone()))], ..Recorder::default() }).await;
+    let start = StartArgs { prompt: "fix it".into(), cwd: Some(dir.display().to_string()), ..StartArgs::default() };
+    let id = r.rt.create(start).await.unwrap().id.0;
+    until("the first turn", || async { r.rt.turns(&id, None, Some(1)).await.unwrap().pop().is_some_and(|t| t.status == TurnStatus::Done) })
+        .await;
+    let second = follow_up(&r, &id).await;
+    let first = r.rt.turns(&id, None, None).await.unwrap().swap_remove(0);
+    let b = BtwArgs { id: id.clone().into(), question: "why?".into(), attachments: Vec::new() };
+    r.rt.btw(b).await.unwrap();
+    let got = seen.lock().unwrap().clone();
+    assert_eq!(got, vec![Some(first.id.0), Some(second.id.0), None], "each turn's own id, then the /btw's none");
+    std::fs::remove_dir_all(&dir).ok();
 }

@@ -21,8 +21,9 @@ Review, mark it unread and need a second command to release it, for something th
 
 ## Decision
 
-- **`RunPart::ready(&Session) -> BoxFuture<Result<(), String>>`**, a default method on `runtime.run@1` (additive: every
-  existing contributor keeps compiling and answers `Ok`). The runtime awaits each contributor's `ready`, in order, at
+- **`RunPart::ready(&Session, Option<&TurnId>) -> BoxFuture<Result<(), String>>`**, a default method on `runtime.run@1`
+  (additive: every existing contributor keeps compiling and answers `Ok`). `turn` is the turn about to start, the id
+  its `turn.started` or `turn.held` will carry; None for a side run (a /btw, `runtime.quick`), which has neither. The runtime awaits each contributor's `ready`, in order, at
   the very start of `start_turn`, before `before:run` (trust and the rest read the folder). At most `READY_MS`
   (120 s) each.
 - **`Err(why)`, or a timeout, refuses the turn** as a `before:run` veto does: "Not started" with `why`, the task to
@@ -37,8 +38,11 @@ Review, mark it unread and need a second command to release it, for something th
 - **A claim holds the folder while its turn starts.** Until the turn is saved running the task still reads archived
   and idle, so the archive removal and the hourly sweep each ask `Engine::claimed_since(path, mark)` last thing
   (`still`) and stand down for a claim made after their mark, or one still live: a claim lets go when runtime says
-  the turn started or was held (`turn.started`, `turn.held`: from then the task's own state guards the folder), and
-  lapses after `CLAIM_MS` (150 s) when neither comes (a turn refused after its `ready`).
+  that turn started or was held (`turn.started`, `turn.held` with its turn id: from then the task's own state guards
+  the folder), and lapses after `CLAIM_MS` (150 s) when neither comes (a turn refused after its `ready`). **Claims are
+  per turn**, kept by (folder, task, turn): a late `turn.started` of a turn that failed at once lets go of its own
+  claims only, never the next queued turn's, which may still be in its `before:run`. A side run's claim (no turn) is
+  let go by no event; it lapses.
 - **Side runs go through the same step** (`Runtime::folder_ready`): a /btw (`runtime.btw`) awaits every `ready`
   and the folder checks before its entry is saved pending, and `runtime.quick` before it spawns (on its `cwd`). A
   refusal is the command's error (`conflict`, with why); nothing spawns, and no pending /btw is left behind. A /btw
@@ -54,9 +58,14 @@ Review, mark it unread and need a second command to release it, for something th
   working task guards it by state, not by claim: the archive removal and the sweep ask `Port::extra_in_use` (a
   running, asking or queued task names the folder, or one inside it, in its `dirs`: one `runtime.list`, then only
   those few tasks read whole) and leave it. A claim covers the folder it names and the worktree it sits in
-  (`fsx::within`); claims are kept per (folder, task), so one task's claim doesn't overwrite another's. (Holding an
-  extra folder's claim till `turn.ended` was tried and dropped: claims aren't per turn, and the previous turn's
-  `turn.ended` can be handled after the next queued turn's start, letting go of its hold.)
+  (`fsx::within`); claims are kept per (folder, task, turn), so one task's claim doesn't overwrite another's, nor one
+  turn's the next's.
+- **Paths are compared as the disk sees them.** `fsx::within` cleans both sides first (`.`, `..`, never above the
+  root; Windows' `\\?\` verbatim prefix stripped; either separator), so `/a/wt/../etc` isn't in `/a/wt` and `/a/wt2`
+  isn't either. `fsx::norm` also resolves symlinks: `canonicalize` on the longest part of the path that exists, the
+  rest (not there, so no link in it) cleaned by text. Claims are kept by their `norm` path and the removals ask by
+  the worktree's `norm` path; `archived::tree_holding` and `Port::extra_in_use` compare `norm` paths (`within_real`),
+  so a symlink or `..` can neither carry a folder out of a worktree nor hide that a working task uses it.
 - **Keep worktree on means archiving never removes the folder** (v1 removed it anyway: `docs/v1-bugs-fixed.md`).
 
 ## Consequences
@@ -70,16 +79,21 @@ Review, mark it unread and need a second command to release it, for something th
   brought-back folder stays until a change to the task after that (or the sweep) looks again. A /btw longer than
   `CLAIM_MS` whose extra folder is another archived task's worktree may see it removed under it (a /btw is plan mode,
   read-only); its own folder is kept by the pending entry.
-- Open: `Engine::release(task)` lets go of every claim of the task, so a late `turn.started` of a turn that failed
-  at once can release the next queued turn's fresh claim before that turn is saved running (a window of its
-  `before:run`). Tying a claim to its turn needs the turn id on `RunPart::ready`. And `Port::extra_in_use` counts only
-  working tasks: a /btw on a task in Review doesn't keep its extra folders once its claims lapse.
+- Open: `Port::extra_in_use` counts only working tasks: a /btw on a task in Review doesn't keep its extra folders
+  once its claims lapse.
+- Normalising costs a `canonicalize` per path compared (one per missing ancestor for a folder that's gone), only on
+  a claim, a removal or a gone extra folder, never per event. Windows paths compare case-sensitively, as before.
 - The archive removal of a task that's another task's extra folder reads the working tasks once per removal (rare:
   an archived, idle, clean worktree), never per turn.
 - An extra folder that's gone and isn't wisp's worktree (a plain folder, a brought-in one) is refused, never made.
 - Tests: `plugins/runtime/host/tests/folder_ready.rs` (`a_btw_runs_in_the_folder_ready_brought_back`,
   `a_btw_ready_refuses_…`, `a_btw_on_a_task_whose_folder_is_gone_…`, `a_quick_run_in_a_folder_thats_gone_…`,
-  `a_task_whose_extra_folder_is_gone_…`, `an_extra_folder_ready_brings_back_…`), `plugins/worktrees/host/tests/flows.rs`
-  (`bring_back_…`, `…stands_down_when_a_turn_starts_in_the_folder`, `an_extra_folder_thats_a_removed_worktree_comes_back_and_stays_while_its_task_works`),
+  `a_task_whose_extra_folder_is_gone_…`, `an_extra_folder_ready_brings_back_…`,
+  `ready_is_told_the_turn_it_readies_and_a_btw_none`), `plugins/worktrees/host/tests/flows.rs`
+  (`bring_back_…`, `…stands_down_when_a_turn_starts_in_the_folder`, `an_extra_folder_thats_a_removed_worktree_comes_back_and_stays_while_its_task_works`,
+  `a_late_turn_started_of_a_turn_that_failed_at_once_keeps_the_next_turns_claim`,
+  `a_claim_through_a_symlink_or_dotdot_holds_the_real_folder`), `fsx::within_tests`
+  (`a_sibling_with_a_shared_prefix_is_not_within`, `dotdot_is_resolved_before_comparing`,
+  `windows_verbatim_prefix_is_stripped`, `a_symlink_pointing_outside_is_not_within_and_one_pointing_in_is`),
   `archived::tests` (`…waits_while_a_btw_is_answered_in_it`, `…held_by_the_innermost_worktree…`),
   `crates/wisp/tests/serve_worktree_back.rs` (`a_btw_on_an_archived_task_runs_in_its_worktree_brought_back`).

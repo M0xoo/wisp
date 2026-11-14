@@ -115,8 +115,16 @@ impl Port for MemPort {
         Box::pin(async move { v })
     }
     fn extra_in_use(&self, path: String) -> BoxFuture<'static, bool> {
-        let used = self.extras.lock().is_ok_and(|v| v.iter().any(|d| crate::fsx::within(d, &path)));
-        Box::pin(async move { used })
+        let extras = self.extras.lock().map(|v| v.clone()).unwrap_or_default();
+        // as RuntimePort compares: as the disk sees both
+        Box::pin(async move {
+            for d in &extras {
+                if crate::fsx::within_real(d, &path).await {
+                    return true;
+                }
+            }
+            false
+        })
     }
     fn set_kept(&self, id: String, kept: bool) -> BoxFuture<'static, ()> {
         if let Ok(mut t) = self.tasks.lock() {

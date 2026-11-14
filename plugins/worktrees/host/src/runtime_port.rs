@@ -184,8 +184,11 @@ impl Port for RuntimePort {
             // only the tasks working now (a handful) are read whole, for their `dirs`
             for s in list.iter().filter(|s| matches!(s.state, SessionState::Running | SessionState::Waiting) || s.queued > 0) {
                 let Ok(full) = ctx.run::<Get>(&call, IdArgs { id: s.id.clone() }).await else { continue };
-                if full.dirs.iter().any(|d| crate::fsx::within(d, &path)) {
-                    return true;
+                // as the disk sees them: an extra folder reached through a symlink still keeps the worktree
+                for d in &full.dirs {
+                    if crate::fsx::within_real(d, &path).await {
+                        return true;
+                    }
                 }
             }
             false

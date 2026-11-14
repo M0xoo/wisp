@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use wisp_kernel::{Call, Caller, CancellationToken};
 use wisp_store::{Location, Store, SystemClock};
-use wisp_worktrees::{Engine, MemPort, TaskInfo, TaskTree, WtSettings, archived, done, pane};
+use wisp_worktrees::{Claimant, Engine, MemPort, TaskInfo, TaskTree, WtSettings, archived, done, pane};
 use wisp_worktrees_api::{PrRef, Worktree};
 
 static N: AtomicU32 = AtomicU32::new(0);
@@ -230,21 +230,21 @@ async fn bring_back_restores_a_removed_worktree_on_its_branch_and_refuses_what_c
     let e = engine(&t);
     let wt = add_tree(&root, &t.0.join("h/worktrees/app-back"), "wisp/back");
     assert!(archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed);
-    archived::bring_back(&e, &user(), "t1", &wt).await.unwrap();
+    archived::bring_back(&e, &user(), Claimant::turn("t1", "turn-1"), &wt).await.unwrap();
     assert_eq!(git(Path::new(&wt.path), &["branch", "--show-current"]), "wisp/back");
     assert!(Path::new(&wt.path).join(".env").is_file(), "its ignored files again");
-    archived::bring_back(&e, &user(), "t1", &wt).await.unwrap(); // there already: nothing to do
+    archived::bring_back(&e, &user(), Claimant::turn("t1", "turn-1"), &wt).await.unwrap(); // there already: nothing to do
 
     let gone = add_tree(&root, &t.0.join("h/worktrees/app-gone"), "wisp/gone");
     assert!(archived::tidy(&e, &user(), &gone, e.mark()).await.unwrap().removed);
     git(&root, &["branch", "-D", "wisp/gone"]);
-    let why = archived::bring_back(&e, &user(), "t2", &gone).await.unwrap_err();
+    let why = archived::bring_back(&e, &user(), Claimant::turn("t2", "turn-1"), &gone).await.unwrap_err();
     assert!(why.contains("couldn't come back") && why.contains("wisp/gone"), "{why}");
     assert!(!Path::new(&gone.path).exists());
 
     let theirs = add_tree(&root, &t.0.join("u/conductor/workspaces/app/oslo"), "oslo");
     std::fs::remove_dir_all(&theirs.path).unwrap();
-    let why = archived::bring_back(&e, &user(), "t3", &theirs).await.unwrap_err();
+    let why = archived::bring_back(&e, &user(), Claimant::turn("t3", "turn-1"), &theirs).await.unwrap_err();
     assert!(why.contains("gone"), "{why}");
     assert!(!Path::new(&theirs.path).exists(), "never made again at their path");
 }
@@ -260,16 +260,16 @@ async fn an_archived_tasks_removal_stands_down_when_a_turn_starts_in_the_folder(
     let e = engine_on(&t, &clock);
     let wt = add_tree(&root, &t.0.join("h/worktrees/app-claim"), "wisp/claim");
     let before = e.mark();
-    archived::bring_back(&e, &user(), "t1", &wt).await.unwrap(); // the follow-up's turn starts
+    archived::bring_back(&e, &user(), Claimant::turn("t1", "turn-1"), &wt).await.unwrap(); // the follow-up's turn starts
     assert!(!archived::tidy(&e, &user(), &wt, before).await.unwrap().removed, "decided before the claim");
     assert!(!archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "decided after it, while the turn starts");
     assert!(!archived::tidy(&e, &user(), &wt, before).await.unwrap().removed, "released or not, an older look stays stale");
-    e.release("t1");
+    e.release("t1", "turn-1");
     assert!(!archived::tidy(&e, &user(), &wt, before).await.unwrap().removed, "a look from before the claim is still stale");
     assert!(archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "released: a fresh look decides");
 
     let other = add_tree(&root, &t.0.join("h/worktrees/app-lapse"), "wisp/lapse");
-    archived::bring_back(&e, &user(), "t2", &other).await.unwrap();
+    archived::bring_back(&e, &user(), Claimant::turn("t2", "turn-1"), &other).await.unwrap();
     assert!(!archived::tidy(&e, &user(), &other, e.mark()).await.unwrap().removed);
     clock.advance(u64::try_from(wisp_worktrees::engine::CLAIM_MS).unwrap());
     assert!(archived::tidy(&e, &user(), &other, e.mark()).await.unwrap().removed, "never confirmed: the claim lapsed");
@@ -294,11 +294,11 @@ async fn an_extra_folder_thats_a_removed_worktree_comes_back_and_stays_while_its
     assert!(archived::tidy(&e, &user(), &theirs, e.mark()).await.unwrap().removed);
 
     let sub = format!("{}/web", theirs.path);
-    archived::extras_ready(&e, port.as_ref(), &user(), "t2", std::slice::from_ref(&sub)).await.unwrap();
+    archived::extras_ready(&e, port.as_ref(), &user(), Claimant::turn("t2", "turn-1"), std::slice::from_ref(&sub)).await.unwrap();
     assert!(Path::new(&sub).is_dir(), "its subfolder, back with the worktree");
     assert_eq!(git(Path::new(&theirs.path), &["branch", "--show-current"]), "wisp/theirs");
     assert!(!archived::tidy(&e, &user(), &theirs, e.mark()).await.unwrap().removed, "while t2's turn starts");
-    e.release("t2"); // t2's turn is saved running, with the folder in its `dirs`
+    e.release("t2", "turn-1"); // t2's turn is saved running, with the folder in its `dirs`
     port.extras.lock().unwrap().push(sub.clone());
     let look = |port: Arc<MemPort>| {
         let (e, wt) = (&e, theirs.clone());
@@ -312,10 +312,70 @@ async fn an_extra_folder_thats_a_removed_worktree_comes_back_and_stays_while_its
     assert!(look(port.clone()).await, "t2 is done: it may go");
 
     git(&root, &["branch", "-D", "wisp/theirs"]);
-    let why = archived::extras_ready(&e, port.as_ref(), &user(), "t3", std::slice::from_ref(&theirs.path)).await.unwrap_err();
+    let why = archived::extras_ready(&e, port.as_ref(), &user(), Claimant::turn("t3", "turn-1"), std::slice::from_ref(&theirs.path))
+        .await
+        .unwrap_err();
     assert!(why.contains(&theirs.path) && why.contains("wisp/theirs"), "{why}");
 
     let never = t.0.join("nowhere").to_string_lossy().into_owned();
-    archived::extras_ready(&e, port.as_ref(), &user(), "t4", std::slice::from_ref(&never)).await.unwrap();
+    archived::extras_ready(&e, port.as_ref(), &user(), Claimant::turn("t4", "turn-1"), std::slice::from_ref(&never)).await.unwrap();
     assert!(!Path::new(&never).exists(), "not a worktree: left to runtime, never made");
+}
+
+/// ADR-0053, the race: task t1's turn A failed at once, and its `turn.started` is handled late, after the next
+/// queued turn B claimed the folder (B still reads archived and idle: it's in its `before:run`). A's event lets go
+/// of A's claim only: a removal decided after B's claim stands down until B's own `turn.started`. (With claims per
+/// task, A's late event released B's claim and the folder went under B.) A side run's claim (a /btw: no turn, no
+/// event) is let go by no turn's event; it lapses.
+#[tokio::test]
+async fn a_late_turn_started_of_a_turn_that_failed_at_once_keeps_the_next_turns_claim() {
+    let t = tmp("race");
+    let root = repo(&t);
+    let clock = wisp_testkit::FakeClock::at(1_000_000);
+    let e = engine_on(&t, &clock);
+    let wt = add_tree(&root, &t.0.join("h/worktrees/app-race"), "wisp/race");
+    archived::bring_back(&e, &user(), Claimant::turn("t1", "turn-a"), &wt).await.unwrap(); // A starts, fails at once
+    archived::bring_back(&e, &user(), Claimant::turn("t1", "turn-b"), &wt).await.unwrap(); // B, next in the queue
+    let mark = e.mark(); // the task changed (A ended): a removal looks, after B's claim
+    e.release("t1", "turn-a"); // A's turn.started, handled late
+    assert!(!archived::tidy(&e, &user(), &wt, mark).await.unwrap().removed, "B is still starting in it");
+    assert!(Path::new(&wt.path).is_dir());
+    e.release("t1", "turn-b"); // B saved running: its state guards the folder from here
+    assert!(archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "released: a fresh look decides");
+
+    let side = add_tree(&root, &t.0.join("h/worktrees/app-side"), "wisp/side");
+    archived::bring_back(&e, &user(), Claimant::side("t2"), &side).await.unwrap(); // a /btw
+    e.release("t2", ""); // no turn's event matches a side run's claim, not even an empty id
+    assert!(!archived::tidy(&e, &user(), &side, e.mark()).await.unwrap().removed, "the /btw's claim holds");
+    clock.advance(u64::try_from(wisp_worktrees::engine::CLAIM_MS).unwrap());
+    assert!(archived::tidy(&e, &user(), &side, e.mark()).await.unwrap().removed, "and lapses");
+}
+
+/// A claim made through a symlink or with `..` covers the folder as the disk sees it (`fsx::norm`), so a removal
+/// asking by the worktree's own path stands down.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_claim_through_a_symlink_or_dotdot_holds_the_real_folder() {
+    let t = tmp("alias");
+    let root = repo(&t);
+    let e = engine(&t);
+    let wt = add_tree(&root, &t.0.join("h/worktrees/app-alias"), "wisp/alias");
+    let link = t.0.join("link");
+    std::os::unix::fs::symlink(&wt.path, &link).unwrap();
+    e.claim(&link.join("src").to_string_lossy(), Claimant::turn("t1", "x")).await;
+    assert!(!archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "claimed through the link");
+    e.release("t1", "x");
+    // by text these start with the worktree's path, but `..` takes them out of it: no claim on it
+    let out = format!("{}/../app-other", wt.path);
+    e.claim(&out, Claimant::turn("t2", "y")).await;
+    // and these don't start with it, but `..` brings them in: a claim on it
+    let odd = format!("{}/x/../app-alias", fsx_parent(&wt.path));
+    e.claim(&odd, Claimant::turn("t3", "z")).await;
+    assert!(!archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "claimed with `..`");
+    e.release("t3", "z");
+    assert!(archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "t2's claim, `..` out of it, never held it");
+}
+
+fn fsx_parent(p: &str) -> String {
+    Path::new(p).parent().unwrap().to_string_lossy().into_owned()
 }

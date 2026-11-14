@@ -25,7 +25,7 @@ impl Runtime {
         let s = self.repo.session(a.id.as_str()).await?;
         let h = self.harness(&s.agent)?;
         // where it runs first, as a turn's (ADR-0053): an archived task's worktree comes back, or it's refused with why
-        self.folder_ready(&s).await.map_err(RuntimeError::Conflict)?;
+        self.folder_ready(&s, None).await.map_err(RuntimeError::Conflict)?;
         let entry = BtwEntry {
             id: wisp_kernel::ids::uuid7(),
             question: a.question.clone(),

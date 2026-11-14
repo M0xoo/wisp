@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use wisp_kernel::{BoxFuture, Point, Result};
 
+use crate::TurnId;
 use crate::model::{Activity, FileChange, Mode, Session, Turn};
 
 pub const SUMMARY: Point<dyn SummaryField> = Point::new("runtime.summary", 1);
@@ -128,8 +129,10 @@ pub trait RunPart: Send + Sync + 'static {
     /// Before anything else about a turn (`before:run` included), for every turn (a follow-up, a rerun, a
     /// held one released, a crew wake): the task's folder made ready to run in (worktrees brings back one
     /// archiving removed). Err: the turn is refused with that reason; it never runs anywhere else. Awaited,
-    /// at most [`READY_MS`]. Additive (2026-11-14, ADR-0053).
-    fn ready(&self, _session: &Session) -> BoxFuture<'static, std::result::Result<(), String>> {
+    /// at most [`READY_MS`]. `turn`: the turn about to start (its `turn.started` or `turn.held` follows, with that id);
+    /// None for a side run (a /btw, `runtime.quick`), which has no turn and no such event. Additive (2026-11-14,
+    /// ADR-0053).
+    fn ready(&self, _session: &Session, _turn: Option<&TurnId>) -> BoxFuture<'static, std::result::Result<(), String>> {
         Box::pin(async { Ok(()) })
     }
 }

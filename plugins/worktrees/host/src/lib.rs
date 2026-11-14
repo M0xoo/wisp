@@ -32,7 +32,7 @@ use wisp_worktrees_api as api;
 use wisp_worktrees_core::sweep::{self, DiskLimits};
 
 pub use cleanup::Cleanup;
-pub use engine::Engine;
+pub use engine::{Claimant, Engine};
 pub use ports::{MemPort, Port, TaskInfo, TaskTree, WtSettings};
 
 /// runtime's `before:run`, read by field name until `wisp-runtime-api` exports `BeforeRun` (its
@@ -55,19 +55,26 @@ impl wisp_runtime_api::points::RunPart for Ready {
     fn id(&self) -> &str {
         api::EXT
     }
-    fn ready(&self, session: &wisp_runtime_api::model::Session) -> wisp_kernel::BoxFuture<'static, std::result::Result<(), String>> {
+    fn ready(
+        &self,
+        session: &wisp_runtime_api::model::Session,
+        turn: Option<&wisp_runtime_api::TurnId>,
+    ) -> wisp_kernel::BoxFuture<'static, std::result::Result<(), String>> {
         let own = archived::tree_of(session.ext.get(api::EXT));
         if own.is_none() && session.dirs.is_empty() {
             return Box::pin(async { Ok(()) });
         }
         let (ctx, st, task, dirs) = (self.ctx.clone(), self.st.clone(), session.id.0.clone(), session.dirs.clone());
+        let turn = turn.map(|t| t.0.clone());
         Box::pin(async move {
             let (e, _, port) = st.parts(&ctx).await.map_err(|err| format!("This task's worktree can't be checked ({}).", err.message))?;
             let call = ctx.root_call();
+            // claimed for this turn: only its own `turn.started` / `turn.held` lets go (a side run's lapses)
+            let who = Claimant { task: &task, turn: turn.as_deref() };
             if let Some(wt) = own {
-                archived::bring_back(&e, &call, &task, &wt).await?;
+                archived::bring_back(&e, &call, who, &wt).await?;
             }
-            archived::extras_ready(&e, port.as_ref(), &call, &task, &dirs).await
+            archived::extras_ready(&e, port.as_ref(), &call, who, &dirs).await
         })
     }
 }
@@ -127,10 +134,10 @@ impl State {
         })
     }
 
-    /// A task's turn was saved: its folders' claims let go (`Engine::release`).
-    pub async fn release(&self, ctx: &Ctx, task: &str) {
+    /// A task's turn was saved: that turn's claims on its folders let go (`Engine::release`).
+    pub async fn release(&self, ctx: &Ctx, task: &str, turn: &str) {
         if let Ok((e, _, _)) = self.parts(ctx).await {
-            e.release(task);
+            e.release(task, turn);
         }
     }
 
@@ -199,12 +206,12 @@ impl Plugin for WorktreesPlugin {
         let rel = st.clone();
         s.on::<wisp_runtime_api::events::TurnStarted, _, _>(move |ctx, e| {
             let st = rel.clone();
-            async move { st.release(&ctx, e.session_id.as_str()).await }
+            async move { st.release(&ctx, e.session_id.as_str(), e.turn_id.as_str()).await }
         });
         let rel = st.clone();
         s.on::<wisp_runtime_api::events::TurnHeld, _, _>(move |ctx, e| {
             let st = rel.clone();
-            async move { st.release(&ctx, e.session_id.as_str()).await }
+            async move { st.release(&ctx, e.session_id.as_str(), e.turn_id.as_str()).await }
         });
         // archived and idle: a clean worktree goes (its branch stays). Changes come in bursts while a task
         // streams, so they're coalesced: one look per session per burst.

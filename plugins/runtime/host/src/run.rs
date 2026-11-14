@@ -116,7 +116,7 @@ impl Runtime {
             confirm_limit: item.opts.as_ref().and_then(|o| o.get("confirmLimit")).and_then(serde_json::Value::as_bool).unwrap_or(false),
         };
         // its folder first (a worktree archiving removed comes back on its branch), before anything reads it
-        if let Err(why) = self.folder_ready(&s).await {
+        if let Err(why) = self.folder_ready(&s, Some(&turn.id)).await {
             return self.refused(s, turn, &why).await;
         }
         let mut ctx = match self.host.before_run(ctx).await {
@@ -226,11 +226,12 @@ impl Runtime {
 
     /// Every `runtime.run@1` contributor's `ready` (in order, the first refusal wins), then the folders themselves:
     /// a task whose folder, or one of its extra folders (`dirs`), is gone and that nobody brought back is refused,
-    /// never run somewhere else or without it. A turn, a /btw and `runtime.quick` all come through here.
-    pub(crate) async fn folder_ready(&self, s: &Session) -> std::result::Result<(), String> {
+    /// never run somewhere else or without it. A turn (`turn`: its id), a /btw and `runtime.quick` (None) all come
+    /// through here.
+    pub(crate) async fn folder_ready(&self, s: &Session, turn: Option<&TurnId>) -> std::result::Result<(), String> {
         let wait = std::time::Duration::from_millis(wisp_runtime_api::points::READY_MS);
         for part in self.host.run_parts() {
-            match tokio::time::timeout(wait, part.ready(s)).await {
+            match tokio::time::timeout(wait, part.ready(s, turn)).await {
                 Ok(Ok(())) => {}
                 Ok(Err(why)) => return Err(why),
                 Err(_) => return Err(format!("This task's folder didn't come back in time ({}).", part.id())),
