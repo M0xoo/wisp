@@ -30,8 +30,23 @@ pub fn check(method: &Method, h: &HeaderMap, port: u16, proxy: &TrustedProxy, vi
     if safe_method(method) {
         return Ok(());
     }
-    let origin_ok = if via_proxy { proxy.origin_ok(h) } else { header(h, "origin").is_none_or(|o| local_host(strip_scheme(o), port)) };
-    if origin_ok { Ok(()) } else { Err(ApiError::ForbiddenOrigin) }
+    let origin = header(h, "origin");
+    let origin_ok = if via_proxy { proxy.origin_ok(h) } else { origin.is_none_or(|o| local_host(strip_scheme(o), port)) };
+    if origin_ok {
+        Ok(())
+    } else if !via_proxy && origin.is_some_and(|o| other_local_port(strip_scheme(o), port)) {
+        Err(ApiError::PaneOrigin)
+    } else {
+        Err(ApiError::ForbiddenOrigin)
+    }
+}
+
+/// A page on this computer at another port: a My Stuff app or pane (`stuff.launch` serves each on its own port), or
+/// any other local server. It never writes to wisp itself; a pane asks wisp's page, which shows you a card.
+fn other_local_port(origin: &str, port: u16) -> bool {
+    origin
+        .rsplit_once(':')
+        .is_some_and(|(name, p)| p.parse::<u16>().is_ok_and(|p| p != port) && matches!(name, "127.0.0.1" | "localhost" | "[::1]"))
 }
 
 /// Non-GET bodies are JSON; `application/octet-stream` only where the route takes uploads.
@@ -93,9 +108,29 @@ mod tests {
         let h = |o: &str| hm(&[("host", "127.0.0.1:4477"), ("origin", o)]);
         assert!(check(&Method::POST, &h("http://localhost:4477"), P, &p, false, false).is_ok());
         assert!(matches!(check(&Method::POST, &h("https://evil.example"), P, &p, false, false), Err(ApiError::ForbiddenOrigin)));
+        assert!(matches!(check(&Method::POST, &h("null"), P, &p, false, false), Err(ApiError::ForbiddenOrigin)));
         // a GET with a foreign Origin is a read the browser won't show the page anyway
         assert!(check(&Method::GET, &h("https://evil.example"), P, &p, false, false).is_ok());
         assert!(check(&Method::POST, &hm(&[("host", "127.0.0.1:4477")]), P, &p, false, false).is_ok());
+    }
+
+    #[test]
+    fn a_pane_on_another_local_port_is_told_it_only_proposes() {
+        let p = TrustedProxy::off();
+        let h = |o: &str| hm(&[("host", "127.0.0.1:4477"), ("origin", o)]);
+        for pane in ["http://localhost:47177", "http://127.0.0.1:47177", "http://[::1]:5173"] {
+            let e = check(&Method::POST, &h(pane), P, &p, false, false).err();
+            assert!(matches!(e, Some(ApiError::PaneOrigin)), "{pane}");
+            let w = e.map(|e| e.to_wire()).unwrap();
+            assert_eq!(w.code, wisp_kernel::Code::Forbidden);
+            assert!(w.message.contains("can only propose"), "{}", w.message);
+        }
+        for not in ["http://localhost.evil.example:47177", "http://localhost", "http://localhost:x"] {
+            assert!(matches!(check(&Method::POST, &h(not), P, &p, false, false), Err(ApiError::ForbiddenOrigin)), "{not}");
+        }
+        // through the grid's proxy a local origin is no pane of yours: the plain refusal
+        let px = TrustedProxy::new(Some("0123456789abcdef0123456789abcdef"), Some("https://ada.grid.trywisp.dev"));
+        assert!(matches!(check(&Method::POST, &h("http://localhost:47177"), P, &px, true, false), Err(ApiError::ForbiddenOrigin)));
     }
 
     #[test]

@@ -123,9 +123,11 @@ struct Data {
     above_mode: Vec<Deny>,
     capped: Vec<Deny>,
     crew: CrewData,
+    #[serde(default)]
+    pane: CrewData,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct CrewData {
     deny: Vec<Deny>,
 }
@@ -197,8 +199,10 @@ pub fn crew_set(name: &str) -> CapabilitySet {
 }
 
 /// A pane or app iframe: what the user allowed from its bar, nothing by default.
+/// Whatever it was allowed, it never starts or sends a task nor widens its grant: it only proposes (F-stuff-8).
 pub fn pane_set(id: &str, allow: Vec<String>) -> CapabilitySet {
-    CapabilitySet { id: format!("pane:{id}"), allow, ..CapabilitySet::default() }
+    let deny = data().map(|d| d.pane.deny.iter().map(|x| (x.permission.clone(), x.why.clone())).collect::<Vec<_>>()).unwrap_or_default();
+    with(CapabilitySet { id: format!("pane:{id}"), allow, ..CapabilitySet::default() }, deny)
 }
 
 /// What ids a plugin owns: its id minus the author segment (`wisp.shell.task` owns `shell.task.*`).
@@ -410,6 +414,24 @@ mod tests {
         assert!(allowed(&Caller::plugin("wisp.runtime"), "runtime:start"));
         assert!(!allowed(&Caller::plugin("wisp.runtime"), "git:push"));
         assert!(!allowed(&Caller::set("nobody"), "a:b"));
+    }
+
+    #[test]
+    fn a_pane_only_proposes_whatever_it_was_allowed_f_stuff_8() {
+        let reg = Registry::default();
+        // even a pane set someone widened to everything: the task writes stay refused, in words it can act on
+        reg.define(&pane_set("board", vec!["*".into()]));
+        let pane = Caller::set("pane:board");
+        for p in ["runtime:create", "runtime:followUp", "runtime:queue.sendNow", "runtime:fork", "runtime:card"] {
+            let e = explain_in(&reg, &pane, p).err().unwrap_or_default();
+            assert!(e.starts_with("Refused: a pane can only propose a prompt."), "{p}: {e}");
+        }
+        let e = explain_in(&reg, &pane, "stuff:allow").err().unwrap_or_default();
+        assert!(e.starts_with("Refused: a pane can't widen its own grant."), "{e}");
+        assert!(explain_in(&reg, &pane, "runtime:get").is_ok(), "what it was allowed still holds");
+        // the on-demand set: default deny, and the same words for a write
+        let e = explain(&Caller::set("pane:other"), "runtime:create").err().unwrap_or_default();
+        assert!(e.starts_with("Refused: a pane can only propose a prompt."), "{e}");
     }
 
     #[test]

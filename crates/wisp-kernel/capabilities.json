@@ -68,5 +68,16 @@
     { "permission": "session:list{project:other}", "what": "read a task of another project" },
     { "permission": "runtime:unmasked", "what": "reveal a .env value the user hid" }
   ],
-  "crew": { "deny": [{ "permission": "crew:write", "why": "change the crew it belongs to" }, { "permission": "crew:share", "why": "share the crew it belongs to" }] }
+  "crew": { "deny": [{ "permission": "crew:write", "why": "change the crew it belongs to" }, { "permission": "crew:share", "why": "share the crew it belongs to" }] },
+  "pane": {
+    "$comment": "A pane holding tasks:write only proposes (v1 pane-card.js): wisp's page shows its prompt on a card and you send it as yourself. Whatever it was allowed, it never starts or sends a task, nor widens its own grant (F-stuff-8).",
+    "deny": [
+      { "permission": "runtime:create", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task (wisp.tasks.launch)." },
+      { "permission": "runtime:followUp", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you send the follow-up (wisp.tasks.followUp)." },
+      { "permission": "runtime:queue.*", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you send it." },
+      { "permission": "runtime:fork", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
+      { "permission": "runtime:card", "why": "Refused: a pane can only propose a prompt. wisp's page shows it on a card and you start the task." },
+      { "permission": "stuff:allow", "why": "Refused: a pane can't widen its own grant. You allow what it asks for from its bar." }
+    ]
+  }
 }

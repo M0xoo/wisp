@@ -9,6 +9,11 @@ pub enum ApiError {
     ForbiddenHost,
     #[error("forbidden origin")]
     ForbiddenOrigin,
+    /// a write from a page on another port of this computer: a pane or an app of My Stuff (F-stuff-8)
+    #[error(
+        "Refused: a page on another port of this computer (a pane or an app in My Stuff) can't start or send anything in wisp. A pane can only propose a prompt: wisp's page shows it on a card and you send it."
+    )]
+    PaneOrigin,
     #[error("json only")]
     JsonOnly,
     #[error("body too large")]
@@ -30,7 +35,7 @@ pub enum ApiError {
 impl ApiError {
     pub fn status(&self) -> u16 {
         match self {
-            Self::ForbiddenHost | Self::ForbiddenOrigin | Self::BadToken => 403,
+            Self::ForbiddenHost | Self::ForbiddenOrigin | Self::PaneOrigin | Self::BadToken => 403,
             Self::JsonOnly => 415,
             Self::TooLarge => 413,
             Self::InvalidJson => 400,
@@ -42,7 +47,7 @@ impl ApiError {
 
     pub fn to_wire(&self) -> WireError {
         let code = match self {
-            Self::ForbiddenHost | Self::ForbiddenOrigin | Self::BadToken => Code::Forbidden,
+            Self::ForbiddenHost | Self::ForbiddenOrigin | Self::PaneOrigin | Self::BadToken => Code::Forbidden,
             Self::JsonOnly | Self::InvalidJson => Code::Invalid,
             Self::TooLarge => Code::TooLarge,
             Self::NotFound => Code::NotFound,
