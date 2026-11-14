@@ -46,6 +46,7 @@ export {
   TurnView,
   type OverlapNoteProps,
   type ReplyBoxProps,
+  type ReplyCap,
   type TaskAction,
   type TaskDetailsProps,
   type TaskPlaceChip,

@@ -10,6 +10,7 @@ import { defineCommand, entityKey, type EntityKey, type LocalOp, type PeerId } f
 /** the bare id the peer knows a task by: nav and rows name it by its entity key (`<peer>:<id>`) */
 const bare = (id: string): string => id.slice(id.indexOf(':') + 1);
 import { SESSION, type SessionRow } from '../rows.ts';
+import { capOf, lifts } from './cap.ts';
 
 type Ops = ReturnType<Exclude<Parameters<typeof defineCommand>[0]['optimistic'], 'none'>>;
 
@@ -243,7 +244,12 @@ export const setMode = defineCommand<{ id: string; mode: string }>({
   id: 'runtime.setMode',
   owner: (a) => a.id,
   wire: (a) => ({ ...a, id: bare(a.id) }),
-  optimistic: (_b, a) => patch(a.id, '/summary/mode', a.mode),
+  // above the task's cap, the user's switch lifts it (F-chan-10): the pill goes with the same frame
+  optimistic: (base, a) => {
+    const row = base.peek<SessionRow>(SESSION, a.id as EntityKey);
+    const lift = lifts(a.mode, capOf(row?.summary));
+    return [{ e: SESSION, id: a.id as EntityKey, op: 'patch', ops: [{ op: 'replace', path: '/summary/mode', value: a.mode }, ...(lift ? [{ op: 'remove' as const, path: '/summary/capped' }] : [])] }];
+  },
 });
 
 export const setAgent = defineCommand<{ id: string; agent: string }>({

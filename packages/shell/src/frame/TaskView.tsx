@@ -26,6 +26,7 @@ import {
   type IconName,
   type MenuEntry,
   type TaskAction,
+  type ReplyCap,
   type TaskPlaceChip,
 } from '@wisp/ui';
 import { useShell } from '../context.tsx';
@@ -91,6 +92,7 @@ import { envReveal } from './env-reveal.ts';
 import { runPick, type Runner } from './runner.ts';
 import { rowUsage, taskUsage, type TurnStatsLike } from './task-usage.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
+import { capOf } from './cap.ts';
 
 interface TurnBody {
   readonly prompt?: string;
@@ -684,6 +686,17 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
         const color = (): string => String(s().summary['color'] ?? 'slate');
         const ov = createMemo(() => (!closedReady() ? [] : shownOverlaps(overlapsOf(s()), closed() as unknown as Dismissed | undefined, s().id)));
         const mode = (): Mode => (['plan', 'edits', 'auto'].includes(String(s().summary['mode'])) ? (s().summary['mode'] as Mode) : 'auto');
+        // a channel's cap (F-chan-10): the pill after the mode; Lift is the user's switch above it, to Full auto
+        const capView = (): ReplyCap | undefined => {
+          const c = capOf(s().summary);
+          if (!c) return undefined;
+          const m = t(`shell.mode.${c}`);
+          return {
+            label: t('shell.cap.label', { mode: m }),
+            title: t('shell.cap.title', { mode: m }),
+            lift: { label: t('shell.cap.lift'), title: t('shell.cap.liftTitle'), act: { onClick: () => void run(setMode, { id: key, mode: 'auto' }).catch(() => undefined) } },
+          };
+        };
         // its usage, its subagents' in, and how full its context is (v1 #785): the server sums them on the row
         const usage = createMemo(() =>
           taskUsage(
@@ -1025,6 +1038,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       title: t('shell.home.fullAutoTitle'),
                       icon: MODE_ICON[mode()],
                       act: { menu: { items: modeMenu(t, mode()), onSelect: (m) => void run(setMode, { id: key, mode: m }).catch(() => undefined) } },
+                      cap: capView(),
                     }}
                     runner={{
                       title: t('shell.task.runner', { name: [h().name, replyRun()?.model ?? '', replyRun()?.effort ?? ''].filter(Boolean).join(' · ') }),

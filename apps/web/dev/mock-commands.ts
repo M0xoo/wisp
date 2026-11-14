@@ -722,7 +722,12 @@ export const COMMANDS: Record<string, CommandFn> = {
     const x = obj(a);
     const mode = str(x, 'mode');
     if (!['plan', 'edits', 'auto'].includes(mode)) refuse('invalid', 'mode is plan, edits or auto');
-    return { ops: sessionPatch(ctx, str(x, 'id'), [{ op: 'replace', path: '/summary/mode', value: mode }]) };
+    // a capped task (F-chan-10): the user's switch above the cap lifts it, as runtime's mode_asked does
+    const id = str(x, 'id');
+    const cap = obj(obj(ctx.row('list', 'session', id))['summary'])['capped'];
+    const rank: Record<string, number> = { plan: 0, edits: 1, auto: 2 };
+    const lift = typeof cap === 'string' && (rank[mode] ?? 2) > (rank[cap] ?? 1);
+    return { ops: sessionPatch(ctx, id, [{ op: 'replace', path: '/summary/mode', value: mode }, ...(lift ? [{ op: 'remove' as const, path: '/summary/capped' }] : [])]) };
   },
   'runtime.setAgent': (a, ctx) => {
     const x = obj(a);

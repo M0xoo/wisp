@@ -176,6 +176,8 @@ export function pillsOf(s: SessionRow): PillView[] {
   // v1 feed.js autoPill: the run Auto's best of two picked
   if (s.autoPick && !s.pending) out.push({ id: 'autoPick', label: tx('shell-list.pill.pick'), tone: 'accent', icon: 'spark', title: tx('shell-list.pill.pick-tip', { why: s.autoPick.why }) });
   // the PR's pill (and Shipping) is wisp.ship's own, on `shell.row:head` (v1 ship.js prPill)
+  // a channel's cap (F-chan-10): the task page says it with Lift; the row names it
+  if (s.capped === 'plan' || s.capped === 'edits') out.push({ id: 'capped', label: tx(`shell-list.pill.capped-${s.capped}`), tone: 'warn', icon: 'lock', variant: 'outline', title: tx(`shell-list.pill.capped-${s.capped}-tip`) });
   if (s.pinned) out.push({ id: 'pinned', label: tx('shell-list.pill.pinned'), tone: 'neutral', icon: 'pin', variant: 'outline' });
   return out;
 }

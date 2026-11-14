@@ -93,6 +93,8 @@ interface Task {
   cost?: number;
   /** a crew member's job (body.ext["wisp.crew"]): a delegated one sits under its member in the phone's Crew section */
   crew?: { id: string; job: string; from?: { id: string; title: string } };
+  /** a channel's mode cap (runtime's `capped` list field, F-chan-10) */
+  capped?: 'plan' | 'edits';
 }
 
 const TASKS: Task[] = [
@@ -224,6 +226,19 @@ const TASKS: Task[] = [
     answer: 'They truncate.',
     turns: 1,
   },
+  {
+    // started from a Slack thread: held at Edits until you lift it (F-chan-10)
+    title: 'Bump the retry limit the #ops thread asked for',
+    agent: 'claude',
+    state: 'review',
+    ago: 8 * HOUR,
+    cwd: '~/code/api',
+    prompt: 'From #ops: the webhook retry limit is too low, raise it to 8.',
+    answer: 'Raised the webhook retry limit to 8 in config/retry.ts. The test for the backoff cap still passes.',
+    turns: 1,
+    cost: 0.09,
+    capped: 'edits',
+  },
 ];
 
 const WORDS =
@@ -347,7 +362,8 @@ function sessionRow(peer: string, i: number, t: Task, now: number): { id: string
         live: t.live ?? '',
         cwd: t.cwd,
         model: MODEL[t.agent],
-        mode: 'auto',
+        mode: t.capped ?? 'auto',
+        ...(t.capped && { capped: t.capped }),
         forLater: false,
         ...(t.cost !== undefined && { costUsd: t.cost }),
         ...(t.branch && { branch: t.branch }),

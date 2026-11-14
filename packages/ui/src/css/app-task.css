@@ -767,6 +767,44 @@
     background: var(--accent-soft);
     border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   }
+  /* a task held at a mode cap (F-chan-10): the lock and `Capped at Edits` in the warn tone (v1 .pill's mix), then
+     Lift; a stacked bar keeps the lock and Lift (app-stack.css: the words are its title) */
+  [data-kit='c-cap'] {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: 5px;
+    height: 24px;
+    padding: 0 2px 0 7px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: var(--fw-medium);
+    white-space: nowrap;
+    color: color-mix(in srgb, var(--tone-warn) 85%, var(--ink));
+    background: color-mix(in srgb, var(--tone-warn) 9%, transparent);
+  }
+  [data-kit='c-cap'] > [data-kit='icon'] {
+    width: 12px;
+    height: 12px;
+  }
+  [data-kit='c-cap-lift'] {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 5px;
+    color: var(--ink-2);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font: inherit;
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  [data-kit='c-cap-lift']:hover {
+    color: var(--ink);
+    background: var(--bg-2);
+  }
   [data-kit='c-switch'] {
     position: relative;
     flex: none;

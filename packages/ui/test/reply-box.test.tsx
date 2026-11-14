@@ -107,3 +107,25 @@ test('a_suggestion_above_the_open_reply_box_takes_one_click_v1_0_42', () => {
   expect(seen).toEqual([true]); // one click, and the box hadn't folded under it
   expect(box.hasAttribute('data-awake')).toBe(false);
 });
+
+// F-chan-10: a task held at a mode cap shows it after the mode, with Lift, which is the host's act (its mode switch)
+test('a_capped_tasks_box_shows_the_cap_after_the_mode_and_lift_runs_its_act', () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  let lifted = 0;
+  const cap = { label: 'Capped at Edits', title: 'A channel started this task', lift: { label: 'Lift', title: 'Lift the cap', act: { onClick: () => void lifted++ } } };
+  dispose = render(() => <ReplyBox placeholder="Follow up" value="" onInput={() => {}} onSend={() => {}} attach="Attach" mode={{ label: 'Edits', title: 'Mode', cap }} runner={{ title: 'Claude Code' }} team="Team" goal="Goal" later="Later" send="Send" />, host);
+  const pill = host.querySelector('[data-part="composer.cap"]') as HTMLElement;
+  expect(pill.previousElementSibling?.getAttribute('data-part')).toBe('composer.mode');
+  expect(pill.title).toBe('A channel started this task');
+  expect(pill.querySelector('[data-kit="c-cap-words"]')?.textContent).toBe('Capped at Edits');
+  (pill.querySelector('[data-part="composer.capLift"]') as HTMLButtonElement).click();
+  expect(lifted).toBe(1);
+});
+
+test('an_uncapped_tasks_box_has_no_cap_pill', () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  dispose = render(() => <ReplyBox placeholder="Follow up" value="" onInput={() => {}} onSend={() => {}} attach="Attach" mode={{ label: 'Auto', title: 'Mode' }} runner={{ title: 'Claude Code' }} team="Team" goal="Goal" later="Later" send="Send" />, host);
+  expect(host.querySelector('[data-part="composer.cap"]')).toBeNull();
+});

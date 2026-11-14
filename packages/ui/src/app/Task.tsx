@@ -495,6 +495,14 @@ export function OverlapNote(props: OverlapNoteProps): JSX.Element {
   );
 }
 
+/** A task held at a mode cap (a channel started it, F-chan-10): a pill after the mode, `Capped at Edits`, with
+ * Lift (the user's switch above the cap). A narrow bar keeps the lock and Lift. Additive (2026-11-14). */
+export interface ReplyCap {
+  readonly label: string;
+  readonly title: string;
+  readonly lift: { readonly label: string; readonly title: string; readonly act: Act };
+}
+
 export interface ReplyBoxProps {
   readonly placeholder: string;
   readonly value: string;
@@ -513,7 +521,7 @@ export interface ReplyBoxProps {
   readonly attachAct?: Act;
   /** the phone app's mic (v1 .c-mic): listening shows it on, in the accent. Absent: no mic. Additive (2026-11-13). */
   readonly mic?: { readonly label: string; readonly on: boolean; readonly act: Act } | undefined;
-  readonly mode: { readonly label: string; readonly title: string; readonly icon?: IconName; readonly act?: Act };
+  readonly mode: { readonly label: string; readonly title: string; readonly icon?: IconName; readonly act?: Act; readonly cap?: ReplyCap | undefined };
   readonly runner: { readonly title: string; readonly logo?: string; readonly act?: Act };
   readonly team: string;
   readonly teamAct?: Act;
@@ -663,6 +671,24 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
             </button>
           )}
         />
+        <Show when={props.mode.cap}>
+          {(c) => (
+            <span data-kit="c-cap" data-part="composer.cap" title={c().title}>
+              <Icon name="lock" size="xs" />
+              <span data-kit="c-cap-words" data-text="control">
+                {c().label}
+              </span>
+              <WithAct
+                act={c().lift.act}
+                render={(trigger) => (
+                  <button type="button" {...trigger()} data-kit="c-cap-lift" data-part="composer.capLift" title={c().lift.title}>
+                    <span data-text="control">{c().lift.label}</span>
+                  </button>
+                )}
+              />
+            </span>
+          )}
+        </Show>
         <WithAct
           act={props.runner.act}
           render={(trigger) => (

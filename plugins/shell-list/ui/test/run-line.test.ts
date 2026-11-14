@@ -34,3 +34,13 @@ test('a_crashed_limited_or_refused_rows_pill_says_which_v1_halt', async () => {
   expect(label({})).toEqual({ key: 'shell-list.status.blocked' });
   expect(label({ status: 'done', halt: 'failed' })).toEqual({ key: 'shell-list.status.done' });
 });
+
+test('a_capped_rows_pill_names_its_cap_and_an_uncapped_row_has_none', async () => {
+  // F-chan-10: runtime's list field `capped`, flattened from the summary like every other
+  const { flatSession } = await import('../src/model/wire.ts');
+  const cap = (o: Record<string, unknown>): unknown => pillsOf(flatSession({ id: 's1', state: 'review', summary: { status: 'done', ...o } } as never)).find((p) => p.id === 'capped');
+  expect(cap({ capped: 'edits' })).toEqual({ id: 'capped', label: { key: 'shell-list.pill.capped-edits' }, tone: 'warn', icon: 'lock', variant: 'outline', title: { key: 'shell-list.pill.capped-edits-tip' } });
+  expect(cap({ capped: 'plan' })).toMatchObject({ label: { key: 'shell-list.pill.capped-plan' } });
+  expect(cap({})).toBeUndefined();
+  expect(cap({ capped: 'auto' })).toBeUndefined();
+});

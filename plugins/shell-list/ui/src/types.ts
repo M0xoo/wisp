@@ -75,6 +75,8 @@ export interface Session {
   updatedAt: number;
   queued?: number;
   queueHeld?: boolean;
+  /** a channel's mode cap (runtime's list field, F-chan-10): the task runs at this mode or lower */
+  capped?: 'plan' | 'edits';
   later?: LaterItem[];
   reminder?: { text: string; at: number };
   pending?: boolean;

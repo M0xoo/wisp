@@ -107,6 +107,8 @@
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] { padding: 3px; margin: -3px; overflow-x: auto; scrollbar-width: none; }
   @media (max-width: 520px) { [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] { gap: var(--space-2); } }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] [data-text='control'] { display: none; }
+  /* …but Lift keeps its word: a lock and a bare button would say nothing (F-chan-10) */
+  [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] [data-kit='c-cap-lift'] > [data-text='control'] { display: inline; }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='mode-btn'] { padding: 0; }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface); }
   /* the side pane stacked (a phone): the task's page under it, the pane over it, full screen */
