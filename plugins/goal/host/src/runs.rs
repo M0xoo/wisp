@@ -179,8 +179,10 @@ pub fn drop_task(w: &mut Writer<'_>, task: &str) -> wisp_store::Result<usize> {
 
 /// Writes one record ([`write`]). `false` when its task is gone: a check about to start doesn't. A refused write
 /// is logged: the goal goes on.
-pub async fn put(ctx: &Ctx, r: Row) -> bool {
+pub async fn put(ctx: &Ctx, mut r: Row) -> bool {
     let Ok(store) = ctx.service::<Store>() else { return true };
+    let m = ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok();
+    crate::egress::keep_ranges(m.as_deref(), &mut r);
     store.write(move |w| write(w, r)).await.unwrap_or_else(|e| {
         tracing::warn!(error = %e, "goal: writing a check's record");
         true
