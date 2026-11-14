@@ -262,6 +262,9 @@ export interface HarnessUiDef {
   default?: boolean;
   /** the order in pickers */
   order?: number;
+  /** added 2026-11-14 (additive): the run settings Try it two ways may change on it (`subagentModel`, `skills`), as
+   *  its backend's `HarnessInfo.variants` says (ADR-0056); none: the launcher offers no What's different */
+  variants?: readonly string[];
 }
 
 export interface ShellApi {

@@ -97,6 +97,39 @@ export const create = defineCommand<CreateArgs, { id: string }>({
   ],
 });
 
+/**
+ * Try it two ways (runtime.trial, F-comp-31, ADR-0056): one task twice on the lead's harness, run B with one setting
+ * changed, each in a worktree of its own. Both rows show at once, Starting…, in one group (Compare runs).
+ */
+export const trial = defineCommand<
+  { peer: string; ids: readonly [string, string]; group: string; task: Omit<CreateArgs, 'peer' | 'id' | 'shows' | 'group'>; vary: { subagentModel?: string; skills?: string } },
+  { group: string; runs: { id: string }[] }
+>({
+  id: 'runtime.trial',
+  owner: (a) => a.peer,
+  // `ids`: the rows the client shows at once (as create's `id`; the mock peer keeps them)
+  wire: (a) => ({ ids: [...a.ids], task: { ...a.task, worktree: true }, vary: a.vary }),
+  optimistic: (_base, a) =>
+    a.ids.map((id, run) => ({
+      e: SESSION,
+      id: id as EntityKey,
+      op: 'upsert' as const,
+      v: (() => {
+        const row = startingRow({ ...a.task, id, group: a.group, title: a.task.prompt.split('\n')[0]?.slice(0, 80) ?? a.task.prompt });
+        // run B's variant on its row at once, as the peer's row will say it
+        return { ...row, summary: { ...row.summary, trial: { group: a.group, run }, ...(run === 1 && { variant: a.vary }) } } as never;
+      })(),
+    })),
+});
+
+/** Keep this on a run of Try it two ways (runtime.trial.keep): it stays, the other runs leave the list now. */
+export const trialKeep = defineCommand<{ id: string; others: readonly string[] }>({
+  id: 'runtime.trial.keep',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id) }),
+  optimistic: (_b, a) => [...patch(a.id, '/archived', false), ...a.others.flatMap((o) => patch(o, '/archived', true))],
+});
+
 /** What Auto would run for the launcher's prompt (`router.preview`, read-only; the router plugin off: refused). */
 export const autoPreview = defineCommand<{ peer: string; prompt: string; attachments?: number; goal?: string; team?: boolean }, AutoPreview>({
   id: 'router.preview',

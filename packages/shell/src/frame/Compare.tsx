@@ -10,7 +10,8 @@ import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { answerContext } from './answer-ctx.ts';
 import { isStub, keepTurnsWhole } from './turn-window.ts';
-import { archive, stopRun } from './commands.ts';
+import { archive, stopRun, trialKeep } from './commands.ts';
+import { differsWords, runOrder, trialOf, variantOf, variantWords } from './trial.ts';
 import { compareRows, compareSentence, letter, planShares, type CompareRun, type CompareTurn, type PlanShare } from './compare.ts';
 import { useNow } from '../clock.ts';
 import { harnessOf } from './harness.ts';
@@ -58,9 +59,8 @@ export default function Compare(props: { readonly params: { readonly id: string 
   const group = createMemo(() => {
     const g = sessions().find((s) => s.id === props.params.id)?.summary['groupId'];
     if (typeof g !== 'string' || !g) return [];
-    return sessions()
-      .filter((s) => s.summary['groupId'] === g && !s.archived)
-      .sort((a, b) => a.created_at - b.created_at);
+    // a trial's runs in run order (A as given, B changed), whatever order they were created in
+    return runOrder(sessions().filter((s) => s.summary['groupId'] === g && !s.archived));
   });
   // each run's turns and steps come with its topic: watched while the dialog is open (the scope ends with it)
   const watched = new Set<string>();
@@ -128,6 +128,16 @@ export default function Compare(props: { readonly params: { readonly id: string 
       />
     );
   };
+  /** Try it two ways: what differed, against run A (v1 compare.js trialLine), under the ask */
+  const differs = createMemo(() => {
+    // the peer's link says what differed (the instant rows don't yet)
+    const link = group()
+      .map((s) => trialOf(s.summary))
+      .find((l) => l?.differs);
+    if (!link?.differs) return undefined;
+    const a = group()[0];
+    return { text: differsWords(t, link.differs, String(a?.summary.model || '')), same: link.differs.length === 0 };
+  });
   const views = createMemo((): CompareRunView[] =>
     group().map((s, i) => {
       const h = harnessOf(harnesses(), s.agent);
@@ -139,7 +149,8 @@ export default function Compare(props: { readonly params: { readonly id: string 
         letter: letter(i),
         harness: h.name,
         logo: h.logo,
-        base: [model, effort && effort.charAt(0).toUpperCase() + effort.slice(1)].filter(Boolean).join(' · '),
+        // a trial's runs share a harness: the variant is what tells them apart (v1 runVariant)
+        base: [model, effort && effort.charAt(0).toUpperCase() + effort.slice(1), ...variantWords(t, variantOf(s.summary))].filter(Boolean).join(' · '),
         state: live(s) ? { label: t(s.state === 'waiting' ? 'shell.compare.asking' : 'shell.compare.workingPill'), tone: 'warn', live: true } : st,
         body: answerOf(s),
         working: live(s),
@@ -160,8 +171,10 @@ export default function Compare(props: { readonly params: { readonly id: string 
     setAsking(undefined);
     const others = group().filter((s) => s.id !== id);
     const who = keepWho(id);
-    // optimistic: the others leave the list now; stopping them and deleting their folders goes on behind
-    for (const o of others) void shell.client.commands.run(archive, { id: o.id, archived: true }).catch(() => undefined);
+    // optimistic: the others leave the list now; stopping them and deleting their folders goes on behind. A trial's
+    // Keep also says on both runs which one you kept (v1 trialKept), and archives the other on the peer
+    if (group().some((s) => trialOf(s.summary))) void shell.client.commands.run(trialKeep, { id, others: others.map((o) => o.id) }).catch(() => undefined);
+    else for (const o of others) void shell.client.commands.run(archive, { id: o.id, archived: true }).catch(() => undefined);
     shell.navigate({ t: 'closeOverlay', id: 'shell.compare' as never });
     shell.navigate({ t: 'openTask', id: id as never });
     shell.toast.success(who.kept);
@@ -184,6 +197,7 @@ export default function Compare(props: { readonly params: { readonly id: string 
         runs={views()}
         total={total()}
         sentence={compareSentence(runs(), t)}
+        differs={differs()}
         labels={{ runs: t('shell.compare.runs'), open: t('shell.compare.open'), keep: t('shell.compare.keep'), stillWorking: t('shell.compare.stillWorking') }}
         onOpen={(id) => {
           shell.navigate({ t: 'closeOverlay', id: 'shell.compare' as never });

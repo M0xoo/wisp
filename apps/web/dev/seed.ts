@@ -563,7 +563,37 @@ function withUsage(list: Row[]): void {
   };
 }
 
-export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean; computers?: boolean; media?: boolean; env?: boolean; usage?: boolean }): Seeded {
+/** Try it two ways (F-comp-31, ADR-0056): one task run twice on Claude Code, run B with Skills off, both done; the
+ * rows carry runtime's trial link (group.rs) as the peer sends it, so Compare runs says what differed. */
+function withTrial(peer: string, now: number, list: Row[], topics: Map<Topic, Row[]>, at: number): void {
+  const base: Task = {
+    title: 'Speed up the session list query',
+    agent: 'claude',
+    state: 'review',
+    ago: 40 * MIN,
+    cwd: '~/code/wisp',
+    prompt: 'The session list query takes 30 ms on 5k sessions. Get it under 5 ms.',
+    answer: 'Added a covering index on (archived, updated_at); the query runs in 2.1 ms on 5k sessions.',
+    turns: 1,
+    cost: 0.61,
+  };
+  const runs = [
+    sessionTopic(peer, at, base, now),
+    sessionTopic(peer, at + 1, { ...base, ago: 38 * MIN, cost: 0.44, answer: 'Rewrote the query to read the summary column only and added an index; 3.4 ms on 5k sessions.' }, now),
+  ];
+  const ids = runs.map((r) => r.list.id.slice(r.list.id.indexOf(':') + 1));
+  const differs = [{ key: 'skills', values: ['on', 'off'] }];
+  runs.forEach((r, run) => {
+    for (const row of [r.list, ...r.own.filter((x) => x.e === 'session')]) {
+      const v = row.v as { summary: Record<string, unknown> };
+      v.summary = { ...v.summary, groupId: 'g-trial', trial: { group: 'g-trial', run, runs: ids, differs, kept: null }, ...(run === 1 && { variant: { skills: 'off' } }) };
+    }
+    list.push(r.list);
+    topics.set(`session:${ids[run] ?? ''}`, r.own);
+  });
+}
+
+export function seed(o: { peer: string; now: number; extra: number; firstRun?: boolean; computers?: boolean; media?: boolean; env?: boolean; usage?: boolean; trial?: boolean }): Seeded {
   const topics = new Map<Topic, Row[]>();
   const list: Row[] = [];
   (o.firstRun ? [] : TASKS).forEach((t, i) => {
@@ -588,6 +618,7 @@ export function seed(o: { peer: string; now: number; extra: number; firstRun?: b
   if (o.media) withMedia(topics);
   if (o.env) withEnv(topics);
   if (o.usage) withUsage(list);
+  if (o.trial) withTrial(o.peer, o.now, list, topics, TASKS.length + o.extra);
   topics.set('list', list);
   topics.set('config', [
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },

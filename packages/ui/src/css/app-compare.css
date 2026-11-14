@@ -29,6 +29,20 @@
     max-height: calc(3 * 1.5em + 16px);
     overflow: auto;
   }
+  /* .cmp-diff: Try it two ways' line under the ask (what differed); .same mutes it */
+  [data-kit='cmp-diff'] {
+    flex: none;
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  [data-kit='cmp-diff'][data-same] {
+    font-weight: 400;
+    color: var(--muted);
+  }
   [data-kit='cmp-scroll'] {
     flex: none;
     margin: 0 calc(-1 * var(--cmp-gap)) 8px;

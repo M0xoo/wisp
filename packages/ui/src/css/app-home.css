@@ -544,6 +544,47 @@
     flex: none;
     padding-inline: 6px;
   }
+  /* .rb-v: Try it two ways' words on the copy of the lead (v1 launcher.css): one line, cut rather than wrapped */
+  [data-kit='rb-v'] {
+    position: relative;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: 6px;
+    padding-left: 7px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-2);
+  }
+  [data-kit='rb-v']::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 1px;
+    height: 12px;
+    margin-top: -6px;
+    background: var(--line-2);
+  }
+  /* the copy's change is the point of it: it keeps its words, the lead's name gives way first */
+  [data-kit='runner-btn'][data-vary] {
+    flex: none;
+  }
+  [data-kit='runner-btn'][data-vary] > [data-kit='rb-v'] {
+    flex: none;
+  }
+  /* a copy that only differs by its variant says just that (v1 .runners.trial .same: the launcher box is never
+     the 1100px it took for v1 to spell the harness too); the tooltip spells the run out */
+  [data-kit='runner-btn'][data-vary] > [data-kit='rb-h'] {
+    display: none;
+  }
+  [data-kit='runner-btn'][data-vary] > [data-kit='rb-h'] + [data-kit='rb-v'] {
+    margin-left: 0;
+    padding-left: 0;
+  }
+  [data-kit='runner-btn'][data-vary] > [data-kit='rb-h'] + [data-kit='rb-v']::before {
+    display: none;
+  }
   [data-kit='runners'][data-many] > [data-kit='runner-btn'] > [data-kit='rb-h'] {
     display: none;
   }

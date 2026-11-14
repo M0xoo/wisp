@@ -115,7 +115,8 @@ export function RunLine(props: { readonly run: RunView; readonly s: SessionRow }
         </Show>
       }
       name={name()}
-      model={props.run.model}
+      // a trial's runs share a harness: the run's one change leads, so a long model name never cuts it (v1 runVariant)
+      model={[...(props.run.variant ?? []).map((v) => say(env.shell.t, v, env.now())), props.run.model].filter(Boolean).join(' · ') || undefined}
       // the tip names the harness as its plugin registered it, as the line does
       title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, { ...props.run.title, vars: { ...props.run.title.vars, agent: name() } }, env.now())}
       where={{ icon: props.run.sandbox ? 'box' : props.run.remote ? 'server' : 'laptop', text: props.run.where }}

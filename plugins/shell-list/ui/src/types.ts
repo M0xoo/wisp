@@ -97,6 +97,9 @@ export interface Session {
   shipping?: { step: string } | null;
   pr?: PrRef | null;
   groupId?: string | null;
+  /** Try it two ways (runtime's group.rs, ADR-0056): the run's one change, and its link to the other run */
+  variant?: { subagentModel?: string; skills?: string } | null;
+  trial?: { group: string; run: number; runs?: string[]; kept?: string | null } | null;
   origin?: { kind: 'recipe' | 'trigger' | 'telegram'; id?: string; name?: string } | null;
   kind?: string;
   parentId?: string;

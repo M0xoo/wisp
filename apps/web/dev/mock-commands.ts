@@ -461,6 +461,53 @@ export const COMMANDS: Record<string, CommandFn> = {
       result: { id },
     };
   },
+  // Try it two ways (runtime.trial, ADR-0056): two runs of one task on one harness, linked; run B with its change
+  'runtime.trial': (a, ctx) => {
+    const x = obj(a);
+    const task = obj(x['task']);
+    const vary = obj(x['vary']);
+    if (!task['agent'] || task['agent'] === 'auto') refuse('invalid', 'Pick a harness first: both runs of Try it two ways go on one harness.');
+    if (task['mode'] === 'plan') refuse('invalid', "Try it two ways needs edits to compare, so it doesn't run in Plan.");
+    if (!task['cwd']) refuse('invalid', 'Try it two ways needs a project in git: each run keeps its own worktree.');
+    const ids = Array.isArray(x['ids']) ? (x['ids'] as unknown[]).filter((i): i is string => typeof i === 'string') : [];
+    const group = `g-${ctx.now().toString(36)}`;
+    const differs = [
+      ...(typeof vary['subagentModel'] === 'string' ? [{ key: 'subagentModel', values: ['', vary['subagentModel']] }] : []),
+      ...(vary['skills'] === 'off' ? [{ key: 'skills', values: ['on', 'off'] }] : []),
+    ];
+    const made = [0, 1].map((run) => {
+      const create = COMMANDS['runtime.create'];
+      if (!create) return refuse('internal', 'no create');
+      return create({ ...task, ...(ids[run] && { id: ids[run] }), ext: { 'wisp.runtime': { group } } }, ctx);
+    });
+    const runIds = made.map((m) => String(obj(m.result)['id']));
+    const ops = made.flatMap((m, run) =>
+      m.ops.map((o) => {
+        if (o.op !== 'upsert') return o;
+        const v = obj(o.v);
+        const trial = { group, run, runs: runIds, differs, kept: null };
+        return { ...o, v: { ...v, summary: { ...obj(v['summary']), trial, ...(run === 1 && { variant: vary }) } } };
+      }),
+    );
+    return { ops, result: { group, runs: runIds.map((id) => ({ id })), differs } };
+  },
+  'runtime.trial.keep': (a, ctx) => {
+    const id = str(obj(a), 'id');
+    const summary = obj(obj(ctx.row('list', 'session', id))['summary']);
+    const trial = obj(summary['trial']);
+    if (!trial['group']) refuse('invalid', "This task isn't a run of Try it two ways.");
+    const runs = Array.isArray(trial['runs']) ? (trial['runs'] as string[]) : [id];
+    return {
+      ops: runs.flatMap((r) =>
+        ctx.row('list', 'session', r) === undefined
+          ? []
+          : sessionPatch(ctx, r, [
+              { op: 'replace', path: '/summary/trial', value: { ...obj(obj(obj(ctx.row('list', 'session', r))['summary'])['trial']), kept: id } },
+              { op: 'replace', path: '/archived', value: r !== id },
+            ]),
+      ),
+    };
+  },
   // Rerun and Fork: a new task from this one (the client names it, so its row and page show at once)
   'runtime.rerun': (a, ctx) => copyTask(obj(a), ctx, 'rerun'),
   // wisp-git, from the tasks' own changes (mock-git.ts)

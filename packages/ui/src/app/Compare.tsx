@@ -44,6 +44,8 @@ export interface CompareRunsProps {
   readonly runs: readonly CompareRunView[];
   readonly total?: string;
   readonly sentence?: string;
+  /** Try it two ways: what differed between the runs, under the ask (v1 .cmp-diff); `same` mutes it */
+  readonly differs?: { readonly text: string; readonly same?: boolean } | undefined;
   readonly labels: { readonly runs: string; readonly open: string; readonly keep: string; readonly stillWorking: string };
   readonly onOpen: (id: string) => void;
   readonly onKeep: (id: string, anchor: HTMLElement) => void;
@@ -71,6 +73,13 @@ export function CompareRuns(props: CompareRunsProps): JSX.Element {
       <p data-kit="cmp-prompt" tabindex={props.prompt.length > 240 ? 0 : undefined}>
         {props.prompt}
       </p>
+      <Show when={props.differs}>
+        {(d) => (
+          <p data-kit="cmp-diff" data-same={d().same ? '' : undefined} data-part="compare.differs">
+            {d().text}
+          </p>
+        )}
+      </Show>
       <div data-kit="cmp-scroll" {...(n() > 3 && { tabindex: 0, role: 'region', 'aria-label': props.labels.runs })}>
         <table data-kit="cmp-table" data-part="compare.table">
           <thead>

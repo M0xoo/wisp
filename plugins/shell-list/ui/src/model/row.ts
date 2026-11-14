@@ -46,6 +46,8 @@ export interface RunView {
   /** it runs in a sandbox of its own (ADR-0047): the machine's slot says Sandbox, with the box */
   readonly sandbox?: boolean;
   readonly title: Txt;
+  /** Try it two ways: the run's one change in words, after the model (v1 feed.js runVariant) */
+  readonly variant?: readonly Txt[];
 }
 
 export type TimeView = { readonly kind: 'ago'; readonly at: number; readonly title?: Txt } | { readonly kind: 'ahead'; readonly at: number; readonly title?: Txt };
@@ -141,8 +143,21 @@ export function runOf(s: SessionRow, c: RowContext): RunView | undefined {
     remote: !!s.machine,
     ...(sandbox && { sandbox: true }),
     // v1 runLine's tip: "Default model" when none was picked, "<effort> thinking", "on <place>"
+    ...((v) => (v.length ? { variant: v } : {}))(variantOf(s)),
     title: tx(`shell-list.run.tip${model ? '' : '-default'}${s.effort ? '-effort' : ''}`, { agent: name, model: model ?? '', effort: s.effort === 'xhigh' ? 'X-High' : s.effort ? s.effort.charAt(0).toUpperCase() + s.effort.slice(1) : '', where }),
   };
+}
+
+const SUBAGENT_NAME: Readonly<Record<string, string>> = { haiku: 'Haiku', sonnet: 'Sonnet' };
+
+/** Try it two ways (F-comp-31): what tells a trial's two rows on one harness apart. '' subagents is the task's model. */
+export function variantOf(s: SessionRow): Txt[] {
+  const v = s.variant;
+  const out: Txt[] = [];
+  if (v?.subagentModel) out.push(tx('shell-list.run.subagents', { name: SUBAGENT_NAME[v.subagentModel] ?? v.subagentModel }));
+  else if (v?.subagentModel === '') out.push(tx('shell-list.run.subagents-task'));
+  if (v?.skills === 'off') out.push(tx('shell-list.run.skills-off'));
+  return out;
 }
 
 function statusPill(s: SessionRow): PillView | undefined {

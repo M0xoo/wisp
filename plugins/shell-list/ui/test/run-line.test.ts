@@ -44,3 +44,17 @@ test('a_capped_rows_pill_names_its_cap_and_an_uncapped_row_has_none', async () =
   expect(cap({})).toBeUndefined();
   expect(cap({ capped: 'auto' })).toBeUndefined();
 });
+
+test('a_trial_runs_line_says_its_one_change_after_the_model_v1_try_two_ways', async () => {
+  // F-comp-31: runtime's `variant`, flattened from the summary; both rows of a trial share a harness, this tells them apart
+  const { flatSession } = await import('../src/model/wire.ts');
+  const { variantOf } = await import('../src/model/row.ts');
+  const b = flatSession({ id: 's2', state: 'review', agent: 'claude', summary: { status: 'done', variant: { subagentModel: 'haiku', skills: 'off' } } } as never);
+  expect(variantOf(b)).toEqual([
+    { key: 'shell-list.run.subagents', vars: { name: 'Haiku' } },
+    { key: 'shell-list.run.skills-off' },
+  ]);
+  expect(runOf(b, c)?.variant).toHaveLength(2);
+  expect(variantOf(row({ variant: { subagentModel: '' } } as Partial<SessionRow>))).toEqual([{ key: 'shell-list.run.subagents-task' }]);
+  expect(runOf(row({}), c)?.variant).toBeUndefined();
+});

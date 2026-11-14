@@ -22,7 +22,8 @@ import { Slot, usePluginClient } from '../slot.tsx';
 import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { longTime, sectionOf, shortAgo, statusOf } from './rows-view.ts';
-import { autoBlocked, autoPreview, autoRules, create, setSetting, type Attachment } from './commands.ts';
+import { autoBlocked, autoPreview, autoRules, create, setSetting, trial, type Attachment } from './commands.ts';
+import { pickVary, settingModel, trialVary, varyMenu, variantWords, type Variant } from './trial.ts';
 import { goalGate, goalOf, goalSent, isBareGoal, typedInFull, type HomeGoal } from './goal-gate.ts';
 import { feedbackCommand, isFeedback, openFeedback } from './feedback.ts';
 import { autoPick, neverRule, overrideOf, popOf, pct, PREVIEW_DEBOUNCE, shortLabel, usd, type AutoPreview } from './auto.ts';
@@ -114,6 +115,13 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   };
   // vs (v1 launcher.js compare): the same task on more harnesses, side by side; picks here don't touch the defaults
   const [runs, setRuns] = createSignal<readonly string[]>([]);
+  // Try it two ways (v1 #650, #771): the one run added with + on the lead's harness may change one setting
+  const [vary, setVary] = createSignal<Variant | undefined>();
+  const subSetting = (): string => settingModel(settings().find((r) => r.key === 'runtime.subagentModel')?.value);
+  /** What's different: only for a lone copy of the lead on a harness that runs variants */
+  const varies = (a: string, i: number): readonly string[] =>
+    // each run needs a worktree of its own: no project, no trial (the launch would be a plain compare)
+    i === 0 && runs().length === 1 && a === agent() && project() ? (harnesses().find((h) => h.id === a)?.variants ?? []) : [];
   const [team, setTeam] = createSignal<ReadonlySet<string>>(new Set());
   // the team new tasks start with (Settings, `runtime.subagents`): pre-filled until you pick your own
   let teamTouched = false;
@@ -290,11 +298,45 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     // several runs: one group, so Compare runs shows them side by side (v1: one shared groupId)
     const extra = runs();
     const group = extra.length > 0 ? newGroup(crypto.getRandomValues(new Uint8Array(6))) : undefined;
+    // the copy of the lead with one setting changed: one runtime.trial (both runs linked, a worktree each)
+    const tried = p && runner.agent !== 'auto' ? trialVary(agent(), extra, vary(), subSetting()) : undefined;
     setRuns([]);
+    setVary(undefined);
     // the other folders it works in: on this computer only (another one has its own checkouts, placed per folder later)
     const dirs = target() === home ? dirsOf(p, also(), projects()) : [];
     setOwnAlso(undefined);
+    // Try it two ways: one runtime.trial for both runs (linked, a worktree each), both rows at once
+    const startTrial = (attachments: readonly Attachment[], cwd: string): boolean => {
+      if (!tried || !p || !group) return false;
+      shell.client.commands
+        .run(trial, {
+          peer: target(),
+          ids: [id, entityKey(target(), uuidv7())],
+          group,
+          vary: tried,
+          task: {
+            prompt,
+            agent: agent(),
+            mode: mode(),
+            at: Date.now(),
+            cwd,
+            projectId: p.id,
+            ...(p.color && { color: p.color }),
+            ...(dirs.length > 0 && { dirs }),
+            ...(g && { goal: g }),
+            ...(attachments.length > 0 && { attachments }),
+            ...(model() && { model: model() }),
+            ...(effort() && { effort: effort() }),
+            ...((a) => (a ? { account: a.id } : {}))(account()),
+            ...(team().size > 0 && { team: teamRows(team(), subagents(), (a) => agentName(t, harnesses(), a)) }),
+          },
+        })
+        .catch(() => (setText(prompt), goalBack()));
+      shell.navigate({ t: 'openTask', id: id as EntityKey as never });
+      return true;
+    };
     const start = (attachments: readonly Attachment[], cwd: string): void => {
+      if (startTrial(attachments, cwd)) return;
       shell.client.commands
         .run(create, {
           peer: target(),
@@ -460,18 +502,36 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
                 runs(),
                 harnesses().map((h) => h.id),
               );
-              if (next) setRuns([...runs(), next]);
+              if (next) {
+                setRuns([...runs(), next]);
+                // What's different is for one copy: a third run makes it a compare again
+                setVary(undefined);
+              }
             },
           },
           compareFull: firstRun() || runs().length >= MAX_RUNNERS - 1,
           compares: runs().map((a, i) => {
             const h = harnessOf(harnesses(), a);
+            const can = varies(a, i);
+            const words = can.length ? variantWords(t, vary()) : [];
             return {
               label: h.name,
               logo: h.logo,
               removeLabel: t('shell.home.compareRemove', { name: h.name }),
-              onRemove: () => setRuns(runs().filter((_, k) => k !== i)),
-              act: { menu: { items: agentMenu(t, harnesses(), a, false), onSelect: (v) => setRuns(runs().map((x, k) => (k === i ? v : x))) } },
+              onRemove: () => (setRuns(runs().filter((_, k) => k !== i)), setVary(undefined)),
+              ...(words.length > 0 && { variant: words }),
+              act: {
+                menu: {
+                  // v1 runner-picker.js What's different: Subagents and Skills under the harnesses, on the copy of the lead
+                  items: [...agentMenu(t, harnesses(), a, false), ...(can.length ? [{ kind: 'separator' as const }, ...varyMenu(t, can, vary(), subSetting())] : [])],
+                  onSelect: (v) => {
+                    const next = pickVary(vary(), v);
+                    if (next) return setVary(next);
+                    setRuns(runs().map((x, k) => (k === i ? v : x)));
+                    setVary(undefined);
+                  },
+                },
+              },
             };
           }),
         }}

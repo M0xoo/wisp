@@ -3,6 +3,7 @@
 import { definePluginUi } from '@wisp/shell';
 import { LOGO } from './logo.ts';
 
-export const HARNESS = { id: 'claude', name: 'Claude Code', logo: LOGO, order: 10, default: true };
+// variants: Try it two ways' What's different (its backend runs both: plugins/claude/host launch.rs)
+export const HARNESS = { id: 'claude', name: 'Claude Code', logo: LOGO, order: 10, default: true, variants: ['subagentModel', 'skills'] };
 
 export default definePluginUi({ id: 'wisp.claude', harnesses: [HARNESS] });

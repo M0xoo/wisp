@@ -88,6 +88,8 @@ export interface LauncherCompare {
   readonly removeLabel: string;
   readonly onRemove: () => void;
   readonly act: Act;
+  /** Try it two ways: a copy of the lead's words for its one change ("Subagents on Haiku"), after the name */
+  readonly variant?: readonly string[];
 }
 
 export interface LauncherProps {
@@ -394,13 +396,28 @@ export function Launcher(props: LauncherProps): JSX.Element {
                   <WithAct
                     act={c().act}
                     render={(trigger) => (
-                      <button type="button" {...trigger()} data-kit="runner-btn" data-cmp="" data-part="launcher.compare.runner" title={c().label}>
+                      <button
+                        type="button"
+                        {...trigger()}
+                        data-kit="runner-btn"
+                        data-cmp=""
+                        data-vary={c().variant?.length ? '' : undefined}
+                        data-part="launcher.compare.runner"
+                        title={[c().label, ...(c().variant ?? [])].join(' · ')}
+                      >
                         <span data-kit="rb-logo" data-small="">
                           <Show when={c().logo}>{(src) => <img src={src()} alt="" />}</Show>
                         </span>
                         <span data-kit="rb-h" data-text="control">
                           {c().label}
                         </span>
+                        <For each={c().variant ?? []}>
+                          {(w) => (
+                            <span data-kit="rb-v" data-text="control" data-part="launcher.compare.variant">
+                              {w}
+                            </span>
+                          )}
+                        </For>
                         <Icon name="chevron" />
                       </button>
                     )}
