@@ -5,6 +5,7 @@
 //! for a task's own side runs, and a turn you started yourself after a stall begins the count again.
 
 mod calls;
+pub mod inflight;
 mod judging;
 use judging::{after, judge_turn, recover, wake_dropped};
 mod kinds;
@@ -14,6 +15,7 @@ mod slash;
 use std::sync::Arc;
 
 use calls::{put, spec_of, state_of, task_of, turns_of};
+use inflight::Inflight;
 use serde_json::{Value, json};
 use wisp_goal_api::{GoalState, PLUGIN};
 use wisp_goal_core::MAX_ROUNDS;
@@ -81,7 +83,7 @@ pub fn goal_with(spec: &Value, st: Option<&GoalState>, d: &kinds::GoalSpec) -> O
 
 /// `goal.set`: the task's goal set, changed (its count starts again) or cleared. `kick`: a task whose last turn
 /// is done is judged on it now (v1 Goals#set: it may already hold); a running one when its turn ends.
-async fn set(ctx: &Ctx, defaults: &kinds::Defaults, a: &wisp_goal_api::SetArgs) -> Result<Value> {
+async fn set(ctx: &Ctx, defaults: &kinds::Defaults, live: &Inflight, a: &wisp_goal_api::SetArgs) -> Result<Value> {
     let call = ctx.root_call();
     let task = task_of(ctx, &call, &a.id).await?;
     let text = a.text.trim();
@@ -93,12 +95,18 @@ async fn set(ctx: &Ctx, defaults: &kinds::Defaults, a: &wisp_goal_api::SetArgs) 
     } else {
         GoalState { text: text.to_owned(), ..GoalState::default() }
     };
+    // the goal it replaced (or cleared) is no longer judged: its judges still running stop (only theirs: a round of
+    // the new goal that starts meanwhile goes on)
+    let old: Vec<String> = state_of(&task)
+        .map(|s| s.running.iter().filter_map(|r| r.get("run").and_then(Value::as_str).map(str::to_owned)).collect())
+        .unwrap_or_default();
     put(ctx, &call, &a.id, &st).await?;
+    live.stop(ctx, &a.id, Some(&old)).await;
     if a.kick && !text.is_empty() {
         let turns = turns_of(ctx, &call, &a.id).await.unwrap_or_default();
         if let Some(last) = turns.last().filter(|t| t.status == TurnStatus::Done) {
-            let (c, d, id, turn) = (ctx.clone(), defaults.clone(), a.id.clone(), last.id.as_str().to_owned());
-            ctx.spawn(async move { judge_turn(&c, &d, &id, &turn).await });
+            let (c, d, l, id, turn) = (ctx.clone(), defaults.clone(), live.clone(), a.id.clone(), last.id.as_str().to_owned());
+            ctx.spawn(async move { judge_turn(&c, &d, &l, &id, &turn).await });
         }
     }
     Ok(view_of(&spec_of(&task), Some(&st), task.created_at, task.updated_at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
@@ -146,24 +154,28 @@ pub fn moved(st: Option<&GoalState>, to: &str, why: Option<&str>) -> GoalState {
 }
 
 /// `goal.pause` / `goal.resume` / `goal.drop`: the goal's state written, the band's view given back.
-async fn move_goal(ctx: &Ctx, a: &wisp_goal_api::TaskArgs, to: &str) -> Result<Value> {
+async fn move_goal(ctx: &Ctx, live: &Inflight, a: &wisp_goal_api::TaskArgs, to: &str) -> Result<Value> {
     let call = ctx.root_call();
     let task = task_of(ctx, &call, &a.id).await?;
     let had = goal_with(&spec_of(&task), state_of(&task).as_ref(), &kinds::GoalSpec::default()).is_some();
     refuse_no_goal(had, to)?;
     let st = moved(state_of(&task).as_ref(), to, a.why.as_deref());
     put(ctx, &call, &a.id, &st).await?;
+    // dropped: its judges still running stop (a pause lets them finish on their records, as v1 did)
+    if to == "cleared" {
+        live.stop(ctx, &a.id, None).await;
+    }
     Ok(view_of(&spec_of(&task), Some(&st), task.created_at, task.updated_at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
 }
 
 /// `goal.check`: the last finished turn judged now (in the background; the band shows it as it lands).
-async fn check_now(ctx: &Ctx, defaults: &kinds::Defaults, id: &str) -> Result<Value> {
+async fn check_now(ctx: &Ctx, defaults: &kinds::Defaults, live: &Inflight, id: &str) -> Result<Value> {
     let turns = turns_of(ctx, &ctx.root_call(), id).await?;
     let Some(turn) = turns.iter().rev().find(|t| t.status == TurnStatus::Done).map(|t| t.id.as_str().to_owned()) else {
         return Err(WireError::invalid("No finished turn to check yet."));
     };
-    let (c, d, id) = (ctx.clone(), defaults.clone(), id.to_owned());
-    ctx.spawn(async move { judge_turn(&c, &d, &id, &turn).await });
+    let (c, d, l, id) = (ctx.clone(), defaults.clone(), live.clone(), id.to_owned());
+    ctx.spawn(async move { judge_turn(&c, &d, &l, &id, &turn).await });
     Ok(json!({}))
 }
 
@@ -260,48 +272,58 @@ impl Plugin for GoalPlugin {
         let defaults = crate::kinds::register(s);
         let summary: Arc<dyn wisp_runtime_api::points::SummaryField> = Arc::new(Summary { defaults: Arc::clone(&defaults) });
         s.contribute(&wisp_runtime_api::points::SUMMARY, summary);
-        let ds = Arc::clone(&defaults);
+        let live = Inflight::default();
+        let (ds, ls) = (Arc::clone(&defaults), live.clone());
         s.command::<wisp_goal_api::Set, _, _>(move |ctx, _call, a| {
-            let d = ds.clone();
-            async move { set(&ctx, &d, &a).await }
+            let (d, l) = (ds.clone(), ls.clone());
+            async move { set(&ctx, &d, &l, &a).await }
         });
         crate::slash::register(s);
-        let dr = Arc::clone(&defaults);
+        let (dr, lr) = (Arc::clone(&defaults), live.clone());
         s.on_start(|ctx| async move {
             if let Ok(store) = ctx.service::<wisp_store::Store>() {
                 runs::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
             }
             // checks a restart cut short: ended, and their goals judged again
             let c = ctx.clone();
-            ctx.spawn(async move { recover(&c, &dr).await });
+            ctx.spawn(async move { recover(&c, &dr, &lr).await });
             Ok(())
         });
-        s.command::<wisp_goal_api::Pause, _, _>(|ctx, _call, a| async move { move_goal(&ctx, &a, "paused").await });
-        s.command::<wisp_goal_api::Resume, _, _>(|ctx, _call, a| async move { move_goal(&ctx, &a, "working").await });
-        s.command::<wisp_goal_api::Drop, _, _>(|ctx, _call, a| async move { move_goal(&ctx, &a, "cleared").await });
-        let dc = Arc::clone(&defaults);
+        let mover = |to: &'static str| {
+            let l = live.clone();
+            move |ctx: Ctx, _call: wisp_kernel::Call, a: wisp_goal_api::TaskArgs| {
+                let l = l.clone();
+                async move { move_goal(&ctx, &l, &a, to).await }
+            }
+        };
+        s.command::<wisp_goal_api::Pause, _, _>(mover("paused"));
+        s.command::<wisp_goal_api::Resume, _, _>(mover("working"));
+        s.command::<wisp_goal_api::Drop, _, _>(mover("cleared"));
+        let (dc, lc) = (Arc::clone(&defaults), live.clone());
         s.command::<wisp_goal_api::Check, _, _>(move |ctx, _call, a| {
-            let d = dc.clone();
-            async move { check_now(&ctx, &d, &a.id).await }
+            let (d, l) = (dc.clone(), lc.clone());
+            async move { check_now(&ctx, &d, &l, &a.id).await }
         });
-        let d = Arc::clone(&defaults);
-        s.on::<TurnEnded, _, _>(move |ctx, e| {
-            let (d, e, c) = (d.clone(), e.clone(), ctx.clone());
-            ctx.spawn(async move { after(&c, &d, &e).await });
+        let (dt, lt) = (Arc::clone(&defaults), live.clone());
+        s.on::<TurnEnded, _, _>(move |ctx, ev| {
+            let (d, l, ev, c) = (dt.clone(), lt.clone(), ev.clone(), ctx.clone());
+            ctx.spawn(async move { after(&c, &d, &l, &ev).await });
             async {}
         });
-        // a deleted task's goal checks go with it
+        // a deleted task's goal checks go with it, and its judges still running stop
+        let ld = live.clone();
         s.on::<wisp_runtime_api::events::SessionDeleted, _, _>(move |ctx, e| {
-            let (id, c) = (e.id.as_str().to_owned(), ctx.clone());
+            let (id, c, l) = (e.id.as_str().to_owned(), ctx.clone(), ld.clone());
             ctx.spawn(async move {
                 runs::forget(&c, &id).await;
+                l.stop(&c, &id, None).await;
             });
             async {}
         });
-        let dw = Arc::clone(&defaults);
+        let (dw, lw) = (Arc::clone(&defaults), live);
         s.on::<wisp_later_api::Dropped, _, _>(move |ctx, e| {
-            let (d, e, c) = (dw.clone(), e.clone(), ctx.clone());
-            ctx.spawn(async move { wake_dropped(&c, &d, &e).await });
+            let (d, l, ev, c) = (dw.clone(), lw.clone(), e.clone(), ctx.clone());
+            ctx.spawn(async move { wake_dropped(&c, &d, &l, &ev).await });
             async {}
         });
         Ok(())

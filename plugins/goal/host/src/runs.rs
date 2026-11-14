@@ -75,8 +75,20 @@ pub fn started(c: &Check<'_>) -> Row {
 /// How a check ended: its answer read as a vote, or the run's failure.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ended<'a> {
-    Voted { met: bool, why: &'a str, text: &'a str, activity: &'a [Value], model: &'a str },
-    Failed { why: &'a str },
+    Voted {
+        met: bool,
+        why: &'a str,
+        text: &'a str,
+        activity: &'a [Value],
+        model: &'a str,
+    },
+    Failed {
+        why: &'a str,
+    },
+    /// stopped (`runtime.quickCancel`): its goal was dropped or set again while it judged
+    Cancelled {
+        why: &'a str,
+    },
 }
 
 /// The record once the check ended: its vote and why, everything it said (`turn.text`) and did (`turn.activity`).
@@ -90,6 +102,10 @@ pub fn ended(c: &Check<'_>, e: &Ended<'_>, at: i64) -> Row {
         Ended::Failed { why } => {
             let turn = json!({ "id": c.id, "prompt": c.prompt, "status": "error", "startedAt": c.at, "endedAt": at, "activity": [] });
             row(c, "error", Some("error"), None, why, &turn)
+        }
+        Ended::Cancelled { why } => {
+            let turn = json!({ "id": c.id, "prompt": c.prompt, "status": "stopped", "startedAt": c.at, "endedAt": at, "activity": [] });
+            row(c, "error", Some("cancelled"), None, why, &turn)
         }
     }
 }
@@ -244,6 +260,11 @@ mod tests {
         );
         let f = ended(&check(), &Ended::Failed { why: "claude couldn't judge: timed out" }, 30);
         assert_eq!((f["status"].clone(), f["end"].clone(), f["verdict"].clone()), (json!("error"), json!("error"), Value::Null));
+        let c = ended(&check(), &Ended::Cancelled { why: "reviewer was stopped" }, 40);
+        assert_eq!(
+            (c["status"].clone(), c["end"].clone(), c["verdict"].clone(), c["turn"]["status"].clone()),
+            (json!("error"), json!("cancelled"), Value::Null, json!("stopped"))
+        );
     }
 
     /// A restart mid-check: the record ends interrupted, never left spinning on the page.

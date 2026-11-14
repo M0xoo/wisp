@@ -10,6 +10,7 @@ use wisp_runtime_api::events::TurnEnded;
 use wisp_runtime_api::model::{Session, TurnStatus};
 
 use crate::calls::{pick_of, put_if, quick, raw, raw_of, scheduled, spec_of, state_of, task_of, turns_of, warn_put};
+use crate::inflight::{Inflight, was_cancelled};
 use crate::{BY, Goal, goal_with, kinds, runs};
 
 /// Where a round's judging stands: its task, the turn judged, the round's number.
@@ -56,6 +57,7 @@ async fn one_judge(
         pick: Some(pick.clone()),
         timeout_ms: Some(300_000),
         json: false,
+        run_id: Some(run.to_owned()),
     };
     match quick(ctx, place.map(|p| p.0.as_str()), args).await {
         Ok(out) => {
@@ -64,6 +66,12 @@ async fn one_judge(
             let ended = runs::Ended::Voted { met: said.met, why: &said.why, text: &out.text, activity: &activity, model: &out.model };
             runs::put(ctx, runs::ended(&check, &ended, now(ctx))).await;
             said
+        }
+        // stopped as its goal was dropped, set again or its task deleted: no vote, and the record says so
+        Err(err) if was_cancelled(&err) => {
+            let why = format!("{judge} was stopped: the goal changed while it judged");
+            runs::put(ctx, runs::ended(&check, &runs::Ended::Cancelled { why: &why }, now(ctx))).await;
+            wisp_goal_core::Verdict { judge: judge.to_owned(), met: false, why }
         }
         Err(err) => {
             let why = format!("{judge} couldn't judge: {}", err.message);
@@ -74,7 +82,7 @@ async fn one_judge(
 }
 
 /// Each judge's vote on the turn's answer, with the record of its run (`run`: the ids, one per judge, in order).
-async fn judge(ctx: &Ctx, g: &Goal, r: &Round<'_>, answer: &str, ids: &[String]) -> Vec<wisp_goal_core::Verdict> {
+async fn judge(ctx: &Ctx, live: &Inflight, g: &Goal, r: &Round<'_>, answer: &str, ids: &[String]) -> Vec<wisp_goal_core::Verdict> {
     let task = r.task;
     let cwd = task.cwd.as_str();
     let mut out = Vec::new();
@@ -100,9 +108,11 @@ async fn judge(ctx: &Ctx, g: &Goal, r: &Round<'_>, answer: &str, ids: &[String])
         None
     };
     let prompt = judge_prompt(&g.text, &task.title, answer);
-    for (n, (j, run)) in g.judges.iter().zip(ids).enumerate() {
+    for (j, run) in g.judges.iter().zip(ids) {
+        // held before the goal is read again: a drop, a new goal or a delete either is seen here or stops this run
+        let _held = live.hold(task.id.as_str(), run, place.as_ref().map(|p| p.0.as_str()));
         // dropped, set again, paused or deleted since the round began: no further judge is started for it
-        if n > 0 && !fresh_state(ctx, &ctx.root_call(), task.id.as_str()).await.is_some_and(|cur| still_ours(&cur, ids)) {
+        if !fresh_state(ctx, &ctx.root_call(), task.id.as_str()).await.is_some_and(|cur| still_ours(&cur, ids)) {
             break;
         }
         out.push(one_judge(ctx, r, j, &prompt, place.as_ref(), run).await);
@@ -112,7 +122,7 @@ async fn judge(ctx: &Ctx, g: &Goal, r: &Round<'_>, answer: &str, ids: &[String])
 
 /// The wake-up a goal waited for went without going (`later.dropped`, v1 goal.js wakeGone): cancelled, the round's
 /// report is checked now; otherwise the goal pauses and waits for you.
-pub(crate) async fn wake_dropped(ctx: &Ctx, defaults: &kinds::Defaults, e: &wisp_later_api::Dropped) {
+pub(crate) async fn wake_dropped(ctx: &Ctx, defaults: &kinds::Defaults, live: &Inflight, e: &wisp_later_api::Dropped) {
     let call = ctx.root_call();
     let Ok(task) = task_of(ctx, &call, &e.session_id).await else { return };
     let was = raw_of(&task);
@@ -129,7 +139,7 @@ pub(crate) async fn wake_dropped(ctx: &Ctx, defaults: &kinds::Defaults, e: &wisp
             }
             let turns = turns_of(ctx, &call, &e.session_id).await.unwrap_or_default();
             if let Some(last) = turns.last() {
-                judge_turn(ctx, defaults, &e.session_id, last.id.as_str()).await;
+                judge_turn(ctx, defaults, live, &e.session_id, last.id.as_str()).await;
             }
         }
         WakeGone::Pause => {
@@ -140,15 +150,15 @@ pub(crate) async fn wake_dropped(ctx: &Ctx, defaults: &kinds::Defaults, e: &wisp
     }
 }
 
-pub(crate) async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
+pub(crate) async fn after(ctx: &Ctx, defaults: &kinds::Defaults, live: &Inflight, e: &TurnEnded) {
     if e.status != TurnStatus::Done {
         return;
     }
-    judge_turn(ctx, defaults, e.session_id.as_str(), e.turn_id.as_str()).await;
+    judge_turn(ctx, defaults, live, e.session_id.as_str(), e.turn_id.as_str()).await;
 }
 
 /// A turn's answer judged against the task's goal: met, another round, or past the limit a question.
-pub(crate) async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, turn_id: &str) {
+pub(crate) async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, live: &Inflight, id: &str, turn_id: &str) {
     let call = ctx.root_call();
     let Ok(task) = task_of(ctx, &call, id).await else { return };
     if task.parent_id.is_some() {
@@ -191,7 +201,7 @@ pub(crate) async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, 
     }
     let ours = raw(&st);
     let r = Round { task: &task, turn_id, number: st.rounds + 1 };
-    let verdicts = judge(ctx, &g, &r, &answer, &ids).await;
+    let verdicts = judge(ctx, live, &g, &r, &answer, &ids).await;
     st.running.clear();
     st.rounds += 1;
     st.verdicts = verdicts.iter().zip(&ids).map(|(v, run)| json!({ "judge": v.judge, "met": v.met, "why": v.why, "run": run })).collect();
@@ -252,7 +262,7 @@ pub fn still_ours(cur: &GoalState, ids: &[String]) -> bool {
 
 /// After a restart (v1 `interrupted`): checks that were under way never vote; their records say so, and their
 /// tasks' goals go back to working and their last answers are judged again.
-pub(crate) async fn recover(ctx: &Ctx, defaults: &kinds::Defaults) {
+pub(crate) async fn recover(ctx: &Ctx, defaults: &kinds::Defaults, live: &Inflight) {
     let call = ctx.root_call();
     for id in runs::interrupted(ctx, now(ctx)).await {
         let Ok(task) = task_of(ctx, &call, &id).await else { continue };
@@ -265,7 +275,7 @@ pub(crate) async fn recover(ctx: &Ctx, defaults: &kinds::Defaults) {
         }
         let turns = turns_of(ctx, &call, &id).await.unwrap_or_default();
         if let Some(last) = turns.last().filter(|t| t.status == TurnStatus::Done) {
-            judge_turn(ctx, defaults, &id, last.id.as_str()).await;
+            judge_turn(ctx, defaults, live, &id, last.id.as_str()).await;
         }
     }
 }

@@ -16,6 +16,7 @@
     "machines:route",
     "runtime:profiles",
     "runtime:quick",
+    "runtime:quickCancel",
     "runtime:setExt",
     "runtime:followUp",
     "runtime:ask",
