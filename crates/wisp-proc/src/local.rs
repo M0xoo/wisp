@@ -47,11 +47,13 @@ impl LocalProc {
 static HANDED_PATH: RwLock<Option<String>> = RwLock::new(None);
 
 /// Finds and starts programs on `path` from now on, in place of the PATH this process inherited. An empty one is
-/// ignored. Off Windows only (the desktop app never hands one over there, and Windows spells it `Path` too).
+/// ignored. A no-op on Windows: the desktop app never hands one over there, and the environment spells it `Path`, so
+/// a handed `PATH` would be a second variable beside it (two PATHs, the child's pick unknown).
 pub fn set_path(path: &str) {
-    if !path.is_empty() {
-        *HANDED_PATH.write().unwrap_or_else(PoisonError::into_inner) = Some(path.to_owned());
+    if cfg!(windows) || path.is_empty() {
+        return;
     }
+    *HANDED_PATH.write().unwrap_or_else(PoisonError::into_inner) = Some(path.to_owned());
 }
 
 fn handed_path() -> Option<String> {
@@ -63,6 +65,13 @@ fn handed_path() -> Option<String> {
 #[must_use]
 pub fn search_path() -> Option<std::ffi::OsString> {
     handed_path().map(Into::into).or_else(|| std::env::var_os("PATH"))
+}
+
+/// This process's variables, with the handed-over PATH in place of the inherited one: for code that reads the
+/// environment itself (a config lookup, a child it builds an environment for) in place of `std::env::vars()`.
+#[must_use]
+pub fn vars() -> Vec<(String, String)> {
+    parent_env()
 }
 
 /// This process's variables, with the handed-over PATH in place of the inherited one.

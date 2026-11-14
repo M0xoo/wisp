@@ -306,7 +306,8 @@ pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 fn where_() -> Where {
-    Where { home: std::env::var("HOME").map(Into::into).unwrap_or_default(), env: std::env::vars().collect() }
+    // the variables a harness's config lookup sees, with the PATH wisp finds programs on (ADR-0057)
+    Where { home: std::env::var("HOME").map(Into::into).unwrap_or_default(), env: wisp_proc::vars().into_iter().collect() }
 }
 
 /// Each harness's own servers, read from its config files.
@@ -924,5 +925,15 @@ mod tests {
         assert_eq!(r["signed_in"]["host"], "linear.app");
         assert_eq!(r["testing"], true);
         assert_eq!(db.read(|x| x.get("connectors.reach", "this")).unwrap().unwrap()["harnesses"][0], "claude");
+    }
+
+    /// ADR-0057: the variables the config discovery reads carry the PATH the desktop app handed over, not the
+    /// inherited one.
+    #[cfg(unix)]
+    #[test]
+    fn config_discovery_sees_the_handed_over_path() {
+        let handed = format!("/wisp-handed-connectors/bin:{}", std::env::var("PATH").unwrap_or_default());
+        wisp_proc::set_path(&handed);
+        assert_eq!(where_().var("PATH"), Some(handed.as_str()));
     }
 }

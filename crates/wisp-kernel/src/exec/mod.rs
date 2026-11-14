@@ -15,6 +15,7 @@
 pub mod rpc;
 
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -50,11 +51,19 @@ pub struct ExecOptions {
     /// how long the child may take to finish `initialize`
     pub init_timeout_ms: u64,
     pub env: Vec<(String, String)>,
+    /// The PATH a child starts with (and its program is found on), read at each start: wisp passes
+    /// `wisp_proc::search_path` (the one the desktop app handed over, ADR-0057), the kernel alone the inherited one.
+    pub search_path: fn() -> Option<OsString>,
+}
+
+/// The PATH this process inherited: the kernel has no proc service of its own.
+fn inherited_path() -> Option<OsString> {
+    std::env::var_os("PATH") // path: inherited the kernel's default; wisp's installer passes wisp_proc::search_path
 }
 
 impl Default for ExecOptions {
     fn default() -> Self {
-        Self { restart_base_ms: 1000, max_restarts: 5, init_timeout_ms: 10_000, env: Vec::new() }
+        Self { restart_base_ms: 1000, max_restarts: 5, init_timeout_ms: 10_000, env: Vec::new(), search_path: inherited_path }
     }
 }
 
@@ -76,6 +85,9 @@ impl ExecPlugin {
         self.opts = opts;
         self
     }
+    pub fn options(&self) -> &ExecOptions {
+        &self.opts
+    }
 }
 
 impl Plugin for ExecPlugin {
@@ -95,15 +107,20 @@ fn default_spawn(
     cwd: Option<&Path>,
     env: &[(String, String)],
     untrusted: bool,
+    path: Option<OsString>,
 ) -> std::io::Result<tokio::process::Child> {
     let mut c = tokio::process::Command::new(program);
     // an untrusted plugin (ADR-0048) gets none of wisp's environment (its keys and tokens): a PATH to find its
     // runtime, its own folder as its home, and what wisp tells it
     if untrusted {
-        c.env_clear().env("PATH", std::env::var_os("PATH").unwrap_or_default());
+        c.env_clear();
         if let Some(d) = cwd {
             c.env("HOME", d);
         }
+    }
+    // the PATH programs are found on (ADR-0057), trusted or not; a PATH in `env` still wins
+    if untrusted || path.is_some() {
+        c.env("PATH", path.unwrap_or_default());
     }
     c.args(args)
         .envs(env.iter().cloned())
@@ -132,7 +149,7 @@ async fn start(ctx: Ctx, m: Manifest, root: Option<PathBuf>, opts: ExecOptions) 
     env.push(("WISP_PLUGIN".into(), id.clone()));
     let spawned = match k.service::<Arc<dyn ExecSpawner>>() {
         Some(s) => s.spawn(&program, &argv[1..], root.as_deref(), &env),
-        None => default_spawn(&program, &argv[1..], root.as_deref(), &env, m.trust.as_deref() == Some("untrusted")),
+        None => default_spawn(&program, &argv[1..], root.as_deref(), &env, m.trust.as_deref() == Some("untrusted"), (opts.search_path)()),
     };
     let mut child = spawned.map_err(|e| WireError::unavailable(format!("{id}: can't start {}: {e}", program.display())))?;
     let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {

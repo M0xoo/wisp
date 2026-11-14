@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use wisp_kernel::{Ctx, Declarative, ExecPlugin, Manifest, Plugin, Result, Setup, WireError};
+use wisp_kernel::{Ctx, Declarative, ExecOptions, ExecPlugin, Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::{ExecOpts, Proc};
 
 pub const MANIFEST: &str = "wisp-plugin.json";
@@ -51,7 +51,9 @@ pub fn read(dir: &Path, text: &str, trusted: bool) -> Result<UserPlugin> {
     }
     m.validate()?;
     Ok(if m.exec().is_some() {
-        UserPlugin::Exec(ExecPlugin::new(m, Some(dir.to_owned())))
+        // its child starts on the PATH wisp finds programs on (the desktop app's handed-over one, ADR-0057)
+        let opts = ExecOptions { search_path: wisp_proc::search_path, ..ExecOptions::default() };
+        UserPlugin::Exec(ExecPlugin::new(m, Some(dir.to_owned())).with_options(opts))
     } else {
         UserPlugin::Declarative(Declarative(m))
     })
@@ -251,5 +253,18 @@ mod tests {
         assert_eq!(local_path("~bob/x", Some(h)), Path::new("~bob/x"));
         assert_eq!(local_path("/opt/p", Some(h)), Path::new("/opt/p"));
         assert_eq!(local_path("~/x", None), Path::new("~/x"));
+    }
+
+    /// ADR-0057: an installed plugin's child starts on the PATH the desktop app handed over, not the inherited one.
+    #[cfg(unix)]
+    #[test]
+    #[allow(clippy::panic, reason = "a test: failing loudly is the point")]
+    fn an_installed_exec_plugin_starts_on_the_handed_over_path() {
+        let text = r#"{"wispPlugin":1,"id":"user.pathy","name":"Pathy","version":"0.1.0","api":"^1","permissions":[],"activation":[],"contributes":{},"server":{"exec":["node","main.js"]}}"#;
+        let got = read(Path::new("/tmp/pathy"), text, false);
+        let Ok(UserPlugin::Exec(p)) = got else { panic!("an exec plugin: {got:?}") };
+        let handed = format!("/wisp-handed-install/bin:{}", std::env::var("PATH").unwrap_or_default());
+        wisp_proc::set_path(&handed);
+        assert_eq!((p.options().search_path)(), Some(handed.into()));
     }
 }

@@ -34,7 +34,7 @@ impl Hook for Go {
 }
 
 fn echo(mode: &str) -> Manifest {
-    let cmds: Vec<Value> = ["say", "nested", "deep", "hook", "setting", "crash", "env"]
+    let cmds: Vec<Value> = ["say", "nested", "deep", "hook", "setting", "crash", "env", "path"]
         .iter()
         .map(|c| json!({ "id": format!("echo.{c}"), "title": c }))
         .collect();
@@ -186,4 +186,27 @@ async fn an_untrusted_exec_plugin_starts_with_an_empty_environment() {
     let trusted = common::start(PluginGroup::new().add(ExecPlugin::new(echo("ok"), None))).await;
     until(|| common::state(&trusted, "acme.echo").0 == "active").await;
     assert!(names(&trusted).await.len() > got.len(), "a trusted one keeps its environment");
+}
+
+/// ADR-0057: an exec plugin's child, untrusted or not, starts with the PATH `ExecOptions::search_path` gives at its
+/// start (wisp's: the one the desktop app handed over), not the PATH the server inherited.
+#[tokio::test]
+async fn an_exec_plugin_starts_with_the_search_path_not_the_inherited_one() {
+    #[allow(clippy::unnecessary_wraps, reason = "the shape ExecOptions::search_path takes")]
+    fn handed() -> Option<std::ffi::OsString> {
+        Some("/wisp-handed-exec/bin:/usr/bin:/bin".into())
+    }
+    let opts = || ExecOptions { search_path: handed, ..ExecOptions::default() };
+    let path = |k: Kernel| async move { k.call(Caller::user(), "echo.path", json!(null)).await.unwrap()["path"].clone() };
+    let dir = std::env::temp_dir().join(format!("wisp-exec-path-{}", wisp_kernel::ids::uuid7()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut m = echo("ok");
+    m.trust = Some("untrusted".into());
+    let untrusted = common::start(PluginGroup::new().add(ExecPlugin::new(m, Some(dir.clone())).with_options(opts()))).await;
+    until(|| common::state(&untrusted, "acme.echo").0 == "active").await;
+    assert_eq!(path(untrusted).await, json!("/wisp-handed-exec/bin:/usr/bin:/bin"), "untrusted");
+    let trusted = world("ok", opts()).await.k;
+    until(|| common::state(&trusted, "acme.echo").0 == "active").await;
+    assert_eq!(path(trusted).await, json!("/wisp-handed-exec/bin:/usr/bin:/bin"), "trusted");
+    let _ = std::fs::remove_dir_all(&dir);
 }
