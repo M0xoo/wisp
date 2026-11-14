@@ -381,6 +381,7 @@ impl Cleanup {
                 (r.is_ok_and(|r| r.removed), size)
             }
             Job::Task(id, force) => {
+                let mark = self.engine.mark();
                 let tasks = self.port.tasks().await;
                 let Some(t) = tasks.iter().find(|t| t.id == id) else {
                     return (false, 0);
@@ -396,7 +397,8 @@ impl Cleanup {
                     }
                     // re-check right before: a follow-up may have overtaken the cleanup
                     let busy = self.port.tasks().await.iter().any(|x| x.id == id && x.busy);
-                    let still = move || !busy;
+                    let (e, path) = (&self.engine, wt.path.clone());
+                    let still = move || !busy && !e.claimed_since(&path, mark);
                     let opts = RemoveOpts { force, strict: !force, ..RemoveOpts::default() };
                     if self.engine.remove(&self.call, wt, opts, Some(&still)).await.is_ok_and(|r| r.removed) {
                         gone += 1;

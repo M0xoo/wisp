@@ -15,6 +15,20 @@ use wisp_worktrees_core::{naming, removal};
 use crate::error::{Result, WtError};
 use crate::fsx;
 
+/// The longest a turn's claim on its folder holds when runtime never says the turn started (a turn refused after
+/// its `ready`): its `ready` (at most `READY_MS`) and the save that marks it running, with room to spare.
+pub const CLAIM_MS: i64 = 150_000;
+
+/// One folder's last turn start: its number on the claims' counter, the task, when, and whether it still holds
+/// (false once runtime saved the turn running or held: the task's own state says it's in use).
+#[derive(Debug, Clone)]
+struct Claim {
+    n: u64,
+    task: String,
+    at: i64,
+    live: bool,
+}
+
 /// Everything a worktree operation needs. Cheap to share (`Arc<Engine>`).
 pub struct Engine {
     pub git: Arc<dyn GitService>,
@@ -31,6 +45,8 @@ pub struct Engine {
     pub owner: CancellationToken,
     /// one operation at a time per folder: a bring-back waits for a removal under way
     locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
+    /// each folder's last turn start (`claim`), on one counter
+    claims: std::sync::Mutex<(u64, HashMap<String, Claim>)>,
 }
 
 impl std::fmt::Debug for Engine {
@@ -51,7 +67,18 @@ impl Engine {
         sources: Vec<Arc<dyn SetupSource>>,
         owner: CancellationToken,
     ) -> Self {
-        Self { git, proc, clock, home, user_home, platform, sources, owner, locks: Mutex::new(HashMap::new()) }
+        Self {
+            git,
+            proc,
+            clock,
+            home,
+            user_home,
+            platform,
+            sources,
+            owner,
+            locks: Mutex::new(HashMap::new()),
+            claims: std::sync::Mutex::new((0, HashMap::new())),
+        }
     }
 
     pub async fn repo(&self, call: &Call, path: &str) -> Result<Arc<dyn Repo>> {
@@ -60,6 +87,43 @@ impl Engine {
 
     async fn lock(&self, path: &str) -> Arc<Mutex<()>> {
         self.locks.lock().await.entry(path.to_owned()).or_default().clone()
+    }
+
+    /// Where the claims stand now: a removal decided after this mark asks `claimed_since` last thing.
+    pub fn mark(&self) -> u64 {
+        self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner).0
+    }
+
+    /// `task`'s turn is about to run in `path`: a removal of it decided before now stands down, and so does one
+    /// decided after, until runtime says the turn started (`release`; till then the task still reads archived and
+    /// idle) or `CLAIM_MS` passes.
+    pub fn claim(&self, path: &str, task: &str) {
+        let now = self.clock.now_ms();
+        let mut c = self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        c.0 += 1;
+        let n = c.0;
+        // a look older than this is long over; a released claim still answers looks made before it
+        c.1.retain(|_, k| now - k.at < 4 * CLAIM_MS);
+        c.1.insert(path.to_owned(), Claim { n, task: task.to_owned(), at: now, live: true });
+    }
+
+    /// Runtime saved `task`'s turn (running, or held): its own state guards the folder from here.
+    pub fn release(&self, task: &str) {
+        let mut c = self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        for k in c.1.values_mut().filter(|k| k.task == task) {
+            k.live = false;
+        }
+    }
+
+    /// Whether a turn claimed `path` after `mark`, or is still starting in it.
+    pub fn claimed_since(&self, path: &str, mark: u64) -> bool {
+        let now = self.clock.now_ms();
+        self.claims
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .1
+            .get(path)
+            .is_some_and(|k| k.n > mark || (k.live && now - k.at < CLAIM_MS))
     }
 
     pub fn foreign(&self, wt: &Worktree) -> bool {

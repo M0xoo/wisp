@@ -125,7 +125,17 @@ pub trait RunPart: Send + Sync + 'static {
     fn before_turn(&self, _session: &Session) -> BoxFuture<'static, Option<(String, Value)>> {
         Box::pin(async { None })
     }
+    /// Before anything else about a turn (`before:run` included), for every turn (a follow-up, a rerun, a
+    /// held one released, a crew wake): the task's folder made ready to run in (worktrees brings back one
+    /// archiving removed). Err: the turn is refused with that reason; it never runs anywhere else. Awaited,
+    /// at most [`READY_MS`]. Additive (2026-11-14, ADR-0053).
+    fn ready(&self, _session: &Session) -> BoxFuture<'static, std::result::Result<(), String>> {
+        Box::pin(async { Ok(()) })
+    }
 }
+
+/// How long the runtime waits for one [`RunPart::ready`] (a `git worktree add` plus the ignored files' copy).
+pub const READY_MS: u64 = 120_000;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Outcome {

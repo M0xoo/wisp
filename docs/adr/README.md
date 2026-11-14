@@ -54,3 +54,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0050](0050-env-values-masked-on-the-server.md) | .env values are masked on the server (wisp-envmask, the `kernel.egress` row view, `runtime.unmasked` for Reveal), never only in the page |
 | [0051](0051-task-topic-is-a-turn-window.md) | A task's topic is a window (latest 8 turns whole, older ones as stubs; `/turn/<id>`, `/turns`, `/all`), read by an additive `TopicReader`; a change to a stub goes as the stub |
 | [0052](0052-crew-shares-through-the-share-plugin.md) | A crew is shared through wisp.share as a `crew` link (no gist, no GitHub token); import still reads v1 gists; `crew:share` and `crew:propose` are their own permissions |
+| [0053](0053-a-tasks-folder-is-ready-before-each-turn.md) | A task's folder is made ready before each turn (additive `runtime.run@1` `ready`, before `before:run`); a folder that can't come back refuses the turn; Keep worktree is respected on archive |

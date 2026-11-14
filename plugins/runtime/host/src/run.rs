@@ -89,22 +89,7 @@ impl Runtime {
         let next = self.harness(&s.agent).ok();
         crate::handoff::carry_over(&mut s, &was, opt_str(run, "model").is_some(), opt_str(run, "effort").is_some(), next.as_deref());
         let idx = self.repo.turns(s.id.as_str(), None, Some(1)).await?.last().map_or(0, |t| t.idx + 1);
-        let mut turn = Turn {
-            id: TurnId::new(),
-            session_id: s.id.clone(),
-            idx,
-            prompt: item.text.clone(),
-            agent: s.agent.clone(),
-            model: s.model.clone(),
-            effort: s.effort.clone(),
-            account: s.account.clone(),
-            mode: s.mode,
-            attachments: item.attachments.clone(),
-            by: item.by.clone(),
-            status: TurnStatus::Running,
-            started_at: self.now(),
-            ..Turn::default()
-        };
+        let mut turn = self.new_turn(&s, &item, idx);
         let ctx = BeforeRunCtx {
             session_id: s.id.clone(),
             turn_id: turn.id.clone(),
@@ -130,6 +115,10 @@ impl Runtime {
             parent_id: s.parent_id.clone(),
             confirm_limit: item.opts.as_ref().and_then(|o| o.get("confirmLimit")).and_then(serde_json::Value::as_bool).unwrap_or(false),
         };
+        // its folder first (a worktree archiving removed comes back on its branch), before anything reads it
+        if let Err(why) = self.folder_ready(&s).await {
+            return self.refused(s, turn, &why).await;
+        }
         let mut ctx = match self.host.before_run(ctx).await {
             Ok(c) => c,
             Err(e) => return self.refused(s, turn, &e.message).await,
@@ -191,12 +180,34 @@ impl Runtime {
         Ok(turn.id)
     }
 
+    /// The turn `item` starts, as it's saved (running, from now).
+    fn new_turn(&self, s: &Session, item: &QueueItem, idx: u32) -> Turn {
+        Turn {
+            id: TurnId::new(),
+            session_id: s.id.clone(),
+            idx,
+            prompt: item.text.clone(),
+            agent: s.agent.clone(),
+            model: s.model.clone(),
+            effort: s.effort.clone(),
+            account: s.account.clone(),
+            mode: s.mode,
+            attachments: item.attachments.clone(),
+            by: item.by.clone(),
+            status: TurnStatus::Running,
+            started_at: self.now(),
+            ..Turn::default()
+        }
+    }
+
     /// Parks a turn a `before_run` interceptor held: the task goes to Review with why, and nothing runs.
     async fn hold_turn(self: &Arc<Self>, mut s: Session, mut turn: Turn, h: wisp_runtime_api::model::Held) -> Result<TurnId> {
         turn.status = TurnStatus::Held;
         turn.held = Some(h.clone());
         s.state = SessionState::Review;
         s.unread = true;
+        // a turn asked for it: the task is back in the list, with why it waits (and its folder stays)
+        s.archived = false;
         s.updated_at = self.now();
         self.persist(&mut s, vec![turn.clone()]).await?;
         self.host.emit(Emitted::Task("task.held", crate::host::fact(&s, Some(&turn.id), "held", &format!("{} ({})", h.kind, h.by), None)));
@@ -211,6 +222,20 @@ impl Runtime {
                 turn.ext.insert(k, v);
             }
         }
+    }
+
+    /// Every `runtime.run@1` contributor's `ready` (in order, the first refusal wins), then the folder itself:
+    /// a task whose folder is gone and that nobody brought back is refused, never run somewhere else.
+    async fn folder_ready(&self, s: &Session) -> std::result::Result<(), String> {
+        let wait = std::time::Duration::from_millis(wisp_runtime_api::points::READY_MS);
+        for part in self.host.run_parts() {
+            match tokio::time::timeout(wait, part.ready(s)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(why)) => return Err(why),
+                Err(_) => return Err(format!("This task's folder didn't come back in time ({}).", part.id())),
+            }
+        }
+        folder_there(&s.cwd).await
     }
 
     /// What the task had (ADR-0029), at its first run; its MCP servers probed in the background.
@@ -232,7 +257,8 @@ impl Runtime {
         );
     }
 
-    /// `before:run` vetoed it, or its harness is gone: the turn says why, and the task lands.
+    /// `before:run` vetoed it, its folder can't be made ready, or its harness is gone: the turn says why, and the
+    /// task lands (out of Archived, where the refusal would go unseen).
     async fn refused(self: &Arc<Self>, mut s: Session, mut turn: Turn, why: &str) -> Result<TurnId> {
         turn.status = TurnStatus::Error;
         turn.is_error = true;
@@ -240,6 +266,7 @@ impl Runtime {
         turn.presentation = Some(shown("Not started", why, "blocked"));
         s.state = SessionState::Review;
         s.unread = true;
+        s.archived = false;
         s.updated_at = self.now();
         self.persist(&mut s, vec![turn.clone()]).await?;
         Ok(turn.id)
@@ -426,6 +453,18 @@ pub(crate) async fn run_folder(launch: &str, task: &str, scratch: &str) -> Resul
     let dir = std::env::temp_dir().join(format!("wisp-scratch-{scratch}"));
     tokio::fs::create_dir_all(&dir).await.map_err(|e| RuntimeError::Invalid(format!("couldn't make a folder for the task: {e}")))?;
     Ok(dir)
+}
+
+/// A task with a folder runs only there: Err (the reason, as the turn says it) when it's gone or not a folder.
+/// No folder at all, or a relative one, is left to `run_folder` (its own scratch folder, or refused).
+pub(crate) async fn folder_there(cwd: &str) -> std::result::Result<(), String> {
+    if wisp_runtime_api::paths::Folder::of(cwd).is_err() {
+        return Ok(());
+    }
+    match tokio::fs::metadata(cwd).await {
+        Ok(m) if m.is_dir() => Ok(()),
+        _ => Err(format!("This task's folder is gone: {cwd}. It runs only there, so nothing was started.")),
+    }
 }
 
 #[cfg(test)]

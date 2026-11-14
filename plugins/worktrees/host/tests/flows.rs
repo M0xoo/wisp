@@ -73,11 +73,15 @@ fn add_tree(root: &Path, path: &Path, branch: &str) -> Worktree {
 
 /// The engine over the real git service; wisp's home `<t>/h`, the user's `<t>/u`.
 fn engine(t: &Tmp) -> Engine {
+    engine_on(t, &wisp_testkit::FakeClock::at(1_000_000))
+}
+
+fn engine_on(t: &Tmp, clock: &wisp_testkit::FakeClock) -> Engine {
     let git = wisp_git::service(wisp_proc::local(), None, Arc::new(|| 1_000_000), None);
     Engine::new(
         Arc::new(wisp_git::Service(git)),
         wisp_proc::local(),
-        wisp_testkit::FakeClock::at(1_000_000).service(),
+        clock.service(),
         t.0.join("h").to_string_lossy().into_owned(),
         t.0.join("u").to_string_lossy().into_owned(),
         "macos",
@@ -194,23 +198,79 @@ async fn an_archived_tasks_clean_worktree_is_removed_and_one_with_work_stays() {
     let root = repo(&t);
     let e = engine(&t);
     let clean = add_tree(&root, &t.0.join("h/worktrees/app-clean"), "wisp/clean");
-    let r = archived::tidy(&e, &user(), &clean).await.unwrap();
+    let r = archived::tidy(&e, &user(), &clean, e.mark()).await.unwrap();
     assert!(r.removed);
     assert!(!Path::new(&clean.path).exists());
     assert_eq!(git(&root, &["branch", "--list", "wisp/clean"]), "wisp/clean", "a follow-up brings it back from its branch");
-    assert!(archived::tidy(&e, &user(), &clean).await.is_none(), "gone already: nothing to do");
+    assert!(archived::tidy(&e, &user(), &clean, e.mark()).await.is_none(), "gone already: nothing to do");
 
     let dirty = add_tree(&root, &t.0.join("h/worktrees/app-dirty"), "wisp/dirty");
     std::fs::write(Path::new(&dirty.path).join("wip.txt"), "x\n").unwrap();
-    let r = archived::tidy(&e, &user(), &dirty).await.unwrap();
+    let r = archived::tidy(&e, &user(), &dirty, e.mark()).await.unwrap();
     assert!(!r.removed && r.dirty == Some(1), "{r:?}");
     assert!(Path::new(&dirty.path).exists());
 
     let theirs = add_tree(&root, &t.0.join("u/conductor/workspaces/app/rome"), "rome");
-    assert!(archived::tidy(&e, &user(), &theirs).await.is_none());
+    assert!(archived::tidy(&e, &user(), &theirs, e.mark()).await.is_none());
     assert!(Path::new(&theirs.path).exists(), "never wisp's to remove");
 
     let slot = serde_json::to_value(&clean).unwrap();
     assert_eq!(archived::tree_of(Some(&slot)).map(|w| w.path), Some(clean.path.clone()));
     assert!(archived::tree_of(Some(&serde_json::json!({ "kept": true }))).is_none());
+}
+
+/// ADR-0053: before a follow-up runs, an archived task's removed worktree comes back on its branch (its ignored
+/// files copied again); a brought-in folder that's gone, or a branch that's gone, is a reason, never a new folder.
+#[tokio::test]
+async fn bring_back_restores_a_removed_worktree_on_its_branch_and_refuses_what_cant_come_back() {
+    let t = tmp("back");
+    let root = repo(&t);
+    std::fs::write(root.join(".env"), "KEY=1\n").unwrap();
+    std::fs::write(root.join(".gitignore"), ".env\n").unwrap();
+    let e = engine(&t);
+    let wt = add_tree(&root, &t.0.join("h/worktrees/app-back"), "wisp/back");
+    assert!(archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed);
+    archived::bring_back(&e, &user(), "t1", &wt).await.unwrap();
+    assert_eq!(git(Path::new(&wt.path), &["branch", "--show-current"]), "wisp/back");
+    assert!(Path::new(&wt.path).join(".env").is_file(), "its ignored files again");
+    archived::bring_back(&e, &user(), "t1", &wt).await.unwrap(); // there already: nothing to do
+
+    let gone = add_tree(&root, &t.0.join("h/worktrees/app-gone"), "wisp/gone");
+    assert!(archived::tidy(&e, &user(), &gone, e.mark()).await.unwrap().removed);
+    git(&root, &["branch", "-D", "wisp/gone"]);
+    let why = archived::bring_back(&e, &user(), "t2", &gone).await.unwrap_err();
+    assert!(why.contains("couldn't come back") && why.contains("wisp/gone"), "{why}");
+    assert!(!Path::new(&gone.path).exists());
+
+    let theirs = add_tree(&root, &t.0.join("u/conductor/workspaces/app/oslo"), "oslo");
+    std::fs::remove_dir_all(&theirs.path).unwrap();
+    let why = archived::bring_back(&e, &user(), "t3", &theirs).await.unwrap_err();
+    assert!(why.contains("gone"), "{why}");
+    assert!(!Path::new(&theirs.path).exists(), "never made again at their path");
+}
+
+/// A removal stands down while a turn is starting in the folder: one decided before the turn claimed it, and one
+/// decided after (the task still reads archived and idle until its turn is saved running). Once runtime says the
+/// turn started the claim lets go (the task's state guards it); one runtime never confirms lapses.
+#[tokio::test]
+async fn an_archived_tasks_removal_stands_down_when_a_turn_starts_in_the_folder() {
+    let t = tmp("claim");
+    let root = repo(&t);
+    let clock = wisp_testkit::FakeClock::at(1_000_000);
+    let e = engine_on(&t, &clock);
+    let wt = add_tree(&root, &t.0.join("h/worktrees/app-claim"), "wisp/claim");
+    let before = e.mark();
+    archived::bring_back(&e, &user(), "t1", &wt).await.unwrap(); // the follow-up's turn starts
+    assert!(!archived::tidy(&e, &user(), &wt, before).await.unwrap().removed, "decided before the claim");
+    assert!(!archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "decided after it, while the turn starts");
+    assert!(!archived::tidy(&e, &user(), &wt, before).await.unwrap().removed, "released or not, an older look stays stale");
+    e.release("t1");
+    assert!(!archived::tidy(&e, &user(), &wt, before).await.unwrap().removed, "a look from before the claim is still stale");
+    assert!(archived::tidy(&e, &user(), &wt, e.mark()).await.unwrap().removed, "released: a fresh look decides");
+
+    let other = add_tree(&root, &t.0.join("h/worktrees/app-lapse"), "wisp/lapse");
+    archived::bring_back(&e, &user(), "t2", &other).await.unwrap();
+    assert!(!archived::tidy(&e, &user(), &other, e.mark()).await.unwrap().removed);
+    clock.advance(u64::try_from(wisp_worktrees::engine::CLAIM_MS).unwrap());
+    assert!(archived::tidy(&e, &user(), &other, e.mark()).await.unwrap().removed, "never confirmed: the claim lapsed");
 }

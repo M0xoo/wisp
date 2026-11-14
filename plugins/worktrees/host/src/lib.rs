@@ -44,6 +44,28 @@ impl Hook for BeforeRunView {
     type Ctx = Value;
 }
 
+/// `runtime.run@1`'s `ready`: a task's worktree is back on its branch before any of its turns runs.
+struct Ready {
+    ctx: Ctx,
+    st: Arc<State>,
+}
+
+impl wisp_runtime_api::points::RunPart for Ready {
+    fn id(&self) -> &str {
+        api::EXT
+    }
+    fn ready(&self, session: &wisp_runtime_api::model::Session) -> wisp_kernel::BoxFuture<'static, std::result::Result<(), String>> {
+        let Some(wt) = archived::tree_of(session.ext.get(api::EXT)) else {
+            return Box::pin(async { Ok(()) });
+        };
+        let (ctx, st, task) = (self.ctx.clone(), self.st.clone(), session.id.0.clone());
+        Box::pin(async move {
+            let (e, _, _) = st.parts(&ctx).await.map_err(|err| format!("This task's worktree can't be checked ({}).", err.message))?;
+            archived::bring_back(&e, &ctx.root_call(), &task, &wt).await
+        })
+    }
+}
+
 /// The plugin. `home`: wisp's home (`~/.wisp`); `user_home`: the user's (Conductor's folders).
 #[derive(Debug, Clone)]
 pub struct WorktreesPlugin {
@@ -97,6 +119,13 @@ impl State {
             cap_pending: false.into(),
             offers: tokio::sync::Mutex::new(Vec::new()),
         })
+    }
+
+    /// A task's turn was saved: its folder's claim lets go (`Engine::release`).
+    pub async fn release(&self, ctx: &Ctx, task: &str) {
+        if let Ok((e, _, _)) = self.parts(ctx).await {
+            e.release(task);
+        }
     }
 
     /// Looks for Bring in offers again (every declared project's worktrees).
@@ -157,6 +186,19 @@ impl Plugin for WorktreesPlugin {
         source::register(s);
         files::register(s);
         s.contribute(&wisp_runtime_api::points::SUMMARY, Arc::new(summary::Summary) as Arc<dyn wisp_runtime_api::points::SummaryField>);
+        let ready = Ready { ctx: s.ctx(), st: st.clone() };
+        s.contribute(&wisp_runtime_api::points::RUN, Arc::new(ready) as Arc<dyn wisp_runtime_api::points::RunPart>);
+        // the turn is saved running (or held): the task's state guards its folder now, the claim lets go
+        let rel = st.clone();
+        s.on::<wisp_runtime_api::events::TurnStarted, _, _>(move |ctx, e| {
+            let st = rel.clone();
+            async move { st.release(&ctx, e.session_id.as_str()).await }
+        });
+        let rel = st.clone();
+        s.on::<wisp_runtime_api::events::TurnHeld, _, _>(move |ctx, e| {
+            let st = rel.clone();
+            async move { st.release(&ctx, e.session_id.as_str()).await }
+        });
         // archived and idle: a clean worktree goes (its branch stays). Changes come in bursts while a task
         // streams, so they're coalesced: one look per session per burst.
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
