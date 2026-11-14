@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: comment on an answer, open any file.** Select words or a block of an answer and click Comment: it goes with your next follow-up, marked in the reply. In Changes, Open file… finds any of the task's files by name or by text inside them.
+- **v2: crew as in v1.** Track record shows what ate your limits: each plan window and the crew's part of it. A Team tab beside a task lists the crew jobs it handed out. Crew members on another machine work again, and their jobs run there.
+
 - **v2: goal checks.** A goal check's page shows the judge's tool steps; Enter on a fully typed `/goal` or `/feedback` in New task acts at once; deleting a task deletes its goal checks.
 - **v2: desktop app and updates.** Opened from Finder or the Dock, wisp finds your agent CLIs on your login shell's PATH, and a slow ~/.zshrc no longer holds the first window back. An update shows as a pill in the top bar; installing it reloads onto the new version (Windows included). A briefly locked secrets file no longer fails a save.
 - **v2: worktree safety.** A path can no longer reach outside a worktree with `..` or a symlink, and a folder that comes back for a queued turn can't be released by an earlier turn that failed.
@@ -195,6 +198,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **v2: .env values in thinking and errors.** A .env value an agent quotes in its thinking or a tool's error is now hidden too, everywhere it leaves wisp (the app, CLI, MCP, shares, quick runs).
 - **Re-check in Settings → Agents did nothing** in v2: the server refused its request. It runs again.
 - **A second account's usage counted on the first.** A run on another account (picked by you, or moved there because the first was at its limit) now says so on its turn, and its usage windows, Drain watch and Plan budget count it on that account.
 - **Auto moves on when a Codex model is at capacity**: it carries on on another Codex model (else another harness) instead of stopping on the error.
