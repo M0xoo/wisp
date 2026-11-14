@@ -41,7 +41,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
   const ctxFor = (plugin: string): PaletteContext => {
     const n = nav();
     const focused = shell.selection.get() ?? (n.main.kind === 'task' ? n.main.id : undefined);
-    return { client: host.client(plugin), nav: n, focused };
+    return { client: host.client(plugin), nav: n, focused, ...(params.only && { narrowed: true }) };
   };
   const items = createMemo(() =>
     (changed(), sources()).filter((s) => !params.only || params.only.includes(s.id)).flatMap((s) => {
@@ -69,8 +69,9 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
       const ctl = new AbortController();
       asking = ctl;
       scope.add(() => ctl.abort());
+      // narrowed (⌘P, Open file…), only its own sources search deeper too
       const all = sources()
-        .filter((s) => s.deep)
+        .filter((s) => s.deep && (!params.only || params.only.includes(s.id)))
         .map((s) => s.deep?.(words, ctxFor(s.plugin), ctl.signal).catch(() => []) ?? Promise.resolve([]));
       void Promise.all(all).then((lists) => {
         if (ctl.signal.aborted || query().trim() !== words) return;

@@ -401,11 +401,16 @@ pub struct FilesArgs {
     pub path: String,
 }
 
-/// Go to definition (v1 `/sessions/:id/grep?def=`): where a name is declared in the task's folder.
+/// Go to definition (v1 `/sessions/:id/grep?def=`): where a name is declared in the task's folder; or, with `q`,
+/// Open file…'s text search (v1 `?q=`): where the words are, in any case (at most 60 hits).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GrepArgs {
     pub id: String,
+    #[serde(default)]
     pub def: String,
+    /// the words to find (when `def` is empty). Additive (2026-11-14).
+    #[serde(default)]
+    pub q: String,
 }
 
 #[derive(Debug)]

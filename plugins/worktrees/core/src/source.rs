@@ -80,6 +80,19 @@ pub fn def_pattern(name: &str) -> String {
     )
 }
 
+/// The most hits a text search answers (v1 `GREP_MAX`).
+pub const GREP_MAX: usize = 60;
+
+/// `git grep` arguments for Open file…'s text search (v1 `/grep?q=`): the words as typed (fixed, any case), in tracked
+/// and untracked files alike; None for fewer than 2 characters (v1 answers nothing). Cut to 200 characters.
+pub fn text_args(q: &str) -> Option<Vec<String>> {
+    if q.trim().chars().count() < 2 {
+        return None;
+    }
+    let words: String = q.chars().take(200).collect();
+    Some(["grep", "-n", "-I", "--untracked", "-i", "-F", "-e", &words, "--", "."].map(str::to_owned).to_vec())
+}
+
 /// `git grep -n` output as hits, at most `max`; text cut to 200 characters.
 pub fn hits(out: &str, max: usize) -> Vec<Hit> {
     out.lines()
@@ -127,6 +140,20 @@ mod tests {
         assert_eq!(hash_of(b"abc"), hash_of(b"abc"));
         assert_ne!(hash_of(b"abc"), hash_of(b"abd"));
         assert_eq!(file_list("b\0a\0b\0"), (vec!["a".to_owned(), "b".to_owned()], 0));
+    }
+
+    /// F-page-26 (v1 workspace.js `/grep?q=`): Open file…'s second half finds the words as typed, in any case,
+    /// untracked files too; one character finds nothing; a pattern's characters are only text (`-F`), and the words
+    /// come after `-e`, so a leading `-` is never read as an option.
+    #[test]
+    fn open_files_text_search_reads_the_words_as_typed_v1_grep_q() {
+        assert_eq!(text_args("a"), None);
+        assert_eq!(text_args("  x "), None);
+        let a = text_args("--output=x").unwrap();
+        assert_eq!(a, ["grep", "-n", "-I", "--untracked", "-i", "-F", "-e", "--output=x", "--", "."]);
+        let long = "y".repeat(300);
+        assert_eq!(text_args(&long).unwrap()[7].len(), 200);
+        assert_eq!(text_args("é ü").unwrap()[7], "é ü");
     }
 
     /// v1 workspace.js `/grep?def=`: Go to definition finds where a name is declared, and only an identifier is

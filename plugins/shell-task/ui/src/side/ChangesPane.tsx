@@ -6,7 +6,8 @@
 import { Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, type JSX } from 'solid-js';
 import { defineCommand, entityKey, ownerOf, type EntityKey, type SettingRow } from '@wisp/client';
 import { ChangesList, CommentCard, EmptyState, isEnvFile, rowKey, useSignal, type ChangeFile, type ChangeRow, type StageState } from '@wisp/ui';
-import { added, commentStore, lineKey, lineLabel, placeOf, waiting } from '../comments.ts';
+import { openFinder } from './open-file.ts';
+import { added, commentStore, isLine, lineKey, lineLabel, placeOf, waiting } from '../comments.ts';
 import { isStub, keepTurnsWhole } from '@wisp/shell';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
@@ -97,7 +98,9 @@ export function ChangesPane(): JSX.Element {
   // comments on lines (v1 comments.js): the card under a line, the ones waiting for the next follow-up
   const comments = commentStore(task.client);
   const all = useSignal(comments.value);
-  const mine = createMemo(() => waiting(all(), task.key));
+  // every comment waiting (an answer's too): the numbers are the tray's; the lines' are those with a file
+  const list = createMemo(() => waiting(all(), task.key));
+  const mine = createMemo(() => list().flatMap((c, k) => (isLine(c) ? [{ ...c, n: k + 1 }] : [])));
   const [draft, setDraft] = createSignal<{ path: string; key: string; at: NonNullable<ReturnType<typeof placeOf>>; note: string } | undefined>();
   const raw = (): Raw | undefined => task.task() as Raw | undefined;
   // the task's worktree: wisp.worktrees' own ext, or the list row's summary (a task from v1's data has it there)
@@ -133,6 +136,8 @@ export function ChangesPane(): JSX.Element {
   const [hiding, setHiding] = createSignal(new Set<string>());
   createEffect(on(git, () => setHiding(new Set<string>()), { defer: true }));
   const envOf = (f: GitFileRow): 'hidden' | 'shown' | undefined => envState(f, revealed()) ?? (hiding().has(f.path) ? 'hidden' : undefined);
+  // what a revealed .env file's edits read unmasked (wisp saw them, no git): read by `files` as it's made
+  const [seenShown, setSeenShown] = createSignal<ReadonlyMap<string, Edits>>(new Map());
   const files = createMemo((): ChangeFile[] => {
     const g = git();
     if (!g || g.body.kind !== 'inline') return seenFiles(turns() as readonly ChangeTurn[], task.id, dir(), maskOn(), revealed(), seenShown());
@@ -183,7 +188,6 @@ export function ChangesPane(): JSX.Element {
     task.client.run(stage, { key: task.key, dir: dir(), base: base(), path, hunk, hunkKey, unstage }).then(a.ok, a.no);
   };
   // no git: the edits wisp saw come masked in the turn rows; Reveal asks for each turn's change to that file
-  const [seenShown, setSeenShown] = createSignal<ReadonlyMap<string, Edits>>(new Map());
   const revealSeen = (path: string, show: boolean): void => {
     const g = git();
     if (g && g.body.kind === 'inline') return;
@@ -273,7 +277,20 @@ export function ChangesPane(): JSX.Element {
         }}
         allOpen={allOpen()}
         onAll={() => setOpen(allOpen() ? new Set<string>() : new Set(files().map((f) => f.path)))}
-        onFind={() => shell.palette.open()}
+        onFind={() =>
+          openFinder(
+            task.client,
+            task.key,
+            files().map((f) => f.path),
+            {
+              placeholder: t('shell-task.files.placeholder'),
+              title: t('shell-task.changes.openFile'),
+              empty: t('shell-task.files.empty'),
+              noGit: t('shell-task.files.noGit'),
+              toast: (text) => shell.toast.show(text),
+            },
+          )
+        }
         onEdit={(file) => shell.navigate({ t: 'openSide', side: { kind: 'changes', id: task.key as never, file } })}
         onStage={onStage}
         onHunkStage={onHunkStage}
@@ -285,7 +302,7 @@ export function ChangesPane(): JSX.Element {
             const at = placeOf(path, o);
             if (at) setDraft({ path, key: rowKey(o) ?? '', at, note: mine().find((c) => c.file === path && lineKey(c.side, c.line) === rowKey(o))?.note ?? '' });
           },
-          marks: (path) => new Map(mine().flatMap((c, i) => (c.file === path ? [[lineKey(c.side, c.line), i + 1] as const] : []))),
+          marks: (path) => new Map(mine().flatMap((c) => (c.file === path ? [[lineKey(c.side, c.line), c.n] as const] : []))),
           open: draft()
             ? {
                 path: draft()?.path ?? '',
@@ -294,8 +311,8 @@ export function ChangesPane(): JSX.Element {
                   <CommentCard
                     n={(() => {
                       const d = draft();
-                      const i = mine().findIndex((c) => d && c.file === d.path && lineKey(c.side, c.line) === d.key);
-                      return i >= 0 ? i + 1 : mine().length + 1;
+                      const had = mine().find((c) => d && c.file === d.path && lineKey(c.side, c.line) === d.key);
+                      return had ? had.n : list().length + 1;
                     })()}
                     where={draft() ? lineLabel({ file: draft()?.path ?? '', line: draft()?.at.line ?? 0, side: draft()?.at.side ?? 'new' }) : ''}
                     code={draft()?.at.code ?? ''}

@@ -13,7 +13,7 @@ use wisp_runtime_api::commands as rt;
 use wisp_runtime_api::model::SessionState;
 use wisp_runtime_api::paths::Folder;
 use wisp_worktrees_api::{self as api, EXT};
-use wisp_worktrees_core::source::{def_pattern, file_list, hash_of, hits, ident, inside, not_editable};
+use wisp_worktrees_core::source::{GREP_MAX, def_pattern, file_list, hash_of, hits, ident, inside, not_editable, text_args};
 
 /// The task's folder and its state.
 async fn folder(ctx: &Ctx, call: &Call, id: &str) -> Result<(PathBuf, SessionState)> {
@@ -83,9 +83,17 @@ pub(crate) fn register(s: &mut Setup) {
     });
     s.command::<api::Grep, _, _>(|ctx, call, a| async move {
         let (root, _) = folder(&ctx, &call, &a.id).await?;
-        let name = ident(&a.def).ok_or_else(|| WireError::invalid("Go to definition looks for a name (letters, digits, _)."))?;
+        // Open file…'s text search (v1 `?q=`): the words as typed; fewer than 2 characters find nothing
+        let (args, max) = if a.def.is_empty() {
+            match text_args(&a.q) {
+                Some(args) => (args, GREP_MAX),
+                None => return Ok(Vec::new()),
+            }
+        } else {
+            let name = ident(&a.def).ok_or_else(|| WireError::invalid("Go to definition looks for a name (letters, digits, _)."))?;
+            (["grep", "-n", "-I", "-E", &def_pattern(name)].map(str::to_owned).to_vec(), 20)
+        };
         let proc = ctx.service::<Proc>()?;
-        let args: Vec<String> = ["grep", "-n", "-I", "-E", &def_pattern(name)].map(str::to_owned).to_vec();
         let opts = ExecOpts {
             cwd: Some(root),
             env: Env::default().with("GIT_OPTIONAL_LOCKS", "0"),
@@ -94,7 +102,7 @@ pub(crate) fn register(s: &mut Setup) {
             ..ExecOpts::default()
         };
         Ok(match proc.exec("git", &args, opts).await {
-            Ok(r) if r.exit.success() => hits(&r.stdout_text(), 20),
+            Ok(r) if r.exit.success() => hits(&r.stdout_text(), max),
             _ => Vec::new(),
         })
     });
