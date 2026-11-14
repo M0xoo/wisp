@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- **v2: early Codex resets.** When a banked Codex reset lands early, work held for that account (held runs, Ask-held runs, tasks waiting at the limit) starts at once, and your phone hears *↻ Codex reset early* with the count.
+- **v2: early Codex resets.** When a banked Codex reset lands early, work held for that account (held runs, Ask-held runs, tasks waiting at the limit) starts at once, and your phone hears *↻ Codex reset early* with the count. Trigger rows held for the plan clear, a cooled account is ready at once, the note comes even with Later off, and the Drain watch's notes reach your phone.
 - **v2: Settings → Phone.** One dialog sets up ntfy, Telegram, Slack, Discord, GitHub and email: each channel's steps, whether it works, a Test button and its switch. Tokens are kept in secrets.json only. Send me (questions, finished), Unlink, Slack's Copy manifest, Discord's Add to a server and email's New address are there as in v1, and each channel's state updates live.
 - **v2: Try it two ways.** Add a run with + on the same harness and change one thing (its subagents' model, or Skills off): both run side by side in their own worktrees, Compare says what differed, and Keep marks the one you keep (also as MCP tools, and from the CLI: `wisp "<task>" --agent claude --try skills=off`). Ask near the limit counts both runs.
 - **v2: panes only propose.** A My Stuff pane's page that tries to start or send a task itself is refused with *A pane can only propose a prompt* (API and MCP); you send what it proposes from its card, and its write access ends when its code changes.
