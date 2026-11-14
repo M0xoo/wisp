@@ -24,6 +24,10 @@ impl Runtime {
         prompt: &str,
     ) -> Result<String> {
         let wire = |e: wisp_kernel::WireError| RuntimeError::Invalid(e.message);
+        // a capped lead's work stays on this computer, under its cap (crew refuses a member elsewhere the same way)
+        if crate::capped::cap_of(lead).is_some() {
+            return Err(RuntimeError::Wire(wisp_kernel::WireError::forbidden(wisp_kernel::caps::capped_refusal("start a sandbox"))));
+        }
         if let Some((machine, id)) = existing.as_deref().and_then(|k| k.split_once('|')) {
             self.route(machine, "runtime.followUp", json!({ "id": id, "text": prompt, "queue": true })).await.map_err(wire)?;
             return Ok(format!("{machine}|{id}"));

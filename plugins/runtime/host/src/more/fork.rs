@@ -157,6 +157,10 @@ impl Runtime {
             ..Session::default()
         };
         with_slot(&mut s.ext, |m| m.insert("forkOf".into(), json!({ "id": src.id, "turnId": upto.id })));
+        // a capped task's fork stays under its cap (v1 capped.js: copied to whatever it starts)
+        if let Some(cap) = src.ext.get("wisp.runtime").and_then(|o| o.get("capped")).filter(|c| !c.is_null()).cloned() {
+            with_slot(&mut s.ext, |m| m.insert("capped".into(), cap));
+        }
         with_slot(&mut s.ext, |m| m.insert("next".into(), json!({ "fork": true })));
         let copies: Vec<Turn> = turns.into_iter().map(|t| Turn { id: TurnId::new(), session_id: s.id.clone(), ..t }).collect();
         let summary = self.persist(&mut s, copies).await?;

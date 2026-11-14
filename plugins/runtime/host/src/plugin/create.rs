@@ -29,6 +29,10 @@ pub(super) fn create_and_follow_up(s: &mut Setup, slot: &Slot, made_kinds: Arc<K
         async move {
             let a = ctx.run_hook::<BeforeFollowUp>(&call, a).await?;
             let rt = rt(&slot)?;
+            // a follow-up asking a capped task for more than its cap: refused, or lifted when it's the user
+            if let Some(m) = a.mode {
+                rt.mode_asked(a.id.as_str(), m, &call.caller().set).await.map_err(WireError::from)?;
+            }
             if rt.repo.session(a.id.as_str()).await.is_ok_and(|s| crate::term::term_of(&s).is_some()) {
                 return crate::term::follow_up(&ctx, &call, &rt, a.id.as_str(), &a.text).await;
             }

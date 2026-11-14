@@ -21,6 +21,12 @@ pub const TASK_PARAMS: &[&str] = &["sid", "sessionId", "taskId"];
 pub trait TaskTree: Send + Sync + 'static {
     /// Whether task `task` is `root` or under it.
     fn within(&self, task: &str, root: &str) -> BoxFuture<'static, bool>;
+    /// The capability set task `task`'s agent speaks with when it isn't `agent:session` (`agent:capped` for a
+    /// task a channel started at a mode cap). Answered from memory: the edge asks on every request. Additive
+    /// (2026-11-14); None by default.
+    fn agent_set(&self, _task: &str) -> Option<String> {
+        None
+    }
 }
 
 pub const TASKS: Point<dyn TaskTree> = Point::new("kernel.tasks", 1);

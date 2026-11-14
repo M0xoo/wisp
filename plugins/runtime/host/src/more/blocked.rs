@@ -35,8 +35,17 @@ fn retry_prompt(items: &[Value], scoped: bool) -> String {
 
 impl Runtime {
     /// `runtime.approveBlocked` (v1 `approveBlocked`): what the last turn's permissions blocked, run in
-    /// a follow-up with exactly those rules allowed (or in Full auto when a rule is unknown).
-    pub async fn approve_blocked(self: &Arc<Self>, id: &SessionId, turn: Option<&TurnId>, allow: bool) -> Result<Value> {
+    /// a follow-up with exactly those rules allowed (or in Full auto when a rule is unknown). `set`: who asks; Full
+    /// auto on a capped task is the user lifting its cap, and refused for anyone else (`Runtime::mode_asked`).
+    pub async fn approve_blocked(self: &Arc<Self>, id: &SessionId, turn: Option<&TurnId>, allow: bool, set: &str) -> Result<Value> {
+        if allow {
+            let t = self.turn_of(id.as_str(), turn).await?;
+            let blocked = t.ext.get(SLOT).and_then(|x| x.get("blocked")).and_then(Value::as_array).cloned().unwrap_or_default();
+            if !blocked.is_empty() && !blocked.iter().all(|b| b.get("rule").and_then(Value::as_str).is_some()) {
+                // before it's marked allowed: a refusal leaves it to approve again
+                self.mode_asked(id.as_str(), wisp_runtime_api::model::Mode::Auto, set).await?;
+            }
+        }
         let blocked = {
             let _g = self.task_lock(id.as_str()).await;
             let s = self.repo.session(id.as_str()).await?;

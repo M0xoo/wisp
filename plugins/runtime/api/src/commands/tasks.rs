@@ -142,6 +142,13 @@ pub struct StartArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub mode: Option<Mode>,
+    /// the most this task's turns may ever run at (a channel starts its tasks at Edits; v1 `session.capped`): kept
+    /// on the task as `ext["wisp.runtime"].capped = { mode }`, the shape a crew job's cap has; a follow-up or a
+    /// mode switch above it is refused unless the user asks in wisp, which lifts it. Full auto is no cap.
+    /// Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cap: Option<Mode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cwd: Option<String>,

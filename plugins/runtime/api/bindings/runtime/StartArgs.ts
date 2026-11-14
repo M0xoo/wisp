@@ -11,7 +11,14 @@ import type { Mode } from "./Mode";
 /**
  * `runtime.create`: creates a task and starts its first turn. `agent: "auto"` lets wisp.router pick.
  */
-export type StartArgs = { prompt: string, agent?: string, model?: string, effort?: string, mode?: Mode, cwd?: string, dirs?: Array<string>, title?: string, attachments?: Array<Attachment>, parentId?: SessionId, account?: string, by?: string, 
+export type StartArgs = { prompt: string, agent?: string, model?: string, effort?: string, mode?: Mode, 
+/**
+ * the most this task's turns may ever run at (a channel starts its tasks at Edits; v1 `session.capped`): kept
+ * on the task as `ext["wisp.runtime"].capped = { mode }`, the shape a crew job's cap has; a follow-up or a
+ * mode switch above it is refused unless the user asks in wisp, which lifts it. Full auto is no cap.
+ * Additive (2026-11-14).
+ */
+cap?: Mode, cwd?: string, dirs?: Array<string>, title?: string, attachments?: Array<Attachment>, parentId?: SessionId, account?: string, by?: string, 
 /**
  * you said yes to going past Ask near the limit's line (v1 `confirmLimit`; the CLI's --yes). Additive (2026-11-11).
  */

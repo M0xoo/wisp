@@ -5,6 +5,7 @@ pub mod activity;
 pub mod agent_task;
 pub mod available;
 pub mod blocks;
+pub mod cap;
 pub mod cold;
 pub mod env_mask;
 pub mod import;

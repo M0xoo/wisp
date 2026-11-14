@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use wisp_kernel::Clock;
+use wisp_kernel::{Clock, WireError};
 use wisp_proc::Proc;
 use wisp_runtime_api::commands::{Created, FollowUpArgs, FollowedUp, StartArgs};
 use wisp_runtime_api::events::{SessionChanged, SessionCreated};
@@ -16,7 +16,7 @@ use wisp_runtime_api::model::{Mode, QueueItem, Session, SessionState, Summary, T
 use wisp_runtime_api::{Harness, SessionId};
 use wisp_runtime_core::queue::{self, Incoming, Plan, Queue, Run};
 use wisp_runtime_core::summary::{RowFacts, summarize};
-use wisp_runtime_core::{land, prompt};
+use wisp_runtime_core::{cap, land, prompt};
 
 use crate::error::{Result, RuntimeError};
 use crate::host::{Emitted, Host};
@@ -42,6 +42,9 @@ pub struct Runtime {
     pub(crate) usage: crate::usage_row::UsageCache,
     /// each task's .env values its turns read, in memory only (`env_known.rs`, ADR-0050)
     pub(crate) env: crate::env_known::EnvKnown,
+    /// the capped tasks' caps, kept as each task's row is written: the edge reads them without waiting, to give a
+    /// capped task's agent `agent:capped` (`Runtime::agent_set`)
+    pub(crate) caps: Mutex<HashMap<String, Mode>>,
 }
 
 impl std::fmt::Debug for Runtime {
@@ -70,6 +73,7 @@ impl Runtime {
             sign_ins: Mutex::default(),
             usage: crate::usage_row::UsageCache::default(),
             env: crate::env_known::EnvKnown::default(),
+            caps: Mutex::default(),
         })
     }
 
@@ -90,6 +94,8 @@ impl Runtime {
         }
         for id in waiting {
             let mut s = self.repo.session(&id).await?;
+            // its agent may answer the ask after a restart: the edge knows its cap before the row is written again
+            self.note_cap(&s);
             let Some(ask) = crate::more::ask_id(&s) else { continue };
             self.asks().insert(ask, id);
             if s.state != SessionState::Waiting {
@@ -211,6 +217,7 @@ impl Runtime {
                 extra(w)
             })
             .await?;
+        self.note_cap(s);
         let before = self.lock_list().insert(s.id.0.clone(), summary.clone());
         self.host.emit(Emitted::Changed(SessionChanged { id: s.id.clone() }));
         self.lead_follows(before.as_deref(), &summary);
@@ -359,6 +366,19 @@ impl Runtime {
             Some(serde_json::Value::Object(m)) => m,
             _ => serde_json::Map::new(),
         };
+        // a cap (a channel's, a capped lead's): the tighter of the one asked and one the caller's slot carries
+        let cap = cap::tighter(a.cap, cap::of(Some(&serde_json::Value::Object(own.clone()))));
+        if let Some(c) = cap {
+            if a.mode.is_some_and(|m| m.rank() > c.rank()) {
+                let m = a.mode.unwrap_or_default();
+                return Err(RuntimeError::Wire(WireError::forbidden(wisp_runtime_core::agent_task::over_cap(m, c))));
+            }
+            s.mode = cap::at_cap(s.mode, Some(c));
+            match cap::stored(c) {
+                Some(v) => own.insert("capped".into(), v),
+                None => own.remove("capped"),
+            };
+        }
         own.insert("titleAuto".into(), a.title.is_none().into());
         if a.terminal {
             own.insert("terminal".into(), serde_json::json!({ "prompt": a.prompt, "opened": false }));

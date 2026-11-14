@@ -113,4 +113,7 @@ impl wisp_kernel::scope::TaskTree for Tree {
             }
         })
     }
+    fn agent_set(&self, task: &str) -> Option<String> {
+        rt(&self.0).ok()?.agent_set(task)
+    }
 }

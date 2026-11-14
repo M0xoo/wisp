@@ -5,6 +5,7 @@
 //! v1 importer with the dual write. The decisions live in `wisp-runtime-core`; this crate does the I/O.
 
 mod calls;
+mod capped;
 mod drive;
 mod env_known;
 mod env_view;

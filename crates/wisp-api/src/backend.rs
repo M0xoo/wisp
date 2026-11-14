@@ -86,4 +86,9 @@ impl Backend for Kernel {
     fn key_set(&self, key: &str) -> Option<String> {
         Kernel::key_set(self, key)
     }
+
+    /// whoever owns tasks (`kernel.tasks`) says which set a task's agent speaks with (`agent:capped`)
+    fn agent_set(&self, session: &str) -> Option<String> {
+        self.contributions(&wisp_kernel::scope::TASKS).iter().find_map(|t| t.agent_set(session))
+    }
 }

@@ -85,6 +85,9 @@ impl Runtime {
     pub async fn start_turn(self: &Arc<Self>, mut s: Session, item: QueueItem) -> Result<TurnId> {
         let was = s.agent.clone();
         apply_opts(&mut s, &item);
+        // a capped task's turn never runs above its cap, whatever its queued item asked (F-chan-10)
+        let capped = crate::capped::cap_of(&s);
+        s.mode = wisp_runtime_core::cap::at_cap(s.mode, capped);
         let run = item.opts.as_ref().and_then(|o| o.get("run"));
         let next = self.harness(&s.agent).ok();
         crate::handoff::carry_over(&mut s, &was, opt_str(run, "model").is_some(), opt_str(run, "effort").is_some(), next.as_deref());
@@ -123,6 +126,7 @@ impl Runtime {
             Ok(c) => c,
             Err(e) => return self.refused(s, turn, &e.message).await,
         };
+        ctx.once = ctx.once.map(|m| wisp_runtime_core::cap::at_cap(m, capped));
         // the account wisp.accounts picked (an account at its limit or signed out is skipped on a run you start):
         // the turn says which, so its end and its usage reports count on that account, not the task's first pick
         if let Some(a) = ctx.account.clone().filter(|a| !a.is_empty()) {
@@ -170,6 +174,8 @@ impl Runtime {
         if next.get("once").and_then(Value::as_str) == Some("auto") {
             run.mode = Mode::Auto;
         }
+        run.mode = wisp_runtime_core::cap::at_cap(run.mode, capped);
+        run.capped = capped.is_some();
         if turn.idx == 0 {
             self.record_setup(&s, &run);
         }

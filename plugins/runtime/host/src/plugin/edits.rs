@@ -9,7 +9,11 @@ pub(super) fn edits(s: &mut Setup, slot: &Slot) {
     cmd!(s, slot, c::Stop, |r, call, a| r.stop(a.id.as_str(), a.clear_queue).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Rename, |r, call, a| r.rename(a.id.as_str(), &a.title).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Archive, |r, call, a| r.archive(a.id.as_str(), a.archived).await.map(|()| c::Ack {}));
-    cmd!(s, slot, c::SetMode, |r, call, a| r.set_mode(a.id.as_str(), a.mode).await.map(|()| c::Ack {}));
+    // above a capped task's cap: refused, or lifted when it's the user (`Runtime::mode_asked`)
+    cmd!(s, slot, c::SetMode, |r, call, a| match r.mode_asked(a.id.as_str(), a.mode, &call.caller().set).await {
+        Ok(()) => r.set_mode(a.id.as_str(), a.mode).await.map(|()| c::Ack {}),
+        Err(e) => Err(e),
+    });
     cmd!(s, slot, c::SetLean, |r, call, a| r.set_lean(a.id.as_str(), a.lean).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::SetAgent, |r, call, a| r.set_agent(a.id.as_str(), &a.agent).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::ForLater, |r, call, a| r.for_later(a.id.as_str(), a.for_later, a.at).await.map(|()| c::Ack {}));

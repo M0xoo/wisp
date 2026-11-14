@@ -36,7 +36,15 @@ impl Runtime {
         }
         self.edit(id, |s| {
             s.title = title;
-            s.ext.insert("wisp.runtime".into(), serde_json::json!({ "titleAuto": false }));
+            // merged into runtime's slot: replacing it dropped what else it keeps (a channel's cap, an open ask)
+            match s.ext.get_mut("wisp.runtime").and_then(serde_json::Value::as_object_mut) {
+                Some(own) => {
+                    own.insert("titleAuto".into(), false.into());
+                }
+                None => {
+                    s.ext.insert("wisp.runtime".into(), serde_json::json!({ "titleAuto": false }));
+                }
+            }
             Ok(())
         })
         .await
@@ -238,6 +246,7 @@ impl Runtime {
         let row = self.lock_list().remove(id);
         self.usage.forget(id);
         self.env.forget(id);
+        self.caps.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(id);
         // a subagent gone: its lead's usage stops counting it
         if let Some(lead) = row.and_then(|r| r.parent_id.clone()) {
             self.refresh_lead(lead);
