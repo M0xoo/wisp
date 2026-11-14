@@ -22,6 +22,18 @@ impl EnvMask for Other {
         let known = task.and_then(|t| known_of(&self.1, &self.2, t));
         env_other::mask_other(v, known.as_deref())
     }
+    fn ranges(&self, task: &str, v: &Value) -> Option<Value> {
+        let known = known_of(&self.1, &self.2, task)?;
+        Some(env_other::ranges_of(v, &known))
+    }
+    fn mask_kept(&self, task: Option<&str>, v: &mut Value, kept: Option<&Value>) -> bool {
+        if !on(&self.0) {
+            return false;
+        }
+        let known = task.and_then(|t| known_of(&self.1, &self.2, t));
+        // a record no task owns can't have been ranged against one
+        env_other::mask_other_kept(v, kept.filter(|_| task.is_some()), known.as_deref())
+    }
 }
 
 #[cfg(test)]

@@ -630,3 +630,55 @@ async fn a_goal_judges_verdict_quoting_a_value_the_task_read_reaches_no_topic_re
     no_value("runtime.turns", &json!(api.turns(&id).await).to_string());
     no_value("a share", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
 }
+
+/// A task's watch (ADR-0054): the agent puts up a page beside its task quoting a value the task read (in its title,
+/// its state and its HTML). The `watch` and `watch_page` rows on the task's topic, live, from a snapshot and from the
+/// first snapshot after a restart (nothing in memory: by the ranges kept with them), carry `••••`, never the value,
+/// and the page still draws.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_watch_page_quoting_a_value_the_task_read_reaches_no_topic_live_or_after_a_restart() {
+    let dir = temp("envwatch");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = replay(&dir, &proj);
+    let env = [("FAKE_REPLAY", f.to_str().unwrap())];
+    let (serve, port) = start_with(&dir, &env);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id =
+        api.cmd("runtime.create", json!({ "prompt": "rotate the key", "cwd": proj, "agent": "claude", "worktree": false })).await["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    api.until(&id, "the turn to end", |t| t.last().is_some_and(ended)).await;
+    let topic = format!("session:{id}");
+    let live = tokio::spawn({
+        let (http, topic) = (http.clone(), topic.clone());
+        async move { stream(&http, port, &topic, "old key", 60).await }
+    });
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let said = api
+        .cmd(
+            "runtime.agent.watch",
+            json!({ "session": id, "action": "open", "title": "Key sk-live-one", "caption": "rotating sk-live-one",
+                    "html": "<p data-k=\"sk-live-one\">old key</p>", "state": { "key": "sk-live-one", "done": 1 } }),
+        )
+        .await;
+    assert!(said["text"].is_string(), "the watch opened: {said}");
+    let seen = live.await.unwrap();
+    assert!(seen.contains("old key"), "the stream saw the page: {}", &seen[seen.len().saturating_sub(800)..]);
+    no_value("the live sync stream (watch)", &seen);
+    let snap = stream(&http, port, &topic, "old key", 10).await;
+    assert!(snap.contains("old key"), "the page is in the snapshot");
+    no_value("the sync snapshot (watch)", &snap);
+    assert!(snap.contains(&format!("Key {DOTS}")), "masked, not dropped: {}", &snap[..snap.len().min(1200)]);
+    no_value("runtime.get", &api.cmd("runtime.get", json!({ "id": id })).await.to_string());
+
+    // after a restart: nothing in memory yet, the ranges kept with the rows mask them (not •••• whole)
+    serve.stop();
+    let (_serve, port) = start_with(&dir, &env);
+    let snap = stream(&http, port, &topic, "old key", 20).await;
+    assert!(snap.contains("old key"), "the page still draws after a restart: {}", &snap[..snap.len().min(1200)]);
+    no_value("the first snapshot after a restart (watch)", &snap);
+    assert!(snap.contains(&format!("Key {DOTS}")), "masked by its ranges: {}", &snap[..snap.len().min(1200)]);
+}

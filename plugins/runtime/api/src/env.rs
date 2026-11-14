@@ -17,6 +17,51 @@ pub trait EnvMask: Send + Sync + 'static {
     /// whose it is), every text in `v` is hidden (fail closed); the task's values are read back for the next send.
     /// True when it changed.
     fn mask(&self, task: Option<&str>, v: &mut Value) -> bool;
+
+    /// Where `v` (what is about to be written about task `task`) quotes a value the task read: ranges to keep with
+    /// it (offsets only), for [`mask_kept`](Self::mask_kept). `None` when what the task read isn't in memory (then
+    /// nothing is kept, and a send with nothing known hides it whole). Additive (2026-11-14).
+    fn ranges(&self, task: &str, v: &Value) -> Option<Value> {
+        let _ = (task, v);
+        None
+    }
+
+    /// [`mask`](Self::mask), by `kept` (from [`ranges`](Self::ranges) as `v` was written) when what the task read
+    /// isn't in memory, a restart's first send: its kept ranges and every rule that needs no value (a .env-shaped
+    /// line), instead of hiding it whole. Additive (2026-11-14).
+    fn mask_kept(&self, task: Option<&str>, v: &mut Value, kept: Option<&Value>) -> bool {
+        let _ = kept;
+        self.mask(task, v)
+    }
+}
+
+/// What a hidden text becomes (`wisp_envmask::DOTS`).
+pub const HIDDEN: &str = "••••";
+
+/// Where a plugin keeps a record's ranges in its JSON (`envHide`): read by its view, never sent.
+pub const KEPT: &str = "envHide";
+
+/// `v`'s text hidden whole (no service to mask it: wisp.runtime off), the strings under `keep` keys kept (a
+/// record's id or state). True when it changed.
+pub fn hide(v: &mut Value, keep: &[&str]) -> bool {
+    match v {
+        Value::String(s) if !s.is_empty() && s != HIDDEN => {
+            HIDDEN.clone_into(s);
+            true
+        }
+        Value::Array(a) => a.iter_mut().fold(false, |c, x| hide(x, keep) | c),
+        Value::Object(o) => o.iter_mut().filter(|(k, _)| !keep.contains(&k.as_str())).fold(false, |c, (_, x)| hide(x, keep) | c),
+        _ => false,
+    }
+}
+
+/// `v` about task `task` as it leaves, `kept` its ranges: masked by `m`, hidden whole without it (fail closed). What
+/// a plugin's `kernel.egress` view calls for each field an agent wrote.
+pub fn mask_or_hide(m: Option<&dyn EnvMask>, task: Option<&str>, v: &mut Value, kept: Option<&Value>) -> bool {
+    match m {
+        Some(m) => m.mask_kept(task, v, kept),
+        None => hide(v, &[]),
+    }
 }
 
 /// The service contract, requested by contract (`runtime.envmask@^1`).
@@ -27,4 +72,17 @@ impl Service for EnvMaskService {
     const ID: &'static str = "runtime.envmask";
     const MAJOR: u32 = 1;
     type Api = dyn EnvMask;
+}
+
+/// [`mask_or_hide`] of a prompt-like text (a follow-up, a plan's prompt: the user's words mostly): only the values
+/// its task read are masked in it, never a line for its shape (`DEBUG=1` is the user's); hidden whole when they
+/// can't be told.
+pub fn mask_prompt(m: Option<&dyn EnvMask>, task: Option<&str>, v: &mut Value) -> bool {
+    if !v.is_string() {
+        return false;
+    }
+    let mut w = serde_json::json!({ "prompt": v.take() });
+    let changed = mask_or_hide(m, task, &mut w, None);
+    *v = w["prompt"].take();
+    changed
 }

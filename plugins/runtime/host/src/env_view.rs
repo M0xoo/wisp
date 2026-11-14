@@ -82,15 +82,30 @@ impl View {
     }
 }
 
+/// A task's watch (`watch`: its state, caption, title; `watch_page`: its HTML), by the task's id: what the agent put
+/// there, free JSON (no key in it is a record's own state), so every string is masked against what the task read and
+/// for .env-shaped lines; by the ranges kept with it (`body.envHide`, written with it) when that isn't in memory, else
+/// hidden whole (fail closed, ADR-0054). The ranges never leave.
+const WATCH_KINDS: [&str; 2] = ["watch", "watch_page"];
+
+fn mask_watch(v: &mut Value, known: Option<&[String]>) -> bool {
+    let Some(body) = v.get_mut("body") else { return false };
+    let kept = body.as_object_mut().and_then(|b| b.remove(env_other::KEPT));
+    env_other::mask_free(body, kept.as_ref(), known) | kept.is_some()
+}
+
 impl RowView for View {
     fn kinds(&self) -> &'static [&'static str] {
-        &["turn", "event", "session"]
+        &["turn", "event", "session", "watch", "watch_page"]
     }
     fn row(&self, kind: &str, v: &mut Value) {
         if !on(&self.0) {
             return;
         }
-        if kind == "session" {
+        if WATCH_KINDS.contains(&kind) {
+            let known = v.get("id").and_then(Value::as_str).and_then(|id| known_of(&self.1, &self.2, id));
+            mask_watch(v, known.as_deref());
+        } else if kind == "session" {
             let known = session_known(&self.1, &self.2, v);
             env_session::mask_row(v, known.as_deref());
         } else if kind == "turn" {
@@ -131,6 +146,9 @@ impl RowView for View {
         }
         if kind == "turn" {
             env_turn::mask_patch(path, v, None);
+        } else if WATCH_KINDS.contains(&kind) {
+            // a patch that can't say whose watch it is: hidden (watches are upserted whole, so none is sent)
+            env_other::mask_free(v, None, None);
         } else {
             env_mask::mask_patch(kind, path, v);
         }
@@ -142,6 +160,18 @@ impl RowView for View {
                 let r = rt(&self.1).ok();
                 let known = r.and_then(|r| r.env.task_of(id).and_then(|sid| r.env.get(&sid))).map(|v| v.0);
                 env_turn::mask_patch(path, v, known.as_deref());
+            }
+            return;
+        }
+        if WATCH_KINDS.contains(&kind) {
+            if on(&self.0) {
+                let known = known_of(&self.1, &self.2, id);
+                if path.is_empty() {
+                    mask_watch(v, known.as_deref());
+                } else {
+                    let kept = (path == "/body").then(|| v.as_object_mut().and_then(|b| b.remove(env_other::KEPT))).flatten();
+                    env_other::mask_free(v, kept.as_ref(), known.as_deref());
+                }
             }
             return;
         }
@@ -414,5 +444,57 @@ mod tests {
         assert!(lock(&loading).contains("c"));
         loaded(&slot, &loading, "c").await;
         assert_eq!(session_known(&slot, &loading, &old), Some(Vec::new()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_watch_and_its_page_quoting_a_value_the_task_read_leave_masked_live_and_after_a_restart_by_their_ranges() {
+        use wisp_runtime_api::commands::{AgentWatchArgs, StartArgs};
+        let slot = slot();
+        let r = rt(&slot).unwrap();
+        let dir = std::env::temp_dir().join(format!("wisp-envwatch-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let sid = r
+            .create(StartArgs { prompt: "rotate".into(), cwd: Some(dir.display().to_string()), hold: true, ..StartArgs::default() })
+            .await
+            .unwrap()
+            .id
+            .0;
+        r.env_known(&sid).await.unwrap();
+        r.env_remember(&sid, &EnvValues(vec!["sk-live-one".into()]));
+        let open = json!({ "action": "open", "title": "Key sk-live-one", "caption": "rotating sk-live-one",
+                           "html": "<p data-k=\"sk-live-one\">old key</p>\n<pre>\nAPI_KEY=sk-live-two\n</pre>",
+                           "state": { "status": "sk-live-one", "file": "TOKEN=sk-live-three", "done": 1 } });
+        let serde_json::Value::Object(body) = open else { unreachable!() };
+        r.agent_watch(AgentWatchArgs { session: sid.clone(), body }).await.unwrap();
+        let stored = |kind: &str| {
+            let (k, id) = (kind.to_owned(), sid.clone());
+            r.repo.store.read(move |rd| Ok(rd.get(&k, id.as_str())?.map(|row| Value::Object(row.into_iter().collect())))).unwrap().unwrap()
+        };
+        let (watch, page) = (stored("watch"), stored("watch_page"));
+        assert!(watch.to_string().contains("sk-live-one"), "the store keeps it as the agent wrote it");
+        assert!(watch["body"]["envHide"].get("/title").is_some(), "its ranges kept with it: {}", watch["body"]);
+        let sent = |row: &Value, known: Option<&[String]>| {
+            let mut v = row.clone();
+            mask_watch(&mut v, known);
+            v
+        };
+        let k = vec!["sk-live-one".to_owned()];
+        for (what, v) in [("live", sent(&watch, Some(&k))), ("after a restart", sent(&watch, None))] {
+            assert!(!v.to_string().contains("sk-live"), "{what}: {v}");
+            assert_eq!(v["body"]["title"], "Key ••••", "{what}: masked, not hidden whole");
+            assert_eq!(v["body"]["state"]["done"], 1);
+            assert!(v["body"].get("envHide").is_none(), "{what}: the ranges never leave");
+        }
+        for (what, v) in [("live", sent(&page, Some(&k))), ("after a restart", sent(&page, None))] {
+            let html = v["body"]["html"].as_str().unwrap();
+            assert!(!html.contains("sk-live"), "{what}: {html}");
+            assert!(html.contains("old key</p>") && html.contains("API_KEY=••••"), "{what}: the page still draws: {html}");
+        }
+        // a watch stored before its ranges (or unread), nothing known: hidden whole (fail closed)
+        let mut old = watch.clone();
+        old["body"].as_object_mut().unwrap().remove("envHide");
+        let v = sent(&old, None);
+        assert_eq!(v["body"]["title"], "••••");
+        assert!(!v.to_string().contains("sk-live"));
     }
 }

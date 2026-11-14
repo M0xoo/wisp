@@ -143,7 +143,7 @@ pub fn mask_row(row: &mut Value, known: Known<'_>) -> bool {
         && (row.pointer(&format!("/body/envHide/{}", crate::env_other::EXT)).is_some()
             || row.get("body").is_none_or(|b| {
                 let prompt = b.get("prompt").and_then(Value::as_str).is_some_and(|p| !p.is_empty());
-                !crate::env_other::has_others(b) && (!prompt || known.is_none_or(<[String]>::is_empty))
+                !crate::env_other::has_others(b) && (!prompt || known.is_some_and(<[String]>::is_empty))
             }));
     if clean {
         return false;

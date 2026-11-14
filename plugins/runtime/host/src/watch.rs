@@ -94,11 +94,22 @@ impl crate::runtime::Runtime {
         if let Some(o) = own.as_object_mut() {
             o.insert("watch".into(), watch::marker(&done.watch));
         }
-        let (wid, body, html) = (id.clone(), serde_json::to_value(&done.watch).unwrap_or(Value::Null), done.html);
+        let (wid, mut body, html) = (id.clone(), serde_json::to_value(&done.watch).unwrap_or(Value::Null), done.html);
+        let mut page = html.map(|h| json!({ "html": h }));
+        // where it quotes a value the task read, kept with it (ADR-0054), so the first send after a restart masks by it;
+        // unread, nothing kept (that send hides it whole)
+        if let Ok(known) = r.env_known(&id).await {
+            for b in std::iter::once(&mut body).chain(page.as_mut()) {
+                let kept = wisp_runtime_core::env_other::ranges_of(b, &known.0);
+                if let Some(o) = b.as_object_mut() {
+                    o.insert(wisp_runtime_core::env_other::KEPT.into(), kept);
+                }
+            }
+        }
         r.persist_with(&mut s, Vec::new(), move |w| {
             w.upsert(WATCH.kind, row(&wid, body))?;
-            if let Some(h) = html {
-                w.upsert(WATCH_PAGE.kind, row(&wid, json!({ "html": h })))?;
+            if let Some(p) = page {
+                w.upsert(WATCH_PAGE.kind, row(&wid, p))?;
             }
             Ok(())
         })

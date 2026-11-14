@@ -166,12 +166,12 @@ pub fn mask_turn_others(t: &mut Value, known: Known<'_>) -> bool {
     let new = hide.and_then(Value::as_object).is_some_and(|h| h.contains_key(EXT));
     // written while its task's values couldn't be read: nothing of it can be told
     let unread = hide.is_some_and(Value::is_string);
-    // a prompt kept before ranges held it, its task's values unknown: as it is (the user's words; see ADR-0054)
     let prompt = match (new, known) {
         (true, _) => es::mask(t, &PROMPT, "", known),
         (false, Some(_)) => es::mask(t, &PROMPT_OLD, "", known),
-        (false, None) if unread => es::hide_whole(t, &PROMPT),
-        (false, None) => false,
+        // kept before its ranges held it, its task's values unknown (the first send after a restart): hidden until
+        // they are read back, like the rest of its text (fail closed)
+        (false, None) => es::hide_whole(t, &PROMPT),
     };
     if !has_others(t) {
         return prompt;
@@ -205,6 +205,108 @@ pub fn mask_patch_others(at: &str, v: &mut Value, known: Known<'_>) -> bool {
         return mask_other(v, known);
     }
     false
+}
+
+/// Where another plugin keeps a record's ranges inside it (`v.envHide`): taken out before it is masked, never sent.
+pub const KEPT: &str = "envHide";
+
+/// Every string of `v` but its kept ranges ([`KEPT`]), with its pointer.
+fn leaves(v: &Value, ptr: &mut String, top: bool, f: &mut impl FnMut(&str, &str)) {
+    match v {
+        Value::String(t) => f(ptr, t),
+        Value::Array(a) => {
+            for (i, x) in a.iter().enumerate() {
+                let n = ptr.len();
+                let _ = std::fmt::Write::write_fmt(ptr, format_args!("/{i}"));
+                leaves(x, ptr, false, f);
+                ptr.truncate(n);
+            }
+        }
+        Value::Object(o) => {
+            for (k, x) in o.iter().filter(|(k, _)| !(top && k.as_str() == KEPT)) {
+                let n = ptr.len();
+                ptr.push('/');
+                ptr.push_str(&k.replace('~', "~0").replace('/', "~1"));
+                leaves(x, ptr, false, f);
+                ptr.truncate(n);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn leaves_mut(v: &mut Value, top: bool, f: &mut impl FnMut(&mut String) -> bool) -> bool {
+    match v {
+        Value::String(t) => f(t),
+        Value::Array(a) => a.iter_mut().fold(false, |c, x| leaves_mut(x, false, f) | c),
+        Value::Object(o) => o.iter_mut().filter(|(k, _)| !(top && k.as_str() == KEPT)).fold(false, |c, (_, x)| leaves_mut(x, false, f) | c),
+        _ => false,
+    }
+}
+
+/// Where `v` (another plugin's data about a task, as it is written) quotes one of `known`: pointer into `v` → byte
+/// ranges, to keep with it, so a send before its task's values are back in memory (after a restart) masks it by them
+/// ([`mask_other_kept`], [`mask_free`]) instead of hiding it whole. Values only: the .env-shaped lines and the .env
+/// step rules need nothing known, so they run as it leaves.
+#[must_use]
+pub fn ranges_of(v: &Value, known: &[String]) -> Value {
+    let k = crate::env_turn::with_escaped(known);
+    let mut out = Map::new();
+    leaves(v, &mut String::new(), true, &mut |p, t| {
+        let spans = wisp_envmask::value_spans(t, &k);
+        if !spans.is_empty() {
+            out.insert(p.to_owned(), serde_json::json!(spans));
+        }
+    });
+    Value::Object(out)
+}
+
+/// The ranges kept with a record ([`ranges_of`]) on `v`; an unreadable list is none (its text hidden: fail closed).
+fn kept_spans(v: &mut Value, kept: Option<&Value>) -> Option<bool> {
+    let m: std::collections::BTreeMap<String, Vec<[u32; 2]>> = serde_json::from_value(kept?.clone()).ok()?;
+    let mut changed = false;
+    for (p, spans) in m.into_iter().filter(|(_, s)| !s.is_empty()) {
+        if let Some(Value::String(t)) = v.pointer_mut(&p) {
+            *t = wisp_envmask::mask_spans(t, &spans);
+            changed = true;
+        }
+    }
+    Some(changed)
+}
+
+/// [`mask_other`], by the ranges kept with it when its task's values aren't in memory (`known` `None`): those, then
+/// every rule that needs nothing known (.env-shaped lines, the .env step rules). No ranges: hidden whole.
+pub fn mask_other_kept(v: &mut Value, kept: Option<&Value>, known: Known<'_>) -> bool {
+    if known.is_some() {
+        return mask_other(v, known);
+    }
+    match kept_spans(v, kept) {
+        Some(c) => mask_other(v, Some(&[])) | c,
+        None => mask_other(v, None),
+    }
+}
+
+/// Data an agent wrote with no shape of its own (a watch's state and page, an app's JSON): every string of it masked
+/// against `known` and for .env-shaped lines, whatever its key (no key is a record's state here). With `known` `None`:
+/// by the ranges kept with it, else hidden whole (fail closed). Its kept ranges ([`KEPT`]) are left for the caller.
+pub fn mask_free(v: &mut Value, kept: Option<&Value>, known: Known<'_>) -> bool {
+    let esc = known.map(crate::env_turn::with_escaped);
+    let ranged = if known.is_none() { kept_spans(v, kept) } else { Some(false) };
+    let Some(ranged) = ranged else {
+        return leaves_mut(v, true, &mut |t| {
+            if t.is_empty() || t == wisp_envmask::DOTS {
+                return false;
+            }
+            wisp_envmask::DOTS.clone_into(t);
+            true
+        });
+    };
+    let values = esc.as_deref().unwrap_or_default();
+    ranged
+        | leaves_mut(v, true, &mut |t| {
+            let spans = wisp_envmask::prose_spans(t, values);
+            masked_by(t, &spans)
+        })
 }
 
 #[cfg(test)]
@@ -383,5 +485,83 @@ mod tests {
         let mut v = json!("k = 'sk-live-one'");
         assert!(!mask_patch_others("/ext/wisp.runtime/changes/0/edits/0/before", &mut v, None), "runtime's own rules");
         assert!(!mask_patch_others("/presentation/blocks/0", &mut json!("sk-live-one"), None), "not a slot");
+    }
+
+    #[test]
+    fn a_prompt_stored_before_its_ranges_held_it_is_hidden_until_its_tasks_values_are_back() {
+        use crate::env_turn;
+        // a turn row from before ADR-0054 (`#clean`, no `#ext`), its prompt quoting a value: the first send after a
+        // restart knows nothing yet, so it leaves hidden (it went as it was: fail open)
+        let body = json!({ "id": "t1", "status": "done", "prompt": "Goal not met: claude says sk-live-one is live",
+                           "envHide": { "#lines": [], "#clean": [] } });
+        let mut r = json!({ "id": "t1", "session_id": "s1", "prompt": body["prompt"].clone(), "answer": null, "body": body });
+        assert!(env_turn::mask_row(&mut r, None));
+        assert_eq!(r["body"]["prompt"], DOTS);
+        assert_eq!(r["prompt"], DOTS, "the column leaves as the body's prompt");
+        // once they are back: masked, the rest of it kept
+        let mut r2 = json!({ "id": "t1", "session_id": "s1", "prompt": body["prompt"].clone(), "answer": null, "body": body });
+        assert!(env_turn::mask_row(&mut r2, Some(&known())));
+        assert_eq!(r2["prompt"], "Goal not met: claude says •••• is live");
+        // known to have read nothing: as it is (a user's own prompt, no scan)
+        let mut r3 = json!({ "id": "t1", "session_id": "s1", "prompt": body["prompt"].clone(), "answer": null, "body": body });
+        assert!(!env_turn::mask_row(&mut r3, Some(&[])));
+        // and without `#clean` (no ranges at all)
+        let mut t = json!({ "id": "t2", "prompt": "use sk-live-one" });
+        assert!(mask_turn_others(&mut t, None));
+        assert_eq!(t["prompt"], DOTS);
+    }
+
+    #[test]
+    fn a_record_kept_with_its_ranges_masks_after_a_restart_and_free_agent_json_is_masked_whatever_its_keys() {
+        // ranges found as it is written, values only; sent with nothing in memory: by them, plus the rules that need
+        // nothing known (a .env line, an output of a call that read .env)
+        let mut turn = judged();
+        let kept = ranges_of(&turn, &known());
+        assert!(kept.get("/text").is_some(), "{kept}");
+        assert!(mask_other_kept(&mut turn, Some(&kept), None));
+        let s = turn.to_string();
+        assert!(!s.contains("sk-live-one") && !s.contains("sk-live-two") && !s.contains("sk-other-9"), "{s}");
+        assert!(turn["text"].as_str().unwrap().starts_with("NOT MET: the key •••• is live"), "masked, not hidden whole: {turn}");
+        assert_eq!(turn["prompt"], "Goal: x");
+        let mut why = json!("the key sk-live-one is live");
+        let kept = ranges_of(&why, &known());
+        assert!(mask_other_kept(&mut why, Some(&kept), None));
+        assert_eq!(why, "the key •••• is live");
+        // no ranges, nothing known: hidden whole (as before); a broken range list too
+        let mut rec = json!({ "why": "the key sk-live-one is live" });
+        assert!(mask_other_kept(&mut rec, None, None));
+        assert_eq!(rec["why"], DOTS);
+        let mut rec = json!({ "why": "the key sk-live-one is live" });
+        assert!(mask_other_kept(&mut rec, Some(&json!("garbage")), None));
+        assert_eq!(rec["why"], DOTS);
+        // known: scanned, the ranges not needed
+        let mut rec = json!({ "why": "the key sk-live-one is live" });
+        assert!(mask_other_kept(&mut rec, None, Some(&known())));
+        assert_eq!(rec["why"], "the key •••• is live");
+
+        // free JSON (a watch's state): keys a record would keep as state (`status`, `file`, `id`) are an agent's here
+        let state = json!({ "status": "sk-live-one", "file": "API_KEY=sk-live-one", "rows": [{ "id": "k sk-live-one" }], "n": 3, "env": "DEBUG=1" });
+        let mut v = state.clone();
+        assert!(mask_free(&mut v, None, Some(&known())));
+        assert!(!v.to_string().contains("sk-live"), "{v}");
+        assert_eq!(v["env"], "DEBUG=••••", "a .env-shaped line in agent text");
+        assert_eq!(v["n"], 3);
+        let mut v = state.clone();
+        assert!(mask_free(&mut v, None, None));
+        assert_eq!(v["status"], DOTS, "nothing known, no ranges: hidden whole");
+        assert_eq!(v["n"], 3);
+        let mut v = state.clone();
+        let kept = ranges_of(&state, &known());
+        assert!(mask_free(&mut v, Some(&kept), None));
+        assert!(!v.to_string().contains("sk-live"), "{v}");
+        assert_eq!(v["rows"][0]["id"], "k ••••", "by its ranges after a restart, the rest kept");
+        // html: a value in an attribute and a .env line in a <pre>; masking twice changes nothing more
+        let mut page = json!({ "html": "<p data-k=\"sk-live-one\">x</p>\n<pre>\nAPI_KEY=sk-live-two\n</pre>", "envHide": {} });
+        assert!(mask_free(&mut page, None, Some(&known())));
+        assert!(!page.to_string().contains("sk-live"), "{page}");
+        let once = page.clone();
+        mask_free(&mut page, None, Some(&known()));
+        assert_eq!(page, once);
+        assert_eq!(page["envHide"], json!({}), "its ranges are the caller's");
     }
 }
