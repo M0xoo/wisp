@@ -107,14 +107,18 @@ impl BoxdRun {
             let mut ended = None;
             while let Ok(Some(l)) = lines.next_line().await {
                 let Ok(m) = serde_json::from_str::<Value>(&l) else { continue };
+                // flushed line by line: tokio's write_all only buffers, and once the exit below is reported every
+                // line before it must be in the file (hostd reads the log of a box that stopped)
                 if let Some(t) = m.get("log").and_then(Value::as_str) {
                     if let Some(f) = out.as_mut() {
                         let _ = f.write_all(t.as_bytes()).await;
+                        let _ = f.flush().await;
                     }
                 } else if let Some(e) = m.get("error").and_then(Value::as_str) {
                     e.clone_into(&mut err2.lock().unwrap_or_else(PoisonError::into_inner));
                     if let Some(f) = out.as_mut() {
                         let _ = f.write_all(format!("boxd: {e}\n").as_bytes()).await;
+                        let _ = f.flush().await;
                     }
                 } else if m.get("exit").is_some() {
                     ended = Some(format!(

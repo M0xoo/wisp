@@ -101,11 +101,13 @@ async fn hostd_runs_a_box_through_boxd() {
         let secret = run["env"]["WISP_TRUSTED_PROXY_SECRET"].as_str().unwrap();
         assert_eq!(host.secret("u1").as_deref(), Some(secret), "the secret the edge sends is the box's");
     }
-    let log = std::fs::read_to_string(dir.join("users/u1/wisp.log")).unwrap_or_default();
-    assert!(log.contains("wisp up"), "boxd's log lines land in the box's log: {log:?}");
     assert!(host.stop("u1", "idle").await.unwrap());
     assert_eq!(host.state("u1"), BoxState::Stopped);
     assert!(seen.lock().unwrap().closed, "stopping it ended the run at boxd");
+    // read once the run's exit came back: boxd's log lines reach the file from their own task, so right after
+    // `ensure` the line may not be there yet (1 failure in 160 runs under load; the full PR CI suite hit it)
+    let log = std::fs::read_to_string(dir.join("users/u1/wisp.log")).unwrap_or_default();
+    assert!(log.contains("wisp up"), "boxd's log lines land in the box's log: {log:?}");
     host.remove(&ada).await.unwrap();
     assert!(seen.lock().unwrap().asks.iter().any(|m| m["op"] == "remove" && m["id"] == "u1"), "boxd deletes it");
 }
