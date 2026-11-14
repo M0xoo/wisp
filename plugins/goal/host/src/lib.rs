@@ -5,6 +5,7 @@
 //! for a task's own side runs, and a turn you started yourself after a stall begins the count again.
 
 mod calls;
+mod egress;
 pub mod inflight;
 mod judging;
 use judging::{after, judge_turn, recover, wake_dropped};
@@ -282,6 +283,8 @@ impl Plugin for GoalPlugin {
         let defaults = crate::kinds::register(s);
         let summary: Arc<dyn wisp_runtime_api::points::SummaryField> = Arc::new(Summary { defaults: Arc::clone(&defaults) });
         s.contribute(&wisp_runtime_api::points::SUMMARY, summary);
+        // its check records leave masked (ADR-0054)
+        s.contribute(&wisp_kernel::egress::VIEWS, Arc::new(crate::egress::RunView(s.ctx())) as Arc<dyn wisp_kernel::egress::RowView>);
         let live = Inflight::default();
         let (ds, ls) = (Arc::clone(&defaults), live.clone());
         s.command::<wisp_goal_api::Set, _, _>(move |ctx, _call, a| {

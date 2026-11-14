@@ -4694,6 +4694,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "wisp-envmask",
  "wisp-goal-api",
  "wisp-goal-core",
  "wisp-kernel",

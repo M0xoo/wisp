@@ -23,6 +23,7 @@ wisp-later-api.workspace = true
 wisp-machines-api.workspace = true
 wisp-sandbox-api.workspace = true
 wisp-store.workspace = true
+wisp-envmask.workspace = true
 
 [dev-dependencies]
 wisp-runtime-api = { workspace = true, features = ["testing"] }
