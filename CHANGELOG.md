@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: channel tasks stay at Edits.** A task started from a channel stays at Edits or lower: a follow-up, mode switch or retry asking for more is refused (also over MCP) unless you lift it in wisp, and a stall on an approval says in the thread that it waits for you.
 - **v2: delegate to the crew.** A lead task's agent can hand a job to a crew member: it runs as them (on their machine too), shows in the task's Team tab, and the lead reads its report with subagent_results.
 - **v2: comment on an answer, open any file.** Select words or a block of an answer and click Comment: it goes with your next follow-up, marked in the reply. In Changes, Open file… finds any of the task's files by name or by text inside them.
 - **v2: crew as in v1.** Track record shows what ate your limits: each plan window and the crew's part of it. A Team tab beside a task lists the crew jobs it handed out. Crew members on another machine work again, and their jobs run there.
