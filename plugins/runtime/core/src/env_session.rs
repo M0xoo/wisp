@@ -113,9 +113,33 @@ fn is_agent(key: Option<&str>) -> bool {
     key.is_some_and(|k| AGENT.contains(&k))
 }
 
-/// Whether a string under `key` of `part` gets its .env-shaped lines masked.
+/// Whether a string under `key` of `part` gets its .env-shaped lines masked: never code ([`CODE`]).
 fn lines(part: &Part, key: Option<&str>) -> bool {
-    part.prose || is_agent(key)
+    key != Some(CODE) && (part.prose || is_agent(key))
+}
+
+/// The key the walk gives a code field ([`ENV_BLOCK`]) of a code block not about a .env file ([`code_block`]): only
+/// the values its task read are masked there, never a line for its shape (`MAX=10;` in a script is no secret).
+const CODE: &str = "#code";
+
+/// Languages a code block about a .env file may be named by (no file given): its lines keep the .env-line rule.
+const ENV_LANGS: &[&str] =
+    &["", "env", "dotenv", "sh", "bash", "zsh", "shell", "console", "ini", "properties", "conf", "text", "txt", "plaintext"];
+
+/// A `code` or `diff` block that is code and not about a .env file: a file that isn't one, or a language that isn't
+/// one a .env file is shown in. A block naming neither keeps the .env-line rule (fail closed).
+fn code_block(o: &Map<String, Value>) -> bool {
+    let s = |k: &str| o.get(k).and_then(Value::as_str);
+    matches!(s("type"), Some("code" | "diff"))
+        && match s("file").or_else(|| s("path")) {
+            Some(f) => !is_env_file(f),
+            None => s("language").or_else(|| s("lang")).is_some_and(|l| !ENV_LANGS.contains(&l.trim().to_ascii_lowercase().as_str())),
+        }
+}
+
+/// The key a field `k` of an object is walked under (`code`: the object is a [`code_block`]).
+fn key_of(k: &str, code: bool) -> &str {
+    if code && ENV_BLOCK.contains(&k) { CODE } else { k }
 }
 
 /// An answer block about a .env file (`code` or `diff`): its text is its own rules'.
@@ -142,6 +166,7 @@ fn walk(v: &Value, ptr: &mut String, key: Option<&str>, part: &Part, f: &mut imp
         }
         Value::Object(o) => {
             let env = part.prose && env_block(o);
+            let code = part.prose && !env && code_block(o);
             for (k, x) in o {
                 if skipped(k, part, env) {
                     continue;
@@ -149,7 +174,7 @@ fn walk(v: &Value, ptr: &mut String, key: Option<&str>, part: &Part, f: &mut imp
                 let n = ptr.len();
                 ptr.push('/');
                 ptr.push_str(&esc(k));
-                walk(x, ptr, Some(k), part, f);
+                walk(x, ptr, Some(key_of(k, code)), part, f);
                 ptr.truncate(n);
             }
         }
@@ -163,7 +188,8 @@ fn walk_mut(v: &mut Value, key: Option<&str>, part: &Part, f: &mut impl FnMut(Op
         Value::Array(a) => a.iter_mut().fold(false, |c, x| walk_mut(x, key, part, f) | c),
         Value::Object(o) => {
             let env = part.prose && env_block(o);
-            o.iter_mut().filter(|(k, _)| !skipped(k, part, env)).fold(false, |c, (k, x)| walk_mut(x, Some(k), part, f) | c)
+            let code = part.prose && !env && code_block(o);
+            o.iter_mut().filter(|(k, _)| !skipped(k, part, env)).fold(false, |c, (k, x)| walk_mut(x, Some(key_of(k, code)), part, f) | c)
         }
         _ => false,
     }
@@ -481,5 +507,37 @@ mod tests {
         mask(&mut s, &SESSION_OWN, "", Some(&known()));
         assert_eq!(s["title"], "Use ••••");
         assert_eq!(s["ext"]["wisp.goal"]["verdict"]["reason"], "it printed sk-live-one", "its own slot as it wrote it");
+    }
+
+    /// Round 163's bug, in a turn's answer blocks: a code block about a script (`MAX=10;`, `X=1`) went out as
+    /// `MAX=••••;`. A code or diff block not about a .env file (a file that isn't one, or a language a .env isn't shown
+    /// in) loses only the task's values; one about a .env file keeps its own rules, one naming neither keeps the .env-line
+    /// rule (fail closed), and a markdown block beside them is prose. Ranges kept at write agree.
+    #[test]
+    fn a_code_block_not_about_a_env_file_loses_only_the_tasks_values_and_prose_keeps_the_line_rule() {
+        let code = "const MAX=10;\nMAX=10;\nX=1\nconst key = \"sk-live-one\";";
+        let mut t = json!({ "presentation": { "blocks": [
+            { "type": "code", "file": "src/app.js", "code": code },
+            { "type": "code", "language": "ts", "code": code },
+            { "type": "diff", "file": "src/app.js", "before": "MAX=9;", "after": "MAX=10;" },
+            { "type": "code", "code": "X=1" },
+            { "type": "code", "language": "bash", "code": "X=1" },
+            { "type": "markdown", "text": "X=1" }
+        ] } });
+        let hide = hide_of(&t, &TURN, &known());
+        assert!(mask(&mut t, &TURN, "", Some(&known())));
+        let b = &t["presentation"]["blocks"];
+        for i in [0, 1] {
+            let out = b[i]["code"].as_str().unwrap();
+            assert!(out.starts_with("const MAX=10;\nMAX=10;\nX=1\n") && out.ends_with("\"••••\";"), "{i}: {out}");
+        }
+        assert_eq!((b[2]["before"].as_str(), b[2]["after"].as_str()), (Some("MAX=9;"), Some("MAX=10;")));
+        assert_eq!(b[3]["code"], "X=••••", "no file, no language: the .env-line rule (fail closed)");
+        assert_eq!(b[4]["code"], "X=••••", "a shell snippet may be a .env file's");
+        assert_eq!(b[5]["text"], "X=••••", "prose");
+        for p in ["/presentation/blocks/0/code", "/presentation/blocks/2/after"] {
+            assert!(hide.get(p).is_none_or(|s| s.as_array().is_some_and(|a| a.len() <= 1)), "{p}: values only: {hide:?}");
+        }
+        assert!(hide.get("/presentation/blocks/2/after").is_none(), "nothing of the task's in it: {hide:?}");
     }
 }

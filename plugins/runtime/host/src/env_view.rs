@@ -85,13 +85,26 @@ impl View {
 /// A task's watch (`watch`: its state, caption, title; `watch_page`: its HTML), by the task's id: what the agent put
 /// there, free JSON (no key in it is a record's own state), so every string is masked against what the task read and
 /// for .env-shaped lines; by the ranges kept with it (`body.envHide`, written with it) when that isn't in memory, else
-/// hidden whole (fail closed, ADR-0054). The ranges never leave.
+/// hidden whole (fail closed, ADR-0054). The page's HTML is code (ADR-0055): only the task's values are masked in it,
+/// never a line for its shape (`MAX=10;` in its script). The ranges never leave.
 const WATCH_KINDS: [&str; 2] = ["watch", "watch_page"];
 
-fn mask_watch(v: &mut Value, known: Option<&[String]>) -> bool {
+/// What of a watch row's `body` is code (its page's HTML).
+fn code_of(kind: &str) -> &'static [&'static str] {
+    if kind == "watch_page" { &["/html"] } else { &[] }
+}
+
+fn mask_watch(kind: &str, v: &mut Value, known: Option<&[String]>) -> bool {
     let Some(body) = v.get_mut("body") else { return false };
     let kept = body.as_object_mut().and_then(|b| b.remove(env_other::KEPT));
-    env_other::mask_free(body, kept.as_ref(), known) | kept.is_some()
+    env_other::mask_free(body, kept.as_ref(), known, code_of(kind)) | kept.is_some()
+}
+
+/// A watch row's kept ranges, taken out (Hide .env values off: nothing is masked, and they never leave either).
+fn drop_kept(v: &mut Value) {
+    if let Some(b) = v.get_mut("body").and_then(Value::as_object_mut) {
+        b.remove(env_other::KEPT);
+    }
 }
 
 impl RowView for View {
@@ -100,11 +113,14 @@ impl RowView for View {
     }
     fn row(&self, kind: &str, v: &mut Value) {
         if !on(&self.0) {
+            if WATCH_KINDS.contains(&kind) {
+                drop_kept(v);
+            }
             return;
         }
         if WATCH_KINDS.contains(&kind) {
             let known = v.get("id").and_then(Value::as_str).and_then(|id| known_of(&self.1, &self.2, id));
-            mask_watch(v, known.as_deref());
+            mask_watch(kind, v, known.as_deref());
         } else if kind == "session" {
             let known = session_known(&self.1, &self.2, v);
             env_session::mask_row(v, known.as_deref());
@@ -148,7 +164,7 @@ impl RowView for View {
             env_turn::mask_patch(path, v, None);
         } else if WATCH_KINDS.contains(&kind) {
             // a patch that can't say whose watch it is: hidden (watches are upserted whole, so none is sent)
-            env_other::mask_free(v, None, None);
+            env_other::mask_free(v, None, None, &[]);
         } else {
             env_mask::mask_patch(kind, path, v);
         }
@@ -164,14 +180,28 @@ impl RowView for View {
             return;
         }
         if WATCH_KINDS.contains(&kind) {
-            if on(&self.0) {
-                let known = known_of(&self.1, &self.2, id);
+            if !on(&self.0) {
                 if path.is_empty() {
-                    mask_watch(v, known.as_deref());
-                } else {
-                    let kept = (path == "/body").then(|| v.as_object_mut().and_then(|b| b.remove(env_other::KEPT))).flatten();
-                    env_other::mask_free(v, kept.as_ref(), known.as_deref());
+                    drop_kept(v);
+                } else if path == "/body"
+                    && let Some(b) = v.as_object_mut()
+                {
+                    b.remove(env_other::KEPT);
                 }
+                return;
+            }
+            let known = known_of(&self.1, &self.2, id);
+            if path.is_empty() {
+                mask_watch(kind, v, known.as_deref());
+            } else {
+                let kept = (path == "/body").then(|| v.as_object_mut().and_then(|b| b.remove(env_other::KEPT))).flatten();
+                // the page's HTML, whole (`/body`) or by itself (`/body/html`): code
+                let code: &[&str] = match path {
+                    "/body" => code_of(kind),
+                    "/body/html" if kind == "watch_page" => &[""],
+                    _ => &[],
+                };
+                env_other::mask_free(v, kept.as_ref(), known.as_deref(), code);
             }
             return;
         }
@@ -462,7 +492,7 @@ mod tests {
         r.env_known(&sid).await.unwrap();
         r.env_remember(&sid, &EnvValues(vec!["sk-live-one".into()]));
         let open = json!({ "action": "open", "title": "Key sk-live-one", "caption": "rotating sk-live-one",
-                           "html": "<p data-k=\"sk-live-one\">old key</p>\n<pre>\nAPI_KEY=sk-live-two\n</pre>",
+                           "html": "<p data-k=\"sk-live-one\">old key</p>\n<script>\nconst MAX=10;\nX=1\n</script>",
                            "state": { "status": "sk-live-one", "file": "TOKEN=sk-live-three", "done": 1 } });
         let serde_json::Value::Object(body) = open else { unreachable!() };
         r.agent_watch(AgentWatchArgs { session: sid.clone(), body }).await.unwrap();
@@ -475,7 +505,8 @@ mod tests {
         assert!(watch["body"]["envHide"].get("/title").is_some(), "its ranges kept with it: {}", watch["body"]);
         let sent = |row: &Value, known: Option<&[String]>| {
             let mut v = row.clone();
-            mask_watch(&mut v, known);
+            let kind = if row["body"].get("html").is_some() { "watch_page" } else { "watch" };
+            mask_watch(kind, &mut v, known);
             v
         };
         let k = vec!["sk-live-one".to_owned()];
@@ -488,7 +519,7 @@ mod tests {
         for (what, v) in [("live", sent(&page, Some(&k))), ("after a restart", sent(&page, None))] {
             let html = v["body"]["html"].as_str().unwrap();
             assert!(!html.contains("sk-live"), "{what}: {html}");
-            assert!(html.contains("old key</p>") && html.contains("API_KEY=••••"), "{what}: the page still draws: {html}");
+            assert!(html.contains("old key</p>") && html.contains("\nconst MAX=10;\nX=1\n"), "{what}: the page's script runs: {html}");
         }
         // a watch stored before its ranges (or unread), nothing known: hidden whole (fail closed)
         let mut old = watch.clone();

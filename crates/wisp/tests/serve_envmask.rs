@@ -682,3 +682,39 @@ async fn a_watch_page_quoting_a_value_the_task_read_reaches_no_topic_live_or_aft
     no_value("the first snapshot after a restart (watch)", &snap);
     assert!(snap.contains(&format!("Key {DOTS}")), "masked by its ranges: {}", &snap[..snap.len().min(1200)]);
 }
+
+/// Round 163's bug (ADR-0055): a watch page's script went out as `MAX=••••;` (the .env-line rule ran on its HTML) and
+/// the page broke. Its HTML is code: on the task's topic, live and in the first snapshot after a restart (by its kept
+/// ranges), `const MAX=10;` and `X=1` survive as written and only the value the task read is masked.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_watch_pages_script_keeps_its_key_value_lines_and_loses_only_the_value_the_task_read() {
+    let dir = temp("envscript");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = replay(&dir, &proj);
+    let env = [("FAKE_REPLAY", f.to_str().unwrap())];
+    let (serve, port) = start_with(&dir, &env);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id =
+        api.cmd("runtime.create", json!({ "prompt": "rotate the key", "cwd": proj, "agent": "claude", "worktree": false })).await["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    api.until(&id, "the turn to end", |t| t.last().is_some_and(ended)).await;
+    let html = "<p>counter</p>\n<script>\nconst MAX=10;\nX=1\nconst key = \"sk-live-one\";\n</script>";
+    let said = api.cmd("runtime.agent.watch", json!({ "session": id, "action": "open", "title": "Counter", "html": html })).await;
+    assert!(said["text"].is_string(), "the watch opened: {said}");
+    let topic = format!("session:{id}");
+    let check = |what: &str, seen: &str| {
+        assert!(seen.contains("counter</p>"), "{what}: the page is there: {}", &seen[..seen.len().min(1200)]);
+        no_value(what, seen);
+        assert!(seen.contains("\\nconst MAX=10;\\nX=1\\n"), "{what}: the script as written: {}", &seen[..seen.len().min(1600)]);
+        assert!(seen.contains(&format!("const key = \\\"{DOTS}\\\";")), "{what}: the value masked in place");
+        assert!(!seen.contains(&format!("MAX={DOTS}")) && !seen.contains(&format!("X={DOTS}")), "{what}: no line masked for its shape");
+    };
+    check("the sync snapshot (page)", &stream(&http, port, &topic, "counter</p>", 10).await);
+    serve.stop();
+    let (_serve, port) = start_with(&dir, &env);
+    check("the first snapshot after a restart (page)", &stream(&http, port, &topic, "counter</p>", 20).await);
+}

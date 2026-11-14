@@ -289,7 +289,11 @@ pub fn mask_other_kept(v: &mut Value, kept: Option<&Value>, known: Known<'_>) ->
 /// Data an agent wrote with no shape of its own (a watch's state and page, an app's JSON): every string of it masked
 /// against `known` and for .env-shaped lines, whatever its key (no key is a record's state here). With `known` `None`:
 /// by the ranges kept with it, else hidden whole (fail closed). Its kept ranges ([`KEPT`]) are left for the caller.
-pub fn mask_free(v: &mut Value, kept: Option<&Value>, known: Known<'_>) -> bool {
+///
+/// `code` names the subtrees of `v` (pointers, `""` for all of it) that are code, not prose (a page's HTML and its
+/// script): only the values its task read are masked there (and their JSON-escaped forms), never a line for its shape,
+/// so `MAX=10;` stays and the page still runs.
+pub fn mask_free(v: &mut Value, kept: Option<&Value>, known: Known<'_>, code: &[&str]) -> bool {
     let esc = known.map(crate::env_turn::with_escaped);
     let ranged = if known.is_none() { kept_spans(v, kept) } else { Some(false) };
     let Some(ranged) = ranged else {
@@ -302,11 +306,27 @@ pub fn mask_free(v: &mut Value, kept: Option<&Value>, known: Known<'_>) -> bool 
         });
     };
     let values = esc.as_deref().unwrap_or_default();
-    ranged
+    let by_value = |t: &mut String| {
+        let spans = wisp_envmask::value_spans(t, values);
+        masked_by(t, &spans)
+    };
+    if code.contains(&"") {
+        return ranged | leaves_mut(v, true, &mut |t| by_value(t));
+    }
+    // the code taken out while the rest is masked as prose, masked by its values, put back
+    let mut taken: Vec<(&str, Value)> = code.iter().filter_map(|p| Some((*p, v.pointer_mut(p)?.take()))).collect();
+    let mut changed = ranged
         | leaves_mut(v, true, &mut |t| {
             let spans = wisp_envmask::prose_spans(t, values);
             masked_by(t, &spans)
-        })
+        });
+    for (p, mut x) in taken.drain(..) {
+        changed |= leaves_mut(&mut x, false, &mut |t| by_value(t));
+        if let Some(slot) = v.pointer_mut(p) {
+            *slot = x;
+        }
+    }
+    changed
 }
 
 #[cfg(test)]
@@ -542,26 +562,58 @@ mod tests {
         // free JSON (a watch's state): keys a record would keep as state (`status`, `file`, `id`) are an agent's here
         let state = json!({ "status": "sk-live-one", "file": "API_KEY=sk-live-one", "rows": [{ "id": "k sk-live-one" }], "n": 3, "env": "DEBUG=1" });
         let mut v = state.clone();
-        assert!(mask_free(&mut v, None, Some(&known())));
+        assert!(mask_free(&mut v, None, Some(&known()), &[]));
         assert!(!v.to_string().contains("sk-live"), "{v}");
         assert_eq!(v["env"], "DEBUG=••••", "a .env-shaped line in agent text");
         assert_eq!(v["n"], 3);
         let mut v = state.clone();
-        assert!(mask_free(&mut v, None, None));
+        assert!(mask_free(&mut v, None, None, &[]));
         assert_eq!(v["status"], DOTS, "nothing known, no ranges: hidden whole");
         assert_eq!(v["n"], 3);
         let mut v = state.clone();
         let kept = ranges_of(&state, &known());
-        assert!(mask_free(&mut v, Some(&kept), None));
+        assert!(mask_free(&mut v, Some(&kept), None, &[]));
         assert!(!v.to_string().contains("sk-live"), "{v}");
         assert_eq!(v["rows"][0]["id"], "k ••••", "by its ranges after a restart, the rest kept");
-        // html: a value in an attribute and a .env line in a <pre>; masking twice changes nothing more
-        let mut page = json!({ "html": "<p data-k=\"sk-live-one\">x</p>\n<pre>\nAPI_KEY=sk-live-two\n</pre>", "envHide": {} });
-        assert!(mask_free(&mut page, None, Some(&known())));
+        // html (code): a value in an attribute masked, a .env line in a <pre> too (free JSON beside it); masking twice
+        // changes nothing more
+        let mut page = json!({ "html": "<p data-k=\"sk-live-one\">x</p>\n<pre>\nAPI_KEY=sk-live-one\n</pre>", "envHide": {} });
+        assert!(mask_free(&mut page, None, Some(&known()), &["/html"]));
         assert!(!page.to_string().contains("sk-live"), "{page}");
         let once = page.clone();
-        mask_free(&mut page, None, Some(&known()));
+        mask_free(&mut page, None, Some(&known()), &["/html"]);
         assert_eq!(page, once);
         assert_eq!(page["envHide"], json!({}), "its ranges are the caller's");
+    }
+
+    /// Round 163's bug: a watch page's script (`MAX=10;`, `X=1`) went out as `MAX=••••;` and the page broke. In code (a
+    /// page's HTML, its script) only the task's known values are masked, and their JSON-escaped forms; never a line for
+    /// its shape. Prose beside it keeps the .env-line rule; nothing known and no ranges still hides it whole.
+    #[test]
+    fn a_pages_script_keeps_its_key_value_lines_and_loses_only_the_tasks_known_values() {
+        let html =
+            "<script>\nconst MAX=10;\nMAX=10;\nX=1\nconst key = \"sk-live-one\";\nconst cfg = {\"k\":\"line\\nsk-live-one\"};\n</script>";
+        let k = vec!["sk-live-one".to_owned(), "line\nsk-live-one".to_owned()];
+        let mut page = json!({ "html": html, "note": "X=1" });
+        assert!(mask_free(&mut page, None, Some(&k), &["/html"]));
+        let out = page["html"].as_str().unwrap();
+        assert!(!out.contains("sk-live"), "{out}");
+        for kept in ["const MAX=10;", "\nMAX=10;\n", "\nX=1\n", "const key = \"••••\";"] {
+            assert!(out.contains(kept), "{kept:?} survives: {out}");
+        }
+        assert!(out.contains("{\"k\":\"••••\"}"), "a value JSON-escaped in the script: {out}");
+        assert_eq!(page["note"], "X=••••", "prose beside it keeps the .env-line rule");
+        // a page that is all code (a patch of `/body/html`); by its ranges after a restart; nothing known: hidden
+        let mut whole = json!(html);
+        assert!(mask_free(&mut whole, None, Some(&k), &[""]));
+        assert!(whole.as_str().unwrap().contains("\nX=1\n") && !whole.to_string().contains("sk-live"));
+        let kept = ranges_of(&json!({ "html": html }), &k);
+        let mut page = json!({ "html": html });
+        assert!(mask_free(&mut page, Some(&kept), None, &["/html"]));
+        let out = page["html"].as_str().unwrap();
+        assert!(!out.contains("sk-live") && out.contains("const MAX=10;\nMAX=10;\nX=1"), "{out}");
+        let mut page = json!({ "html": html });
+        assert!(mask_free(&mut page, None, None, &["/html"]));
+        assert_eq!(page["html"], DOTS);
     }
 }
