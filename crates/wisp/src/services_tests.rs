@@ -66,3 +66,35 @@ fn home_is_wisp_home_or_dot_wisp() {
 fn clock_moves() {
     assert!(SystemClock.now_ms() > 1_700_000_000_000);
 }
+
+/// v1 #567 (F-set-7): on Windows a save's rename over a file something holds for a moment failed with EPERM and
+/// the change was refused. A held file (permission denied, busy) is waited out; it gives up after 10 tries, and
+/// an error that isn't a held file fails at once.
+#[tokio::test]
+async fn a_save_over_a_briefly_held_file_waits_it_out_instead_of_failing() {
+    use std::io::{Error, ErrorKind};
+    use std::sync::atomic::{AtomicU32, Ordering};
+    let tries = AtomicU32::new(0);
+    let held_twice = rename_retrying(|| {
+        let n = tries.fetch_add(1, Ordering::SeqCst);
+        async move { if n < 2 { Err(Error::from(ErrorKind::PermissionDenied)) } else { Ok(()) } }
+    });
+    held_twice.await.unwrap();
+    assert_eq!(tries.load(Ordering::SeqCst), 3, "two held tries, then the rename lands");
+
+    tries.store(0, Ordering::SeqCst);
+    let busy = rename_retrying(|| {
+        tries.fetch_add(1, Ordering::SeqCst);
+        async { Err(Error::from(ErrorKind::ResourceBusy)) }
+    });
+    assert_eq!(busy.await.unwrap_err().kind(), ErrorKind::ResourceBusy);
+    assert_eq!(tries.load(Ordering::SeqCst), 10, "held for good: it gives up after 10 tries");
+
+    tries.store(0, Ordering::SeqCst);
+    let gone = rename_retrying(|| {
+        tries.fetch_add(1, Ordering::SeqCst);
+        async { Err(Error::from(ErrorKind::NotFound)) }
+    });
+    assert_eq!(gone.await.unwrap_err().kind(), ErrorKind::NotFound);
+    assert_eq!(tries.load(Ordering::SeqCst), 1, "not a held file: no retry");
+}

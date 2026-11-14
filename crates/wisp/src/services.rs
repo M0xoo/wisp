@@ -82,7 +82,7 @@ impl Inner {
         let tmp = self.file.with_extension("json.tmp");
         let text = serde_json::to_vec_pretty(d).map_err(|e| WireError::internal(e.to_string()))?;
         write_private(&tmp, &text).await.map_err(|e| io(&e))?;
-        tokio::fs::rename(&tmp, &self.file).await.map_err(|e| io(&e))
+        rename_retrying(|| tokio::fs::rename(&tmp, &self.file)).await.map_err(|e| io(&e))
     }
 
     async fn update(&self, f: impl FnOnce(&mut Data) -> bool) -> Result<()> {
@@ -94,6 +94,32 @@ impl Inner {
         }
         Ok(())
     }
+}
+
+/// A rename over a file something holds open for a moment fails on Windows (antivirus, the search indexer, a
+/// reader): a new connector's token or a sign-in was refused with "permission denied". Waits it out, ~0.5 s at
+/// most, as v1's `writeJsonAtomic` did (#567); any other error fails at once.
+pub async fn rename_retrying<F, Fut>(mut rename: F) -> std::io::Result<()>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = std::io::Result<()>>,
+{
+    const TRIES: u64 = 10;
+    let mut i = 1;
+    loop {
+        match rename().await {
+            Err(e) if i < TRIES && held(&e) => tokio::time::sleep(Duration::from_millis(i * 10)).await,
+            r => return r,
+        }
+        i += 1;
+    }
+}
+
+/// The errors a briefly held file gives: access denied (EPERM/EACCES), busy, and Windows' sharing and lock
+/// violations (`ERROR_SHARING_VIOLATION` 32, `ERROR_LOCK_VIOLATION` 33), which have no `ErrorKind` of their own.
+fn held(e: &std::io::Error) -> bool {
+    use std::io::ErrorKind as K;
+    matches!(e.kind(), K::PermissionDenied | K::ResourceBusy) || (cfg!(windows) && matches!(e.raw_os_error(), Some(32 | 33)))
 }
 
 /// Writes `bytes` to `file`, readable by its owner only.
