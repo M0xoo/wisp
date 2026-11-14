@@ -575,6 +575,8 @@ export const SHELL_STRINGS = {
   'shell.rate.send': 'Send',
   'shell.rate.thanks': 'Thanks! Sent to the wisp team.',
   'shell.reveal.failed': 'Couldn’t open the folder. The file is at {path}.',
+  'shell.keep.saved': 'Saved to My Stuff',
+  'shell.keep.open': 'Open',
   'shell.btw.tip': 'Side question, asked {at}',
   'shell.btw.waiting': '{name} is answering on the side · the run carries on',
   'shell.btw.cancel': 'Cancel this side question',

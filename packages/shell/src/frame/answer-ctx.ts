@@ -9,6 +9,7 @@ import { usePluginClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { appState, approveBlocked, exec, reveal } from './commands.ts';
 import { mediaUrl } from './answer-of.ts';
+import { keepHost } from './keep.ts';
 
 export interface AnswerHost {
   readonly shell: ShellContext;
@@ -31,6 +32,8 @@ export interface AnswerHost {
   readonly env?: EnvReveal;
   /** what the turn's `app` blocks saved (`ext["wisp.apps"]`) */
   readonly apps: () => Readonly<Record<string, unknown>>;
+  /** wisp's own tour (v1 `s.agent === 'wisp'`): no Save to My Stuff on it */
+  readonly tour?: boolean;
 }
 
 export function answerContext(h: AnswerHost): BlockContext {
@@ -89,6 +92,8 @@ export function answerContext(h: AnswerHost): BlockContext {
     },
     // My Stuff's page (wisp.stuff's view); its items are `stuff.item` rows on the `stuff` topic everyone watches
     openStuff: () => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null }),
+    // Save to My Stuff on its pictures, videos, docs and code (./keep.ts); the tour's answers keep nothing
+    ...(!h.tour && { keep: keepHost(shell, home, key, h.turnId) }),
     stuff: (id) => {
       const row = useSignal(shell.client.entities.row<{ id: string; title?: string; name?: string; kind?: string; excerpt?: string }>('stuff.item', keyOf(id)));
       return (): StuffRef | undefined => {

@@ -15,6 +15,8 @@ export const BLOCK_STRINGS = {
   'block.showAll': 'Show all',
   'block.showLess': 'Show less',
   'block.open': 'Open',
+  'block.keep.save': 'Save to My Stuff',
+  'block.keep.saved': 'In My Stuff: click to remove it',
   ...CONTENT_STRINGS,
   ...RICH_STRINGS,
 } as const;

@@ -117,6 +117,8 @@
   [data-kit='cb-code-file'] { display: inline-flex; min-width: 0; color: var(--accent-ink); font-weight: var(--fw-medium); text-align: left; }
   button[data-kit='cb-code-file']:hover { text-decoration: underline; text-underline-offset: 3px; }
   [data-kit='cb-code-head'] > [data-part='block.code.copy'] { flex: none; }
+  /* Save to My Stuff beside Copy (v1 .code-tools) */
+  [data-kit='cb-code-tools'] { flex: none; display: flex; align-items: center; gap: 2px; }
   [data-kit='cb-lineno'] { flex: none; font: var(--fs-sm) var(--mono); color: var(--faint); white-space: nowrap; }
   [data-kit='cb-code'] > [data-kit='env-mask'] { border-top: 0; }
   [data-kit='cb-code-scroll'] { overflow: auto; max-height: var(--size-code-max); padding: var(--space-3) 0; }

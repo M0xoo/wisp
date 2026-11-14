@@ -1,5 +1,6 @@
 // A BlockContext for the gallery: every action logs to the console, lookups answer from fixtures.
-import type { BlockContext, DocText, StuffRef, TaskRef } from '../../src/index.ts';
+import { createSignal } from 'solid-js';
+import type { BlockContext, DocText, KeepHost, StuffRef, TaskRef } from '../../src/index.ts';
 
 const log = (what: string) => (...args: unknown[]): void => console.info(`[gallery] ${what}`, ...args);
 const TASKS: Record<string, TaskRef> = {
@@ -11,7 +12,20 @@ const STUFF: Record<string, StuffRef> = {
 };
 const DOC = '# Plan\n\nShip the limiter behind a setting.\n\n## Steps\n\n1. Add the window\n2. Wire the route\n3. Tests\n';
 
+// Save to My Stuff: kept in memory, so a click lights the button up and a second takes it out
+const [kept, setKept] = createSignal<ReadonlySet<string>>(new Set());
+const keep: KeepHost = {
+  saved: (what) => () => kept().has(what),
+  toggle: (what, it) => {
+    log('keep')(what, it);
+    const next = new Set(kept());
+    if (!next.delete(what)) next.add(what);
+    setKept(next);
+  },
+};
+
 export const galleryCtx: BlockContext = {
+  keep,
   reply: log('reply'),
   run: log('run'),
   openTask: log('openTask'),

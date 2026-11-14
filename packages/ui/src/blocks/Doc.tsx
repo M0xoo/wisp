@@ -1,5 +1,5 @@
 // The `doc` block (v1 R.doc): a markdown file the agent wrote, as a page: its title, path, length and reading time,
-// its opening rendered and fading out into Read all N lines, Copy, Show in folder (when the host can) and Full
+// its opening rendered and fading out into Read all N lines, Copy, Save to My Stuff, Show in folder (when the host can) and Full
 // screen. The text is the block's own (kept with the turn), else the host's live read (BlockContext.docText). A
 // file that wasn't there says so in one line.
 import { Match, Show, Switch, createSignal, type Accessor, type JSX } from 'solid-js';
@@ -7,6 +7,8 @@ import { Icon } from '../content/Icon.tsx';
 import { Markdown } from '../content/markdown/Markdown.tsx';
 import { Dialog } from '../controls/Dialog.tsx';
 import { InlineMd, PathText } from './content-parts.tsx';
+import { KeepButton } from './keep-button.tsx';
+import { docKeep } from './keep.ts';
 import { useBlockT, useBlocks } from './context.tsx';
 import { docBody, docPreview, docStats, docTitle } from './rich-doc.ts';
 import { useCopy } from './rich-scope.ts';
@@ -64,6 +66,7 @@ export function DocBlock(props: BlockProps): JSX.Element {
             <button type="button" data-kit="cb-ghost-xs" title={t('block.doc.copy')} aria-label={t('block.doc.copy')} onClick={() => copy(text() ?? '')}>
               <Icon name={copied() ? 'check' : 'copy'} size="sm" />
             </button>
+            <KeepButton keep={docKeep(path, title(), text() ?? '')} part="block.doc.keep" />
             <Show when={ctx.revealFile && path}>
               <button type="button" data-kit="cb-ghost-xs" title={t('block.doc.revealTip')} onClick={() => ctx.revealFile?.(path)}>
                 <Icon name="folder" size="sm" />

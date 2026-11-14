@@ -44,7 +44,7 @@ export function VideoBlock(props: BlockProps): JSX.Element {
               onError={() => setBroken(true)}
               onFullscreenChange={handOver}
             />
-            <MediaTools src={src()} name={opt(props.block['source']) ?? media.name()} alt={caption() ?? media.name()} video part="video.tools" onFull={open} />
+            <MediaTools src={src()} name={opt(props.block['source']) ?? media.name()} alt={caption() ?? media.name()} video part="video.tools" onFull={open} block={props.block} />
           </div>
         )}
       </Show>

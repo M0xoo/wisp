@@ -38,6 +38,29 @@ export interface StuffRef {
   readonly sub?: string;
 }
 
+/** What Save to My Stuff keeps from a block (v1 features/stuff.js `toggleSave`): a file the answer showed (`path`, by
+ *  the task's own name for it), or its text (a code snippet, a doc). */
+export interface KeepWhat {
+  readonly kind: 'image' | 'video' | 'doc' | 'code';
+  readonly path?: string;
+  readonly text?: string;
+  readonly name?: string;
+  readonly lang?: string;
+  readonly title?: string;
+}
+
+/** Save to My Stuff on a reply's picture, video, doc and code (v1 ctx.keep). `what` names the thing within its turn
+ *  (`media:<path>`, `doc:<path>`, `code:<file>:<hash>`); the host adds the task and turn, so the same thing saved
+ *  twice is one item and every button on it shows it's kept. Additive (2026-11-14). */
+export interface KeepHost {
+  /** false: only text can be kept from here (a task on another computer), so pictures and videos show no button */
+  readonly files?: boolean;
+  /** it's in My Stuff now (live) */
+  readonly saved: (what: string) => Accessor<boolean>;
+  /** saves it, or takes it out again when it's in */
+  readonly toggle: (what: string, it: KeepWhat) => void;
+}
+
 /** A file's text loaded for a `doc` block: loading, loaded, or why not. */
 export type DocText = { readonly kind: 'loading' } | { readonly kind: 'ready'; readonly text: string } | { readonly kind: 'failed'; readonly reason: string };
 
@@ -82,6 +105,8 @@ export interface BlockContext {
   readonly draft?: (text: string) => void;
   readonly openTask?: (id: string) => void;
   readonly openStuff?: (id: string) => void;
+  /** Save to My Stuff on pictures, videos, docs and code (absent: no button, e.g. a share page or the tour) */
+  readonly keep?: KeepHost;
   /** a file of the task (files/tree/diff/code): opens it in the side panel's editor or diff */
   readonly openFile?: (path: string, line?: number) => void;
   /** opens a link outside wisp (map, preview, image full size) */

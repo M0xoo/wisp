@@ -1,12 +1,14 @@
 // The `code` block (v1 R.code): a key snippet with its line numbers (from `line`), the lines it
 // points at highlighted, and the file it's from (opening it at that line), or its language. Copy
-// takes the code. A .env file's values show masked under a Reveal line (./env-view.tsx). A long
+// takes the code; Save to My Stuff keeps it. A .env file's values show masked under a Reveal line (./env-view.tsx). A long
 // snippet lays out only its lines near the screen.
 import { createMemo, For, Show, type JSX } from 'solid-js';
 import { highlight, type Token } from '../content/highlight.ts';
 import { flag } from '../core/props.ts';
 import { useBlocks, useBlockT } from './context.tsx';
 import { CopyButton } from './content-copy.tsx';
+import { KeepButton } from './keep-button.tsx';
+import { codeKeep } from './keep.ts';
 import { InlineMd, PathText } from './content-parts.tsx';
 import { chunksOf, langOf } from './content-util.ts';
 import { useEnvView } from './env-view.tsx';
@@ -34,7 +36,14 @@ interface Line {
   readonly hl: boolean;
 }
 
-function CodeHead(props: { readonly file: string; readonly line: number | undefined; readonly lang: string; readonly code: () => string }): JSX.Element {
+function CodeHead(props: {
+  readonly file: string;
+  readonly line: number | undefined;
+  readonly lang: string;
+  readonly code: () => string;
+  /** Save to My Stuff: the snippet as the answer shows it */
+  readonly keep: () => ReturnType<typeof codeKeep>;
+}): JSX.Element {
   const ctx = useBlocks();
   const t = useBlockT();
   const label = (): JSX.Element => (
@@ -56,7 +65,10 @@ function CodeHead(props: { readonly file: string; readonly line: number | undefi
           )}
         </Show>
       </Show>
-      <CopyButton part="block.code.copy" text={props.code} />
+      <span data-kit="cb-code-tools">
+        <KeepButton keep={props.keep()} part="block.code.keep" />
+        <CopyButton part="block.code.copy" text={props.code} />
+      </span>
     </div>
   );
 }
@@ -81,7 +93,7 @@ export function CodeBlock(props: BlockProps): JSX.Element {
   const digits = (): number => String((line() ?? 1) + Math.max(0, lines().length - 1)).length;
   return (
     <div data-kit="cb-code" data-part="block.code">
-      <CodeHead file={file()} line={line()} lang={lang()} code={code} />
+      <CodeHead file={file()} line={line()} lang={lang()} code={code} keep={() => codeKeep(props.block, lang())} />
       {env.bar()}
       <div data-kit="cb-code-scroll" data-part="block.code.body" tabIndex={0}>
         <div data-kit="cb-code-lines" data-lang={lang() || undefined} style={{ '--k-digits': String(digits()) }}>

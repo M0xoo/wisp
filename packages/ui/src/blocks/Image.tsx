@@ -1,11 +1,13 @@
 // The `image` and `video` blocks (v1 web/js/blocks.js R.image, R.video): a picture or a video the
 // agent made, loaded through the host (ctx.media turns its path into a URL the page can load), with
 // its caption. A click opens it full screen with the answer's other pictures and videos (Viewer.tsx); on hover,
-// Copy, Download and Show in folder; one that can't load says so in one calm line.
+// Copy, Download, Save to My Stuff and Show in folder; one that can't load says so in one calm line.
 import { createSignal, Show, type JSX } from 'solid-js';
 import { IconButton } from '../controls/Button.tsx';
 import { Icon } from '../content/Icon.tsx';
 import { createTimer } from './content-scope.ts';
+import { KeepButton } from './keep-button.tsx';
+import { mediaKeep } from './keep.ts';
 import { copyImage, fileName } from './media-copy.ts';
 import { MediaViewer, mediaSet, type ViewItem } from './Viewer.tsx';
 import { useBlocks, useBlockT } from './context.tsx';
@@ -41,6 +43,8 @@ export function MediaTools(props: {
   readonly video?: boolean;
   readonly part: `${string}.${string}`;
   readonly onFull: () => void;
+  /** the block, for Save to My Stuff (v1 ctx.keep on R.image, R.video) */
+  readonly block?: BlockProps['block'];
 }): JSX.Element {
   const ctx = useBlocks();
   const t = useBlockT();
@@ -78,6 +82,7 @@ export function MediaTools(props: {
       >
         <Icon name="download" />
       </a>
+      <KeepButton keep={props.block && mediaKeep(props.block, props.video ? 'video' : 'image')} size="sm" part={`${props.part}.keep`} />
       <Show when={folder()}>
         <IconButton icon="folder" size="sm" label={t('block.doc.reveal')} onClick={() => ctx.revealFile?.(props.name)} part={`${props.part}.folder`} />
       </Show>
@@ -103,7 +108,7 @@ export function ImageBlock(props: BlockProps): JSX.Element {
         {(src) => (
           <div data-kit="rb-media-box">
             <img ref={img} data-kit="rb-image" data-zoom="" src={src()} alt={caption() ?? media.name()} loading="lazy" decoding="async" onClick={open} onError={() => setBroken(true)} />
-            <MediaTools src={src()} name={opt(props.block['source']) ?? media.name()} alt={caption() ?? media.name()} part="image.tools" onFull={open} />
+            <MediaTools src={src()} name={opt(props.block['source']) ?? media.name()} alt={caption() ?? media.name()} part="image.tools" onFull={open} block={props.block} />
           </div>
         )}
       </Show>

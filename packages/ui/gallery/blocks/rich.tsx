@@ -15,6 +15,7 @@ const RICH: readonly unknown[] = [
   { type: 'task', id: 'a1b2c3', note: 'Picks up where this one stopped' },
   { type: 'stuff', id: '0bac5acb43c9' },
   { type: 'doc', path: 'docs/plan.md', title: 'Plan' },
+  { type: 'image', src: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="300"><rect width="640" height="300" fill="#2fd0b4"/><circle cx="320" cy="150" r="80" fill="#6a5cff"/></svg>')}`, caption: 'The *login* page at 390 px' },
   { type: 'map', title: 'Coffee near the office', route: true, places: [{ name: 'Blue Bottle Coffee', address: '66 Mint St, San Francisco, CA 94103', note: 'Opens at 7' }, { name: 'Sightglass', address: '270 7th St, San Francisco, CA 94103' }] },
   { type: 'preview', url: 'https://example.com/', device: 'mobile', title: 'Settings page', caption: 'The new **dark mode** toggle' },
   {

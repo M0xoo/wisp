@@ -6,4 +6,4 @@ export { BLOCK_STRINGS, blockEnglish, type BlockString, type BlockTranslate } fr
 export { UnknownBlock } from './Unknown.tsx';
 /** Untrusted-field readers for a plugin's own block renderer: `blockRead.str(b.title)`. */
 export * as blockRead from './read.ts';
-export type { AnswerBlock, BlockContext, BlockedItem, BlockProps, BlockRenderer, DocText, EnvReveal, RunResult, StuffRef, TaskRef } from './types.ts';
+export type { AnswerBlock, BlockContext, BlockedItem, BlockProps, BlockRenderer, DocText, EnvReveal, KeepHost, KeepWhat, RunResult, StuffRef, TaskRef } from './types.ts';
