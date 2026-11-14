@@ -198,7 +198,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- **v2: .env values everywhere a task quotes them.** A value a task read is now hidden wherever a later step quotes it: a tool call's command line, label or output, a later turn or a side run, the retro digest, and every line of a multi-line value such as a PEM key.
+- **v2: .env values everywhere a task quotes them.** A value a task read is now hidden wherever a later step quotes it: a tool call's command line, label or output, a later turn or a side run, the retro digest, and every line of a multi-line value such as a PEM key, a refused command's detail (the Allow & retry card and its retry prompt) and the hand-off note another harness gets.
 - **v2: .env values in thinking and errors.** A .env value an agent quotes in its thinking or a tool's error is now hidden too, everywhere it leaves wisp (the app, CLI, MCP, shares, quick runs).
 - **Re-check in Settings → Agents did nothing** in v2: the server refused its request. It runs again.
 - **A second account's usage counted on the first.** A run on another account (picked by you, or moved there because the first was at its limit) now says so on its turn, and its usage windows, Drain watch and Plan budget count it on that account.
