@@ -303,7 +303,7 @@ in the sense of *looks like v1*: F-look-1 tracks that once.
 |---|---|---|---|---|
 | F-share-1 | 0.51.0 | Given a task, when I pick Share…, then it's on my wisp Grid at a link anyone can open | built | Share… in a task's row menu opens `ShareDialog.tsx` (mounted round 30 as `stuff.share`, v1's words); `share.create`/`share.preview` (ADR-0032, 0038); `share-params.test.ts` |
 | F-share-2 | 0.51.0 | Given a share link, when I import it, then the task is in my list | built | `share.import`, `runtime.import`, CLI `wisp share` |
-| F-share-3 | 0.51.0 | Given a share, when I stop it, then the link stops working | partial | My shares under Settings → Cloud (`grid-client/ui/src/panes/MyShares.tsx` over `grid-client.shares`/`revoke`: kind, access, views, imports, version, Copy link, Open, Stop sharing), test `my_shares_lists_what_i_shared_with_its_access_counts_and_version_live_ones_first`; not seen in Chrome (needs a grid sign-in); round 15 (2026-11-11) |
+| F-share-3 | 0.51.0 | Given a share, when I stop it, then the link stops working | built | My shares under Settings → Cloud (`MyShares.tsx`, Stop sharing); e2e `serve_grid.rs` `stop_sharing_a_task_stops_its_link`: after Stop the page and `/api/shares/{id}` answer 410 and the slot clears; Share again takes back the link it replaces (round 159) |
 | F-share-4 | Unrel. | Given a phone share sheet (Android), when I share a link or PDF to wisp, then New task opens with it attached | missing | no Android frontend |
 
 ## 11. Machines, cloud and the grid (`MACH`)
