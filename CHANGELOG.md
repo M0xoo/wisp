@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- **v2: Settings → Phone.** One dialog sets up ntfy, Telegram, Slack, Discord, GitHub and email: each channel's steps, whether it works, a Test button and its switch. Tokens are kept in secrets.json only.
+- **v2: Settings → Phone.** One dialog sets up ntfy, Telegram, Slack, Discord, GitHub and email: each channel's steps, whether it works, a Test button and its switch. Tokens are kept in secrets.json only. Send me (questions, finished), Unlink, Slack's Copy manifest, Discord's Add to a server and email's New address are there as in v1, and each channel's state updates live.
 - **v2: Try it two ways.** Add a run with + on the same harness and change one thing (its subagents' model, or Skills off): both run side by side in their own worktrees, Compare says what differed, and Keep marks the one you keep (also as MCP tools).
 - **v2: panes only propose.** A My Stuff pane's page that tries to start or send a task itself is refused with *A pane can only propose a prompt* (API and MCP); you send what it proposes from its card, and its write access ends when its code changes.
 - **v2: channel tasks stay at Edits.** A task started from a channel stays at Edits or lower: a follow-up, mode switch or retry asking for more is refused (also over MCP) unless you lift it in wisp, and a stall on an approval says in the thread that it waits for you. The task shows *Capped at Edits* with **Lift** beside its mode (and *Capped* in the list), and a restart keeps every task's cap.
