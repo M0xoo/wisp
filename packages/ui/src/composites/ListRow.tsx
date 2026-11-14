@@ -45,7 +45,8 @@ export interface ListRowProps extends KitProps {
   /** the sub line's tone (feed: v1 .q-live running in accent ink, waiting in warn) and its tooltip. Additive (2026-11-12). */
   readonly subTone?: 'accent-ink' | 'warn' | 'muted' | undefined;
   readonly subTitle?: string | undefined;
-  /** feed: how many quick actions the row has (0–2): the title makes room for them while they show. Additive (2026-11-12). */
+  /** feed: how many quick actions the row has (0–2): with a mouse the title makes room for them while they show; on a
+   *  touch screen (hover: none) they leave the row, so the title keeps its own edge. Additive (2026-11-12). */
   readonly quick?: 0 | 1 | 2 | undefined;
 }
 

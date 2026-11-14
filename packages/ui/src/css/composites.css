@@ -152,25 +152,27 @@
   [data-kit='list-row'][data-layout='feed'][data-quiet] > [data-kit='list-row-title'] {
     color: var(--muted);
   }
-  /* while the quick actions show (hover, the open or keyboard's row), the title ends before them (v1: 64px, 92px) */
-  /* while the quick actions show (hover, the open or keyboard's row), the title ends before them (v1: one 64px, two 92px) */
-  [data-kit='list-row'][data-layout='feed'][data-quick='1']:hover > [data-kit='list-row-title'] {
-    padding-right: 64px;
-  }
-  [data-kit='list-row'][data-layout='feed'][data-quick='2']:hover > [data-kit='list-row-title'] {
-    padding-right: 92px;
-  }
-  [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-current] > [data-kit='list-row-title'] {
-    padding-right: 64px;
-  }
-  [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-current] > [data-kit='list-row-title'] {
-    padding-right: 92px;
-  }
-  [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-selected] > [data-kit='list-row-title'] {
-    padding-right: 64px;
-  }
-  [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-selected] > [data-kit='list-row-title'] {
-    padding-right: 92px;
+  /* while the quick actions show (hover, the open or keyboard's row), the title ends before them (v1: one 64px, two
+     92px). Only with a mouse: a touch screen has no quick actions (below), so the title keeps its own edge. */
+  @media (hover: hover) {
+    [data-kit='list-row'][data-layout='feed'][data-quick='1']:hover > [data-kit='list-row-title'] {
+      padding-right: 64px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='2']:hover > [data-kit='list-row-title'] {
+      padding-right: 92px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-current] > [data-kit='list-row-title'] {
+      padding-right: 64px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-current] > [data-kit='list-row-title'] {
+      padding-right: 92px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='1'][data-selected] > [data-kit='list-row-title'] {
+      padding-right: 64px;
+    }
+    [data-kit='list-row'][data-layout='feed'][data-quick='2'][data-selected] > [data-kit='list-row-title'] {
+      padding-right: 92px;
+    }
   }
   /* the time is the pills' last, pinned in the row's corner (v1 split.css .it-side .q-time) */
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] > [data-kit='time'],
@@ -232,9 +234,11 @@
   [data-kit='list-row'][data-layout='feed'] > [data-kit='gap'] {
     display: none;
   }
+  /* No hover on touch (v1 feed.css .it-later, the phone's .it-quick): the quick actions leave the row, so nothing sits
+     on the title; Save for later and Mark done are in the long-press menu and the swipe. */
   @media (hover: none) {
     [data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button'] {
-      opacity: 1;
+      display: none;
     }
   }
   /* the item round it (v1 #feed .item): a 1px border, transparent at rest; hover and open fill the item, focus (the

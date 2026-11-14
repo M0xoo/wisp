@@ -119,3 +119,42 @@ test('the_task_heads_title_is_one_line_at_every_width_v1_778', () => {
   for (const r of rules) expect(r.body, r.file).not.toMatch(/white-space:\s*(normal|pre-wrap)|line-clamp|text-wrap-mode:\s*wrap/);
   expect(rules.some((r) => /white-space: nowrap/.test(r.body) && /text-overflow: ellipsis/.test(r.body))).toBe(true);
 });
+
+/** Every rule of a sheet as [selector, body, the @media conditions it sits in]. */
+function rulesIn(css: string): Array<[string, string, string]> {
+  const out: Array<[string, string, string]> = [];
+  const stack: string[] = [];
+  let head = '';
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i];
+    if (c === '{') {
+      const sel = head.trim();
+      head = '';
+      if (sel.startsWith('@')) {
+        stack.push(sel);
+        continue;
+      }
+      const end = css.indexOf('}', i);
+      out.push([sel, css.slice(i + 1, end), stack.filter((x) => x.startsWith('@media')).join(' ')]);
+      i = end;
+    } else if (c === '}') {
+      stack.pop();
+      head = '';
+    } else head += c;
+  }
+  return out;
+}
+
+test('on_touch_the_task_rows_quick_buttons_leave_the_row_and_the_title_keeps_its_edge', () => {
+  // seen at 390 (2026-11-14): on a touch screen Save for later and Mark done sat over the title, a letter peeking
+  // between them. Touch (hover: none) takes them out of the row; the title's reserve for them is mouse-only.
+  const rules = rulesIn(sheets.find((s) => s.name === 'composites.css')?.css ?? '');
+  const quick = "[data-kit='list-row'][data-layout='feed'] > [data-kit='icon-button']";
+  const touch = rules.filter(([, , media]) => /\(hover:\s*none\)/.test(media));
+  expect(touch.some(([sel, body]) => sel === quick && /display:\s*none/.test(body))).toBe(true);
+  expect(touch.some(([sel, body]) => sel.includes(quick) && /opacity:\s*1/.test(body))).toBe(false);
+  // every rule that pads the feed title for the quick buttons sits under (hover: hover)
+  const reserve = rules.filter(([sel, body]) => sel.includes('[data-quick=') && sel.includes("[data-kit='list-row-title']") && /padding-right/.test(body));
+  expect(reserve.length).toBe(6);
+  for (const [sel, , media] of reserve) expect(media, sel).toMatch(/\(hover:\s*hover\)/);
+});
