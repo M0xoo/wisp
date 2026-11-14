@@ -5,7 +5,8 @@
 
 use serde_json::json;
 use wisp_envmask::{
-    DOTS, env_file_named, is_env_file, mask_block, mask_diffs, mask_edit, mask_line, mask_on, mask_text, names_env_file, reads_env_file,
+    DOTS, env_file_named, env_values, is_env_file, mask_block, mask_diffs, mask_edit, mask_line, mask_on, mask_spans, mask_text,
+    names_env_file, quote_spans, reads_env_file, text_spans,
 };
 
 #[test]
@@ -193,4 +194,40 @@ fn property_no_value_of_a_random_env_file_survives_and_masking_is_idempotent() {
         let (b, a) = mask_edit(&text, &format!("{text}\nNEW=zqnew"));
         assert!(!a.contains("zq") && !b.contains("zq"), "{a:?}");
     }
+}
+
+#[test]
+fn env_values_are_a_files_values_quoted_and_bare_and_never_the_short_or_plain_ones() {
+    let v = env_values("# c\nAPI_KEY=\"sk-live-one\"\r\nexport DB=postgres://u:p@h/db\nPORT=80\nDEBUG=true\nEMPTY=\n");
+    assert_eq!(v, ["\"sk-live-one\"", "sk-live-one", "postgres://u:p@h/db"]);
+    assert_eq!(env_values(""), Vec::<String>::new());
+    let v = env_values("A=abc1234 # prod\nB='sec ret' # c");
+    assert_eq!(v, ["abc1234 # prod", "abc1234", "'sec ret' # c", "sec ret"], "a trailing comment isn't the value");
+}
+
+#[test]
+fn a_thinking_that_quotes_a_value_the_turn_read_or_writes_a_env_line_hides_just_the_value() {
+    let vals = env_values("API_KEY=sk-live-one");
+    let t = "The key is sk-live-one, so I'll rotate it.\n- `STRIPE_SECRET=whsec_abc`\nSet DEBUG=1 to see logs.\nx = 5";
+    let m = mask_spans(t, &quote_spans(t, &vals));
+    assert_eq!(m, format!("The key is {DOTS}, so I'll rotate it.\n- `STRIPE_SECRET={DOTS}`\nSet DEBUG=1 to see logs.\nx = 5"));
+    assert!(quote_spans("nothing here", &vals).is_empty(), "no read, no shape: as it is");
+    // overlapping (a value on a .env-shaped line) merges into one range; non-ASCII stays on char boundaries
+    let t = "TOKEN=sk-live-one é sk-live-one";
+    assert_eq!(mask_spans(t, &quote_spans(t, &vals)), format!("TOKEN={DOTS}"));
+}
+
+#[test]
+fn text_spans_hide_what_mask_text_hides() {
+    for t in ["API_KEY=sk-1\r\n# note\nPORT=3000\n\nbare-secret", "cat: .env: Permission denied", ""] {
+        assert_eq!(mask_spans(t, &text_spans(t)), mask_text(t), "{t:?}");
+    }
+}
+
+#[test]
+fn spans_that_dont_fit_the_text_hide_all_of_it_fail_closed() {
+    assert_eq!(mask_spans("short", &[[2, 99]]), DOTS);
+    assert_eq!(mask_spans("ab", &[[1, 2], [0, 1]]), DOTS, "out of order");
+    assert_eq!(mask_spans("é", &[[1, 2]]), DOTS, "inside a character");
+    assert_eq!(mask_spans("as is", &[]), "as is");
 }

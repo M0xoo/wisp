@@ -223,3 +223,98 @@ pub fn mask_on(v: Option<&Value>) -> bool {
 
 /// The setting's key (wisp.git declares it; every plugin that masks reads it).
 pub const SETTING: &str = "git.maskEnvFiles";
+
+// Free text an agent wrote (its thinking, a tool's error): where it quotes a .env value. Not v1's (v1 left both as
+// they were, a leak): a value of a .env file the turn read, wherever it shows, and any line that is a .env line
+// itself (`API_KEY=sk-…`, alone on its line, maybe a list item or in backticks).
+
+/// A value this short, or one of these words, is no secret and shows in any text: never hidden by itself.
+const MIN_VALUE: usize = 6;
+const PLAIN: &[&str] = &["true", "false", "null", "none", "yes", "off"];
+
+#[allow(clippy::expect_used)] // a literal pattern, checked by every test
+static SHAPE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\s*(?:[-*>]\s+)?`*(?:export\s+)?[A-Z_][A-Z0-9_]*=([^\s`][^`]*?)`*\s*$").expect("SHAPE"));
+
+/// The values of a .env file's text (`K=v`, `export K="v"`, `K: v`): each as written and without its quotes, the
+/// short and plain ones left out. What the turn machine keeps (in memory only) of a .env file a call read.
+pub fn env_values(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for l in text.split('\n').map(|l| l.trim_end_matches('\r')) {
+        let Some(v) = LINE.captures(l).and_then(|c| c.get(2)) else { continue };
+        let v = v.as_str().trim();
+        // `"sec ret" # c` → `sec ret`; `abc123 # prod` → `abc123`
+        let bare = match v.chars().next() {
+            Some(q @ ('"' | '\'')) => v[1..].split(q).next().unwrap_or_default(),
+            _ => v.split(" #").next().unwrap_or(v).trim_end(),
+        };
+        for x in [v, bare] {
+            if x.chars().count() >= MIN_VALUE && !PLAIN.contains(&x.to_ascii_lowercase().as_str()) && !out.iter().any(|o| o == x) {
+                out.push(x.to_owned());
+            }
+        }
+    }
+    out
+}
+
+/// Byte ranges `[start, end)` of `text` to hide: every place it quotes one of `values`, and the value of each line
+/// shaped like a .env line. Sorted, merged, on char boundaries.
+pub fn quote_spans(text: &str, values: &[String]) -> Vec<[u32; 2]> {
+    let mut spans: Vec<(usize, usize)> = Vec::new();
+    for v in values.iter().filter(|v| !v.is_empty()) {
+        spans.extend(text.match_indices(v.as_str()).map(|(at, m)| (at, at + m.len())));
+    }
+    let mut at = 0;
+    for l in text.split('\n') {
+        if let Some(m) = SHAPE.captures(l).and_then(|c| c.get(1)) {
+            spans.push((at + m.start(), at + m.end()));
+        }
+        at += l.len() + 1;
+    }
+    merged(spans)
+}
+
+/// Byte ranges of `text` that `mask_text` would hide: a whole error text from a call that read a .env file.
+pub fn text_spans(text: &str) -> Vec<[u32; 2]> {
+    let mut spans = Vec::new();
+    let mut at = 0;
+    for l in text.split('\n') {
+        let body = l.strip_suffix('\r').unwrap_or(l);
+        if !KEPT.is_match(body) {
+            let from = LINE.captures(body).and_then(|c| c.get(1)).map_or(body.len() - body.trim_start().len(), |m| m.end());
+            spans.push((at + from, at + body.len()));
+        }
+        at += l.len() + 1;
+    }
+    merged(spans)
+}
+
+fn merged(mut spans: Vec<(usize, usize)>) -> Vec<[u32; 2]> {
+    spans.sort_unstable();
+    let mut out: Vec<(usize, usize)> = Vec::new();
+    for (a, b) in spans.into_iter().filter(|(a, b)| a < b) {
+        match out.last_mut() {
+            Some(last) if a <= last.1 => last.1 = last.1.max(b),
+            _ => out.push((a, b)),
+        }
+    }
+    out.into_iter().filter_map(|(a, b)| Some([u32::try_from(a).ok()?, u32::try_from(b).ok()?])).collect()
+}
+
+/// `text` with each of `spans` (from `quote_spans` / `text_spans`) as `••••`. Spans that don't fit the text (out of
+/// order, past its end, inside a character: a text changed since) hide the whole text: fail closed.
+pub fn mask_spans(text: &str, spans: &[[u32; 2]]) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut from = 0;
+    for &[a, b] in spans {
+        let (a, b) = (a as usize, b as usize);
+        if a < from || b <= a || b > text.len() || !text.is_char_boundary(a) || !text.is_char_boundary(b) {
+            return DOTS.to_owned();
+        }
+        out.push_str(&text[from..a]);
+        out.push_str(DOTS);
+        from = b;
+    }
+    out.push_str(&text[from..]);
+    out
+}

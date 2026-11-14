@@ -135,6 +135,71 @@ async fn a_sync_topic_a_share_and_every_read_never_carry_a_env_value_and_reveal_
     no_value("a share with masking off", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
 }
 
+/// A run that reads .env, thinks with its value and gets a tool error that prints it (no answer block about .env).
+fn quoting_replay(dir: &std::path::Path) -> std::path::PathBuf {
+    let s = "sess-quote";
+    let answer = format!("Checked.\n```wisp\n{}\n```", json!({ "blocks": [{ "type": "hero", "title": "Key checked", "status": "done" }] }));
+    let lines = [
+        json!({ "type": "system", "subtype": "init", "session_id": s }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c1", "name": "Bash", "input": { "command": "cat .env" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c1", "content": [{ "type": "text", "text": "API_KEY=sk-live-one\nPORT=3000" }] }] } }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "thinking", "thinking": "So the key is sk-live-one; I'll try it against the API." }] } }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "tool_use", "id": "c2", "name": "Bash", "input": { "command": "curl -H \"x-key: $API_KEY\" https://api.test" } }] } }),
+        json!({ "type": "user", "session_id": s, "message": { "content": [{ "type": "tool_result", "tool_use_id": "c2", "is_error": true, "content": [{ "type": "text", "text": "401 Unauthorized: key sk-live-one revoked" }] }] } }),
+        json!({ "type": "assistant", "session_id": s, "message": { "content": [{ "type": "text", "text": answer }] } }),
+        json!({ "type": "result", "subtype": "success", "is_error": false, "result": answer, "session_id": s, "duration_ms": 5, "num_turns": 1, "total_cost_usd": 0.01 }),
+    ];
+    let f = dir.join("quote-run.jsonl");
+    std::fs::write(&f, lines.iter().map(|l| l.to_string() + "\n").collect::<String>()).unwrap();
+    f
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_turns_thinking_and_a_tool_error_quoting_a_env_value_reach_no_topic_read_or_share() {
+    let dir = temp("envquote");
+    let proj = dir.join("proj");
+    std::fs::write(proj.join(".env"), "API_KEY=sk-live-one\nPORT=3000\n").unwrap();
+    let f = quoting_replay(&dir);
+    let (_serve, port) = start_with(&dir, &[("FAKE_REPLAY", f.to_str().unwrap()), ("FAKE_DELAY", "1500")]);
+    let http = reqwest::Client::new();
+    let api = Api { http: http.clone(), port, n: 0.into() };
+    let id = api.cmd("runtime.create", json!({ "prompt": "check the key", "cwd": proj, "agent": "claude" })).await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let topic = format!("session:{id}");
+    let live = tokio::spawn({
+        let (http, topic) = (http.clone(), topic.clone());
+        async move { stream(&http, port, &topic, "Key checked", 60).await }
+    });
+    let turns = api.until(&id, "the turn to end", |t| t.last().is_some_and(ended)).await;
+    let seen = live.await.unwrap();
+    assert!(seen.contains("Key checked"), "the stream saw the turn");
+    no_value("the live sync stream", &seen);
+    no_value("the sync snapshot", &stream(&http, port, &topic, "Key checked", 10).await);
+
+    let tid = turns.last().unwrap()["id"].as_str().unwrap().to_owned();
+    let steps = api.cmd("runtime.activity", json!({ "id": id, "turnId": tid })).await;
+    no_value("runtime.activity", &steps.to_string());
+    let items = steps["items"].as_array().unwrap();
+    let think = items.iter().find(|s| s["kind"] == "thinking").unwrap_or_else(|| panic!("a thinking step: {steps}"));
+    assert_eq!(think["text"], format!("So the key is {DOTS}; I'll try it against the API."), "masked, not dropped");
+    assert!(think.get("hide").is_none(), "where it was masked stays on the server");
+    let err = items.iter().find(|s| s["kind"] == "tool_error").unwrap_or_else(|| panic!("a tool error: {steps}"));
+    assert_eq!(err["text"], format!("401 Unauthorized: key {DOTS} revoked"));
+    // a page that starts after the read: the rows' own ranges still mask them
+    let since = api.cmd("runtime.activity", json!({ "id": id, "turnId": tid, "sinceSeq": think["seq"].as_u64().unwrap() - 1 })).await;
+    no_value("an activity page after the read", &since.to_string());
+    no_value("runtime.turns", &api.turns(&id).await.last().unwrap().to_string());
+    no_value("wisp_session", &api.cmd("runtime.agent.session", json!({ "session": id, "of": id })).await.to_string());
+    no_value("a share", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+    // Hide .env values off: as it is (the store kept it), but never in a share
+    api.cmd("settings.set", json!({ "key": "git.maskEnvFiles", "value": false })).await;
+    let shown = api.cmd("runtime.activity", json!({ "id": id, "turnId": tid })).await;
+    assert!(shown.to_string().contains("sk-live-one"), "off shows them");
+    no_value("a share with masking off", &api.cmd("share.preview", json!({ "id": id, "level": "full" })).await.to_string());
+}
+
 #[test]
 fn reveal_is_refused_to_a_capped_agent_and_a_share_page() {
     use wisp_kernel::Caller;

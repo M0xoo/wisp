@@ -82,4 +82,34 @@ mod tests {
         assert!(matches!(&out[0], Activity::ToolOutput { text, .. } if !text.contains("sk-live-123")), "{out:?}");
         assert_eq!(out[1], other);
     }
+
+    #[test]
+    fn a_quick_runs_thinking_and_tool_error_quoting_a_env_value_leave_masked() {
+        use wisp_runtime_api::HarnessEvent;
+        use wisp_runtime_api::model::ToolKind;
+        use wisp_runtime_core::activity::{Effect, Head, apply};
+        let mut h = Head::default();
+        let evs = [
+            HarnessEvent::Tool {
+                kind: ToolKind::Read,
+                label: "Read .env".into(),
+                file: Some(".env".into()),
+                detail: None,
+                id: Some("c1".into()),
+                output: None,
+                title: None,
+            },
+            HarnessEvent::ToolOutput { id: "c1".into(), text: "API_KEY=sk-live-123".into() },
+            HarnessEvent::Thinking { text: Some("so sk-live-123 is the key".into()) },
+            HarnessEvent::ToolError { name: "Bash".into(), text: "denied: sk-live-123".into(), id: None },
+        ];
+        // as side_run collects them
+        let steps: Vec<Activity> =
+            evs.iter().filter_map(|e| if let Effect::Append(a) = apply(&mut h, e, true, &|_| false) { Some(a) } else { None }).collect();
+        // alone (a step whose read fell outside MAX_STEPS) and with the read
+        for batch in [steps[2..].to_vec(), steps.clone()] {
+            let out = masked(batch);
+            assert!(!format!("{out:?}").contains("sk-live-123"), "{out:?}");
+        }
+    }
 }

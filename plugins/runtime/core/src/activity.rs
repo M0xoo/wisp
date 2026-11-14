@@ -101,6 +101,29 @@ pub struct Head {
     pub cli: Option<Value>,
     /// the calls that read a .env file: their `tool_output` is flagged `env` (ADR-0050)
     pub env_calls: Vec<String>,
+    /// the values of the .env files this turn's calls printed, so its thinking and tool errors that quote one are
+    /// flagged where (`hide`). In memory only: never written, never logged.
+    pub env_values: EnvValues,
+}
+
+/// .env values a turn saw. Its `Debug` says how many, never what.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct EnvValues(pub Vec<String>);
+
+impl std::fmt::Debug for EnvValues {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EnvValues({} hidden)", self.0.len())
+    }
+}
+
+impl EnvValues {
+    fn add(&mut self, text: &str) {
+        for v in wisp_envmask::env_values(text) {
+            if !self.0.contains(&v) {
+                self.0.push(v);
+            }
+        }
+    }
 }
 
 /// What one event asks of the host besides the head update.
@@ -142,9 +165,9 @@ pub fn step_of(ev: &HarnessEvent) -> Option<Activity> {
         },
         HarnessEvent::Text { text } => Activity::Text { text: head16(text, MAX_TEXT).to_owned() },
         HarnessEvent::ToolError { name, text, .. } => {
-            Activity::ToolError { name: if name.is_empty() { "Tool".into() } else { name.clone() }, text: text.clone() }
+            Activity::ToolError { name: if name.is_empty() { "Tool".into() } else { name.clone() }, text: text.clone(), hide: Vec::new() }
         }
-        HarnessEvent::Thinking { text } => Activity::Thinking { text: text.clone() },
+        HarnessEvent::Thinking { text } => Activity::Thinking { text: text.clone(), hide: Vec::new() },
         _ => return None,
     })
 }
@@ -188,6 +211,29 @@ fn note_env_call(head: &mut Head, ev: &HarnessEvent) {
     }
 }
 
+/// A step's text that quotes a .env value (ADR-0050): its thinking or a tool's error quoting a value of a .env file
+/// this turn read, or a line shaped like one; all of an error from a call that read one. A tool call that printed a
+/// .env file inline (its `output`) adds its values.
+fn flag_quotes(head: &mut Head, ev: &HarnessEvent, mut a: Activity) -> Activity {
+    match (&mut a, ev) {
+        (_, HarnessEvent::Tool { file, detail, label, output: Some(out), .. })
+            if crate::env_mask::call_reads_env(file.as_deref(), detail.as_deref(), Some(label)) =>
+        {
+            head.env_values.add(out);
+        }
+        (Activity::Thinking { text: Some(text), hide }, _) => *hide = wisp_envmask::quote_spans(text, &head.env_values.0),
+        (Activity::ToolError { text, hide, .. }, HarnessEvent::ToolError { id, .. }) => {
+            *hide = if id.as_ref().is_some_and(|id| head.env_calls.contains(id)) {
+                wisp_envmask::text_spans(text)
+            } else {
+                wisp_envmask::quote_spans(text, &head.env_values.0)
+            };
+        }
+        _ => {}
+    }
+    a
+}
+
 /// Applies one event to the head and says what else to do. `plain`: the turn asked for a plain answer
 /// (wisp blocks off); `is_fallback`: whether a text is an answer that broke the protocol (the block
 /// parser's `fallback`), passed in so this module stays independent of it.
@@ -200,10 +246,14 @@ pub fn apply(head: &mut Head, ev: &HarnessEvent, plain: bool, is_fallback: &dyn 
         }
         HarnessEvent::Tool { .. } | HarnessEvent::ToolError { .. } | HarnessEvent::Thinking { .. } => {
             note_env_call(head, ev);
-            return step_of(ev).map_or(Effect::None, Effect::Append);
+            return step_of(ev).map_or(Effect::None, |a| Effect::Append(flag_quotes(head, ev, a)));
         }
         HarnessEvent::ToolOutput { id, text } => {
-            return Effect::Append(Activity::ToolOutput { call_id: id.clone(), text: clip_output(text), env: head.env_calls.contains(id) });
+            let env = head.env_calls.contains(id);
+            if env {
+                head.env_values.add(text);
+            }
+            return Effect::Append(Activity::ToolOutput { call_id: id.clone(), text: clip_output(text), env });
         }
         HarnessEvent::Change { file, op, edits, early, .. } => {
             if !*early || !head.changes.iter().any(|c| &c.file == file) {

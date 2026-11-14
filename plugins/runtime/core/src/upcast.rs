@@ -29,7 +29,7 @@ pub fn from_v0(item: &Value) -> Option<Activity> {
             // v1 wrote `<name> failed: <text>`
             let (name, text) =
                 label.split_once(" failed: ").map_or(("Tool".to_owned(), label.clone()), |(n, t)| (n.to_owned(), t.to_owned()));
-            Activity::ToolError { name, text }
+            Activity::ToolError { name, text, hide: Vec::new() }
         }
         k => match tool_kind(k) {
             Some(tool) => Activity::Tool {
@@ -69,7 +69,7 @@ pub fn to_v0(a: &Activity) -> Value {
             put("kind", Some("text"));
             put("label", Some(text));
         }
-        Activity::Thinking { text } => {
+        Activity::Thinking { text, .. } => {
             put("kind", Some("thinking"));
             put("label", text.as_deref());
         }
@@ -88,7 +88,7 @@ pub fn to_v0(a: &Activity) -> Value {
             put("call", Some(call_id));
             put("output", Some(text));
         }
-        Activity::ToolError { name, text } => {
+        Activity::ToolError { name, text, .. } => {
             put("kind", Some("error"));
             put("label", Some(&format!("{name} failed: {text}")));
         }

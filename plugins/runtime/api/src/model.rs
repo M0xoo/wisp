@@ -125,6 +125,10 @@ pub enum Activity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         text: Option<String>,
+        /// byte ranges of `text` that quote a .env value (ADR-0050): they leave the server as `••••`. Additive (2026-11-14).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[ts(optional, as = "Option<Vec<[u32; 2]>>")]
+        hide: Vec<[u32; 2]>,
     },
     Tool {
         tool: ToolKind,
@@ -160,6 +164,10 @@ pub enum Activity {
     ToolError {
         name: String,
         text: String,
+        /// byte ranges of `text` that quote a .env value (ADR-0050): they leave the server as `••••`. Additive (2026-11-14).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[ts(optional, as = "Option<Vec<[u32; 2]>>")]
+        hide: Vec<[u32; 2]>,
     },
     Blocked {
         tool: String,

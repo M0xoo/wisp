@@ -5,7 +5,11 @@ import type { ToolKind } from "./ToolKind";
 /**
  * One step of a turn's activity: a row of the append-only event log (`kind` is the event kind).
  */
-export type Activity = { "kind": "text", text: string, } | { "kind": "thinking", text?: string, } | { "kind": "tool", tool: ToolKind, label: string, file?: string, detail?: string, callId?: string, output?: string, 
+export type Activity = { "kind": "text", text: string, } | { "kind": "thinking", text?: string, 
+/**
+ * byte ranges of `text` that quote a .env value (ADR-0050): they leave the server as `••••`. Additive (2026-11-14).
+ */
+hide?: Array<[number, number]>, } | { "kind": "tool", tool: ToolKind, label: string, file?: string, detail?: string, callId?: string, output?: string, 
 /**
  * its whole title, when `label` had to be cut (v1 #780): an opened step shows it. Additive (2026-11-12).
  */
@@ -14,4 +18,8 @@ title?: string, } | { "kind": "tool_output", callId: string, text: string,
  * the call it answers read a .env file: its text leaves the server masked (ADR-0050). Always written, so a
  * row without it is one from before (its call decides). Additive (2026-11-13).
  */
-env?: boolean, } | { "kind": "tool_error", name: string, text: string, } | { "kind": "blocked", tool: string, detail: string, rule?: string, } | { "kind": "notice", text: string, tone?: Tone, };
+env?: boolean, } | { "kind": "tool_error", name: string, text: string, 
+/**
+ * byte ranges of `text` that quote a .env value (ADR-0050): they leave the server as `••••`. Additive (2026-11-14).
+ */
+hide?: Array<[number, number]>, } | { "kind": "blocked", tool: string, detail: string, rule?: string, } | { "kind": "notice", text: string, tone?: Tone, };

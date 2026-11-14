@@ -56,7 +56,7 @@ fn tool_calls_text_and_failures_become_steps() {
     assert!(matches!(e, Effect::Append(Activity::Tool { output: None, .. })));
     assert_eq!(
         apply(&mut h, json!({"type":"tool_error","text":"boom"})),
-        Effect::Append(Activity::ToolError { name: "Tool".into(), text: "boom".into() })
+        Effect::Append(Activity::ToolError { name: "Tool".into(), text: "boom".into(), hide: Vec::new() })
     );
     apply(&mut h, json!({"type":"text","text":"hello"}));
     assert_eq!(h.text.as_deref(), Some("hello"));
@@ -264,7 +264,7 @@ fn v1_activity_items_read_through_the_v0_upcaster_and_back() {
     ];
     let read: Vec<Activity> = items.iter().map(|i| upcast::read(0, i).unwrap()).collect();
     assert!(matches!(&read[0], Activity::Tool { tool: ToolKind::Run, call_id: Some(c), .. } if c == "c1"));
-    assert_eq!(read[2], Activity::ToolError { name: "Bash".into(), text: "exit 1".into() });
+    assert_eq!(read[2], Activity::ToolError { name: "Bash".into(), text: "exit 1".into(), hide: Vec::new() });
     assert!(matches!(&read[3], Activity::Notice { text, .. } if text == "Checking the tests"));
     for (a, i) in read.iter().zip(&items) {
         let mut back = upcast::to_v0(a);

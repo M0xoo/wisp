@@ -67,7 +67,7 @@ fn turn_read(t: &Turn, steps: &[Step]) -> TurnRead {
             Activity::Tool { tool: ToolKind::Run, label, detail, .. } => Some(Trail::Run(detail.clone().unwrap_or_else(|| label.clone()))),
             Activity::Tool { tool: ToolKind::Ask, label, .. } => Some(Trail::Ask(label.clone())),
             Activity::Tool { tool: ToolKind::Answer, label, .. } => Some(Trail::Answer(label.clone())),
-            Activity::ToolError { name, text } => Some(Trail::Failed(format!("{name}: {text}"))),
+            Activity::ToolError { name, text, .. } => Some(Trail::Failed(format!("{name}: {text}"))),
             _ => None,
         })
         .collect();
@@ -245,7 +245,7 @@ mod tests {
         };
         let steps = [
             step(tool(ToolKind::Run, "Run", Some("npm test"))),
-            step(Activity::ToolError { name: "bash".into(), text: "3 failed".into() }),
+            step(Activity::ToolError { name: "bash".into(), text: "3 failed".into(), hide: Vec::new() }),
             step(Activity::Text { text: "thinking aloud".into() }),
             step(tool(ToolKind::Ask, "Which branch?", None)),
             step(tool(ToolKind::Read, "src/a.rs", None)),

@@ -6,7 +6,7 @@
 //! Pure: no IO, no clock.
 
 use serde_json::{Map, Value};
-use wisp_envmask::{is_env_file, mask_block, mask_edit, mask_text, names_env_file, reads_env_file};
+use wisp_envmask::{env_values, is_env_file, mask_block, mask_edit, mask_spans, mask_text, names_env_file, quote_spans, reads_env_file};
 
 use crate::blocks::parse::json_end;
 
@@ -26,23 +26,56 @@ pub fn mask_step(step: &mut Value) -> bool {
 
 /// The calls a batch of steps shows: the ones that read a .env file, and every one seen. A `tool_output` from before
 /// ADR-0050 (no `env` flag) is decided by its call when the batch has it, else by its text (`looks_like_env`).
-#[derive(Debug, Default)]
+/// `values`: what those .env outputs say, so a thinking or an error in the batch that quotes one is masked even
+/// when its row has no `hide` (one from before it, or one the turn machine couldn't flag).
+#[derive(Default)]
 struct Calls {
     env: std::collections::HashSet<String>,
     seen: std::collections::HashSet<String>,
+    values: Vec<String>,
 }
 
 impl Calls {
-    fn of<'a>(steps: impl Iterator<Item = &'a Value>) -> Self {
+    fn of<'a>(steps: impl Iterator<Item = &'a Value> + Clone) -> Self {
         let mut c = Self::default();
-        for st in steps.filter(|x| !matches!(s(x, "kind"), Some("tool_output" | "output"))) {
-            let Some(id) = s(st, "callId").or_else(|| s(st, "call")) else { continue };
+        for st in steps.clone().filter(|x| !matches!(s(x, "kind"), Some("tool_output" | "output"))) {
+            let Some(id) = s(st, "callId").or_else(|| s(st, "call")) else {
+                if reads_env_file(s(st, "file"), s(st, "detail"), s(st, "label")) {
+                    c.add(s(st, "output"));
+                }
+                continue;
+            };
             if reads_env_file(s(st, "file"), s(st, "detail"), s(st, "label")) {
                 c.env.insert(id.to_owned());
+                c.add(s(st, "output"));
             }
             c.seen.insert(id.to_owned());
         }
+        for st in steps.filter(|x| matches!(s(x, "kind"), Some("tool_output" | "output"))) {
+            if c.output_is_env(st) {
+                c.add(s(st, "text").or_else(|| s(st, "output")));
+            }
+        }
         c
+    }
+
+    fn add(&mut self, text: Option<&str>) {
+        for v in text.map(env_values).into_iter().flatten() {
+            if !self.values.contains(&v) {
+                self.values.push(v);
+            }
+        }
+    }
+
+    /// A `tool_output` is a .env file's text: its flag says, else its call in the batch, else its text.
+    fn output_is_env(&self, step: &Value) -> bool {
+        let call = s(step, "callId").or_else(|| s(step, "call")).unwrap_or_default();
+        match step.get("env").and_then(Value::as_bool) {
+            Some(flag) => flag,
+            None if self.seen.contains(call) => self.env.contains(call),
+            // a row from before the flag, its call out of sight: its text decides
+            None => s(step, "text").or_else(|| s(step, "output")).is_some_and(looks_like_env),
+        }
     }
 }
 
@@ -71,14 +104,11 @@ pub fn mask_steps<'a>(steps: impl IntoIterator<Item = &'a mut Value>) -> bool {
 fn mask_step_in(step: &mut Value, calls: &Calls) -> bool {
     let kind = s(step, "kind").unwrap_or_default();
     if kind == "tool_output" || kind == "output" {
-        let call = s(step, "callId").or_else(|| s(step, "call")).unwrap_or_default();
-        let env = match step.get("env").and_then(Value::as_bool) {
-            Some(flag) => flag,
-            None if calls.seen.contains(call) => calls.env.contains(call),
-            // a row from before the flag, its call out of sight: its text decides
-            None => s(step, "text").or_else(|| s(step, "output")).is_some_and(looks_like_env),
-        };
-        return env && mask_field(step, &["text", "output"]);
+        return calls.output_is_env(step) && mask_field(step, &["text", "output"]);
+    }
+    // what an agent wrote itself: its thinking, a tool's error (v2's `text`, v1's `label`)
+    if matches!(kind, "thinking" | "tool_error" | "error") {
+        return mask_quotes(step, &calls.values);
     }
     if kind == "text" {
         let Some(m) = s(step, "text").and_then(mask_answer_text) else { return false };
@@ -90,6 +120,27 @@ fn mask_step_in(step: &mut Value, calls: &Calls) -> bool {
         return mask_field(step, &["output"]);
     }
     false
+}
+
+/// A thinking or error step's text masked where it quotes a .env value: the ranges the turn machine flagged
+/// (`hide`, dropped as it leaves: they say where the text was masked, and fit it no more), then the batch's values and
+/// any line shaped like a .env line.
+fn mask_quotes(step: &mut Value, values: &[String]) -> bool {
+    let hide: Vec<[u32; 2]> = match step.as_object_mut().and_then(|o| o.remove("hide")) {
+        Some(h) => serde_json::from_value(h).unwrap_or_else(|_| vec![[0, u32::MAX]]), // unreadable: all of it (fail closed)
+        None => Vec::new(),
+    };
+    let mut changed = !hide.is_empty();
+    for k in ["text", "label"] {
+        let Some(t) = s(step, k) else { continue };
+        let first = if k == "text" && !hide.is_empty() { mask_spans(t, &hide) } else { t.to_owned() };
+        let m = mask_spans(&first, &quote_spans(&first, values));
+        if m != t {
+            step[k] = Value::String(m);
+            changed = true;
+        }
+    }
+    changed
 }
 
 fn mask_field(v: &mut Value, keys: &[&str]) -> bool {

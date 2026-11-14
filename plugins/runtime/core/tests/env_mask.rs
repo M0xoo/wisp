@@ -209,3 +209,104 @@ fn an_output_stored_before_the_flag_is_decided_by_its_call_in_the_batch_or_else_
         "K=v"
     );
 }
+
+/// A turn that `cat`s .env, then thinks and errors with what it read: the turn machine's steps, as rows.
+fn quoting_turn() -> Vec<Value> {
+    let mut h = Head::default();
+    let no = |_: &str| false;
+    let run = |id: &str, detail: &str| HarnessEvent::Tool {
+        kind: ToolKind::Run,
+        label: "Run".into(),
+        file: None,
+        detail: Some(detail.into()),
+        id: Some(id.into()),
+        output: None,
+        title: None,
+    };
+    let evs = [
+        run("c1", "cat .env"),
+        HarnessEvent::ToolOutput { id: "c1".into(), text: "API_KEY=sk-live-one\nPORT=3000".into() },
+        HarnessEvent::Thinking { text: Some("The key sk-live-one is stale; port 3000 is fine.".into()) },
+        run("c2", "curl -H \"Authorization: $API_KEY\" api"),
+        HarnessEvent::ToolError { name: "Bash".into(), text: "401: bad key sk-live-one".into(), id: Some("c2".into()) },
+        run("c3", "grep KEY .env"),
+        HarnessEvent::ToolError { name: "Bash".into(), text: "API_KEY=sk-live-one\ngrep: exit 2".into(), id: Some("c3".into()) },
+        HarnessEvent::Thinking { text: Some("Plan:\nNEW_TOKEN=tok-fresh-77\ndone".into()) },
+    ];
+    let mut rows = Vec::new();
+    for (i, ev) in evs.iter().enumerate() {
+        if let Effect::Append(a) = apply(&mut h, ev, false, &no) {
+            let mut v = serde_json::to_value(&a).unwrap();
+            v["seq"] = json!(i);
+            rows.push(v);
+        }
+    }
+    assert!(!format!("{h:?}").contains("sk-live"), "the head's Debug never says a value");
+    rows
+}
+
+fn none_left(what: &str, v: &Value) {
+    let j = v.to_string();
+    assert!(!j.contains("sk-live") && !j.contains("tok-fresh"), "{what}: {j}");
+}
+
+#[test]
+fn a_turn_whose_thinking_quotes_a_env_value_never_shows_it_row_by_row_or_as_a_batch() {
+    let rows = quoting_turn();
+    let think: Vec<&Value> = rows.iter().filter(|r| r["kind"] == "thinking").collect();
+    assert_eq!(think.len(), 2);
+    assert!(think[0]["hide"].is_array(), "the turn machine flags where: {}", think[0]);
+    assert!(think[0]["text"].as_str().unwrap().contains("sk-live-one"), "the stored row keeps the real text");
+    // one row alone (the sync stream's row and patch ops): its own `hide`
+    for t in &think {
+        let mut one = (*t).clone();
+        assert!(mask_step(&mut one), "{one}");
+        none_left("a thinking row", &one);
+        assert!(one.get("hide").is_none(), "the ranges stay on the server");
+        let mut op = (*t).clone();
+        assert!(mask_patch("event", "/body", &mut op));
+        none_left("a patch op", &op);
+        let mut row = json!({ "id": "e", "body": t });
+        assert!(mask_row("event", &mut row));
+        none_left("an event row", &row);
+    }
+    let mut one = think[0].clone();
+    mask_step(&mut one);
+    assert_eq!(one["text"], format!("The key {DOTS} is stale; port 3000 is fine."), "only the value goes");
+    // a row from before `hide`: the batch's .env read decides
+    let mut old: Vec<Value> = rows.clone();
+    for r in &mut old {
+        r.as_object_mut().unwrap().remove("hide");
+    }
+    assert!(mask_steps(old.iter_mut()));
+    none_left("a batch of rows without hide", &json!(old));
+    let mut evs: Vec<Value> = rows.iter().map(|b| json!({ "body": b })).collect();
+    assert!(mask_event_rows(evs.iter_mut()));
+    none_left("event rows", &json!(evs));
+}
+
+#[test]
+fn a_tool_error_printing_a_env_value_leaves_masked() {
+    let rows = quoting_turn();
+    let errs: Vec<Value> = rows.iter().filter(|r| r["kind"] == "tool_error").cloned().collect();
+    assert_eq!(errs.len(), 2);
+    let mut a = errs[0].clone();
+    assert!(mask_step(&mut a));
+    assert_eq!(a["text"], format!("401: bad key {DOTS}"), "a value the turn read, in another call's error");
+    let mut b = errs[1].clone();
+    assert!(mask_step(&mut b));
+    assert_eq!(b["text"], format!("API_KEY={DOTS}\ngrep: {DOTS}"), "an error from a call that read .env: masked as its output");
+    // a v1 row (`error`, its `label`) and one with nothing to hide
+    let mut v1 = json!({ "kind": "error", "label": "Bash failed: bad config:\nDB_PASSWORD=hunter2-x" });
+    assert!(mask_step(&mut v1));
+    assert_eq!(v1["label"], format!("Bash failed: bad config:\nDB_PASSWORD={DOTS}"));
+    let mut plain = json!({ "kind": "tool_error", "name": "Bash", "text": "exit 1" });
+    assert!(!mask_step(&mut plain));
+    // ranges that no longer fit the text (or can't be read): all of it, never the value
+    let mut bad = json!({ "kind": "thinking", "text": "sk-live-one", "hide": [[3, 400]] });
+    assert!(mask_step(&mut bad));
+    assert_eq!(bad["text"], DOTS);
+    let mut junk = json!({ "kind": "thinking", "text": "sk-live-one", "hide": "x" });
+    assert!(mask_step(&mut junk));
+    assert_eq!(junk["text"], DOTS);
+}
