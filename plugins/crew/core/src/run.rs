@@ -54,6 +54,19 @@ pub fn job_body(m: &Member, run: Option<&RunPick>) -> (String, String, String, S
     )
 }
 
+/// A job's mode under a lead's cap (v1 `atCap`): never above it (plan < edits < auto); no cap, the job's own.
+pub fn at_cap(mode: &str, cap: Option<&str>) -> String {
+    let rank = |m: &str| match m {
+        "plan" => 0,
+        "edits" => 1,
+        _ => 2,
+    };
+    match cap {
+        Some(c) if rank(c) < rank(mode) => c.to_owned(),
+        _ => mode.to_owned(),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -101,5 +114,13 @@ mod tests {
         assert!(job_run(&m, Some(&pick("auto", "opus", "")), true, &known).is_err(), "Auto picks its own model");
         assert!(job_run(&m, Some(&pick("", "", "x y")), true, &known).is_err());
         assert_eq!(job_run(&m, Some(&pick("claude", "", "")), false, &known).unwrap(), None, "its own harness: nothing changes");
+    }
+
+    #[test]
+    fn a_delegated_job_runs_no_higher_than_its_leads_cap() {
+        assert_eq!(at_cap("auto", Some("edits")), "edits");
+        assert_eq!(at_cap("plan", Some("edits")), "plan", "a lower mode stays");
+        assert_eq!(at_cap("auto", None), "auto");
+        assert_eq!(at_cap("edits", Some("plan")), "plan");
     }
 }

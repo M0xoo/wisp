@@ -28,6 +28,21 @@ pub fn place(m: &Member, busy: u32, kind: JobKind) -> Result<Placement> {
     Ok(Placement::Queue)
 }
 
+/// A job a lead task's agent hands out (v1 crew.js `#delegate`, which runs it while the member is paused too): it
+/// starts now, or is refused with why, so the
+/// lead can wait for one with `subagent_results` or do it itself (it never waits in the queue: the lead reads
+/// its report).
+pub fn place_delegated(m: &Member, busy: u32) -> Result<()> {
+    if busy >= m.parallel {
+        let s = if m.parallel == 1 { "" } else { "s" };
+        return Err(Error::Conflict(format!(
+            "{} is already running {} job{s}, their limit. Wait for one with subagent_results, or do it yourself.",
+            m.name, m.parallel
+        )));
+    }
+    Ok(())
+}
+
 /// How many waiting jobs may start now, from the head (v1 `drain`): while there's room, and not past
 /// a head that waits for the member to be resumed.
 pub fn drain_count(m: &Member, busy: u32) -> usize {
@@ -121,4 +136,22 @@ pub fn release(members: &mut [Member], agent: &str) -> u32 {
         }
     }
     n
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_delegated_job_starts_now_or_is_refused_never_queued() {
+        let m = Member { name: "Ada".into(), parallel: 1, ..Member::default() };
+        assert!(place_delegated(&m, 0).is_ok());
+        let e = place_delegated(&m, 1).unwrap_err().to_string();
+        assert!(e.contains("already running 1 job, their limit") && e.contains("subagent_results"), "{e}");
+        let two = Member { parallel: 2, ..m.clone() };
+        assert!(place_delegated(&two, 1).is_ok());
+        assert!(place_delegated(&two, 2).unwrap_err().to_string().contains("2 jobs"));
+        assert!(place_delegated(&Member { paused: true, ..m }, 0).is_ok(), "as v1: the lead waits on it, so it runs paused");
+    }
 }

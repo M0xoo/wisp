@@ -17,6 +17,9 @@ fn copies(name: &str, count: u64) -> Vec<String> {
     if count > 1 { (1..=count).map(|i| format!("{name}#{i}")).collect() } else { vec![name.to_owned()] }
 }
 
+/// The lead's crew jobs (`ext["wisp.runtime"].crewJobs`): job key → the team name it went to.
+const CREW_JOBS: &str = "crewJobs";
+
 /// A delegation that didn't go, and why.
 fn failed(subagent: &str, why: String) -> Delegation {
     Delegation {
@@ -52,9 +55,15 @@ fn member_slot<'a>(
         return Err("The task prompt is empty.".into());
     }
     let (name, count) = (str_at(m, "name"), m.get("count").and_then(Value::as_u64).unwrap_or(1));
+    if !str_at(m, "crew").is_empty() {
+        // a crew member is one job at a time per name, up to their own limit (not copies)
+        return Err(format!("Delegate to {name}, not {want}."));
+    }
     let in_sandbox = str_at(m, "machine") == "sandbox";
-    if (m.get("machine").is_some_and(|x| !x.is_null()) && !in_sandbox) || m.get("crew").is_some_and(|x| !x.is_null()) {
-        return Err("Members on another machine or from the crew can't take work here yet.".into());
+    if m.get("machine").is_some_and(|x| !x.is_null()) && !in_sandbox {
+        return Err(format!(
+            "{want} runs on another machine, which can't take delegated work yet. Add a crew member on that machine and delegate to them, or use a sandbox."
+        ));
     }
     let busy = |n: &String| {
         claimed.contains(n)
@@ -95,6 +104,15 @@ impl Runtime {
         for task in a.tasks {
             let want = task.subagent.trim().to_owned();
             let prompt = task.prompt.trim().to_owned();
+            // a member of the crew: a job of its own, run as them (crew.assign), not a hidden child
+            if let Some(m) = team.iter().find(|m| str_at(m, "name") == want && !str_at(m, "crew").is_empty()) {
+                out.push(if prompt.is_empty() {
+                    failed(&want, "The task prompt is empty.".into())
+                } else {
+                    self.crew_member(&lead, m, &want, &prompt, capped.as_ref()).await
+                });
+                continue;
+            }
             let (m, slot_name, in_sandbox) = match member_slot(self, &team, &names, &children, &claimed, &want, &prompt) {
                 Ok(x) => x,
                 Err(why) => {
@@ -124,7 +142,14 @@ impl Runtime {
                 }
                 continue;
             }
-            let (child, child_turn) = self.run_member(&lead, m, &slot_name, existing, &prompt, capped.as_ref(), &mut made).await?;
+            // one that didn't start is that task's error: the others (a crew job may have gone) are still kept
+            let (child, child_turn) = match self.run_member(&lead, m, &slot_name, existing, &prompt, capped.as_ref(), &mut made).await {
+                Ok(x) => x,
+                Err(e) => {
+                    out.push(failed(&want, e.to_string()));
+                    continue;
+                }
+            };
             let c = self.repo.session(&child).await?;
             out.push(Delegation {
                 id: c.id.clone(),
@@ -161,6 +186,13 @@ impl Runtime {
             let kids = x.entry("children").or_insert_with(|| json!({}));
             if let Some(k) = kids.as_object_mut() {
                 k.extend(made);
+            }
+            // the crew jobs it handed out, by key (`<machine>|<id>` when the member works elsewhere): their reports
+            let jobs = x.entry(CREW_JOBS).or_insert_with(|| json!({}));
+            if let Some(j) = jobs.as_object_mut() {
+                for d in sent.iter().filter(|d| d.place.as_deref() == Some("crew")) {
+                    j.insert(d.id.0.clone(), json!(d.subagent));
+                }
             }
         });
         with_slot(&mut t.ext, |x| {
@@ -266,7 +298,16 @@ impl Runtime {
             let mut reports = Vec::new();
             let mut all_done = true;
             let lead = self.repo.session(a.id.as_str()).await?;
+            let crew_jobs = slot(&lead).and_then(|m| m.get(CREW_JOBS)).and_then(Value::as_object).cloned().unwrap_or_default();
             for id in &ids {
+                // a crew member's job: its own task, here or on the member's machine
+                if let Some(name) = crew_jobs.get(id).and_then(Value::as_str) {
+                    if let Some(r) = self.crew_report(&lead, id, name).await {
+                        all_done &= r.done;
+                        reports.push(r);
+                    }
+                    continue;
+                }
                 // a member in a sandbox: read there
                 if id.contains('|') {
                     if let Some(r) = self.sandbox_report(&lead, id).await {
@@ -292,5 +333,60 @@ impl Runtime {
             }
             self.clock.sleep(POLL_MS).await;
         }
+    }
+
+    /// A crew member's task (v1 crew.js `#delegate`): `crew.assign` with `from` = the lead, so it runs as the
+    /// member (their folder, harness, model, kit; on their machine when it's there) and the lead's Team tab lists it.
+    async fn crew_member(&self, lead: &Session, m: &Value, name: &str, prompt: &str, capped: Option<&Value>) -> Delegation {
+        use wisp_crew_api::commands as crew;
+        let args = crew::AssignArgs {
+            id: str_at(m, "crew"),
+            prompt: prompt.to_owned(),
+            from: Some(wisp_crew_api::TaskRef { id: lead.id.0.clone(), title: lead.title.clone() }),
+            capped: capped.cloned(),
+            ..crew::AssignArgs::default()
+        };
+        let label = Some(str_at(m, "label")).filter(|l| !l.is_empty()).unwrap_or_else(|| name.to_owned());
+        let job = match crate::calls::run::<crew::Assign>(&*self.host, args).await {
+            Ok(crew::Started { session: Some(job), .. }) => job,
+            // a delegated job is never queued; say so rather than report a job that isn't there
+            Ok(_) => return failed(name, format!("{label} couldn't start it now. Wait with subagent_results, or do it yourself.")),
+            Err(e) if e.code == wisp_kernel::Code::NotFound => {
+                return failed(name, format!("{label} is no longer on the user's crew."));
+            }
+            Err(e) => return failed(name, e.message),
+        };
+        Delegation {
+            id: SessionId(str_at(&job, "id")),
+            subagent: name.to_owned(),
+            agent: str_at(&job, "agent"),
+            model: str_at(&job, "model"),
+            effort: str_at(&job, "effort"),
+            turn_id: TurnId(String::new()),
+            place: Some("crew".into()),
+            error: None,
+        }
+    }
+
+    /// A crew job's report: read here, or on the member's machine (`<machine>|<id>`, nothing brought back: the
+    /// job worked in the member's folder there). `None`: it's gone, or not this lead's.
+    async fn crew_report(self: &Arc<Self>, lead: &Session, key: &str, name: &str) -> Option<Report> {
+        if key.contains('|') {
+            return self.remote_report(lead, key, false).await.map(|r| Report { subagent: name.to_owned(), ..r });
+        }
+        let s = self.repo.session(key).await.ok()?;
+        let from = s.ext.get(wisp_crew_api::PLUGIN_ID).and_then(|c| c.pointer("/from/id")).and_then(Value::as_str);
+        if from != Some(lead.id.as_str()) {
+            return None;
+        }
+        let last = self.last_turn(key).await.ok()?;
+        Some(Report {
+            id: s.id.clone(),
+            subagent: name.to_owned(),
+            state: s.state,
+            done: s.state != SessionState::Running,
+            text: last.as_ref().and_then(|t| t.text.clone()).unwrap_or_default(),
+            cost_usd: last.as_ref().and_then(|t| t.stats.as_ref()).and_then(|x| x.cost_usd),
+        })
     }
 }

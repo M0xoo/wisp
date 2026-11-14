@@ -10,8 +10,8 @@ use wisp_crew_api::{CrewExt, JobKind, JobSummary, Member, MemberView, PLUGIN_ID,
 use wisp_crew_core::cron::Utc;
 use wisp_crew_core::layout::{layout_of, normalize_layout};
 use wisp_crew_core::note::checkin_prompt;
-use wisp_crew_core::queue::{Placement, checkin_already, count_checkin, drain_count, place};
-use wisp_crew_core::run::{job_body, job_run};
+use wisp_crew_core::queue::{Placement, checkin_already, count_checkin, drain_count, place, place_delegated};
+use wisp_crew_core::run::{at_cap, job_body, job_run};
 use wisp_crew_core::tick::tick;
 use wisp_kernel::{Call, Command as _, Ctx, Setup, WireError};
 use wisp_runtime_api::commands as rt;
@@ -98,8 +98,9 @@ pub(crate) async fn view(ctx: &Ctx, call: &Call, st: &State, m: &Member) -> Memb
 }
 
 /// Starts one job as a task.
-/// `w.run`: this job's own pick (`wisp_crew_core::run`), already checked.
-async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -> Result<Value, WireError> {
+/// `w.run`: this job's own pick (`wisp_crew_core::run`), already checked. `capped`: a capped lead's cap
+/// (`{ mode }`), which a job it delegated runs under (v1 `atCap`, and the job keeps it as a child would).
+async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob, capped: Option<&Value>) -> Result<Value, WireError> {
     let (prompt, job, attachments) = (&w.prompt, w.job, &w.attachments);
     // what it was asked, for its page (a check-in's prompt is the crew's own)
     let asked = (job != JobKind::Checkin && !prompt.trim().is_empty()).then(|| prompt.chars().take(2000).collect::<String>());
@@ -111,6 +112,7 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
         ext.note = Some(wisp_crew_core::note::crew_note(m, &ext, None, &Utc));
     }
     let (agent, model, effort, mode) = job_body(m, w.run.as_ref());
+    let mode = at_cap(&mode, capped.map(|c| c.get("mode").and_then(Value::as_str).unwrap_or("edits")));
     let agent = (!agent.is_empty() && agent != "auto").then_some(agent);
     let args = json!({
         "prompt": prompt, "agent": agent, "model": (!model.is_empty()).then_some(model), "effort": (!effort.is_empty()).then_some(effort),
@@ -118,6 +120,9 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
         "ext": { PLUGIN_ID: ext },
     });
     let mut args = args;
+    if let Some(cap) = capped {
+        args["ext"][wisp_runtime_api::PLUGIN_ID] = json!({ "capped": cap });
+    }
     let made = match &place {
         Some((machine, cwd)) => {
             // no folder: the machine's own default (a member's there may have none)
@@ -162,7 +167,7 @@ fn work(prompt: String, job: JobKind, attachments: Vec<Value>, run: Option<RunPi
 pub(crate) async fn assign(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: WaitingJob) -> Result<c::Started, WireError> {
     let busy = u32::try_from(jobs_of(ctx, call, st, m).await.iter().filter(|j| j.live()).count()).unwrap_or(u32::MAX);
     match place(m, busy, w.job).map_err(wire)? {
-        Placement::Start => Ok(c::Started { session: Some(start(ctx, call, st, m, &w).await?), ..c::Started::default() }),
+        Placement::Start => Ok(c::Started { session: Some(start(ctx, call, st, m, &w, None).await?), ..c::Started::default() }),
         Placement::Queue => {
             let id = wisp_kernel::ids::uuid7();
             let mut m = m.clone();
@@ -173,6 +178,17 @@ pub(crate) async fn assign(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: Wa
             Ok(c::Started { queued: Some(id), position: Some(position), session: None })
         }
     }
+}
+
+/// A job a lead task's agent handed out (`crew.assign` with `from`, v1 crew.js `#delegate`): it starts now, as a
+/// `delegated` job from that task, or is refused (never queued: the lead waits on its report).
+async fn delegated(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: WaitingJob, capped: Option<&Value>) -> Result<c::Started, WireError> {
+    if capped.is_some() && m.elsewhere() {
+        return Err(WireError::conflict(wisp_kernel::caps::capped_refusal("send work to another machine")));
+    }
+    let busy = u32::try_from(jobs_of(ctx, call, st, m).await.iter().filter(|j| j.live()).count()).unwrap_or(u32::MAX);
+    place_delegated(m, busy).map_err(wire)?;
+    Ok(c::Started { session: Some(start(ctx, call, st, m, &w, capped).await?), ..c::Started::default() })
 }
 
 /// `crew.checkin`: one check-in at a time per member (v1 `checkin`).
@@ -339,7 +355,20 @@ fn work_commands(s: &mut Setup, st: &Arc<State>) {
         }
         let harnesses = if a.run.as_ref().is_some_and(|r| r.agent.is_some()) { profile_names(&ctx, &call).await } else { Vec::new() };
         let run = job_run(&m, a.run.as_ref(), a.picked, &|h| harnesses.iter().any(|p| p == h)).map_err(wire)?;
-        assign(&ctx, &call, &st, &m, work(prompt, JobKind::Task, a.attachments, run)).await
+        match a.from {
+            Some(from) => {
+                delegated(
+                    &ctx,
+                    &call,
+                    &st,
+                    &m,
+                    WaitingJob { from: Some(from), ..work(prompt, JobKind::Delegated, a.attachments, run) },
+                    a.capped.as_ref(),
+                )
+                .await
+            }
+            None => assign(&ctx, &call, &st, &m, work(prompt, JobKind::Task, a.attachments, run)).await,
+        }
     });
     on!(s, st, c::Checkin, |st, ctx, call, a| checkin(&ctx, &call, &st, &a.id, false).await);
     wakes(s, st);
@@ -383,7 +412,7 @@ async fn run_tick(ctx: &Ctx, st: &State) {
         let due: Vec<WaitingJob> = m.queue.drain(..n).collect();
         st.put(m.clone());
         for w in due {
-            if let Err(e) = start(ctx, &call, st, &m, &w).await {
+            if let Err(e) = start(ctx, &call, st, &m, &w, None).await {
                 tracing::warn!(member = %m.name, error = %e.message, "crew job");
                 // a full grid (its sandboxes): the job waits its turn again instead of being lost (ADR-0047)
                 if grid_full(&e.message)

@@ -436,6 +436,16 @@ pub struct AssignArgs {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub picked: bool,
+    /// the lead task whose agent hands this job out (`runtime.delegate`, v1 crew.js `#delegate`): the job is
+    /// `delegated` from it, its report goes back to that agent, and it starts now or is refused (never queued). Set by the
+    /// caller (`crew:assign`): the runtime passes the lead it runs
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub from: Option<crate::TaskRef>,
+    /// that lead's mode cap (`{ mode }`, a task a channel started at a cap): the job runs under it, here only
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "Record<string, unknown>")]
+    pub capped: Option<Value>,
 }
 
 /// A job started, or queued behind the member's `parallel` limit.

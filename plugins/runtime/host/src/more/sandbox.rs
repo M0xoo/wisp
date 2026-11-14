@@ -56,6 +56,12 @@ impl Runtime {
 
     /// A sandbox member's report, read there; once it's done, its changes come into the lead's folder (once).
     pub(super) async fn sandbox_report(self: &Arc<Self>, lead: &Session, key: &str) -> Option<Report> {
+        self.remote_report(lead, key, true).await
+    }
+
+    /// A task's report on another machine (`<machine>|<id>`); `bring`: once it's done, its changes come into the
+    /// lead's folder (once), as a sandbox member's do.
+    pub(super) async fn remote_report(self: &Arc<Self>, lead: &Session, key: &str, bring: bool) -> Option<Report> {
         let (machine, id) = key.split_once('|')?;
         let route = |cmd: &'static str, args: Value| self.route(machine, cmd, args);
         let s = route("runtime.get", json!({ "id": id })).await.ok()?;
@@ -66,7 +72,7 @@ impl Runtime {
         let mut text = str_at(&last, "text");
         let brought =
             slot(lead).and_then(|m| m.get("brought")).and_then(Value::as_array).is_some_and(|b| b.iter().any(|x| x.as_str() == Some(key)));
-        if done && !brought {
+        if bring && done && !brought {
             let bring = wisp_sandbox_api::BringArgs { machine: machine.to_owned(), from: str_at(&s, "cwd"), into: lead.cwd.clone() };
             let note = match crate::calls::run::<wisp_sandbox_api::Bring>(&*self.host, bring).await {
                 Ok(wisp_sandbox_api::Brought { error: Some(e), .. }) => format!("\n\n(Its changes didn't come back: {e})"),
