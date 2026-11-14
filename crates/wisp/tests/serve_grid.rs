@@ -266,6 +266,49 @@ async fn sign_in_share_import_and_update_through_wisp_cloud() {
     drop((sa, sb, g));
 }
 
+/// F-share-3 (ADR-0038): a task shared from its Share… dialog (`share.create`), shared again, then Stop sharing
+/// (`share.stop`): sharing again keeps the one link live (the grid answers the same link, a new version, and it isn't
+/// taken back), and after Stop sharing the link answers 410 on its page and to a fetch, and the task no longer lists it.
+#[tokio::test(flavor = "multi_thread")]
+async fn stop_sharing_a_task_stops_its_link() {
+    let root = temp("serve-grid-stop");
+    let g = grid(&root).await;
+    let da = root.join("a");
+    std::fs::create_dir_all(da.join("proj")).unwrap();
+    let (sa, pa) = start_with(&da, &[]);
+    let a = api(pa);
+    sign_in(&a, &g, "ada").await;
+    let made =
+        a.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": da.join("proj"), "agent": "claude", "worktree": false })).await;
+    let tid = made["id"].as_str().unwrap().to_owned();
+    a.until(&tid, "the turn ends", |t| t.last().is_some_and(ended)).await;
+    let web = browser(g.port, &["wisp.localhost"]);
+
+    let first = a.cmd("share.create", json!({ "session": tid })).await;
+    let url = first["url"].as_str().unwrap_or_else(|| panic!("{first}")).to_owned();
+    assert_eq!(web.get(&url).send().await.unwrap().status(), 200, "{url}");
+    let kept = a.cmd("runtime.get", json!({ "id": tid })).await["ext"]["wisp.share"].clone();
+    assert_eq!(kept["url"], json!(url), "{kept}");
+
+    // Share again: the same link, still live (taking the replaced link back never takes back the one just made)
+    let again = a.cmd("share.create", json!({ "session": tid, "work": true })).await;
+    assert_eq!(again["url"], json!(url), "{again}");
+    assert_eq!(web.get(&url).send().await.unwrap().status(), 200, "sharing again keeps the link working");
+
+    // Stop sharing: the link stops working, and the task forgets it
+    let stopped = a.cmd("share.stop", json!({ "session": tid })).await;
+    assert_eq!(stopped["ok"], true, "{stopped}");
+    assert_eq!(web.get(&url).send().await.unwrap().status(), 410, "the page of a stopped share is gone");
+    let id = kept["id"].as_str().unwrap();
+    assert_eq!(web.get(format!("{}/api/shares/{id}", g.url)).send().await.unwrap().status(), 410, "and its api");
+    // (the sharer's own signed-in fetch still reads it: the grid's owner check comes first, as My shares needs)
+    let t = a.cmd("runtime.get", json!({ "id": tid })).await;
+    assert!(t["ext"].get("wisp.share").is_none_or(Value::is_null), "the task no longer lists the link: {t}");
+    let twice = a.try_cmd("share.stop", json!({ "session": tid })).await;
+    assert!(twice.to_string().contains("isn't shared"), "{twice}");
+    drop((sa, g));
+}
+
 /// A tiny page on `port`, answering "hello".
 async fn page_on() -> u16 {
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

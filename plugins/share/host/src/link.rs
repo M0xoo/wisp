@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use wisp_kernel::{Call, Command, Ctx, Result, Setup, WireError};
+use wisp_kernel::{Call, Code, Command, Ctx, Result, Setup, WireError};
 use wisp_runtime_api::model::{Session, Turn};
 use wisp_runtime_api::points::{SUMMARY, SummaryField};
 use wisp_share_api::{Bundle, Destinations, Level, NoArgs, PLUGIN_ID, SendArgs, SendCmd};
@@ -119,11 +119,13 @@ async fn create(ctx: &Ctx, call: &Call, a: CreateArgs) -> Result<Value> {
         access: Some(access_of(a.passkey.as_deref())),
         ..SendArgs::default()
     };
+    // the link kept before this one: taken back once the new one is made (unless the grid answered the same link)
+    let before = calls::task(ctx, call, &a.session).await.map_or(Value::Null, |s| s.ext_of(PLUGIN_ID).clone());
+    let again = before.get("url").is_some();
     let sent = ctx.run::<SendCmd>(call, args).await?;
     let at = ctx.clock().map_or(0, |c| c.now_ms());
     let keep = kept(&sent, locked, at);
-    let again = calls::task(ctx, call, &a.session).await.is_ok_and(|s| s.ext_of(PLUGIN_ID).get("url").is_some());
-    calls::set_ext(ctx, call, &a.session, keep.clone()).await?;
+    replace(ctx, call, &a.session, &before, &keep).await?;
     let props = json!({ "locked": locked, "work": if a.work { "report" } else { "none" }, "again": again });
     calls::warn("task_share not tracked", calls::track(ctx, "task_share", props).await);
     Ok(json!({ "url": keep["url"], "locked": locked, "at": at, "notes": [] }))
@@ -137,6 +139,57 @@ async fn stop(ctx: &Ctx, call: &Call, a: SessionArgs) -> Result<Value> {
     calls::revoke(ctx, call, id.clone()).await?;
     forget(ctx, call, &a.session, &id).await?;
     Ok(json!({ "ok": true }))
+}
+
+fn link_id(slot: &Value) -> Option<String> {
+    slot.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned)
+}
+
+/// A link the grid no longer has is as good as taken back.
+fn gone(r: Result<()>) -> Result<()> {
+    match r {
+        Err(e) if e.code == Code::NotFound => Ok(()),
+        r => r,
+    }
+}
+
+/// `keep` (a link just made) kept on the task in place of `before` (the slot as read before it was made). The old
+/// link is taken back first (`grid-client.revoke`, as Stop sharing does), then the slot is written over what it held
+/// (compare-and-set), so no live link is left that the task doesn't list:
+/// - the grid answered the same link (the same task shared again is a new version of it): nothing is taken back;
+/// - the old link can't be taken back: the new one is (best effort) and the slot keeps the old one, still live;
+/// - the slot can't be written: the new link is taken back and the old one (already taken back) forgotten;
+/// - another Share wrote the slot meanwhile: its link, replaced here, is taken back too.
+pub(crate) async fn replace(ctx: &Ctx, call: &Call, session: &str, before: &Value, keep: &Value) -> Result<()> {
+    let new = link_id(keep);
+    let old = link_id(before).filter(|o| new.as_ref() != Some(o));
+    if let Some(o) = &old
+        && let Err(e) = gone(calls::revoke(ctx, call, o.clone()).await)
+    {
+        if let Some(n) = &new {
+            calls::warn("the new link not taken back", calls::revoke(ctx, call, n.clone()).await);
+        }
+        return Err(e);
+    }
+    let mut displaced = Value::Null;
+    let wrote = wisp_runtime_api::ext::update_ext(ctx, call, session, PLUGIN_ID, |slot: &Value, _: &Session| {
+        displaced = slot.clone();
+        Ok(Some(keep.clone()))
+    })
+    .await;
+    if let Err(e) = wrote {
+        if let Some(n) = &new {
+            calls::warn("the new link not taken back", calls::revoke(ctx, call, n.clone()).await);
+        }
+        if let Some(o) = &old {
+            calls::warn("the old link not forgotten", forget(ctx, call, session, o).await);
+        }
+        return Err(e);
+    }
+    if let Some(d) = link_id(&displaced).filter(|d| new.as_ref() != Some(d) && old.as_ref() != Some(d)) {
+        calls::warn("a replaced link not taken back", gone(calls::revoke(ctx, call, d).await));
+    }
+    Ok(())
 }
 
 /// The task's link `link` forgotten, in one compare-and-set: only while the slot still holds that link, so one
@@ -203,6 +256,97 @@ mod tests {
         let s = Session { ext: serde_json::from_value(json!({ PLUGIN_ID: k })).unwrap(), ..Session::default() };
         Shared.fields(&s, None, &mut out);
         assert_eq!(out["shared"]["url"], "https://g/s/s1");
+    }
+
+    /// wisp.grid-client's `revoke` only: records each id asked, refuses `fail` (unavailable) and `unknown` (not found).
+    #[derive(Debug, Clone, Default)]
+    struct FakeGrid {
+        asked: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+        fail: Option<&'static str>,
+        unknown: Option<&'static str>,
+    }
+
+    impl wisp_kernel::Plugin for FakeGrid {
+        fn manifest(&self) -> wisp_kernel::Manifest {
+            wisp_kernel::Manifest::from_value(
+                json!({ "wispPlugin": 1, "id": "wisp.grid-client", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] }),
+            )
+            .unwrap()
+        }
+        fn setup(&self, s: &mut Setup) -> Result<()> {
+            let me = self.clone();
+            s.command::<wisp_grid_client_api::Revoke, _, _>(move |_c, _call, a: wisp_grid_client_api::IdArgs| {
+                me.asked.lock().unwrap().push(a.id.clone());
+                let r = if me.fail == Some(a.id.as_str()) {
+                    Err(WireError::unavailable("the grid said 502"))
+                } else if me.unknown == Some(a.id.as_str()) {
+                    Err(WireError::not_found("You have no share with that id."))
+                } else {
+                    Ok(json!({ "id": a.id, "revoked": true }))
+                };
+                async move { r }
+            });
+            Ok(())
+        }
+    }
+
+    fn link(id: &str) -> Value {
+        json!({ "id": id, "url": format!("https://g/s/{id}"), "locked": false, "at": 1 })
+    }
+
+    /// `replace` on task t1 holding `held`, with `grid` and a write landing first when `race` is set: the slot after,
+    /// the ids revoked in order, and what it answered.
+    async fn replaced(held: Value, keep: &Value, grid: FakeGrid, race: Option<Value>) -> (Value, Vec<String>, Result<()>) {
+        use wisp_runtime_api::testing::SlotRuntime;
+        let rt = SlotRuntime::new(Session { id: "t1".into(), ..Session::default() });
+        if !held.is_null() {
+            rt.set(PLUGIN_ID, held.clone());
+        }
+        let me = wisp_kernel::Declarative(
+            wisp_kernel::Manifest::from_value(json!({ "wispPlugin": 1, "id": PLUGIN_ID, "version": "2.0.0", "api": "^1", "activation": ["onStartup"], "permissions": ["runtime:get", "runtime:setExt", "grid-client:revoke"] })).unwrap(),
+        );
+        let k = wisp_testkit::TestApp::new().with(rt.clone()).with(grid.clone()).with(me).start().await;
+        let ctx = k.ctx(PLUGIN_ID).unwrap();
+        if let Some(r) = race {
+            rt.race(PLUGIN_ID, r);
+        }
+        let r = replace(&ctx, &ctx.root_call(), "t1", &held, keep).await;
+        let asked = grid.asked.lock().unwrap().clone();
+        (rt.ext(PLUGIN_ID), asked, r)
+    }
+
+    /// Share again on a task that kept link s1: when the grid made a new link s2, s1 is taken back before s2 is kept
+    /// (it kept working, unlisted, before); the same link answered again (a new version) is never taken back; a link
+    /// the grid no longer has counts as taken back. If s1 can't be taken back, s2 is, and s1 stays listed and live
+    /// (never two live links, never one unlisted); a link another Share kept meanwhile (s3) is taken back too.
+    #[tokio::test]
+    async fn a_link_replaced_by_share_again_is_taken_back() {
+        let (s1, s2, s3) = (link("s1"), link("s2"), link("s3"));
+        let (slot, asked, r) = replaced(s1.clone(), &s2, FakeGrid::default(), None).await;
+        assert!(r.is_ok());
+        assert_eq!((slot, asked), (s2.clone(), vec!["s1".to_owned()]));
+
+        let (slot, asked, r) = replaced(s1.clone(), &link("s1"), FakeGrid::default(), None).await;
+        assert!(r.is_ok());
+        assert_eq!((slot["id"].clone(), asked.len()), (json!("s1"), 0), "the same link shared again stays live");
+
+        let (slot, asked, r) = replaced(Value::Null, &s2, FakeGrid::default(), None).await;
+        assert!(r.is_ok());
+        assert_eq!((slot, asked.len()), (s2.clone(), 0), "a first share takes nothing back");
+
+        let unknown = FakeGrid { unknown: Some("s1"), ..FakeGrid::default() };
+        let (slot, _, r) = replaced(s1.clone(), &s2, unknown, None).await;
+        assert!(r.is_ok());
+        assert_eq!(slot, s2, "a link the grid no longer has is as good as taken back");
+
+        let down = FakeGrid { fail: Some("s1"), ..FakeGrid::default() };
+        let (slot, asked, r) = replaced(s1.clone(), &s2, down, None).await;
+        assert_eq!(r.unwrap_err().code, Code::Unavailable);
+        assert_eq!((slot, asked), (s1.clone(), vec!["s1".to_owned(), "s2".to_owned()]), "s1 stays listed, s2 is taken back");
+
+        let (slot, asked, r) = replaced(s1.clone(), &s2, FakeGrid::default(), Some(s3)).await;
+        assert!(r.is_ok());
+        assert_eq!((slot, asked), (s2, vec!["s1".to_owned(), "s3".to_owned()]), "the link kept meanwhile goes too");
     }
 
     /// Stop sharing takes link s1 back while Share again keeps s2 on the task: s2 stays (it's live, not revoked),
