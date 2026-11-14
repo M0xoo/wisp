@@ -450,6 +450,18 @@ pub struct SetExtArgs {
     pub id: SessionId,
     pub plugin: String,
     pub value: Value,
+    /// written only if the slot still holds this (compared in the write's own transaction; refused with
+    /// `conflict` otherwise): a read-then-write that a later write must win over. Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub expect: Option<ExtExpect>,
+}
+
+/// What `runtime.setExt`'s slot must hold for the write to go (`value: null`: the slot is empty).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct ExtExpect {
+    pub value: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

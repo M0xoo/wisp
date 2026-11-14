@@ -75,7 +75,7 @@ pub(crate) async fn quick(ctx: &Ctx, call: &Call, prompt: String, cwd: &str, age
 
 /// `runtime.setExt` under `wisp.router`.
 pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> Result<()> {
-    ctx.run::<r::SetExt>(call, r::SetExtArgs { id: id.into(), plugin: "wisp.router".into(), value }).await.map(|_| ())
+    ctx.run::<r::SetExt>(call, r::SetExtArgs { id: id.into(), plugin: "wisp.router".into(), value, expect: None }).await.map(|_| ())
 }
 
 /// Merges `patch`'s keys into the task's `wisp.router` slot (`runtime.setExt` replaces the slot: the route stays).

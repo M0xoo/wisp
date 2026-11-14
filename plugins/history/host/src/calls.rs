@@ -32,7 +32,7 @@ pub(crate) async fn turn_count(ctx: &Ctx, call: &Call, id: &str) -> usize {
 
 /// `runtime.setExt` under `wisp.history`: a refusal is logged (what it marks is only a hint).
 pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) {
-    let a = r::SetExtArgs { id: id.into(), plugin: wisp_history_api::EXT.into(), value };
+    let a = r::SetExtArgs { id: id.into(), plugin: wisp_history_api::EXT.into(), value, expect: None };
     warn("marking the task (setExt)", ctx.run::<r::SetExt>(call, a).await);
 }
 

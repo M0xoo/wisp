@@ -166,8 +166,14 @@ impl Runtime {
     }
 
     /// A plugin writes its own ext slot only (the caller's plugin id is checked by the command handler).
-    pub async fn set_ext(self: &Arc<Self>, id: &str, plugin: &str, value: Value) -> Result<()> {
+    /// `expect`: the slot must still hold it (checked under the task's lock, in the same write), or it's refused.
+    pub async fn set_ext(self: &Arc<Self>, id: &str, plugin: &str, value: Value, expect: Option<&Value>) -> Result<()> {
         self.edit(id, |s| {
+            if let Some(want) = expect
+                && s.ext.get(plugin).unwrap_or(&Value::Null) != want
+            {
+                return Err(RuntimeError::Conflict(format!("{plugin}'s state on this task changed meanwhile")));
+            }
             if value.is_null() {
                 s.ext.remove(plugin);
             } else {

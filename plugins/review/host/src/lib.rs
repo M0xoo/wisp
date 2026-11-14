@@ -201,7 +201,7 @@ impl Env for KernelEnv {
             Ok(v) => v.unwrap_or(Value::Null),
             Err(e) => return Box::pin(async move { Err(WireError::internal(e.to_string())) }),
         };
-        let set = self.0.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: EXT.into(), value });
+        let set = self.0.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: EXT.into(), value, expect: None });
         let read = unread.then(|| self.0.run::<rt::MarkRead>(call, rt::MarkReadArgs { id: id.into(), unread: true }));
         Box::pin(async move {
             set.await?;

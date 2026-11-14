@@ -15,7 +15,7 @@ pub(super) fn reads(s: &mut Setup, slot: &Slot) {
     cmd!(s, slot, c::Cold, |r, call, a| r.cold(a.id.as_str()).await);
     cmd!(s, slot, c::SetExt, |r, call, a| {
         own_slot(&call, &a.plugin)?;
-        r.set_ext(a.id.as_str(), &a.plugin, a.value).await.map(|()| c::Ack {})
+        r.set_ext(a.id.as_str(), &a.plugin, a.value, a.expect.as_ref().map(|e| &e.value)).await.map(|()| c::Ack {})
     });
     cmd!(s, slot, c::Usage, |r, call, a| {
         let from = r.now() - i64::from(a.days.unwrap_or(7).clamp(1, 366)) * 86_400_000;

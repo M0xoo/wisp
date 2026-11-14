@@ -158,7 +158,7 @@ impl Runtime {
         s.unread = false;
         s.archived = false;
         s.updated_at = self.now();
-        self.persist(&mut s, vec![turn.clone()]).await?;
+        self.persist_start(&mut s, vec![turn.clone()]).await?;
         self.host.emit(Emitted::Started(TurnStarted { session_id: s.id.clone(), turn_id: turn.id.clone() }));
         // a task or My Stuff mentioned in the prompt (the turn as saved keeps the user's words)
         let asked = Turn { prompt: self.with_mentions(&s, &turn, harness.info()).await, ..turn.clone() };
@@ -215,7 +215,7 @@ impl Runtime {
         // a turn asked for it: the task is back in the list, with why it waits (and its folder stays)
         s.archived = false;
         s.updated_at = self.now();
-        self.persist(&mut s, vec![turn.clone()]).await?;
+        self.persist_start(&mut s, vec![turn.clone()]).await?;
         self.host.emit(Emitted::Task("task.held", crate::host::fact(&s, Some(&turn.id), "held", &format!("{} ({})", h.kind, h.by), None)));
         self.host.emit(Emitted::Held(TurnHeld { session_id: s.id.clone(), turn_id: turn.id.clone(), by: h.by, kind: h.kind }));
         Ok(turn.id)
@@ -280,8 +280,19 @@ impl Runtime {
         s.unread = true;
         s.archived = false;
         s.updated_at = self.now();
-        self.persist(&mut s, vec![turn.clone()]).await?;
+        self.persist_start(&mut s, vec![turn.clone()]).await?;
         Ok(turn.id)
+    }
+
+    /// A turn's start written over the task as it is now, under its lock: `s` was read before the start's awaits
+    /// (folder, `before:run`, run parts), so another plugin's slot written meanwhile (`runtime.setExt`: a goal
+    /// dropped) is kept, never put back as `s` had it. Runtime's own slot is the start's.
+    async fn persist_start(self: &Arc<Self>, s: &mut Session, turns: Vec<Turn>) -> Result<()> {
+        let _guard = self.task_lock(s.id.as_str()).await;
+        if let Ok(now) = self.repo.session(s.id.as_str()).await {
+            carry_others_ext(s, now.ext);
+        }
+        self.persist(s, turns).await.map(drop)
     }
 
     fn harness_run(&self, s: &Session, t: &Turn, ctx: &BeforeRunCtx, h: &dyn Harness) -> HarnessRun {
@@ -455,6 +466,17 @@ impl Runtime {
 /// (adopted from a share, made before `specs::folder`, a `runtime.quick` with no folder) one empty folder of
 /// its own under the temp dir, the same each turn for `scratch` so a resume finds it. A relative folder is
 /// refused: it would resolve against the server's folder.
+/// Every ext slot but runtime's own as `now` has it (other plugins write theirs under the task's lock).
+fn carry_others_ext(s: &mut Session, mut now: wisp_runtime_api::model::Ext) {
+    match s.ext.remove(OWN) {
+        Some(own) => now.insert(OWN.to_owned(), own),
+        None => now.remove(OWN),
+    };
+    s.ext = now;
+}
+
+const OWN: &str = "wisp.runtime";
+
 pub(crate) async fn run_folder(launch: &str, task: &str, scratch: &str) -> Result<std::path::PathBuf> {
     let named = if launch.trim().is_empty() { task } else { launch };
     if !named.trim().is_empty() {

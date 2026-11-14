@@ -249,7 +249,7 @@ async fn edits_reads_and_delete() {
     until("the turn to end", || async { last_status(&r, &id).await == Some(TurnStatus::Done) }).await;
     r.rt.rename(&id, "  Named  ").await.unwrap();
     r.rt.archive(&id, true).await.unwrap();
-    r.rt.set_ext(&id, "wisp.goal", serde_json::json!({"text": "green"})).await.unwrap();
+    r.rt.set_ext(&id, "wisp.goal", serde_json::json!({"text": "green"}), None).await.unwrap();
     let s = r.rt.get(&id).await.unwrap();
     assert_eq!((s.title.as_str(), s.archived), ("Named", true));
     assert_eq!(s.ext["wisp.goal"]["text"], "green");

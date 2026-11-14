@@ -65,7 +65,7 @@ pub(crate) fn held_of(h: &PlanHold) -> LaterHeld {
 
 /// `runtime.setExt`: the task's list row shows what is scheduled (logged when refused).
 pub(crate) async fn mirror(ctx: &Ctx, call: &Call, id: &str, value: Value) {
-    let a = r::SetExtArgs { id: SessionId(id.to_owned()), plugin: PLUGIN_ID.into(), value };
+    let a = r::SetExtArgs { id: SessionId(id.to_owned()), plugin: PLUGIN_ID.into(), value, expect: None };
     if let Err(err) = ctx.run::<r::SetExt>(call, a).await {
         tracing::warn!(error = %err.message, task = id, "later: runtime.setExt");
     }

@@ -109,7 +109,7 @@ fn start_writer(ctx: &Ctx, ship: &Arc<Ship>, known: &Arc<Known>) {
                 }
                 known.set(&id, value.clone());
                 let review = slot::new_head(was.as_ref(), &value);
-                let a = rt::SetExtArgs { id: id.as_str().into(), plugin: PLUGIN.into(), value };
+                let a = rt::SetExtArgs { id: id.as_str().into(), plugin: PLUGIN.into(), value, expect: None };
                 if let Err(e) = cx.run::<rt::SetExt>(&cx.root_call(), a).await {
                     known.forget(&id);
                     tracing::warn!(error = %e.message, task = %id, "ship: keeping its slot on the task");

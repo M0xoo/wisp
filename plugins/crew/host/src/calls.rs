@@ -37,7 +37,7 @@ pub(crate) fn crew_of(s: &Session) -> &Value {
 
 /// `runtime.setExt`: the crew's slot on a task written.
 pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> R<()> {
-    ctx.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: PLUGIN_ID.into(), value }).await.map(|_| ())
+    ctx.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: PLUGIN_ID.into(), value, expect: None }).await.map(|_| ())
 }
 
 /// `runtime.turn.setExt`: the crew's slot on one turn written.

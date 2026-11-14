@@ -125,7 +125,7 @@ impl Port for RuntimePort {
             let Ok(full) = ctx.run::<Get>(&call, IdArgs { id: id.clone().into() }).await else { return };
             let mut slot = full.ext.get(EXT).cloned().filter(Value::is_object).unwrap_or_else(|| Value::Object(serde_json::Map::new()));
             slot["kept"] = Value::Bool(kept);
-            if let Err(e) = ctx.run::<SetExt>(&call, SetExtArgs { id: id.into(), plugin: EXT.into(), value: slot }).await {
+            if let Err(e) = ctx.run::<SetExt>(&call, SetExtArgs { id: id.into(), plugin: EXT.into(), value: slot, expect: None }).await {
                 tracing::warn!(error = %e.message, "worktrees: keeping a worktree");
             }
         })
@@ -221,7 +221,7 @@ impl Port for RuntimePort {
             };
             let wt = Worktree { path: item.path.clone(), cwd: item.path, branch: item.branch, root, foreign: true, ..Worktree::default() };
             let value = serde_json::to_value(&wt).unwrap_or(Value::Null);
-            if let Err(e) = ctx.run::<SetExt>(&call, SetExtArgs { id: id.clone(), plugin: EXT.into(), value }).await {
+            if let Err(e) = ctx.run::<SetExt>(&call, SetExtArgs { id: id.clone(), plugin: EXT.into(), value, expect: None }).await {
                 tracing::warn!(error = %e.message, "worktrees: marking a brought-in worktree");
             }
             Some(id.0)

@@ -74,7 +74,9 @@ pub(crate) async fn adopt(ctx: &Ctx, call: &Call, args: Value) -> Result<Value> 
 
 /// `runtime.setExt`: the share's slot on a task written (`Null` forgets it).
 pub(crate) async fn set_ext(ctx: &Ctx, call: &Call, id: &str, value: Value) -> Result<()> {
-    ctx.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: wisp_share_api::PLUGIN_ID.into(), value }).await.map(|_| ())
+    ctx.run::<rt::SetExt>(call, rt::SetExtArgs { id: id.into(), plugin: wisp_share_api::PLUGIN_ID.into(), value, expect: None })
+        .await
+        .map(|_| ())
 }
 
 /// `telemetry.track`: a catalogue event (props: a JSON object), on the root call.

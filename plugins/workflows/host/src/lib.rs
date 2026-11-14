@@ -140,7 +140,7 @@ fn wire_name<T: serde::Serialize>(v: T) -> String {
 
 async fn report(ctx: &Ctx, call: &Call, parent: &str, name: &str, run: &Run, state: &str, notes: &[String]) {
     let value = json!({ "workflow": name, "state": state, "cost": run.cost(), "steps": run.report(), "notes": notes });
-    let a = r::SetExtArgs { id: SessionId(parent.to_owned()), plugin: EXT.into(), value };
+    let a = r::SetExtArgs { id: SessionId(parent.to_owned()), plugin: EXT.into(), value, expect: None };
     if let Err(err) = ctx.run::<r::SetExt>(call, a).await {
         tracing::warn!(error = %err.message, task = parent, "workflows: runtime.setExt");
     }
