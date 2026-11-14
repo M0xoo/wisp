@@ -126,6 +126,8 @@ async fn track(ctx: &Ctx, call: &Call, a: &api::TrackArgs) -> Result<Tracked> {
         Some(r) => named_repo(r)?,
         None => root_of_task(&p, &task).await?,
     };
+    // counted before the read it saves: a turn ending meanwhile stays unseen (offered or saved next time)
+    let turns = calls::turn_count(ctx, call, &id).await;
     let preview = calls::preview(ctx, call, &id, a.level.as_deref().unwrap_or("full")).await?;
     let mut b = preview.bundle;
     id.clone_into(&mut b.id);
@@ -146,8 +148,10 @@ async fn track(ctx: &Ctx, call: &Call, a: &api::TrackArgs) -> Result<Tracked> {
     let written = store.write(root.clone(), files).await?;
     let scrubbed = u32::try_from(preview.redactions.len()).unwrap_or(u32::MAX);
     let out = Tracked { repo: root.display().to_string(), store: store.id().to_owned(), files: written, pr, commits, scrubbed };
-    calls::set_ext(ctx, call, &id, json!({ "tracked": { "repo": out.repo, "files": out.files, "store": out.store }, "offer": false }))
-        .await;
+    // over what the slot holds now (never a stale copy), with the turns it saved as seen: the change this write
+    // makes (or a done event read before it) must not offer what's already saved
+    let mark = json!({ "tracked": { "repo": out.repo, "files": out.files, "store": out.store }, "offer": false, "seenTurns": turns });
+    calls::warn("marking the task (setExt)", calls::update_ext(ctx, call, &id, |slot| Some(calls::merged(slot, &mark))).await);
     Ok(out)
 }
 
@@ -212,47 +216,59 @@ async fn on_done(ctx: &Ctx, id: &str) {
         return;
     }
     let turns = calls::turn_count(ctx, &call, id).await;
-    let seen = task.ext_of(api::EXT).get("seenTurns").and_then(Value::as_u64);
-    if seen == Some(turns as u64) {
+    if seen_turns(task.ext_of(api::EXT)) == Some(turns as u64) {
         return;
     }
-    let mark = |extra: Value| {
-        let mut v = Some(task.ext_of(api::EXT).clone()).filter(Value::is_object).unwrap_or_else(|| json!({}));
-        if let (Some(o), Some(e)) = (v.as_object_mut(), extra.as_object()) {
-            o.extend(e.clone());
-            o.insert("seenTurns".into(), json!(turns));
-        }
-        v
+    // decided again on the slot as it is at the write (a save, or another event's offer, may land meanwhile):
+    // nothing once these turns were seen, and no offer on a task saved before turns were counted
+    let first = |slot: &Value, extra: Value| {
+        let unseen = seen_turns(slot) != Some(turns as u64);
+        unseen.then(|| calls::merged(slot, &extra)).map(|mut v| {
+            v["seenTurns"] = json!(turns);
+            v
+        })
     };
     match setting(&root, "track", "ask").await.as_str() {
         "auto" => {
-            if let Err(e) =
-                track(ctx, &call, &api::TrackArgs { id: id.to_owned(), level: None, repo: Some(root.display().to_string()) }).await
-            {
-                tracing::warn!(task = id, "history: not saved: {}", e.message);
-            }
-            // what track just wrote, plus the turn count: a refused read would drop `tracked`, so it's skipped
-            match calls::task(ctx, &call, id).await {
-                Ok(after) => {
-                    let mut v = Some(after.ext_of(api::EXT).clone()).filter(Value::is_object).unwrap_or_else(|| json!({}));
-                    v["seenTurns"] = json!(turns);
-                    calls::set_ext(ctx, &call, id, v).await;
+            // the turns are claimed first, so two events for one turn count save once
+            match calls::update_ext(ctx, &call, id, |slot| first(slot, json!({}))).await {
+                Ok(true) => {
+                    let a = api::TrackArgs { id: id.to_owned(), level: None, repo: Some(root.display().to_string()) };
+                    if let Err(e) = track(ctx, &call, &a).await {
+                        tracing::warn!(task = id, "history: not saved: {}", e.message);
+                    }
                 }
-                Err(e) => tracing::warn!(task = id, "history: runtime.get: {}", e.message),
+                Ok(false) => {}
+                Err(e) => tracing::warn!(task = id, "history: marking the task: {}", e.message),
             }
         }
         "ask" => {
-            calls::set_ext(ctx, &call, id, mark(json!({ "offer": true, "repo": root.display().to_string() }))).await;
-            if let Ok(n) = wisp_kernel::services::notify(ctx) {
-                n.notice(
-                    "history.offer",
-                    json!({ "task": id, "title": task.title, "repo": root.display().to_string(), "text": "Save it to the repo?" }),
-                    None,
-                );
+            let repo = root.display().to_string();
+            let offer = |slot: &Value| {
+                let saved_uncounted = slot.get("tracked").is_some() && seen_turns(slot).is_none();
+                if saved_uncounted { None } else { first(slot, json!({ "offer": true, "repo": repo })) }
+            };
+            match calls::update_ext(ctx, &call, id, offer).await {
+                Ok(true) => {
+                    if let Ok(n) = wisp_kernel::services::notify(ctx) {
+                        n.notice(
+                            "history.offer",
+                            json!({ "task": id, "title": task.title, "repo": repo, "text": "Save it to the repo?" }),
+                            None,
+                        );
+                    }
+                }
+                Ok(false) => {}
+                Err(e) => tracing::warn!(task = id, "history: offering: {}", e.message),
             }
         }
         _ => {}
     }
+}
+
+/// The turn count the slot says was last seen.
+fn seen_turns(slot: &Value) -> Option<u64> {
+    slot.get("seenTurns").and_then(Value::as_u64)
 }
 
 /// What the injection knows: each repo's tasks and whether it opted in, read before a run.

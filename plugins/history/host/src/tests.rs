@@ -32,19 +32,30 @@ impl Command for Preview {
     type Out = Value;
 }
 
-/// wisp.runtime with one task, `t1`, in `dir`; its title can change.
-struct Runtime(PathBuf, Arc<Mutex<String>>);
+/// The fake task's `wisp.history` slot, and a write to land just before the next offer does (another write that
+/// lands between the offer's read and its write).
+#[derive(Default)]
+struct Slot {
+    value: Value,
+    before_offer: Option<Value>,
+}
+
+/// wisp.runtime with one task, `t1`, in `dir`; its title can change; its history slot is kept and `runtime.setExt`
+/// honours `expect` as the real one does (refused with `conflict` unless the slot still holds it).
+struct Runtime(PathBuf, Arc<Mutex<String>>, Arc<Mutex<Slot>>);
 impl Plugin for Runtime {
     fn manifest(&self) -> Manifest {
         Manifest::from_value(json!({ "wispPlugin": 1, "id": "wisp.runtime", "version": "2.0.0", "api": "^1", "activation": ["onStartup"] }))
             .unwrap()
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        let (dir, title) = (self.0.display().to_string(), self.1.clone());
+        let (dir, title, slot) = (self.0.display().to_string(), self.1.clone(), self.2.clone());
+        let read = slot.clone();
         s.command::<Get, _, _>(move |_c, _call, _a| {
             let (dir, title) = (dir.clone(), title.lock().unwrap().clone());
+            let ext = read.lock().unwrap().value.clone();
             // the real runtime.get's shape (a whole Session), so a wrong-shape read fails here
-            let t = wisp_runtime_api::model::Session {
+            let mut t = wisp_runtime_api::model::Session {
                 id: "01a1bc12ab34cdef0123456789abcdef".into(),
                 title,
                 cwd: dir,
@@ -52,9 +63,27 @@ impl Plugin for Runtime {
                 state: wisp_runtime_api::model::SessionState::Done,
                 ..Default::default()
             };
+            if !ext.is_null() {
+                t.ext.insert(wisp_history_api::EXT.into(), ext);
+            }
             async move { Ok(serde_json::to_value(t).unwrap()) }
         });
-        s.command::<SetExt, _, _>(|_c, _call, _a| async { Ok(json!({})) });
+        s.command::<SetExt, _, _>(move |_c, _call, a| {
+            let mut s = slot.lock().unwrap();
+            if a["value"]["offer"] == true
+                && let Some(v) = s.before_offer.take()
+            {
+                s.value = v;
+            }
+            let r = match a.get("expect") {
+                Some(e) if e["value"] != s.value => Err(wisp_kernel::WireError::conflict("changed meanwhile")),
+                _ => {
+                    s.value = a["value"].clone();
+                    Ok(json!({}))
+                }
+            };
+            async move { r }
+        });
         s.command::<Turns, _, _>(|_c, _call, _a| async { Ok(json!([])) });
         Ok(())
     }
@@ -166,9 +195,13 @@ fn dir(name: &str, yml: &str, repo: bool) -> PathBuf {
 }
 
 async fn kernel(d: &Path, title: &Arc<Mutex<String>>, with_history: bool, kept: &Kept) -> Kernel {
+    kernel_with(d, title, with_history, kept, Arc::default()).await
+}
+
+async fn kernel_with(d: &Path, title: &Arc<Mutex<String>>, with_history: bool, kept: &Kept, slot: Arc<Mutex<Slot>>) -> Kernel {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
     let mut app = TestApp::new()
-        .with(Runtime(d.to_owned(), title.clone()))
+        .with(Runtime(d.to_owned(), title.clone(), slot))
         .with(Share(title.clone()))
         .with(Acme(kept.clone()))
         .service(store)
@@ -402,4 +435,34 @@ async fn a_named_repo_that_is_empty_or_relative_is_refused_by_every_command() {
             assert!(e.message.contains("repo"), "{cmd} {repo:?}: {e:?}");
         }
     }
+}
+
+/// The change a save's own write makes runs the done check again: the save counted the turns as seen, so no offer
+/// comes back over `tracked` (`serve_history.rs`'s `offers_the_mark_resume_requests_and_injection` failed on CI this way).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_saved_task_is_not_offered_again() {
+    let d = dir("saved", "history: { track: ask }", true);
+    let slot = Arc::new(Mutex::new(Slot::default()));
+    let k = kernel_with(&d, &Arc::new(Mutex::new("Fix".into())), true, &Kept::default(), slot.clone()).await;
+    let ctx = k.ctx("wisp.history").unwrap();
+    super::on_done(&ctx, "t1").await;
+    assert_eq!(slot.lock().unwrap().value["offer"], true, "offered first: {}", slot.lock().unwrap().value);
+    k.call(Caller::user(), "history.save", track()).await.unwrap();
+    super::on_done(&ctx, "t1").await;
+    let v = slot.lock().unwrap().value.clone();
+    assert_eq!((v["offer"].clone(), v["tracked"]["store"].clone()), (json!(false), json!("files")), "{v}");
+}
+
+/// A save that lands between the done check's read of the slot and its write: the offer, computed from the copy
+/// before the save, never lands over it (it reads again, sees the turns saved, and writes nothing).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_save_between_the_offers_read_and_write_wins() {
+    let d = dir("race", "history: { track: ask }", true);
+    let saved = json!({ "tracked": { "repo": d.display().to_string(), "files": [".wisp/x.task.yml"], "store": "files" }, "offer": false, "seenTurns": 0 });
+    let slot = Arc::new(Mutex::new(Slot { value: Value::Null, before_offer: Some(saved.clone()) }));
+    let k = kernel_with(&d, &Arc::new(Mutex::new("Fix".into())), true, &Kept::default(), slot.clone()).await;
+    super::on_done(&k.ctx("wisp.history").unwrap(), "t1").await;
+    let s = slot.lock().unwrap();
+    assert!(s.before_offer.is_none(), "the save landed mid-offer");
+    assert_eq!(s.value, saved, "the save wins");
 }
