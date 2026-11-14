@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { codeLines, header, isTestFile } from '../core/rust.ts';
-import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustMcpOwners, rustSansIo, rustSizes, rustTypedCommands, rustUnsafe } from '../rules/rust.ts';
+import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustMcpOwners, rustSansIo, rustSetExt, rustSizes, rustTypedCommands, rustUnsafe } from '../rules/rust.ts';
 import { fixture, messages, run, writeTree } from './helpers.ts';
 
 test('rust-layers: plugins use other plugins through -api only; api ↛ core ↛ host; base crates use no plugin', async () => {
@@ -198,4 +198,56 @@ test('rust-typed-commands: a string-name call to another plugin\'s typed command
   assert.deepEqual(await run(rustTypedCommands, root), ['plugins/till/host/src/lib.rs:10 rust-typed-commands', 'plugins/till/host/src/lib.rs:2 rust-typed-commands']);
   const [m] = await messages(rustTypedCommands, root);
   assert.ok(m?.includes('wisp_shop_api::Buy'), m);
+});
+
+test('rust-set-ext: a SetExtArgs with `expect: None` fails unless a `// set-ext: whole <why>` says why; expect set, the api crate and tests do not', async () => {
+  const root = writeTree(
+    new Map([
+      ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host"]\n'],
+      ['plugins/runtime/api/Cargo.toml', '[package]\nname = "wisp-runtime-api"\n'],
+      ['plugins/runtime/api/src/lib.rs', 'fn f() { let _ = SetExtArgs { id, plugin, value, expect: None }; }'], // the api crate: none
+      ['plugins/till/host/Cargo.toml', '[package]\nname = "wisp-till"\n'],
+      [
+        'plugins/till/host/src/lib.rs',
+        [
+          'async fn a(ctx: &Ctx) {',
+          '    let _ = SetExtArgs { id: id.into(), plugin: P.into(), value, expect: None };', // 2: the finding
+          '    let _ = SetExtArgs { id: id.into(), plugin: P.into(), value, expect: Some(ExtExpect { value: v }) };', // expect set: none
+          '    let _ = SetExtArgs { id, plugin, value, expect };', // a variable: none
+          '    // set-ext: whole one writer, nothing read back',
+          '    let _ = SetExtArgs { id, plugin, value, expect: None };', // a reason on the line above: none
+          '    let _ = SetExtArgs {', // 7: spans lines, no reason: the finding
+          '        id: id.into(),',
+          '        plugin: P.into(),',
+          '        value: json!({ "a": { "b": 1 } }),',
+          '        expect: None,',
+          '    };',
+          '    let _ = SetExtArgs {',
+          '        id, plugin, value,',
+          '        expect: None, // set-ext: whole the task was made just now',
+          '    };', // a reason inside it: none
+          '    // set-ext: whole',
+          '    let _ = SetExtArgs { id, plugin, value, expect: None };', // 18: no reason given: the finding
+          '    // SetExtArgs { id, plugin, value, expect: None }', // a comment: none
+          '    let _ = r::SetExtArgs { id, plugin, value, expect: None }; // set-ext: whole on its line',
+          '    let _ = SetExtArgs { id, plugin, value, expect: None };', // 21: the reason above is the last literal's: the finding
+          '    let _ = SetExtArgs { id, plugin, value, ..base };', // 22: `..rest` leaves expect None: the finding
+          '    let _ = SetExtArgs { id, plugin, value, expect }; let o = Other { expect: None };', // another literal after it: none
+          '}',
+          '#[cfg(test)]',
+          'mod tests { fn t() { SetExtArgs { id, plugin, value, expect: None }; } }', // tests: none
+        ].join('\n'),
+      ],
+      ['plugins/till/host/tests/race.rs', 'fn t() { SetExtArgs { id, plugin, value, expect: None }; }'], // a test file: none
+    ]),
+  );
+  assert.deepEqual(await run(rustSetExt, root), [
+    'plugins/till/host/src/lib.rs:18 rust-set-ext',
+    'plugins/till/host/src/lib.rs:2 rust-set-ext',
+    'plugins/till/host/src/lib.rs:21 rust-set-ext',
+    'plugins/till/host/src/lib.rs:22 rust-set-ext',
+    'plugins/till/host/src/lib.rs:7 rust-set-ext',
+  ]);
+  const [m] = await messages(rustSetExt, root);
+  assert.ok(m?.includes('update_ext'), m);
 });

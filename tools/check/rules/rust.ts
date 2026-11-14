@@ -12,6 +12,8 @@
 //   rust-mcp-owners every command wisp.mcp's built-in tools run is registered by a host (rust-mcp-owners.ts)
 //   rust-typed-commands  a plugin calls another plugin's typed command through its -api type, not by
 //                   string id with hand-built JSON (warn while callers migrate; rust-typed-commands.ts)
+//   rust-set-ext    a plugin's `SetExtArgs { expect: None }` (a whole write of its ext slot) says why in a
+//                   `// set-ext: whole <why>` comment; a read-then-write is ext::update_ext (rust-set-ext.ts)
 //   rust-resource-kinds  a plugin with tables a user sets up registers a resource kind (its settings are
 //                   wisp.settings' `setting` kind), unless plugins/resources/pending-kinds.txt lists it
 // Normal and build dependencies count for the layers; dev-dependencies don't (tests may wire anything).
@@ -342,7 +344,9 @@ export { rustMcp } from './rust-mcp.ts';
 import { rustMcp } from './rust-mcp.ts';
 export { rustMcpOwners } from './rust-mcp-owners.ts';
 import { rustMcpOwners } from './rust-mcp-owners.ts';
+import { rustSetExt } from './rust-set-ext.ts';
 import { rustTypedCommands } from './rust-typed-commands.ts';
+export { rustSetExt } from './rust-set-ext.ts';
 export { rustTypedCommands } from './rust-typed-commands.ts';
 
-export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds, rustEvents, rustMcp, rustMcpOwners, rustTypedCommands];
+export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds, rustEvents, rustMcp, rustMcpOwners, rustTypedCommands, rustSetExt];

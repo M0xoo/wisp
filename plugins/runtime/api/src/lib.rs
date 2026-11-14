@@ -8,12 +8,15 @@
 
 pub mod commands;
 pub mod events;
+pub mod ext;
 pub mod harness;
 pub mod hooks;
 pub mod model;
 pub mod paths;
 pub mod points;
 pub mod spec;
+#[cfg(feature = "testing")]
+pub mod testing;
 
 /// Kernel-style branded ids (`wisp_kernel::id_type!`), plus `ts_rs::TS` as a plain string for the UI.
 macro_rules! ts_id {

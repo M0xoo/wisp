@@ -14,5 +14,9 @@ serde_json.workspace = true
 schemars.workspace = true
 ts-rs.workspace = true
 
+[features]
+# test stand-ins (testing::SlotRuntime): dev-dependencies only
+testing = []
+
 [lints]
 workspace = true
