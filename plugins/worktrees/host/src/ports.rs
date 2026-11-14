@@ -68,6 +68,11 @@ pub trait Port: Send + Sync + 'static {
     fn projects(&self) -> BoxFuture<'static, Vec<(String, String)>> {
         Box::pin(async { Vec::new() })
     }
+    /// a working task (running, asking or queued) has `path`, or a folder inside it, as one of its extra folders
+    /// (`dirs`): an archived task's worktree it names stays while it works
+    fn extra_in_use(&self, _path: String) -> BoxFuture<'static, bool> {
+        Box::pin(async { false })
+    }
     /// a harness session ran outside wisp in this folder (a chat Bring in resumes)
     fn chat_in(&self, _path: String) -> BoxFuture<'static, bool> {
         Box::pin(async { false })
@@ -87,6 +92,8 @@ pub struct MemPort {
     pub projects: Mutex<Vec<(String, String)>>,
     /// what `bring_in` made: (path, root)
     pub brought: Mutex<Vec<(String, String)>>,
+    /// the extra folders (`dirs`) of the tasks working now
+    pub extras: Mutex<Vec<String>>,
 }
 
 impl MemPort {
@@ -97,6 +104,7 @@ impl MemPort {
             short: false.into(),
             projects: Mutex::new(Vec::new()),
             brought: Mutex::new(Vec::new()),
+            extras: Mutex::new(Vec::new()),
         })
     }
 }
@@ -105,6 +113,10 @@ impl Port for MemPort {
     fn tasks(&self) -> BoxFuture<'static, Vec<TaskInfo>> {
         let v = self.tasks.lock().map(|t| t.clone()).unwrap_or_default();
         Box::pin(async move { v })
+    }
+    fn extra_in_use(&self, path: String) -> BoxFuture<'static, bool> {
+        let used = self.extras.lock().is_ok_and(|v| v.iter().any(|d| crate::fsx::within(d, &path)));
+        Box::pin(async move { used })
     }
     fn set_kept(&self, id: String, kept: bool) -> BoxFuture<'static, ()> {
         if let Ok(mut t) = self.tasks.lock() {

@@ -396,7 +396,9 @@ impl Cleanup {
                         continue;
                     }
                     // re-check right before: a follow-up may have overtaken the cleanup
-                    let busy = self.port.tasks().await.iter().any(|x| x.id == id && x.busy);
+                    let busy = self.port.tasks().await.iter().any(|x| x.id == id && x.busy)
+                        // a working task has it as one of its extra folders (`dirs`)
+                        || self.port.extra_in_use(wt.path.clone()).await;
                     let (e, path) = (&self.engine, wt.path.clone());
                     let still = move || !busy && !e.claimed_since(&path, mark);
                     let opts = RemoveOpts { force, strict: !force, ..RemoveOpts::default() };

@@ -88,6 +88,44 @@ async fn a_follow_up_on_an_archived_task_runs_in_its_worktree_brought_back_on_it
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A /btw goes through the same ready step as a turn: on an archived task whose worktree archiving removed, it's
+/// brought back first on its branch and the side question runs there; the task stays in Archived.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_btw_on_an_archived_task_runs_in_its_worktree_brought_back() {
+    let dir = temp("serve-wt-btw");
+    let rec = dir.join("rec");
+    let repo = repo(&dir);
+    let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap())]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let (id, wt) = task_in_a_worktree(&api, &repo).await;
+    let (path, branch, cwd) = (wt["path"].as_str().unwrap(), wt["branch"].as_str().unwrap(), wt["cwd"].as_str().unwrap());
+    api.cmd("runtime.archive", json!({ "id": id, "archived": true })).await;
+    until_gone(path, "archiving removes the clean worktree").await;
+
+    let asked = api.cmd("runtime.btw", json!({ "id": id, "question": "why that way?" })).await;
+    assert_eq!(asked["pending"], true, "{asked}");
+    let at = Instant::now();
+    loop {
+        let s = api.cmd("runtime.get", json!({ "id": id })).await;
+        let b = &s["ext"]["wisp.runtime"]["btw"][0];
+        if b.is_object() && b["pending"] != true {
+            assert!(b["error"].is_null(), "the /btw answered: {b}");
+            break;
+        }
+        assert!(at.elapsed() < Duration::from_secs(30), "the /btw to land: {s}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let ran = run_folders(&rec);
+    assert_eq!(ran.len(), 2, "{ran:?}");
+    let same = |a: &str, b: &str| std::fs::canonicalize(a).ok() == std::fs::canonicalize(b).ok();
+    assert!(same(&ran[1], cwd), "the /btw ran in the worktree: {ran:?}, {cwd}");
+    assert_eq!(git(Path::new(path), &["branch", "--show-current"]), branch, "brought back on its own branch");
+    let task = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert_eq!(task["archived"], true, "a /btw doesn't take it out of Archived: {task}");
+    drop(serve);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_task_whose_worktree_cant_come_back_is_refused_with_why_and_runs_nowhere() {
     let dir = temp("serve-wt-refused");

@@ -67,6 +67,7 @@ impl Port for RuntimePort {
         let ctx = self.ctx.clone();
         Box::pin(async move {
             let call = ctx.root_call();
+            let now = ctx.clock().map_or(0, |c| c.now_ms());
             let Ok(list) = ctx
                 .run::<List>(
                     &call, // every task, archived ones too (`Some(true)` would list only the archived ones)
@@ -92,7 +93,9 @@ impl Port for RuntimePort {
                     title: s.title.clone(),
                     project: project_of(&s.cwd),
                     done: s.state == SessionState::Done,
-                    busy: s.state == SessionState::Running || s.queued > 0,
+                    busy: s.state == SessionState::Running
+                        || s.queued > 0
+                        || crate::archived::side_pending(full.ext.get("wisp.runtime"), now),
                     kept: slot.get("kept").and_then(Value::as_bool).unwrap_or(false),
                     parked: slot.get("parked").and_then(Value::as_bool).unwrap_or(false),
                     updated_at: s.updated_at,
@@ -167,6 +170,25 @@ impl Port for RuntimePort {
                         .map(|p| (r.name.clone(), p.to_owned()))
                 })
                 .collect()
+        })
+    }
+
+    fn extra_in_use(&self, path: String) -> BoxFuture<'static, bool> {
+        let ctx = self.ctx.clone();
+        Box::pin(async move {
+            let call = ctx.root_call();
+            let Ok(list) = ctx.run::<List>(&call, ListArgs { archived: None, limit: None }).await else {
+                // can't tell: it stays (the next change, or the sweep, looks again)
+                return true;
+            };
+            // only the tasks working now (a handful) are read whole, for their `dirs`
+            for s in list.iter().filter(|s| matches!(s.state, SessionState::Running | SessionState::Waiting) || s.queued > 0) {
+                let Ok(full) = ctx.run::<Get>(&call, IdArgs { id: s.id.clone() }).await else { continue };
+                if full.dirs.iter().any(|d| crate::fsx::within(d, &path)) {
+                    return true;
+                }
+            }
+            false
         })
     }
 

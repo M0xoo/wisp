@@ -57,3 +57,20 @@ pub fn join(a: &str, b: &str) -> String {
 pub fn parent(p: &str) -> String {
     Path::new(p).parent().map_or_else(|| p.to_owned(), |d| d.to_string_lossy().into_owned())
 }
+
+/// Whether `p` is the folder `dir` or inside it (by path: `/a/bc` isn't inside `/a/b`).
+pub fn within(p: &str, dir: &str) -> bool {
+    let (p, dir) = (p.trim_end_matches(['/', '\\']), dir.trim_end_matches(['/', '\\']));
+    p == dir || p.strip_prefix(dir).is_some_and(|rest| rest.starts_with(['/', '\\']))
+}
+
+#[cfg(test)]
+mod within_tests {
+    #[test]
+    fn a_folder_is_within_itself_and_its_parents_only() {
+        assert!(super::within("/h/wt/app-1", "/h/wt/app-1/"));
+        assert!(super::within("/h/wt/app-1/web", "/h/wt/app-1"));
+        assert!(!super::within("/h/wt/app-10", "/h/wt/app-1"));
+        assert!(!super::within("/h/wt", "/h/wt/app-1"));
+    }
+}

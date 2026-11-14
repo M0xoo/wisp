@@ -19,8 +19,9 @@ use crate::fsx;
 /// its `ready`): its `ready` (at most `READY_MS`) and the save that marks it running, with room to spare.
 pub const CLAIM_MS: i64 = 150_000;
 
-/// One folder's last turn start: its number on the claims' counter, the task, when, and whether it still holds
-/// (false once runtime saved the turn running or held: the task's own state says it's in use).
+/// A task's last turn start in one folder: its number on the claims' counter, the task, when, and whether it still
+/// holds (false once runtime saved the turn running or held: from then the task's state says it's in use, its own
+/// folder by its slot, an extra folder by its `dirs`, `Port::extra_in_use`).
 #[derive(Debug, Clone)]
 struct Claim {
     n: u64,
@@ -28,6 +29,9 @@ struct Claim {
     at: i64,
     live: bool,
 }
+
+/// The claims, by (folder, task).
+type Claims = HashMap<(String, String), Claim>;
 
 /// Everything a worktree operation needs. Cheap to share (`Arc<Engine>`).
 pub struct Engine {
@@ -45,8 +49,8 @@ pub struct Engine {
     pub owner: CancellationToken,
     /// one operation at a time per folder: a bring-back waits for a removal under way
     locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
-    /// each folder's last turn start (`claim`), on one counter
-    claims: std::sync::Mutex<(u64, HashMap<String, Claim>)>,
+    /// each task's last turn start in each folder (`claim`), by (folder, task), on one counter
+    claims: std::sync::Mutex<(u64, Claims)>,
 }
 
 impl std::fmt::Debug for Engine {
@@ -104,10 +108,10 @@ impl Engine {
         let n = c.0;
         // a look older than this is long over; a released claim still answers looks made before it
         c.1.retain(|_, k| now - k.at < 4 * CLAIM_MS);
-        c.1.insert(path.to_owned(), Claim { n, task: task.to_owned(), at: now, live: true });
+        c.1.insert((path.to_owned(), task.to_owned()), Claim { n, task: task.to_owned(), at: now, live: true });
     }
 
-    /// Runtime saved `task`'s turn (running, or held): its own state guards the folder from here.
+    /// Runtime saved `task`'s turn (running, or held): its own state guards the folders from here.
     pub fn release(&self, task: &str) {
         let mut c = self.claims.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         for k in c.1.values_mut().filter(|k| k.task == task) {
@@ -122,8 +126,10 @@ impl Engine {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .1
-            .get(path)
-            .is_some_and(|k| k.n > mark || (k.live && now - k.at < CLAIM_MS))
+            .iter()
+            // a claim on the folder, or on a folder inside it (an extra folder that's a worktree's subfolder)
+            .filter(|((p, _), _)| fsx::within(p, path))
+            .any(|(_, k)| k.n > mark || (k.live && now - k.at < CLAIM_MS))
     }
 
     pub fn foreign(&self, wt: &Worktree) -> bool {

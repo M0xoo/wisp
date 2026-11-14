@@ -27,6 +27,9 @@ impl Runtime {
             Some(id) => self.harness(id)?,
             None => self.host.harnesses().into_iter().next().ok_or_else(|| RuntimeError::NoHarness("any".into()))?,
         };
+        // its folder as a turn's is (ADR-0053): one that's gone is refused, never answered from somewhere else
+        let at = wisp_runtime_api::model::Session { cwd: a.cwd.clone(), ..wisp_runtime_api::model::Session::default() };
+        self.folder_ready(&at).await.map_err(RuntimeError::Conflict)?;
         let model = pick.model.clone().unwrap_or_default();
         let run = HarnessRun {
             prompt: a.prompt,

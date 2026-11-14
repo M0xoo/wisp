@@ -39,6 +39,24 @@ Review, mark it unread and need a second command to release it, for something th
   (`still`) and stand down for a claim made after their mark, or one still live: a claim lets go when runtime says
   the turn started or was held (`turn.started`, `turn.held`: from then the task's own state guards the folder), and
   lapses after `CLAIM_MS` (150 s) when neither comes (a turn refused after its `ready`).
+- **Side runs go through the same step** (`Runtime::folder_ready`): a /btw (`runtime.btw`) awaits every `ready`
+  and the folder checks before its entry is saved pending, and `runtime.quick` before it spawns (on its `cwd`). A
+  refusal is the command's error (`conflict`, with why); nothing spawns, and no pending /btw is left behind. A /btw
+  doesn't take the task out of Archived. While a /btw is pending (`ext["wisp.runtime"].btw[].pending`), the archive
+  removal and the sweep (`busy`) leave the folder (a /btw may outlast `CLAIM_MS`); an entry pending longer than
+  `archived::SIDE_MS` (330 s, past the /btw's 300 s timeout) was cut off (wisp stopped mid-answer) and no longer
+  keeps it.
+- **Every extra folder (`dirs`, v1's `also`) is checked too:** after the parts' `ready`, one that's gone (absolute,
+  not a folder) refuses the turn, the /btw or the quick run with its name ("One of this task's extra folders is gone:
+  …"); it's never dropped from the run. wisp.worktrees' `ready` claims each one for the turn and, when one is gone
+  and was (in) a worktree of wisp's (`archived::tree_holding` over `Port::tasks`, read only then), brings that
+  worktree back on its branch. The claim holds while the turn starts, as the task's own folder's does; from then the
+  working task guards it by state, not by claim: the archive removal and the sweep ask `Port::extra_in_use` (a
+  running, asking or queued task names the folder, or one inside it, in its `dirs`: one `runtime.list`, then only
+  those few tasks read whole) and leave it. A claim covers the folder it names and the worktree it sits in
+  (`fsx::within`); claims are kept per (folder, task), so one task's claim doesn't overwrite another's. (Holding an
+  extra folder's claim till `turn.ended` was tried and dropped: claims aren't per turn, and the previous turn's
+  `turn.ended` can be handled after the next queued turn's start, letting go of its hold.)
 - **Keep worktree on means archiving never removes the folder** (v1 removed it anyway: `docs/v1-bugs-fixed.md`).
 
 ## Consequences
@@ -48,7 +66,20 @@ Review, mark it unread and need a second command to release it, for something th
   kernel and the edge put no timeout on a command, so a slow `git worktree add` delays the answer, never fails it.
 - A turn refused or held after its folder came back leaves the folder for `CLAIM_MS`; the next archive or sweep
   after that may remove it again (it comes back with the next turn).
-- Only a task's own slot comes back; v1's `also` (other folders of one task) has no v2 counterpart yet. A /btw side
-  discussion or `runtime.quick` doesn't go through `start_turn` and isn't covered.
-- Tests: `plugins/runtime/host/tests/folder_ready.rs`, `plugins/worktrees/host/tests/flows.rs`
-  (`bring_back_…`, `…stands_down_when_a_turn_starts_in_the_folder`), `crates/wisp/tests/serve_worktree_back.rs`.
+- A /btw's claims lapse after `CLAIM_MS` (no `turn.started` lets them go): after a quick /btw on an archived task the
+  brought-back folder stays until a change to the task after that (or the sweep) looks again. A /btw longer than
+  `CLAIM_MS` whose extra folder is another archived task's worktree may see it removed under it (a /btw is plan mode,
+  read-only); its own folder is kept by the pending entry.
+- Open: `Engine::release(task)` lets go of every claim of the task, so a late `turn.started` of a turn that failed
+  at once can release the next queued turn's fresh claim before that turn is saved running (a window of its
+  `before:run`). Tying a claim to its turn needs the turn id on `RunPart::ready`. And `Port::extra_in_use` counts only
+  working tasks: a /btw on a task in Review doesn't keep its extra folders once its claims lapse.
+- The archive removal of a task that's another task's extra folder reads the working tasks once per removal (rare:
+  an archived, idle, clean worktree), never per turn.
+- An extra folder that's gone and isn't wisp's worktree (a plain folder, a brought-in one) is refused, never made.
+- Tests: `plugins/runtime/host/tests/folder_ready.rs` (`a_btw_runs_in_the_folder_ready_brought_back`,
+  `a_btw_ready_refuses_…`, `a_btw_on_a_task_whose_folder_is_gone_…`, `a_quick_run_in_a_folder_thats_gone_…`,
+  `a_task_whose_extra_folder_is_gone_…`, `an_extra_folder_ready_brings_back_…`), `plugins/worktrees/host/tests/flows.rs`
+  (`bring_back_…`, `…stands_down_when_a_turn_starts_in_the_folder`, `an_extra_folder_thats_a_removed_worktree_comes_back_and_stays_while_its_task_works`),
+  `archived::tests` (`…waits_while_a_btw_is_answered_in_it`, `…held_by_the_innermost_worktree…`),
+  `crates/wisp/tests/serve_worktree_back.rs` (`a_btw_on_an_archived_task_runs_in_its_worktree_brought_back`).

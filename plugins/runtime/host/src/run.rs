@@ -224,9 +224,10 @@ impl Runtime {
         }
     }
 
-    /// Every `runtime.run@1` contributor's `ready` (in order, the first refusal wins), then the folder itself:
-    /// a task whose folder is gone and that nobody brought back is refused, never run somewhere else.
-    async fn folder_ready(&self, s: &Session) -> std::result::Result<(), String> {
+    /// Every `runtime.run@1` contributor's `ready` (in order, the first refusal wins), then the folders themselves:
+    /// a task whose folder, or one of its extra folders (`dirs`), is gone and that nobody brought back is refused,
+    /// never run somewhere else or without it. A turn, a /btw and `runtime.quick` all come through here.
+    pub(crate) async fn folder_ready(&self, s: &Session) -> std::result::Result<(), String> {
         let wait = std::time::Duration::from_millis(wisp_runtime_api::points::READY_MS);
         for part in self.host.run_parts() {
             match tokio::time::timeout(wait, part.ready(s)).await {
@@ -235,7 +236,11 @@ impl Runtime {
                 Err(_) => return Err(format!("This task's folder didn't come back in time ({}).", part.id())),
             }
         }
-        folder_there(&s.cwd).await
+        folder_there(&s.cwd).await?;
+        for dir in &s.dirs {
+            extra_there(dir).await?;
+        }
+        Ok(())
     }
 
     /// What the task had (ADR-0029), at its first run; its MCP servers probed in the background.
@@ -464,6 +469,18 @@ pub(crate) async fn folder_there(cwd: &str) -> std::result::Result<(), String> {
     match tokio::fs::metadata(cwd).await {
         Ok(m) if m.is_dir() => Ok(()),
         _ => Err(format!("This task's folder is gone: {cwd}. It runs only there, so nothing was started.")),
+    }
+}
+
+/// One of a task's extra folders (`dirs`): Err, with its name, when it's gone or not a folder (it's never dropped
+/// from the run silently). A relative one is left as it is: the harness is given it as named.
+pub(crate) async fn extra_there(dir: &str) -> std::result::Result<(), String> {
+    if wisp_runtime_api::paths::Folder::of(dir).is_err() {
+        return Ok(());
+    }
+    match tokio::fs::metadata(dir).await {
+        Ok(m) if m.is_dir() => Ok(()),
+        _ => Err(format!("One of this task's extra folders is gone: {dir}. It runs only with all of them, so nothing was started.")),
     }
 }
 

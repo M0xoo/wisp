@@ -274,3 +274,48 @@ async fn an_archived_tasks_removal_stands_down_when_a_turn_starts_in_the_folder(
     clock.advance(u64::try_from(wisp_worktrees::engine::CLAIM_MS).unwrap());
     assert!(archived::tidy(&e, &user(), &other, e.mark()).await.unwrap().removed, "never confirmed: the claim lapsed");
 }
+
+/// ADR-0053, extra folders (`dirs`, v1's `also`): a task's extra folder that's another task's worktree
+/// archiving removed comes back on its branch before the turn; it's claimed while the turn starts, then the task
+/// working with it in its `dirs` keeps it (that other task reads archived and idle the whole time); one that can't
+/// come back says which folder; one that was never a worktree is left to runtime's check (refused with its name),
+/// never made.
+#[tokio::test]
+async fn an_extra_folder_thats_a_removed_worktree_comes_back_and_stays_while_its_task_works() {
+    let t = tmp("extra");
+    let root = repo(&t);
+    let e = engine(&t);
+    let theirs = add_tree(&root, &t.0.join("h/worktrees/app-theirs"), "wisp/theirs");
+    std::fs::create_dir_all(Path::new(&theirs.path).join("web")).unwrap();
+    std::fs::write(Path::new(&theirs.path).join("web/x.txt"), "x\n").unwrap();
+    git(Path::new(&theirs.path), &["add", "-A"]);
+    git(Path::new(&theirs.path), &["commit", "-qm", "web"]);
+    let port = MemPort::new(vec![task("t1", Some(&theirs))], WtSettings::default());
+    assert!(archived::tidy(&e, &user(), &theirs, e.mark()).await.unwrap().removed);
+
+    let sub = format!("{}/web", theirs.path);
+    archived::extras_ready(&e, port.as_ref(), &user(), "t2", std::slice::from_ref(&sub)).await.unwrap();
+    assert!(Path::new(&sub).is_dir(), "its subfolder, back with the worktree");
+    assert_eq!(git(Path::new(&theirs.path), &["branch", "--show-current"]), "wisp/theirs");
+    assert!(!archived::tidy(&e, &user(), &theirs, e.mark()).await.unwrap().removed, "while t2's turn starts");
+    e.release("t2"); // t2's turn is saved running, with the folder in its `dirs`
+    port.extras.lock().unwrap().push(sub.clone());
+    let look = |port: Arc<MemPort>| {
+        let (e, wt) = (&e, theirs.clone());
+        async move {
+            let used = wisp_worktrees::Port::extra_in_use(port.as_ref(), wt.path.clone()).await;
+            archived::tidy_unless(e, &user(), &wt, e.mark(), used).await.is_some_and(|r| r.removed)
+        }
+    };
+    assert!(!look(port.clone()).await, "while t2 works with it: t1's state says nothing about that");
+    port.extras.lock().unwrap().clear();
+    assert!(look(port.clone()).await, "t2 is done: it may go");
+
+    git(&root, &["branch", "-D", "wisp/theirs"]);
+    let why = archived::extras_ready(&e, port.as_ref(), &user(), "t3", std::slice::from_ref(&theirs.path)).await.unwrap_err();
+    assert!(why.contains(&theirs.path) && why.contains("wisp/theirs"), "{why}");
+
+    let never = t.0.join("nowhere").to_string_lossy().into_owned();
+    archived::extras_ready(&e, port.as_ref(), &user(), "t4", std::slice::from_ref(&never)).await.unwrap();
+    assert!(!Path::new(&never).exists(), "not a worktree: left to runtime, never made");
+}

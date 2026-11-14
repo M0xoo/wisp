@@ -44,7 +44,8 @@ impl Hook for BeforeRunView {
     type Ctx = Value;
 }
 
-/// `runtime.run@1`'s `ready`: a task's worktree is back on its branch before any of its turns runs.
+/// `runtime.run@1`'s `ready`: a task's worktree is back on its branch before any of its turns (or side runs) runs,
+/// and so is each extra folder (`dirs`) that's a worktree archiving removed.
 struct Ready {
     ctx: Ctx,
     st: Arc<State>,
@@ -55,13 +56,18 @@ impl wisp_runtime_api::points::RunPart for Ready {
         api::EXT
     }
     fn ready(&self, session: &wisp_runtime_api::model::Session) -> wisp_kernel::BoxFuture<'static, std::result::Result<(), String>> {
-        let Some(wt) = archived::tree_of(session.ext.get(api::EXT)) else {
+        let own = archived::tree_of(session.ext.get(api::EXT));
+        if own.is_none() && session.dirs.is_empty() {
             return Box::pin(async { Ok(()) });
-        };
-        let (ctx, st, task) = (self.ctx.clone(), self.st.clone(), session.id.0.clone());
+        }
+        let (ctx, st, task, dirs) = (self.ctx.clone(), self.st.clone(), session.id.0.clone(), session.dirs.clone());
         Box::pin(async move {
-            let (e, _, _) = st.parts(&ctx).await.map_err(|err| format!("This task's worktree can't be checked ({}).", err.message))?;
-            archived::bring_back(&e, &ctx.root_call(), &task, &wt).await
+            let (e, _, port) = st.parts(&ctx).await.map_err(|err| format!("This task's worktree can't be checked ({}).", err.message))?;
+            let call = ctx.root_call();
+            if let Some(wt) = own {
+                archived::bring_back(&e, &call, &task, &wt).await?;
+            }
+            archived::extras_ready(&e, port.as_ref(), &call, &task, &dirs).await
         })
     }
 }
@@ -121,7 +127,7 @@ impl State {
         })
     }
 
-    /// A task's turn was saved: its folder's claim lets go (`Engine::release`).
+    /// A task's turn was saved: its folders' claims let go (`Engine::release`).
     pub async fn release(&self, ctx: &Ctx, task: &str) {
         if let Ok((e, _, _)) = self.parts(ctx).await {
             e.release(task);
@@ -188,7 +194,8 @@ impl Plugin for WorktreesPlugin {
         s.contribute(&wisp_runtime_api::points::SUMMARY, Arc::new(summary::Summary) as Arc<dyn wisp_runtime_api::points::SummaryField>);
         let ready = Ready { ctx: s.ctx(), st: st.clone() };
         s.contribute(&wisp_runtime_api::points::RUN, Arc::new(ready) as Arc<dyn wisp_runtime_api::points::RunPart>);
-        // the turn is saved running (or held): the task's state guards its folder now, the claim lets go
+        // the turn is saved running (or held): the task's state guards its folders now (its slot, its `dirs`), the
+        // claims let go
         let rel = st.clone();
         s.on::<wisp_runtime_api::events::TurnStarted, _, _>(move |ctx, e| {
             let st = rel.clone();
@@ -229,7 +236,7 @@ impl Plugin for WorktreesPlugin {
             }
             let (engine, cleanup, port) = start_st.parts(&ctx).await?;
             if let Some(mut rx) = rx.lock().await.take() {
-                let (e, cx, ast) = (engine.clone(), ctx.clone(), start_st.clone());
+                let (e, cx, ast, p) = (engine.clone(), ctx.clone(), start_st.clone(), port.clone());
                 ctx.spawn(async move {
                     while let Some(first) = rx.recv().await {
                         let mut ids = vec![first];
@@ -240,7 +247,7 @@ impl Plugin for WorktreesPlugin {
                         }
                         let mut gone = false;
                         for id in ids {
-                            gone |= archived::on_changed(&cx, &e, &id).await;
+                            gone |= archived::on_changed(&cx, &e, p.as_ref(), &id).await;
                         }
                         if gone {
                             ast.refresh(&cx).await;
