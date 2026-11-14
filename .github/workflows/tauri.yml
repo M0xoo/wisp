@@ -4,10 +4,10 @@ name: tauri
 # the wisp binary's server and never leaves it behind). release.yml builds the downloads.
 on:
   pull_request:
-    paths: ['desktop/**', 'crates/wisp/src/serve.rs', 'qa/desktop-v2.mjs', '.github/workflows/tauri.yml']
+    paths: ['desktop/**', 'crates/wisp/src/serve.rs', 'qa/desktop-v2.mjs', 'docs/install.sh', '.github/workflows/tauri.yml']
   push:
     branches: [main]
-    paths: ['desktop/**', 'crates/wisp/src/serve.rs', 'qa/desktop-v2.mjs', '.github/workflows/tauri.yml']
+    paths: ['desktop/**', 'crates/wisp/src/serve.rs', 'qa/desktop-v2.mjs', 'docs/install.sh', '.github/workflows/tauri.yml']
 
 permissions:
   contents: read
@@ -37,6 +37,8 @@ jobs:
           key: tauri-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: tauri-${{ runner.os }}-
       - run: cargo check --locked
+      # the shell's own unit tests (src/shell_path.rs: the login shell's PATH; Unix only)
+      - run: cargo test --locked
       - name: The QA builds (AppKit's and WebKitGTK's drivers, WebView2's DevTools port)
         run: cargo check --locked --features qa
 
@@ -73,13 +75,15 @@ jobs:
       - run: npm ci
       - run: npm run build --workspace @wisp/web
       - run: cargo build --locked -p wisp
-      - run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+      # macOS: the QA build (src/qa.rs, inert without WISP_QA_PORT), for what needs AppKit's events (DESK2-06..08)
+      - run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml $([ "$RUNNER_OS" = "macOS" ] && echo --features qa)
       - name: qa/desktop-v2.mjs
         run: |
           ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
           # the wisp binary finds the web build beside or above it: here, the checkout's apps/web/dist
           export WISP_WEB_DIR="$PWD/apps/web/dist"
           cmd=(node qa/desktop-v2.mjs --app "desktop/src-tauri/target/debug/wisp$ext" --wisp "target/debug/wisp$ext")
+          [ "$RUNNER_OS" = "macOS" ] && cmd+=(--qa)
           if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a dbus-run-session -- "${cmd[@]}"; else "${cmd[@]}"; fi
       - uses: actions/upload-artifact@v4
         if: always()

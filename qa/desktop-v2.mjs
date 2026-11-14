@@ -5,6 +5,8 @@
 //   node qa/desktop-v2.mjs --app <the shell binary> [--wisp <the wisp binary>]   # a build from this checkout
 //   node qa/desktop-v2.mjs --install dist/tauri/wisp-windows-x64-setup.exe        # Windows: the installer, then the app
 //   node qa/desktop-v2.mjs --install <new setup.exe> --over <an older setup.exe>  # Windows: an update over an install
+//   node qa/desktop-v2.mjs --zip dist/tauri/wisp-mac-arm64.zip                      # macOS: install.sh --app on it, then the app
+//   add --qa on a Mac when the shell was built with `--features qa` (src/qa.rs): what needs AppKit's events (DESK2-06..08)
 //
 // Linux needs a display (xvfb-run). Each check prints PASS or FAIL; any FAIL exits 1. Writes qa/out/desktop-v2.md.
 import { execFileSync, spawn } from 'node:child_process';
@@ -89,13 +91,46 @@ let app = arg('--app');
 const wisp = arg('--wisp');
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-desktop-qa-'));
 
-function launch() {
-  const env = { ...process.env, WISP_PORT: String(PORT), WISP_HOME: home, WISP_UPDATE_CHECK: '0', ...(wisp && { WISP_BIN: path.resolve(wisp) }) };
+const qa = process.argv.includes('--qa') && process.platform === 'darwin';
+const QA_PORT = PORT + 1;
+function launch(extra = {}) {
+  const env = { ...process.env, WISP_PORT: String(PORT), WISP_HOME: home, WISP_UPDATE_CHECK: '0', ...(wisp && { WISP_BIN: path.resolve(wisp) }), ...(qa && { WISP_QA_PORT: String(QA_PORT) }), ...extra };
   for (const k of ['WISP_DESKTOP', 'CI']) delete env[k];
-  const proc = spawn(app, [], { env, stdio: 'ignore' });
+  // --qa: a session of its own, as a Finder launch has (no terminal: src/shell_path.rs asks the login shell only then)
+  const proc = spawn(app, [], { env, stdio: 'ignore', detached: qa });
   const exited = new Promise((r) => proc.once('exit', (c, s) => r(c ?? s)));
-  return { proc, exited };
+  return { proc, exited, at: Date.now() };
 }
+
+// The QA build's driver (desktop/src-tauri/src/qa.rs): one JSON line each way. `js` runs a script in the page (a
+// promise can't cross evaluateJavaScript, so it parks its answer and is asked again).
+const ask = (q) =>
+  new Promise((resolve, reject) => {
+    const s = net.connect(QA_PORT, '127.0.0.1');
+    let buf = '';
+    s.setTimeout(30_000, () => (s.destroy(), reject(new Error(`no answer to ${q.op}`))));
+    s.setEncoding('utf8');
+    s.on('data', (d) => {
+      buf += d;
+      if (buf.includes('\n')) (s.destroy(), resolve(JSON.parse(buf)));
+    });
+    s.on('error', reject);
+    s.write(`${JSON.stringify(q)}\n`);
+  });
+const js = async (code) => {
+  const key = `__qa${Math.random().toString(36).slice(2)}`;
+  await ask({ op: 'eval', js: `(async () => (${code}))().then((v) => (window.${key} = { v }), (e) => (window.${key} = { e: String(e) })), 0` });
+  const got = await until(
+    async () => {
+      const r = await ask({ op: 'eval', js: `JSON.stringify(window.${key} ?? null)` });
+      return JSON.parse(JSON.parse(r.result || 'null') ?? 'null');
+    },
+    { timeout: 15_000, what: 'a script in the page' },
+  );
+  if (got.e) throw new Error(got.e);
+  return got.v;
+};
+const shown = async () => (await ask({ op: 'window' }).catch(() => null))?.visible === true;
 // a process that's already gone is done: taskkill says "not found" (exit 128), process.kill throws ESRCH; anything
 // else, with the process still there, is a real failure
 const signal = (pid, f) => {
@@ -140,7 +175,37 @@ if (arg('--install')) {
   });
   app = installed;
 }
-ok(app && fs.existsSync(app), `no app at ${app}: --app <shell binary> or --install <setup.exe>`);
+// macOS: the release's zip through install.sh --app, as `curl … install.sh | bash -s -- --app` runs it (F-desk-3), from
+// a folder standing in for the release (WISP_DOWNLOADS), into a folder of its own (WISP_APP_DIR)
+if (arg('--zip')) {
+  await check('DESK2-10', 'install.sh --app installs the release zip: checked, unquarantined, signed', async () => {
+    const zip = path.resolve(arg('--zip'));
+    const rel = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-release-'));
+    const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-apps-'));
+    const name = `wisp-mac-${process.arch === 'arm64' ? 'arm64' : 'x64'}.zip`;
+    fs.copyFileSync(zip, path.join(rel, name));
+    const sum = execFileSync('shasum', ['-a', '256', path.join(rel, name)], { encoding: 'utf8' }).split(' ')[0];
+    fs.writeFileSync(path.join(rel, 'SHA256SUMS.txt'), `${sum}  ${name}\n`);
+    execFileSync('bash', [path.join(ROOT, 'docs/install.sh'), '--app'], { stdio: 'inherit', env: { ...process.env, WISP_DOWNLOADS: `file://${rel}`, WISP_APP_DIR: dest, WISP_NO_OPEN: '1' } });
+    const bundle = path.join(dest, 'wisp.app');
+    ok(fs.existsSync(path.join(bundle, 'Contents/Resources/app/wisp')), 'no wisp binary in the installed app');
+    ok(fs.existsSync(path.join(bundle, 'Contents/Resources/app/web/index.html')), 'no web build in the installed app');
+    const attrs = execFileSync('xattr', ['-r', bundle], { encoding: 'utf8' });
+    ok(!attrs.includes('com.apple.quarantine'), 'quarantined: macOS would warn');
+    execFileSync('codesign', ['--verify', '--strict', bundle], { stdio: 'inherit' });
+    // a zip that doesn't match the release's sums is refused
+    fs.writeFileSync(path.join(rel, 'SHA256SUMS.txt'), `${'0'.repeat(64)}  ${name}\n`);
+    let refused = false;
+    try {
+      execFileSync('bash', [path.join(ROOT, 'docs/install.sh'), '--app'], { stdio: 'ignore', env: { ...process.env, WISP_DOWNLOADS: `file://${rel}`, WISP_APP_DIR: dest, WISP_NO_OPEN: '1' } });
+    } catch {
+      refused = true;
+    }
+    ok(refused, 'a zip that fails its checksum was installed');
+    app = path.join(bundle, 'Contents/MacOS/wisp');
+  });
+}
+ok(app && fs.existsSync(app), `no app at ${app}: --app <shell binary>, --zip <mac zip> or --install <setup.exe>`);
 
 let run = launch();
 let server = 0;
@@ -157,6 +222,66 @@ await check('DESK2-03', 'the page is v2’s web build, from the server beside th
   ok(r?.status === 200, `GET / ${r?.status}`);
   ok(r.body.includes('<div id="app"></div>') && r.body.includes('PREPAINT_THEME'), 'not v2’s index.html');
 });
+if (qa) {
+  await check('DESK2-0q', 'the QA build answers: the window is up with v2’s page in it', async () => {
+    await until(shown, { timeout: 30_000, what: 'the window (a shell built with --features qa?)' });
+    await until(() => js(`!!document.querySelector('[data-kit="stage"] [data-kit="topbar"]')`).catch(() => false), { timeout: 30_000, what: 'the page' });
+  });
+  // F-desk-6: no task open, a press on the top bar asks the shell to drag the window (WebKit has no app regions:
+  // the page's [data-drag], packages/shell/src/platform/desktop.ts); a press on a button is the button's
+  await check('DESK2-06', 'no task open: the top bar drags the window, its buttons stay buttons', async () => {
+    const spots = await js(`(() => {
+      const bar = document.querySelector('[data-kit="topbar"]');
+      const mid = (e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+      const btn = bar.querySelector('button');
+      const r = bar.getBoundingClientRect();
+      for (let x = r.left + r.width / 2; x < r.right; x += 8) for (const y of [r.top + 6, r.top + r.height / 2]) {
+        const e = document.elementFromPoint(x, y);
+        if (e && bar.contains(e) && !e.closest('button, a, input, textarea, select, [role="button"], [data-no-drag]')) return { bar: [x, y], button: btn && mid(btn) };
+      }
+      return { bar: null, button: btn && mid(btn) };
+    })()`);
+    ok(spots.bar, 'no bare spot on the top bar');
+    const presses = async ([x, y]) => {
+      const before = (await ask({ op: 'drags' })).drags;
+      await js(`(document.elementFromPoint(${x}, ${y}).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, detail: 1 })), 1)`);
+      await sleep(500);
+      return (await ask({ op: 'drags' })).drags - before;
+    };
+    const bar = await presses(spots.bar);
+    ok(bar === 1, `the top bar: ${bar} drags, want 1`);
+    if (spots.button) {
+      const button = await presses(spots.button);
+      ok(button === 0, `a top bar button: ${button} drags, want 0`);
+    }
+    // a real press through AppKit, moved: the window's own drag takes it from there
+    const [x, y] = spots.bar;
+    await ask({ op: 'mouse', x, y, dx: 30, dy: 0 });
+    await sleep(400);
+  });
+  // F-desk-4: WebKit's own menu: Copy Link on a link; Cut, Copy and Paste (and spelling) in a text box
+  await check('DESK2-07', 'the right-click menu: Copy Link on a link, Cut Copy Paste and spelling in a text box', async () => {
+    await ask({ op: 'activate' });
+    await js(`(() => { document.querySelector('#qaCtx')?.remove(); const b = document.createElement('div'); b.id = 'qaCtx'; b.style.cssText = 'position:fixed;left:400px;top:300px;z-index:99999;background:#888;padding:20px'; b.innerHTML = '<a href="https://example.com/qa">a link</a><br><br><textarea spellcheck="true">some txet</textarea>'; document.body.append(b); return 1; })()`);
+    const open = async (x, y) => {
+      await ask({ op: 'right-click', x, y });
+      const { items } = await until(async () => { const r = await ask({ op: 'context-menu' }); return r.items && r; }, { timeout: 8000, what: 'AppKit to open a menu' });
+      await ask({ op: 'key', chars: '\u001b', code: 53, mods: 0 });
+      await until(async () => (await ask({ op: 'mode' })).mode !== 'NSEventTrackingRunLoopMode', { timeout: 5000, what: 'Escape to close the menu' });
+      await sleep(300);
+      return items;
+    };
+    const place = await js(`(() => { const r = (e) => { const b = e.getBoundingClientRect(); return [b.left + 8, b.top + b.height / 2]; }; return { link: r(qaCtx.querySelector('a')), box: r(qaCtx.querySelector('textarea')) }; })()`);
+    const link = await open(...place.link);
+    ok(link.some((i) => /Copy Link/.test(i)), `no Copy Link: ${link}`);
+    await js(`(() => { const t = qaCtx.querySelector('textarea'); t.focus(); t.select(); return 1; })()`);
+    await sleep(300);
+    const box = await open(...place.box);
+    for (const i of ['Cut', 'Copy', 'Paste']) ok(box.includes(i), `no ${i}: ${box}`);
+    ok(box.some((i) => /Spelling/.test(i)), `no spelling: ${box}`);
+    await js(`(qaCtx.remove(), 1)`);
+  });
+}
 await check('DESK2-04', 'killed hard, the shell takes the server with it (its stdin pipe)', async () => {
   hardKill(run.proc.pid);
   await run.exited;
@@ -173,6 +298,49 @@ await check('DESK2-05', win ? 'the window closed, the app quits: the server stop
 });
 // nothing left behind for the next job on this runner
 for (const pid of [run.proc.pid, server]) if (pid && alive(pid)) hardKill(pid);
+
+// F-desk-5: the first open (nothing saved) with a ~/.zshrc that takes 30 s: the window shows within 5 s, and the
+// next start runs the server on the PATH the login shell gave (desktop/src-tauri/src/shell_path.rs)
+if (qa) {
+  await check('DESK2-08', 'a slow ~/.zshrc: the first window shows within 5 s; the login shell’s PATH is saved for the next', async () => {
+    await until(async () => !(await listening()), { timeout: 15_000, what: 'the port to close' });
+    const zhome = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-qa-zsh-'));
+    const marker = path.join(zhome, 'tools');
+    fs.mkdirSync(marker);
+    fs.writeFileSync(path.join(zhome, '.zshrc'), `export PATH="${marker}:$PATH"\nsleep 6\n`);
+    const env = { HOME: zhome, SHELL: '/bin/zsh', ZDOTDIR: zhome };
+    // quits as a user does (a TERM, the menu's Quit path), then makes sure: nothing outlives a failed check
+    const done = async () => {
+      askQuit(run.proc.pid);
+      await Promise.race([run.exited, sleep(10_000)]);
+      if (alive(run.proc.pid)) hardKill(run.proc.pid);
+      await until(async () => !(await listening()), { timeout: 15_000, what: 'the port to close' });
+    };
+    run = launch(env);
+    try {
+      await until(shown, { timeout: 10_000, what: 'the window' });
+      const took = Date.now() - run.at;
+      console.log(`  first window after ${took} ms (the shell takes 6 s)`);
+      ok(took <= 5000, `the window took ${took} ms`);
+      // the app's data folder is named by its identifier (dev.wisp.app; a local build may carry another)
+      const support = path.join(zhome, 'Library/Application Support');
+      const saved = () => (fs.existsSync(support) ? fs.readdirSync(support) : []).map((d) => path.join(support, d, 'shell-path')).find((f) => fs.existsSync(f));
+      await until(() => saved() && fs.readFileSync(saved(), 'utf8').startsWith(marker), { timeout: 20_000, what: 'the login shell’s PATH to be saved' });
+    } finally {
+      await done();
+    }
+    // the next start: the saved PATH at once, so the window doesn't wait on the 6 s shell either
+    run = launch(env);
+    try {
+      await until(shown, { timeout: 10_000, what: 'the second window' });
+      const again = Date.now() - run.at;
+      console.log(`  second window after ${again} ms (the saved PATH)`);
+      ok(again <= 5000, `the second window took ${again} ms`);
+    } finally {
+      await done();
+    }
+  });
+}
 
 fs.mkdirSync(OUT, { recursive: true });
 const md = [`# Desktop v2 (${process.platform})`, '', '| Check | What | Result | Note | ms |', '|---|---|---|---|---:|', ...results.map((r) => `| ${r.join(' | ')} |`)].join('\n');

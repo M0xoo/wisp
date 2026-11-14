@@ -58,12 +58,10 @@ jobs:
           name: desktop-mac
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      # the gate (qa/desktop-v2.mjs): the app as downloaded runs its own wisp server and leaves nothing behind.
-      # macos-latest is Apple silicon.
+      # the gate (qa/desktop-v2.mjs): the zip as `install.sh --app` installs it (checksum, no quarantine, signed), then
+      # the installed app runs its own wisp server and leaves nothing behind. macos-latest is Apple silicon.
       - name: The downloaded app runs v2
-        run: |
-          mkdir -p dist/gate && ditto -x -k dist/tauri/wisp-mac-arm64.zip dist/gate
-          node qa/desktop-v2.mjs --app dist/gate/wisp.app/Contents/MacOS/wisp
+        run: node qa/desktop-v2.mjs --zip dist/tauri/wisp-mac-arm64.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
