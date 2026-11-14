@@ -25,7 +25,7 @@ pub use hub::{
     AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Ws, WsConn,
     WsFrame,
 };
-pub use setup::{ChannelSetup, PHONE_ORDER, PhoneStatus, SetupArgs, SetupState, TestArgs, TestOutcome, Tested};
+pub use setup::{ChannelSetup, NOTIFY_EVENTS, PHONE_ORDER, PHONE_TOPIC, PhoneStatus, SetupArgs, SetupState, TestArgs, TestOutcome, Tested};
 pub use transport::{Headers, InboundOpts, InboundResult, Status, TRANSPORTS, Transport, TransportDef, TransportKind, enabled_key, header};
 pub use views::*;
 

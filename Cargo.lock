@@ -4279,6 +4279,7 @@ dependencies = [
  "wisp-resources-api",
  "wisp-router-api",
  "wisp-runtime-api",
+ "wisp-slack",
  "wisp-store",
  "wisp-stuff-api",
  "wisp-telegram",

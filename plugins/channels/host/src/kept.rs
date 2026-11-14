@@ -21,11 +21,15 @@ use crate::lock;
 
 pub const OWNER: &str = "channels";
 
-pub const MIGRATIONS: &[Migration] = &[Migration::sql(
-    1,
-    "CREATE TABLE chan_task (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+pub const MIGRATIONS: &[Migration] = &[
+    Migration::sql(
+        1,
+        "CREATE TABLE chan_task (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE chan_kept (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
-)];
+    ),
+    // Settings → Phone's rows: where each channel stands (`ChannelSetup::public`), what the pane watches
+    Migration::sql(2, "CREATE TABLE chan_phone (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
+];
 
 /// No client reads these rows (chat ids, threads); the store wants each on a topic, so they're on the plugin's own.
 fn topics(_: &Row) -> Vec<String> {
@@ -59,7 +63,8 @@ pub const TOKEN_KEYS: [&str; 2] = ["token", "botToken"];
 pub fn install(store: &Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
     store.define_entity(TASK)?;
-    store.define_entity(KEPT)
+    store.define_entity(KEPT)?;
+    store.define_entity(crate::rows::PHONE)
 }
 
 /// One channel task's origin.
@@ -107,7 +112,7 @@ pub async fn load(store: &Store) -> wisp_store::Result<Loaded> {
         .await
 }
 
-fn row(id: &str, body: &impl Serialize) -> wisp_store::Result<Row> {
+pub(crate) fn row(id: &str, body: &impl Serialize) -> wisp_store::Result<Row> {
     let mut r = Row::new();
     r.insert("id".into(), json!(id));
     r.insert("body".into(), serde_json::to_value(body)?);

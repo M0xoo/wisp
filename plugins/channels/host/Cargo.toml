@@ -37,6 +37,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 wisp-testkit.workspace = true
 wisp-telegram = { path = "../../telegram/host" }
 wisp-ntfy = { path = "../../ntfy/host" }
+wisp-slack = { path = "../../slack/host" }
 wisp-resources = { path = "../../resources/host" }
 
 [lints]

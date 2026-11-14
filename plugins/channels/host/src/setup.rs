@@ -7,10 +7,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use serde_json::{Map, Value, json};
-use wisp_channels_api::views::Msg;
-use wisp_channels_api::{
-    ChannelHub, ChannelSetup, PHONE_ORDER, PhoneStatus, SetupArgs, TRANSPORTS, TestArgs, TestOutcome, Tested, TransportKind,
-};
+use wisp_channels_api::{ChannelHub, ChannelSetup, PHONE_ORDER, PhoneStatus, SetupArgs, TRANSPORTS};
 use wisp_channels_core::setup as rules;
 use wisp_kernel::services::SecretsService;
 use wisp_kernel::{Call, Ctx, Result, WireError};
@@ -126,6 +123,15 @@ pub async fn status_of(ctx: &Ctx, live: &Live, transport: &str, cloud: bool) -> 
         "email" => text("address"),
         _ => None,
     };
+    let notify = match &found {
+        Some((name, _)) => {
+            let notes = lock(&live.notes);
+            rules::notify_of(notes.iter().filter(|(_, n)| &n.to == name).map(|(_, n)| n.on.as_slice()))
+        }
+        None => Vec::new(),
+    };
+    // Discord on a cloud computer: the URL to paste as its Interactions Endpoint URL
+    let endpoint = (transport == "discord" && cloud).then(|| text("endpoint")).flatten();
     ChannelSetup {
         transport: transport.to_owned(),
         installed: installed(ctx, transport),
@@ -141,6 +147,8 @@ pub async fn status_of(ctx: &Ctx, live: &Live, transport: &str, cloud: bool) -> 
         link_code,
         linked,
         who,
+        notify,
+        endpoint,
     }
 }
 
@@ -165,6 +173,12 @@ fn check(a: &SetupArgs) -> Result<BTreeMap<String, Value>> {
     for (f, v) in &a.secrets {
         rules::check_secret(&a.transport, f, v).map_err(|m| invalid(&format!("secrets.{f}"), &m))?;
     }
+    if let Some(n) = &a.notify {
+        rules::check_notify(&a.transport, n).map_err(|m| invalid("notify", &m))?;
+    }
+    if a.unlink && rules::link_field(&a.transport).is_none() {
+        return Err(invalid("unlink", &format!("{} links nobody", a.transport)));
+    }
     let mut settings = BTreeMap::new();
     for (f, v) in &a.settings {
         settings.insert(f.clone(), rules::check_setting(&a.transport, f, v).map_err(|m| invalid(&format!("settings.{f}"), &m))?);
@@ -172,7 +186,7 @@ fn check(a: &SetupArgs) -> Result<BTreeMap<String, Value>> {
     Ok(settings)
 }
 
-fn random() -> u64 {
+pub(crate) fn random() -> u64 {
     rand::random::<u64>()
 }
 
@@ -251,6 +265,7 @@ pub async fn setup(ctx: &Ctx, call: &Call, live: &Arc<Live>, a: SetupArgs) -> Re
     let mut routing = spec.routing.take().and_then(|r| r.as_object().cloned()).unwrap_or_default();
     let (written, relink) = write_secrets(&sec, t, &a.secrets, &mut spec, &mut routing).await?;
     routing.extend(settings);
+    let was_on = spec.enabled == Some(true);
     if let Some(on) = a.enabled {
         spec.enabled = Some(on);
     }
@@ -261,21 +276,69 @@ pub async fn setup(ctx: &Ctx, call: &Call, live: &Arc<Live>, a: SetupArgs) -> Re
     spec.routing = (!routing.is_empty()).then_some(Value::Object(routing));
     let mut body = serde_json::to_value(&spec).map_err(|e| WireError::internal(e.to_string()))?;
     body["token"] = Value::String(spec.token.clone());
-    let applied =
-        match ctx.run::<Apply>(call, PlanArgs { resources: vec![Resource::new("channel", name, body)], ..PlanArgs::default() }).await {
-            Ok(x) => x,
-            Err(e) => {
-                put_back(&sec, written).await;
-                return Err(e);
+    let mut resources = vec![Resource::new("channel", name.clone(), body)];
+    if let Some(on) = send_me(live, t, &name, a.notify.as_deref(), !was_on && spec.enabled == Some(true)) {
+        resources.push(Resource::new("notification", rules::notification_name(t), json!({ "on": on, "to": name })));
+    }
+    // what it said was about the old setup; cleared before the apply restarts it, so its first word isn't lost
+    let said = lock(&live.st.status).remove(t);
+    let applied = match ctx.run::<Apply>(call, PlanArgs { resources, ..PlanArgs::default() }).await {
+        Ok(x) => x,
+        Err(e) => {
+            put_back(&sec, written).await;
+            if let Some(said) = said {
+                lock(&live.st.status).entry(t.to_owned()).or_insert(said);
             }
-        };
-    lock(&live.st.status).remove(t); // what it said was about the old setup
+            return Err(e);
+        }
+    };
     // a new value under the same `${secret:}` leaves the spec as it was, so nothing was applied: the transport reads it now
     if applied.applied == 0 && !written.is_empty() {
         crate::act(ctx, live).await;
+    } else if applied.applied == 0
+        && let Some(said) = said
+    {
+        // nothing restarted it (an Unlink, the same settings again): what it last said still holds
+        lock(&live.st.status).entry(t.to_owned()).or_insert(said);
     }
-    link_code(ctx, live, t, relink);
+    if a.unlink {
+        unlink(ctx, live, t);
+    } else {
+        link_code(ctx, live, t, relink);
+    }
+    crate::rows::poke(ctx, live);
     Ok(status_of(ctx, live, t, cloud(ctx, live)).await)
+}
+
+/// What Send me writes now: as asked; or, switched on the first time with nothing told to notify it, v1's default
+/// (questions and finished tasks). `None`: nothing to write.
+fn send_me(live: &Live, t: &str, name: &str, asked: Option<&[String]>, first_on: bool) -> Option<Vec<String>> {
+    if let Some(asked) = asked {
+        // events written into `phone-<t>` by hand (`failed`, `limit`) stay; Send me sets only its own two
+        let own = rules::notification_name(t);
+        let kept: Vec<String> = lock(&live.notes)
+            .iter()
+            .filter(|(n, _)| *n == own)
+            .flat_map(|(_, x)| x.on.iter().filter(|e| !wisp_channels_api::NOTIFY_EVENTS.contains(&e.as_str())).cloned())
+            .collect();
+        return rules::check_notify(t, asked).ok().map(|mut on| {
+            on.extend(kept);
+            on
+        });
+    }
+    let told = lock(&live.notes).iter().any(|(n, x)| x.to == name || *n == rules::notification_name(t));
+    (first_on && rules::notifies(t) && !told).then(|| wisp_channels_api::NOTIFY_EVENTS.iter().map(|e| (*e).to_owned()).collect())
+}
+
+/// Unlinks whoever is linked (v1 `unlink`): Telegram's chat, Slack's and Discord's people, and a fresh code to link
+/// with again. What the transport keeps, so it lasts a restart (`kept.rs`).
+fn unlink(ctx: &Ctx, live: &Live, t: &str) {
+    let code = rules::fresh_code(random());
+    let cfg = match t {
+        "telegram" => json!({ "chatId": Value::Null, "chatName": "", "linkCode": code }),
+        _ => json!({ "senders": [], "linkGuess": Value::Null, "linkCode": code }),
+    };
+    Hub { ctx: ctx.clone(), st: live.st.clone() }.set_cfg(t, cfg);
 }
 
 /// Telegram, linked to a chat: it took its code and needs none until another bot.
@@ -302,7 +365,7 @@ fn link_code(ctx: &Ctx, live: &Live, t: &str, relink: bool) {
 
 /// `text` with every secret the channel's config holds taken out: a service's error can quote its request (Telegram's
 /// URL has the token in it), and what Settings shows never holds one.
-fn scrub(live: &Live, t: &str, text: String) -> String {
+pub(crate) fn scrub(live: &Live, t: &str, text: String) -> String {
     let cfg = lock(&live.st.cfg).get(t).cloned().unwrap_or(Value::Null);
     let mut out = text;
     for f in rules::secret_fields(t).iter().chain(&["linkCode"]) {
@@ -311,53 +374,4 @@ fn scrub(live: &Live, t: &str, text: String) -> String {
         }
     }
     out
-}
-
-/// A test message through each channel asked for (or every one that's on). Its outcome is also its health.
-pub async fn test(live: &Live, a: &TestArgs) -> Result<Vec<Tested>> {
-    let running = lock(&live.running).iter().map(|(n, (t, _))| (n.clone(), t.clone())).collect::<Vec<_>>();
-    let pick: Vec<_> = match &a.channel {
-        Some(c) => {
-            let t = running.into_iter().find(|(n, _)| n == c);
-            if t.is_none() {
-                return Ok(vec![Tested {
-                    channel: c.clone(),
-                    outcome: TestOutcome::Failed,
-                    error: Some(format!("{} is off: switch it on first.", title(c))),
-                }]);
-            }
-            t.into_iter().collect()
-        }
-        None => running,
-    };
-    let msg = Msg {
-        title: "✨ wisp".into(),
-        text: "Test from wisp: questions and finished tasks will show up like this.".into(),
-        actions: Vec::new(),
-    };
-    let mut out = Vec::new();
-    for (name, t) in pick {
-        if t.kind() == TransportKind::Thread {
-            out.push(Tested { channel: name, outcome: TestOutcome::Unprompted, error: None });
-            continue;
-        }
-        let r = t.publish(&msg, None).await;
-        let error = r.err().map(|e| scrub(live, &name, e.message));
-        let st = wisp_channels_api::Status { ok: Some(error.is_none()), error: error.clone(), ..wisp_channels_api::Status::default() };
-        lock(&live.st.status).insert(name.clone(), st);
-        out.push(Tested { channel: name, outcome: if error.is_none() { TestOutcome::Sent } else { TestOutcome::Failed }, error });
-    }
-    out.sort_by_key(|x| PHONE_ORDER.iter().position(|n| *n == x.channel).unwrap_or(PHONE_ORDER.len()));
-    Ok(out)
-}
-
-fn title(t: &str) -> String {
-    match t {
-        "telegram" => "Telegram".into(),
-        "slack" => "Slack".into(),
-        "discord" => "Discord".into(),
-        "github" => "GitHub".into(),
-        "email" => "Email".into(),
-        other => other.to_owned(),
-    }
 }

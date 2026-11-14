@@ -60,9 +60,23 @@ pub struct State {
     pub task_turn: Mutex<()>,
     /// what was kept before the restart is read: the hub may act
     pub loaded: std::sync::atomic::AtomicBool,
+    /// has Settings → Phone's rows written again (`setup::poke`): set once the hub is up
+    pub poke: OnceLock<Box<dyn Fn() + Send + Sync>>,
+    /// the Phone rows as last written (`setup::publish` writes only a change)
+    pub phone: Mutex<HashMap<String, Value>>,
+    /// a poke came since the rows were last built; one task builds them at a time (`rows::poke`)
+    pub phone_dirty: std::sync::atomic::AtomicBool,
+    pub phone_running: std::sync::atomic::AtomicBool,
 }
 
 impl State {
+    /// Where a channel stands may have changed: Settings → Phone's rows are written again (off the caller's way).
+    pub fn poke(&self) {
+        if let Some(p) = self.poke.get() {
+            p();
+        }
+    }
+
     /// A task's origin as `chan_task` keeps it.
     pub fn task_row(&self, id: &str) -> crate::kept::TaskRow {
         crate::kept::TaskRow {
@@ -623,12 +637,15 @@ impl ChannelHub for Hub {
         }
         drop(all);
         crate::kept::put_kept(&self.ctx, &self.st, channel);
+        self.st.poke(); // a chat linked, a code used
     }
     fn mark(&self, channel: &str, st: Status) {
         lock(&self.st.status).insert(channel.to_owned(), st);
+        self.st.poke(); // Checking… → Working or Not working
     }
     fn changed(&self) {
         self.ctx.emit(&self.ctx.root_call(), &wisp_channels_api::Changed {});
+        self.st.poke();
     }
     fn restart(&self) {}
     fn tune(&self, _key: &str) -> Option<u64> {

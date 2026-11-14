@@ -89,3 +89,20 @@ fn a_fresh_topic_and_code_have_v1s_shape() {
         assert!(check_setting("ntfy", "topic", &json!(t)).is_ok());
     }
 }
+
+#[test]
+fn send_me_is_for_ntfy_and_telegram_takes_asks_and_finished_once_each_in_order() {
+    use wisp_channels_core::setup::{check_notify, notifies, notify_of};
+    assert!(notifies("ntfy") && notifies("telegram") && !notifies("slack") && !notifies("email"));
+    assert_eq!(check_notify("ntfy", &["finished".into(), "asks".into(), "asks".into()]), Ok(vec!["asks".into(), "finished".into()]));
+    assert_eq!(check_notify("telegram", &[]), Ok(vec![]));
+    assert!(check_notify("ntfy", &["failed".into()]).is_err());
+    assert!(check_notify("discord", &["asks".into()]).is_err());
+    let a = vec!["finished".to_owned(), "failed".to_owned()];
+    let b = vec!["asks".to_owned()];
+    assert_eq!(
+        notify_of([a.as_slice(), b.as_slice()]),
+        vec!["asks".to_owned(), "finished".to_owned()],
+        "every notification to it, Send me's events only"
+    );
+}

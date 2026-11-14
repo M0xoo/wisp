@@ -475,7 +475,17 @@ impl Transport for Slack {
     /// `GET /api/remote/slack/manifest`: the app to create at api.slack.com/apps → From a manifest.
     async fn extra(&self, what: &str) -> Result<Value> {
         match what {
-            "manifest" => Ok(post::manifest(None)),
+            "manifest" => {
+                // on a cloud computer Slack posts its events to this wisp's private URL on the grid (v1 `manifest()`)
+                let grid = self.hub.grid();
+                if !grid.in_box() {
+                    return Ok(post::manifest(None));
+                }
+                let none = || WireError::conflict("This cloud computer’s grid holds nothing for Slack, so Slack has no way to reach it.");
+                let b = grid.grid().ok_or_else(none)?;
+                let url = grid.channel_url(&b, NAME, None, false).await?.and_then(|f| f.url).ok_or_else(none)?;
+                Ok(post::manifest(Some(&url)))
+            }
             _ => Err(WireError::not_found(format!("Slack has no {what}"))),
         }
     }

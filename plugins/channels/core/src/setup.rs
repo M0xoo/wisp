@@ -46,6 +46,34 @@ pub fn link_field(transport: &str) -> Option<&'static str> {
     }
 }
 
+/// The channels Send me is for: the ones that can send a message nobody asked for (v1: ntfy and Telegram). Slack,
+/// Discord, GitHub and email answer where they were asked.
+pub fn notifies(transport: &str) -> bool {
+    matches!(transport, "ntfy" | "telegram")
+}
+
+/// The `notification` resource Settings → Phone keeps for a channel's Send me.
+pub fn notification_name(transport: &str) -> String {
+    format!("phone-{transport}")
+}
+
+/// Send me as asked: each event known, each once, in Send me's order.
+pub fn check_notify(transport: &str, asked: &[String]) -> Result<Vec<String>, String> {
+    if !notifies(transport) {
+        return Err(format!("{transport} answers where it was asked, so it sends nothing on its own"));
+    }
+    if let Some(bad) = asked.iter().find(|e| !wisp_channels_api::NOTIFY_EVENTS.contains(&e.as_str())) {
+        return Err(format!("Send me takes asks and finished, not {bad}"));
+    }
+    Ok(wisp_channels_api::NOTIFY_EVENTS.iter().filter(|e| asked.iter().any(|a| a == *e)).map(|e| (*e).to_owned()).collect())
+}
+
+/// What a channel's notifications send, as Send me shows it: the Send me events any of them names, in order.
+pub fn notify_of<'a>(ons: impl IntoIterator<Item = &'a [String]>) -> Vec<String> {
+    let all: Vec<&String> = ons.into_iter().flatten().collect();
+    wisp_channels_api::NOTIFY_EVENTS.iter().filter(|e| all.iter().any(|a| a == *e)).map(|e| (*e).to_owned()).collect()
+}
+
 /// The fields a channel still needs. `cloud`: this wisp is a cloud computer (Slack calls in, so it needs the signing
 /// secret instead of the app token; Discord its public key; email exists only there).
 pub fn missing(transport: &str, cloud: bool, saved: &[&str], settings: &serde_json::Map<String, Value>) -> Vec<&'static str> {

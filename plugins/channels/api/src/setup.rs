@@ -29,7 +29,18 @@ pub struct SetupArgs {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     #[ts(type = "Record<string, string | boolean>")]
     pub settings: BTreeMap<String, Value>,
+    /// Send me (v1 `events`): what it notifies about, `asks` and/or `finished` (ntfy and Telegram, the channels
+    /// that can send unasked); kept as the `notification` resource `phone-<transport>`. Left out: as it was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub notify: Option<Vec<String>>,
+    /// unlink whoever is linked (Telegram's chat, Slack's and Discord's people): a new link code shows
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unlink: bool,
 }
+
+/// What Send me offers, in its order (v1 `waiting`, `finished`).
+pub const NOTIFY_EVENTS: [&str; 2] = ["asks", "finished"];
 
 /// Where a channel stands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -79,7 +90,31 @@ pub struct ChannelSetup {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub who: Option<String>,
+    /// Send me: what it notifies about (`asks`, `finished`), from every `notification` to it
+    #[serde(default)]
+    pub notify: Vec<String>,
+    /// the URL its service calls on this cloud wisp (Discord's Interactions Endpoint URL): private, never in a row
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub endpoint: Option<String>,
 }
+
+impl ChannelSetup {
+    /// The row `plugin:wisp.channels:phone` carries: what would let a stranger in or read along (the link code, the
+    /// email address, the endpoint URL, ntfy's topic) stays out; `channels.status` answers those to the pane itself.
+    #[must_use]
+    pub fn public(&self) -> Self {
+        let mut settings = self.settings.clone();
+        if self.transport == "ntfy" {
+            settings.remove("topic");
+        }
+        Self { settings, link_code: None, endpoint: None, who: self.who.clone().filter(|_| self.transport != "email"), ..self.clone() }
+    }
+}
+
+/// The topic Settings → Phone watches: one row per channel (kind `chan_phone`, id its transport, `body` a
+/// [`ChannelSetup::public`]), written whenever where a channel stands changes, so Checking… turns by itself.
+pub const PHONE_TOPIC: &str = "plugin:wisp.channels:phone";
 
 /// Every channel Settings → Phone sets up.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

@@ -23,6 +23,9 @@ use wisp_testkit::TestApp;
 fn tg_token() -> String {
     ["987654", ":", "AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"].concat()
 }
+fn dc_token() -> String {
+    ["MTIzNDU2Nzg5", ".", "GhIjKl", ".", "abcdefghijklmnop"].concat()
+}
 
 #[derive(Default)]
 struct Secrets(Mutex<BTreeMap<String, String>>);
@@ -105,6 +108,41 @@ impl TransportDef for ThreadedDef {
         Arc::new(Threaded)
     }
 }
+/// Discord, as far as linking goes: once on, someone has linked (`senders`) and its service answered.
+struct Linked(Arc<dyn ChannelHub>);
+#[async_trait]
+impl Transport for Linked {
+    fn name(&self) -> &'static str {
+        "discord"
+    }
+    fn ready(&self) -> bool {
+        true
+    }
+    fn kind(&self) -> TransportKind {
+        TransportKind::Thread
+    }
+    async fn start(&self, _stop: CancellationToken) {
+        if self.0.cfg("discord").get("senders").is_none() {
+            self.0.set_cfg("discord", json!({ "senders": ["u1"] }));
+        }
+        self.0.mark("discord", wisp_channels_api::Status { ok: Some(true), ..wisp_channels_api::Status::default() });
+    }
+    async fn publish(&self, _msg: &Msg, _s: Option<&SessionView>) -> Result<()> {
+        Ok(())
+    }
+}
+struct LinkedDef;
+impl TransportDef for LinkedDef {
+    fn name(&self) -> &'static str {
+        "discord"
+    }
+    fn create(&self, hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
+        Arc::new(Linked(hub))
+    }
+    fn secrets(&self) -> &'static [&'static str] {
+        &["token", "publicKey", "linkCode"] // as wisp.discord's
+    }
+}
 struct Extra;
 impl Plugin for Extra {
     fn manifest(&self) -> Manifest {
@@ -112,7 +150,18 @@ impl Plugin for Extra {
     }
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.contribute(&TRANSPORTS, Arc::new(ThreadedDef) as Arc<dyn TransportDef>);
+        s.contribute(&TRANSPORTS, Arc::new(LinkedDef) as Arc<dyn TransportDef>);
         Ok(())
+    }
+}
+
+/// The spec of the resource named `name` anywhere in an export.
+fn find(v: &Value, name: &str) -> Option<Value> {
+    match v {
+        Value::Object(o) if o.get("name").and_then(Value::as_str) == Some(name) && o.get("spec").is_some() => o.get("spec").cloned(),
+        Value::Object(o) => o.values().find_map(|x| find(x, name)),
+        Value::Array(a) => a.iter().find_map(|x| find(x, name)),
+        _ => None,
     }
 }
 
@@ -145,6 +194,7 @@ async fn app(name: &str) -> App {
         .with(ChannelsPlugin)
         .with(wisp_telegram::TelegramPlugin)
         .with(wisp_ntfy::NtfyPlugin)
+        .with(wisp_slack::SlackPlugin)
         .with(Extra)
         .start()
         .await;
@@ -158,6 +208,16 @@ impl App {
     async fn status(&self, transport: &str) -> Value {
         let all = self.call("channels.status", json!({})).await;
         all["channels"].as_array().unwrap().iter().find(|c| c["transport"] == transport).cloned().unwrap()
+    }
+    /// Settings → Phone's row for `transport` (`plugin:wisp.channels:phone`), as the pane gets it.
+    async fn phone_row(&self, transport: &str) -> Option<Value> {
+        let t = transport.to_owned();
+        let rows = self.store.read_async(|r| r.query("chan_phone", &wisp_store::Query::new())).await.unwrap();
+        rows.into_iter().find(|r| r.get("id").and_then(Value::as_str) == Some(&t)).and_then(|r| r.get("body").cloned())
+    }
+    async fn notification(&self, name: &str) -> Option<Value> {
+        let v = self.call("resources.export", json!({ "kinds": ["notification"] })).await;
+        find(&v, name)
     }
     async fn channel_row(&self) -> Option<Value> {
         let rows = self.store.read_async(|r| r.query("channels_spec_channel", &wisp_store::Query::new())).await.unwrap();
@@ -352,4 +412,78 @@ async fn two_saves_at_once_both_land() {
     tok.unwrap();
     let s = a.status("telegram").await;
     assert_eq!((s["enabled"].clone(), s["saved"].clone()), (json!(true), json!(["token"])), "{s}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn send_me_is_a_notification_to_the_channel_on_by_default_the_first_time_and_only_for_channels_that_send_unasked() {
+    let a = app("sendme").await;
+    let on = a.call("channels.setup", json!({ "transport": "ntfy", "enabled": true })).await;
+    assert_eq!(on["notify"], json!(["asks", "finished"]), "v1's default: questions and finished tasks: {on}");
+    let n = a.notification("phone-ntfy").await.unwrap();
+    assert_eq!((n["on"].clone(), n["to"].clone()), (json!(["asks", "finished"]), json!("ntfy")), "{n}");
+
+    // an event added to Send me's notification by hand stays when Send me changes
+    a.call("resources.apply", json!({ "resources": [{ "kind": "notification", "name": "phone-ntfy", "spec": { "on": ["asks", "finished", "failed"], "to": "ntfy" } }] })).await;
+    let only = a.call("channels.setup", json!({ "transport": "ntfy", "notify": ["finished"] })).await;
+    assert_eq!(only["notify"], json!(["finished"]));
+    assert_eq!(a.notification("phone-ntfy").await.unwrap()["on"], json!(["finished", "failed"]));
+    // off and on again: what was chosen stays
+    a.call("channels.setup", json!({ "transport": "ntfy", "enabled": false })).await;
+    let again = a.call("channels.setup", json!({ "transport": "ntfy", "enabled": true })).await;
+    assert_eq!(again["notify"], json!(["finished"]), "{again}");
+    let none = a.call("channels.setup", json!({ "transport": "ntfy", "notify": [] })).await;
+    assert_eq!(none["notify"], json!([]), "nothing ticked: it sends nothing");
+    assert_eq!(a.status("ntfy").await["notify"], json!([]));
+
+    let e = a.k.call(Caller::user(), "channels.setup", json!({ "transport": "slack", "notify": ["asks"] })).await.unwrap_err();
+    assert!(e.message.starts_with("notify: slack answers where it was asked"), "{}", e.message);
+    let e = a.k.call(Caller::user(), "channels.setup", json!({ "transport": "ntfy", "notify": ["drain"] })).await.unwrap_err();
+    assert!(e.message.starts_with("notify: Send me takes asks and finished"), "{}", e.message);
+    assert_eq!(a.status("ntfy").await["notify"], json!([]), "a refused one changed nothing");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn unlink_forgets_who_was_linked_and_shows_a_new_code_that_no_row_holds() {
+    let a = app("unlink").await;
+    a.call("channels.setup", json!({ "transport": "discord", "enabled": true, "secrets": { "token": dc_token() } })).await;
+    eventually("someone linked", async || a.status("discord").await["linked"] == 1).await;
+    assert!(a.status("discord").await.get("linkCode").is_none(), "linked: no code shows");
+
+    let out = a.call("channels.setup", json!({ "transport": "discord", "unlink": true })).await;
+    assert_eq!(out["linked"], 0, "{out}");
+    // nothing restarted it, so what its service last said holds: waiting for a link, not Checking… again
+    assert_eq!(out["state"], "linking", "{out}");
+    let code = out["linkCode"].as_str().unwrap().to_owned();
+    assert!(code.len() == 6 && code.bytes().all(|b| b.is_ascii_digit()), "a new code to link with: {code}");
+    eventually("the Phone row says nobody is linked", async || a.phone_row("discord").await.is_some_and(|r| r["linked"] == 0)).await;
+    let row = a.phone_row("discord").await.unwrap();
+    assert!(row.get("linkCode").is_none(), "{row}");
+    assert!(!holds(&a.on_disk(), &code), "the code is in no row, change or file of the store");
+
+    let e = a.k.call(Caller::user(), "channels.setup", json!({ "transport": "ntfy", "unlink": true })).await.unwrap_err();
+    assert!(e.message.starts_with("unlink: ntfy links nobody"), "{}", e.message);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_phone_rows_follow_where_each_channel_stands_without_anyone_asking() {
+    let a = app("rows").await;
+    eventually("a row per channel once the hub is up", async || a.phone_row("ntfy").await.is_some_and(|r| r["state"] == "off")).await;
+    a.call("channels.setup", json!({ "transport": "ntfy", "enabled": true })).await;
+    a.net.ntfy_status.store(500, Ordering::SeqCst);
+    a.call("channels.test", json!({ "channel": "ntfy" })).await;
+    eventually("Not working, by itself", async || a.phone_row("ntfy").await.is_some_and(|r| r["state"] == "failing")).await;
+    assert!(a.status("ntfy").await["settings"]["topic"].is_string(), "channels.status still says it");
+    let row = a.phone_row("ntfy").await.unwrap();
+    assert!(row["settings"].get("topic").is_none(), "whoever knows the topic reads along: not on a synced row: {row}");
+    // Discord's transport says it's working on its own (mark): the row turns from Checking… without a read
+    a.call("channels.setup", json!({ "transport": "discord", "enabled": true, "secrets": { "token": dc_token() } })).await;
+    eventually("Working, by itself", async || a.phone_row("discord").await.is_some_and(|r| r["state"] == "connected")).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn slacks_manifest_is_there_before_slack_is_on() {
+    let a = app("manifest").await;
+    let m = a.call("channels.extra", json!({ "channel": "slack", "what": "manifest" })).await;
+    assert_eq!(m["settings"]["socket_mode_enabled"], true, "on a computer: Socket Mode: {m}");
+    assert_eq!(m["oauth_config"]["scopes"]["bot"][1], "chat:write");
 }

@@ -9,7 +9,9 @@ mod kept;
 mod kinds;
 mod report;
 mod routed;
+mod rows;
 mod setup;
+mod tested;
 mod ws;
 
 use std::collections::HashMap;
@@ -110,6 +112,7 @@ async fn act(ctx: &Ctx, live: &Arc<Live>) {
         lock(&live.running).insert(def.name().to_owned(), (t.clone(), stop.clone()));
         ctx.spawn(async move { t.start(stop).await });
     }
+    rows::poke(ctx, live);
 }
 
 /// The task's cwd is in one of `projects` (or there are none).
@@ -262,9 +265,9 @@ fn commands(s: &mut Setup, live: &Arc<Live>) {
         }
     });
     let l = live.clone();
-    s.command::<Test, _, _>(move |_ctx, _call, a| {
+    s.command::<Test, _, _>(move |ctx, _call, a| {
         let live = l.clone();
-        async move { setup::test(&live, &a).await }
+        async move { tested::test(&ctx, &live, &a).await }
     });
     let l = live.clone();
     s.command::<PhoneView, _, _>(move |ctx, _call, _a| {
@@ -320,9 +323,19 @@ fn more_commands(s: &mut Setup, live: &Arc<Live>) {
         }
     });
     let l = live.clone();
-    s.command::<Extra, _, _>(move |_ctx, _call, a| {
+    s.command::<Extra, _, _>(move |ctx, _call, a| {
         let live = l.clone();
-        async move { transport(&live, &a.channel)?.extra(&a.what).await }
+        async move {
+            // off, it still answers what needs no connection (Slack's manifest, the first step of setting it up)
+            let t = match transport(&live, &a.channel) {
+                Ok(t) => t,
+                Err(e) => {
+                    let def = ctx.contributions(&TRANSPORTS).into_iter().find(|d| d.name() == a.channel).ok_or(e)?;
+                    def.create(Arc::new(Hub { ctx: ctx.clone(), st: live.st.clone() }))
+                }
+            };
+            t.extra(&a.what).await
+        }
     });
     let l = live.clone();
     s.command::<Update, _, _>(move |_ctx, _call, a| {
@@ -357,6 +370,12 @@ impl Plugin for ChannelsPlugin {
         });
         let k = kinds::register(s, &after);
         let _ = live.kinds.set(k);
+        let (weak, ctx) = (Arc::downgrade(&live), s.ctx());
+        let _ = live.st.poke.set(Box::new(move || {
+            if let Some(l) = weak.upgrade() {
+                rows::poke(&ctx, &l);
+            }
+        }));
         events(s, &live);
         commands(s, &live);
         let l = live;
