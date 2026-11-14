@@ -74,6 +74,16 @@ impl Server {
         Ok(())
     }
 
+    /// The login shell's PATH, once it lands behind the start (src/shell_path.rs): the server finds and starts agent
+    /// CLIs on it from then on. A line on the stdin pipe, which only this process holds; it waits in the pipe until the
+    /// server reads it. No server (it failed to start, or it's a CLI wisp we attached to): nothing to tell.
+    pub fn hand_path(&self, path: &str) {
+        let Some(line) = path_line(path) else { return };
+        if let Some(stdin) = self.stdin.lock().unwrap().as_mut() {
+            let _ = stdin.write_all(line.as_bytes()).and_then(|()| stdin.flush());
+        }
+    }
+
     // Once it's up the server is what makes this an app: the shell dies with it, and the update flow
     // counts on that (the server exits, a helper waits for the port and opens the new build).
     pub fn exit_with_it(&self, app: AppHandle) {
@@ -122,6 +132,11 @@ impl Server {
     }
 }
 
+/// `wisp:path <PATH>`, as `wisp serve` reads it (crates/wisp/src/serve.rs `FromShell`); None for what can't be one line.
+pub fn path_line(path: &str) -> Option<String> {
+    (!path.is_empty() && !path.contains(['\n', '\r', '\0'])).then(|| format!("wisp:path {path}\n"))
+}
+
 // The server's log goes on to our stdout. `wisp:shell` lines are for us (a dev server may ask to reload).
 fn relay(lines: impl Read, app: AppHandle) {
     for line in BufReader::new(lines).lines().map_while(Result::ok) {
@@ -136,6 +151,19 @@ fn relay(lines: impl Read, app: AppHandle) {
                 let _ = writeln!(std::io::stdout(), "{line}"); // println! panics when nobody reads it
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::path_line;
+
+    #[test]
+    fn a_path_goes_to_the_server_as_one_line() {
+        assert_eq!(path_line("/opt/homebrew/bin:/usr/bin").as_deref(), Some("wisp:path /opt/homebrew/bin:/usr/bin\n"));
+        assert_eq!(path_line(""), None);
+        assert_eq!(path_line("/a\nwisp:path /evil"), None, "never two lines");
+        assert_eq!(path_line("/a\0"), None);
     }
 }
 

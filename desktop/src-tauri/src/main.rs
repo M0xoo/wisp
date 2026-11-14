@@ -207,9 +207,16 @@ fn boot(app: AppHandle, port: u16) {
             return fail(&app, "wisp's files aren't in this app.".into());
         };
         let data = app.path().app_data_dir().unwrap_or_default();
-        // Finder's PATH has no agent CLI on it: the login shell's, saved from last time or asked now (src/shell_path.rs)
-        let path = shell_path::for_server(&data, &shell_path::login_shell(), shell_path::FIRST_LIMIT);
-        if let Err(err) = app.state::<Server>().start(&app, &bin, &data, port, path.as_deref()) {
+        // Finder's PATH has no agent CLI on it: the server starts now on the login shell's from last time (or ours, the
+        // first time), and gets the shell's own when it answers. The window never waits on the shell (src/shell_path.rs).
+        let start = shell_path::for_server(&data, &shell_path::login_shell());
+        let later = app.clone();
+        let started = shell_path::start_then_hand(
+            start,
+            |path| app.state::<Server>().start(&app, &bin, &data, port, path),
+            move |path| later.state::<Server>().hand_path(&path),
+        );
+        if let Err(err) = started {
             return fail(&app, format!("Couldn't start wisp: {err}"));
         }
         if !app.state::<Server>().wait_healthy(port) {

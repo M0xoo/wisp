@@ -299,7 +299,7 @@ await check('DESK2-05', win ? 'the window closed, the app quits: the server stop
 // nothing left behind for the next job on this runner
 for (const pid of [run.proc.pid, server]) if (pid && alive(pid)) hardKill(pid);
 
-// F-desk-5: the first open (nothing saved) with a ~/.zshrc that takes 30 s: the window shows within 5 s, and the
+// F-desk-5: the first open (nothing saved) with a ~/.zshrc that takes 6 s: the window shows within 5 s, and the
 // next start runs the server on the PATH the login shell gave (desktop/src-tauri/src/shell_path.rs)
 if (qa) {
   await check('DESK2-08', 'a slow ~/.zshrc: the first window shows within 5 s; the login shell’s PATH is saved for the next', async () => {

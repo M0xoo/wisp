@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration;
 
 use crate::BoxFuture;
@@ -42,9 +42,44 @@ impl LocalProc {
     }
 }
 
+/// The PATH the desktop app handed over after start (its login shell's, read behind the first window: `wisp serve`'s
+/// stdin, crates/wisp/src/serve.rs). Programs are found on it and start with it; until then the inherited PATH.
+static HANDED_PATH: RwLock<Option<String>> = RwLock::new(None);
+
+/// Finds and starts programs on `path` from now on, in place of the PATH this process inherited. An empty one is
+/// ignored. Off Windows only (the desktop app never hands one over there, and Windows spells it `Path` too).
+pub fn set_path(path: &str) {
+    if !path.is_empty() {
+        *HANDED_PATH.write().unwrap_or_else(PoisonError::into_inner) = Some(path.to_owned());
+    }
+}
+
+fn handed_path() -> Option<String> {
+    HANDED_PATH.read().unwrap_or_else(PoisonError::into_inner).clone()
+}
+
+/// This process's variables, with the handed-over PATH in place of the inherited one.
+fn parent_env() -> Vec<(String, String)> {
+    let mut vars: Vec<(String, String)> = std::env::vars().collect();
+    if let Some(path) = handed_path() {
+        vars.retain(|(k, _)| k != "PATH");
+        vars.push(("PATH".to_owned(), path));
+    }
+    vars
+}
+
+/// A child inherits this process's PATH unless told: the handed-over one goes in, where the caller didn't say.
+fn with_handed_path(mut env: crate::Env) -> crate::Env {
+    let says = env.clear || env.set.iter().any(|(k, _)| k == "PATH") || env.remove.iter().any(|k| k == "PATH");
+    if let Some(path) = handed_path().filter(|_| !says) {
+        env.set.insert(0, ("PATH".to_owned(), path));
+    }
+    env
+}
+
 /// The parent's variables patched by `env`, for lookups that must see the child's PATH.
 fn lookup_env(opts_env: &crate::Env) -> Vec<(String, String)> {
-    opts_env.resolve(std::env::vars())
+    opts_env.resolve(parent_env())
 }
 
 fn resolve_for(bin: &str, args: &[String], opts: &SpawnOpts) -> Resolved {
@@ -66,7 +101,7 @@ impl ProcService for LocalProc {
     fn which(&self, bin: &str, env: Option<Vec<(String, String)>>) -> BoxFuture<'static, Option<PathBuf>> {
         let bin = bin.to_owned();
         Box::pin(async move {
-            let env = env.unwrap_or_else(|| std::env::vars().collect());
+            let env = env.unwrap_or_else(parent_env);
             tokio::task::spawn_blocking(move || resolve::which(&bin, &env, Platform::current(), &RealFs))
                 .await
                 .ok()
@@ -76,7 +111,7 @@ impl ProcService for LocalProc {
     }
 
     fn spawn(&self, bin: &str, args: &[String], mut opts: SpawnOpts) -> Result<Child> {
-        opts.env = opts.env.for_program(bin);
+        opts.env = with_handed_path(opts.env.for_program(bin));
         let span = tracing::debug_span!("proc.spawn", bin, pty = opts.pty.is_some());
         let _entered = span.enter();
         check_cwd(opts.cwd.as_deref())?;
@@ -123,7 +158,7 @@ impl ProcService for LocalProc {
     }
 
     fn spawn_detached(&self, bin: &str, args: &[String], mut opts: SpawnOpts) -> Result<u32> {
-        opts.env = opts.env.for_program(bin);
+        opts.env = with_handed_path(opts.env.for_program(bin));
         check_cwd(opts.cwd.as_deref())?;
         let r = resolve_for(bin, args, &opts);
         let mut cmd = tokio::process::Command::new(&r.command);

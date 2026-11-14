@@ -1,8 +1,9 @@
 // The PATH of the user's login shell, for an app started from Finder or the Dock: launchd hands it
-// /usr/bin:/bin:/usr/sbin:/sbin, where `wisp serve` finds no agent CLI (v1 desktop/shell-path.js). The server starts
-// on the PATH read last time (`<data>/shell-path`) and the login shell is asked again behind it, for the next start.
-// Only the first open, with nothing saved, waits for the shell, and never past FIRST_LIMIT: a slow ~/.zshrc must not
-// keep the window from showing (F-desk-5). Not on Windows, whose apps get the user's PATH.
+// /usr/bin:/bin:/usr/sbin:/sbin, where `wisp serve` finds no agent CLI (v1 desktop/shell-path.js). The server starts at
+// once, on the PATH read last time (`<data>/shell-path`), or the inherited one on the very first open; the login
+// shell is asked behind it, and its PATH is handed to the running server when it lands (`wisp:path`, src/server.rs)
+// and saved for the next start. Nothing the first window waits on waits for the shell: a slow ~/.zshrc must not keep
+// it from showing (F-desk-5). Not on Windows, whose apps get the user's PATH.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -11,9 +12,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-/// How long the first open (nothing saved) waits for the login shell before starting on the inherited PATH.
-pub const FIRST_LIMIT: Duration = Duration::from_secs(2);
-/// How long the shell may take behind a start that had a saved PATH.
+/// How long the login shell may take, behind the server's start.
 const LIMIT: Duration = Duration::from_secs(20);
 const MARK: &str = "__WISP__";
 const FILE: &str = "shell-path";
@@ -102,29 +101,53 @@ pub fn login_shell() -> PathBuf {
         .map_or_else(|| PathBuf::from(if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/sh" }), PathBuf::from)
 }
 
-/// The PATH to start the server on: the saved one at once, or the shell's if it answers within `first`; None keeps
-/// the inherited one. The shell is asked either way, and a new answer is saved for the next start. Started from a
-/// terminal, or on Windows, the inherited PATH is the user's already.
-pub fn for_server(data: &Path, shell: &Path, first: Duration) -> Option<String> {
-    if cfg!(windows) || has_terminal() {
-        return None;
-    }
-    resolve(data, shell, first)
+/// The server's PATH: `now` to start on, at once (the saved one; None keeps the inherited one), and `later`, the login
+/// shell's once it answers, when that differs from `now`.
+pub struct Start {
+    pub now: Option<String>,
+    pub later: Option<mpsc::Receiver<String>>,
 }
 
-fn resolve(data: &Path, shell: &Path, first: Duration) -> Option<String> {
+/// Started from a terminal, or on Windows, the inherited PATH is the user's already: nothing to ask.
+pub fn for_server(data: &Path, shell: &Path) -> Start {
+    if cfg!(windows) || has_terminal() {
+        return Start { now: None, later: None };
+    }
+    plan(data, shell, LIMIT)
+}
+
+// Never waits: the shell runs on a thread of its own, saves a new answer for the next start and sends it on.
+fn plan(data: &Path, shell: &Path, limit: Duration) -> Start {
+    let inherited = std::env::var("PATH").unwrap_or_default();
     let known = saved(data);
+    let now = known.as_deref().map(|login| merge(login, &inherited));
     let (tx, rx) = mpsc::channel();
-    let (dir, sh, had) = (data.to_path_buf(), shell.to_path_buf(), known.clone());
+    let (dir, sh, started) = (data.to_path_buf(), shell.to_path_buf(), now.clone());
     thread::spawn(move || {
-        let fresh = read(&sh, LIMIT);
-        if let Some(p) = fresh.as_deref().filter(|p| had.as_deref() != Some(*p)) {
-            save(&dir, p);
+        let Some(fresh) = read(&sh, limit) else { return };
+        if known.as_deref() != Some(fresh.as_str()) {
+            save(&dir, &fresh);
         }
-        let _ = tx.send(fresh);
+        let merged = merge(&fresh, &inherited);
+        if started.as_deref() != Some(merged.as_str()) {
+            let _ = tx.send(merged);
+        }
     });
-    let login = known.or_else(|| rx.recv_timeout(first).ok().flatten())?;
-    Some(merge(&login, &std::env::var("PATH").unwrap_or_default()))
+    Start { now, later: Some(rx) }
+}
+
+/// Starts the server (`begin`) on `start.now` straight away, and hands it the login shell's PATH (`hand`, on a thread
+/// of its own) whenever that lands. The first window waits on `begin` only, never on the shell.
+pub fn start_then_hand<T>(start: Start, begin: impl FnOnce(Option<&str>) -> T, hand: impl FnOnce(String) + Send + 'static) -> T {
+    let began = begin(start.now.as_deref());
+    if let Some(later) = start.later {
+        thread::spawn(move || {
+            if let Ok(path) = later.recv() {
+                hand(path);
+            }
+        });
+    }
+    began
 }
 
 #[cfg(all(test, unix))]
@@ -230,36 +253,81 @@ mod tests {
         assert_eq!(read(&sh, Duration::from_secs(30)).as_deref(), Some("/after/prompt"));
     }
 
-    // F-desk-5: nothing saved and a ~/.zshrc that takes 30 s: the server starts after `first`, on the inherited PATH.
+    // F-desk-5: nothing saved and a ~/.zshrc that takes 30 s: the server starts at once, on the inherited PATH.
     #[test]
-    fn a_slow_zshrc_never_holds_the_first_open_past_its_limit() {
+    fn a_slow_zshrc_never_holds_the_first_open() {
         let dir = room("first-slow");
         let sh = shell(&dir, "sleep 30; eval \"$2\"");
         let start = Instant::now();
-        assert_eq!(resolve(&dir.join("data"), &sh, Duration::from_millis(400)), None);
-        assert!(start.elapsed() < Duration::from_secs(2), "took {:?}", start.elapsed());
+        let plan = plan(&dir.join("data"), &sh, Duration::from_secs(60));
+        assert_eq!(plan.now, None);
+        assert!(start.elapsed() < Duration::from_millis(500), "waited for the shell: {:?}", start.elapsed());
+        assert!(plan.later.unwrap().try_recv().is_err(), "nothing yet");
     }
 
+    // the start order: the server starts before the shell answers, and gets its PATH after, never the other way
     #[test]
-    fn the_first_open_waits_for_a_quick_shell_and_saves_its_path() {
-        let dir = room("first-quick");
-        let sh = shell(&dir, "PATH=/quick/bin:/usr/bin; eval \"$2\"");
-        let data = dir.join("data");
-        assert!(resolve(&data, &sh, Duration::from_secs(30)).unwrap().starts_with("/quick/bin:/usr/bin"));
-        until("the PATH to be saved", || saved(&data).as_deref() == Some("/quick/bin:/usr/bin"));
+    fn the_server_starts_before_the_shell_answers_and_gets_its_path_after() {
+        let dir = room("order");
+        let sh = shell(&dir, "sleep 1; PATH=/login/bin:/usr/bin; eval \"$2\"");
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (tx, rx) = mpsc::channel();
+        let (began, handed) = (seen.clone(), seen.clone());
+        let start = Instant::now();
+        let at = shell_path_start(&dir, &sh, &began, tx, &handed);
+        assert!(at < Duration::from_millis(500), "the start waited on the shell: {at:?}");
+        let path = rx.recv_timeout(Duration::from_secs(30)).unwrap();
+        assert!(path.starts_with("/login/bin:/usr/bin"), "{path}");
+        assert!(start.elapsed() >= Duration::from_secs(1));
+        assert_eq!(*seen.lock().unwrap(), vec!["start on the inherited PATH".to_owned(), format!("hand {path}")]);
+        until("the PATH to be saved", || saved(&dir.join("data")).as_deref() == Some("/login/bin:/usr/bin"));
     }
 
-    // A saved PATH starts the server at once; a CLI installed since (a new PATH) is saved for the next start.
+    fn shell_path_start(
+        dir: &Path,
+        sh: &Path,
+        began: &std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+        tx: mpsc::Sender<String>,
+        handed: &std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    ) -> Duration {
+        let start = Instant::now();
+        let handed = handed.clone();
+        start_then_hand(
+            plan(&dir.join("data"), sh, Duration::from_secs(30)),
+            |now| began.lock().unwrap().push(now.map_or_else(|| "start on the inherited PATH".to_owned(), |p| format!("start on {p}"))),
+            move |path| {
+                handed.lock().unwrap().push(format!("hand {path}"));
+                let _ = tx.send(path);
+            },
+        );
+        start.elapsed()
+    }
+
+    // A saved PATH starts the server at once; a CLI installed since (a new PATH) is handed over and saved for the next.
     #[test]
-    fn a_saved_path_starts_at_once_and_a_new_one_is_saved_behind_it() {
+    fn a_saved_path_starts_at_once_and_a_new_one_is_handed_over_and_saved() {
         let dir = room("saved");
         let data = dir.join("data");
         save(&data, "/old/bin");
         let sh = shell(&dir, "sleep 1; PATH=/new/bin; eval \"$2\"");
         let start = Instant::now();
-        assert!(resolve(&data, &sh, Duration::from_secs(30)).unwrap().starts_with("/old/bin:"));
+        let plan = plan(&data, &sh, Duration::from_secs(30));
+        assert!(plan.now.unwrap().starts_with("/old/bin:"));
         assert!(start.elapsed() < Duration::from_millis(500), "waited for the shell: {:?}", start.elapsed());
-        until("the new PATH to be saved", || saved(&data).as_deref() == Some("/new/bin"));
+        assert!(plan.later.unwrap().recv_timeout(Duration::from_secs(30)).unwrap().starts_with("/new/bin:"));
+        assert_eq!(saved(&data).as_deref(), Some("/new/bin"));
+    }
+
+    // the same PATH as last time: nothing to hand over
+    #[test]
+    fn the_same_path_as_last_time_is_not_handed_over() {
+        let dir = room("same");
+        let data = dir.join("data");
+        save(&data, "/same/bin");
+        let sh = shell(&dir, "PATH=/same/bin; eval \"$2\"");
+        let plan = plan(&data, &sh, Duration::from_secs(30));
+        assert!(plan.now.unwrap().starts_with("/same/bin:"));
+        assert!(plan.later.unwrap().recv_timeout(Duration::from_secs(30)).is_err(), "the thread ends without a word");
     }
 
     #[test]
@@ -268,8 +336,9 @@ mod tests {
         let data = dir.join("data");
         save(&data, "/kept/bin");
         let sh = shell(&dir, "exit 1");
-        assert!(resolve(&data, &sh, Duration::from_secs(30)).unwrap().starts_with("/kept/bin:"));
-        thread::sleep(Duration::from_millis(300));
+        let plan = plan(&data, &sh, Duration::from_secs(30));
+        assert!(plan.now.unwrap().starts_with("/kept/bin:"));
+        assert!(plan.later.unwrap().recv_timeout(Duration::from_secs(30)).is_err(), "nothing handed over");
         assert_eq!(saved(&data).as_deref(), Some("/kept/bin"));
     }
 }

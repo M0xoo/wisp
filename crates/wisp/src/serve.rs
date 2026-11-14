@@ -236,13 +236,54 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     Ok(Running { server, kernel, started, store, feed })
 }
 
+/// What the desktop app may tell its server on the stdin pipe, one line each. Nothing else is read there, and nothing
+/// else can reach it: only the app holds the pipe (default deny by construction, desktop only).
+#[derive(Debug, PartialEq, Eq)]
+enum FromShell {
+    /// `wisp:path <PATH>`: the login shell's PATH, read behind the first window (desktop/src-tauri/src/shell_path.rs):
+    /// agent CLIs are found and started on it from now on.
+    Path(String),
+}
+
+impl FromShell {
+    fn parse(line: &[u8]) -> Option<Self> {
+        let line = std::str::from_utf8(line).ok()?.trim_end_matches(['\r', '\n']);
+        let path = line.strip_prefix("wisp:path ")?;
+        (!path.is_empty() && !path.contains('\0')).then(|| Self::Path(path.to_owned()))
+    }
+
+    fn apply(self) {
+        match self {
+            Self::Path(path) => {
+                tracing::info!(target: "wisp::serve", "PATH from the desktop app's login shell");
+                #[cfg(feature = "proc")]
+                wisp_proc::set_path(&path);
+                #[cfg(not(feature = "proc"))]
+                let _ = path;
+            }
+        }
+    }
+}
+
 /// With `WISP_EXIT_WITH_STDIN` set (the desktop app's child): done once stdin closes. Only the app holds the pipe,
 /// so when it quits, crashes or is killed -9 the server stops too and never outlives it (v1 desktop/entry.mjs).
+/// Lines on it until then are the app's (`FromShell`); a line that isn't one is skipped, never the end.
 async fn stdin_closed() {
     if std::env::var_os("WISP_EXIT_WITH_STDIN").is_none() {
         return std::future::pending().await;
     }
-    let _ = tokio::task::spawn_blocking(|| std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink())).await;
+    let _ = tokio::task::spawn_blocking(|| {
+        use std::io::BufRead as _;
+        let mut stdin = std::io::stdin().lock();
+        let mut line = Vec::new();
+        while matches!(stdin.read_until(b'\n', &mut line), Ok(n) if n > 0) {
+            if let Some(said) = FromShell::parse(&line) {
+                said.apply();
+            }
+            line.clear();
+        }
+    })
+    .await;
 }
 
 /// Until Ctrl-C, SIGTERM or (the desktop app's child) stdin closing, then a clean stop (server.json removed if it
@@ -288,4 +329,18 @@ pub fn open_url(url: &str) {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FromShell;
+
+    #[test]
+    fn the_desktop_app_may_hand_over_a_path_and_nothing_else() {
+        assert_eq!(FromShell::parse(b"wisp:path /opt/homebrew/bin:/usr/bin\n"), Some(FromShell::Path("/opt/homebrew/bin:/usr/bin".into())));
+        assert_eq!(FromShell::parse(b"wisp:path /a b/bin\r\n"), Some(FromShell::Path("/a b/bin".into())), "a space in a folder stays");
+        for no in [&b"wisp:path \n"[..], b"wisp:path", b"wisp:path /a\0/b\n", b"wisp:env FOO=1\n", b"PATH=/x\n", b"\xff\xfe\n", b""] {
+            assert_eq!(FromShell::parse(no), None, "{:?}", String::from_utf8_lossy(no));
+        }
+    }
 }
