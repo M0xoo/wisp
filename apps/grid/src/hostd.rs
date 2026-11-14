@@ -241,7 +241,7 @@ impl ProcessHost {
         let mut cmd = tokio::process::Command::new(&self.o.bin);
         cmd.arg("serve")
             .env_clear()
-            .env("PATH", std::env::var("PATH").unwrap_or_default())
+            .env("PATH", std::env::var("PATH").unwrap_or_default()) // path: inherited the grid is a server, no desktop app hands it one
             .env("HOME", &logs)
             .env("WISP_HOME", &home)
             .stdin(std::process::Stdio::null())

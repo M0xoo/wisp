@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { codeLines, header, isTestFile } from '../core/rust.ts';
-import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustMcpOwners, rustSansIo, rustSetExt, rustSizes, rustTypedCommands, rustUnsafe } from '../rules/rust.ts';
+import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustMcpOwners, rustPath, rustSansIo, rustSetExt, rustSizes, rustTypedCommands, rustUnsafe } from '../rules/rust.ts';
 import { fixture, messages, run, writeTree } from './helpers.ts';
 
 test('rust-layers: plugins use other plugins through -api only; api ↛ core ↛ host; base crates use no plugin', async () => {
@@ -252,4 +252,52 @@ test('rust-set-ext: a SetExtArgs with `expect: None` (or from a variable) fails 
   ]);
   const [m] = await messages(rustSetExt, root);
   assert.ok(m?.includes('update_ext'), m);
+});
+
+test('rust-path: env::var("PATH")/var_os("PATH") outside crates/wisp-proc fails unless a `// path: inherited <why>` says why; comments, wisp-proc and tests do not', async () => {
+  const root = writeTree(
+    new Map([
+      ['Cargo.toml', '[workspace]\nmembers = ["crates/*", "plugins/*/host"]\n'],
+      ['crates/wisp-proc/Cargo.toml', '[package]\nname = "wisp-proc"\n'],
+      ['crates/wisp-proc/src/local.rs', 'fn f() { std::env::var_os("PATH"); }'], // the PATH's home: none
+      ['plugins/lens/host/Cargo.toml', '[package]\nname = "wisp-lens"\n'],
+      [
+        'plugins/lens/host/src/lib.rs',
+        [
+          'fn a() {',
+          '    let p = std::env::var("PATH").unwrap_or_default();', // 2: the finding
+          '    let q = env::var_os( "PATH" );', // 3: the finding
+          '    // path: inherited a CLI run from a terminal',
+          '    let r = std::env::var_os("PATH");', // a reason on the line above: none
+          '    let s = std::env::var("PATH"); // path: inherited the grid is a server', // a reason on its line: none
+          '    // path: inherited',
+          '    let t = std::env::var("PATH");', // 8: no reason given: the finding
+          '    // std::env::var("PATH") would be wrong here', // a comment: none
+          '    let u = std::env::var("HOME");', // another variable: none
+          '    let v = wisp_proc::search_path();', // the way: none
+          '    let w = 1; // path: inherited this line only',
+          '    let x = std::env::var("PATH");', // 13: the reason above is another line's: the finding
+          '    let y = var_os("PATH");', // 14: imported from std::env: the finding
+          '    let z = w.var("PATH");', // another type's lookup: none
+          '}',
+          '#[cfg(test)]',
+          'mod tests { fn t() { std::env::var("PATH"); } }', // tests: none
+        ].join('\n'),
+      ],
+      ['plugins/lens/host/tests/path.rs', 'fn t() { std::env::var("PATH"); }'], // a test file: none
+      ['plugins/lens/host/src/run_tests.rs', 'fn t() { std::env::var("PATH"); }'], // a test module file: none
+      ['plugins/lens/host/src/unix.rs', 'fn a() {}\n#[cfg(all(test, unix))]\nmod tests { fn t() { std::env::var("PATH"); } }'], // a platform's tests: none
+      ['plugins/lens/host/src/real.rs', '#[cfg(not(test))]\nfn a() { std::env::var("PATH"); }'], // 2: not(test) is code: the finding
+    ]),
+  );
+  assert.deepEqual(await run(rustPath, root), [
+    'plugins/lens/host/src/lib.rs:13 rust-path',
+    'plugins/lens/host/src/lib.rs:14 rust-path',
+    'plugins/lens/host/src/lib.rs:2 rust-path',
+    'plugins/lens/host/src/lib.rs:3 rust-path',
+    'plugins/lens/host/src/lib.rs:8 rust-path',
+    'plugins/lens/host/src/real.rs:2 rust-path',
+  ]);
+  const [m] = await messages(rustPath, root);
+  assert.ok(m?.includes('search_path'), m);
 });

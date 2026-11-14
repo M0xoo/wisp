@@ -53,6 +53,7 @@ pub fn skill(sub: Option<&str>, f: &Flags, user_home: &Path, cwd: &Path) -> Resu
 fn grid_binary() -> Option<PathBuf> {
     let name = if cfg!(windows) { "wisp-grid.exe" } else { "wisp-grid" };
     let beside = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(name))).filter(|p| p.is_file());
+    // path: inherited `wisp grid` is a CLI command run from the user's terminal, never the desktop's server
     beside.or_else(|| std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join(name)).find(|p| p.is_file())))
 }
 

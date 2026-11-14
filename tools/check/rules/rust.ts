@@ -14,6 +14,8 @@
 //                   string id with hand-built JSON (warn while callers migrate; rust-typed-commands.ts)
 //   rust-set-ext    a plugin's `SetExtArgs { expect: None }` (a whole write of its ext slot) says why in a
 //                   `// set-ext: whole <why>` comment; a read-then-write is ext::update_ext (rust-set-ext.ts)
+//   rust-path       `env::var("PATH")`/`var_os("PATH")` only in crates/wisp-proc (search_path(), the handed-over
+//                   PATH, ADR-0057) or with a `// path: inherited <why>` comment (rust-path.ts)
 //   rust-resource-kinds  a plugin with tables a user sets up registers a resource kind (its settings are
 //                   wisp.settings' `setting` kind), unless plugins/resources/pending-kinds.txt lists it
 // Normal and build dependencies count for the layers; dev-dependencies don't (tests may wire anything).
@@ -344,9 +346,11 @@ export { rustMcp } from './rust-mcp.ts';
 import { rustMcp } from './rust-mcp.ts';
 export { rustMcpOwners } from './rust-mcp-owners.ts';
 import { rustMcpOwners } from './rust-mcp-owners.ts';
+import { rustPath } from './rust-path.ts';
 import { rustSetExt } from './rust-set-ext.ts';
 import { rustTypedCommands } from './rust-typed-commands.ts';
+export { rustPath } from './rust-path.ts';
 export { rustSetExt } from './rust-set-ext.ts';
 export { rustTypedCommands } from './rust-typed-commands.ts';
 
-export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds, rustEvents, rustMcp, rustMcpOwners, rustTypedCommands, rustSetExt];
+export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds, rustEvents, rustMcp, rustMcpOwners, rustTypedCommands, rustSetExt, rustPath];

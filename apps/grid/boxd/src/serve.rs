@@ -70,6 +70,7 @@ pub fn is_root() -> bool {
 }
 
 fn path_env() -> String {
+    // path: inherited the grid's box daemon is a Linux service, never started by the desktop app
     std::env::var("PATH").unwrap_or_else(|_| "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into())
 }
 
