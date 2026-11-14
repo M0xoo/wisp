@@ -8,6 +8,7 @@ import { catalogue, t } from './i18n.ts';
 import { ACTION_ICON, VIEW, actionLabel, runGoalAction } from './actions.ts';
 import { goalActions, type GoalAction } from './rules.ts';
 import type { SessionRow } from './types.ts';
+import { sendGoal } from './slash.ts';
 
 // a view's params, checked here so the index never loads the dialog's code
 const taskParams =
@@ -78,5 +79,7 @@ export default definePluginUi({
     defineView({ kind: VIEW.run, slot: 'overlay', overlay: 'viewer', parse: runParams, component: lazy(() => import('./RunView.tsx')) as never, title: () => t('wisp.goal.action.checks') }),
   ],
   commands: [],
+  // `/goal …` in a task's reply box: the task's goal, never a message for its agent (New task's is the server's)
+  prompt: [{ id: 'wisp.goal.slash', trigger: '/', where: ['reply'], order: 80, items: () => [], send: (text, ctx) => sendGoal(text, ctx, Date.now()) }],
   catalogue,
 });

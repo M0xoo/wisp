@@ -29,7 +29,7 @@ const putGoal = (key: EntityKey, goal: GoalView): EntityOps => [{ e: KIND.sessio
 export const setGoal = defineCommand<SetArgs, GoalView>({
   id: 'goal.set',
   owner: (a) => a.session,
-  wire: (a) => ({ id: a.session.slice(a.session.indexOf(':') + 1), text: a.goal.text }),
+  wire: (a) => ({ id: a.session.slice(a.session.indexOf(':') + 1), text: a.goal.text, ...(a.kick && { kick: true }) }),
   optimistic: (base, a) => {
     const row = rowOf(base, a.session);
     if (!row) return [];

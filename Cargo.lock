@@ -4700,6 +4700,7 @@ dependencies = [
  "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-sandbox-api",
+ "wisp-store",
 ]
 
 [[package]]

@@ -19,7 +19,8 @@
     "runtime:setExt",
     "runtime:followUp",
     "runtime:ask",
-    "later:list"
+    "later:list",
+    "store:write{owner:goal}"
   ],
   "requires": {},
   "provides": {},

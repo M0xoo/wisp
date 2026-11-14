@@ -115,7 +115,7 @@ export interface GoalRun {
   next?: string;
   progress?: number;
   evidence?: string[];
-  turn: { id: string; prompt: string; status: string; startedAt: number; endedAt?: number; activity: RunStep[] };
+  turn: { id: string; prompt: string; status: string; startedAt: number; endedAt?: number; activity: RunStep[]; /** everything it answered */ text?: string };
 }
 
 /** A task row as the list holds it: the fields the goal UI reads. */

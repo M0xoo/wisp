@@ -16,6 +16,11 @@ pub struct SetArgs {
     pub id: String,
     /// what done means; empty: no goal
     pub text: String,
+    /// judged at once when the task isn't running (it may already hold), as `/goal …` in a reply box does (v1
+    /// Goals#set `kick`); a running task's turn is judged when it ends either way. Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(optional, as = "Option<bool>")]
+    pub kick: bool,
 }
 
 /// `goal.pause` / `goal.resume` / `goal.drop` / `goal.check`: a task's goal held, going again, gone, or judged now.
@@ -85,6 +90,9 @@ pub struct GoalState {
     /// the agent's own wake-up (a `wisp.later` entry) the goal waits for before it's checked (v1 #775). Additive.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub wake: String,
+    /// while judging: each judge's run under way (`{run, name, at}`), whose record opens like a task. Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub running: Vec<serde_json::Value>,
 }
 
 /// A task's goal was met: its judges agreed (ADR-0043: the `goal.met` trigger source). Durable.

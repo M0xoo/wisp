@@ -116,6 +116,7 @@
   "wisp.goal.run.next": "Next",
   "wisp.goal.run.asked": "What wisp asked it",
   "wisp.goal.run.saw": "What it saw",
+  "wisp.goal.run.said": "What it answered",
   "wisp.goal.run.steps": "What it did",
   "wisp.goal.run.showAll": "Show all",
   "wisp.goal.run.showLess": "Show less",

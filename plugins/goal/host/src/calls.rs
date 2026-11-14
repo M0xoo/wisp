@@ -60,9 +60,9 @@ pub(crate) fn warn_put(id: &str, r: Result<()>) {
 }
 
 /// A judge's quick run, here or on the sandbox's machine: `machines.route` is typed, the command it carries is
-/// named for the peer to run (its args as the JSON the peer reads). Its answer's text.
-pub(crate) async fn quick(ctx: &Ctx, machine: Option<&str>, a: rt::QuickArgs) -> Result<String> {
-    let Some(machine) = machine else { return ctx.run::<rt::Quick>(&ctx.root_call(), a).await.map(|r| r.text) };
+/// named for the peer to run (its args as the JSON the peer reads). Its answer: the text, what it did, its model.
+pub(crate) async fn quick(ctx: &Ctx, machine: Option<&str>, a: rt::QuickArgs) -> Result<rt::QuickResult> {
+    let Some(machine) = machine else { return ctx.run::<rt::Quick>(&ctx.root_call(), a).await };
     let args = serde_json::to_value(&a).map_err(|e| WireError::internal(e.to_string()))?;
     let r = wisp_machines_api::RouteArgs {
         id: Some(machine.to_owned()),
@@ -71,5 +71,14 @@ pub(crate) async fn quick(ctx: &Ctx, machine: Option<&str>, a: rt::QuickArgs) ->
         mid: format!("judge-{}", wisp_kernel::ids::uuid7()),
     };
     let out = ctx.run::<wisp_machines_api::Route>(&ctx.root_call(), r).await?;
-    Ok(out.get("text").and_then(Value::as_str).unwrap_or_default().to_owned())
+    let text = out.get("text").and_then(Value::as_str).unwrap_or_default().to_owned();
+    // a peer's answer in the shape it sends; only its text is sure to be there
+    Ok(serde_json::from_value::<rt::QuickResult>(out).unwrap_or(rt::QuickResult {
+        text,
+        json: None,
+        agent: String::new(),
+        model: String::new(),
+        cost_usd: None,
+        activity: Vec::new(),
+    }))
 }

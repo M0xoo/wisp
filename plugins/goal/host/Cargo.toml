@@ -22,6 +22,7 @@ wisp-runtime-api.workspace = true
 wisp-later-api.workspace = true
 wisp-machines-api.workspace = true
 wisp-sandbox-api.workspace = true
+wisp-store.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
