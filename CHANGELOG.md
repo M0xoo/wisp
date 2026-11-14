@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **v2: panes only propose.** A My Stuff pane's page that tries to start or send a task itself is refused with *A pane can only propose a prompt* (API and MCP); you send what it proposes from its card, and its write access ends when its code changes.
 - **v2: channel tasks stay at Edits.** A task started from a channel stays at Edits or lower: a follow-up, mode switch or retry asking for more is refused (also over MCP) unless you lift it in wisp, and a stall on an approval says in the thread that it waits for you. The task shows *Capped at Edits* with **Lift** beside its mode (and *Capped* in the list), and a restart keeps every task's cap.
 - **v2: delegate to the crew.** A lead task's agent can hand a job to a crew member: it runs as them (on their machine too), shows in the task's Team tab, and the lead reads its report with subagent_results.
 - **v2: comment on an answer, open any file.** Select words or a block of an answer and click Comment: it goes with your next follow-up, marked in the reply. In Changes, Open file… finds any of the task's files by name or by text inside them.
