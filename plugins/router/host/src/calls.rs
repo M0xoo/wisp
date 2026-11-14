@@ -69,7 +69,7 @@ pub(crate) async fn create(ctx: &Ctx, call: &Call, prompt: String, cwd: &str, ag
 /// `runtime.quick`'s answer text.
 pub(crate) async fn quick(ctx: &Ctx, call: &Call, prompt: String, cwd: &str, agent: &str) -> Result<String> {
     let pick = r::RunPick { agent: some(agent), ..r::RunPick::default() };
-    let a = r::QuickArgs { prompt, cwd: cwd.to_owned(), pick: Some(pick), timeout_ms: Some(300_000), json: false };
+    let a = r::QuickArgs { prompt, cwd: cwd.to_owned(), pick: Some(pick), timeout_ms: Some(300_000), json: false, run_id: None };
     ctx.run::<r::Quick>(call, a).await.map(|q| q.text)
 }
 

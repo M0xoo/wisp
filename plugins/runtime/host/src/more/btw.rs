@@ -54,7 +54,7 @@ impl Runtime {
         let (rt, mut e) = (self.clone(), entry.clone());
         // owned by the plugin's scope: switching the runtime off ends the side run with it
         self.host.spawn(Box::pin(async move {
-            match rt.side_run(h.as_ref(), &run, BTW_TIMEOUT).await {
+            match rt.side_run(h.as_ref(), &run, BTW_TIMEOUT, None).await {
                 Ok(o) if !o.is_error => e.answer = o.text,
                 Ok(o) => e.error = Some(o.text),
                 Err(err) => e.error = Some(err.to_string()),

@@ -149,7 +149,7 @@ pub(crate) async fn run(ctx: &Ctx, st: &State, id: &str, forced: bool) -> Result
         ..Retro::default()
     };
     let pick = r::RunPick { agent: Some(agent), model: None, effort: None };
-    let args = r::QuickArgs { prompt, cwd: s.cwd.clone(), pick: Some(pick), timeout_ms: Some(RETRO_TIMEOUT_MS), json: false };
+    let args = r::QuickArgs { prompt, cwd: s.cwd.clone(), pick: Some(pick), timeout_ms: Some(RETRO_TIMEOUT_MS), json: false, run_id: None };
     let reply = ctx.run::<r::Quick>(&call, args).await;
     let proposal = match &reply {
         Ok(q) => parse_retro(&q.text),

@@ -151,7 +151,7 @@ async fn a_quick_run_in_a_folder_thats_gone_is_refused() {
     let dir = folder("quick-gone");
     std::fs::remove_dir_all(&dir).ok();
     let r = rig_with(Recorder::default()).await;
-    let q = QuickArgs { prompt: "name it".into(), cwd: dir.display().to_string(), pick: None, timeout_ms: None, json: false };
+    let q = QuickArgs { prompt: "name it".into(), cwd: dir.display().to_string(), pick: None, timeout_ms: None, json: false, run_id: None };
     let err = r.rt.quick(q).await.unwrap_err().to_string();
     assert!(err.contains("gone") && err.contains(&dir.display().to_string()), "{err}");
     assert_eq!(r.sim.spawned().len(), 0, "nothing ran");

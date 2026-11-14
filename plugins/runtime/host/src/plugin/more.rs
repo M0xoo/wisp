@@ -26,6 +26,7 @@ pub(super) fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<StoredKind>, ki
     cmd!(s, slot, c::Delegate, |r, call, a| r.delegate(a).await);
     cmd!(s, slot, c::Results, |r, call, a| r.results(a).await);
     cmd!(s, slot, c::Quick, |r, call, a| r.quick(a).await);
+    cmd!(s, slot, c::QuickCancel, |r, call, a| Ok(c::QuickCancelled { stopped: r.quick_cancel(&a.run_id) }));
     cmd!(s, slot, c::SignIn, |r, call, a| r.sign_in(a.id.as_str(), &a.turn_id).await.map(|_| c::Ack {}));
     cmd!(s, slot, c::SignInDone, |r, call, a| r.sign_in_done(&a.agent, &a.account).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Overage, |r, call, a| r.overage(a.id.as_str(), &a.turn_id, &a.kind).await.map(|()| c::Ack {}));

@@ -1,10 +1,12 @@
 //! `quick` side runs outside any task.
 
-use std::sync::Arc;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use serde_json::Value;
-use wisp_runtime_api::commands::{QuickArgs, QuickResult, RunPick};
+use tokio::sync::watch;
+use wisp_runtime_api::commands::{QUICK_CANCELLED, QuickArgs, QuickResult, RunPick};
 use wisp_runtime_api::harness::HarnessRun;
 use wisp_runtime_api::model::{Activity, Mode};
 
@@ -12,6 +14,70 @@ use crate::error::{Result, RuntimeError};
 use crate::runtime::Runtime;
 
 const QUICK_TIMEOUT_MS: u64 = 120_000;
+/// Cancels that came before their run started, kept this many at most (the oldest go first).
+const EARLY_CANCELS: usize = 256;
+
+/// The quick runs under way that their caller named (`QuickArgs::run_id`), and the cancels that reached a run before
+/// it started (a goal dropped as its judge was being sent): that run is refused when it comes.
+#[derive(Debug, Default)]
+pub(crate) struct QuickRuns {
+    inner: Mutex<Runs>,
+}
+
+#[derive(Debug, Default)]
+struct Runs {
+    live: HashMap<String, watch::Sender<bool>>,
+    early: VecDeque<String>,
+}
+
+/// A named run's place in [`QuickRuns`]: gone with the run, however it ends.
+pub(crate) struct Named<'a> {
+    runs: &'a QuickRuns,
+    id: String,
+}
+
+impl Drop for Named<'_> {
+    fn drop(&mut self) {
+        self.runs.lock().live.remove(&self.id);
+    }
+}
+
+impl QuickRuns {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Runs> {
+        self.inner.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// `id`'s run starts: what stops it, or refused (cancelled already, or one under way has that id).
+    pub(crate) fn begin(&self, id: &str) -> Result<(Named<'_>, watch::Receiver<bool>)> {
+        let mut r = self.lock();
+        if let Some(i) = r.early.iter().position(|x| x == id) {
+            r.early.remove(i);
+            return Err(RuntimeError::Cancelled(QUICK_CANCELLED.into()));
+        }
+        if r.live.contains_key(id) {
+            return Err(RuntimeError::Conflict(format!("a quick run {id} is already under way")));
+        }
+        let (tx, rx) = watch::channel(false);
+        r.live.insert(id.to_owned(), tx);
+        Ok((Named { runs: self, id: id.to_owned() }, rx))
+    }
+
+    /// `runtime.quickCancel`: `true` when a run under way was told to stop; else it's refused if it starts later.
+    pub(crate) fn cancel(&self, id: &str) -> bool {
+        let mut r = self.lock();
+        if let Some(tx) = r.live.remove(id) {
+            tx.send_replace(true);
+            return true;
+        }
+        if !r.early.iter().any(|x| x == id) {
+            if r.early.len() >= EARLY_CANCELS {
+                r.early.pop_front();
+            }
+            r.early.push_back(id.to_owned());
+        }
+        false
+    }
+}
 
 fn first_json(text: &str) -> Option<Value> {
     let start = text.find('{')?;
@@ -32,6 +98,9 @@ fn masked(steps: Vec<Activity>) -> Vec<Activity> {
 impl Runtime {
     /// `runtime.quick` (v1 quick.js): one answer from a harness, outside any task.
     pub async fn quick(self: &Arc<Self>, a: QuickArgs) -> Result<QuickResult> {
+        // named: `runtime.quickCancel` can stop it from here on (a cancel that came first refuses it now)
+        let named = a.run_id.as_deref().filter(|x| !x.is_empty()).map(|id| self.quick_runs.begin(id)).transpose()?;
+        let (_named, stop) = named.map_or((None, None), |(n, rx)| (Some(n), Some(rx)));
         let pick = a.pick.unwrap_or(RunPick { agent: None, model: None, effort: None });
         let h = match pick.agent.as_deref().filter(|x| !x.is_empty()) {
             Some(id) => self.harness(id)?,
@@ -51,7 +120,7 @@ impl Runtime {
             quiet: self.lean_side(),
             ..HarnessRun::default()
         };
-        let o = self.side_run(h.as_ref(), &run, Duration::from_millis(a.timeout_ms.unwrap_or(QUICK_TIMEOUT_MS))).await?;
+        let o = self.side_run(h.as_ref(), &run, Duration::from_millis(a.timeout_ms.unwrap_or(QUICK_TIMEOUT_MS)), stop).await?;
         if o.is_error {
             return Err(RuntimeError::Conflict(o.text));
         }
@@ -59,13 +128,41 @@ impl Runtime {
         let activity = masked(o.activity);
         Ok(QuickResult { text: o.text, json, agent: h.info().id.clone(), model, cost_usd: o.cost_usd, activity })
     }
+
+    /// `runtime.quickCancel`: the named quick run stops, its process tree killed; it answers `cancelled`.
+    pub fn quick_cancel(&self, run_id: &str) -> bool {
+        let stopped = self.quick_runs.cancel(run_id);
+        tracing::debug!(run = %run_id, stopped, "runtime: quick run cancelled");
+        stopped
+    }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::sign_in::account_of;
     use super::*;
     use serde_json::json;
+
+    /// A cancel that reaches a run before it starts refuses it when it does (a goal dropped as its judge was sent);
+    /// one under way is told to stop; the run's id is free again once it ended.
+    #[test]
+    fn a_quick_cancel_stops_its_run_whenever_it_lands() {
+        let runs = QuickRuns::default();
+        assert!(!runs.cancel("early"), "nothing under way yet");
+        assert!(matches!(runs.begin("early"), Err(RuntimeError::Cancelled(_))));
+        assert!(runs.begin("early").is_ok(), "refused once, then a run of that id may start");
+        let (named, rx) = runs.begin("r1").unwrap();
+        assert!(matches!(runs.begin("r1"), Err(RuntimeError::Conflict(_))), "one run per id");
+        assert!(runs.cancel("r1"));
+        assert!(*rx.borrow(), "told to stop");
+        drop(named);
+        assert!(runs.lock().live.is_empty(), "its place goes with it");
+        for i in 0..=EARLY_CANCELS {
+            runs.cancel(&format!("x{i}"));
+        }
+        assert_eq!(runs.lock().early.len(), EARLY_CANCELS, "early cancels are bounded");
+    }
 
     #[test]
     fn a_quick_answer_reads_its_json() {

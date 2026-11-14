@@ -5462,6 +5462,7 @@ dependencies = [
  "wisp-stuff-api",
  "wisp-telemetry-api",
  "wisp-terminal-api",
+ "wisp-testkit",
  "wisp-worktrees-api",
 ]
 

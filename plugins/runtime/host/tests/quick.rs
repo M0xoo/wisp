@@ -13,7 +13,8 @@ async fn a_quick_run_returns_its_tool_steps() {
     let dir = std::env::temp_dir().join(format!("wisp-quick-steps-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let r = rig().await;
-    let q = QuickArgs { prompt: "judge it".into(), cwd: dir.display().to_string(), pick: None, timeout_ms: None, json: false };
+    let q =
+        QuickArgs { prompt: "judge it".into(), cwd: dir.display().to_string(), pick: None, timeout_ms: None, json: false, run_id: None };
     let out = r.rt.quick(q).await.unwrap();
     assert!(out.text.contains("done: judge it"), "{}", out.text);
     let tool = out.activity.iter().find_map(|a| match a {

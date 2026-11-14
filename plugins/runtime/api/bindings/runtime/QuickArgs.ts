@@ -9,4 +9,9 @@ pick?: RunPick, timeoutMs?: bigint,
 /**
  * the answer is a JSON object: parsed into `json`, null when it isn't one
  */
-json?: boolean, };
+json?: boolean, 
+/**
+ * the caller's id for this run (a goal check's id): `runtime.quickCancel` with it stops the run, its process
+ * tree killed. Additive (2026-11-14).
+ */
+runId?: string, };

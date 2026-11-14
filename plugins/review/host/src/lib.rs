@@ -192,6 +192,7 @@ impl Env for KernelEnv {
             pick: Some(rt::RunPick { agent: Some(pick.agent.clone()), model, effort: None }),
             timeout_ms: Some(timeout_ms),
             json: true,
+            run_id: None,
         };
         let f = self.0.run::<rt::Quick>(call, args);
         Box::pin(async move { f.await.ok().and_then(|r| r.json) })

@@ -12,6 +12,9 @@ pub enum RuntimeError {
     Invalid(String),
     #[error("{0}")]
     Conflict(String),
+    /// a quick run stopped by `runtime.quickCancel` (its caller let it go)
+    #[error("{0}")]
+    Cancelled(String),
     #[error("no harness {0}")]
     NoHarness(String),
     #[error(transparent)]
@@ -32,6 +35,7 @@ impl From<RuntimeError> for WireError {
             RuntimeError::NoTask(_) | RuntimeError::NoTurn(_) => WireError::not_found(e.to_string()),
             RuntimeError::Invalid(_) | RuntimeError::Json(_) => WireError::invalid(e.to_string()),
             RuntimeError::Conflict(_) => WireError::conflict(e.to_string()),
+            RuntimeError::Cancelled(_) => WireError::conflict(e.to_string()).with_details(serde_json::json!({ "cancelled": true })),
             RuntimeError::NoHarness(_) => WireError::new(Code::Unavailable, e.to_string()),
             RuntimeError::Store(s) => s.into(),
             RuntimeError::Proc(p) => p.into(),

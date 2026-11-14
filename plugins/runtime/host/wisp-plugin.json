@@ -251,6 +251,10 @@
         "title": "One answer from a harness, outside any task"
       },
       {
+        "id": "runtime.quickCancel",
+        "title": "Stop a quick run under way (its process tree killed)"
+      },
+      {
         "id": "runtime.signIn",
         "title": "Rerun this turn when its sign-in lands"
       },

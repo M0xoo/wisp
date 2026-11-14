@@ -242,6 +242,31 @@ pub struct QuickArgs {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub json: bool,
+    /// the caller's id for this run (a goal check's id): `runtime.quickCancel` with it stops the run, its process
+    /// tree killed. Additive (2026-11-14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub run_id: Option<String>,
+}
+
+/// `runtime.quickCancel`: the quick run started with this `runId` stops (its process tree killed, the run answers
+/// `conflict` with `details.cancelled`). One that hasn't started yet is refused when it does; an unknown or finished
+/// one is a no-op. Additive (2026-11-14).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct QuickCancelArgs {
+    pub run_id: String,
+}
+
+/// What a cancelled quick run answers (`conflict`; `details.cancelled` here, the message alone once a peer relayed it).
+pub const QUICK_CANCELLED: &str = "It was cancelled.";
+
+/// What `runtime.quickCancel` found: `true` when a run under way was stopped.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct QuickCancelled {
+    pub stopped: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

@@ -125,6 +125,7 @@ command!(Note = "runtime.note": NoteArgs => Ack);
 command!(Settle = "runtime.settle": SettleArgs => Ack);
 command!(Search = "runtime.search": SearchArgs => Vec<SearchHit>, read_only);
 command!(Quick = "runtime.quick": QuickArgs => QuickResult);
+command!(QuickCancel = "runtime.quickCancel": QuickCancelArgs => QuickCancelled);
 command!(ProjectRun = "runtime.projectRun": ProjectRunArgs => Value);
 command!(ProjectTest = "runtime.projectTest": ProjectTestArgs => Ack);
 command!(Discover = "runtime.discover": DiscoverArgs => Vec<FoundRepo>, read_only);

@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+use tokio::sync::watch;
+
 use wisp_proc::{Env, SpawnOpts, Stream};
 use wisp_runtime_api::harness::{Exit, HarnessRun, ParserInput, ParserOutput, Stdin};
 use wisp_runtime_api::model::Activity;
@@ -21,8 +23,20 @@ pub struct SideOut {
     pub is_error: bool,
     pub cost_usd: Option<f64>,
     pub timed_out: bool,
+    /// `runtime.quickCancel` stopped it
+    pub cancelled: bool,
     /// its steps, as a turn's activity records them (tool calls, their output, texts), at most `MAX_STEPS`
     pub activity: Vec<Activity>,
+}
+
+/// Resolves once `stop` holds true; never without one (or once its sender is gone without saying).
+async fn stopped(stop: Option<watch::Receiver<bool>>) {
+    if let Some(mut rx) = stop
+        && rx.wait_for(|s| *s).await.is_ok()
+    {
+        return;
+    }
+    std::future::pending::<()>().await;
 }
 
 /// A side run keeps this many steps at most (a runaway judge can't grow one answer without bound).
@@ -52,8 +66,15 @@ fn take(out: ParserOutput, side: &mut SideOut, head: &mut Head, done: &mut bool)
 }
 
 impl Runtime {
-    /// Runs `run` on `h` to its result, at most `timeout`.
-    pub(crate) async fn side_run(&self, h: &dyn Harness, run: &HarnessRun, timeout: Duration) -> Result<SideOut> {
+    /// Runs `run` on `h` to its result, at most `timeout`; `stop` turning true (`runtime.quickCancel`) ends it early.
+    /// Either way the process tree is killed (wisp-proc: its group on Unix, its job on Windows).
+    pub(crate) async fn side_run(
+        &self,
+        h: &dyn Harness,
+        run: &HarnessRun,
+        timeout: Duration,
+        stop: Option<watch::Receiver<bool>>,
+    ) -> Result<SideOut> {
         let launch = h.launch(run)?;
         let opts = SpawnOpts {
             // a /btw runs where its task does; a quick answer with no folder in one empty folder of its own
@@ -87,6 +108,8 @@ impl Runtime {
         // the deadline on the kernel's clock (a test's FakeClock drives it)
         let deadline = self.clock.sleep(u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX));
         tokio::pin!(deadline);
+        let stopped = stopped(stop);
+        tokio::pin!(stopped);
         loop {
             tokio::select! {
                 o = rx.recv() => match o {
@@ -113,12 +136,19 @@ impl Runtime {
                     side.timed_out = true;
                     break;
                 }
+                () = &mut stopped => {
+                    side.cancelled = true;
+                    break;
+                }
             }
         }
         if handle.running() {
             let _ = handle.kill().await;
         }
         let exit = handle.exited().await;
+        if side.cancelled {
+            return Err(RuntimeError::Cancelled(wisp_runtime_api::commands::QUICK_CANCELLED.into()));
+        }
         if !done && !side.timed_out {
             let x = Exit { code: exit.code, signal: exit.signal, stderr: stderr.trim().to_owned(), stopped: false, stop_requested: false };
             let mut out = ParserOutput::default();

@@ -45,6 +45,8 @@ pub struct Runtime {
     /// the capped tasks' caps, kept as each task's row is written: the edge reads them without waiting, to give a
     /// capped task's agent `agent:capped` (`Runtime::agent_set`)
     pub(crate) caps: Mutex<HashMap<String, Mode>>,
+    /// the `runtime.quick` runs under way that a caller named (`runId`), for `runtime.quickCancel` (`more/quick.rs`)
+    pub(crate) quick_runs: crate::more::QuickRuns,
 }
 
 impl std::fmt::Debug for Runtime {
@@ -74,6 +76,7 @@ impl Runtime {
             usage: crate::usage_row::UsageCache::default(),
             env: crate::env_known::EnvKnown::default(),
             caps: Mutex::default(),
+            quick_runs: crate::more::QuickRuns::default(),
         })
     }
 
