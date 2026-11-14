@@ -7,6 +7,7 @@
 //! resources: data-only (its tables hold what retros learned and you edited, and the retros' log: data, not
 //! setup; switching it on or off is the `learn.enabled` setting, which the setting kind carries).
 
+mod egress;
 mod retro;
 mod store;
 
@@ -111,7 +112,10 @@ impl Plugin for LearnPlugin {
         let reader = st.clone();
         s.command::<Read, _, _>(move |ctx, _call, _a| {
             let st = reader.clone();
-            async move { Ok(st.view(enabled(&ctx))) }
+            async move {
+                let m = ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok();
+                egress::mask_view(m.as_deref(), st.view(enabled(&ctx)))
+            }
         });
         let setter = st.clone();
         s.command::<Set, _, _>(move |ctx, _call, a| {
@@ -120,15 +124,22 @@ impl Plugin for LearnPlugin {
                 if a.scope.trim().is_empty() {
                     return Err(WireError::invalid("Say which list: global, or a project's folder."));
                 }
-                Ok(st.set(a.scope.trim(), a.kind, &a.items, now(&ctx)).await)
+                let lists = st.set(a.scope.trim(), a.kind, &a.items, now(&ctx)).await;
+                let (m, retros) = (ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok(), lock(&st.data).history.clone());
+                egress::masked(lists, |v| egress::mask_list(m.as_deref(), &retros, v))
             }
         });
         let runner = st.clone();
         s.command::<RunRetro, _, _>(move |ctx, _call, a| {
             let st = runner.clone();
-            async move { retro::run(&ctx, &st, &a.id, true).await }
+            async move {
+                let r = retro::run(&ctx, &st, &a.id, true).await?;
+                let m = ctx.use_service::<wisp_runtime_api::env::EnvMaskService>().ok();
+                egress::masked(r, |v| egress::mask_retro(m.as_deref(), v))
+            }
         });
         retro::schedule(s, &st);
+        s.contribute(&wisp_kernel::egress::VIEWS, Arc::new(egress::View(s.ctx(), st.clone())) as Arc<dyn wisp_kernel::egress::RowView>);
         let opening = st.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();

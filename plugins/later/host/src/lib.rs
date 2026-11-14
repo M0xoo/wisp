@@ -9,6 +9,7 @@
 //! resources: data-only (its rows are follow-ups and reminders scheduled on tasks: task data, kept with history (ADR-0029)).
 
 mod calls;
+mod egress;
 mod store;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -493,6 +494,7 @@ impl Plugin for LaterPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let slot: Slot = Arc::new(OnceLock::new());
         commands(s, &slot);
+        s.contribute(&wisp_kernel::egress::VIEWS, Arc::new(egress::View(s.ctx())) as Arc<dyn wisp_kernel::egress::RowView>);
         let start = slot;
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();

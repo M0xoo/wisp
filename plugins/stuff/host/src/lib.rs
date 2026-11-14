@@ -11,6 +11,7 @@ pub mod appdb;
 mod appfiles;
 mod bundle;
 mod commands;
+mod egress;
 mod error;
 mod files;
 pub mod import;
@@ -52,6 +53,7 @@ impl Plugin for StuffPlugin {
         commands::register(s, &cell);
         agent_tools::register(s, &cell);
         bundle::register(s, &cell);
+        s.contribute(&wisp_kernel::egress::VIEWS, Arc::new(egress::View(s.ctx())) as Arc<dyn wisp_kernel::egress::RowView>);
         s.on_start(move |ctx| async move {
             let home = ctx.service::<Paths>()?.home().to_owned();
             let dir = home.join("stuff");
