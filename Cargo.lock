@@ -4702,6 +4702,7 @@ dependencies = [
  "wisp-runtime-api",
  "wisp-sandbox-api",
  "wisp-store",
+ "wisp-testkit",
 ]
 
 [[package]]
