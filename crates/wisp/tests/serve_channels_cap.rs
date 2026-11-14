@@ -24,7 +24,11 @@ async fn token_of(rec: &std::path::Path, id: &str) -> String {
                 return h["x-wisp-token"].as_str().unwrap().to_owned();
             }
         }
-        assert!(at.elapsed() < Duration::from_secs(30), "{id}'s run is recorded");
+        assert!(
+            at.elapsed() < Duration::from_secs(30),
+            "{id}'s run is recorded in claude.jsonl (records: {:?})",
+            std::fs::read_dir(rec).unwrap().map(|e| e.unwrap().file_name()).collect::<Vec<_>>()
+        );
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
@@ -64,9 +68,14 @@ async fn a_channel_task_stays_at_edits_its_agent_is_capped_and_only_the_user_rai
     assert_eq!(applied["ok"], true, "{applied}");
     api.cmd("settings.set", json!({ "key": "channels.acceptChannels", "value": true })).await;
 
-    // a message from Slack starts it: capped at Edits on its row; it names no mode, so it runs at the channel's Plan
+    // a message from Slack starts it: capped at Edits on its row; it names no mode, so it runs at the channel's Plan.
+    // It names Claude: with no harness named, Auto picks among every fake on a seeded dice roll, and only Claude's
+    // record carries the `--mcp-config` the token is read from.
     let said = api
-        .cmd("channels.routed", json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": "fix the add bug", "thread": "t1" }))
+        .cmd(
+            "channels.routed",
+            json!({ "channel": "slack", "name": "Ada", "sender": "u1", "text": "with claude: fix the add bug", "thread": "t1" }),
+        )
         .await;
     assert_eq!(said["status"], 200, "{said}");
     let at = Instant::now();
