@@ -540,3 +540,7 @@ alone.
        round trip. It must exist before the real-run pass.
      - The real runs use the owner's Claude Code and Codex accounts: short prompts, recorded in the round doc with the
        transcripts.
+
+## After v2 is 100% (owner, 2026-11-14)
+
+When every v1 row is built and the full suite has passed several runs in a row (no flakes), list the Linear tickets in TODO and work them, one concern per fresh coder. Not before.
